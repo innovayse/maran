@@ -1,6 +1,13 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #214, own-certificate refusals name their field and keep the text): edited by hand.
+# Modules.Ssl.Tests 209->221, Sdk.Tests 214->222 (nine new codes, CertificateMaterialInvalid retired),
+# Agent.Client.Tests 371->375, Host.Tests 391->392 (pre-existing drift, not this change's), ArchitectureTests 91
+# unchanged, 0 failed. rust maran_agent lib 410->418 (install_outcome tests + new rows in the revision test).
+# Host.IntegrationTests ran filtered to CustomCertificateMaterialEndpointTests, CertificatesAuthorizationTests and
+# ReservedHostNameEndpointTests (69/0); its row is left to CI. spa: sites/ssl-tab.spec.ts 9->11.
+# Full suite at E2E_PORT=5199: 683 passed / 0 failed / 3 skipped.
 # RE-MEASURED 2026-10-30 (issue #211, an empty schedule scope is a 200, not a 404): edited by hand. Modules.Backups.Tests
 # 209->210, Sdk.Tests 215->214 (the retired BackupScheduleNotFound census row), 0 failed; ArchitectureTests 91 unchanged.
 # Host.IntegrationTests ran filtered to BackupScheduleTests, BackupDestinationTests and BackupsAuthorizationTests (34/0);
@@ -297,7 +304,7 @@
 # The header above was regenerated away by 'maran test spa --accept' and is restored here by
 # hand: the accept path rewrites this file from the run alone and keeps no prose, so every
 # re-measurement note in it is one --accept away from being lost. Worth fixing in the script.
-rust	maran_agent [unittests src/lib.rs]	410	0	0
+rust	maran_agent [unittests src/lib.rs]	418	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -332,7 +339,7 @@ rust	doc-tests maran_templates	0	0	0
 rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
-backend	Maran.Agent.Client.Tests.dll	371	0	0
+backend	Maran.Agent.Client.Tests.dll	375	0	0
 backend	Maran.SharedKernel.Tests.dll	230	0	0
 backend	Maran.Modules.Identity.Tests.dll	306	0	0
 backend	Maran.Modules.Sftp.Tests.dll	84	0	0
@@ -346,11 +353,11 @@ backend	Maran.Modules.Firewall.Tests.dll	255	0	0
 backend	Maran.Modules.Cron.Tests.dll	187	0	0
 backend	Maran.Modules.Accounts.Tests.dll	434	0	0
 backend	Maran.Modules.Databases.Tests.dll	106	0	0
-backend	Maran.Modules.Ssl.Tests.dll	209	0	0
-backend	Maran.Sdk.Tests.dll	214	0	0
+backend	Maran.Modules.Ssl.Tests.dll	221	0	0
+backend	Maran.Sdk.Tests.dll	222	0	0
 backend	Maran.Modules.Sites.Tests.dll	232	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
-backend	Maran.Host.Tests.dll	391	0	0
+backend	Maran.Host.Tests.dll	392	0	0
 backend	Maran.Host.IntegrationTests.dll	415	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
@@ -431,7 +438,7 @@ spa	sites/form.spec.ts	5	0	0
 spa	sites/list.spec.ts	5	0	0
 spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/logs-tab.spec.ts	9	0	0
-spa	sites/ssl-tab.spec.ts	9	0	0
+spa	sites/ssl-tab.spec.ts	11	0	0
 spa	tasks/badge.spec.ts	3	0	0
 spa	tasks/failure-sentence.spec.ts	3	0	0
 spa	tasks/list.spec.ts	7	0	0

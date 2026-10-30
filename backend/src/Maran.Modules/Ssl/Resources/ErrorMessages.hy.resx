@@ -21,8 +21,23 @@
   <data name="CertificateDomainInvalidFormat">
     <value>Սա վավեր տիրույթի անուն չէ։</value>
   </data>
-  <data name="CertificateMaterialInvalid">
-    <value>Չհաջողվեց կարդալ վկայագիրը կամ բանալին։</value>
+  <data name="CertificatePemRequired">
+    <value>Տեղադրեք սերտիֆիկատների շղթան PEM ձևաչափով։</value>
+  </data>
+  <data name="CertificatePemInvalid">
+    <value>Սերտիֆիկատների շղթան վավեր PEM չէ․ այն պետք է պարունակի -----BEGIN CERTIFICATE----- տողով սկսվող բլոկ։</value>
+  </data>
+  <data name="CertificatePemTooLarge">
+    <value>Սերտիֆիկատների շղթան չափազանց մեծ է․ թույլատրվում է առավելագույնը 65 536 նիշ։</value>
+  </data>
+  <data name="PrivateKeyPemRequired">
+    <value>Տեղադրեք գաղտնի բանալին PEM ձևաչափով։</value>
+  </data>
+  <data name="PrivateKeyPemInvalid">
+    <value>Գաղտնի բանալին վավեր PEM չէ․ այն պետք է պարունակի -----BEGIN-ով սկսվող և PRIVATE KEY------ով ավարտվող բլոկ։</value>
+  </data>
+  <data name="PrivateKeyPemTooLarge">
+    <value>Գաղտնի բանալին չափազանց մեծ է․ թույլատրվում է առավելագույնը 65 536 նիշ։</value>
   </data>
   <data name="SiteNotFound">
     <value>Կայքը չի գտնվել։</value>

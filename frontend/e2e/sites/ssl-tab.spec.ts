@@ -8,6 +8,7 @@ import {
   certificateFor,
   stubCertificates,
   stubCertificatesProblem,
+  stubCustomCertificateRefusal,
 } from '../fixtures/stub-certificates-routes'
 import type { Certificate } from '../../src/types/certificate'
 import type { PanelModule } from '../../src/types/module'
@@ -198,4 +199,45 @@ test('the upload form validates its own empty fields rather than the browser doi
 
   await expect(page.getByText('The certificate chain is required.')).toBeVisible()
   await expect(page.getByText('The private key is required.')).toBeVisible()
+})
+
+// Issue #214: a refusal used to empty both text areas, after which the form's own "required"
+// check reported the text the operator had just sent as missing.
+test('a pem the panel refuses is shown under its own field and the pasted text is kept', async ({
+  page,
+}) => {
+  const detail =
+    'The certificate chain is not valid PEM: it must contain a block that begins with -----BEGIN CERTIFICATE-----.'
+  await stubSslTab(page, [])
+  await stubCustomCertificateRefusal(page, 'CertificatePemInvalid', detail)
+
+  await openSsl(page)
+  await page.getByRole('button', { name: 'Install my own certificate' }).click()
+  await page.getByLabel('Certificate chain (PEM)').fill('not a certificate')
+  await page.getByLabel('Private key (PEM)').fill('-----BEGIN PRIVATE KEY-----')
+  await page.getByRole('button', { name: 'Install certificate' }).click()
+
+  await expect(page.getByText(detail)).toHaveCount(1)
+  await expect(page.getByLabel('Certificate chain (PEM)')).toHaveAccessibleDescription(detail)
+  await expect(page.getByLabel('Certificate chain (PEM)')).toHaveValue('not a certificate')
+  await expect(page.getByLabel('Private key (PEM)')).toHaveValue('-----BEGIN PRIVATE KEY-----')
+  await expect(page.getByText('The certificate chain is required.')).toHaveCount(0)
+  await expect(page.getByText('The private key is required.')).toHaveCount(0)
+})
+
+test('a key that does not match the certificate is shown under the key field', async ({ page }) => {
+  const detail =
+    'The private key does not belong to this certificate. Paste the key that was created together with the certificate request.'
+  await stubSslTab(page, [])
+  await stubCustomCertificateRefusal(page, 'AgentPrivateKeyMismatch', detail)
+
+  await openSsl(page)
+  await page.getByRole('button', { name: 'Install my own certificate' }).click()
+  await page.getByLabel('Certificate chain (PEM)').fill('-----BEGIN CERTIFICATE-----')
+  await page.getByLabel('Private key (PEM)').fill('-----BEGIN PRIVATE KEY-----')
+  await page.getByRole('button', { name: 'Install certificate' }).click()
+
+  await expect(page.getByLabel('Private key (PEM)')).toHaveAccessibleDescription(detail)
+  await expect(page.getByLabel('Certificate chain (PEM)')).not.toHaveAccessibleDescription(detail)
+  await expect(page.getByLabel('Private key (PEM)')).toHaveValue('-----BEGIN PRIVATE KEY-----')
 })

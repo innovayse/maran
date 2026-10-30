@@ -16,7 +16,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// change, is rules/proto.md "The contract revision". Revision 1 is every agent built before that
 /// policy existed: the constant stayed at 1 through every revision, so a 1 says nothing about which
 /// contract the agent speaks, and it is outside this window for exactly that reason. Revision 2 is
-/// the contract as of the change that introduced the policy (issue #88). A 0 is what protobuf reads
+/// the contract as of the change that introduced the policy (issue #88). Revision 3 adds
+/// <c>InstallCertificate</c>'s <c>refused</c> answer (issue #214), and both ends moved to it: a
+/// revision-2 agent would answer a refused pair with a bare <c>InvalidInput</c>, and the panel
+/// could no longer tell the customer which half to fix. A 0 is what protobuf reads
 /// from a sender that does not set the field at all, and it is outside the window too.
 /// </para>
 /// <para>
@@ -44,10 +47,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 2;
+    public const uint Minimum = 3;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 2;
+    public const uint Maximum = 3;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

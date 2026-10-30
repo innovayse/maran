@@ -135,4 +135,24 @@ public sealed class InstallCustomCertificateCommandHandlerTests
         Assert.Empty(await fixture.DbContext.Certificates.ToListAsync());
         Assert.Empty(fixture.Sites.Attached);
     }
+
+    /// <summary>
+    /// Each of the agent's verdicts on the material reaches the caller as its own code, so the
+    /// screen can say which half of the pair to fix.
+    /// </summary>
+    /// <param name="code">The code the agent client answered with.</param>
+    [Theory]
+    [InlineData("AgentCertificateUnreadable")]
+    [InlineData("AgentPrivateKeyUnreadable")]
+    [InlineData("AgentPrivateKeyMismatch")]
+    public async Task Each_verdict_on_the_material_reaches_the_caller_as_its_own_code(string code)
+    {
+        using var fixture = new SslHandlerFixture([Domain], agentFailure: Error.Of(code, ErrorType.Validation));
+
+        var result = await HandlerFor(fixture).HandleAsync(Command(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(code, result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+    }
 }

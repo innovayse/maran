@@ -66,6 +66,8 @@ public sealed class AgentSslClient : IAgentSslClient
                 new InstalledCertificateDto(DateTimeOffset.FromUnixTimeSeconds(response.Ok.ExpiresAtUnix))),
             InstallCertificateResponse.ResultOneofCase.Error => Result<InstalledCertificateDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(InstallCertificateAsync))),
+            InstallCertificateResponse.ResultOneofCase.Refused => Result<InstalledCertificateDto>.Fail(
+                CertificateMaterialRefusalTranslator.ToError(response.Refused.Reason)),
             _ => Result<InstalledCertificateDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }

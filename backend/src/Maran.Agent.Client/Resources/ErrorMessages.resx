@@ -48,4 +48,13 @@
   <data name="AgentIncompatible">
     <value>The panel and the service that manages your server are at different versions, so this request was not carried out. An update may still be in progress; please try again later, and contact support if it keeps happening.</value>
   </data>
+  <data name="AgentCertificateUnreadable">
+    <value>The certificate could not be read. Check that you pasted the whole certificate, including its BEGIN and END lines.</value>
+  </data>
+  <data name="AgentPrivateKeyUnreadable">
+    <value>The private key could not be read. Check that you pasted the whole key, including its BEGIN and END lines, and that it is not protected by a passphrase.</value>
+  </data>
+  <data name="AgentPrivateKeyMismatch">
+    <value>The private key does not belong to this certificate. Paste the key that was created together with the certificate request.</value>
+  </data>
 </root>

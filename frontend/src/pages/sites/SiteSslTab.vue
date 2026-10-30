@@ -8,8 +8,9 @@
  * it. Passing only an id and having this component look the domain up would be a second place that
  * decides which site a certificate belongs to.
  *
- * The private key is typed, submitted and forgotten: it is never read back into this component
- * after the request settles, and no panel screen displays one.
+ * The pasted material stays in the form until the panel installs it, and is forgotten then. A
+ * refusal keeps it, so the operator corrects the half the panel named instead of pasting both
+ * again; the refusal's sentence is the panel's own, shown under the text area it is about.
  *
  * The one thing that needs attention comes first. A certificate that has expired, is about to, or
  * that the panel keeps failing to renew is a notice ABOVE the cards, not a date to be noticed in
@@ -56,6 +57,26 @@ interface CertificateRow {
   attention: CertificateAttention | null
 }
 
+/**
+ * Refusal codes that belong under the certificate text area. Read for placement only: the
+ * sentence shown is the panel's own (rules/vue.md "Errors from the server").
+ */
+const CERTIFICATE_FIELD_CODES: ReadonlySet<string> = new Set([
+  'CertificatePemRequired',
+  'CertificatePemInvalid',
+  'CertificatePemTooLarge',
+  'AgentCertificateUnreadable',
+])
+
+/** Refusal codes that belong under the private key text area, the mismatch among them. */
+const PRIVATE_KEY_FIELD_CODES: ReadonlySet<string> = new Set([
+  'PrivateKeyPemRequired',
+  'PrivateKeyPemInvalid',
+  'PrivateKeyPemTooLarge',
+  'AgentPrivateKeyUnreadable',
+  'AgentPrivateKeyMismatch',
+])
+
 /** Milliseconds in a day. */
 const DAY_MS = 86_400_000
 
@@ -83,7 +104,7 @@ const isUploading: Ref<boolean> = ref(false)
 /** The PEM-encoded chain the operator pasted. */
 const certificatePem: Ref<string> = ref('')
 
-/** The PEM-encoded private key the operator pasted. Cleared the moment the request settles. */
+/** The PEM-encoded private key the operator pasted. Cleared once the panel has installed it. */
 const privateKeyPem: Ref<string> = ref('')
 
 /** Whether the upload form has been submitted, so nothing turns red before it is tried. */
@@ -100,20 +121,41 @@ const pendingRemovalDomain: ComputedRef<string> = computed(() => {
   return pending?.domain ?? props.domain
 })
 
-/** Validation message for the chain field, or `null`. */
+/** The panel's refusal of the chain, or `null` when the last failure was not about that field. */
+const certificatePemRefusal: ComputedRef<string | null> = computed(() => {
+  return fieldRefusal(CERTIFICATE_FIELD_CODES)
+})
+
+/** The panel's refusal of the key, or `null` when the last failure was not about that field. */
+const privateKeyPemRefusal: ComputedRef<string | null> = computed(() => {
+  return fieldRefusal(PRIVATE_KEY_FIELD_CODES)
+})
+
+/** Message for the chain field: the form's own "required", else the panel's refusal, else `null`. */
 const certificatePemError: ComputedRef<string | null> = computed(() => {
   if (!submitted.value) {
     return null
   }
-  return certificatePem.value.trim().length === 0 ? t('certificates.errors.certificatePemRequired') : null
+  if (certificatePem.value.trim().length === 0) {
+    return t('certificates.errors.certificatePemRequired')
+  }
+  return certificatePemRefusal.value
 })
 
-/** Validation message for the key field, or `null`. */
+/** Message for the key field: the form's own "required", else the panel's refusal, else `null`. */
 const privateKeyPemError: ComputedRef<string | null> = computed(() => {
   if (!submitted.value) {
     return null
   }
-  return privateKeyPem.value.trim().length === 0 ? t('certificates.errors.privateKeyPemRequired') : null
+  if (privateKeyPem.value.trim().length === 0) {
+    return t('certificates.errors.privateKeyPemRequired')
+  }
+  return privateKeyPemRefusal.value
+})
+
+/** Whether the last failure is shown under a field, and so must not be repeated above the cards. */
+const isFieldRefusal: ComputedRef<boolean> = computed(() => {
+  return certificatePemRefusal.value !== null || privateKeyPemRefusal.value !== null
 })
 
 /** The moment the tab opened, against which "days left" is counted. */
@@ -141,6 +183,19 @@ const flagged: ComputedRef<CertificateRow[]> = computed(() => {
 const isEmpty: ComputedRef<boolean> = computed(() => {
   return !store.loading && store.errorMessage === null && store.certificates.length === 0
 })
+
+/**
+ * Reads the panel's last refusal as a field message, when it is about one of the given codes.
+ * @param codes The refusal codes that belong under the field.
+ * @returns The panel's own sentence, or `null` when the last failure is about something else.
+ */
+const fieldRefusal = (codes: ReadonlySet<string>): string | null => {
+  const code = store.errorCode
+  if (!isUploading.value || code === null || !codes.has(code)) {
+    return null
+  }
+  return store.errorMessage
+}
 
 /**
  * Counts the whole days a certificate has left.
@@ -209,14 +264,17 @@ const cancelUpload = (): void => {
   submitted.value = false
   certificatePem.value = ''
   privateKeyPem.value = ''
+  store.dismissError()
 }
 
 /**
  * Submits the customer's own certificate material.
  *
- * Both fields are cleared on success AND on failure: a private key left in a component's state
- * outlives the form that sent it, and a retry is a re-paste rather than a re-send of something
- * the operator can no longer see.
+ * Both fields are cleared, and the form closed, only once the panel has installed the pair. A
+ * refusal keeps them: it names which half is wrong, and emptying the form would make the operator
+ * paste the half that was right as well — and would turn the refusal into a "required" message
+ * about text they had sent. The key is still never stored anywhere but this open form, and is
+ * forgotten when the form is cancelled.
  * @returns Resolves once the attempt has settled.
  */
 const submitUpload = async (): Promise<void> => {
@@ -231,11 +289,11 @@ const submitUpload = async (): Promise<void> => {
     privateKeyPem: privateKeyPem.value,
   })
 
-  certificatePem.value = ''
-  privateKeyPem.value = ''
   if (installed) {
     isUploading.value = false
     submitted.value = false
+    certificatePem.value = ''
+    privateKeyPem.value = ''
   }
 }
 
@@ -300,7 +358,9 @@ onMounted(load)
         </template>
       </UiAlert>
 
-      <UiAlert v-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
+      <UiAlert v-if="store.errorMessage !== null && !isFieldRefusal" variant="error">
+        {{ store.errorMessage }}
+      </UiAlert>
 
       <UiEmptyState
         v-else-if="isEmpty"

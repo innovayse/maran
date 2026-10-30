@@ -2,6 +2,7 @@ using Maran.Agent.Client.Services.SitesService;
 using Maran.Agent.Client.Services.SslService;
 using Maran.Agent.Client.Tests.TestSupport;
 using Maran.Agent.V1;
+using Maran.SharedKernel.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Agent.Client.Tests.Services.SslService;
@@ -60,6 +61,49 @@ public sealed class AgentSslClientTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
+    /// <summary>Each refusal reason maps to its own validation code, so the panel can name the half to fix.</summary>
+    /// <param name="reason">The reason the agent gave.</param>
+    /// <param name="code">The code the panel must answer with.</param>
+    [Theory]
+    [InlineData(CertificateMaterialRefusal.MalformedCertificate, "AgentCertificateUnreadable")]
+    [InlineData(CertificateMaterialRefusal.MalformedPrivateKey, "AgentPrivateKeyUnreadable")]
+    [InlineData(CertificateMaterialRefusal.KeyDoesNotMatchCertificate, "AgentPrivateKeyMismatch")]
+    public async Task Each_refusal_reason_maps_to_its_own_validation_code(CertificateMaterialRefusal reason, string code)
+    {
+        var stub = new StubSslService
+        {
+            InstallResponse = new InstallCertificateResponse
+            {
+                Refused = new InstallCertificateRefused { Reason = reason },
+            },
+        };
+
+        var result = await InstallAsync(stub, NullLogger<AgentSslClient>.Instance);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(code, result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+    }
+
+    /// <summary>A refusal with no reason this panel knows is refused as an unreadable answer, never guessed.</summary>
+    [Fact]
+    public async Task A_refusal_with_no_known_reason_is_an_invalid_response_rather_than_a_guess()
+    {
+        var stub = new StubSslService
+        {
+            InstallResponse = new InstallCertificateResponse
+            {
+                Refused = new InstallCertificateRefused { Reason = CertificateMaterialRefusal.Unspecified },
+            },
+        };
+
+        var result = await InstallAsync(stub, NullLogger<AgentSslClient>.Instance);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+        Assert.Equal(ErrorType.Failure, result.Error.Type);
     }
 
     /// <summary>The agents message and tool output are logged and never returned.</summary>

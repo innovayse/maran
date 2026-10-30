@@ -36,12 +36,28 @@ export const useCertificatesStore = defineStore('certificates', () => {
   const errorMessage: Ref<string | null> = ref(null)
 
   /**
+   * Machine-stable code of the most recent failure, beside {@link errorMessage}, or `null` whenever
+   * that is. Read for behaviour only — which field a refusal belongs under — never for text.
+   */
+  const errorCode: Ref<string | null> = ref(null)
+
+  /**
    * Records what a failed call is to be reported as.
    * @param error The rejection a call produced.
    * @returns Nothing.
    */
   const noteFailure = (error: unknown): void => {
     errorMessage.value = error instanceof ApiError ? error.message : null
+    errorCode.value = error instanceof ApiError ? error.code : null
+  }
+
+  /**
+   * Forgets the most recent failure, so a form closed after a refusal does not reopen showing it.
+   * @returns Nothing.
+   */
+  const dismissError = (): void => {
+    errorMessage.value = null
+    errorCode.value = null
   }
 
   /**
@@ -53,7 +69,7 @@ export const useCertificatesStore = defineStore('certificates', () => {
     loading.value = true
     try {
       certificates.value = await api.list(siteId)
-      errorMessage.value = null
+      dismissError()
     } catch (error) {
       // Not cleared to an empty list on failure: showing "no certificates" for a request that
       // never answered would tell a customer their site is unprotected when nobody knows.
@@ -80,7 +96,7 @@ export const useCertificatesStore = defineStore('certificates', () => {
             return certificate.id === changed.id ? changed : certificate
           })
         : [...certificates.value, changed]
-      errorMessage.value = null
+      dismissError()
       return true
     } catch (error) {
       noteFailure(error)
@@ -127,7 +143,7 @@ export const useCertificatesStore = defineStore('certificates', () => {
       certificates.value = certificates.value.filter((certificate) => {
         return certificate.id !== id
       })
-      errorMessage.value = null
+      dismissError()
       return true
     } catch (error) {
       noteFailure(error)
@@ -137,5 +153,16 @@ export const useCertificatesStore = defineStore('certificates', () => {
     }
   }
 
-  return { certificates, loading, acting, errorMessage, load, issue, installCustom, remove }
+  return {
+    certificates,
+    loading,
+    acting,
+    errorMessage,
+    errorCode,
+    load,
+    issue,
+    installCustom,
+    remove,
+    dismissError,
+  }
 })

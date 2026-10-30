@@ -21,6 +21,11 @@ pub fn to_agent_error(error: &SslOpError) -> AgentError {
         // The caller sent a pair that does not belong together, or a half
         // openssl cannot read. Nothing was written, and no retry of the same
         // bytes will do better: it is the input that is wrong.
+        // `InstallCertificate` never reaches this arm for these three: it
+        // answers them as its own `refused` case, naming which, through
+        // `install_outcome`. Every other rpc that can meet them — a
+        // certificate `GenerateSelfSigned` cannot read back, for one — has
+        // only `AgentError` to answer with.
         SslOpError::KeyDoesNotMatchCertificate
         | SslOpError::MalformedCertificate { .. }
         | SslOpError::MalformedPrivateKey => (ErrorCode::InvalidInput, String::new()),
