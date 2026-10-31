@@ -30,8 +30,10 @@ use crate::proto::{
 /// panel window contains it. 2 is the contract as of the change that
 /// introduced the policy (issue #88). 3 adds `InstallCertificate`'s
 /// `refused` answer naming which half of a certificate pair is wrong
-/// (issue #214).
-const PROTO_VERSION: u32 = 3;
+/// (issue #214). 4 adds `ERROR_CODE_PACKAGE_SOURCE_REFUSED` and
+/// `ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE`, the package-install failures
+/// whose fault is a source outside this host (issue #251).
+const PROTO_VERSION: u32 = 4;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

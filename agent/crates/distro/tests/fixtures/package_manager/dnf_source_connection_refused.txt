@@ -1,0 +1,4 @@
+AlmaLinux 9 - AppStream                         0.0  B/s |   0  B     00:00    
+Errors during downloading metadata for repository 'appstream':
+  - Curl error (7): Couldn't connect to server for https://mirrors.almalinux.org/mirrorlist/9/appstream [Failed to connect to mirrors.almalinux.org port 443: Connection refused]
+Error: Failed to download metadata for repo 'appstream': Cannot prepare internal mirrorlist: Curl error (7): Couldn't connect to server for https://mirrors.almalinux.org/mirrorlist/9/appstream [Failed to connect to mirrors.almalinux.org port 443: Connection refused]

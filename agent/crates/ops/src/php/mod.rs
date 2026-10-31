@@ -16,6 +16,7 @@
 //! dropped, and a value carrying a newline is refused, because `pool.conf` is
 //! line-oriented exactly as an nginx vhost is.
 
+mod classify_install_failure;
 #[cfg(test)]
 #[path = "../tests/php/fake_php_host.rs"]
 pub(crate) mod fake_php_host;

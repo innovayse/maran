@@ -43,6 +43,18 @@ pub fn to_agent_error(error: &PhpOpError) -> AgentError {
         PhpOpError::PackageManager { stderr }
         | PhpOpError::ServiceEnable { stderr }
         | PhpOpError::ReloadFailed { stderr } => (ErrorCode::SystemFailure, stderr.clone()),
+        // A package source outside this host let the install down (issue
+        // #251), told apart from a local package-manager failure by
+        // `ops::php::classify_install_failure`: a source that answered with an
+        // HTTP error, and one nobody could reach. Two codes because the panel
+        // answers them differently — a refusal is the mirror's to fix, an
+        // unreachable source may clear by itself.
+        PhpOpError::PackageSourceRefused { stderr } => {
+            (ErrorCode::PackageSourceRefused, stderr.clone())
+        }
+        PhpOpError::PackageSourceUnreachable { stderr } => {
+            (ErrorCode::PackageSourceUnreachable, stderr.clone())
+        }
         PhpOpError::Render { .. } | PhpOpError::ConfigWrite { .. } => {
             (ErrorCode::SystemFailure, String::new())
         }

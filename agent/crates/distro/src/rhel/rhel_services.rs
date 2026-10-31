@@ -34,6 +34,16 @@ pub fn service_manager() -> AdapterBinary {
     AdapterBinary::fixed("/usr/bin/systemctl")
 }
 
+/// Absolute path of the journal reader, for the process-execution allow-list.
+///
+/// systemd installs `journalctl` at `/usr/bin/journalctl` on both families; it
+/// is asked of the adapter all the same, for the reason
+/// [`service_manager`] gives.
+#[must_use]
+pub fn journal_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/journalctl")
+}
+
 /// The user the web server runs as.
 ///
 /// RHEL's nginx package creates and runs as `nginx`, not `www-data`.

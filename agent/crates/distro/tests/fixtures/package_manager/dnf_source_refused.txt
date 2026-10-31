@@ -1,0 +1,4 @@
+AlmaLinux 9 - AppStream                          68 kB/s | 460  B     00:00    
+Errors during downloading metadata for repository 'appstream':
+  - Status code: 404 for http://rec251-m/almalinux/9/AppStream/x86_64/os/repodata/repomd.xml (IP: 172.18.0.2)
+Error: Failed to download metadata for repo 'appstream': Cannot download repomd.xml: Cannot download repodata/repomd.xml: All mirrors were tried

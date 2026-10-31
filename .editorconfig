@@ -49,6 +49,11 @@ trim_trailing_whitespace = false
 [Makefile]
 indent_style = tab
 
+# Recorded package-manager output (issue #251): the fixtures are the tool's bytes as it printed
+# them, trailing padding of dnf's progress lines included, and a classifier test reads them as such.
+[agent/crates/distro/tests/fixtures/package_manager/*.txt]
+trim_trailing_whitespace = false
+
 # Generated or vendored content is not ours to format.
 [{**/bin/**,**/obj/**,**/target/**,**/node_modules/**,**/dist/**,**/.nuxt/**,**/.output/**}]
 insert_final_newline = false

@@ -257,6 +257,9 @@ agent/
     │                          The banned shape is the catch-all (util.rs, helpers.rs,
     │                          misc.rs), not the folder.
     ├── distro/
+    │   ├── tests/fixtures/package_manager/  apt-get and dnf output recorded on real
+    │   │                  ubuntu:24.04 and almalinux:9 containers, which the classification
+    │   │                  tests include_str!; bytes as the tool printed them
     │   └── src/
     │       ├── adapter.rs     the DistroAdapter trait, alone. Besides paths and packages it
     │       │                  answers the account-deletion programs atq · atrm · loginctl ·
@@ -273,6 +276,13 @@ agent/
     │       │                  identical on both families today — the identical one
     │       │                  is the trap, because it is the one that reads as
     │       │                  safe to type into the template as a literal.
+    │       ├── package_failure.rs  PackageFailure — refused source, unreachable source or
+    │       │                  local: the verdict both families answer a failed package-manager
+    │       │                  run with (`DistroAdapter::classify_package_failure`, issue #251).
+    │       │                  Flat for the reason vsftpd_tls_version_keys.rs is: the shape is
+    │       │                  shared, the reading of each family's output is not ·
+    │       │                  starts_with_http_status.rs (crate-private: the one test both
+    │       │                  families' readings use for "the source answered with an HTTP status")
     │       ├── detection/     detect.rs · detect_error.rs · distro_info.rs · os_release.rs
     │       ├── debian/        debian_adapter.rs · debian_paths.rs · debian_packages.rs ·
     │       │                  debian_services.rs
@@ -323,6 +333,10 @@ agent/
     │       │                  with TLS forced. logins/ holds what both protocols share
     │       │                  — the systemd path-escaping rule lives there once, not
     │       │                  once per protocol.
+    │       │                  php/classify_install_failure.rs is not an rpc: it reads a failed
+    │       │                  install unit's run back (systemctl show, then journalctl for that
+    │       │                  run only) into model/install_run.rs and asks the adapter to classify
+    │       │                  it (issue #251).
     │       │                  php/ has both a service and an ops area. Installing a
     │       │                  PHP version is a host operation with no site to drive
     │       │                  it — it is done once and then bound by many sites — so

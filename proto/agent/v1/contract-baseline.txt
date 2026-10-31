@@ -35,6 +35,8 @@ enum-value maran.agent.v1.DistroFamily 2 DISTRO_FAMILY_RHEL
 enum-value maran.agent.v1.ErrorCode 0 ERROR_CODE_UNSPECIFIED
 enum-value maran.agent.v1.ErrorCode 1 ERROR_CODE_INVALID_INPUT
 enum-value maran.agent.v1.ErrorCode 10 ERROR_CODE_LIMIT_REACHED
+enum-value maran.agent.v1.ErrorCode 11 ERROR_CODE_PACKAGE_SOURCE_REFUSED
+enum-value maran.agent.v1.ErrorCode 12 ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE
 enum-value maran.agent.v1.ErrorCode 2 ERROR_CODE_ALREADY_EXISTS
 enum-value maran.agent.v1.ErrorCode 3 ERROR_CODE_NOT_FOUND
 enum-value maran.agent.v1.ErrorCode 4 ERROR_CODE_VALIDATION_FAILED

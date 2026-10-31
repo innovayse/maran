@@ -60,6 +60,12 @@
   <data name="BackupFailureAgentAccountBusy">
     <value>Another operation on this account was still running</value>
   </data>
+  <data name="BackupFailureAgentPackageSourceRefused">
+    <value>A package source refused the download</value>
+  </data>
+  <data name="BackupFailureAgentPackageSourceUnreachable">
+    <value>No package source could be reached</value>
+  </data>
   <data name="BackupFailureAgentLimitReached">
     <value>A plan allowance for this account was already used up</value>
   </data>

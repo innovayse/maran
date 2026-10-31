@@ -43,6 +43,13 @@ namespace Maran.Modules.Sites.Commands.InstallPhpVersion;
 /// </remarks>
 public sealed class InstallPhpVersionCommandHandler
 {
+    /// <summary>
+    /// The failure of an install whose outcome the stream never stated: a fault on the panel's side
+    /// of the conversation, never a verdict on the packages.
+    /// </summary>
+    private static readonly Error OutcomeUnobserved =
+        Error.Of(nameof(ErrorMessages.PhpInstallOutcomeUnobserved), ErrorType.Failure);
+
     /// <summary>The agent's PHP surface: lists what is installed, and installs.</summary>
     private readonly IAgentPhpClient _php;
 
@@ -139,9 +146,9 @@ public sealed class InstallPhpVersionCommandHandler
                 command.IpAddress,
                 command.UserAgent,
                 cancellationToken);
-            await _tasks.FailAsync(taskId, outcome, cancellationToken);
+            await _tasks.FailAsync(taskId, outcome.Code, cancellationToken);
 
-            return Result<IReadOnlyList<PhpVersionDto>>.Fail(Error.Of(outcome, ErrorType.Failure));
+            return Result<IReadOnlyList<PhpVersionDto>>.Fail(outcome);
         }
 
         await _journal.RecordSuccessAsync(
@@ -166,11 +173,16 @@ public sealed class InstallPhpVersionCommandHandler
     /// <param name="version">The version being installed.</param>
     /// <param name="taskId">The task to report progress against.</param>
     /// <param name="cancellationToken">Cancels the install.</param>
-    /// <returns><see langword="null"/> when the version was installed; an error code otherwise.</returns>
-    private async Task<string?> RunAsync(string version, Guid taskId, CancellationToken cancellationToken)
+    /// <returns>
+    /// <see langword="null"/> when the version was installed; otherwise the failure, passed through
+    /// exactly as the agent client typed it — code and kind — so a refusing package source answers
+    /// 502, an agent that could not do the work answers 503 and only a local fault answers 500
+    /// (issue #251). The one failure this handler names itself is an outcome it never observed.
+    /// </returns>
+    private async Task<Error?> RunAsync(string version, Guid taskId, CancellationToken cancellationToken)
     {
         var terminal = false;
-        string? failure = null;
+        Error? failure = null;
 
         await foreach (var change in _php.InstallVersionAsync(version, cancellationToken))
         {
@@ -189,17 +201,23 @@ public sealed class InstallPhpVersionCommandHandler
                 // rather than folded into a default so that a new event kind on the wire arrives
                 // here as a compiler-visible decision instead of being silently read as a failure.
                 case PhpInstallEventKind.Failed:
+                    terminal = true;
+                    failure = change.Error ?? OutcomeUnobserved;
+                    break;
+
+                // The stream ended without the agent stating whether the packages landed. These
+                // carry no failure of their own, because none was reported.
                 case PhpInstallEventKind.Dropped:
                 case PhpInstallEventKind.Idle:
                 case PhpInstallEventKind.Truncated:
                 case PhpInstallEventKind.Cancelled:
                     terminal = true;
-                    failure = change.ErrorCode ?? nameof(ErrorMessages.PhpInstallOutcomeUnobserved);
+                    failure = OutcomeUnobserved;
                     break;
 
                 default:
                     terminal = true;
-                    failure = nameof(ErrorMessages.PhpInstallOutcomeUnobserved);
+                    failure = OutcomeUnobserved;
                     break;
             }
 
@@ -212,6 +230,6 @@ public sealed class InstallPhpVersionCommandHandler
         // A stream that ended with no terminal event proves nothing about the packages. It is NOT
         // reported as a success, for the same reason the backup runner refuses to: "nothing threw"
         // is not an observation of an outcome.
-        return terminal ? failure : nameof(ErrorMessages.PhpInstallOutcomeUnobserved);
+        return terminal ? failure : OutcomeUnobserved;
     }
 }

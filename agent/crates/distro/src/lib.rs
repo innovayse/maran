@@ -16,7 +16,9 @@ pub mod adapter_for;
 pub mod debian;
 pub mod detection;
 pub mod family;
+pub mod package_failure;
 pub mod rhel;
+mod starts_with_http_status;
 pub mod vsftpd_tls_version_keys;
 
 pub use adapter::DistroAdapter;
@@ -27,4 +29,5 @@ pub use detection::detect_error::DetectError;
 pub use detection::distro_info::DistroInfo;
 pub use detection::os_release::parse;
 pub use family::DistroFamily;
+pub use package_failure::PackageFailure;
 pub use vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
