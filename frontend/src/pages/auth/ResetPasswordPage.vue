@@ -33,11 +33,11 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
-import { useAuthStore } from '../../stores/auth'
+import { usePasswordLinksStore } from '../../stores/passwordLinks'
 
 const { t } = useI18n()
 const route = useRoute()
-const authStore = useAuthStore()
+const passwordLinksStore = usePasswordLinksStore()
 
 /** The password being set. */
 const password: Ref<string> = ref('')
@@ -71,7 +71,7 @@ const submit = async (): Promise<void> => {
   }
 
   mismatch.value = null
-  done.value = await authStore.resetPassword({ token: token.value, newPassword: password.value })
+  done.value = await passwordLinksStore.resetPassword({ token: token.value, newPassword: password.value })
 }
 </script>
 
@@ -110,8 +110,8 @@ const submit = async (): Promise<void> => {
       <!-- The refusal as the backend worded it, and never a word about which kind of
            refusal it was. Beside it, the way forward: a stale link is cured by asking for a
            new one, and a dead end here would leave somebody with no route to do that. -->
-      <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-5">
-        {{ authStore.errorMessage }}
+      <UiAlert v-if="passwordLinksStore.errorMessage !== null" variant="error" class="mb-5">
+        {{ passwordLinksStore.errorMessage }}
         <template #actions>
           <UiButton variant="ghost" :to="{ name: 'forgot-password' }">
             {{ t('app.passwordReset.requestNewLink') }}
@@ -139,7 +139,7 @@ const submit = async (): Promise<void> => {
           />
 
           <!-- The one primary pill on the screen; the way back is quieter than it. -->
-          <UiButton class="w-full justify-center" type="submit" :disabled="authStore.loading">
+          <UiButton class="w-full justify-center" type="submit" :disabled="passwordLinksStore.loading">
             {{ t('app.passwordReset.setPassword') }}
             <UiIcon name="arrowRight" size="sm" />
           </UiButton>
