@@ -138,7 +138,7 @@ test('lifting a ban asks first, and then names the address in the request', asyn
   await expect(dialog).toContainText('Let this address back in?')
   expect(deletes).toEqual([])
 
-  await dialog.getByRole('button', { name: 'Yes, lift it' }).click()
+  await dialog.getByRole('button', { name: 'Lift ban' }).click()
 
   await expect.poll(() => {
     return deletes
@@ -181,7 +181,7 @@ test('dismissing the lift confirmation sends no request, and confirm is not the 
   })
   expect(focus.inside).toBe(true)
   expect(focus.label).not.toContain('Actions for')
-  expect(focus.text).not.toEqual('Yes, lift it')
+  expect(focus.text).not.toEqual('Lift ban')
 
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)

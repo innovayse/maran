@@ -13,9 +13,9 @@
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import UiLink from '../ui/UiLink.vue'
 import UiModal from '../ui/UiModal.vue'
 import UiSpinner from '../ui/UiSpinner.vue'
 import type { ManagedPlan } from '../../types/plan'
@@ -90,13 +90,7 @@ const submit = (): void => {
         </p>
       </div>
       <p class="text-sm text-text-muted">{{ t('plans.list.deleteBlockedHowTo') }}</p>
-      <RouterLink
-        :to="{ name: 'accounts', query: { plan: plan.id } }"
-        class="inline-flex items-center gap-1 self-start rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
-      >
-        {{ t('plans.list.showAccountsOnPlan', plan.accountCount) }}
-        <UiIcon name="chevronRight" size="sm" />
-      </RouterLink>
+      <UiLink :to="{ name: 'accounts', query: { plan: plan.id } }" trailing-icon="chevronRight">{{ t('plans.list.showAccountsOnPlan', plan.accountCount) }}</UiLink>
     </div>
     <div v-else class="flex items-start gap-2.5">
       <UiIcon name="triangleAlert" size="sm" class="mt-0.5 shrink-0 text-danger" />

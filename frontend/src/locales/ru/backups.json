@@ -21,7 +21,7 @@
       },
       "confirmDelete": "Удалить эту копию? Она исчезнет, и вернуть её отсюда нельзя.",
       "confirmDeleteTitle": "Удалить копию {account} от {startedAt}",
-      "confirm": "Да, удалить",
+      "confirm": "Удалить копию",
       "working": "Выполняется…",
       "scheduleLink": "Расписание копий",
       "destinationsLink": "Места хранения копий",

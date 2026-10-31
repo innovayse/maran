@@ -20,11 +20,11 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter, RouterLink } from 'vue-router'
+import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
-import UiIcon from '../../components/ui/UiIcon.vue'
+import UiLink from '../../components/ui/UiLink.vue'
 import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
@@ -259,14 +259,7 @@ onBeforeUnmount(() => {
         >
           <template #actions>
             <SiteStatusBadge v-if="site !== null" :status="site.status" />
-            <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
-            <RouterLink
-              :to="{ name: 'sites' }"
-              class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
-            >
-              <UiIcon name="chevronLeft" size="sm" />
-              {{ t('sites.detail.backToList') }}
-            </RouterLink>
+            <UiLink :to="{ name: 'sites' }" icon="chevronLeft">{{ t('sites.detail.backToList') }}</UiLink>
           </template>
         </UiPageHeading>
 

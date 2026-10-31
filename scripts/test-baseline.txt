@@ -1,6 +1,7 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (issue #218, UI consistency: spa auth/signed-out-console.spec.ts 2 -> 7; new spa firewall/consistency.spec.ts 5, ui-kit/actions-and-links.spec.ts 8, ui-kit/type-consistency.spec.ts 7): edited by hand. Full `maran test spa`: 155 targets, 1048 passed / 0 failed.
 # RE-MEASURED 2026-10-31 (issue #209 merged with dev's #196 phase 3, firewall split into three pages): edited by hand.
 # spa: shell/breadcrumb-trail 9->11 (Firewall -> Bans, Firewall -> Never banned), shell/navigation-destination-labels
 # 8->10 (the two firewall children open their titled pages). page-eyebrow and the 216px check gained firewall
@@ -507,7 +508,7 @@ spa	auth/sessions-list.spec.ts	5	0	0
 spa	auth/sessions-loading.spec.ts	3	0	0
 spa	auth/sessions.spec.ts	6	0	0
 spa	auth/setup.spec.ts	8	0	0
-spa	auth/signed-out-console.spec.ts	2	0	0
+spa	auth/signed-out-console.spec.ts	7	0	0
 spa	auth/theme-persists.spec.ts	3	0	0
 spa	auth/two-factor-settings.spec.ts	5	0	0
 spa	auth/two-factor-setup.spec.ts	2	0	0
@@ -548,8 +549,8 @@ spa	file-transfer/account-filter.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	18	0	0
 spa	file-transfer/ftps-create.spec.ts	7	0	0
 spa	file-transfer/ftps-list.spec.ts	9	0	0
-spa	file-transfer/ftps-server.spec.ts	12	0	0
 spa	file-transfer/ftps-server-state.spec.ts	11	0	0
+spa	file-transfer/ftps-server.spec.ts	12	0	0
 spa	file-transfer/loading.spec.ts	6	0	0
 spa	file-transfer/navigation.spec.ts	8	0	0
 spa	file-transfer/own-module.spec.ts	2	0	0
@@ -558,6 +559,7 @@ spa	file-transfer/sftp-list.spec.ts	9	0	0
 spa	firewall/access.spec.ts	4	0	0
 spa	firewall/bans-list.spec.ts	7	0	0
 spa	firewall/bans.spec.ts	6	0	0
+spa	firewall/consistency.spec.ts	5	0	0
 spa	firewall/loading.spec.ts	9	0	0
 spa	firewall/lockout.spec.ts	6	0	0
 spa	firewall/presets.spec.ts	6	0	0
@@ -589,8 +591,8 @@ spa	shell/health-unreachable.spec.ts	1	0	0
 spa	shell/landmark.spec.ts	1	0	0
 spa	shell/licence-gating.spec.ts	11	0	0
 spa	shell/locale-persistence.spec.ts	3	0	0
-spa	shell/locale.spec.ts	4	0	0
 spa	shell/locale-switch.spec.ts	5	0	0
+spa	shell/locale.spec.ts	4	0	0
 spa	shell/mobile-drawer.spec.ts	15	0	0
 spa	shell/module-landing-coverage.spec.ts	2	0	0
 spa	shell/navigation-destination-labels.spec.ts	10	0	0
@@ -611,8 +613,8 @@ spa	sites/detail.spec.ts	8	0	0
 spa	sites/form.spec.ts	5	0	0
 spa	sites/list.spec.ts	15	0	0
 spa	sites/loading.spec.ts	3	0	0
-spa	sites/logs-tab.spec.ts	9	0	0
 spa	sites/log-stream.spec.ts	7	0	0
+spa	sites/logs-tab.spec.ts	9	0	0
 spa	sites/php-versions-loading.spec.ts	3	0	0
 spa	sites/ssl-tab.spec.ts	11	0	0
 spa	tasks/badge.spec.ts	4	0	0
@@ -621,6 +623,7 @@ spa	tasks/list.spec.ts	14	0	0
 spa	tasks/loading.spec.ts	3	0	0
 spa	tasks/log-fidelity.spec.ts	2	0	0
 spa	tasks/progress-unit.spec.ts	1	0	0
+spa	ui-kit/actions-and-links.spec.ts	8	0	0
 spa	ui-kit/badge-narrow.spec.ts	2	0	0
 spa	ui-kit/chart.spec.ts	5	0	0
 spa	ui-kit/combobox.spec.ts	6	0	0
@@ -638,5 +641,6 @@ spa	ui-kit/skeleton.spec.ts	10	0	0
 spa	ui-kit/table-cards.spec.ts	4	0	0
 spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0
+spa	ui-kit/type-consistency.spec.ts	7	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	3	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0

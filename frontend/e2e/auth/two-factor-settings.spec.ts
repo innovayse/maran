@@ -118,8 +118,8 @@ test('turning two-factor on and then off switches the card each time', async ({ 
   await expect(page.getByRole('button', { name: 'Set up' })).toHaveCount(0)
 
   await page.getByRole('textbox', { name: 'Code', exact: true }).fill('654321')
-  await page.getByRole('button', { name: 'Turn off' }).click()
-  await page.getByRole('button', { name: 'Yes, turn off' }).click()
+  await page.getByRole('button', { name: 'Turn off', exact: true }).click()
+  await page.getByRole('button', { name: 'Turn off two-step verification' }).click()
 
   // Off: Set up again, and nothing of the enrolled card left behind.
   await expect(page.getByRole('button', { name: 'Set up' })).toBeVisible()
