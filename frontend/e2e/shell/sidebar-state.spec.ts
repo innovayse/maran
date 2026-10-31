@@ -53,7 +53,7 @@ const stubLocalizedModules = async (page: Page, slowLanguage?: string): Promise<
  * @returns Resolves once the option has been chosen.
  */
 const chooseLanguage = async (page: Page, name: string): Promise<void> => {
-  await page.getByRole('banner').locator('[aria-haspopup="menu"]').click()
+  await page.getByRole('banner').getByTestId('locale-switcher').locator('[aria-haspopup="menu"]').click()
   await page.getByRole('menuitemradio', { name, exact: true }).click()
 }
 

@@ -65,9 +65,13 @@
         "databases": "Բազաներ",
         "more": "Ավելին"
       },
-      "switchTheme": {
-        "dark": "Անցնել մուգին",
-        "light": "Անցնել բացին"
+      "theme": {
+        "label": "Թեմա՝ {mode}",
+        "modes": {
+          "light": "Բաց",
+          "dark": "Մուգ",
+          "system": "Համակարգային"
+        }
       },
       "company": "Innovayse LLC",
       "companyUrl": "https://innovayse.com"

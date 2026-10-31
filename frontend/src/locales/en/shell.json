@@ -65,9 +65,13 @@
         "databases": "Databases",
         "more": "More"
       },
-      "switchTheme": {
-        "dark": "Switch to dark",
-        "light": "Switch to light"
+      "theme": {
+        "label": "Theme: {mode}",
+        "modes": {
+          "light": "Light",
+          "dark": "Dark",
+          "system": "System"
+        }
       },
       "company": "Innovayse LLC",
       "companyUrl": "https://innovayse.com"

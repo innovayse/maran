@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expectTablesAsCards, type CardActions } from '../fixtures/expect-table-cards'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubLogin, stubSetupState, stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -90,6 +91,8 @@ interface Screen {
    * @returns Resolves once the content is visible.
    */
   ready: (page: Page) => Promise<void>
+  /** For a list screen: its tables must be cards, with or without a row-actions column (#217). */
+  cards?: CardActions
 }
 
 /** A customer, who owns an account and sees none of the administrator's screens. */
@@ -362,6 +365,7 @@ const SCREENS: Screen[] = [
       await stubAudit(page, AUDIT_EVENTS)
     },
     ready: textReady('198.51.100.4'),
+    cards: 'none',
   },
   {
     name: 'sessions',
@@ -372,6 +376,7 @@ const SCREENS: Screen[] = [
       await stubSessions(page, SESSIONS)
     },
     ready: textReady('Safari on iPhone'),
+    cards: 'actions',
   },
   {
     name: 'security policy',
@@ -609,6 +614,10 @@ for (const screen of SCREENS) {
 
       // 3. Every unclipped box inside it.
       expect(await findOverflowing(main), 'no element leaves the viewport').toEqual([])
+
+      if (screen.cards !== undefined) {
+        await expectTablesAsCards(page, screen.cards)
+      }
 
       if (screen.layout === 'auth') {
         // The bare layout: the switcher is the visitor's only way to change language, and the

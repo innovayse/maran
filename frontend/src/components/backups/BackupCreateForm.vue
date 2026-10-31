@@ -75,6 +75,19 @@ const submit = (): void => {
   }
   emit('submit', { accountId: props.fixedAccountId ?? accountId.value })
 }
+
+/**
+ * Returns the picker to empty and forgets that a submit was attempted, called by the page once the
+ * backup was accepted: a form still showing the account it just sent invites the same submit twice
+ * (#218), as on every other create form in the panel.
+ * @returns Nothing.
+ */
+const reset = (): void => {
+  accountId.value = ''
+  submitted.value = false
+}
+
+defineExpose({ reset })
 </script>
 
 <template>

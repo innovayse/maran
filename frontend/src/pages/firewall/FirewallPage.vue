@@ -251,19 +251,23 @@ onMounted(refresh)
         @deny="requestDeny"
       />
 
-      <UiCard class="flex flex-col gap-4">
-        <UiSectionHeading :title="t('firewall.rules.heading')" :subtitle="t('firewall.rules.subtitle')" />
+      <!-- The same three blocks, in the same order, as the Bans and Never-banned screens: a refusal
+           first, the form in a card of its own, then the list under its own heading (#218). -->
+      <UiAlert v-if="store.ruleErrorMessage !== null" variant="error">
+        {{ store.ruleErrorMessage }}
+      </UiAlert>
 
-        <UiAlert v-if="store.ruleErrorMessage !== null" variant="error">
-          {{ store.ruleErrorMessage }}
-        </UiAlert>
-
+      <UiCard>
         <FirewallRuleForm
           ref="ruleForm"
           :submitting="store.acting"
           @submit="submitRule"
           @edit="clearRuleError"
         />
+      </UiCard>
+
+      <UiCard>
+        <UiSectionHeading class="mb-4" :title="t('firewall.rules.listTitle')" />
 
         <UiEmptyState
           v-if="hasNoRules"

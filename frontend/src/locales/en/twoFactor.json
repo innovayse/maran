@@ -20,7 +20,7 @@
       "disableTitle": "Turning it off",
       "disableConfirmTitle": "Turn off two-step verification",
       "disableConfirmQuestion": "Signing in will need only your password. Anyone who learns it can get into this panel, and your recovery codes will stop working.",
-      "disableConfirm": "Yes, turn off",
+      "disableConfirm": "Turn off two-step verification",
       "disabling": "Turning off…",
       "qrLabel": "QR code for your authenticator app",
       "enabledTitle": "Two-step verification is on",

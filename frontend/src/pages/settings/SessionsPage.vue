@@ -277,7 +277,7 @@ const signOutEverywhere = async (): Promise<void> => {
                   <!-- Decorative: the device's name beside it is the cell's whole content. -->
                   <UiIconTile name="globe" size="sm" />
                   <div class="flex min-w-0 flex-col items-start gap-1">
-                    <span class="block max-w-65 min-w-35 truncate font-semibold">{{ row.userAgent }}</span>
+                    <span class="block max-w-65 min-w-35 self-stretch truncate font-semibold">{{ row.userAgent }}</span>
                     <UiBadge v-if="row.isCurrent" variant="success">
                       {{ t('app.sessions.currentDevice') }}
                     </UiBadge>

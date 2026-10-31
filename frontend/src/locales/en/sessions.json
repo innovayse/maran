@@ -13,7 +13,7 @@
       "end": "Sign out",
       "confirm": "End this session?",
       "confirmCurrent": "This will sign you out here.",
-      "confirmEnd": "End",
+      "confirmEnd": "End session",
       "working": "Ending the session…",
       "confirmEndTitle": "End the session from {address}",
       "signOutEverywhere": "Sign out everywhere",

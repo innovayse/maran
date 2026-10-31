@@ -46,7 +46,7 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
     { key: 'account', label: t('monitoring.disk.columnAccount'), kind: 'identifier' },
     { key: 'used', label: t('monitoring.disk.columnUsed'), kind: 'number' },
     { key: 'quota', label: t('monitoring.disk.columnQuota'), kind: 'number' },
-    { key: 'ratio', label: t('monitoring.disk.columnRatio'), kind: 'text' },
+    { key: 'ratio', label: t('monitoring.disk.columnRatio'), kind: 'text', minWidth: '11rem' },
   ]
 })
 
@@ -117,14 +117,13 @@ const notEnforcedRatioText = (row: AccountDiskUsage): string => {
       }}</span>
       <!-- The cells beside the bar print the used and allowed figures, not the ratio, so the bar's
            own visible percentage is kept: the bar is never an anonymous stripe. -->
-      <div v-else class="min-w-44">
-        <UiMeter
-          :value="row.usedBytes"
-          :max="row.quotaBytes"
-          :label="t('monitoring.disk.meterLabel', { username: row.username })"
-          :value-text="ratioText(row)"
-        />
-      </div>
+      <UiMeter
+        v-else
+        :value="row.usedBytes"
+        :max="row.quotaBytes"
+        :label="t('monitoring.disk.meterLabel', { username: row.username })"
+        :value-text="ratioText(row)"
+      />
     </template>
   </UiTable>
 </template>

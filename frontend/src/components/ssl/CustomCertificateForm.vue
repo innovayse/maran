@@ -15,6 +15,7 @@ import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import UiButton from "../ui/UiButton.vue";
 import UiCard from "../ui/UiCard.vue";
+import UiFieldHint from "../ui/UiFieldHint.vue";
 import UiForm from "../ui/UiForm.vue";
 import UiSectionHeading from "../ui/UiSectionHeading.vue";
 import UiTextarea from "../ui/UiTextarea.vue";
@@ -118,7 +119,7 @@ const cancel = (): void => {
             :rows="6"
             required
           />
-          <p class="mt-1 text-sm text-text-muted">{{ t("certificates.hints.privateKeyPem") }}</p>
+          <UiFieldHint class="mt-1">{{ t("certificates.hints.privateKeyPem") }}</UiFieldHint>
         </div>
         <div class="flex flex-wrap justify-end gap-2">
           <UiButton variant="secondary" type="button" @click="cancel">

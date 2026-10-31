@@ -42,8 +42,10 @@
  *    identity card, in the sidebar or, when there is none, in the navigation drawer. The banner
  *    must hold exactly one `aria-haspopup="menu"` element at a phone width, the language picker,
  *    which the locale specs find that way; a second trigger here would make their clicks ambiguous.
+ *    From `sm` up the theme menu is a second one, so the specs find the language picker by its
+ *    `data-testid="locale-switcher"` rather than by being the only menu in the banner.
  *
- * The theme switch is the one control that does not follow the bar: below `sm` of the window it
+ * The theme menu is the one control that does not follow the bar: below `sm` of the window it
  * lives, labelled, in the navigation drawer's head (`ShellDrawer`), which the menu button and the
  * tab bar's "More" both open, so it stays one tap from every screen. The
  * drawer decides that by the window, so this bar does too; otherwise there would be a text size at
@@ -200,7 +202,7 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
              than a fetch of its own, which is what lets it move the moment a task's stream
              reports a change — no navigation, no reload. It draws nothing while nothing runs. -->
         <ShellTasksBadge />
-        <!-- Below `sm` the theme switch lives in the drawer's head instead (see the doc comment).
+        <!-- Below `sm` the theme menu lives in the drawer's head instead (see the doc comment).
              The wrapper hides this copy with `display: none`, which also removes it from the
              accessibility tree, so the control is never present twice. -->
         <div class="max-sm:hidden">
