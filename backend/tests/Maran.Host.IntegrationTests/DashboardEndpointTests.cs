@@ -5,11 +5,15 @@ using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Databases.Persistence;
+using Maran.Modules.Firewall.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Ssl.Persistence;
+using Maran.Modules.Tasks.Persistence;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -94,8 +98,9 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
     /// <remarks>
     /// 200 and deliberately not 403: this is the panel's landing route for everyone, and the health
     /// verdict it also carries must still reach a customer. The refusal is in the CONTENTS, and it
-    /// is asserted as JSON null per section rather than as an absent property — the SPA relies on
-    /// null meaning "not for you", and a missing property would be a different contract.
+    /// is asserted as JSON null per section rather than as an absent property or an empty list — the
+    /// SPA relies on null meaning "not for you" and nothing else, and a missing property would be a
+    /// different contract.
     /// </remarks>
     [Fact]
     public async Task A_signed_in_customer_is_given_no_part_of_the_servers_state()
@@ -115,8 +120,8 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         Assert.Equal(JsonValueKind.Null, root.GetProperty("resources").ValueKind);
         Assert.Equal(JsonValueKind.Null, root.GetProperty("counts").ValueKind);
         Assert.Equal(JsonValueKind.Null, root.GetProperty("attention").ValueKind);
-        Assert.Empty(root.GetProperty("services").EnumerateArray());
-        Assert.Empty(root.GetProperty("recentAudit").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("services").ValueKind);
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("recentAudit").ValueKind);
     }
 
     /// <summary>
@@ -146,24 +151,31 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
 
         var counts = root.GetProperty("counts");
         Assert.Equal(JsonValueKind.Object, counts.ValueKind);
-        AssertCounted(counts.GetProperty("accounts"), 1);
+        AssertLoaded(counts.GetProperty("accounts"), 1);
 
         // Counted and zero, which is the ordinary answer on a server with one account and nothing on
         // it — and a different answer from "withheld" or "unavailable". A dashboard that showed an
         // empty state here would read as a failure on a freshly installed panel.
-        AssertCounted(counts.GetProperty("sites"), 0);
-        AssertCounted(counts.GetProperty("databases"), 0);
+        AssertLoaded(counts.GetProperty("sites"), 0);
+        AssertLoaded(counts.GetProperty("databases"), 0);
 
-        // The attention section is an object of zeros rather than null: nothing needs attention on
-        // this host, which the panel knows, as against not being allowed to know.
+        // Every attention source was read and holds zero: nothing needs attention on this host, which
+        // the panel knows, as against not being allowed to know or not having been able to check.
         var attention = root.GetProperty("attention");
         Assert.Equal(JsonValueKind.Object, attention.ValueKind);
-        Assert.Equal(0, attention.GetProperty("failedBackups").GetInt32());
+        AssertLoaded(attention.GetProperty("certificatesExpiringSoon"), 0);
+        AssertLoaded(attention.GetProperty("failedBackups"), 0);
+        AssertLoaded(attention.GetProperty("bannedAddresses"), 0);
+        AssertLoaded(attention.GetProperty("failedTasks"), 0);
+
+        // The journal was read: loaded, even if what it holds is only this test's own sign-in.
+        Assert.Equal("loaded", root.GetProperty("recentAudit").GetProperty("state").GetString());
     }
 
     /// <summary>
     /// One unreadable section does not empty the others: with no agent on this host, the resources
-    /// are absent while the counts, which come from the database, are still there.
+    /// and the services are unavailable while the counts, which come from the database, are still
+    /// there.
     /// </summary>
     /// <remarks>
     /// This is the behaviour the endpoint's per-section isolation exists for, and the test that
@@ -187,8 +199,11 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var root = body.RootElement;
 
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("resources").ValueKind);
-        AssertCounted(root.GetProperty("counts").GetProperty("accounts"), 1);
+        AssertUnavailable(root.GetProperty("resources"));
+
+        // Unavailable, not an empty list: "no services watched" is a different, real answer.
+        AssertUnavailable(root.GetProperty("services"));
+        AssertLoaded(root.GetProperty("counts").GetProperty("accounts"), 1);
     }
 
     /// <summary>Boots the panel against this test's own database.</summary>
@@ -221,7 +236,7 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
     public async Task A_module_that_cannot_answer_reads_unavailable_not_zero()
     {
         await using var factory = CreateFactory();
-        await MigrateAsync(factory, withDatabases: false);
+        await MigrateAsync(factory, leftOut: typeof(DatabasesDbContext));
         await SeedAsync(factory);
         using var client = await SignInAsync(factory, "admin");
 
@@ -230,25 +245,67 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var counts = body.RootElement.GetProperty("counts");
-        AssertCounted(counts.GetProperty("accounts"), 1);
-        Assert.Equal("unavailable", counts.GetProperty("databases").GetProperty("state").GetString());
+        AssertLoaded(counts.GetProperty("accounts"), 1);
+        AssertUnavailable(counts.GetProperty("databases"));
+    }
+
+    /// <summary>
+    /// A source of attention that cannot answer is unavailable — not zero — so the attention block is
+    /// not an all-clear. The Backups schema is not created, so that module's count fails.
+    /// </summary>
+    /// <remarks>
+    /// Issue #248: this read used to come back as zero, which joined three real zeros in announcing
+    /// that nothing needed attention about backups nobody had checked. The three sources that could
+    /// answer are asserted loaded beside it — the inverse control, without which an endpoint that
+    /// marked every source unavailable would pass.
+    /// </remarks>
+    [Fact]
+    public async Task An_attention_source_that_cannot_answer_is_unavailable_and_not_an_all_clear()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory, leftOut: typeof(BackupsDbContext));
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/dashboard");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var attention = body.RootElement.GetProperty("attention");
+        AssertUnavailable(attention.GetProperty("failedBackups"));
+        AssertLoaded(attention.GetProperty("certificatesExpiringSoon"), 0);
+        AssertLoaded(attention.GetProperty("bannedAddresses"), 0);
+        AssertLoaded(attention.GetProperty("failedTasks"), 0);
     }
 
     /// <summary>Applies the migrations of the contexts these tests read through.</summary>
     /// <param name="factory">The booted host.</param>
-    /// <param name="withDatabases">
-    /// Whether to create the Databases module's schema; left out, that module cannot answer, which is
-    /// how a test makes one count unavailable.
+    /// <param name="leftOut">
+    /// A context whose schema is NOT created, or <c>null</c> for none; left out, that module cannot
+    /// answer, which is how a test makes one section unavailable.
     /// </param>
-    private static async Task MigrateAsync(WebApplicationFactory<Program> factory, bool withDatabases = true)
+    private static async Task MigrateAsync(WebApplicationFactory<Program> factory, Type? leftOut = null)
     {
+        Type[] contexts =
+        [
+            typeof(IdentityDbContext),
+            typeof(AccountsDbContext),
+            typeof(SitesDbContext),
+            typeof(DatabasesDbContext),
+            typeof(BackupsDbContext),
+            typeof(SslDbContext),
+            typeof(FirewallDbContext),
+            typeof(TasksDbContext),
+        ];
+
         using var scope = factory.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<SitesDbContext>().Database.MigrateAsync();
-        if (withDatabases)
+        foreach (var context in contexts.Where(context =>
         {
-            await scope.ServiceProvider.GetRequiredService<DatabasesDbContext>().Database.MigrateAsync();
+            return context != leftOut;
+        }))
+        {
+            var dbContext = (DbContext)scope.ServiceProvider.GetRequiredService(context);
+            await dbContext.Database.MigrateAsync();
         }
     }
 
@@ -293,12 +350,23 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         return client;
     }
 
-    /// <summary>Asserts a dashboard count was taken and holds <paramref name="expected"/>.</summary>
-    /// <param name="count">The count as the endpoint answered it.</param>
+    /// <summary>Asserts a dashboard section was read and holds <paramref name="expected"/>.</summary>
+    /// <param name="section">The section as the endpoint answered it.</param>
     /// <param name="expected">The number expected.</param>
-    private static void AssertCounted(JsonElement count, int expected)
+    private static void AssertLoaded(JsonElement section, int expected)
     {
-        Assert.Equal("counted", count.GetProperty("state").GetString());
-        Assert.Equal(expected, count.GetProperty("count").GetInt32());
+        Assert.Equal("loaded", section.GetProperty("state").GetString());
+        Assert.Equal(expected, section.GetProperty("data").GetInt32());
+    }
+
+    /// <summary>
+    /// Asserts a dashboard section could not be read, and carries no data that could be mistaken for
+    /// an answer.
+    /// </summary>
+    /// <param name="section">The section as the endpoint answered it.</param>
+    private static void AssertUnavailable(JsonElement section)
+    {
+        Assert.Equal("unavailable", section.GetProperty("state").GetString());
+        Assert.False(section.TryGetProperty("data", out _));
     }
 }

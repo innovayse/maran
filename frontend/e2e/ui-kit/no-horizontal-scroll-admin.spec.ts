@@ -6,7 +6,7 @@ import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { certificateFor, CERTIFICATE_SITE_ID, stubCertificates } from '../fixtures/stub-certificates-routes'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
-import { stubDashboard } from '../fixtures/stub-dashboard-route'
+import { loaded, stubDashboard } from '../fixtures/stub-dashboard-route'
 import { stubDatabaseGrants } from '../fixtures/stub-database-grant-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -34,7 +34,7 @@ import type { Database } from '../../src/types/database'
 import type { Ban, FirewallRule, WhitelistEntry } from '../../src/types/firewall'
 import type { FtpUser } from '../../src/types/ftpUser'
 import type { GrantRepairReport } from '../../src/types/grantRepair'
-import type { ChartRange, MetricBucket } from '../../src/types/monitoring'
+import type { ChartRange, MetricBucket, ServiceStatus } from '../../src/types/monitoring'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
 import type { SftpUser } from '../../src/types/sftpUser'
@@ -131,9 +131,15 @@ const SITE_DETAIL: SiteDetail = {
   hasCertificate: true,
 }
 
+/** The services the dashboard and the monitoring screen both report. */
+const SERVICES: ServiceStatus[] = [
+  { service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' },
+  { service: 'database', name: 'Database', state: 'stopped', detail: 'inactive (dead)' },
+]
+
 const DASHBOARD: Dashboard = {
   isAdministrator: true,
-  resources: {
+  resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 * 1024 * 1024,
     memoryTotalBytes: 8 * 1024 * 1024 * 1024,
@@ -144,18 +150,15 @@ const DASHBOARD: Dashboard = {
     loadAverage1m: 0.21,
     loadAverage5m: 0.34,
     loadAverage15m: 0.55,
-  },
-  services: [
-    { service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' },
-    { service: 'database', name: 'Database', state: 'stopped', detail: 'inactive (dead)' },
-  ],
+  }),
+  services: loaded(SERVICES),
   counts: {
-    accounts: { state: 'counted', count: 12 },
-    sites: { state: 'counted', count: 27 },
-    databases: { state: 'counted', count: 14 },
+    accounts: loaded(12),
+    sites: loaded(27),
+    databases: loaded(14),
   },
-  attention: { certificatesExpiringSoon: 2, failedBackups: 5, bannedAddresses: 9, failedTasks: 6 },
-  recentAudit: [
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6) },
+  recentAudit: loaded([
     {
       id: '11111111-1111-1111-1111-111111111111',
       occurredAt: '2026-10-05T12:00:00+00:00',
@@ -176,7 +179,7 @@ const DASHBOARD: Dashboard = {
       ipAddress: '203.0.113.9',
       succeeded: false,
     },
-  ],
+  ]),
 }
 
 const DATABASE: Database = {
@@ -470,7 +473,7 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubBackupSchedules(page, { host: BACKUP_SCHEDULE })
   await stubBackupDestinations(page, DESTINATIONS)
 
-  await stubMonitoring(page, BUCKETS, DASHBOARD.services, [
+  await stubMonitoring(page, BUCKETS, SERVICES, [
     {
       accountId: ACCOUNT.id,
       username: LONG_ACCOUNT,

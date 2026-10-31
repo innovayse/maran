@@ -8,7 +8,8 @@
       "resources": {
         "title": "Right now",
         "ratio": "{used} of {total}",
-        "load": "Load average (1 / 5 / 15 min)"
+        "load": "Load average (1 / 5 / 15 min)",
+        "unavailable": "The live reading could not be taken."
       },
       "counts": {
         "title": "On this server",
@@ -23,13 +24,20 @@
         "certificates": "certificate expiring soon | certificates expiring soon",
         "backups": "backup failed | backups failed",
         "tasks": "task failed | tasks failed",
-        "bans": "address banned | addresses banned"
+        "bans": "address banned | addresses banned",
+        "unchecked": {
+          "certificates": "Certificates could not be checked",
+          "backups": "Backups could not be checked",
+          "tasks": "Tasks could not be checked",
+          "bans": "Banned addresses could not be checked"
+        }
       },
       "audit": {
         "title": "Latest activity",
         "empty": "Nothing has been recorded yet.",
         "failed": "Failed",
-        "all": "Open the audit journal"
+        "all": "Open the audit journal",
+        "unavailable": "The audit journal could not be read."
       },
       "actions": {
         "newAccount": "New account"
@@ -47,6 +55,9 @@
         "mySites": "Open my sites",
         "myDatabases": "Open my databases",
         "myBackups": "Open my backups"
+      },
+      "services": {
+        "unavailable": "The services could not be read."
       }
     }
   }
