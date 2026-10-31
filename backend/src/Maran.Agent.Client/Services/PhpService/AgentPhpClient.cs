@@ -58,7 +58,7 @@ public sealed class AgentPhpClient : IAgentPhpClient
     /// <inheritdoc/>
     /// <remarks>
     /// A transport failure ends the stream in a <see cref="PhpInstallEventKind.Failed"/> event carrying
-    /// the code of <see cref="AgentTransportFailure.ToError"/>, never in the raw exception.
+    /// the error of <see cref="AgentTransportFailure.ToError"/>, kind included, never in the raw exception.
     /// </remarks>
     public IAsyncEnumerable<PhpInstallEvent> InstallVersionAsync(string version, CancellationToken cancellationToken)
     {
@@ -71,7 +71,7 @@ public sealed class AgentPhpClient : IAgentPhpClient
                     0,
                     string.Empty,
                     string.Empty,
-                    AgentTransportFailure.ToError(exception).Code);
+                    AgentTransportFailure.ToError(exception));
             },
             cancellationToken);
     }
@@ -136,7 +136,7 @@ public sealed class AgentPhpClient : IAgentPhpClient
                 0,
                 string.Empty,
                 string.Empty,
-                nameof(ErrorMessages.AgentInvalidResponse));
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
             yield break;
         }
 
@@ -193,6 +193,6 @@ public sealed class AgentPhpClient : IAgentPhpClient
             0,
             string.Empty,
             string.Empty,
-            AgentErrorTranslator.ToError(_logger, error, nameof(InstallVersionAsync)).Code);
+            AgentErrorTranslator.ToError(_logger, error, nameof(InstallVersionAsync)));
     }
 }

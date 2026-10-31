@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Agent.Client.Tests.TestSupport;
 using Maran.Agent.V1;
+using Maran.SharedKernel.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Agent.Client.Tests.Services.PhpService;
@@ -187,7 +188,38 @@ public sealed class AgentPhpClientTests
 
         var last = Assert.Single(events);
         Assert.Equal(PhpInstallEventKind.Failed, last.Kind);
-        Assert.Equal("AgentInvalidInput", last.ErrorCode);
+        Assert.Equal("AgentInvalidInput", last.Error!.Code);
+        Assert.Equal(ErrorType.Validation, last.Error.Type);
+    }
+
+    /// <summary>
+    /// A package-source failure ends the stream with its own code and kind: a refusing source is an
+    /// upstream refusal, an unreachable one is unavailable, and neither is a local failure (issue #251).
+    /// </summary>
+    /// <param name="wire">The code the agent ended the stream with.</param>
+    /// <param name="code">The panel code the failed event must carry.</param>
+    /// <param name="kind">The kind the failed event must carry.</param>
+    [Theory]
+    [InlineData(ErrorCode.PackageSourceRefused, "AgentPackageSourceRefused", ErrorType.UpstreamRefused)]
+    [InlineData(ErrorCode.PackageSourceUnreachable, "AgentPackageSourceUnreachable", ErrorType.Unavailable)]
+    [InlineData(ErrorCode.SystemFailure, "AgentSystemFailure", ErrorType.Failure)]
+    public async Task A_package_install_failure_ends_with_the_code_and_the_kind_the_agent_classified(
+        ErrorCode wire,
+        string code,
+        ErrorType kind)
+    {
+        var stub = new StubPhpService();
+        stub.InstallResponses.Add(new InstallPhpVersionResponse
+        {
+            Error = new AgentError { Code = wire, Message = "the install unit failed" },
+        });
+
+        var events = await CollectAsync(stub);
+
+        var last = Assert.Single(events);
+        Assert.Equal(PhpInstallEventKind.Failed, last.Kind);
+        Assert.Equal(code, last.Error!.Code);
+        Assert.Equal(kind, last.Error.Type);
     }
 
     /// <summary>An install message carrying no branch ends with a failed event.</summary>
@@ -201,7 +233,8 @@ public sealed class AgentPhpClientTests
 
         var last = Assert.Single(events);
         Assert.Equal(PhpInstallEventKind.Failed, last.Kind);
-        Assert.Equal("AgentInvalidResponse", last.ErrorCode);
+        Assert.Equal("AgentInvalidResponse", last.Error!.Code);
+        Assert.Equal(ErrorType.Failure, last.Error.Type);
     }
 
     /// <summary>Install sends the version it was given.</summary>

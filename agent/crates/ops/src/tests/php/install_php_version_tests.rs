@@ -166,7 +166,15 @@ fn a_failed_install_unit_never_falls_back_to_the_package_manager() {
     let (result, _) = install_reporting(&host, distro(), "8.3");
 
     assert!(result.is_err());
-    assert_eq!(host.commands().len(), 1);
+    // The start, then the service manager asked which run failed (it names
+    // none for a unit that does not exist), and nothing else.
+    let commands = host.commands();
+    assert_eq!(commands.len(), 2);
+    assert!(
+        commands
+            .iter()
+            .all(|command| command[0] == distro().service_manager().as_str())
+    );
     assert!(!ran_program(&host, distro().package_manager()));
 }
 
@@ -422,4 +430,37 @@ fn installing_php_runs_the_package_manager_in_the_package_install_class() {
         host.classes(),
         vec![CallClass::PackageInstall, CallClass::Reload]
     );
+}
+
+#[test]
+fn an_install_unit_whose_mirror_refused_the_archives_is_a_refused_package_source() {
+    // Issue #251, end to end through the operation: the unit fails, the
+    // service manager names the run, and the journal holds apt's recorded
+    // output for a mirror answering 404.
+    let host = FakePhpHost::empty();
+    host.answer(
+        "start",
+        1,
+        "",
+        "Job for maran-php-install@php8.3-fpm.service failed because the control process exited with error code.",
+    );
+    host.answer(
+        "show",
+        0,
+        "InvocationID=0f1e2d3c4b5a69788796a5b4c3d2e1f0\nExecMainStatus=100\n",
+        "",
+    );
+    host.answer(
+        "--output=cat",
+        0,
+        include_str!("../../../../distro/tests/fixtures/package_manager/apt_source_refused.txt"),
+        "",
+    );
+
+    match install(&host, "8.3") {
+        Err(PhpOpError::PackageSourceRefused { stderr }) => {
+            assert!(stderr.contains("journalctl -u maran-php-install@php8.3-fpm.service"));
+        }
+        other => panic!("expected PackageSourceRefused, got {other:?}"),
+    }
 }

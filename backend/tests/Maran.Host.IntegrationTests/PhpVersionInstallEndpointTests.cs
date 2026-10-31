@@ -5,6 +5,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Tasks.Persistence;
+using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -88,19 +89,32 @@ public sealed class PhpVersionInstallEndpointTests : IAsyncLifetime
         Assert.True(audit.GetProperty("succeeded").GetBoolean());
     }
 
-    /// <summary>A failed install answers a typed problem document and is journalled as a failure.</summary>
-    [Fact]
-    public async Task A_failed_install_answers_a_typed_problem_and_is_journalled_as_a_failure()
+    /// <summary>
+    /// A failed install answers a typed problem document with the status of the failure's own kind,
+    /// and is journalled as a failure (issue #251): a refusing package source is 502, an agent that
+    /// cannot do the work is 503, and only a local fault stays 500.
+    /// </summary>
+    /// <param name="code">The code the agent client stamped on the failed event.</param>
+    /// <param name="kind">The kind the agent client decided for it.</param>
+    /// <param name="expected">The status the endpoint must answer.</param>
+    [Theory]
+    [InlineData("AgentPackageSourceRefused", ErrorType.UpstreamRefused, HttpStatusCode.BadGateway)]
+    [InlineData("AgentNotImplemented", ErrorType.Unavailable, HttpStatusCode.ServiceUnavailable)]
+    [InlineData("AgentSystemFailure", ErrorType.Failure, HttpStatusCode.InternalServerError)]
+    public async Task A_failed_install_answers_the_status_of_its_kind_and_is_journalled_as_a_failure(
+        string code,
+        ErrorType kind,
+        HttpStatusCode expected)
     {
         var agent = new ScriptedAgentPhpClient(
             [new PhpVersionDto("8.3", SocketDirectory, true)],
-            [new PhpInstallEvent(PhpInstallEventKind.Failed, 0, "fetching", "8.4", "AgentSystemFailure")]);
+            [new PhpInstallEvent(PhpInstallEventKind.Failed, 0, string.Empty, string.Empty, Error.Of(code, kind))]);
 
         var (status, body, audit) = await InstallAsync(agent, "8.4");
 
-        Assert.Equal(HttpStatusCode.InternalServerError, status);
+        Assert.Equal(expected, status);
         using var problem = JsonDocument.Parse(body);
-        Assert.Equal("AgentSystemFailure", problem.RootElement.GetProperty("code").GetString());
+        Assert.Equal(code, problem.RootElement.GetProperty("code").GetString());
         Assert.DoesNotContain(SocketDirectory, body, StringComparison.Ordinal);
         Assert.False(audit.GetProperty("succeeded").GetBoolean());
         Assert.Equal("8.4", audit.GetProperty("subject").GetString());

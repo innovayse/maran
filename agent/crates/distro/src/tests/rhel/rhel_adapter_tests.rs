@@ -229,6 +229,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
     vec![
         ("nginx", RhelAdapter.nginx_binary()),
         ("service_manager", RhelAdapter.service_manager()),
+        ("journal", RhelAdapter.journal_binary()),
         ("php_fpm", RhelAdapter.php_fpm_binary(&version)),
         ("openssl", RhelAdapter.openssl_binary()),
         ("tar", RhelAdapter.tar_binary()),

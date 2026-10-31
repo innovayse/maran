@@ -114,6 +114,33 @@ enum ErrorCode {
   // reach for ERROR_CODE_ACCOUNT_BUSY instead: that code means the lock was
   // held and says nothing about a limit, and a panel reading it retries.
   ERROR_CODE_LIMIT_REACHED = 10;
+  // Added 2026-10-31, additively (issue #251). A package install failed
+  // because a package SOURCE answered and refused: a repository mirror or its
+  // mirror list replied with an HTTP error (404, 403, 5xx) for the metadata
+  // or the archive the package manager asked for. The fault is outside this
+  // host — the request was sound and the host's package manager did its part —
+  // so a panel answers it as an upstream refusal and not as a local fault.
+  //
+  // Only the agent's package classification produces it, from the package
+  // manager's exit status AND its own output, and only when that output names
+  // a refused fetch. Retrying immediately usually meets the same mirror; the
+  // operator's remedy is the mirror, not this server.
+  //
+  // It is NOT the code for a package the configured repositories do not
+  // carry, a held package database lock or a failing maintainer script: those
+  // are this host's state and stay ERROR_CODE_SYSTEM_FAILURE.
+  ERROR_CODE_PACKAGE_SOURCE_REFUSED = 11;
+  // Added 2026-10-31, additively (issue #251). A package install failed
+  // because no package source could be reached at all: the mirror's name did
+  // not resolve, the connection was refused or timed out, or the network was
+  // unreachable. Distinct from ERROR_CODE_PACKAGE_SOURCE_REFUSED because the
+  // remedy differs — nothing answered, so this is a transient unavailability a
+  // later attempt may clear, not a mirror that said no.
+  //
+  // When one install meets both — one fetch refused and another unreachable —
+  // the agent reports ERROR_CODE_PACKAGE_SOURCE_REFUSED: a source that answered
+  // with a refusal is the more specific observation.
+  ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE = 12;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

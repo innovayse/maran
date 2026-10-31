@@ -6,6 +6,7 @@ use crate::DistroAdapter;
 use crate::adapter_binary::AdapterBinary;
 use crate::debian::{debian_packages, debian_paths, debian_services};
 use crate::family::DistroFamily;
+use crate::package_failure::PackageFailure;
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 
 /// Implements the agent's operations the Debian way: apt, `sites-available`,
@@ -64,6 +65,14 @@ impl DistroAdapter for DebianAdapter {
 
     fn package_manager(&self) -> &'static str {
         debian_packages::package_manager()
+    }
+
+    fn classify_package_failure(&self, status: i32, output: &str) -> PackageFailure {
+        debian_packages::classify_package_failure(status, output)
+    }
+
+    fn journal_binary(&self) -> AdapterBinary {
+        debian_services::journal_binary()
     }
 
     fn tar_binary(&self) -> AdapterBinary {
