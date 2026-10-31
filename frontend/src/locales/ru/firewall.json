@@ -14,6 +14,7 @@
       "mysqlExternal": "MySQL доступен снаружи (3306)"
     },
     "rules": {
+      "heading": "Правила",
       "tableCaption": "Правила межсетевого экрана",
       "ruleSummary": "{protocol}/{ports} от {source}",
       "remove": "Удалить",

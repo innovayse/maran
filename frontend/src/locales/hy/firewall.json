@@ -14,6 +14,7 @@
       "mysqlExternal": "MySQL-ը հասանելի է դրսից (3306)"
     },
     "rules": {
+      "heading": "Կանոններ",
       "tableCaption": "Ցանցային վահանի կանոններ",
       "ruleSummary": "{protocol}/{ports} {source}-ից",
       "remove": "Հեռացնել",

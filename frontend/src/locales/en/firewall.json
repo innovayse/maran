@@ -14,6 +14,7 @@
       "mysqlExternal": "MySQL reachable from outside (3306)"
     },
     "rules": {
+      "heading": "Rules",
       "tableCaption": "Firewall rules",
       "ruleSummary": "{protocol}/{ports} from {source}",
       "remove": "Remove",
