@@ -59,6 +59,7 @@ import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useProfileStore } from '../../stores/profile'
+import { useTwoFactorStore } from '../../stores/twoFactor'
 import type { TotpEnrolment } from '../../types/auth'
 
 /**
@@ -86,6 +87,7 @@ type TwoFactorState =
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+const twoFactorStore = useTwoFactorStore()
 const profileStore = useProfileStore()
 const route = useRoute()
 
@@ -157,7 +159,7 @@ const loadState = async (): Promise<void> => {
  * @returns Resolves once the request has settled.
  */
 const beginEnrolment = async (): Promise<void> => {
-  const enrolment = await authStore.beginTwoFactorEnrolment()
+  const enrolment = await twoFactorStore.beginTwoFactorEnrolment()
   if (enrolment !== null) {
     state.value = { kind: 'enrolling', enrolment }
   }
@@ -183,7 +185,7 @@ const confirmEnrolment = async (): Promise<void> => {
     return
   }
 
-  const codes = await authStore.confirmTwoFactorEnrolment(state.value.enrolment.secret, enrolCode.value)
+  const codes = await twoFactorStore.confirmTwoFactorEnrolment(state.value.enrolment.secret, enrolCode.value)
   if (codes !== null) {
     state.value = { kind: 'enrolled', recoveryCodes: codes.codes }
     enrolCode.value = ''
@@ -216,7 +218,7 @@ const cancelDisable = (): void => {
 const disable = async (): Promise<void> => {
   disabling.value = true
   try {
-    if (await authStore.disableTwoFactor(disableCode.value)) {
+    if (await twoFactorStore.disableTwoFactor(disableCode.value)) {
       disableCode.value = ''
       state.value = { kind: 'notEnrolled' }
     }
@@ -255,8 +257,8 @@ onMounted(async () => {
     />
 
     <!-- A refused action; a profile that would not load is the region's own error below. -->
-    <UiAlert v-if="authStore.errorMessage !== null" variant="error">
-      {{ authStore.errorMessage }}
+    <UiAlert v-if="twoFactorStore.errorMessage !== null" variant="error">
+      {{ twoFactorStore.errorMessage }}
     </UiAlert>
 
     <UiLoadingRegion :state="regionState">

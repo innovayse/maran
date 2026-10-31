@@ -97,8 +97,8 @@ export const useModulesStore = defineStore('modules', () => {
    * loaded for one signed-in identity is wrong for the next: without this, a customer signing out
    * and an administrator signing in on the same tab kept the customer's narrower catalogue —
    * missing screens like Firewall and Monitoring — because `isLoaded` never went back to false and
-   * sign-out routes without a full reload. Called from {@link useAuthStore}'s own `clear`, at the
-   * one place a change of signed-in identity is known.
+   * sign-out routes without a full reload. Called by the root component (`App.vue`) the moment
+   * the auth store stops being signed in, the one place a change of signed-in identity is known.
    * @returns Nothing; state is cleared synchronously.
    */
   const clear = (): void => {
