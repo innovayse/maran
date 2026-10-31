@@ -3,6 +3,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubAudit } from '../fixtures/stub-audit-routes'
 import type { AuditEvent } from '../../src/types/audit'
 
 /**
@@ -49,9 +50,7 @@ const stubRussianJournal = async (page: Page, events: AuditEvent[]): Promise<voi
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
-  await page.route('**/api/v1/audit*', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(events) })
-  })
+  await stubAudit(page, events)
 }
 
 test('the action column shows the backend-localized russian name beside the machine code', async ({ page }) => {

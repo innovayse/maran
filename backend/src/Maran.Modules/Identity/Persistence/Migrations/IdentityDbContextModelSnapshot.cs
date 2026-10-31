@@ -69,6 +69,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Action")
+                        .HasDatabaseName("IX_AuditEvents_Action");
+
                     b.HasIndex("ActorUserId")
                         .HasDatabaseName("IX_AuditEvents_ActorUserId");
 

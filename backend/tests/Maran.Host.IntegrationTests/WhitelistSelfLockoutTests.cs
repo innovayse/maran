@@ -171,9 +171,9 @@ public sealed class WhitelistSelfLockoutTests : IAsyncLifetime
 
         await client.DeleteAsync($"/api/v1/firewall/whitelist/{seeded}");
 
-        var response = await client.GetAsync("/api/v1/audit");
+        var response = await client.GetAsync($"/api/v1/audit?action={AuditActions.FirewallWhitelistChanged}&outcome=failed");
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var refusals = body.RootElement.EnumerateArray()
+        var refusals = body.RootElement.GetProperty("items").EnumerateArray()
             .Where(entry =>
             {
                 return entry.GetProperty("action").GetString() == AuditActions.FirewallWhitelistChanged

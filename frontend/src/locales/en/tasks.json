@@ -11,8 +11,20 @@
       "rowActions": "Actions for {subject}",
       "percentValue": "{percent}%",
       "recentHeading": "Recent operations",
-      "failedNotice": "{count} task failed. Open the latest one to see why. | {count} tasks failed. Open the latest one to see why.",
-      "openFailure": "Open the latest failure"
+      "failedNotice": "{count} task failed. | {count} tasks failed.",
+      "showFailed": "Show failed tasks",
+      "searchLabel": "Search tasks",
+      "searchPlaceholder": "Search by subject…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No tasks match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every task.",
+      "filters": {
+        "account": "Account",
+        "status": "Status",
+        "kind": "Operation",
+        "from": "Started from",
+        "to": "Started until"
+      }
     },
     "columns": {
       "kind": "Operation",

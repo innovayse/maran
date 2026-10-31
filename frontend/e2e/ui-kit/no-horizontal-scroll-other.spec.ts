@@ -2,10 +2,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubLogin, stubSetupState, stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubSessions } from '../fixtures/stub-sessions-route'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
 import { stubSteeredAdministrator } from '../fixtures/stub-password-reset-routes'
 import { stubProfile } from '../fixtures/stub-profile-route'
 import { stubSmtpSettings, storedSmtpSettings } from '../fixtures/stub-smtp-routes'
+import { stubAudit } from '../fixtures/stub-audit-routes'
 import type { AuthenticatedUser, Session } from '../../src/types/auth'
 import type { AuditEvent } from '../../src/types/audit'
 import type { MyAccount } from '../../src/types/account'
@@ -357,13 +359,7 @@ const SCREENS: Screen[] = [
     layout: 'shell',
     prepare: async (page): Promise<void> => {
       await signedInAdministrator(page)
-      await page.route('**/api/v1/audit*', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(AUDIT_EVENTS),
-        })
-      })
+      await stubAudit(page, AUDIT_EVENTS)
     },
     ready: textReady('198.51.100.4'),
   },
@@ -373,9 +369,7 @@ const SCREENS: Screen[] = [
     layout: 'shell',
     prepare: async (page): Promise<void> => {
       await signedInAdministrator(page)
-      await page.route('**/api/v1/sessions', async (route) => {
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SESSIONS) })
-      })
+      await stubSessions(page, SESSIONS)
     },
     ready: textReady('Safari on iPhone'),
   },

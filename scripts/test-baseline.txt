@@ -392,6 +392,15 @@
 # The header above was regenerated away by 'maran test spa --accept' and is restored here by
 # hand: the accept path rewrites this file from the run alone and keeps no prose, so every
 # re-measurement note in it is one --accept away from being lost. Worth fixing in the script.
+#
+# RE-MEASURED 2026-10-31 (#196 phase 3, SharedKernel.Tests 343->349 for FilterValue: audit, tasks, sessions and firewall lists paged on the
+# server) — edited by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa` run
+# printing `collected 151 targets: 1017 passed / 0 failed`. Four spa rows added
+# (audit/list 6, auth/sessions-list 5, firewall/bans-list 7, firewall/whitelist-list 5) and seven
+# raised to what that run collected (customer/role-guard 18->20, firewall/loading 3->9,
+# shell/palette-focus 6->7, shell/sidebar-submenu 7->9, tasks/badge 3->4, tasks/list 7->14,
+# ui-kit/no-horizontal-scroll-admin 69->75). Backend rows unchanged: `maran test backend` printed
+# `collected 20 targets: 5027 passed / 0 failed` against them.
 rust	maran_agent [unittests src/lib.rs]	420	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
@@ -428,7 +437,7 @@ rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 backend	Maran.Agent.Client.Tests.dll	378	0	0
-backend	Maran.SharedKernel.Tests.dll	343	0	0
+backend	Maran.SharedKernel.Tests.dll	349	0	0
 backend	Maran.Modules.Identity.Tests.dll	318	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
@@ -460,6 +469,7 @@ spa	accounts/resources.spec.ts	9	0	0
 spa	admin/audit.spec.ts	3	0	0
 spa	admin/smtp-settings.spec.ts	2	0	0
 spa	audit/action-names.spec.ts	2	0	0
+spa	audit/list.spec.ts	6	0	0
 spa	audit/loading.spec.ts	3	0	0
 spa	audit/occurred-at-time.spec.ts	1	0	0
 spa	audit/sidebar-link.spec.ts	2	0	0
@@ -467,6 +477,7 @@ spa	auth/client-checks.spec.ts	6	0	0
 spa	auth/forgot-password.spec.ts	3	0	0
 spa	auth/login.spec.ts	7	0	0
 spa	auth/reset-password.spec.ts	2	0	0
+spa	auth/sessions-list.spec.ts	5	0	0
 spa	auth/sessions-loading.spec.ts	3	0	0
 spa	auth/sessions.spec.ts	6	0	0
 spa	auth/setup.spec.ts	8	0	0
@@ -497,7 +508,7 @@ spa	customer/invitation.spec.ts	2	0	0
 spa	customer/navigation.spec.ts	3	0	0
 spa	customer/no-admin-links.spec.ts	4	0	0
 spa	customer/own-account-create.spec.ts	5	0	0
-spa	customer/role-guard.spec.ts	18	0	0
+spa	customer/role-guard.spec.ts	20	0	0
 spa	customer/tasks.spec.ts	3	0	0
 spa	dashboard-loading.spec.ts	3	0	0
 spa	dashboard.spec.ts	10	0	0
@@ -511,19 +522,21 @@ spa	file-transfer/account-filter.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	18	0	0
 spa	file-transfer/ftps-create.spec.ts	7	0	0
 spa	file-transfer/ftps-list.spec.ts	9	0	0
-spa	file-transfer/ftps-server-state.spec.ts	11	0	0
 spa	file-transfer/ftps-server.spec.ts	12	0	0
+spa	file-transfer/ftps-server-state.spec.ts	11	0	0
 spa	file-transfer/loading.spec.ts	6	0	0
 spa	file-transfer/navigation.spec.ts	8	0	0
 spa	file-transfer/own-module.spec.ts	2	0	0
 spa	file-transfer/sftp-create.spec.ts	4	0	0
 spa	file-transfer/sftp-list.spec.ts	9	0	0
 spa	firewall/access.spec.ts	4	0	0
+spa	firewall/bans-list.spec.ts	7	0	0
 spa	firewall/bans.spec.ts	6	0	0
-spa	firewall/loading.spec.ts	3	0	0
+spa	firewall/loading.spec.ts	9	0	0
 spa	firewall/lockout.spec.ts	6	0	0
 spa	firewall/presets.spec.ts	6	0	0
 spa	firewall/ranges.spec.ts	5	0	0
+spa	firewall/whitelist-list.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	7	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
@@ -548,17 +561,17 @@ spa	shell/health-unreachable.spec.ts	1	0	0
 spa	shell/landmark.spec.ts	1	0	0
 spa	shell/licence-gating.spec.ts	11	0	0
 spa	shell/locale-persistence.spec.ts	3	0	0
-spa	shell/locale-switch.spec.ts	5	0	0
 spa	shell/locale.spec.ts	4	0	0
+spa	shell/locale-switch.spec.ts	5	0	0
 spa	shell/mobile-drawer.spec.ts	15	0	0
 spa	shell/module-landing-coverage.spec.ts	2	0	0
 spa	shell/navigation-order-labels.spec.ts	2	0	0
 spa	shell/not-found.spec.ts	1	0	0
-spa	shell/palette-focus.spec.ts	6	0	0
+spa	shell/palette-focus.spec.ts	7	0	0
 spa	shell/profile.spec.ts	3	0	0
 spa	shell/renders-title.spec.ts	1	0	0
 spa	shell/sidebar-state.spec.ts	6	0	0
-spa	shell/sidebar-submenu.spec.ts	7	0	0
+spa	shell/sidebar-submenu.spec.ts	9	0	0
 spa	shell/theme-switch.spec.ts	2	0	0
 spa	sites/account-filter.spec.ts	3	0	0
 spa	sites/detail-loading.spec.ts	6	0	0
@@ -566,13 +579,13 @@ spa	sites/detail.spec.ts	8	0	0
 spa	sites/form.spec.ts	5	0	0
 spa	sites/list.spec.ts	15	0	0
 spa	sites/loading.spec.ts	3	0	0
-spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/logs-tab.spec.ts	9	0	0
+spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/php-versions-loading.spec.ts	3	0	0
 spa	sites/ssl-tab.spec.ts	11	0	0
-spa	tasks/badge.spec.ts	3	0	0
+spa	tasks/badge.spec.ts	4	0	0
 spa	tasks/failure-sentence.spec.ts	3	0	0
-spa	tasks/list.spec.ts	7	0	0
+spa	tasks/list.spec.ts	14	0	0
 spa	tasks/loading.spec.ts	3	0	0
 spa	tasks/log-fidelity.spec.ts	2	0	0
 spa	tasks/progress-unit.spec.ts	1	0	0
@@ -584,7 +597,7 @@ spa	ui-kit/filter-sheet.spec.ts	9	0	0
 spa	ui-kit/focus-return.spec.ts	3	0	0
 spa	ui-kit/modal-keyboard.spec.ts	2	0	0
 spa	ui-kit/motion-and-tables.spec.ts	8	0	1
-spa	ui-kit/no-horizontal-scroll-admin.spec.ts	69	0	0
+spa	ui-kit/no-horizontal-scroll-admin.spec.ts	75	0	0
 spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
 spa	ui-kit/pagination.spec.ts	10	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0

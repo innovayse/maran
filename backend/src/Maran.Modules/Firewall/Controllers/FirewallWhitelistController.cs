@@ -39,17 +39,20 @@ public sealed class FirewallWhitelistController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists the exempt ranges, oldest first.</summary>
+    /// <summary>Lists one page of the exempt ranges, oldest first unless a sort is named.</summary>
+    /// <param name="query">The page, page size, search and sort, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<WhitelistEntryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<WhitelistEntryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync(
+        [FromQuery] ListWhitelistQuery query,
+        CancellationToken cancellationToken)
     {
-        var query = new ListWhitelistQuery();
         return ToActionResult(
-            await _bus.InvokeAsync<Result<IReadOnlyList<WhitelistEntryDto>>>(query, cancellationToken));
+            await _bus.InvokeAsync<Result<PagedResult<WhitelistEntryDto>>>(query, cancellationToken));
     }
 
     /// <summary>Exempts a range from the automatic bans.</summary>

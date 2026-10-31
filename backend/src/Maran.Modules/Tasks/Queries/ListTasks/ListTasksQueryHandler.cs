@@ -1,19 +1,23 @@
 using Maran.Modules.Tasks.Common;
+using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Mappers;
 using Maran.Modules.Tasks.Persistence;
 using Maran.Modules.Tasks.Services;
+using Maran.SharedKernel.Extensions;
+using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Tasks.Queries.ListTasks;
 
 /// <summary>
-/// Handles <see cref="ListTasksQuery"/> by reading the newest rows of <c>tasks.PanelTasks</c>.
+/// Handles <see cref="ListTasksQuery"/> by reading one page of <c>tasks.PanelTasks</c> within what the
+/// caller may see.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>There is no authorisation check here.</b> The context's query filter decides which rows a
-/// caller may see: an administrator every task, a customer the tasks recorded against their own
-/// account. A customer with none is answered an empty list, which is now the honest answer — there
-/// IS a tasks feed for them, and their own operations appear in it.
+/// caller may see — an administrator every task, a customer the tasks recorded against their own
+/// account with an audience that admits them — before the count as well as before the page, so a
+/// customer's total never counts a row they could not open. Every clause below only narrows that.
 /// </para>
 /// <para>
 /// <b>The log is the one thing this handler decides.</b> Only an administrator is sent it; a
@@ -22,13 +26,6 @@ namespace Maran.Modules.Tasks.Queries.ListTasks;
 /// </remarks>
 public sealed class ListTasksQueryHandler
 {
-    /// <summary>
-    /// How many tasks the listing returns. The pane shows recent work rather than a history, and
-    /// the table is append-only under every instrumented operation on the server — so an unbounded
-    /// read is one that gets slower forever while showing nobody anything they scrolled to.
-    /// </summary>
-    private const int MaxTasks = 200;
-
     /// <summary>The Tasks module's database context, and this module's read boundary.</summary>
     private readonly TasksDbContext _dbContext;
 
@@ -52,26 +49,59 @@ public sealed class ListTasksQueryHandler
         _kindNames = kindNames;
     }
 
-    /// <summary>Returns the most recent tasks, newest first.</summary>
-    /// <param name="query">The (parameterless) list request.</param>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The tasks the caller may see; never a failure.</returns>
-    public async Task<Result<IReadOnlyList<PanelTaskDto>>> HandleAsync(
+    /// <summary>
+    /// Filters by account, status, kind and start window, searches the subject, and answers the
+    /// requested page with the total that matched.
+    /// </summary>
+    /// <param name="query">The validated list request.</param>
+    /// <param name="cancellationToken">Cancels the reads.</param>
+    /// <returns>A successful result carrying the page; this operation never fails.</returns>
+    public async Task<Result<PagedResult<PanelTaskDto>>> HandleAsync(
         ListTasksQuery query,
         CancellationToken cancellationToken)
     {
-        var tasks = await _dbContext.PanelTasks
-            .AsNoTracking()
-            .OrderByDescending(task => task.StartedAt)
-            .Take(MaxTasks)
-            .ToListAsync(cancellationToken);
+        IQueryable<PanelTask> tasks = _dbContext.PanelTasks.AsNoTracking();
 
-        IReadOnlyList<PanelTaskDto> projected = tasks
-            .Select(task =>
-            {
-                return PanelTaskMapper.From(task, _kindNames.Of(task.Kind), _currentUser.IsAdmin);
-            })
-            .ToList();
-        return Result<IReadOnlyList<PanelTaskDto>>.Ok(projected);
+        if (query.AccountId is { } accountId)
+        {
+            tasks = tasks.Where(task => task.AccountId == accountId);
+        }
+
+        if (query.Status is { } status)
+        {
+            tasks = tasks.Where(task => task.Status == status);
+        }
+
+        if (!query.Kind.IsNone)
+        {
+            var kind = query.Kind.Value;
+            tasks = tasks.Where(task => task.Kind == kind);
+        }
+
+        if (query.From is { } from)
+        {
+            tasks = tasks.Where(task => task.StartedAt >= from);
+        }
+
+        if (query.To is { } to)
+        {
+            tasks = tasks.Where(task => task.StartedAt <= to);
+        }
+
+        if (!query.Search.IsNone)
+        {
+            // A captured local, so EF Core sends it as a parameter; LikePattern escapes the
+            // wildcards so the term matches literally.
+            var pattern = LikePattern.Contains(query.Search.Value);
+            tasks = tasks.Where(task => EF.Functions.ILike(task.Subject, pattern, LikePattern.EscapeCharacter));
+        }
+
+        var page = await tasks.ToPagedAsync(query, ListTasksSorts.Map, cancellationToken);
+        var includeLog = _currentUser.IsAdmin;
+
+        return Result<PagedResult<PanelTaskDto>>.Ok(page.Map(task =>
+        {
+            return PanelTaskMapper.From(task, _kindNames.Of(task.Kind), includeLog);
+        }));
     }
 }

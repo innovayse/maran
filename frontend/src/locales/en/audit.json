@@ -15,7 +15,17 @@
       "succeeded": "Succeeded",
       "failed": "Failed",
       "eyebrow": "Security",
-      "failedNotice": "{count} entry in this journal failed. | {count} entries in this journal failed."
+      "searchLabel": "Search the journal",
+      "searchPlaceholder": "Search by who, subject or address…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No entries match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every entry.",
+      "filters": {
+        "action": "Action",
+        "outcome": "Outcome",
+        "from": "From",
+        "to": "Until"
+      }
     }
   }
 }

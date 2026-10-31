@@ -90,6 +90,9 @@ namespace Maran.Modules.Tasks.Persistence.Migrations
                     b.HasIndex("StartedAt")
                         .HasDatabaseName("IX_PanelTasks_StartedAt");
 
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_PanelTasks_Status");
+
                     b.ToTable("PanelTasks", "tasks");
                 });
 #pragma warning restore 612, 618

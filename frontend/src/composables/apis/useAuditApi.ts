@@ -1,11 +1,19 @@
 import { useApi } from '../useApi'
-import type { AuditApi, AuditEvent } from '../../types/audit'
+import { listQuery } from '../../utils/listQuery'
+import { withInstantWindow } from '../../utils/withInstantWindow'
+import type { AuditActionChoice, AuditApi, AuditEvent } from '../../types/audit'
+import type { ListRequest, Paged } from '../../types/list'
 
 /** The endpoint the append-only audit journal is read through. Administrators only. */
 const AUDIT_PATH = '/api/v1/audit'
 
-/** How many entries to ask for when the caller does not say. Matches the backend's own default. */
-const DEFAULT_LIMIT = 100
+/** The list endpoint's parameter for each filter the audit page reads from its URL. */
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
+  action: 'action',
+  outcome: 'outcome',
+  from: 'from',
+  to: 'to',
+}
 
 /**
  * The audit journal's HTTP surface. Called from a store, never from a component
@@ -16,14 +24,23 @@ export const useAuditApi = (): AuditApi => {
   const api = useApi()
 
   /**
-   * Lists the most recent audit entries.
-   * @param limit How many to return; the backend refuses a value outside its own range.
+   * Reads one page of the journal; the panel searches, filters, sorts and counts.
+   * @param request The page, size, search, sort and the action, outcome, from and to filters.
    * @param signal Abort signal, so a page left before the response arrives cancels the request.
-   * @returns The entries, newest first.
+   * @returns The page.
    */
-  const list = async (limit: number = DEFAULT_LIMIT, signal?: AbortSignal): Promise<AuditEvent[]> => {
-    return api.get<AuditEvent[]>(`${AUDIT_PATH}?limit=${limit}`, signal)
+  const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<AuditEvent>> => {
+    return api.get<Paged<AuditEvent>>(`${AUDIT_PATH}${listQuery(withInstantWindow(request), LIST_FILTER_PARAMS)}`, signal)
   }
 
-  return { list }
+  /**
+   * Lists the distinct actions the journal holds, for the action filter.
+   * @param signal Optional abort signal.
+   * @returns The actions with their backend-localized names.
+   */
+  const actions = (signal?: AbortSignal): Promise<AuditActionChoice[]> => {
+    return api.get<AuditActionChoice[]>(`${AUDIT_PATH}/actions`, signal)
+  }
+
+  return { list, actions }
 }

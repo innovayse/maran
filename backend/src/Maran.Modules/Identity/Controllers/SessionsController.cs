@@ -33,14 +33,21 @@ public sealed class SessionsController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists the caller's live sessions, marking the one making this request.</summary>
+    /// <summary>Lists one page of the caller's live sessions, marking the one making this request.</summary>
+    /// <param name="query">
+    /// The page, page size, search and sort, bound from the query string. Whose sessions and which is
+    /// current are written here from the caller's token, never bound.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<SessionDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(PagedResult<SessionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAllAsync(
+        [FromQuery] ListSessionsQuery query,
+        CancellationToken cancellationToken)
     {
-        var query = new ListSessionsQuery(CurrentUser.UserId, CurrentSessionId());
-        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<SessionDto>>>(query, cancellationToken));
+        query = query with { UserId = CurrentUser.UserId, CurrentSessionId = CurrentSessionId() };
+        return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<SessionDto>>>(query, cancellationToken));
     }
 
     /// <summary>Ends one of the caller's sessions.</summary>

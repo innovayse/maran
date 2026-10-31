@@ -56,6 +56,9 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
         return
         [
             "GET /api/v1/tasks",
+            "GET /api/v1/tasks/running",
+            "GET /api/v1/tasks/failed-count",
+            "GET /api/v1/tasks/kinds",
             "GET /api/v1/tasks/{id}",
             "GET /api/v1/tasks/{id}/stream",
         ];
@@ -141,6 +144,16 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
         var list = await client.GetAsync("/api/v1/tasks");
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
 
+        using (var running = await ReadJsonAsync(client, "/api/v1/tasks/running"))
+        {
+            Assert.Equal(taskId, Assert.Single(running.RootElement.EnumerateArray()).GetProperty("id").GetGuid());
+        }
+
+        using (var kinds = await ReadJsonAsync(client, "/api/v1/tasks/kinds"))
+        {
+            Assert.Single(kinds.RootElement.EnumerateArray());
+        }
+
         var single = await client.GetAsync($"/api/v1/tasks/{taskId}");
         Assert.Equal(HttpStatusCode.OK, single.StatusCode);
     }
@@ -182,8 +195,9 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
     /// <param name="taskId">The task identifier to substitute into <c>{id}</c>.</param>
     /// <param name="expected">The status every route must answer.</param>
     /// <param name="includeListing">
-    /// Whether the listing is among the routes tried. A listing names no task, so for a signed-in
-    /// caller its answer is a list rather than a status about one id, and is asserted separately.
+    /// Whether the collection routes — the page, the running list, the failed count and the kind
+    /// choices — are among the routes tried. They name no task, so for a signed-in caller their
+    /// answer is a body rather than a status about one id, and is asserted separately.
     /// </param>
     private static async Task AssertEveryEndpointAsync(
         HttpClient client,
@@ -215,16 +229,38 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
             $"These routes did not answer {(int)expected}: " + string.Join("; ", wrong));
     }
 
-    /// <summary>Asserts that the listing answers 200 with no task in it.</summary>
+    /// <summary>
+    /// Asserts that every collection route answers 200 with nothing of the hidden task in it: an empty
+    /// page with a total of zero, no running task, a failed count of zero and no kind to choose.
+    /// </summary>
     /// <param name="client">The signed-in client to send with.</param>
     private static async Task AssertEmptyListingAsync(HttpClient client)
     {
-        using var response = await client.GetAsync("/api/v1/tasks");
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var page = await ReadJsonAsync(client, "/api/v1/tasks");
+        Assert.Equal(0, page.RootElement.GetProperty("total").GetInt32());
+        Assert.Equal(0, page.RootElement.GetProperty("items").GetArrayLength());
 
-        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal(JsonValueKind.Array, body.RootElement.ValueKind);
-        Assert.Equal(0, body.RootElement.GetArrayLength());
+        using var running = await ReadJsonAsync(client, "/api/v1/tasks/running");
+        Assert.Equal(JsonValueKind.Array, running.RootElement.ValueKind);
+        Assert.Equal(0, running.RootElement.GetArrayLength());
+
+        using var failed = await ReadJsonAsync(client, "/api/v1/tasks/failed-count");
+        Assert.Equal(0, failed.RootElement.GetInt32());
+
+        using var kinds = await ReadJsonAsync(client, "/api/v1/tasks/kinds");
+        Assert.Equal(JsonValueKind.Array, kinds.RootElement.ValueKind);
+        Assert.Equal(0, kinds.RootElement.GetArrayLength());
+    }
+
+    /// <summary>Reads a route that must answer 200 and parses its body.</summary>
+    /// <param name="client">The signed-in client to send with.</param>
+    /// <param name="path">The route.</param>
+    /// <returns>The parsed body, which the caller disposes.</returns>
+    private static async Task<JsonDocument> ReadJsonAsync(HttpClient client, string path)
+    {
+        using var response = await client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
     }
 
     /// <summary>Boots the host against this class's PostgreSQL.</summary>

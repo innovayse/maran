@@ -197,7 +197,7 @@ public sealed class ListSitesQueryHandlerTests
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
         var statics = await HandleAsync(context, new ListSitesQuery(BackendType: SiteBackendType.Static));
-        var php82 = await HandleAsync(context, new ListSitesQuery(PhpVersion: "8.2"));
+        var php82 = await HandleAsync(context, new ListSitesQuery(PhpVersion: FilterValue.Of("8.2")));
         var off = await HandleAsync(context, new ListSitesQuery(Status: SiteStatus.Disabled));
 
         Assert.Equal(["static.example.com"], Domains(statics.Value.Items));

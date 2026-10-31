@@ -21,6 +21,17 @@ namespace Maran.Modules.Firewall.Queries.ListRules;
 /// so a cached copy here would be a second answer able to disagree with the machine — and the
 /// disagreement would only ever be discovered by somebody acting on the wrong one.
 /// </para>
+/// <para>
+/// <b>This list is answered whole and is not paged, unlike every other list in the panel, and that
+/// is a decision rather than an omission.</b> The screen asks a safety question of it: before a
+/// removal it works out whether any rule for the port would survive, because the last TCP rule for
+/// the SSH port going brings back the any-source SSH accept. That question is about every rule the
+/// host runs, and a page of them would answer it wrongly with nothing to show it had. The agent sets
+/// no ceiling on how many rules exist — it reads its one ruleset file whole on every call — so the
+/// size of this answer is the number of rules administrators have added, which is the same number
+/// the agent has to render into one nftables file on every change. Paging the agent's read would
+/// not shrink that work, only split the answer the lockout check needs in one piece.
+/// </para>
 /// </remarks>
 public sealed class ListRulesQueryHandler
 {

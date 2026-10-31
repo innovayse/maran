@@ -203,9 +203,9 @@ public sealed class SecurityPolicyAuthorizationTests : IAsyncLifetime
             lockoutMinutes = 30,
         });
 
-        var response = await client.GetAsync("/api/v1/audit");
+        var response = await client.GetAsync("/api/v1/audit?pageSize=100");
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var entries = body.RootElement.EnumerateArray()
+        var entries = body.RootElement.GetProperty("items").EnumerateArray()
             .Select(entry =>
             {
                 return (entry.GetProperty("action").GetString(), entry.GetProperty("subject").GetString());

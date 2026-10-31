@@ -165,7 +165,10 @@ test('a licensed module whose interface lives inside another screen gets no side
 
   await page.goto('/')
 
-  await expect(page.getByRole('link', { name: 'Sites' })).toBeVisible()
+  // Scoped to the sidebar: the dashboard's own Sites tile is also a link named "Sites", and which
+  // of the two has rendered when this asserts is a race the claim is not about.
+  const sidebar = page.getByRole('navigation', { name: 'Main navigation' })
+  await expect(sidebar.getByRole('link', { name: 'Sites' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'SSL certificates' })).toHaveCount(0)
 })
 

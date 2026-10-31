@@ -19,7 +19,13 @@
       "confirmEndTitle": "End the session from {address}",
       "signOutEverywhere": "Sign out everywhere",
       "rowActions": "Actions for the session from {address}",
-      "securityPolicyLink": "Security policy"
+      "securityPolicyLink": "Security policy",
+      "expiresColumn": "Expires",
+      "searchLabel": "Search devices",
+      "searchPlaceholder": "Search by device or address…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No devices match",
+      "noResultsDescription": "Change the search, or clear it to see every signed-in device."
     }
   }
 }

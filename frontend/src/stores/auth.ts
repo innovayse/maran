@@ -14,7 +14,7 @@ import type {
   Session,
   TotpEnrolment,
 } from '../types/auth'
-import type { LoadingState } from '../types/loading'
+import type { ListLoad, ListRequest } from '../types/list'
 
 /**
  * Owns who is signed in. Every screen reads state from here and calls its actions;
@@ -61,11 +61,11 @@ export const useAuthStore = defineStore('auth', () => {
   /** True once the store has tried to restore a session, successfully or not. */
   const isRestored: Ref<boolean> = ref(false)
 
-  /** The caller's live sessions, as last loaded. */
+  /**
+   * The page of the caller's live sessions last answered by the panel; empty before the first
+   * answer. Where its read stands is the sessions page's `useServerTable`'s to hold.
+   */
   const sessions: Ref<Session[]> = ref([])
-
-  /** Where the read of {@link sessions} stands; every failure sets `error`, whatever its cause. */
-  const sessionsState: Ref<LoadingState> = ref('loading')
 
   /**
    * The login name the last accepted invitation created, or `null`. Shown on the success screen so
@@ -117,7 +117,6 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = null
     user.value = null
     sessions.value = []
-    sessionsState.value = 'loading'
     twoFactorUsername.value = null
     requiresTwoFactorSetup.value = false
     useModulesStore().clear()
@@ -308,23 +307,24 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * Loads the caller's live sessions.
-   * @returns Resolves once the request has settled.
+   * Loads one page of the caller's live sessions into {@link sessions} and reports how the read
+   * ended, for the sessions page's `useServerTable`.
+   * @param request The page, size, search and sort, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
-  const loadSessions = async (): Promise<void> => {
-    sessionsState.value = 'loading'
-    errorMessage.value = null
+  const listSessions = async (request: ListRequest): Promise<ListLoad<Session>> => {
     try {
-      sessions.value = await api.listSessions()
-      sessionsState.value = 'loaded'
+      const page = await api.listSessions(request)
+      sessions.value = page.items
+      return { kind: 'loaded', page }
     } catch (error) {
-      remember(error)
-      sessionsState.value = 'error'
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
   }
 
   /**
-   * Ends one of the caller's sessions and drops it from the held list.
+   * Ends one of the caller's sessions. The page reads its list again on success rather than
+   * dropping the row here: the removal pulls a row up from the next page, and the total moves.
    * @param id The session to end.
    * @returns True when it was ended.
    */
@@ -332,9 +332,6 @@ export const useAuthStore = defineStore('auth', () => {
     errorMessage.value = null
     try {
       await api.revokeSession(id)
-      sessions.value = sessions.value.filter((session) => {
-        return session.id !== id
-      })
       return true
     } catch (error) {
       remember(error)
@@ -469,7 +466,6 @@ export const useAuthStore = defineStore('auth', () => {
     isSetupComplete,
     isRestored,
     sessions,
-    sessionsState,
     invitedUsername,
     isAuthenticated,
     renewAccessToken,
@@ -480,7 +476,7 @@ export const useAuthStore = defineStore('auth', () => {
     logoutEverywhere,
     loadSetupState,
     completeSetup,
-    loadSessions,
+    listSessions,
     revokeSession,
     beginTwoFactorEnrolment,
     confirmTwoFactorEnrolment,

@@ -3,6 +3,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubSessions } from '../fixtures/stub-sessions-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { forbidAccountsList, stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
@@ -68,9 +69,7 @@ const signInCustomer = async (page: Page): Promise<() => number> => {
   await stubBackups(page, [])
   await stubSites(page, [])
   await stubPhpVersions(page, [])
-  await page.route('**/api/v1/sessions', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  })
+  await stubSessions(page, [])
   return forbidAccountsList(page)
 }
 

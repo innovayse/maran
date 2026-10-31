@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { Ban, FirewallRule, WhitelistEntry } from '../../src/types/firewall'
 
 /** The rules collection. The trailing `*` covers the DELETE, which names its rule in the query string. */
@@ -7,11 +8,47 @@ const RULES_PATTERN = '**/api/v1/firewall/rules*'
 /** The bans collection. The trailing `*` covers the DELETE, which names its address in the query string. */
 const BANS_PATTERN = '**/api/v1/firewall/bans*'
 
-/** The whitelist collection, which answers the listing and the create. */
-const WHITELIST_PATTERN = '**/api/v1/firewall/whitelist'
+/** The whitelist collection, with or without a query, which answers the listing and the create. */
+const WHITELIST_PATTERN = /\/api\/v1\/firewall\/whitelist(\?.*)?$/
 
 /** One whitelist row, which answers the removal. A `*` never spans a `/`, so this is the narrower pattern. */
 const WHITELIST_ENTRY_PATTERN = '**/api/v1/firewall/whitelist/*'
+
+/** How the bans endpoint searches and sorts, as the panel does: inside the address, three keys. */
+const BAN_RULES: PagedRules<Ban> = {
+  matches: (ban, term) => {
+    return ban.ipAddress.toLowerCase().includes(term)
+  },
+  sorts: {
+    address: (ban) => {
+      return ban.ipAddress
+    },
+    bannedAt: (ban) => {
+      return ban.bannedAt
+    },
+    // A ban with no expiry runs out last, so it sorts after every timed one ascending.
+    expiresAt: (ban) => {
+      return ban.expiresAt ?? '\uffff'
+    },
+  },
+  filters: {},
+}
+
+/** How the whitelist endpoint searches and sorts, as the panel does: the range and the note, two keys. */
+const WHITELIST_RULES: PagedRules<WhitelistEntry> = {
+  matches: (entry, term) => {
+    return entry.cidr.toLowerCase().includes(term) || entry.note.toLowerCase().includes(term)
+  },
+  sorts: {
+    cidr: (entry) => {
+      return entry.cidr
+    },
+    createdAt: (entry) => {
+      return entry.createdAt
+    },
+  },
+  filters: {},
+}
 
 /**
  * The three lists a stubbed panel is holding, mutated in place by the stubbed writes so that a
@@ -65,6 +102,8 @@ const isSameRule = (left: FirewallRule, right: FirewallRule): boolean => {
 
 /**
  * Fulfils the three firewall collections with the given lists, and applies every write to them.
+ * The rules are answered whole, as the panel answers them; the bans and the whitelist are answered
+ * one page at a time, honouring `page`, `pageSize`, `search` and `sort`.
  *
  * The writes answer exactly what the module answers: the rules endpoints and the unban answer a
  * bare `true`, and the whitelist create answers `201` with the row it made — the identity a later
@@ -142,7 +181,7 @@ export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(state.bans),
+      body: JSON.stringify(pagedAnswer(state.bans, request.url(), BAN_RULES)),
     })
   })
 
@@ -169,7 +208,7 @@ export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(state.whitelist),
+      body: JSON.stringify(pagedAnswer(state.whitelist, request.url(), WHITELIST_RULES)),
     })
   })
 

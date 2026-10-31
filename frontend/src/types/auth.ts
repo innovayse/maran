@@ -1,3 +1,5 @@
+import type { ListRequest, Paged } from './list'
+
 /**
  * Every type the authentication domain needs, grouped in one file the way the
  * frontend groups types by domain (rules/vue.md "Types").
@@ -182,8 +184,8 @@ export interface AuthApi {
   setupState: (signal?: AbortSignal) => Promise<SetupState>
   /** Creates the first administrator. */
   completeSetup: (request: CompleteSetupRequest, signal?: AbortSignal) => Promise<AuthenticatedUser>
-  /** Lists the caller's live sessions. */
-  listSessions: (signal?: AbortSignal) => Promise<Session[]>
+  /** Lists one page of the caller's live sessions. */
+  listSessions: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<Session>>
   /** Ends one of the caller's sessions. */
   revokeSession: (id: string, signal?: AbortSignal) => Promise<boolean>
   /** Starts a two-factor enrolment without enabling anything. */

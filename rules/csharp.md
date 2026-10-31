@@ -210,7 +210,9 @@ backend/
 │   │   ├── Domain/                      # Entity, AggregateRoot, ValueObject, IDomainEvent
 │   │   ├── Pagination/                  # the list contract's values: PageDefaults (first page, allowed
 │   │   │                                 #   sizes 10/25/50/100, search length), SearchTerm (None or a
-│   │   │                                 #   trimmed valid term), SortKey (`name`/`-name`), SortRequest
+│   │   │                                 #   trimmed valid term), FilterValue (None or the exact value
+│   │   │                                 #   an optional text filter must equal — never "" for "all"),
+│   │   │                                 #   SortKey (`name`/`-name`), SortRequest
 │   │   │                                 #   (Default or a SortKey), SortMap<T> (the sort whitelist,
 │   │   │                                 #   default and tie-breaker, each field typed — never boxed),
 │   │   │                                 #   built by SortMapBuilder<T> → DefaultedSortMapBuilder<T>,
@@ -259,7 +261,8 @@ backend/
 │   │   │                                 #   a sort key naming a SortMap field)
 │   │   ├── ModelBinding/                # MVC model binders for the Sdk's own parameter types, and the
 │   │   │                                 #   one provider handing them out: PagingModelBinderProvider
-│   │   │                                 #   binds `search` to a SearchTerm and `sort` to a SortRequest,
+│   │   │                                 #   binds `search` to a SearchTerm, `sort` to a SortRequest and
+│   │   │                                 #   an optional text filter to a FilterValue,
 │   │   │                                 #   refusing a malformed one with the ValidationMessages code
 │   │   │                                 #   through the same 400 a validator raises. InvalidModelStateRefusal
 │   │   │                                 #   is the fallback for every value MVC's own binders refuse

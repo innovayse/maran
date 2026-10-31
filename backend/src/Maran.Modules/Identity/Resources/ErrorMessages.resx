@@ -93,4 +93,13 @@
   <data name="AdminRecoveryLoginNotActive">
     <value>That administrator's login is not active (it is suspended or still awaiting its first password), so it cannot be recovered from the console.</value>
   </data>
+  <data name="AuditActionFilterInvalid">
+    <value>That is not an action the audit journal can record.</value>
+  </data>
+  <data name="AuditOutcomeUnknown">
+    <value>That is not an outcome an audit entry can have.</value>
+  </data>
+  <data name="AuditDateRangeInverted">
+    <value>The start of the date range must not be later than its end.</value>
+  </data>
 </root>

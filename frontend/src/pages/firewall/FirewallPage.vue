@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /**
- * The firewall screen: what the host lets through, who it is currently refusing, and who it will
- * never refuse. Renders a `<section>`, not a `<main>` — the single `<main>` landmark lives in the
- * layout this page is nested under. State comes exclusively from the firewall store; the page never
- * touches the API layer (rules/vue.md: API composables are called from stores only).
+ * The firewall's rules screen: what the host lets through, and from where. Renders a `<section>`,
+ * not a `<main>` — the single `<main>` landmark lives in the layout this page is nested under. State
+ * comes exclusively from the firewall store; the page never touches the API layer (rules/vue.md: API
+ * composables are called from stores only). The bans and the whitelist are pages of their own
+ * (`FirewallBansPage`, `FirewallWhitelistPage`), each server-paged with its state in the URL.
  *
- * One page rather than three, because the three lists answer one question between them and an
- * operator judging a ban is reading the whitelist in the same breath. None of them has a detail to
- * open: a rule has no identity beyond its three values, a ban is one row, and an exemption is a
- * range and a note.
+ * **The rule list is the one list in the panel that is not paged, on purpose.** The removal
+ * confirmation below asks whether any rule for a port would survive, and that question is about
+ * every rule the host runs: a page of them would answer it wrongly. A rule has no identity beyond
+ * its three values, so there is no detail to open either.
  *
  * **Every rule change that could cost the operator their way in passes through
  * `FirewallLockoutDialog` first**, which is where the reasoning about that lives. The panel accepts
@@ -25,34 +26,19 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiToast from '../../components/ui/UiToast.vue'
-import FirewallBanForm from '../../components/firewall/FirewallBanForm.vue'
-import FirewallBansTable from '../../components/firewall/FirewallBansTable.vue'
 import FirewallLockoutDialog from '../../components/firewall/FirewallLockoutDialog.vue'
 import FirewallPresetButtons from '../../components/firewall/FirewallPresetButtons.vue'
 import FirewallRuleForm from '../../components/firewall/FirewallRuleForm.vue'
 import FirewallRulesTable from '../../components/firewall/FirewallRulesTable.vue'
-import FirewallWhitelistForm from '../../components/firewall/FirewallWhitelistForm.vue'
-import FirewallWhitelistTable from '../../components/firewall/FirewallWhitelistTable.vue'
 import { useFirewallStore } from '../../stores/firewall'
 import { isAnySourceRange } from '../../utils/anySourceRange'
-import type {
-  AddWhitelistEntryRequest,
-  BanAddressRequest,
-  FirewallRule,
-  FirewallRuleChange,
-} from '../../types/firewall'
+import type { FirewallRule, FirewallRuleChange } from '../../types/firewall'
 
 const { t } = useI18n()
 const store = useFirewallStore()
 
 /** The rule form, so an accepted change can empty the fields it owns. */
 const ruleForm = useTemplateRef<{ reset: () => void }>('ruleForm')
-
-/** The ban form, so an accepted ban can empty the fields it owns. */
-const banForm = useTemplateRef<{ reset: () => void }>('banForm')
-
-/** The whitelist form, so an accepted exemption can empty the fields it owns. */
-const whitelistForm = useTemplateRef<{ reset: () => void }>('whitelistForm')
 
 /** The rules awaiting the lockout confirmation, or empty when nothing is. */
 const pendingRules: Ref<FirewallRule[]> = ref([])
@@ -66,7 +52,7 @@ const pendingFromForm: Ref<boolean> = ref(false)
 /** The success toast's text after a rule was installed, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
 
-/** Whether the lists are still on their way: each table draws placeholder rows meanwhile. */
+/** Whether the rules are still on their way: the table draws placeholder rows meanwhile. */
 const listsLoading: ComputedRef<boolean> = computed(() => {
   return store.loadState === 'loading'
 })
@@ -107,7 +93,7 @@ const leavesPortsUnruled: ComputedRef<boolean> = computed(() => {
 })
 
 /**
- * Loads the three lists the screen is made of.
+ * Loads every rule the host is running.
  * @returns Resolves once the request has settled.
  */
 const refresh = async (): Promise<void> => {
@@ -227,67 +213,11 @@ const removeRule = (rule: FirewallRule): void => {
 }
 
 /**
- * Places a ban the form has already validated.
- * @param request The address and duration the operator typed.
- * @returns Resolves once the attempt has settled.
- */
-const placeBan = async (request: BanAddressRequest): Promise<void> => {
-  if (await store.banAddress(request)) {
-    banForm.value?.reset()
-  }
-}
-
-/**
- * Lifts every ban in force for one address.
- * @param address The address to let back in.
- * @returns Resolves once the attempt has settled.
- */
-const liftBan = async (address: string): Promise<void> => {
-  await store.unbanAddress(address)
-}
-
-/**
- * Adds an exemption the form has already validated.
- * @param request The range and note the operator typed.
- * @returns Resolves once the attempt has settled.
- */
-const addExemption = async (request: AddWhitelistEntryRequest): Promise<void> => {
-  if (await store.addWhitelistEntry(request)) {
-    whitelistForm.value?.reset()
-  }
-}
-
-/**
- * Removes an exemption.
- * @param id The row to remove.
- * @returns Resolves once the attempt has settled.
- */
-const removeExemption = async (id: string): Promise<void> => {
-  await store.removeWhitelistEntry(id)
-}
-
-/**
  * Drops the rule form's last refusal: it described the values that were sent, not the ones typed now.
  * @returns Nothing.
  */
 const clearRuleError = (): void => {
   store.ruleErrorMessage = null
-}
-
-/**
- * Drops the ban form's last refusal once its fields change.
- * @returns Nothing.
- */
-const clearBanError = (): void => {
-  store.banErrorMessage = null
-}
-
-/**
- * Drops the exemption form's last refusal once its fields change.
- * @returns Nothing.
- */
-const clearWhitelistError = (): void => {
-  store.whitelistErrorMessage = null
 }
 
 /**
@@ -350,64 +280,6 @@ onMounted(refresh)
           :busy="store.acting"
           :loading="listsLoading"
           @remove="removeRule"
-        />
-      </UiCard>
-
-      <UiCard class="flex flex-col gap-4">
-        <UiSectionHeading
-          :title="t('firewall.bans.heading')"
-          :subtitle="t('firewall.bans.subtitle')"
-        />
-
-        <UiAlert v-if="store.banErrorMessage !== null" variant="error">
-          {{ store.banErrorMessage }}
-        </UiAlert>
-
-        <FirewallBanForm ref="banForm" :submitting="store.acting" @submit="placeBan" @edit="clearBanError" />
-
-        <UiEmptyState
-          v-if="store.loadState === 'loaded' && store.bans.length === 0"
-          :title="t('firewall.bans.emptyTitle')"
-          :description="t('firewall.bans.emptyDescription')"
-        />
-
-        <FirewallBansTable v-else :bans="store.bans" :busy="store.acting" :loading="listsLoading" @unban="liftBan" />
-      </UiCard>
-
-      <UiCard class="flex flex-col gap-4">
-        <UiSectionHeading
-          :title="t('firewall.whitelist.heading')"
-          :subtitle="t('firewall.whitelist.subtitle')"
-        />
-        <!-- The seeded row is not marked as one on the wire, so the screen says what to look for
-             rather than deciding for itself which row the installer left behind. -->
-        <p class="max-w-prose text-sm text-text-muted wrap-anywhere">
-          {{ t('firewall.whitelist.seedNote') }}
-        </p>
-
-        <UiAlert v-if="store.whitelistErrorMessage !== null" variant="error">
-          {{ store.whitelistErrorMessage }}
-        </UiAlert>
-
-        <FirewallWhitelistForm
-          ref="whitelistForm"
-          :submitting="store.acting"
-          @submit="addExemption"
-          @edit="clearWhitelistError"
-        />
-
-        <UiEmptyState
-          v-if="store.loadState === 'loaded' && store.whitelist.length === 0"
-          :title="t('firewall.whitelist.emptyTitle')"
-          :description="t('firewall.whitelist.emptyDescription')"
-        />
-
-        <FirewallWhitelistTable
-          v-else
-          :entries="store.whitelist"
-          :busy="store.acting"
-          :loading="listsLoading"
-          @remove="removeExemption"
         />
       </UiCard>
     </UiLoadingRegion>

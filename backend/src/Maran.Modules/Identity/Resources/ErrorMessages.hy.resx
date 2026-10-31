@@ -93,4 +93,13 @@
   <data name="AdminRecoveryLoginNotActive">
     <value>Այս ադմինիստրատորի մուտքը ակտիվ չէ (կասեցված է կամ դեռ սպասում է առաջին գաղտնաբառին), ուստի կոնսոլից այն վերականգնել հնարավոր չէ։</value>
   </data>
+  <data name="AuditActionFilterInvalid">
+    <value>Աուդիտի մատյանը նման գործողություն չի կարող գրանցել։</value>
+  </data>
+  <data name="AuditOutcomeUnknown">
+    <value>Աուդիտի գրառումը նման արդյունք չի կարող ունենալ։</value>
+  </data>
+  <data name="AuditDateRangeInverted">
+    <value>Ժամանակահատվածի սկիզբը չի կարող լինել դրա ավարտից ուշ։</value>
+  </data>
 </root>

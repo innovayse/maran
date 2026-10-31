@@ -1,5 +1,8 @@
 using Maran.Modules.Tasks.Common;
+using Maran.Modules.Tasks.Queries.CountFailedTasks;
 using Maran.Modules.Tasks.Queries.GetTask;
+using Maran.Modules.Tasks.Queries.ListRunningTasks;
+using Maran.Modules.Tasks.Queries.ListTaskKindChoices;
 using Maran.Modules.Tasks.Queries.ListTasks;
 using Maran.Modules.Tasks.Services;
 using Maran.Sdk.Contracts;
@@ -56,16 +59,62 @@ public sealed class TasksController : BaseApiController
         _streamWriter = streamWriter;
     }
 
-    /// <summary>Lists the most recent background tasks the caller may see, newest first.</summary>
+    /// <summary>
+    /// Reads one page of the background tasks the caller may see, newest first unless a sort is named,
+    /// optionally searched and narrowed by account, status, kind and a window of start times.
+    /// </summary>
+    /// <param name="query">
+    /// Page, page size, search, sort and the <c>accountId</c>, <c>status</c>, <c>kind</c>, <c>from</c>
+    /// and <c>to</c> filters, bound from the query string; <c>ListTasksQueryValidator</c> holds each to
+    /// its bounds.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>The tasks the caller may see — every task for an administrator, their own for a customer.</returns>
+    /// <returns>
+    /// The page with the total that matched — every task for an administrator, their own for a
+    /// customer — or a 400 naming the bound that was broken.
+    /// </returns>
     [HttpGet]
+    [ProducesResponseType(typeof(PagedResult<PanelTaskDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetAllAsync([FromQuery] ListTasksQuery query, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<PanelTaskDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>Lists every running task the caller may see, newest first: what the shell's badge counts.</summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The running tasks.</returns>
+    [HttpGet("running")]
     [ProducesResponseType(typeof(IReadOnlyList<PanelTaskDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetRunningAsync(CancellationToken cancellationToken)
     {
-        var query = new ListTasksQuery();
-        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<PanelTaskDto>>>(query, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<PanelTaskDto>>>(
+            new ListRunningTasksQuery(), cancellationToken));
+    }
+
+    /// <summary>Counts the failed tasks the caller may see, for the list's attention notice.</summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The count, as a bare number.</returns>
+    [HttpGet("failed-count")]
+    [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetFailedCountAsync(CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _bus.InvokeAsync<Result<int>>(new CountFailedTasksQuery(), cancellationToken));
+    }
+
+    /// <summary>Lists the kinds among the tasks the caller may see, named for their language, for the kind filter.</summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The choices, ordered by name.</returns>
+    [HttpGet("kinds")]
+    [ProducesResponseType(typeof(IReadOnlyList<TaskKindChoiceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetKindsAsync(CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<TaskKindChoiceDto>>>(
+            new ListTaskKindChoicesQuery(), cancellationToken));
     }
 
     /// <summary>Reads one task. A task the caller may not see answers 404, not 403.</summary>

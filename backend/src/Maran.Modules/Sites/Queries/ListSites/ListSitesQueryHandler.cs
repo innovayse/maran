@@ -63,9 +63,9 @@ public sealed class ListSitesQueryHandler
             sites = sites.Where(site => site.BackendType == backendType);
         }
 
-        if (query.PhpVersion.Length > 0)
+        if (!query.PhpVersion.IsNone)
         {
-            var phpVersion = query.PhpVersion;
+            var phpVersion = query.PhpVersion.Value;
             sites = sites.Where(site => site.PhpVersion == phpVersion);
         }
 
