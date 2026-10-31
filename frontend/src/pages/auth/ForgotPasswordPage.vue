@@ -27,10 +27,10 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiInput from '../../components/ui/UiInput.vue'
-import { useAuthStore } from '../../stores/auth'
+import { usePasswordLinksStore } from '../../stores/passwordLinks'
 
 const { t } = useI18n()
-const authStore = useAuthStore()
+const passwordLinksStore = usePasswordLinksStore()
 
 /** The address being typed. */
 const email: Ref<string> = ref('')
@@ -56,11 +56,11 @@ const submit = async (): Promise<void> => {
     return
   }
 
-  await authStore.requestPasswordReset(email.value)
+  await passwordLinksStore.requestPasswordReset(email.value)
 
   // A panel that could not be reached is a different fact from anything about the
   // address, and it is the only condition that keeps the form on screen.
-  if (authStore.errorMessage === null) {
+  if (passwordLinksStore.errorMessage === null) {
     submitted.value = true
   }
 }
@@ -90,8 +90,8 @@ watch(email, (): void => {
     </div>
 
     <template v-else>
-      <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-5">
-        {{ authStore.errorMessage }}
+      <UiAlert v-if="passwordLinksStore.errorMessage !== null" variant="error" class="mb-5">
+        {{ passwordLinksStore.errorMessage }}
       </UiAlert>
 
       <UiForm @submit="submit">
@@ -107,7 +107,7 @@ watch(email, (): void => {
           />
 
           <!-- The one primary pill on the screen, full width, with the arrow after its text. -->
-          <UiButton class="w-full justify-center gap-2" type="submit" :disabled="authStore.loading">
+          <UiButton class="w-full justify-center gap-2" type="submit" :disabled="passwordLinksStore.loading">
             {{ t('app.passwordReset.sendLink') }}
             <UiIcon name="arrowRight" />
           </UiButton>
