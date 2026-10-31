@@ -109,6 +109,8 @@ internal static class AgentErrorTranslator
             ErrorCode.SystemFailure => ErrorType.Failure,
             ErrorCode.NotImplemented => ErrorType.Unavailable,
             ErrorCode.LimitReached => ErrorType.Conflict,
+            ErrorCode.PackageSourceRefused => ErrorType.UpstreamRefused,
+            ErrorCode.PackageSourceUnreachable => ErrorType.Unavailable,
             _ => ErrorType.Failure,
         };
     }
@@ -142,6 +144,14 @@ internal static class AgentErrorTranslator
     /// sentence here — that this was the CONCURRENT loser rather than the ordinary refusal — maps
     /// this code again in its own translator, which is what
     /// <c>Maran.Modules.Cron.Mappers.CronAgentErrorTranslator</c> does.
+    ///
+    /// <see cref="ErrorCode.PackageSourceRefused"/> and <see cref="ErrorCode.PackageSourceUnreachable"/>
+    /// are a package install the agent classified as failing outside this host (issue #251). A source
+    /// that answered with an HTTP error is <see cref="ErrorType.UpstreamRefused"/> (502): the panel's
+    /// own server did its part and a party it depends on said no. A source nobody could reach is
+    /// <see cref="ErrorType.Unavailable"/> (503): nothing answered, and a later attempt may succeed
+    /// unchanged. Neither is a 500, which would send the operator looking for a fault on a machine
+    /// that has none.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -155,6 +165,8 @@ internal static class AgentErrorTranslator
             ErrorCode.SystemFailure => nameof(ErrorMessages.AgentSystemFailure),
             ErrorCode.NotImplemented => nameof(ErrorMessages.AgentNotImplemented),
             ErrorCode.LimitReached => nameof(ErrorMessages.AgentLimitReached),
+            ErrorCode.PackageSourceRefused => nameof(ErrorMessages.AgentPackageSourceRefused),
+            ErrorCode.PackageSourceUnreachable => nameof(ErrorMessages.AgentPackageSourceUnreachable),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

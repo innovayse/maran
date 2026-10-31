@@ -99,9 +99,9 @@ public sealed class ExceptionMiddleware
             return;
         }
 
-        var code = ResolveValidationCode(validation);
+        var (code, field) = ResolveValidationCode(validation);
         var errorTextProvider = context.RequestServices.GetService<IErrorTextProvider>();
-        var detail = errorTextProvider?.Resolve(code) ?? code;
+        var detail = errorTextProvider?.Resolve(code, field) ?? code;
 
         var problem = new ProblemDetails
         {
@@ -119,8 +119,8 @@ public sealed class ExceptionMiddleware
     }
 
     /// <summary>
-    /// Picks the error code for a validation failure: the first failure whose message is itself a
-    /// code, or a generic one.
+    /// Picks the error code for a validation failure — the first failure whose message is itself a
+    /// code, or a generic one — together with the name of the field that failure is about.
     /// </summary>
     /// <remarks>
     /// FluentValidation's default messages are English sentences meant for developers ("'Password'
@@ -128,21 +128,26 @@ public sealed class ExceptionMiddleware
     /// string the backend does not own (rules/csharp.md). A validator that wants a specific message
     /// says so with <c>.WithMessage("PasswordTooWeak")</c>; everything else collapses to the
     /// generic code, which at least is translated.
+    /// <para>
+    /// The field name is handed to the text lookup as its one format argument, so a sentence may
+    /// name the value it refuses as <c>{0}</c> — <c>RequestParameterInvalid</c> does, because a
+    /// value MVC could not bind is otherwise anonymous. A sentence with no placeholder ignores it.
+    /// </para>
     /// </remarks>
     /// <param name="validation">The failure raised by the command's validator.</param>
-    /// <returns>A machine-stable error code that names a resource entry.</returns>
-    private static string ResolveValidationCode(ValidationException validation)
+    /// <returns>A machine-stable error code that names a resource entry, and the field it is about.</returns>
+    private static (string Code, string Field) ResolveValidationCode(ValidationException validation)
     {
         foreach (var failure in validation.Errors)
         {
             var message = failure.ErrorMessage;
             if (!string.IsNullOrEmpty(message) && message.All(char.IsLetterOrDigit))
             {
-                return message;
+                return (message, failure.PropertyName ?? string.Empty);
             }
         }
 
-        return ValidationFailedCode;
+        return (ValidationFailedCode, string.Empty);
     }
 
     /// <summary>Writes the generic 500 problem response. Never includes exception detail.</summary>

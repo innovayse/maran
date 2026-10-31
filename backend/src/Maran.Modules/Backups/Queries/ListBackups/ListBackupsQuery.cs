@@ -18,8 +18,8 @@ namespace Maran.Modules.Backups.Queries.ListBackups;
 /// </para>
 /// <para>
 /// The enum filters are written on the query string in the camelCase the JSON answers carry
-/// (<c>failed</c>, <c>preDeletion</c>); a number binds too and is refused by the validator when it
-/// names no member.
+/// (<c>failed</c>, <c>preDeletion</c>); a number naming no member is refused while binding, with
+/// <c>RequestParameterInvalid</c>.
 /// </para>
 /// <para>
 /// The tenant scope never comes from this query: the context's global query filter scopes the read to

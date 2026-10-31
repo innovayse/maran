@@ -115,6 +115,7 @@ fn declared_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, S
     vec![
         ("nginx_binary", distro.nginx_binary().to_string()),
         ("service_manager", distro.service_manager().to_string()),
+        ("journal_binary", distro.journal_binary().to_string()),
         (
             "php_fpm_binary",
             distro.php_fpm_binary(&php_version).to_string(),

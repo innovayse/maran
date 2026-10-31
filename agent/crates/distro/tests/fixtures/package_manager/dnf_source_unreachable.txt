@@ -1,0 +1,24 @@
+Last metadata expiration check: 0:00:03 ago on Fri Oct 30 23:43:07 2026.
+Dependencies resolved.
+================================================================================
+ Package             Arch      Version                       Repository    Size
+================================================================================
+Installing:
+ php-fpm             x86_64    8.0.30-8.el9_8.1              appstream    1.6 M
+Installing dependencies:
+ httpd-filesystem    noarch    2.4.62-13.el9_8.9             appstream     14 k
+ nginx-filesystem    noarch    2:1.20.1-28.el9_8.6.alma.1    appstream     11 k
+ php-common          x86_64    8.0.30-8.el9_8.1              appstream    670 k
+
+Transaction Summary
+================================================================================
+Install  4 Packages
+
+Total download size: 2.3 M
+Installed size: 16 M
+Downloading Packages:
+
+The downloaded packages were saved in cache until the next successful transaction.
+You can remove cached packages by executing 'dnf clean packages'.
+Error: Error downloading packages:
+  Curl error (6): Couldn't resolve host name for https://mirrors.almalinux.org/mirrorlist/9/appstream [Could not resolve host: mirrors.almalinux.org]

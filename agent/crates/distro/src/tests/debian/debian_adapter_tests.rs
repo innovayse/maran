@@ -229,6 +229,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
     vec![
         ("nginx", DebianAdapter.nginx_binary()),
         ("service_manager", DebianAdapter.service_manager()),
+        ("journal", DebianAdapter.journal_binary()),
         ("php_fpm", DebianAdapter.php_fpm_binary(&version)),
         ("openssl", DebianAdapter.openssl_binary()),
         ("tar", DebianAdapter.tar_binary()),

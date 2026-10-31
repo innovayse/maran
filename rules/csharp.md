@@ -261,12 +261,16 @@ backend/
 │   │   │                                 #   one provider handing them out: PagingModelBinderProvider
 │   │   │                                 #   binds `search` to a SearchTerm and `sort` to a SortRequest,
 │   │   │                                 #   refusing a malformed one with the ValidationMessages code
-│   │   │                                 #   through the same 400 a validator raises. Here and not in the
+│   │   │                                 #   through the same 400 a validator raises. InvalidModelStateRefusal
+│   │   │                                 #   is the fallback for every value MVC's own binders refuse
+│   │   │                                 #   (RequestParameterInvalid; see "A value that cannot bind").
+│   │   │                                 #   Here and not in the
 │   │   │                                 #   Host because the codes are the Sdk's; registered once by the
 │   │   │                                 #   Host (Extensions/ModelBindingExtensions.cs)
 │   │   ├── Resources/                   # the Sdk's own resx triples: ValidationMessages defines the
-│   │   │                                 #   codes Validators/ raises (ListPageOutOfRange, ListSortUnknown,
-│   │   │                                 #   ...); the Host registers its ResourceManager
+│   │   │                                 #   codes Validators/ and ModelBinding/ raise (ListPageOutOfRange,
+│   │   │                                 #   ListSortUnknown, RequestParameterInvalid, ...); the Host
+│   │   │                                 #   registers its ResourceManager
 │   ├── Maran.Agent.Client/          # the ONLY project generating agent gRPC code
 │   │   ├── DependencyInjection.cs       # AddAgentClient — the project's registrations
 │   │   ├── Channels/                    # AgentChannel.cs — unix-socket channel construction
@@ -512,6 +516,25 @@ public sealed class AuditLogsController : BaseApiController
   spoofable endpoint. It carries a planted violation as its refusing control and a fully guarded
   `[FromQuery]` command as its accepting one, and it cannot see whether the action performs the
   stamp — a forgotten `with` is a blank field, not a spoofed one.
+- **A value that cannot bind is refused with a code, through the validators' 400.** One rule for
+  every `[FromQuery]`, `[FromRoute]` and `[FromBody]` parameter of every module: a value MVC's own
+  binders refuse — `?page=abc`, `?pageSize=x`, `?status=7` for an enum with no member 7 — is answered
+  by `Maran.Sdk/ModelBinding/InvalidModelStateRefusal`, installed once by the Host as
+  `ApiBehaviorOptions.InvalidModelStateResponseFactory`. It raises the same `ValidationException` a
+  validator raises, carrying the Sdk's generic code `RequestParameterInvalid` (kind `Validation`), so
+  the Host's exception middleware writes it: the panel's one problem shape, a `code`, and a title in
+  the caller's language naming the value that failed (the failure's field is the text's `{0}`).
+  MVC's default factory answered these with a 400 that carried no `code` at all, and the SPA could
+  neither branch on it nor show a translated sentence.
+
+  It is the FALLBACK. A binder that knows its parameter refuses with a code of its own and is never
+  overridden by it — `SearchTermModelBinder` (`ListSearchTooLong`, `ListSearchInvalid`) and
+  `SortRequestModelBinder` (`ListSortUnknown`) throw while binding, so the factory never sees their
+  values. A new binder that can say more than "unreadable" does the same; a module does not write a
+  binder only to swap the generic code for its own. And a validator rule that MVC's binder makes
+  unreachable over HTTP — `SiteStatusUnknown` behind an enum filter — stays, because the query is also
+  dispatched on the bus where nothing binds it. Never answer a binding failure by returning an
+  `IActionResult` of another shape: a second writer of the 400 is how the codeless answer existed.
 - **Operation naming is fixed**: folder `Commands/CreateSite/` holds `CreateSiteCommand.cs`, `CreateSiteCommandHandler.cs`, `CreateSiteCommandValidator.cs`; folder `Queries/GetSite/` holds `GetSiteQuery.cs`, `GetSiteQueryHandler.cs` (+ `GetSiteQueryValidator.cs` when the query takes filters worth validating). Suffixes are always full: `…CommandHandler`, `…QueryHandler`, `…CommandValidator` — never a bare `…Handler`. Operation folders read as verb + subject: `GetSite`, `ListSites`, `ExportSiteLogs`.
 - **Commands and queries are `record`s**, XML-documented with a `<param>` line for every field.
 - **DTO naming and home**: outward-facing types end in `Dto` (`SiteDto`, `SiteDetailDto`, `SiteStatsDto`) and live in the module's `Common/` folder. There is no separate `DTOs/` folder.

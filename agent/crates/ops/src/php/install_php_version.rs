@@ -4,6 +4,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
+use crate::php::classify_install_failure::classify_install_failure;
 use crate::php::list_php_versions::is_installed;
 use crate::php::supported_versions::ensure_supported;
 use crate::php::{PhpHost, PhpOpError};
@@ -96,9 +97,12 @@ fn describe_failure(unit: &str, start_stderr: &str) -> String {
 /// # Errors
 ///
 /// Returns [`PhpOpError::UnsupportedVersion`] when `version` is not one of the
-/// supported ones, [`PhpOpError::PackageManager`] when the install unit cannot
-/// be started, fails, or succeeds without the version appearing (its text
-/// carries the service manager's stderr and the unit name), and [`PhpOpError::ServiceEnable`]
+/// supported ones, [`PhpOpError::PackageSourceRefused`] when the unit's package
+/// manager failed because a package source answered with an HTTP error,
+/// [`PhpOpError::PackageSourceUnreachable`] when it failed because no source
+/// could be reached, [`PhpOpError::PackageManager`] when the install unit cannot
+/// be started, fails for any other reason, or succeeds without the version
+/// appearing (each carries the service manager's stderr and the unit name), and [`PhpOpError::ServiceEnable`]
 /// when the package installed but its service could not be enabled — reported
 /// separately because the two need different things from an operator: a
 /// repository or the unit's journal to look at, or a service unit to fix.
@@ -162,9 +166,12 @@ where
             },
         })?;
     if outcome.status != 0 {
-        return Err(PhpOpError::PackageManager {
-            stderr: describe_failure(&unit, &outcome.stderr),
-        });
+        return Err(classify_install_failure(
+            host,
+            distro,
+            &unit,
+            describe_failure(&unit, &outcome.stderr),
+        ));
     }
 
     if !is_installed(host, distro, version) {
