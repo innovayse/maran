@@ -115,7 +115,7 @@ test('removing an entry asks first and then names the account in the request', a
   const deleted = page.waitForRequest((request) => {
     return request.method() === 'DELETE'
   })
-  await dialog.getByRole('button', { name: 'Yes, remove it' }).click()
+  await dialog.getByRole('button', { name: 'Remove task' }).click()
 
   const request = await deleted
   expect(request.url()).toContain(`/api/v1/cron-entries/${NIGHTLY.entryId}`)
@@ -213,7 +213,7 @@ test('dismissing the removal confirmation sends no request, and confirm is not t
   })
   expect(focus.inside).toBe(true)
   expect(focus.label).not.toContain('Actions for')
-  expect(focus.text).not.toEqual('Yes, remove it')
+  expect(focus.text).not.toEqual('Remove task')
 
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)

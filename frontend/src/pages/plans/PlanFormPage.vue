@@ -23,10 +23,10 @@
  */
 import { computed, onMounted, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
-import UiIcon from '../../components/ui/UiIcon.vue'
+import UiLink from '../../components/ui/UiLink.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import PlanForm from '../../components/plans/PlanForm.vue'
@@ -127,14 +127,7 @@ onMounted(prepare)
         :title="t('plans.form.notFoundTitle')"
         :description="t('plans.form.notFoundDescription')"
       >
-        <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
-        <RouterLink
-          :to="{ name: 'plans' }"
-          class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
-        >
-          <UiIcon name="chevronLeft" size="sm" />
-          {{ t('plans.form.backToList') }}
-        </RouterLink>
+        <UiLink :to="{ name: 'plans' }" icon="chevronLeft">{{ t('plans.form.backToList') }}</UiLink>
       </UiEmptyState>
 
       <PlanForm v-else :plan="plan" :submitting="store.saving" @submit="save" @cancel="cancel" />

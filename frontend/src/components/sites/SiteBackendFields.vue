@@ -19,6 +19,7 @@
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiFieldHint from '../ui/UiFieldHint.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import PhpVersionSelect from './PhpVersionSelect.vue'
@@ -118,7 +119,7 @@ const onBackendChange = (value: string): void => {
         :error="props.proxyUpstreamError"
         required
       />
-      <p class="mt-1.5 text-sm text-text-muted wrap-anywhere">{{ t('sites.form.hints.proxyUpstream') }}</p>
+      <UiFieldHint class="mt-1.5">{{ t('sites.form.hints.proxyUpstream') }}</UiFieldHint>
     </div>
   </div>
 </template>

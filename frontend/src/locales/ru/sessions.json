@@ -14,7 +14,7 @@
       "end": "Завершить",
       "confirm": "Завершить этот сеанс?",
       "confirmCurrent": "Вы выйдете из панели на этом устройстве.",
-      "confirmEnd": "Завершить",
+      "confirmEnd": "Завершить сеанс",
       "working": "Завершение сеанса…",
       "confirmEndTitle": "Завершить сеанс с {address}",
       "signOutEverywhere": "Выйти на всех устройствах",

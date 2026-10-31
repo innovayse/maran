@@ -16,6 +16,7 @@
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
+import UiFieldHint from '../ui/UiFieldHint.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import type { PhpVersion } from '../../types/phpVersion'
 
@@ -85,6 +86,6 @@ const onUpdate = (value: string): void => {
       required
       @update:model-value="onUpdate"
     />
-    <p class="text-xs text-text-muted wrap-anywhere">{{ t('sites.form.hints.phpVersion') }}</p>
+    <UiFieldHint>{{ t('sites.form.hints.phpVersion') }}</UiFieldHint>
   </div>
 </template>

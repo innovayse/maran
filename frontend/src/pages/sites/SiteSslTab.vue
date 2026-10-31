@@ -349,7 +349,7 @@ onMounted(load);
       :open="pendingRemovalId !== null"
       :title="t('certificates.confirmRemoveTitle', { domain: pendingRemovalDomain })"
       :question="t('certificates.confirmRemove')"
-      :confirm-label="t('common.confirm')"
+      :confirm-label="t('certificates.remove')"
       :cancel-label="t('common.cancel')"
       :close-label="t('common.close')"
       :acting="store.acting"

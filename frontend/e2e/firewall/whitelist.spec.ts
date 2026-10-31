@@ -141,7 +141,7 @@ test('removing an exemption asks first, and then names the row the panel gave ba
   )
   expect(deletes).toEqual([])
 
-  await dialog.getByRole('button', { name: 'Yes, remove it' }).click()
+  await dialog.getByRole('button', { name: 'Remove exemption' }).click()
 
   await expect
     .poll(() => {
@@ -262,7 +262,7 @@ test('dismissing the exemption confirmation sends no request, and confirm is not
     }
   })
   expect(focus.inside).toBe(true)
-  expect(focus.text).not.toEqual('Yes, remove it')
+  expect(focus.text).not.toEqual('Remove exemption')
 
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)

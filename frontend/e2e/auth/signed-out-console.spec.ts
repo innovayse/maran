@@ -1,5 +1,5 @@
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test'
-import { stubSignedOut } from '../fixtures/stub-auth-routes'
+import { stubSetupState, stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 
@@ -40,6 +40,25 @@ test('a signed-out visit to the sign-in screen with no cookies leaves the consol
   expect(refreshStatuses).toEqual([204])
   expect(consoleErrors).toEqual([])
 })
+
+// Issue #218, point 11: every signed-out screen, not only the sign-in one, opens without a console
+// error — the refresh every page load asks answers 204, and no screen asks anything whose expected
+// answer is a 4xx the browser would log.
+for (const path of ['/login', '/forgot-password', '/reset-password?token=abc', '/accept-invitation?token=abc', '/setup']) {
+  test(`the signed-out screen ${path} opens with a quiet console`, async ({ page }) => {
+    await page.context().clearCookies()
+    const consoleErrors = collectConsoleErrors(page)
+    await stubSignedOut(page)
+    await stubHealthy(page)
+    await stubEmptyModules(page)
+    await stubSetupState(page, { isComplete: false })
+
+    await page.goto(path)
+
+    await expect(page.getByRole('heading', { level: 2 }).first()).toBeVisible()
+    expect(consoleErrors).toEqual([])
+  })
+}
 
 test('a refused refresh cookie still lands on the sign-in screen and is seen by the console probe', async ({
   page,
