@@ -1,3 +1,4 @@
+using System.Resources;
 using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Options;
 using Maran.Modules.Tasks.Persistence;
@@ -5,6 +6,7 @@ using Maran.Modules.Tasks.Resources;
 using Maran.Modules.Tasks.Services;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
+using Maran.SharedKernel.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -101,5 +103,24 @@ public static class TasksTestContext
 
         return new TaskKindDisplayNames(
             new StringLocalizer<DisplayNames>(factory));
+    }
+
+    /// <summary>
+    /// Builds the failure describer over the panel's REAL error-text resolution, reading this
+    /// module's shipped <c>ErrorMessages</c> tables.
+    /// </summary>
+    /// <returns>The describer, resolving through a <see cref="ResxErrorTextProvider"/> as the panel does.</returns>
+    /// <remarks>
+    /// Only this module's table is in the pool here, which is what a unit test can honestly own: a
+    /// code another module defines is, from this pool, a code nobody describes — the generic case.
+    /// The composed pool is the integration suite's to exercise.
+    /// </remarks>
+    public static TaskFailureMessages FailureMessages()
+    {
+        var tasksErrors = new ResourceManager(
+            "Maran.Modules.Tasks.Resources.ErrorMessages", typeof(TasksModule).Assembly);
+
+        return new TaskFailureMessages(
+            new ResxErrorTextProvider([tasksErrors], NullLogger<ResxErrorTextProvider>.Instance));
     }
 }

@@ -53,7 +53,7 @@ export const useTasksApi = (): TasksApi => {
    * Normalises one task payload, filling the fields a stream frame may omit.
    *
    * `TaskStreamWriter` serializes with `DefaultIgnoreCondition = WhenWritingNull`, so a frame
-   * leaves `correlationId`, `errorCode` and `finishedAt` OUT where the plain endpoints send them as
+   * leaves `correlationId`, `failure` and `finishedAt` OUT where the plain endpoints send them as
    * `null`. Both spellings have to reach the store as `null`, or a pane would render `undefined`
    * for a task that simply has not finished.
    * @param payload The decoded JSON of a `task` frame.
@@ -63,7 +63,7 @@ export const useTasksApi = (): TasksApi => {
     return {
       ...payload,
       correlationId: payload.correlationId ?? null,
-      errorCode: payload.errorCode ?? null,
+      failure: payload.failure ?? null,
       finishedAt: payload.finishedAt ?? null,
     }
   }

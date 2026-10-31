@@ -23,17 +23,26 @@ public sealed class GetTaskQueryHandler
     /// <summary>Names the task's kind as an operator reads it, in the request's culture.</summary>
     private readonly TaskKindDisplayNames _kindNames;
 
+    /// <summary>Describes a failed task's code as a sentence, in the request's culture.</summary>
+    private readonly TaskFailureMessages _failures;
+
     /// <summary>The authenticated principal, whose administrator status decides whether the log is sent.</summary>
     private readonly ICurrentUser _currentUser;
 
     /// <summary>Creates the handler with the module's own database context.</summary>
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="kindNames">Names a task's kind for the request's culture.</param>
+    /// <param name="failures">Describes a failed task's code for the request's culture.</param>
     /// <param name="currentUser">The authenticated principal of the current request.</param>
-    public GetTaskQueryHandler(TasksDbContext dbContext, TaskKindDisplayNames kindNames, ICurrentUser currentUser)
+    public GetTaskQueryHandler(
+        TasksDbContext dbContext,
+        TaskKindDisplayNames kindNames,
+        TaskFailureMessages failures,
+        ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _kindNames = kindNames;
+        _failures = failures;
         _currentUser = currentUser;
     }
 
@@ -51,6 +60,7 @@ public sealed class GetTaskQueryHandler
 
         return task is null
             ? Result<PanelTaskDto>.Fail(Error.Of(nameof(ErrorMessages.TaskNotFound), ErrorType.NotFound))
-            : Result<PanelTaskDto>.Ok(PanelTaskMapper.From(task, _kindNames.Of(task.Kind), _currentUser.IsAdmin));
+            : Result<PanelTaskDto>.Ok(PanelTaskMapper.From(
+                task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.IsAdmin));
     }
 }

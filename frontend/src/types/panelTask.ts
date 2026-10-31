@@ -45,6 +45,20 @@ export type TaskFailureCount =
     }
 
 /**
+ * Why a task failed, mirroring the backend's `TaskFailureDto`.
+ *
+ * The sentence is the panel's, already in the operator's language: the backend resolves it from the
+ * stored code each time the task is read, so the SPA holds no table of failure sentences (rules/vue.md
+ * "Errors from the server — the backend owns their text").
+ */
+export interface PanelTaskFailure {
+  /** The machine-stable code, shown as the detail an operator quotes. Never a text key. */
+  code: string
+  /** The failure as a sentence, rendered as plain text. */
+  message: string
+}
+
+/**
  * Outward view of one background task, mirroring the backend's `PanelTaskDto` field-for-field.
  *
  * One shape for the list, the single read and every frame of the stream, because that is what the
@@ -52,7 +66,7 @@ export type TaskFailureCount =
  *
  * **Every nullable field is read defensively by the API layer**, and that is not belt-and-braces.
  * `TaskStreamWriter` serializes frames with `DefaultIgnoreCondition = WhenWritingNull`, so a
- * streamed frame OMITS `correlationId`, `errorCode` and `finishedAt` where the plain JSON endpoints
+ * streamed frame OMITS `correlationId`, `failure` and `finishedAt` where the plain JSON endpoints
  * send them as `null`. Both spellings have to arrive here as `null`.
  */
 export interface PanelTask {
@@ -79,8 +93,8 @@ export interface PanelTask {
    * only "nothing reported yet", never also "withheld".
    */
   logIncluded: boolean
-  /** The machine-stable code it failed with, or null. Used for behaviour, never as a text key. */
-  errorCode: string | null
+  /** Why it failed — the panel's sentence and the code beside it — or null while it has not failed. */
+  failure: PanelTaskFailure | null
   /** When the operation started, as an ISO-8601 string. */
   startedAt: string
   /** When it reached a final state, or null while it runs. */

@@ -277,6 +277,7 @@ public static class ExpectedErrorStatuses
             ["SmtpSecurityInvalid"] = ErrorType.Validation,
             ["SmtpUsernameInvalid"] = ErrorType.Validation,
             ["TaskAbandonedByRestart"] = ErrorType.Failure,
+            ["TaskFailureUnexplained"] = ErrorType.Failure,
             ["TaskNotFound"] = ErrorType.NotFound,
             ["TaskDateRangeInverted"] = ErrorType.Validation,
             ["TaskKindFilterInvalid"] = ErrorType.Validation,

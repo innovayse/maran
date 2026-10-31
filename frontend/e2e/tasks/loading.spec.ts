@@ -27,7 +27,7 @@ const INSTALL: PanelTask = {
   percent: 40,
   log: 'fetching packages\n',
   logIncluded: true,
-  errorCode: null,
+  failure: null,
   startedAt: '2026-09-03T09:00:00Z',
   finishedAt: null,
   revision: 5,

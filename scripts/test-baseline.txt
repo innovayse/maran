@@ -1,6 +1,13 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (issue #272, task failure sentence resolved by the backend per reader): edited by hand.
+# One clean whole-solution `maran test backend`: 20 targets: 5073 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
+# Rows raised to that run: Modules.Tasks.Tests 76->106 (this branch: TaskFailureMessagesTests 5; the rest is dev's
+# unrecorded growth), Host.IntegrationTests 745->796 (this branch: TaskFailureSentenceTests 6,
+# TaskFailureCodeCensusTests 4), Sdk.Tests 259->266 (this branch: 1, TaskFailureUnexplained in the status census; the rest is dev's).
+# spa: no row moved (tasks/failure-sentence.spec.ts stays 5). `E2E_PORT=5199 maran test spa`: 162 targets: 1098
+# passed / 0 failed / 2 ignored, TEST VERDICT: OK.
 # RE-MEASURED 2026-10-31 (issue #218, UI consistency: spa auth/signed-out-console.spec.ts 2 -> 7; new spa firewall/consistency.spec.ts 5, ui-kit/actions-and-links.spec.ts 8, ui-kit/type-consistency.spec.ts 7): edited by hand. Full `maran test spa`: 155 targets, 1048 passed / 0 failed.
 # RE-MEASURED 2026-10-31 (issue #209 merged with dev's #196 phase 3, firewall split into three pages): edited by hand.
 # spa: shell/breadcrumb-trail 9->11 (Firewall -> Bans, Firewall -> Never banned), shell/navigation-destination-labels
@@ -483,7 +490,7 @@ backend	Maran.SharedKernel.Tests.dll	349	0	0
 backend	Maran.Modules.Identity.Tests.dll	334	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
-backend	Maran.Modules.Tasks.Tests.dll	76	0	0
+backend	Maran.Modules.Tasks.Tests.dll	106	0	0
 backend	Maran.Modules.Ftp.Tests.dll	169	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
 backend	Maran.Modules.Backups.Tests.dll	237	0	0
@@ -493,11 +500,11 @@ backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	514	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	235	0	0
-backend	Maran.Sdk.Tests.dll	259	0	0
+backend	Maran.Sdk.Tests.dll	266	0	0
 backend	Maran.Modules.Sites.Tests.dll	270	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	745	0	0
+backend	Maran.Host.IntegrationTests.dll	796	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0

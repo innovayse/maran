@@ -333,6 +333,7 @@ const remove = async (): Promise<void> => {
 - **Error messages are produced by the backend, already localized, and rendered as-is. The frontend MUST NOT hold locale keys for server error messages.** There is no `errors.*` section in the frontend locale files, and no code that maps an error `code` to a frontend string.
 - `useApi` sends the user's language (`Accept-Language`) and decodes the RFC 7807 payload; the message the backend returns in `title`/`detail` is what the UI shows. Stores keep that message in state; components render it as plain text (never `v-html`).
 - The `code` field stays useful for behavior — retry, redirect, highlight a field — never for text lookup.
+- **There is no exception for a stored outcome.** A failed background task arrives with its failure as `failure: { code, message }`, the sentence already in the operator's language because the backend resolves it from the stored code on every read and every stream frame; the pane renders `failure.message` and prints the code beneath it. The SPA once kept a `tasks.failures.*` table for these codes, guarded by a structure check that could not see a code built in another backend file, and both are gone (issue #272).
 - Frontend locale files therefore cover only the application's own static chrome: navigation, buttons, table headers, empty states, form labels. Anything that describes a server outcome comes from the server.
 
 ```ts

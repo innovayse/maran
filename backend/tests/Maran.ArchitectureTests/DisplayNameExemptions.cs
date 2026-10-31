@@ -234,14 +234,14 @@ public static class DisplayNameExemptions
             "Running, completed, failed — the badge on the tasks table, from a set the panel "
             + "closes."),
         new(
-            "Maran.Modules.Tasks.Common.PanelTaskDto",
-            "ErrorCode",
+            "Maran.Modules.Tasks.Common.TaskFailureDto",
+            "Code",
             DisplayNameExemptionKind.NotAnOperatorFacingName,
             "frontend/src/components/tasks/TaskLivePane.vue",
-            "Shown framed as an identifier — \"the operation failed with the code X\" — which is "
-            + "what an operator quotes in a ticket and greps a log for. The defect this law is "
-            + "about is a code printed AS the name of the thing; a code labelled as a code is the "
-            + "cure for it, not an instance of it."),
+            "Shown framed as an identifier — \"Code: X\" — beneath its sibling Message, the "
+            + "sentence the backend resolves for the reader's culture (issue #272). The defect this "
+            + "law is about is a code printed AS the name of the thing; a code labelled as a code "
+            + "beside its own sentence is the cure for it, not an instance of it."),
         new(
             "Maran.Modules.Tasks.Common.TaskStreamEndDto",
             "Status",

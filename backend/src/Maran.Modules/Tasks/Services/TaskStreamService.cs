@@ -64,6 +64,9 @@ public sealed class TaskStreamService
     /// <summary>Names the watched task's kind as an operator reads it, in the request's culture.</summary>
     private readonly TaskKindDisplayNames _kindNames;
 
+    /// <summary>Describes a failed task's code as a sentence, in the request's culture.</summary>
+    private readonly TaskFailureMessages _failures;
+
     /// <summary>The watcher, whose administrator status decides whether frames carry the log.</summary>
     private readonly ICurrentUser _currentUser;
 
@@ -71,11 +74,16 @@ public sealed class TaskStreamService
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="options">The stream's settings, chiefly the poll interval.</param>
     /// <param name="kindNames">Names a task's kind for the culture of the request that opened the stream.</param>
+    /// <param name="failures">
+    /// Describes a failed task's code for the culture of the request that opened the stream, so each
+    /// subscriber reads its frames in its own language.
+    /// </param>
     /// <param name="currentUser">The authenticated principal watching the stream.</param>
     public TaskStreamService(
         TasksDbContext dbContext,
         IOptions<TaskStreamOptions> options,
         TaskKindDisplayNames kindNames,
+        TaskFailureMessages failures,
         ICurrentUser currentUser)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -83,6 +91,7 @@ public sealed class TaskStreamService
         _dbContext = dbContext;
         _pollInterval = TimeSpan.FromMilliseconds(options.Value.PollIntervalMilliseconds);
         _kindNames = kindNames;
+        _failures = failures;
         _currentUser = currentUser;
     }
 
@@ -124,7 +133,8 @@ public sealed class TaskStreamService
             if (task.Revision != lastRevision)
             {
                 lastRevision = task.Revision;
-                var snapshot = PanelTaskMapper.From(task, _kindNames.Of(task.Kind), _currentUser.IsAdmin);
+                var snapshot = PanelTaskMapper.From(
+                    task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.IsAdmin);
                 yield return TaskFrame.OfTask(snapshot);
             }
 
