@@ -112,6 +112,18 @@ export interface ResetPasswordRequest {
 }
 
 /**
+ * What changing the signed-in caller's own password needs: the password they sign in
+ * with today, and its replacement. Nothing names the account — the backend takes the
+ * caller from their own access token.
+ */
+export interface ChangePasswordRequest {
+  /** The password the caller signs in with today. */
+  currentPassword: string
+  /** The password to set. */
+  newPassword: string
+}
+
+/**
  * What accepting an invitation needs: the token from the mail, and the first
  * password it sets.
  *
@@ -196,6 +208,8 @@ export interface AuthApi {
   disableTwoFactor: (code: string, signal?: AbortSignal) => Promise<boolean>
   /** Asks for a password-reset link, and is answered the same way whatever the address is. */
   requestPasswordReset: (email: string, signal?: AbortSignal) => Promise<boolean>
+  /** Changes the signed-in caller's own password, proving the current one. */
+  changePassword: (request: ChangePasswordRequest, signal?: AbortSignal) => Promise<boolean>
   /** Sets a new password from a reset link. */
   resetPassword: (request: ResetPasswordRequest, signal?: AbortSignal) => Promise<boolean>
   /** Sets the first password for an invited login, from the mailed invitation. */

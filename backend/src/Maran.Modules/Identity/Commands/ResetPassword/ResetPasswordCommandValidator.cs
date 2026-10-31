@@ -1,5 +1,6 @@
 using FluentValidation;
 using Maran.Modules.Identity.Services;
+using Maran.Modules.Identity.Validators;
 
 namespace Maran.Modules.Identity.Commands.ResetPassword;
 
@@ -25,9 +26,6 @@ public sealed class ResetPasswordCommandValidator : AbstractValidator<ResetPassw
     /// <summary>Longest token the panel will even hash, bounding the work an anonymous caller can ask for.</summary>
     private const int MaxTokenLength = 128;
 
-    /// <summary>Longest password accepted, bounding the work Argon2id is asked to do.</summary>
-    private const int MaxPasswordLength = 256;
-
     /// <summary>Configures the field rules for <see cref="ResetPasswordCommand"/>.</summary>
     /// <param name="policyCache">The panel's security policy, read for the minimum password length.</param>
     public ResetPasswordCommandValidator(SecurityPolicyCache policyCache)
@@ -36,14 +34,6 @@ public sealed class ResetPasswordCommandValidator : AbstractValidator<ResetPassw
             .NotEmpty().WithMessage(nameof(Resources.ErrorMessages.PasswordResetTokenInvalid))
             .MaximumLength(MaxTokenLength).WithMessage(nameof(Resources.ErrorMessages.PasswordResetTokenInvalid));
 
-        RuleFor(command => command.NewPassword)
-            .NotEmpty().WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak))
-            .MaximumLength(MaxPasswordLength).WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak))
-            .MustAsync(async (password, cancellationToken) =>
-            {
-                var policy = await policyCache.GetAsync(cancellationToken);
-                return password is not null && password.Length >= policy.MinimumPasswordLength;
-            })
-            .WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak));
+        RuleFor(command => command.NewPassword).SetValidator(new NewPasswordValidator(policyCache));
     }
 }

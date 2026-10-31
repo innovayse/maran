@@ -132,6 +132,31 @@ public sealed class SessionService : ISessionService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task RevokeOthersAsync(
+        Guid userId,
+        Guid keptSessionId,
+        SessionRevocationReason reason,
+        CancellationToken cancellationToken)
+    {
+        // Matched on the user too, so a session id belonging to somebody else keeps nothing.
+        var keptFamilyId = await _dbContext.Sessions
+            .Where(s => s.Id == keptSessionId && s.UserId == userId)
+            .Select(s => (Guid?)s.FamilyId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        var sessions = await _dbContext.Sessions
+            .Where(s => s.UserId == userId && s.RevokedAt == null && s.FamilyId != keptFamilyId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var session in sessions)
+        {
+            session.Revoke(_clock.UtcNow, reason);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     /// <summary>Creates and stores one session, returning its plaintext token to the caller.</summary>
     /// <param name="userId">The user the session signs in.</param>
     /// <param name="familyId">The rotation family; a new one at login, the inherited one on rotation.</param>

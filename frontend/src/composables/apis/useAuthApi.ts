@@ -6,6 +6,7 @@ import type {
   AcceptInvitationResult,
   AuthApi,
   AuthenticatedUser,
+  ChangePasswordRequest,
   CompleteSetupRequest,
   LoginRequest,
   AuthenticatedSession,
@@ -201,6 +202,22 @@ export const useAuthApi = (): AuthApi => {
   }
 
   /**
+   * Changes the signed-in caller's own password, proving the current one, and ends
+   * every other sign-in they had; this one stays.
+   *
+   * Keeps the 401 retry, unlike the signed-out password calls: this one rides the
+   * access token, and an expired token is renewed and the request replayed. A wrong
+   * current password is answered 400, not 401, so it is never mistaken for a stale
+   * token.
+   * @param request The current password and its replacement.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns True once the password has been changed.
+   */
+  const changePassword = (request: ChangePasswordRequest, signal?: AbortSignal): Promise<boolean> => {
+    return api.post<boolean>(`${AUTH_PATH}/change-password`, request, signal)
+  }
+
+  /**
    * Sets a new password from a reset link, and signs the account out everywhere.
    *
    * A token that never existed, one that has expired and one already spent all get
@@ -245,6 +262,7 @@ export const useAuthApi = (): AuthApi => {
     confirmTwoFactorEnrolment,
     disableTwoFactor,
     requestPasswordReset,
+    changePassword,
     resetPassword,
     acceptInvitation,
   }

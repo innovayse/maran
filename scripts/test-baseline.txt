@@ -1,6 +1,13 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (issue #232 merged with dev's #245/#251: Host.IntegrationTests 738+7 = 745 (with #260), Sdk.Tests 258+1 = 259;, change password while signed in): edited by hand.
+# Modules.Identity.Tests 318->334 (ChangePasswordCommandHandlerTests 11, ChangePasswordCommandValidatorTests 5),
+# Host.IntegrationTests 731->738 (ChangePasswordEndpointTests 7), Sdk.Tests 254->255 (CurrentPasswordIncorrect in
+# the code census). spa: NEW row shell/change-password.spec.ts 6 (both roles x success and refusal, mismatch,
+# permissive length). Full `maran test backend` run before this edit: 20 targets, 4890 passed / 1 failed (the
+# rate-limit test, since rewritten to configure its own budget). After the edit: `maran test backend` 20 targets:
+# 4891 passed / 0 failed / 0 ignored; `E2E_PORT=5199 maran test spa` 148 targets: 975 passed / 0 failed / 2 ignored.
 # RE-MEASURED 2026-10-31 (issue #260, the sixth sign-in attempt at the shipped settings): edited by hand. Full
 # `maran test backend` from a shell that had sourced scripts/dev (15 .env values withheld by the harness): 20 targets:
 # 4885 passed / 0 failed / 0 ignored. Host.IntegrationTests 737->738 (AuthEndpointTests, the sixth attempt answers
@@ -438,7 +445,7 @@ rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 backend	Maran.Agent.Client.Tests.dll	378	0	0
 backend	Maran.SharedKernel.Tests.dll	349	0	0
-backend	Maran.Modules.Identity.Tests.dll	318	0	0
+backend	Maran.Modules.Identity.Tests.dll	334	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
@@ -451,11 +458,11 @@ backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	514	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	235	0	0
-backend	Maran.Sdk.Tests.dll	258	0	0
+backend	Maran.Sdk.Tests.dll	259	0	0
 backend	Maran.Modules.Sites.Tests.dll	270	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	738	0	0
+backend	Maran.Host.IntegrationTests.dll	745	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
@@ -552,6 +559,7 @@ spa	settings/smtp-loading.spec.ts	3	0	0
 spa	settings/two-factor-loading.spec.ts	3	0	0
 spa	shell/account-menu.spec.ts	4	0	0
 spa	shell/app-bar-fits.spec.ts	16	0	0
+spa	shell/change-password.spec.ts	6	0	0
 spa	shell/command-palette-a11y.spec.ts	3	0	0
 spa	shell/command-palette.spec.ts	1	0	0
 spa	shell/document-title.spec.ts	5	0	0

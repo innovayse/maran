@@ -54,4 +54,25 @@ public interface ISessionService
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>Resolves once every revocation is stored.</returns>
     Task RevokeAllAsync(Guid userId, SessionRevocationReason reason, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Revokes every live session of one user except those in the rotation family of
+    /// <paramref name="keptSessionId"/>: the sign-in that is making the request.
+    /// </summary>
+    /// <remarks>
+    /// The FAMILY is kept rather than the one row, because the row the caller's access token names
+    /// may already have been rotated by another tab of the same browser; keeping only that row would
+    /// sign the caller out of their own browser at the next refresh. A kept id that names no session
+    /// of this user keeps nothing, so every session is revoked.
+    /// </remarks>
+    /// <param name="userId">The user whose other sessions end.</param>
+    /// <param name="keptSessionId">A session of the caller's own sign-in, from the access token's <c>sid</c>.</param>
+    /// <param name="reason">Why the sessions are ending.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>Resolves once every revocation is stored.</returns>
+    Task RevokeOthersAsync(
+        Guid userId,
+        Guid keptSessionId,
+        SessionRevocationReason reason,
+        CancellationToken cancellationToken);
 }

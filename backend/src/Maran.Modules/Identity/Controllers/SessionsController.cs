@@ -46,7 +46,7 @@ public sealed class SessionsController : BaseApiController
         [FromQuery] ListSessionsQuery query,
         CancellationToken cancellationToken)
     {
-        query = query with { UserId = CurrentUser.UserId, CurrentSessionId = CurrentSessionId() };
+        query = query with { UserId = CurrentUser.UserId, CurrentSessionId = CallerSessionId };
         return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<SessionDto>>>(query, cancellationToken));
     }
 
@@ -65,12 +65,4 @@ public sealed class SessionsController : BaseApiController
         var command = new RevokeSessionCommand(id, CurrentUser.UserId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
-
-    /// <summary>The session this request's access token was issued against.</summary>
-    /// <returns>The session id from the <c>sid</c> claim, or <see cref="Guid.Empty"/> when unreadable.</returns>
-    private Guid CurrentSessionId()
-    {
-        return Guid.TryParse(User.FindFirst(PanelClaimTypes.SessionId)?.Value, out var id) ? id : Guid.Empty;
-    }
-
 }

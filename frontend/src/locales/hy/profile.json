@@ -17,7 +17,13 @@
       "manageSessions": "Կառավարել սարքերը",
       "hostingHeading": "Հոսթինգի հաշիվ",
       "hostingDescription": "Ձեր կայքերը, սակագինը և սահմանաչափերը գտնվում են հոսթինգի հաշվում։",
-      "openHostingAccount": "Բացել իմ հոսթինգի հաշիվը"
+      "openHostingAccount": "Բացել իմ հոսթինգի հաշիվը",
+      "passwordHeading": "Գաղտնաբառ",
+      "passwordDescription": "Փոխելուց հետո մյուս բոլոր սարքերից դուրս կգաք։ Այս սարքը կմնա մուտք գործած։",
+      "currentPasswordLabel": "Ընթացիկ գաղտնաբառ",
+      "newPasswordLabel": "Նոր գաղտնաբառ",
+      "changePassword": "Փոխել գաղտնաբառը",
+      "passwordChanged": "Գաղտնաբառը փոխվեց։ Մյուս բոլոր սարքերից դուրս եք եկել։"
     }
   }
 }
