@@ -21,6 +21,9 @@ public static class RateLimitingExtensions
     /// </summary>
     private const string RateLimitedCode = "HostRateLimited";
 
+    /// <summary>The media type of the panel's problem answers (RFC 7807), the rejection included.</summary>
+    private const string ProblemContentType = "application/problem+json";
+
     /// <summary>Adds the login and API policies, plus the shared rejection response.</summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -51,7 +54,10 @@ public static class RateLimitingExtensions
                 context.HttpContext.Response.Headers.RetryAfter =
                     retryAfterSeconds.ToString(CultureInfo.InvariantCulture);
 
-                context.HttpContext.Response.ContentType = "application/problem+json";
+                // The media type is passed to the writer rather than set on the response first:
+                // WriteAsJsonAsync without a contentType overwrites it with application/json, which
+                // is how this answer once carried the problem fields under the wrong media type
+                // (issue #260).
                 await context.HttpContext.Response.WriteAsJsonAsync(
                     new
                     {
@@ -59,6 +65,8 @@ public static class RateLimitingExtensions
                         title = ResolveRateLimitedText(context.HttpContext),
                         code = RateLimitedCode,
                     },
+                    options: null,
+                    contentType: ProblemContentType,
                     cancellationToken);
             };
         });

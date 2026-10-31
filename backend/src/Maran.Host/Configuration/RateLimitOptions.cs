@@ -12,17 +12,23 @@ public sealed class RateLimitOptions
     /// <summary>Configuration section this type binds from.</summary>
     public const string SectionName = "RateLimiting";
 
-    /// <summary>Failed login attempts allowed per (IP, username) partition within <see cref="LoginWindowSeconds"/>.</summary>
+    /// <summary>
+    /// Sign-in attempts allowed from one client address within <see cref="LoginLockoutSeconds"/>, counted
+    /// in segments of <see cref="LoginWindowSeconds"/> (<c>LoginRateLimitPolicy</c>).
+    /// </summary>
     [Range(1, 100)]
     public int LoginMaxAttempts { get; set; } = 5;
 
-    /// <summary>Length of the sliding window the login attempt count is measured over, in seconds.</summary>
+    /// <summary>
+    /// Length of one segment of the login limiter's sliding window, in seconds: permits used in a segment
+    /// return once that segment slides out of the <see cref="LoginLockoutSeconds"/> window.
+    /// </summary>
     [Range(1, 3600)]
     public int LoginWindowSeconds { get; set; } = 60;
 
     /// <summary>
-    /// How long a (IP, username) partition is locked out once <see cref="LoginMaxAttempts"/> is
-    /// exceeded, in seconds. Enforced by giving the limiter a replenishment window at least this
+    /// How long one client address is locked out once <see cref="LoginMaxAttempts"/> is exceeded, in
+    /// seconds. Enforced by giving the limiter a replenishment window at least this
     /// long, so a blocked caller cannot regain permits before the lockout elapses.
     /// </summary>
     [Range(1, 86_400)]

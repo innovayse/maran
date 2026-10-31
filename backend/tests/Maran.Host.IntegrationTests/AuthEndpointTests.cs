@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Maran.Host.Configuration;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Identity.Commands.Login;
 using Maran.Modules.Identity.Domain.Entities;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -234,5 +236,55 @@ public sealed class AuthEndpointTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("InvalidCredentialsUnauthorized", body.RootElement.GetProperty("code").GetString());
         Assert.Equal("Неверное имя пользователя или пароль.", body.RootElement.GetProperty("detail").GetString());
+    }
+
+    /// <summary>
+    /// At the shipped settings (5 attempts per 300 seconds, counted in 60-second segments) the sixth
+    /// sign-in attempt from one address inside the window is refused with 429, the panel's problem
+    /// shape and a Retry-After header, before the handler ever sees it (issue #260).
+    /// </summary>
+    /// <remarks>
+    /// The host is booted with no rate-limit override at all, so the numbers under test are the ones
+    /// appsettings.json ships. The attempts name an account that does not exist, so the per-user
+    /// lockout on the user row cannot be what refuses them: only the address-keyed limiter can.
+    ///
+    /// <para>
+    /// The first assertion is the precondition, on the axis that went blind in issue #260: the
+    /// environment outranks appsettings.json, and a shell that had sourced <c>scripts/dev</c> carried
+    /// the development <c>RateLimiting__LoginMaxAttempts=50</c> into this host, which then answered
+    /// all six attempts 401 over a limiter that was working. Reading the options the host actually
+    /// bound makes that a failure that names its cause rather than a missing 429.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task The_sixth_sign_in_attempt_inside_the_window_is_refused_at_the_shipped_settings()
+    {
+        await using var factory = CreateFactory();
+        await SeedAdministratorAsync(factory);
+        using var client = factory.CreateClient();
+        var limits = factory.Services.GetRequiredService<IOptions<RateLimitOptions>>().Value;
+        Assert.True(
+            limits is { LoginMaxAttempts: 5, LoginWindowSeconds: 60, LoginLockoutSeconds: 300 },
+            "The host is not at the shipped login limits; an environment variable such as "
+            + "RateLimiting__LoginMaxAttempts overrides appsettings.json. Run the suite through "
+            + $"`maran test backend`. Bound: {limits.LoginMaxAttempts}/{limits.LoginWindowSeconds}/{limits.LoginLockoutSeconds}.");
+
+        var statuses = new List<HttpStatusCode>();
+        HttpResponseMessage? sixth = null;
+        for (var attempt = 1; attempt <= 6; attempt++)
+        {
+            var response = await client.PostAsJsonAsync(
+                "/api/v1/auth/login", new { Username = "nobody-here", Password = "wrong" });
+            statuses.Add(response.StatusCode);
+            sixth = response;
+        }
+
+        Assert.Equal(Enumerable.Repeat(HttpStatusCode.Unauthorized, 5), statuses.Take(5));
+        Assert.Equal(HttpStatusCode.TooManyRequests, statuses[5]);
+        Assert.Equal("application/problem+json", sixth!.Content.Headers.ContentType?.MediaType);
+        Assert.True(sixth.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+        using var body = JsonDocument.Parse(await sixth.Content.ReadAsStringAsync());
+        Assert.Equal(429, body.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal("HostRateLimited", body.RootElement.GetProperty("code").GetString());
     }
 }

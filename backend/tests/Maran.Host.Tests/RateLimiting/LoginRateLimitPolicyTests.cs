@@ -45,17 +45,9 @@ public sealed class LoginRateLimitPolicyTests
     }
 
     /// <summary>
-    /// DEFECT (reported, not fixed — see crosscutting-tests-report.md): the shared rejection
-    /// handler in <see cref="RateLimitingExtensions.AddPanelRateLimiting"/> reads
-    /// <c>MetadataName.RetryAfter</c> off the rejected lease and writes it as the <c>Retry-After</c>
-    /// header, matching its own stated intent ("a rejected caller must learn when to come back").
-    /// For the "api" policy (<see cref="ApiRateLimitPolicy"/>, a <c>FixedWindowRateLimiter</c>) that
-    /// metadata is present and the header appears. For the "login" policy under test here — the
-    /// same <c>SlidingWindowRateLimiterOptions</c> shape production uses, just with a shrunk window
-    /// for test speed — the BCL's <c>SlidingWindowRateLimiter</c> does not populate that metadata
-    /// with <c>QueueLimit = 0</c>, so no header is ever sent for a rejected login attempt. This
-    /// assertion documents the intended, currently-unmet behavior rather than being weakened to
-    /// match the gap.
+    /// A rejected login attempt carries a <c>Retry-After</c> header. The BCL's sliding-window limiter
+    /// publishes no <c>MetadataName.RetryAfter</c> on a refused lease, so the header comes from the
+    /// configured lockout through <see cref="RateLimitingExtensions.AddPanelRateLimiting"/>'s fallback.
     /// </summary>
     [Fact]
     public async Task Login_rejection_carries_a_retry_after_header()

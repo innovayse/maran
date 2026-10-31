@@ -41,6 +41,21 @@ budget; the test that previously stood there asserted the opposite and passed.
 
 Callers behind one shared address share a budget; the production numbers leave room for mistyping.
 
+A request with no address at all — no socket peer, which only an in-process test server produces —
+is keyed `unknown` (`ClientAddress.Unknown`), one bucket every such request shares, so a missing
+address narrows the budget rather than escaping it.
+
+**What the limit actually is depends on the environment, and a reviewer must check the deployed
+one.** Environment variables outrank `appsettings.json`, so `RateLimiting__LoginMaxAttempts` set
+anywhere the panel's process can see it replaces the 5. The installer's `panel.env` sets no
+`RateLimiting__*` value. The development `.env` sets 50, and issue #260 was that value reaching an
+integration host started from a shell that had sourced `scripts/dev`: six wrong passwords all
+answered 401 and the limiter looked broken while it enforced 50. `maran test backend` now withholds
+every value `.env` applied, and the integration test for the sixth attempt asserts the host bound
+the shipped 5/60/300 before it counts anything. Measured 2026-10-31: at the shipped numbers the
+sixth attempt from one address answers 429, `application/problem+json` (the media type was
+`application/json` until the same issue), code `HostRateLimited`, `Retry-After: 300`.
+
 The address the panel reads is the caller's, not nginx's. That is worth stating because it was not
 true until this change: nothing read `X-Forwarded-For`, so behind the installer's own reverse proxy
 every request arrived from `127.0.0.1` — one budget for the entire internet, which is no protection
