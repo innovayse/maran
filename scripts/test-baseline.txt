@@ -460,13 +460,13 @@
 # `E2E_PORT=5199 maran test spa` run printing `158 targets: 1066 passed / 0 failed / 2 ignored`.
 # Five spa rows raised: cron/description 3->4, databases/grant-repair 11->12, firewall/bans 6->8,
 # firewall/whitelist 7->8, tasks/failure-sentence 3->5. Backend rows unchanged.
-# RE-MEASURED 2026-10-31 (#77, merged with dev's #275: Host.IntegrationTests 831+2 = 833, maran_agent 428+4 = 432;: disk used / reserved / available) — edited by hand, not by --accept.
+# RE-MEASURED 2026-10-31 (#77, merged with dev's #275: Host.IntegrationTests 831+2 = 833, maran_agent measured 428 in CI (the +4 was already in dev's 428);: disk used / reserved / available) — edited by hand, not by --accept.
 # Source: full runs printing `maran test backend` 20 targets 5125 passed / 0 failed,
 # `maran test rust` 35 targets 2856 passed / 0 failed, `E2E_PORT=5199 maran test spa` 164 targets
 # 1107 passed / 0 failed. Rows raised: Maran.Host.IntegrationTests 824->826,
 # Maran.Modules.Monitoring.Tests 83->87, maran_agent 420->424, maran_ops 1754->1761; spa row
 # disk-usage.spec.ts added at 3.
-rust	maran_agent [unittests src/lib.rs]	432	0	0
+rust	maran_agent [unittests src/lib.rs]	428	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
