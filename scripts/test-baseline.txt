@@ -1,6 +1,8 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (merge of dev's #272 into #274): edited by hand, rows taken on top of dev's. Maran.Modules.Tasks.Tests.dll 106->109 (#274's RunningTasksStreamServiceTests 3); Maran.Host.IntegrationTests.dll 820->824 (#274's RunningTasksStreamTests 3, plus 1 asserting a failed task on the running stream carries the localized sentence). Full run: backend 20 targets 5119 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
+# RE-MEASURED 2026-10-31 (issue #274, one multiplexed running-tasks stream): edited by hand. Maran.Modules.Tasks.Tests.dll 101->104; Maran.Host.IntegrationTests.dll 810->813; new spa row tasks/running-stream.spec.ts 3. Full runs: backend 20 targets 5102 passed / 0 failed; spa 163 targets 1104 passed / 0 failed / 2 ignored.
 # RE-MEASURED 2026-10-31 (issue #272, merged with dev's #196 phase 4: Host.IntegrationTests 810+10 = 820;, task failure sentence resolved by the backend per reader): edited by hand.
 # One clean whole-solution `maran test backend`: 20 targets: 5073 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
 # Rows raised to that run: Modules.Tasks.Tests 76->106 (this branch: TaskFailureMessagesTests 5; the rest is dev's
@@ -491,7 +493,7 @@ backend	Maran.SharedKernel.Tests.dll	349	0	0
 backend	Maran.Modules.Identity.Tests.dll	373	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
-backend	Maran.Modules.Tasks.Tests.dll	106	0	0
+backend	Maran.Modules.Tasks.Tests.dll	109	0	0
 backend	Maran.Modules.Ftp.Tests.dll	169	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	83	0	0
 backend	Maran.Modules.Backups.Tests.dll	237	0	0
@@ -505,7 +507,7 @@ backend	Maran.Sdk.Tests.dll	266	0	0
 backend	Maran.Modules.Sites.Tests.dll	270	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	820	0	0
+backend	Maran.Host.IntegrationTests.dll	824	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
@@ -642,6 +644,7 @@ spa	sites/logs-tab.spec.ts	9	0	0
 spa	sites/php-versions-loading.spec.ts	3	0	0
 spa	sites/ssl-tab.spec.ts	11	0	0
 spa	tasks/badge.spec.ts	4	0	0
+spa	tasks/running-stream.spec.ts	3	0	0
 spa	tasks/failure-sentence.spec.ts	5	0	0
 spa	tasks/list.spec.ts	14	0	0
 spa	tasks/loading.spec.ts	3	0	0
