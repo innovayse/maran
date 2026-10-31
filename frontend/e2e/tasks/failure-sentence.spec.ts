@@ -30,23 +30,29 @@ const FAILED_CERTIFICATE: PanelTask = {
 }
 
 /** The row's menu trigger and its live-view item, as each interface language names them. */
-const LABELS: Record<'en' | 'ru', { actions: string; liveView: string }> = {
+const LABELS: Record<'en' | 'ru' | 'hy', { actions: string; liveView: string }> = {
   en: { actions: `Actions for ${FAILED_CERTIFICATE.subject}`, liveView: 'Live view' },
   ru: { actions: `Действия для ${FAILED_CERTIFICATE.subject}`, liveView: 'Наблюдать' },
+  hy: { actions: `Գործողություններ ${FAILED_CERTIFICATE.subject}-ի համար`, liveView: 'Դիտել' },
 }
 
 /**
  * Opens the tasks screen on the failed task's live pane.
  * @param page The page under test.
  * @param language The interface language already persisted, which names the controls clicked.
+ * @param task The failed task the list and its stream carry.
  * @returns Resolves once the pane was asked for.
  */
-const openFailure = async (page: Page, language: 'en' | 'ru' = 'en'): Promise<void> => {
+const openFailure = async (
+  page: Page,
+  language: 'en' | 'ru' | 'hy' = 'en',
+  task: PanelTask = FAILED_CERTIFICATE,
+): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
-  await stubTasks(page, [FAILED_CERTIFICATE])
-  await stubTaskStream(page, taskFrame(FAILED_CERTIFICATE) + taskEndFrame('failed'))
+  await stubTasks(page, [task])
+  await stubTaskStream(page, taskFrame(task) + taskEndFrame('failed'))
   await page.goto('/tasks')
   await page.getByRole('button', { name: LABELS[language].actions }).click()
   await page.getByRole('menuitem', { name: LABELS[language].liveView }).click()
@@ -77,4 +83,22 @@ test('a failed task draws no progress bar, in the pane or in its row', async ({ 
   await expect(page.getByRole('progressbar')).toHaveCount(0)
   // The figure stays in the row as a record of how far it got.
   await expect(page.getByRole('row').filter({ hasText: FAILED_CERTIFICATE.subject })).toContainText('20%')
+})
+
+test('the sentence is in Armenian, with the code beneath it', async ({ page }) => {
+  await setPersistedLocale(page, 'hy')
+  await openFailure(page, 'hy')
+
+  await expect(page.getByText('Կոդ՝ AcmeAccountRejected', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('task-failed-progress')).toHaveText('Կանգ է առել 20%-ում')
+})
+
+// A code that reaches the task through a variable (the issuance's own refusal after the task began)
+// reads as a sentence too, not as the generic fallback: check 18b now holds these keys (#222).
+test('a refusal raised after the task began reads as its own sentence', async ({ page }) => {
+  await setPersistedLocale(page, 'hy')
+  await openFailure(page, 'hy', { ...FAILED_CERTIFICATE, errorCode: 'SiteNotFound' })
+
+  await expect(page.getByText('Կայքը չի գտնվել։', { exact: true })).toBeVisible()
+  await expect(page.getByText('Կոդ՝ SiteNotFound', { exact: true })).toBeVisible()
 })

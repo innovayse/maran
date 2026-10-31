@@ -45,7 +45,7 @@ import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
-import UiToast from '../../components/ui/UiToast.vue'
+import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import DatabaseCreateForm from '../../components/databases/DatabaseCreateForm.vue'
 import DatabaseCreatedDialog from '../../components/databases/DatabaseCreatedDialog.vue'
 import DatabaseActionConfirm from '../../components/databases/DatabaseActionConfirm.vue'
@@ -240,7 +240,7 @@ onBeforeUnmount(dismissCredential)
       <template #actions>
         <!-- The grant repair is administrators-only. Hiding the link from a customer is presentation,
              not the gate: the endpoint behind it refuses a customer on its own (rules/security.md). -->
-        <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'database-grant-repair' }">{{ t('databases.list.grantRepairLink') }}</UiButton>
+        <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'database-grant-repair' }">{{ t('databases.grantRepair.heading') }}</UiButton>
       </template>
     </UiPageHeading>
 
@@ -387,10 +387,6 @@ onBeforeUnmount(dismissCredential)
       :password="store.revealedCredential?.password ?? ''"
       @close="dismissCredential"
     />
-    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
-      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
-        {{ notice }}
-      </UiToast>
-    </div>
+    <UiPinnedToast :message="notice" :close-label="t('common.close')" @dismiss="dismissNotice" />
   </section>
 </template>

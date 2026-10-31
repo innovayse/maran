@@ -11,10 +11,13 @@
  * chances for one of them to be typed differently.
  */
 
-/** The binary step between two adjacent units. */
-const STEP = 1024
+/**
+ * The binary step between two adjacent units, exported so every byte figure in the panel — sizes
+ * here, rates in `byteRateScale.ts` — divides by the one constant.
+ */
+export const BINARY_STEP = 1024
 
-/** The unit symbols, smallest first — the index into this list IS the power of {@link STEP}. */
+/** The unit symbols, smallest first — the index into this list IS the power of {@link BINARY_STEP}. */
 const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'] as const
 
 /**
@@ -34,7 +37,7 @@ export const GIBIBYTE_UNIT: string = UNITS[3]
  * @returns The same quantity expressed in GiB.
  */
 export const bytesToGibibytes = (bytes: number): number => {
-  return bytes / (STEP * STEP * STEP)
+  return bytes / (BINARY_STEP * BINARY_STEP * BINARY_STEP)
 }
 
 /**
@@ -52,8 +55,8 @@ export const formatBytes = (bytes: number): string => {
 
   // Stops at the last unit rather than running off the end of the list: a figure large enough to
   // need one beyond PiB does not exist on a machine this panel runs on.
-  while (Math.abs(value) >= STEP && unitIndex < UNITS.length - 1) {
-    value /= STEP
+  while (Math.abs(value) >= BINARY_STEP && unitIndex < UNITS.length - 1) {
+    value /= BINARY_STEP
     unitIndex += 1
   }
 
@@ -73,5 +76,5 @@ export const formatBytes = (bytes: number): string => {
  * @returns The quota with its IEC unit, e.g. `2 MiB`, `1 TiB`.
  */
 export const formatMegabytes = (megabytes: number): string => {
-  return formatBytes(megabytes * STEP * STEP)
+  return formatBytes(megabytes * BINARY_STEP * BINARY_STEP)
 }

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -99,4 +100,19 @@ test('adding an entry is confirmed by a toast', async ({ page }) => {
   await page.getByRole('button', { name: 'Add entry' }).click()
 
   await expect(page.getByRole('status').filter({ hasText: 'Scheduled task added.' })).toBeVisible()
+})
+
+test('an entry describes its schedule in Armenian', async ({ page }) => {
+  await setPersistedLocale(page, 'hy')
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubAccounts(page, [ALICE])
+  await stubCronEntries(page, [DAILY])
+  await stubCronEnvironment(page, [])
+  await page.goto('/cron')
+
+  const daily = page.getByRole('row').filter({ hasText: DAILY.command })
+  await expect(daily).toContainText('Ամեն օր, ժամը 03:05-ին')
+  await expect(daily).toContainText('5 3 * * *')
 })
