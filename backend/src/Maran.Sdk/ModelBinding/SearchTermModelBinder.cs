@@ -17,7 +17,8 @@ namespace Maran.Sdk.ModelBinding;
 /// the code as both the failure's error code and its message, so it reaches the caller through the
 /// one path every validation 400 takes — the panel's exception middleware — with the same problem
 /// shape, the same <c>code</c> field and the same localized text. Reporting it through model state
-/// instead would hand it to MVC's automatic 400, a second writer with a different shape and no code.
+/// instead would reduce it to <see cref="InvalidModelStateRefusal"/>'s generic
+/// <c>RequestParameterInvalid</c>, losing the code that says what was wrong with the term.
 /// </remarks>
 public sealed class SearchTermModelBinder : IModelBinder
 {

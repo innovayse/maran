@@ -27,4 +27,7 @@
   <data name="ListSortUnknown">
     <value>This list cannot be sorted that way.</value>
   </data>
+  <data name="RequestParameterInvalid">
+    <value>The value given for “{0}” cannot be read.</value>
+  </data>
 </root>
