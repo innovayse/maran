@@ -4,15 +4,24 @@ using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Resources;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Extensions;
 using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Monitoring.Queries.ListAccountDiskUsage;
 
 /// <summary>
-/// Handles <see cref="ListAccountDiskUsageQuery"/> by joining what the agent measured on the
-/// filesystem to what the panel knows each account is allowed.
+/// Handles <see cref="ListAccountDiskUsageQuery"/> by choosing one page of the panel's accounts and
+/// joining what the agent measured for that page to what the panel knows each account is allowed.
 /// </summary>
 /// <remarks>
+/// <para>
+/// <b>The page is chosen first, and only the page is measured.</b> A measurement is a walk of a home
+/// directory tree, so asking the agent about every account to show twenty-five of them grows with the
+/// number of accounts on the host. The panel's own accounts are searched, ordered and paged in memory
+/// through the one in-memory pager, and the agent is then asked about exactly the user names on that
+/// page. An empty page asks the agent nothing at all — an empty name list on the wire means "every
+/// account", which is the opposite of what an empty page wants.
+/// </para>
 /// <para>
 /// <b>The join is on the system user name, because that is the only identifier both sides carry.</b>
 /// The agent has never heard of an account id — it reads the host's password database and walks home
@@ -22,7 +31,7 @@ namespace Maran.Modules.Monitoring.Queries.ListAccountDiskUsage;
 /// silently bill one for the other's bytes.
 /// </para>
 /// <para>
-/// <b>The listing is the PANEL's accounts, not the agent's rows.</b> Iterating the panel's side is
+/// <b>The listing is the PANEL's accounts, not the agent's rows.</b> Paging the panel's side is
 /// what drops a row the agent reported and the panel does not know: on a real host that is a system
 /// account whose name happens to parse as an account name, and billing it to nobody as if it were a
 /// customer would be inventing a tenant. The agent already declines to report obvious service users
@@ -40,6 +49,15 @@ public sealed class ListAccountDiskUsageQueryHandler
 {
     /// <summary>How many bytes one megabyte is, for converting a plan's allowance.</summary>
     private const long BytesPerMegabyte = 1024L * 1024L;
+
+    /// <summary>What a search reads: the account's system user name, and nothing else.</summary>
+    private static readonly IReadOnlyList<Func<AccountSnapshot, string>> SearchFields =
+    [
+        account =>
+        {
+            return account.Username;
+        },
+    ];
 
     /// <summary>The agent, the only thing in the system that can measure a home directory.</summary>
     private readonly IAgentMonitorClient _agent;
@@ -73,24 +91,42 @@ public sealed class ListAccountDiskUsageQueryHandler
         _text = text;
     }
 
-    /// <summary>Returns one row per hosting account the panel knows, ordered by user name.</summary>
-    /// <param name="query">The (parameterless) read request.</param>
+    /// <summary>Returns the requested page of the panel's hosting accounts, each beside its measurement.</summary>
+    /// <param name="query">The validated list request.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The listing, or the agent's own typed failure.</returns>
+    /// <returns>The page with the total that matched, or the agent's own typed failure.</returns>
     /// <remarks>
-    /// The agent is asked first so that its failure short-circuits before the panel's own tables are
-    /// read: without a measurement there is no listing to build, only a column of allowances, and
-    /// answering with that would look like a set of accounts using nothing at all.
+    /// The agent's failure fails the whole page: without a measurement there is no listing to build,
+    /// only a column of allowances, and answering with that would look like a page of accounts using
+    /// nothing at all.
     /// </remarks>
-    public async Task<Result<IReadOnlyList<AccountDiskUsageDto>>> HandleAsync(
+    public async Task<Result<PagedResult<AccountDiskUsageDto>>> HandleAsync(
         ListAccountDiskUsageQuery query,
         CancellationToken cancellationToken)
     {
-        var measured = await _agent.GetAccountsDiskUsageAsync(cancellationToken);
+        var accounts = await _accounts.ListAsync(cancellationToken);
+        var page = accounts.ToPaged(query, ListAccountDiskUsageSorts.Map, SearchFields);
+
+        if (page.Items.Count == 0)
+        {
+            // Nothing to measure, and the agent must not be asked: an empty name list on the wire
+            // means every account on the host. The total still says how many matched.
+            return Result<PagedResult<AccountDiskUsageDto>>.Ok(
+                new PagedResult<AccountDiskUsageDto>([], page.Total, page.Page, page.PageSize));
+        }
+
+        var usernames = page.Items
+            .Select(account =>
+            {
+                return account.Username;
+            })
+            .ToList();
+
+        var measured = await _agent.GetAccountsDiskUsageAsync(usernames, cancellationToken);
 
         if (!measured.IsSuccess)
         {
-            return Result<IReadOnlyList<AccountDiskUsageDto>>.Fail(measured.Error!);
+            return Result<PagedResult<AccountDiskUsageDto>>.Fail(measured.Error!);
         }
 
         // Every hosting account's home lives under the one filesystem
@@ -109,20 +145,11 @@ public sealed class ListAccountDiskUsageQueryHandler
         var note = enforceable ? null : _text["AccountQuotaNotEnforceableNote"].Value;
 
         var usedByUsername = ByUsername(measured.Value);
-        var accounts = await _accounts.ListAsync(cancellationToken);
 
-        var rows = accounts
-            .Select(account =>
-            {
-                return ToRow(account, usedByUsername, enforceable, note);
-            })
-            .OrderBy(row =>
-            {
-                return row.Username;
-            }, StringComparer.Ordinal)
-            .ToList();
-
-        return Result<IReadOnlyList<AccountDiskUsageDto>>.Ok(rows);
+        return Result<PagedResult<AccountDiskUsageDto>>.Ok(page.Map(account =>
+        {
+            return ToRow(account, usedByUsername, enforceable, note);
+        }));
     }
 
     /// <summary>Indexes the agent's measurements by the user name they were taken under.</summary>

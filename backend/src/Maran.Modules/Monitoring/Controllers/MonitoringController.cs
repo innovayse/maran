@@ -99,7 +99,11 @@ public sealed class MonitoringController : BaseApiController
         return ToActionResult(await _bus.InvokeAsync<Result<MetricsChartDto>>(query, cancellationToken));
     }
 
-    /// <summary>Reads what every hosting account occupies on disk, beside what its plan allows.</summary>
+    /// <summary>
+    /// Reads one page of what the hosting accounts occupy on disk, beside what each plan allows. Only
+    /// the page's accounts are measured by the agent.
+    /// </summary>
+    /// <param name="query">Page, page size, user-name search and sort, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <remarks>
     /// <para>
@@ -116,14 +120,15 @@ public sealed class MonitoringController : BaseApiController
     /// </para>
     /// </remarks>
     [HttpGet("accounts-disk")]
-    [ProducesResponseType(typeof(IReadOnlyList<AccountDiskUsageDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<AccountDiskUsageDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAccountsDiskAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAccountsDiskAsync(
+        [FromQuery] ListAccountDiskUsageQuery query,
+        CancellationToken cancellationToken)
     {
-        var query = new ListAccountDiskUsageQuery();
         return ToActionResult(
-            await _bus.InvokeAsync<Result<IReadOnlyList<AccountDiskUsageDto>>>(query, cancellationToken));
+            await _bus.InvokeAsync<Result<PagedResult<AccountDiskUsageDto>>>(query, cancellationToken));
     }
 }

@@ -139,6 +139,9 @@ pub(crate) struct FakeMonitorHost {
     mounts: Mutex<Option<String>>,
     /// What each directory measures; a directory absent here measures zero.
     sizes: Mutex<BTreeMap<PathBuf, u64>>,
+    /// Every directory the host was asked to measure, in the order asked, so a
+    /// test can prove a home it did not select was never walked.
+    measured: Mutex<Vec<PathBuf>>,
     /// Every command the host was asked to spawn, as `program` plus its argv.
     commands: Mutex<Vec<Vec<String>>>,
     /// The call class of every command, in the same order as `commands`.
@@ -175,6 +178,7 @@ impl FakeMonitorHost {
                 "/dev/sda1 /home ext4 rw,relatime,usrquota,grpquota 0 0\n".to_owned(),
             )),
             sizes: Mutex::new(BTreeMap::new()),
+            measured: Mutex::new(Vec::new()),
             commands: Mutex::new(Vec::new()),
             classes: Mutex::new(Vec::new()),
             machine_id: Mutex::new(Ok(Some(DEFAULT_MACHINE_ID.to_owned()))),
@@ -248,6 +252,11 @@ impl FakeMonitorHost {
             deadline: CallClass::Query.deadline(),
         }));
         self
+    }
+
+    /// Every directory the host was asked to measure, in the order asked.
+    pub(crate) fn measured(&self) -> Vec<PathBuf> {
+        self.measured.lock().unwrap().clone()
     }
 
     /// Gives the host a password database.
@@ -494,6 +503,7 @@ impl MonitorHost for FakeMonitorHost {
     /// mention measures zero, exactly as an absent directory does on a real
     /// host.
     fn directory_size(&self, path: &Path) -> u64 {
+        self.measured.lock().unwrap().push(path.to_path_buf());
         self.sizes.lock().unwrap().get(path).copied().unwrap_or(0)
     }
 

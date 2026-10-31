@@ -1,4 +1,6 @@
 import { useApi } from '../useApi'
+import { listQuery } from '../../utils/listQuery'
+import type { ListRequest, Paged } from '../../types/list'
 import type { AccountDiskUsage, ChartRange, MetricsChart, MonitoringApi, ServiceStatus } from '../../types/monitoring'
 
 /** The endpoint the bucketed samples behind the charts are read from. */
@@ -10,12 +12,15 @@ const SERVICES_PATH = '/api/v1/monitoring/services'
 /** The endpoint the per-account disk figures are read from. */
 const ACCOUNTS_DISK_PATH = '/api/v1/monitoring/accounts-disk'
 
+/** The per-account disk list takes no typed filter: its only narrowing is the search. */
+const ACCOUNTS_DISK_FILTER_PARAMS: Readonly<Record<string, string>> = {}
+
 /**
  * Builds the monitoring API on top of the shared low-level client.
  *
  * Every call here is a read: the monitoring module exposes no mutation at all, which is why this
- * file has no request bodies and no `post`. The screen's only parameter is the chart range, and it
- * travels in the query string because that is where `[FromQuery] ChartRange range` binds it from.
+ * file has no request bodies and no `post`. The chart range and the disk list's page travel in the
+ * query string, because that is where the endpoints bind them from.
  * @returns The {@link MonitoringApi} bound to the panel's monitoring endpoints.
  */
 export const useMonitoringApi = (): MonitoringApi => {
@@ -45,12 +50,17 @@ export const useMonitoringApi = (): MonitoringApi => {
   }
 
   /**
-   * Reads what every hosting account occupies on disk beside what its plan allows.
+   * Reads one page of what the hosting accounts occupy on disk, searched and sorted by the panel,
+   * which measures only the accounts on that page.
+   * @param request The page, size, search on the user name and sort.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns One row per account the panel holds.
+   * @returns The page the panel answered.
    */
-  const listAccountDiskUsage = (signal?: AbortSignal): Promise<AccountDiskUsage[]> => {
-    return api.get<AccountDiskUsage[]>(ACCOUNTS_DISK_PATH, signal)
+  const listAccountDiskUsage = (request: ListRequest, signal?: AbortSignal): Promise<Paged<AccountDiskUsage>> => {
+    return api.get<Paged<AccountDiskUsage>>(
+      `${ACCOUNTS_DISK_PATH}${listQuery(request, ACCOUNTS_DISK_FILTER_PARAMS)}`,
+      signal,
+    )
   }
 
   return { getChart, listServices, listAccountDiskUsage }

@@ -5,9 +5,14 @@
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::HashSet;
+use std::path::PathBuf;
+
+use maran_agent_core::validation::system::name::AccountName;
+
 use super::get_accounts_disk_usage;
-use crate::monitor::MonitorError;
 use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro};
+use crate::monitor::{AccountSelection, MonitorError};
 
 /// A password database in the shape both families ship: system users first,
 /// then a hosting account, then that account's SFTP login.
@@ -16,9 +21,33 @@ const PASSWD: &str = "root:x:0:0:root:/root:/bin/bash\n\
                       alice:x:1001:1001::/home/alice:/usr/sbin/nologin\n\
                       alice_deploy:x:1001:1001::/var/lib/maran-sftp/alice:/usr/sbin/nologin\n";
 
+/// Three hosting accounts, each with a home of its own.
+const THREE_ACCOUNTS: &str = "alice:x:1001:1001::/home/alice:/usr/sbin/nologin\n\
+                              bob:x:1002:1002::/home/bob:/usr/sbin/nologin\n\
+                              carol:x:1003:1003::/home/carol:/usr/sbin/nologin\n";
+
+/// A selection of exactly `names`.
+fn only(names: &[&str]) -> AccountSelection {
+    AccountSelection::Only(
+        names
+            .iter()
+            .map(|name| AccountName::parse(name).unwrap())
+            .collect::<HashSet<_>>(),
+    )
+}
+
+/// The names reported for `selection`, in the order they came back.
+fn names_for(host: &FakeMonitorHost, selection: &AccountSelection) -> Vec<String> {
+    get_accounts_disk_usage(host, distro(), selection)
+        .expect("the password database is readable")
+        .into_iter()
+        .map(|usage| usage.account.as_str().to_owned())
+        .collect()
+}
+
 /// The names reported, in the order they came back.
 fn names(host: &FakeMonitorHost) -> Vec<String> {
-    get_accounts_disk_usage(host, distro())
+    get_accounts_disk_usage(host, distro(), &AccountSelection::Every)
         .expect("the password database is readable")
         .into_iter()
         .map(|usage| usage.account.as_str().to_owned())
@@ -31,7 +60,8 @@ fn every_hosting_account_is_measured() {
         .with_passwd(PASSWD)
         .with_size("/home/alice", 4096);
 
-    let usage = get_accounts_disk_usage(&host, distro()).expect("the database is readable");
+    let usage = get_accounts_disk_usage(&host, distro(), &AccountSelection::Every)
+        .expect("the database is readable");
 
     assert_eq!(usage.len(), 1);
     assert_eq!(usage[0].account.as_str(), "alice");
@@ -63,7 +93,8 @@ fn an_sftp_login_is_not_reported_as_an_account() {
         .with_size("/home/alice", 4096)
         .with_size("/var/lib/maran-sftp/alice", 4096);
 
-    let usage = get_accounts_disk_usage(&host, distro()).expect("the database is readable");
+    let usage = get_accounts_disk_usage(&host, distro(), &AccountSelection::Every)
+        .expect("the database is readable");
 
     assert_eq!(usage.len(), 1);
     assert_eq!(usage[0].account.as_str(), "alice");
@@ -85,7 +116,8 @@ fn an_account_whose_home_is_not_its_own_name_is_not_reported() {
 fn an_account_with_nothing_in_its_home_measures_zero() {
     let host = FakeMonitorHost::from_ubuntu_captures().with_passwd(PASSWD);
 
-    let usage = get_accounts_disk_usage(&host, distro()).expect("the database is readable");
+    let usage = get_accounts_disk_usage(&host, distro(), &AccountSelection::Every)
+        .expect("the database is readable");
 
     assert_eq!(usage[0].used_bytes, 0);
 }
@@ -117,7 +149,8 @@ fn an_account_named_twice_in_the_database_is_reported_once() {
         )
         .with_size("/home/alice", 4096);
 
-    let usage = get_accounts_disk_usage(&host, distro()).expect("the database is readable");
+    let usage = get_accounts_disk_usage(&host, distro(), &AccountSelection::Every)
+        .expect("the database is readable");
 
     assert_eq!(names(&host), ["alice", "bob"]);
     assert_eq!(usage.len(), 2);
@@ -130,7 +163,7 @@ fn an_unreadable_password_database_is_an_error() {
     let host = FakeMonitorHost::from_ubuntu_captures().with_unreadable_passwd();
 
     assert_eq!(
-        get_accounts_disk_usage(&host, distro()),
+        get_accounts_disk_usage(&host, distro(), &AccountSelection::Every),
         Err(MonitorError::AccountsUnavailable)
     );
 }
@@ -143,7 +176,62 @@ fn no_quota_tool_is_run_to_measure_usage() {
     // a number the caller already had.
     let host = FakeMonitorHost::from_ubuntu_captures().with_passwd(PASSWD);
 
-    get_accounts_disk_usage(&host, distro()).expect("the database is readable");
+    get_accounts_disk_usage(&host, distro(), &AccountSelection::Every)
+        .expect("the database is readable");
 
     assert!(host.commands().is_empty());
+}
+
+#[test]
+fn an_empty_selection_from_the_wire_measures_every_hosting_account() {
+    // `Every` is what the service builds from an empty name list: the meaning a
+    // caller that predates the list had, and keeps.
+    let host = FakeMonitorHost::from_ubuntu_captures().with_passwd(THREE_ACCOUNTS);
+
+    assert_eq!(
+        names_for(&host, &AccountSelection::Every),
+        ["alice", "bob", "carol"]
+    );
+}
+
+#[test]
+fn a_selection_measures_only_the_accounts_it_names() {
+    let host = FakeMonitorHost::from_ubuntu_captures()
+        .with_passwd(THREE_ACCOUNTS)
+        .with_size("/home/bob", 2048);
+
+    let usage = get_accounts_disk_usage(&host, distro(), &only(&["bob"])).expect("readable");
+
+    assert_eq!(usage.len(), 1);
+    assert_eq!(usage[0].account.as_str(), "bob");
+    assert_eq!(usage[0].used_bytes, 2048);
+}
+
+#[test]
+fn a_home_the_selection_does_not_name_is_never_walked() {
+    // The point of the selection: the recursive walk is the expensive half, so
+    // filtering the finished list would still pay for every home on the host.
+    let host = FakeMonitorHost::from_ubuntu_captures().with_passwd(THREE_ACCOUNTS);
+
+    names_for(&host, &only(&["alice", "carol"]));
+
+    assert_eq!(
+        host.measured(),
+        [PathBuf::from("/home/alice"), PathBuf::from("/home/carol")]
+    );
+}
+
+#[test]
+fn a_selected_name_that_is_not_a_hosting_account_is_absent_rather_than_zero() {
+    // `dave` has no passwd row on this host: that is not an error, and he is
+    // not reported as an account occupying nothing.
+    let host = FakeMonitorHost::from_ubuntu_captures().with_passwd(THREE_ACCOUNTS);
+
+    assert_eq!(names_for(&host, &only(&["alice", "dave"])), ["alice"]);
+    assert!(names_for(&host, &only(&["dave"])).is_empty());
+    assert!(
+        host.measured()
+            .iter()
+            .all(|path| path == &PathBuf::from("/home/alice"))
+    );
 }

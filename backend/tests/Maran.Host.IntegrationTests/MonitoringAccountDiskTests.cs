@@ -148,8 +148,74 @@ public sealed class MonitoringAccountDiskTests : IAsyncLifetime
         var payload = await response.Content.ReadAsStringAsync();
         using var body = JsonDocument.Parse(payload);
 
-        Assert.Equal(2, body.RootElement.GetArrayLength());
+        Assert.Equal(2, body.RootElement.GetProperty("items").GetArrayLength());
+        Assert.Equal(2, body.RootElement.GetProperty("total").GetInt32());
         Assert.DoesNotContain("backup", payload, StringComparison.Ordinal);
+    }
+
+    /// <summary>A search pages the panel's accounts first, and the agent is asked about that page only.</summary>
+    [Fact]
+    public async Task A_search_pages_the_accounts_and_the_agent_is_asked_about_that_page_only()
+    {
+        var agent = Measuring(new AgentAccountDiskUsage("alice", 10));
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/accounts-disk?search=ALI&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, body.RootElement.GetProperty("total").GetInt32());
+        Assert.Equal(10L, Row(body, "alice").GetProperty("usedBytes").GetInt64());
+        Assert.Equal(["alice"], Assert.Single(agent.DiskUsageRequests));
+    }
+
+    /// <summary>A page past the end answers empty with the true total and never calls the agent.</summary>
+    /// <remarks>
+    /// An empty name list on the wire means every account on the host, so an empty page that asked
+    /// the agent anything would be a walk of every home to show nothing.
+    /// </remarks>
+    [Fact]
+    public async Task A_page_past_the_end_answers_empty_with_the_total_and_never_calls_the_agent()
+    {
+        var agent = Measuring(new AgentAccountDiskUsage("alice", 10));
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/accounts-disk?page=2");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, body.RootElement.GetProperty("items").GetArrayLength());
+        Assert.Equal(2, body.RootElement.GetProperty("total").GetInt32());
+        Assert.Empty(agent.DiskUsageRequests);
+    }
+
+    /// <summary>A request outside the paging contract is refused with its code before the agent is asked.</summary>
+    /// <param name="queryString">The offending query string.</param>
+    /// <param name="code">The code the refusal must carry.</param>
+    [Theory]
+    [InlineData("sort=usedBytes", "ListSortUnknown")]
+    [InlineData("pageSize=7", "ListPageSizeNotOffered")]
+    [InlineData("page=0", "ListPageOutOfRange")]
+    public async Task A_request_outside_the_paging_contract_is_refused_with_its_code(string queryString, string code)
+    {
+        var agent = Measuring();
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync($"/api/v1/monitoring/accounts-disk?{queryString}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(code, body.RootElement.GetProperty("code").GetString());
+        Assert.Empty(agent.DiskUsageRequests);
     }
 
     /// <summary>A suspended account is still listed, because its files are still on the disk.</summary>
@@ -195,13 +261,13 @@ public sealed class MonitoringAccountDiskTests : IAsyncLifetime
         Assert.Equal("AgentUnavailable", body.RootElement.GetProperty("code").GetString());
     }
 
-    /// <summary>Finds one account's row in the response by its user name.</summary>
+    /// <summary>Finds one account's row in the response's page by its user name.</summary>
     /// <param name="body">The parsed response.</param>
     /// <param name="username">The account to find.</param>
     /// <returns>That account's row.</returns>
     private static JsonElement Row(JsonDocument body, string username)
     {
-        return body.RootElement.EnumerateArray().Single(row =>
+        return body.RootElement.GetProperty("items").EnumerateArray().Single(row =>
         {
             return row.GetProperty("username").GetString() == username;
         });

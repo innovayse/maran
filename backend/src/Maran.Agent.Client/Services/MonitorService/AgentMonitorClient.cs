@@ -81,11 +81,20 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
 
     /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<AgentAccountDiskUsage>>> GetAccountsDiskUsageAsync(
+        IReadOnlyCollection<string> accountUsernames,
         CancellationToken cancellationToken)
     {
-        var response = await _invoker.GetAccountsDiskUsageAsync(
-            new GetAccountsDiskUsageRequest(),
-            cancellationToken);
+        // An empty name list means EVERY account on the wire, which is not what this client's
+        // caller asked for: nothing named is nothing to measure (see the interface's remarks).
+        if (accountUsernames.Count == 0)
+        {
+            return Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([]);
+        }
+
+        var request = new GetAccountsDiskUsageRequest();
+        request.AccountUsernames.AddRange(accountUsernames);
+
+        var response = await _invoker.GetAccountsDiskUsageAsync(request, cancellationToken);
 
         return response.ResultCase switch
         {

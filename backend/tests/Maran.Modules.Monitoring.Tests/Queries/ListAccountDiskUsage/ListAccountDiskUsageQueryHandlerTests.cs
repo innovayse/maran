@@ -31,7 +31,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.Equal(accountId, row.AccountId);
         Assert.Equal("alice", row.Username);
         Assert.Equal(734_003_200L, row.UsedBytes);
@@ -52,7 +52,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.Equal(1_073_741_824L, row.QuotaBytes);
     }
 
@@ -72,7 +72,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.Equal(53_687_091_200L, row.QuotaBytes);
     }
 
@@ -92,7 +92,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.Equal("bob", row.Username);
         Assert.Null(row.UsedBytes);
     }
@@ -116,7 +116,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.Equal("alice", row.Username);
     }
 
@@ -135,7 +135,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.Null(row.UsedBytes);
     }
 
@@ -153,14 +153,16 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.Equal(long.MaxValue, row.UsedBytes);
     }
 
     /// <summary>The agent's refusal is returned and no listing is invented from the panel's side alone.</summary>
     /// <remarks>
     /// Without a measurement there is nothing to show but a column of allowances, and answering with
-    /// that would read as a host full of accounts using nothing.
+    /// that would read as a host full of accounts using nothing. The panel's accounts ARE read first
+    /// now — the page has to be chosen before the agent can be asked about it — so what this asserts
+    /// is the refusal reaching the caller, not that the directory was left untouched.
     /// </remarks>
     [Fact]
     public async Task The_agents_refusal_is_returned_and_no_listing_is_invented()
@@ -176,7 +178,6 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentUnavailable", result.Error!.Code);
-        Assert.Equal(0, accounts.Listings);
     }
 
     /// <summary>Accounts come back ordered by user name, so two reads of one host agree.</summary>
@@ -196,13 +197,17 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         Assert.Equal(
             ["alice", "bob", "carol"],
-            result.Value.Select(row =>
+            result.Value.Items.Select(row =>
             {
                 return row.Username;
             }));
     }
 
     /// <summary>A host with no accounts answers an empty listing, not a failure.</summary>
+    /// <remarks>
+    /// The agent's answer here names an account the panel does not know, and it never reaches the
+    /// listing — the agent is not even asked, because there is no page to measure.
+    /// </remarks>
     [Fact]
     public async Task A_host_with_no_accounts_answers_an_empty_listing()
     {
@@ -211,7 +216,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.Items);
     }
 
     /// <summary>Every row's quota is reported enforceable when the filesystem can back it.</summary>
@@ -231,7 +236,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.True(row.Enforceable);
         Assert.Null(row.Note);
     }
@@ -257,7 +262,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.Equal("AccountQuotaNotEnforceableNote", row.Note);
     }
 
@@ -291,7 +296,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
-        Assert.All(result.Value, row =>
+        Assert.All(result.Value.Items, row =>
         {
             Assert.False(row.Enforceable);
         });
@@ -318,7 +323,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.False(row.Enforceable);
     }
 

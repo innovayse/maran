@@ -5,9 +5,10 @@ namespace Maran.Agent.Client.Tests.Services.MonitorService;
 
 /// <summary>Stub of <c>IMonitorServiceInvoker</c> returning canned responses and keeping every request.</summary>
 /// <remarks>
-/// The three requests here carry no fields at all, so what the captured ones prove is only that the
+/// Every request but one carries no fields at all, so what most captured ones prove is only that the
 /// call was made — which is worth asserting, because a client that answered a read from nothing at
-/// all would otherwise look identical from the outside.
+/// all would otherwise look identical from the outside. The disk-usage request carries the account
+/// names to measure, and its capture proves which names reached the wire.
 /// </remarks>
 internal sealed class StubMonitorService : IMonitorServiceInvoker
 {
