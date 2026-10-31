@@ -63,15 +63,16 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
 
     /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<AgentAccountDiskUsage>>> GetAccountsDiskUsageAsync(
+        IReadOnlyCollection<string> accountUsernames,
         CancellationToken cancellationToken)
     {
         return await AgentOperationPipeline.ExecuteAsync(
             _pipeline,
             async (state, token) =>
             {
-                return await state.GetAccountsDiskUsageAsync(token);
+                return await state.Client.GetAccountsDiskUsageAsync(state.AccountUsernames, token);
             },
-            _inner,
+            (Client: _inner, AccountUsernames: accountUsernames),
             cancellationToken);
     }
 

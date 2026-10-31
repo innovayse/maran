@@ -41,6 +41,7 @@ internal sealed class RecordingAgentMonitorClient : IAgentMonitorClient
 
     /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<AgentAccountDiskUsage>>> GetAccountsDiskUsageAsync(
+        IReadOnlyCollection<string> accountUsernames,
         CancellationToken cancellationToken)
     {
         await EnterAsync(cancellationToken);

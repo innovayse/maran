@@ -1,4 +1,5 @@
-//! GetAccountsDiskUsage: what every hosting account occupies on disk.
+//! GetAccountsDiskUsage: what every hosting account, or each requested one,
+//! occupies on disk.
 
 use std::path::{Path, PathBuf};
 
@@ -8,10 +9,22 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 
 use crate::monitor::model::account_disk_usage::AccountDiskUsage;
+use crate::monitor::model::account_selection::AccountSelection;
 use crate::monitor::monitor_error::MonitorError;
 use crate::monitor::monitor_host::MonitorHost;
 
-/// Measures every hosting account's home directory tree.
+/// Measures the home directory tree of every hosting account `selection`
+/// includes.
+///
+/// # Only the selected homes are walked
+///
+/// The walk is the expensive half of this reading — a recursive size of a
+/// whole home — and a panel showing one page of a thousand accounts asks for
+/// that page. So the selection is applied BEFORE a home is measured, never to
+/// the finished list: an account the caller did not ask about costs one parsed
+/// passwd row and no directory walk at all. A selected name that is not a
+/// hosting account on this host matches no row and is absent from the answer;
+/// it is not an error and it is never reported as zero.
 ///
 /// # Which passwd rows are hosting accounts
 ///
@@ -47,6 +60,7 @@ use crate::monitor::monitor_host::MonitorHost;
 pub fn get_accounts_disk_usage(
     host: &dyn MonitorHost,
     distro: &dyn DistroAdapter,
+    selection: &AccountSelection,
 ) -> Result<Vec<AccountDiskUsage>, MonitorError> {
     let passwd = host.read_password_database(distro.passwd_database())?;
 
@@ -54,7 +68,7 @@ pub fn get_accounts_disk_usage(
         .into_iter()
         .filter_map(|row| {
             let account = AccountName::parse(&row.name).ok()?;
-            if Path::new(&row.home) != home_of(&account) {
+            if Path::new(&row.home) != home_of(&account) || !selection.includes(&account) {
                 return None;
             }
 

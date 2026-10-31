@@ -1,6 +1,7 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (issue #196 phase 4, accounts-disk paged at the agent, scale dataset and list budget, two indexes): edited by hand. Identity, Tasks, Firewall and Sdk rows were already below the branch's measured counts before this change (phase 3 left them stale); Maran.Agent.Client.Tests.dll 378->380; Maran.Modules.Identity.Tests.dll 334->373; Maran.Modules.Tasks.Tests.dll 76->101; Maran.Modules.Monitoring.Tests.dll 70->83; Maran.Modules.Firewall.Tests.dll 255->286; Maran.Sdk.Tests.dll 259->265; Maran.Host.IntegrationTests.dll 745->810; monitoring/monitoring.spec.ts 11->14. Full runs: backend 20 targets 5096 passed / 0 failed; rust 35 targets 2853 passed; spa 161 targets 1087 passed / 0 failed.
 # RE-MEASURED 2026-10-31 (issue #218, UI consistency: spa auth/signed-out-console.spec.ts 2 -> 7; new spa firewall/consistency.spec.ts 5, ui-kit/actions-and-links.spec.ts 8, ui-kit/type-consistency.spec.ts 7): edited by hand. Full `maran test spa`: 155 targets, 1048 passed / 0 failed.
 # RE-MEASURED 2026-10-31 (issue #209 merged with dev's #196 phase 3, firewall split into three pages): edited by hand.
 # spa: shell/breadcrumb-trail 9->11 (Firewall -> Bans, Firewall -> Never banned), shell/navigation-destination-labels
@@ -478,26 +479,26 @@ rust	doc-tests maran_templates	0	0	0
 rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
-backend	Maran.Agent.Client.Tests.dll	378	0	0
+backend	Maran.Agent.Client.Tests.dll	380	0	0
 backend	Maran.SharedKernel.Tests.dll	349	0	0
-backend	Maran.Modules.Identity.Tests.dll	334	0	0
+backend	Maran.Modules.Identity.Tests.dll	373	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
-backend	Maran.Modules.Tasks.Tests.dll	76	0	0
+backend	Maran.Modules.Tasks.Tests.dll	101	0	0
 backend	Maran.Modules.Ftp.Tests.dll	169	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	83	0	0
 backend	Maran.Modules.Backups.Tests.dll	237	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
-backend	Maran.Modules.Firewall.Tests.dll	255	0	0
+backend	Maran.Modules.Firewall.Tests.dll	286	0	0
 backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	514	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	235	0	0
-backend	Maran.Sdk.Tests.dll	259	0	0
+backend	Maran.Sdk.Tests.dll	265	0	0
 backend	Maran.Modules.Sites.Tests.dll	270	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	745	0	0
+backend	Maran.Host.IntegrationTests.dll	810	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
@@ -583,7 +584,7 @@ spa	firewall/whitelist-list.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	8	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
-spa	monitoring/monitoring.spec.ts	11	0	0
+spa	monitoring/monitoring.spec.ts	14	0	0
 spa	plans/list.spec.ts	6	0	0
 spa	plans/loading.spec.ts	3	0	0
 spa	plans/plan-form-loading.spec.ts	3	0	0

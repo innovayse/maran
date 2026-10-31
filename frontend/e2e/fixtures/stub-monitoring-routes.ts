@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test'
+import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { AccountDiskUsage, ChartRange, MetricBucket, ServiceStatus } from '../../src/types/monitoring'
 
 /** The chart endpoint. The query part is optional in the pattern so a missing `range` still matches. */
@@ -7,8 +8,29 @@ const CHART_PATTERN = /\/api\/v1\/monitoring\/chart(\?.*)?$/
 /** The watched services' states. */
 const SERVICES_PATTERN = /\/api\/v1\/monitoring\/services$/
 
-/** The per-account disk figures. */
-const ACCOUNTS_DISK_PATTERN = /\/api\/v1\/monitoring\/accounts-disk$/
+/** The per-account disk figures, with or without the list's query. */
+const ACCOUNTS_DISK_PATTERN = /\/api\/v1\/monitoring\/accounts-disk(\?.*)?$/
+
+/**
+ * How the disk list searches and sorts, as the panel does: the search reads the user name, and the
+ * sorts are the two the panel whitelists — never used bytes, which it cannot order by because it
+ * measures only the page it answers.
+ */
+const ACCOUNTS_DISK_RULES: PagedRules<AccountDiskUsage> = {
+  matches: (row, term) => {
+    return row.username.toLowerCase().includes(term)
+  },
+  sorts: {
+    username: (row) => {
+      return row.username
+    },
+    quotaBytes: (row) => {
+      // Zero-padded so the stub's text comparison orders the allowances as numbers.
+      return String(row.quotaBytes).padStart(20, '0')
+    },
+  },
+  filters: {},
+}
 
 /** A fixed UTC instant the stubbed buckets are spaced from, so nothing depends on the clock. */
 const BASE_AT = Date.UTC(2026, 8, 1, 0, 0, 0)
@@ -24,6 +46,12 @@ const FIVE_MINUTES_MS = 5 * 60 * 1000
  * the panel was asked for.
  */
 export const chartRangeRequests: string[] = []
+
+/**
+ * Every disk list request the stub answered, in order, so a spec can read which page, search and
+ * sort the screen asked the panel for.
+ */
+export const accountDiskRequests: URL[] = []
 
 /**
  * Builds a bucket whose every metric is derived from one number, so a spec can say what it expects
@@ -61,7 +89,8 @@ export const stubbedBucket = (index: number, cpuPercent: number): MetricBucket =
  * @param page The Playwright page whose network the routes are installed on.
  * @param buckets Which buckets the chart reports, keyed by range.
  * @param services The service rows reported.
- * @param accounts The per-account disk rows reported.
+ * @param accounts Every per-account disk row the stub knows; it answers them a page at a time,
+ * honouring `page`, `pageSize`, `search` and `sort` as the panel does.
  * @returns Resolves once the routes are installed.
  */
 export const stubMonitoring = async (
@@ -101,6 +130,11 @@ export const stubMonitoring = async (
   })
 
   await page.route(ACCOUNTS_DISK_PATTERN, async (route: Route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(accounts) })
+    accountDiskRequests.push(new URL(route.request().url()))
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pagedAnswer(accounts, route.request().url(), ACCOUNTS_DISK_RULES)),
+    })
   })
 }

@@ -36,15 +36,33 @@ public interface IAgentMonitorClient
     /// </remarks>
     Task<Result<IReadOnlyList<AgentServiceStatus>>> GetServiceStatusesAsync(CancellationToken cancellationToken);
 
-    /// <summary>Reads how much disk each hosting account is using.</summary>
+    /// <summary>Reads how much disk each of the named hosting accounts is using.</summary>
+    /// <param name="accountUsernames">
+    /// The system user names to measure — exactly these, and the agent walks no other home. An EMPTY
+    /// collection measures nothing and answers an empty list without calling the agent at all.
+    /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
-    /// <returns>One row per account, carrying used bytes only, or a typed failure.</returns>
+    /// <returns>
+    /// One row per named account the agent found to be a hosting account on this host, carrying used
+    /// bytes only, or a typed failure. A named account the host does not hold is absent, never zero.
+    /// </returns>
     /// <remarks>
+    /// <para>
     /// Used bytes, never a quota: the quota is the panel's own data, chosen when the account was
     /// created and stored by the Accounts module. Comparing the two is the caller's job, and both
     /// halves of that comparison must come from the side that owns them.
+    /// </para>
+    /// <para>
+    /// <b>Why empty is "nothing" here when it is "every account" on the wire.</b> The wire keeps the
+    /// meaning an older panel had for a request with no names, and that meaning is a walk of every
+    /// home on the host. No caller of this client wants that walk — a list asks for the page it
+    /// shows — so a parameter that silently turned "no rows on this page" into "measure a thousand
+    /// homes" would be a trap. The client therefore has one meaning for this collection, "measure
+    /// these", and an empty one measures nothing.
+    /// </para>
     /// </remarks>
     Task<Result<IReadOnlyList<AgentAccountDiskUsage>>> GetAccountsDiskUsageAsync(
+        IReadOnlyCollection<string> accountUsernames,
         CancellationToken cancellationToken);
 
     /// <summary>

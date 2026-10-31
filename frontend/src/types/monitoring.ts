@@ -1,3 +1,5 @@
+import type { ListRequest, Paged } from './list'
+
 /**
  * How far back a chart reaches, mirroring the backend's `ChartRange` enum.
  *
@@ -156,9 +158,11 @@ export interface MonitoringApi {
   listServices: (signal?: AbortSignal) => Promise<ServiceStatus[]>
 
   /**
-   * Reads what every hosting account occupies on disk beside what its plan allows.
+   * Reads one page of what the hosting accounts occupy on disk beside what each plan allows. The
+   * panel measures only the page it answers, which is why used bytes is not a sort it offers.
+   * @param request The page, size, search on the user name and sort (`username`, `quotaBytes`).
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns One row per account the panel holds.
+   * @returns The page the panel answered, with the total that matched.
    */
-  listAccountDiskUsage: (signal?: AbortSignal) => Promise<AccountDiskUsage[]>
+  listAccountDiskUsage: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<AccountDiskUsage>>
 }

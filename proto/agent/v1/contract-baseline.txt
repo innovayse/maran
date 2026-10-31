@@ -370,6 +370,7 @@ field maran.agent.v1.GetAccountUsageRequest 1 username TYPE_STRING LABEL_OPTIONA
 field maran.agent.v1.GetAccountUsageResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetAccountUsageOk oneof=result
 field maran.agent.v1.GetAccountUsageResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.GetAccountsDiskUsageOk 1 accounts TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.AccountDiskUsage oneof=-
+field maran.agent.v1.GetAccountsDiskUsageRequest 1 account_usernames TYPE_STRING LABEL_REPEATED type_name=- oneof=-
 field maran.agent.v1.GetAccountsDiskUsageResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetAccountsDiskUsageOk oneof=result
 field maran.agent.v1.GetAccountsDiskUsageResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.GetAgentInfoResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentInfo oneof=result

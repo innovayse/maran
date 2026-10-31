@@ -16,8 +16,8 @@ service MonitorService {
   // (web server, PHP-FPM pools, database server, FTP, cron).
   rpc GetServiceStatuses(GetServiceStatusesRequest) returns (GetServiceStatusesResponse);
 
-  // Reads current disk usage for every hosting account, for comparison
-  // against each account's quota.
+  // Reads current disk usage for every hosting account, or for the ones the
+  // request names, for comparison against each account's quota.
   rpc GetAccountsDiskUsage(GetAccountsDiskUsageRequest) returns (GetAccountsDiskUsageResponse);
 
   // Reads the live sshd configuration and reports whether the installer's
@@ -177,7 +177,18 @@ message ServiceStatus {
   string detail = 5;
 }
 
-message GetAccountsDiskUsageRequest {}
+message GetAccountsDiskUsageRequest {
+  // The hosting accounts to measure, by system username. EMPTY means measure
+  // every hosting account on this host — the meaning a caller that predates
+  // this field had, and still has. NON-EMPTY means measure only these
+  // accounts and walk no other home: a panel listing one page of a thousand
+  // accounts asks for that page and pays for that page. Each name is
+  // re-validated by the agent as an account name, and one invalid name refuses
+  // the whole request with ERROR_CODE_INVALID_INPUT. A valid name that is not
+  // a hosting account on this host is simply absent from the answer — never an
+  // error, and never a zero.
+  repeated string account_usernames = 1;
+}
 
 message GetAccountsDiskUsageResponse {
   oneof result {
