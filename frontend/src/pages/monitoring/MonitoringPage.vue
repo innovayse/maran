@@ -24,6 +24,13 @@
  * A service whose state is merely not known is never counted as stopped (a socket-activated unit is
  * inactive from boot), and an account whose quota is not enforced is never counted as over it.
  *
+ * **The disk table is a server page** (`useServerTable`), like every other list: page, page size,
+ * the search on the user name and the sort (`username`, `quotaBytes`) live in the URL, and the panel
+ * searches, sorts, counts — and measures only the accounts on the page it answers, because a
+ * measurement walks a home directory and a host can hold thousands. That is also why the over-quota
+ * notice speaks for the accounts on the page on screen, not for the whole host: nothing has measured
+ * the rest. The table loads on its own, so a refused disk read never blanks the charts.
+ *
  * Every panel is a {@link UiCard}, sixteen pixels apart, on the content panel; the page itself
  * holds no markup of its own beyond the kit's.
  */
@@ -32,7 +39,10 @@ import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiButton from '../../components/ui/UiButton.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
+import UiPagination from '../../components/ui/UiPagination.vue'
+import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
@@ -40,11 +50,26 @@ import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import AccountDiskTable from '../../components/monitoring/AccountDiskTable.vue'
 import MonitoringCharts from '../../components/monitoring/MonitoringCharts.vue'
 import ServiceStatusBadges from '../../components/monitoring/ServiceStatusBadges.vue'
+import { useListLabels } from '../../composables/useListLabels'
+import { useServerTable } from '../../composables/useServerTable'
 import { useMonitoringStore } from '../../stores/monitoring'
-import type { ChartRange } from '../../types/monitoring'
+import type { ListLoad, ListRequest } from '../../types/list'
+import type { AccountDiskUsage, ChartRange } from '../../types/monitoring'
 
 const { t } = useI18n()
 const store = useMonitoringStore()
+const labels = useListLabels()
+
+const diskTable = useServerTable<AccountDiskUsage>({
+  /**
+   * Reads one page of the accounts' disk use through the store.
+   * @param request The page the URL describes.
+   * @returns How the read ended.
+   */
+  load: (request: ListRequest): Promise<ListLoad<AccountDiskUsage>> => {
+    return store.listAccountDiskUsage(request)
+  },
+})
 
 /** The two ranges the panel offers, in the order they read. */
 const rangeOptions: ComputedRef<SegmentOption[]> = computed(() => {
@@ -64,9 +89,14 @@ const hasNoServices: ComputedRef<boolean> = computed(() => {
   return store.loadState === 'loaded' && store.services.length === 0
 })
 
-/** Whether the panel answered the disk read successfully and reported no account at all. */
-const hasNoAccounts: ComputedRef<boolean> = computed(() => {
-  return store.loadState === 'loaded' && store.diskErrorMessage === null && store.accountDiskUsage.length === 0
+/** Whether the latest disk page arrived and holds no account at all. */
+const diskAnsweredNothing: ComputedRef<boolean> = computed(() => {
+  return diskTable.state.value.status === 'loaded' && diskTable.total.value === 0
+})
+
+/** Whether the disk list is narrowed by a search, so an empty answer means "no match", not "no accounts". */
+const diskIsNarrowed: ComputedRef<boolean> = computed(() => {
+  return diskTable.request.value.search !== ''
 })
 
 /**
@@ -84,9 +114,10 @@ const stoppedServiceNames: ComputedRef<string[]> = computed(() => {
 })
 
 /**
- * The usernames of accounts whose measured use has reached an allowance this server enforces. An
- * unmeasured account, a zero allowance and an unenforced allowance are all left out: none of them
- * is a measurement that says the account is over anything.
+ * The usernames of accounts on the disk page on screen whose measured use has reached an allowance
+ * this server enforces. An unmeasured account, a zero allowance and an unenforced allowance are all
+ * left out: none of them is a measurement that says the account is over anything. Only the page on
+ * screen is measured, so only the page on screen can be named.
  */
 const overQuotaUsernames: ComputedRef<string[]> = computed(() => {
   return store.accountDiskUsage
@@ -124,6 +155,14 @@ const attentionText: ComputedRef<string | null> = computed(() => {
  */
 const changeRange = async (value: string): Promise<void> => {
   await store.selectRange(value as ChartRange)
+}
+
+/**
+ * Clears the disk list's search, the way back from a search that matched no account.
+ * @returns Nothing; the search reaches the URL after the box's pause.
+ */
+const clearDiskSearch = (): void => {
+  diskTable.search.value = ''
 }
 
 onMounted(() => {
@@ -175,16 +214,59 @@ onMounted(() => {
 
         <MonitoringCharts :buckets="store.buckets" :loading="isLoading" />
 
-        <UiCard>
+        <UiCard class="min-w-0">
           <UiSectionHeading class="mb-4" :title="t('monitoring.disk.title')" />
-          <UiSkeleton v-if="isLoading" shape="block" size="lg" />
-          <UiAlert v-else-if="store.diskErrorMessage !== null" variant="error">{{ store.diskErrorMessage }}</UiAlert>
-          <UiEmptyState
-            v-else-if="hasNoAccounts"
-            :title="t('monitoring.disk.emptyTitle')"
-            :description="t('monitoring.disk.emptyDescription')"
-          />
-          <AccountDiskTable v-else :rows="store.accountDiskUsage" />
+          <div class="flex flex-col gap-4">
+            <UiSearchInput
+              v-model="diskTable.search.value"
+              class="min-w-55 max-w-85"
+              :label="t('monitoring.disk.searchLabel')"
+              :placeholder="t('monitoring.disk.searchPlaceholder')"
+              :clear-label="t('monitoring.disk.searchClear')"
+            />
+
+            <UiLoadingRegion :state="diskTable.loadingState.value">
+              <!-- A refusal is the backend's own localized sentence, so the SPA holds no copy of it. -->
+              <template #error>
+                <UiAlert v-if="diskTable.state.value.status === 'refused'" variant="error">
+                  {{ diskTable.state.value.message }}
+                </UiAlert>
+                <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
+              </template>
+
+              <UiEmptyState
+                v-if="diskAnsweredNothing && !diskIsNarrowed"
+                :title="t('monitoring.disk.emptyTitle')"
+                :description="t('monitoring.disk.emptyDescription')"
+              />
+              <UiEmptyState
+                v-else-if="diskAnsweredNothing"
+                :title="t('monitoring.disk.noResultsTitle')"
+                :description="t('monitoring.disk.noResultsDescription')"
+              >
+                <UiButton variant="secondary" @click="clearDiskSearch">{{ t('monitoring.disk.searchClear') }}</UiButton>
+              </UiEmptyState>
+              <div v-else class="flex flex-col gap-4">
+                <AccountDiskTable
+                  :rows="store.accountDiskUsage"
+                  :loading="diskTable.state.value.status === 'loading'"
+                  :skeleton-rows="diskTable.pageSize.value"
+                  :sort="diskTable.sort.value"
+                  @sort="diskTable.toggleSort"
+                />
+                <UiPagination
+                  v-if="diskTable.state.value.status === 'loaded'"
+                  :page="diskTable.page.value"
+                  :page-size="diskTable.pageSize.value"
+                  :total="diskTable.total.value"
+                  :page-sizes="diskTable.pageSizes"
+                  :labels="labels.pagination.value"
+                  @update:page="diskTable.setPage"
+                  @update:page-size="diskTable.setPageSize"
+                />
+              </div>
+            </UiLoadingRegion>
+          </div>
         </UiCard>
       </div>
     </UiLoadingRegion>

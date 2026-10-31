@@ -99,5 +99,12 @@ public sealed class BackupConfiguration : IEntityTypeConfiguration<Backup>
         // predicate on every read and the ordering is what the rest of the query costs.
         builder.HasIndex(backup => new { backup.AccountId, backup.StartedAt })
             .HasDatabaseName("IX_Backups_AccountId_StartedAt");
+
+        // The administrator's listing has no account predicate, so the composite above cannot order
+        // it: its default sort (newest first) and its start-time window both read the whole journal
+        // and sort it without this one. A journal that grows with every account every day is the
+        // table where that cost keeps rising (issue #196, docs/performance/list-indexes.md).
+        builder.HasIndex(backup => backup.StartedAt)
+            .HasDatabaseName("IX_Backups_StartedAt");
     }
 }

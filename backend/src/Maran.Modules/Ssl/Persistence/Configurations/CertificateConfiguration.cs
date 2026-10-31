@@ -65,5 +65,12 @@ public sealed class CertificateConfiguration : IEntityTypeConfiguration<Certific
         // as an index because it runs unfiltered over every account on the machine.
         builder.HasIndex(certificate => certificate.NotAfter)
             .HasDatabaseName("IX_Certificates_NotAfter");
+
+        // The list's site filter (`GET /api/v1/certificates?siteId=`), which a site's own screen asks
+        // for. It matches one row in thousands, and without this the page and its total both read the
+        // whole table: the plan recorded in docs/performance/list-indexes.md was a sequential scan of
+        // every certificate on the server to find one (issue #196).
+        builder.HasIndex(certificate => certificate.SiteId)
+            .HasDatabaseName("IX_Certificates_SiteId");
     }
 }

@@ -47,9 +47,9 @@ use std::process::Command;
 
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::monitor::{
-    MachineIdentity, PrimaryInterface, ProcessMonitorHost, ServiceState, ServiceStatus,
-    SftpJailStatus, get_accounts_disk_usage, get_host_metrics, get_server_fingerprint_inputs,
-    get_service_statuses, get_sftp_jail_status,
+    AccountSelection, MachineIdentity, PrimaryInterface, ProcessMonitorHost, ServiceState,
+    ServiceStatus, SftpJailStatus, get_accounts_disk_usage, get_host_metrics,
+    get_server_fingerprint_inputs, get_service_statuses, get_sftp_jail_status,
 };
 
 use polygon_account::PolygonAccount;
@@ -381,8 +381,12 @@ fn each_hosting_account_is_reported_with_what_it_occupies_and_nothing_else_is() 
     )
     .expect("the planted file must belong to the account");
 
-    let usage = get_accounts_disk_usage(&ProcessMonitorHost::new(), polygon_distro())
-        .expect("the password database must be readable");
+    let usage = get_accounts_disk_usage(
+        &ProcessMonitorHost::new(),
+        polygon_distro(),
+        &AccountSelection::Every,
+    )
+    .expect("the password database must be readable");
 
     let reported = usage
         .iter()

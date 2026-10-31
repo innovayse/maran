@@ -24,6 +24,9 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// adds the two package-source failure codes (issue #251), and both ends moved to it as the
 /// one-revision default: a revision-3 agent reports a mirror that refused or could not be reached as
 /// a bare <c>SystemFailure</c>, so the panel would answer a fault outside the host as a 500 of its own.
+/// Revision 5 adds <c>GetAccountsDiskUsageRequest.account_usernames</c> (issue #196), and both ends
+/// moved to it as the one-revision default: a revision-4 agent ignores the field and walks every
+/// account's home on each request for one page, which is the unbounded walk the field exists to end.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -50,10 +53,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 4;
+    public const uint Minimum = 5;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 4;
+    public const uint Maximum = 5;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

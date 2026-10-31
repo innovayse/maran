@@ -2,6 +2,7 @@
 //! built from — one type per file (rules/rust.md "Operation anatomy").
 
 pub mod account_disk_usage;
+pub mod account_selection;
 pub mod cpu_times;
 pub mod filesystem_usage;
 pub mod host_metrics;

@@ -78,6 +78,9 @@ namespace Maran.Modules.Backups.Persistence.Migrations
 
                     b.HasIndex("DestinationId");
 
+                    b.HasIndex("StartedAt")
+                        .HasDatabaseName("IX_Backups_StartedAt");
+
                     b.HasIndex("AccountId", "StartedAt")
                         .HasDatabaseName("IX_Backups_AccountId_StartedAt");
 

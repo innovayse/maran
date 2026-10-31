@@ -25,6 +25,7 @@ use crate::proto::{
 use crate::services::monitor::managed_service::managed_service;
 use crate::services::monitor::monitor_status::to_agent_error;
 use crate::services::monitor::reported_state::reported_state;
+use crate::services::monitor::validated_account_selection::validated_account_selection;
 use crate::services::wire::run_blocking::run_blocking;
 
 /// The uptime the agent reports for every unit.
@@ -45,16 +46,19 @@ const UNPRODUCED_QUOTA: u64 = 0;
 
 /// Serves the read-only host and service observability over the wire.
 ///
-/// Every rpc follows the same three steps: there is nothing to validate (none
-/// of the three requests carries a field), so it runs one operation and maps
-/// the outcome into the response's `oneof`. Failures travel in the payload
+/// Every rpc follows the same three steps: validate the request, run one
+/// operation, and map the outcome into the response's `oneof`. Only
+/// `GetAccountsDiskUsage` carries a field to validate — the account names it
+/// asks about; every other request is empty. Failures travel in the payload
 /// rather than as a gRPC status (rules/proto.md).
 ///
 /// **Nothing here changes the machine, and nothing here can.** The operations
 /// behind these rpcs read `/proc`, ask a filesystem how full it is, read the
 /// password database, and run the service manager's reporting subcommand. No
-/// rpc accepts a unit name, an account name or a path, so nothing a caller
-/// supplies reaches a program or a file at all.
+/// rpc accepts a unit name or a path. The one caller-supplied value, the
+/// account names `GetAccountsDiskUsage` may carry, is re-validated as account
+/// names and only ever compared against password-database rows — it selects
+/// which homes are measured and never builds a path itself.
 ///
 /// The distro adapter is held because two of the operations need platform
 /// facts: where the password database lives, and the closed set of units this
@@ -151,15 +155,25 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
         }))
     }
 
-    /// Reports what each hosting account occupies under its home.
+    /// Reports what each hosting account — or each one the request names —
+    /// occupies under its home.
     async fn get_accounts_disk_usage(
         &self,
-        _request: Request<GetAccountsDiskUsageRequest>,
+        request: Request<GetAccountsDiskUsageRequest>,
     ) -> Result<Response<GetAccountsDiskUsageResponse>, Status> {
+        let selection = match validated_account_selection(&request.into_inner().account_usernames) {
+            Ok(selection) => selection,
+            Err(error) => {
+                return Ok(Response::new(GetAccountsDiskUsageResponse {
+                    result: Some(get_accounts_disk_usage_response::Result::Error(error)),
+                }));
+            }
+        };
+
         let host = Arc::clone(&self.host);
         let distro = self.distro;
         let result = run_blocking("monitoring reading", to_agent_error, move || {
-            monitor::get_accounts_disk_usage(host.as_ref(), distro)
+            monitor::get_accounts_disk_usage(host.as_ref(), distro, &selection)
         })
         .await;
 
