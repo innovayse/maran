@@ -5,8 +5,8 @@ import type { PanelTask, TaskKindChoice } from '../../src/types/panelTask'
 /** The paged list endpoint the tasks page reads. */
 const TASKS_PATTERN = /\/api\/v1\/tasks(\?.*)?$/
 
-/** The running-tasks endpoint the shell header's badge reads on every screen. */
-const RUNNING_PATTERN = /\/api\/v1\/tasks\/running(\?.*)?$/
+/** The shell's one running-tasks stream, which the header's badge counts on every screen. */
+export const RUNNING_STREAM_PATTERN = /\/api\/v1\/tasks\/running\/stream(\?.*)?$/
 
 /** The kinds endpoint the kind filter reads. */
 const KINDS_PATTERN = /\/api\/v1\/tasks\/kinds(\?.*)?$/
@@ -14,8 +14,8 @@ const KINDS_PATTERN = /\/api\/v1\/tasks\/kinds(\?.*)?$/
 /** The failed-count endpoint the attention notice reads. */
 const FAILED_COUNT_PATTERN = /\/api\/v1\/tasks\/failed-count(\?.*)?$/
 
-/** The per-task SSE endpoint. */
-const TASK_STREAM_PATTERN = /\/api\/v1\/tasks\/[^/?]+\/stream(\?.*)?$/
+/** The per-task SSE endpoint, which the live pane opens. `running/stream` is the tray's, not a task's. */
+export const TASK_STREAM_PATTERN = /\/api\/v1\/tasks\/(?!running\/)[^/?]+\/stream(\?.*)?$/
 
 /** How the tasks endpoint searches (the subject), sorts and filters, as the panel does. */
 const TASK_RULES: PagedRules<PanelTask> = {
@@ -62,8 +62,9 @@ const fulfilJson = async (page: Page, pattern: RegExp, body: unknown): Promise<v
 /**
  * Fulfils every tasks endpoint from one set of tasks, as the panel would answer it: `GET
  * /api/v1/tasks` as a page honouring `page`, `pageSize`, `search`, `sort`, `status`, `kind`,
- * `from` and `to` (the stub holds no accounts, so `accountId` narrows nothing); `/running` with the
- * running ones; `/kinds` with the distinct kinds, named by their machine names; and `/failed-count`.
+ * `from` and `to` (the stub holds no accounts, so `accountId` narrows nothing); `/running/stream`
+ * with a frame per running task and their set (the body ends, so the shell reconnects after its
+ * wait and is answered the same again); `/kinds` with the distinct kinds, named by their machine names; and `/failed-count`.
  * @param page The Playwright page whose network the routes are installed on.
  * @param tasks The tasks the stub knows, newest first — the panel's default order.
  * @returns A function reporting every list request so far, oldest first.
@@ -78,13 +79,12 @@ export const stubTasks = async (page: Page, tasks: PanelTask[]): Promise<() => r
       body: JSON.stringify(pagedAnswer(tasks, route.request().url(), TASK_RULES)),
     })
   })
-  await fulfilJson(
-    page,
-    RUNNING_PATTERN,
-    tasks.filter((task) => {
-      return task.status === 'running'
-    }),
-  )
+  const running = tasks.filter((task) => {
+    return task.status === 'running'
+  })
+  await page.route(RUNNING_STREAM_PATTERN, async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'text/event-stream', body: runningStreamBody(running) })
+  })
   const kinds: TaskKindChoice[] = [...new Set(tasks.map((task) => {
     return task.kind
   }))].map((kind) => {
@@ -151,37 +151,63 @@ export const taskFrame = (task: PanelTask): string => {
 }
 
 /**
- * Builds the terminal `end` frame of a task stream's body.
- * @param status The final status the module names.
+ * Builds the `running` frame of the running-tasks stream: the ids of every running task.
+ * @param ids The running task ids.
  * @returns The frame, terminated by the blank line SSE requires.
  */
-export const taskEndFrame = (status: string): string => {
-  return `event: end\ndata: ${JSON.stringify({ status })}\n\n`
+export const runningFrame = (ids: readonly string[]): string => {
+  return `event: running\ndata: ${JSON.stringify({ ids })}\n\n`
 }
 
 /**
- * Fulfils one task's SSE endpoint only when the spec says so.
- *
- * A route that answers immediately makes "the badge fell" untestable: the frame that finishes the
- * task can land before the badge has ever been observed running, and an assertion that the badge is
- * absent would then pass without the behaviour it claims to measure having happened at all. Holding
- * the response until `release` is called puts the two states either side of a line the spec draws.
- * @param page The Playwright page whose network the route is installed on.
- * @param body The raw `text/event-stream` body to serve once released.
- * @returns A `release` function that lets the response go.
+ * Builds the body the running-tasks stream opens with: a `task` frame per running task, then their
+ * set — what `RunningTasksStreamService` sends first.
+ * @param running The running tasks.
+ * @returns The raw `text/event-stream` body.
  */
-export const stubDeferredTaskStream = async (
+export const runningStreamBody = (running: readonly PanelTask[]): string => {
+  return (
+    ': open\n\n' +
+    running.map(taskFrame).join('') +
+    runningFrame(
+      running.map((task) => {
+        return task.id
+      }),
+    )
+  )
+}
+
+/**
+ * Answers the running-tasks stream with `first` at once, then holds every later connection — the
+ * shell's reconnect after `first` ended — until `release` is called, and answers those with `then`.
+ *
+ * A stubbed stream cannot stay open and speak again later, so a change on the tray is staged as two
+ * connections. Holding the second puts the two states either side of a line the spec draws: answered
+ * at once, the change could land before the first state was ever observed, and an assertion about
+ * the change would pass without it having happened.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param first The raw body of the first connection.
+ * @param then The raw body of every later connection, once released.
+ * @returns A `release` function that lets the later connections go.
+ */
+export const stubRunningStreamSequence = async (
   page: Page,
-  body: string,
+  first: string,
+  then: string,
 ): Promise<{ release: () => void }> => {
   let release = (): void => {}
   const held = new Promise<void>((resolve) => {
     release = resolve
   })
+  let served = 0
 
-  await page.route(TASK_STREAM_PATTERN, async (route: Route) => {
-    await held
-    await route.fulfill({ status: 200, contentType: 'text/event-stream', body })
+  await page.route(RUNNING_STREAM_PATTERN, async (route: Route) => {
+    served += 1
+    const isFirst = served === 1
+    if (!isFirst) {
+      await held
+    }
+    await route.fulfill({ status: 200, contentType: 'text/event-stream', body: isFirst ? first : then })
   })
 
   return {
@@ -192,10 +218,19 @@ export const stubDeferredTaskStream = async (
 }
 
 /**
+ * Builds the terminal `end` frame of a task stream's body.
+ * @param status The final status the module names.
+ * @returns The frame, terminated by the blank line SSE requires.
+ */
+export const taskEndFrame = (status: string): string => {
+  return `event: end\ndata: ${JSON.stringify({ status })}\n\n`
+}
+
+/**
  * Fulfils every tasks endpoint as empty — the default every authenticated spec gets.
  *
- * The shell's tasks badge reads the running tasks once on every screen, so without this the suite fires
- * one unstubbed request per authenticated navigation: measured at 197 of the 200 `ECONNREFUSED`
+ * The shell's tasks badge opens the running-tasks stream on every screen, so without this the suite
+ * fires an unstubbed request per authenticated navigation: measured at 197 of the 200 `ECONNREFUSED`
  * lines in a full local run. Those cost real latency on every navigation, and a page whose network
  * is only half stubbed is a page under test conditions nobody wrote down.
  *

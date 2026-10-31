@@ -8,12 +8,13 @@
  * tasks page's rows — so the number rises while the operator is somewhere else entirely, with no
  * navigation and no reload.
  *
- * This component is also where the shell takes responsibility for the streams: it reads the running
- * tasks once (`GET /api/v1/tasks/running`, not a page of the list) and opens a live stream for each,
- * so an operator who
- * starts a long operation and walks away to another screen still watches the count fall when it
- * finishes. The streams are released when the shell tears down; the store outlives every page, so
- * nothing else would.
+ * This component is also where the shell takes responsibility for the running tasks: it opens the
+ * store's ONE running-tasks stream (the tray, `GET /api/v1/tasks/running/stream`) when the shell
+ * mounts, whatever the number of tasks in flight (issue #274), so an operator who starts a long
+ * operation and walks away to another screen still watches the count fall when it finishes. The
+ * stream is closed when the shell tears down — sign-out included — because the store outlives every
+ * page and nothing else would; and it is reopened when the reader switches language, because the
+ * panel names each subscriber's frames in the language the stream was opened in.
  *
  * Nothing is drawn when nothing is running. A badge reading "0" is a control that is never right
  * about anything, and the sidebar already carries the way in to the feed.
@@ -25,35 +26,28 @@
  * A read that fails needs no handling here: the store keeps nothing to count, and the badge is
  * silent rather than an error shouted on every screen.
  */
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiIcon from '../ui/UiIcon.vue'
+import { useLocaleStore } from '../../stores/locale'
 import { useTasksStore } from '../../stores/tasks'
 
 const { t } = useI18n()
 const store = useTasksStore()
+const locale = useLocaleStore()
 
-/**
- * Reads the running tasks, then starts watching them.
- * @returns Resolves once the read has settled and the streams have been opened.
- */
-const start = async (): Promise<void> => {
-  await store.loadRunning()
-  store.watchRunning()
-}
-
-/**
- * Releases every open stream.
- * @returns Nothing.
- */
-const stop = (): void => {
-  store.stopAllWatches()
-}
-
-onMounted(start)
+onMounted(store.openTray)
 
 // A stream nobody aborts holds its connection for as long as the tab lives.
-onBeforeUnmount(stop)
+onBeforeUnmount(store.closeTray)
+
+// The frames carry backend-localized names, resolved when the stream opens.
+watch(
+  () => {
+    return locale.current
+  },
+  store.reopenTray,
+)
 </script>
 
 <template>

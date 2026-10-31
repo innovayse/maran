@@ -7,6 +7,7 @@ import {
   type PanelTask,
   type PanelTaskStatus,
   type PanelTaskStreamHandlers,
+  type RunningTasksStreamHandlers,
   type TaskKindChoice,
   type TasksApi,
 } from '../../types/panelTask'
@@ -83,13 +84,34 @@ export const useTasksApi = (): TasksApi => {
   }
 
   /**
-   * Lists every running task the caller may see, newest first.
-   * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The running tasks.
+   * Watches every running task the caller may see on one stream, through the same `useApi` stream
+   * helper every other stream uses: `task` frames go to `onTask`, `running` frames to `onRunning`.
+   * @param handlers Where task frames and running sets are delivered.
+   * @param signal Abort signal that closes the stream and releases its connection.
+   * @returns Resolves when the stream ended or was aborted; rejects when it could not be opened.
    */
-  const running = async (signal?: AbortSignal): Promise<PanelTask[]> => {
-    const tasks = await api.get<PanelTask[]>(`${TASKS_PATH}/running`, signal)
-    return tasks.map(readTask)
+  const watchRunning = async (handlers: RunningTasksStreamHandlers, signal: AbortSignal): Promise<void> => {
+    await api.stream(
+      `${TASKS_PATH}/running/stream`,
+      (event) => {
+        if (event.name === 'task') {
+          handlers.onTask(readTask(JSON.parse(event.data) as PanelTask))
+          return
+        }
+
+        if (event.name === 'running') {
+          const payload = JSON.parse(event.data) as { ids?: unknown }
+          handlers.onRunning(
+            Array.isArray(payload.ids)
+              ? payload.ids.filter((id): id is string => {
+                  return typeof id === 'string'
+                })
+              : [],
+          )
+        }
+      },
+      signal,
+    )
   }
 
   /**
@@ -173,5 +195,5 @@ export const useTasksApi = (): TasksApi => {
     handlers.onEnd(ending)
   }
 
-  return { list, running, kinds, failedCount, get, watch }
+  return { list, watchRunning, kinds, failedCount, get, watch }
 }

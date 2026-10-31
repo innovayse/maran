@@ -119,6 +119,31 @@ export interface PanelTaskStreamHandlers {
 }
 
 /**
+ * Where the shell's one running-tasks stream delivers what arrives (issue #274).
+ *
+ * The stream multiplexes every running task the caller may see onto one connection, so it carries
+ * two kinds of frame rather than one task's updates.
+ */
+export interface RunningTasksStreamHandlers {
+  /**
+   * Called once per `task` frame: a running task as it stands, a change to one, or the change that
+   * finished it.
+   * @param task The task exactly as the frame carried it.
+   * @returns Nothing.
+   */
+  onTask: (task: PanelTask) => void
+
+  /**
+   * Called once per `running` frame: the ids of every running task the caller may see now. Sent when
+   * the stream opens, after its task frames, and whenever that set changes — which is how a task the
+   * caller can no longer see, and will never be sent again, is dropped.
+   * @param ids The running task ids.
+   * @returns Nothing.
+   */
+  onRunning: (ids: string[]) => void
+}
+
+/**
  * Typed access to the tasks endpoints.
  *
  * Called from Pinia stores only, never from a component (rules/vue.md).
@@ -134,12 +159,14 @@ export interface TasksApi {
   list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<PanelTask>>
 
   /**
-   * Lists every running task the caller may see, newest first. Unpaged: running work is transient,
-   * and this is what the header badge counts and the shell watches.
-   * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The running tasks.
+   * Watches every running task the caller may see on ONE stream (`GET /api/v1/tasks/running/stream`):
+   * what the header badge counts. The stream never ends on its own while the panel is up.
+   * @param handlers Where task frames and running sets are delivered.
+   * @param signal Abort signal that closes the stream and releases its connection.
+   * @returns Resolves when the stream ended or was aborted; rejects with `ApiError` when the panel
+   * refused to open it, and with any other error when the transport failed.
    */
-  running: (signal?: AbortSignal) => Promise<PanelTask[]>
+  watchRunning: (handlers: RunningTasksStreamHandlers, signal: AbortSignal) => Promise<void>
 
   /**
    * Lists the distinct kinds of task the caller can see, for the kind filter.

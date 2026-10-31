@@ -77,6 +77,11 @@ public sealed class TasksModule : IPanelModule
         // TasksController, which is itself scoped.
         services.AddScoped<TaskStreamService>();
 
+        // The shell's one running-tasks stream: the same lifetimes, for the same reasons, as the
+        // per-task writer and service above.
+        services.AddSingleton<RunningTasksStreamWriter>();
+        services.AddScoped<RunningTasksStreamService>();
+
         // Scoped, because it writes through the request-scoped context — resolved once per
         // Wolverine message the same way CertificateRenewalHandler is. The Host schedules
         // TaskRetentionRequested; this is what runs when it arrives.

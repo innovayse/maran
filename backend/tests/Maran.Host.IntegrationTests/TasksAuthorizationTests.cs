@@ -57,6 +57,7 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
         [
             "GET /api/v1/tasks",
             "GET /api/v1/tasks/running",
+            "GET /api/v1/tasks/running/stream",
             "GET /api/v1/tasks/failed-count",
             "GET /api/v1/tasks/kinds",
             "GET /api/v1/tasks/{id}",
@@ -195,8 +196,8 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
     /// <param name="taskId">The task identifier to substitute into <c>{id}</c>.</param>
     /// <param name="expected">The status every route must answer.</param>
     /// <param name="includeListing">
-    /// Whether the collection routes — the page, the running list, the failed count and the kind
-    /// choices — are among the routes tried. They name no task, so for a signed-in caller their
+    /// Whether the collection routes — the page, the running list and its stream, the failed count
+    /// and the kind choices — are among the routes tried. They name no task, so for a signed-in caller their
     /// answer is a body rather than a status about one id, and is asserted separately.
     /// </param>
     private static async Task AssertEveryEndpointAsync(
@@ -216,7 +217,9 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
             var path = parts[1].Replace("{id}", taskId.ToString(), StringComparison.Ordinal);
 
             using var request = new HttpRequestMessage(new HttpMethod(parts[0]), path);
-            using var response = await client.SendAsync(request);
+            // Headers only: the running-tasks stream never ends for a caller it admits, so reading
+            // its body would wait for ever; the status is all this asserts.
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
 
             if (response.StatusCode != expected)
             {

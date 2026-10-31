@@ -42,21 +42,33 @@ public sealed class TasksController : BaseApiController
     /// <summary>Writes those frames to the caller as server-sent events.</summary>
     private readonly TaskStreamWriter _streamWriter;
 
+    /// <summary>Produces the frames of the shell's one running-tasks stream.</summary>
+    private readonly RunningTasksStreamService _runningStream;
+
+    /// <summary>Writes those frames to the caller as server-sent events.</summary>
+    private readonly RunningTasksStreamWriter _runningStreamWriter;
+
     /// <summary>Creates the controller with the caller identity, the message bus and the stream.</summary>
     /// <param name="currentUser">The authenticated principal of the current request.</param>
     /// <param name="bus">The message bus queries are dispatched through.</param>
     /// <param name="stream">Resolves a watch request and produces its frames.</param>
     /// <param name="streamWriter">Writes those frames to the caller as server-sent events.</param>
+    /// <param name="runningStream">Produces the frames of the shell's one running-tasks stream.</param>
+    /// <param name="runningStreamWriter">Writes the running-tasks frames as server-sent events.</param>
     public TasksController(
         ICurrentUser currentUser,
         IMessageBus bus,
         TaskStreamService stream,
-        TaskStreamWriter streamWriter)
+        TaskStreamWriter streamWriter,
+        RunningTasksStreamService runningStream,
+        RunningTasksStreamWriter runningStreamWriter)
         : base(currentUser)
     {
         _bus = bus;
         _stream = stream;
         _streamWriter = streamWriter;
+        _runningStream = runningStream;
+        _runningStreamWriter = runningStreamWriter;
     }
 
     /// <summary>
@@ -82,7 +94,10 @@ public sealed class TasksController : BaseApiController
         return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<PanelTaskDto>>>(query, cancellationToken));
     }
 
-    /// <summary>Lists every running task the caller may see, newest first: what the shell's badge counts.</summary>
+    /// <summary>
+    /// Lists every running task the caller may see, newest first, in one read. The shell's badge
+    /// watches <c>running/stream</c> instead.
+    /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>The running tasks.</returns>
     [HttpGet("running")]
@@ -92,6 +107,30 @@ public sealed class TasksController : BaseApiController
     {
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<PanelTaskDto>>>(
             new ListRunningTasksQuery(), cancellationToken));
+    }
+
+    /// <summary>
+    /// Watches every running task the caller may see on ONE server-sent event stream: a <c>task</c>
+    /// event for each of them as it stands and each time one changes (the change that finishes it
+    /// included), and a <c>running</c> event naming the running ids whenever that set changes. This is
+    /// what the shell's badge and tray open, once per signed-in shell, instead of a stream per task.
+    /// </summary>
+    /// <remarks>
+    /// Visibility is the module's query filter, as on every other read here, so a customer is streamed
+    /// their own account's tasks and nothing else. The stream never ends on its own; the caller's
+    /// disconnect ends it. Rate-limited like the per-task stream, for the reason given there.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancelled when the subscriber disconnects.</param>
+    /// <returns>The event stream.</returns>
+    [HttpGet("running/stream")]
+    [Produces(TaskStreamWriter.EventStreamContentType)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> GetRunningStreamAsync(CancellationToken cancellationToken)
+    {
+        await _runningStreamWriter.WriteAsync(Response, _runningStream.ReadAsync(cancellationToken), cancellationToken);
+        return new EmptyResult();
     }
 
     /// <summary>Counts the failed tasks the caller may see, for the list's attention notice.</summary>
