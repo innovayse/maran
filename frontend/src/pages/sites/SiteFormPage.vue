@@ -30,6 +30,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiTextarea from '../../components/ui/UiTextarea.vue'
 import SiteBackendFields from '../../components/sites/SiteBackendFields.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
+import { usePhpVersionsStore } from '../../stores/phpVersions'
 import { useSitesStore } from '../../stores/sites'
 import type { SiteBackendType } from '../../types/site'
 import { flashNoticeState } from '../../utils/flashNotice'
@@ -56,6 +57,7 @@ const MAX_HOST_LENGTH = 253
 const { t } = useI18n()
 const router = useRouter()
 const store = useSitesStore()
+const phpVersionsStore = usePhpVersionsStore()
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 
 /** The account that will own the site. */
@@ -186,7 +188,7 @@ const isValid: ComputedRef<boolean> = computed(() => {
  * @returns Resolves once both requests have settled.
  */
 const loadReferenceData = async (): Promise<void> => {
-  await Promise.all([store.loadPhpVersions(), store.loadLimits()])
+  await Promise.all([phpVersionsStore.loadPhpVersions(), store.loadLimits()])
 }
 
 /**
@@ -286,7 +288,7 @@ onMounted(loadReferenceData)
               v-model:backend-type="backendType"
               v-model:php-version="phpVersion"
               v-model:proxy-upstream="proxyUpstream"
-              :php-versions="store.phpVersions"
+              :php-versions="phpVersionsStore.phpVersions"
               :php-version-error="phpVersionError"
               :proxy-upstream-error="proxyUpstreamError"
             />

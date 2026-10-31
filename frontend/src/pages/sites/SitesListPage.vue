@@ -64,6 +64,7 @@ import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { useLocaleStore } from '../../stores/locale'
+import { usePhpVersionsStore } from '../../stores/phpVersions'
 import { useSitesStore } from '../../stores/sites'
 import { formatDate } from '../../utils/formatDate'
 import { takeFlashNotice } from '../../utils/flashNotice'
@@ -78,6 +79,7 @@ const SITE_STATUSES: readonly SiteStatus[] = ['enabled', 'disabled']
 
 const { t } = useI18n()
 const store = useSitesStore()
+const phpVersionsStore = usePhpVersionsStore()
 const localeStore = useLocaleStore()
 const labels = useListLabels()
 const { isAdmin, isCustomer } = useCallerRole()
@@ -162,7 +164,7 @@ const backendOptions: ComputedRef<SelectOption[]> = computed(() => {
 const phpVersionOptions: ComputedRef<SelectOption[]> = computed(() => {
   return [
     { value: '', label: t('common.list.any') },
-    ...store.phpVersions.map((installed) => {
+    ...phpVersionsStore.phpVersions.map((installed) => {
       return { value: installed.version, label: installed.version }
     }),
   ]
@@ -254,7 +256,7 @@ onMounted(() => {
   notice.value = takeFlashNotice()
   // The PHP versions fill their filter without holding the list back; the account filter searches
   // its own choices when opened.
-  void store.loadPhpVersions()
+  void phpVersionsStore.loadPhpVersions()
 })
 
 // The disabled count follows the account the list is narrowed to, and only that: it is a notice
