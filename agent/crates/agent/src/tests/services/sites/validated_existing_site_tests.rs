@@ -5,6 +5,7 @@
 
 use super::validated_existing_site;
 use crate::proto::{ErrorCode, SiteBackendType, SiteSpec};
+use crate::services::sites::validated_site::MAXIMUM_ALIASES;
 
 /// A static spec carrying `aliases`.
 fn a_static_spec(aliases: &[&str]) -> SiteSpec {
@@ -58,4 +59,17 @@ fn a_malformed_domain_is_still_refused() {
 #[test]
 fn an_absent_spec_is_refused() {
     assert!(validated_existing_site("acme", "example.com", None).is_err());
+}
+
+#[test]
+fn a_site_carrying_more_aliases_than_the_maximum_can_still_be_wound_down() {
+    let aliases: Vec<String> = (0..=MAXIMUM_ALIASES)
+        .map(|index| format!("alias{index}.example.com"))
+        .collect();
+    let borrowed: Vec<&str> = aliases.iter().map(String::as_str).collect();
+    let spec = a_static_spec(&borrowed);
+
+    let input = validated_existing_site("acme", "example.com", Some(&spec)).expect("accepted");
+
+    assert_eq!(input.aliases.len(), MAXIMUM_ALIASES + 1);
 }

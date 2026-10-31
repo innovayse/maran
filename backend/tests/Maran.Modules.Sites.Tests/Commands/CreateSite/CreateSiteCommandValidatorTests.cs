@@ -1,6 +1,7 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Sites.Commands.CreateSite;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Domain.Policies;
 using Maran.Modules.Sites.Tests.TestSupport;
 
 namespace Maran.Modules.Sites.Tests.Commands.CreateSite;
@@ -278,6 +279,42 @@ public sealed class CreateSiteCommandValidatorTests
     {
         _validator.TestValidate(Command() with { BackendType = (SiteBackendType)99 })
             .ShouldHaveValidationErrorFor(command => command.BackendType);
+    }
+
+    /// <summary>A site carrying exactly the maximum number of aliases passes.</summary>
+    [Fact]
+    public void A_site_carrying_exactly_the_maximum_number_of_aliases_passes()
+    {
+        _validator.TestValidate(Command() with { Aliases = Aliases(SiteAliasLimit.MaximumAliases) })
+            .ShouldNotHaveAnyValidationErrors();
+    }
+
+    /// <summary>One alias over the maximum is refused with its own code, on the aliases field.</summary>
+    [Fact]
+    public void One_alias_over_the_maximum_is_refused_with_its_own_code()
+    {
+        var result = _validator.TestValidate(Command() with { Aliases = Aliases(SiteAliasLimit.MaximumAliases + 1) });
+
+        result.ShouldHaveValidationErrorFor(command => command.Aliases)
+            .WithErrorMessage("SiteAliasLimitExceeded");
+    }
+
+    /// <summary>The alias maximum leaves the primary domain one name of a certificate.</summary>
+    [Fact]
+    public void The_alias_maximum_leaves_the_primary_domain_one_name_of_a_certificate()
+    {
+        Assert.Equal(SiteAliasLimit.CertificateNameLimit, SiteAliasLimit.MaximumAliases + 1);
+    }
+
+    /// <summary>Distinct, well formed aliases of the given count.</summary>
+    /// <param name="count">How many aliases to build.</param>
+    /// <returns>The aliases, none of them the command's domain.</returns>
+    private static string[] Aliases(int count)
+    {
+        return Enumerable.Range(0, count).Select(index =>
+        {
+            return $"alias{index}.example.com";
+        }).ToArray();
     }
 
     /// <summary>The message of each failure, in order.</summary>

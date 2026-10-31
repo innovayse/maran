@@ -57,6 +57,17 @@ public sealed class CreateSiteCommandValidator : AbstractValidator<CreateSiteCom
         RuleFor(command => command.Aliases)
             .NotNull();
 
+        // Bounded by what one certificate can cover (SiteAliasLimit): past it, the vhost, the
+        // claimed names and the certificate's name list would grow with whatever a request carries.
+        RuleFor(command => command.Aliases.Count)
+            .LessThanOrEqualTo(SiteAliasLimit.MaximumAliases)
+            .OverridePropertyName(nameof(CreateSiteCommand.Aliases))
+            .WithMessage(nameof(ErrorMessages.SiteAliasLimitExceeded))
+            .When(command =>
+            {
+                return command.Aliases is not null;
+            });
+
         RuleForEach(command => command.Aliases)
             .NotEmpty()
             .MaximumLength(HostNameRule.MaximumLength)

@@ -181,6 +181,14 @@ export interface SitesApi {
   listPhpVersions: (signal?: AbortSignal) => Promise<PhpVersion[]>
 
   /**
+   * Reads the bounds a site's form must respect, so the form shows the server's limit rather than
+   * a copy of it.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The limits.
+   */
+  getLimits: (signal?: AbortSignal) => Promise<SiteLimits>
+
+  /**
    * Installs a PHP version on the server and answers what is installed afterwards.
    *
    * Administrator-only on the server. The promise does not settle until the install finishes,
@@ -256,3 +264,12 @@ export type SiteDetailLoad =
       /** The panel's already-localized reason, or `null` when it did not answer at all. */
       message: string | null
     }
+
+/**
+ * The bounds a site's form must respect, as the server states them (`GET /api/v1/sites/limits`).
+ * The form shows them as advice; the server enforces them.
+ */
+export interface SiteLimits {
+  /** The most aliases one site may carry: every name one certificate covers but the domain's own. */
+  maximumAliases: number
+}

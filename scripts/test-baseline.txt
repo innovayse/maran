@@ -1,6 +1,13 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (issue #275, merged with dev's #274: Host.IntegrationTests 824+7 = 831;, a site carries at most 99 aliases): edited by hand.
+# backend: Host.IntegrationTests 820->827 (SiteAliasLimitEndpointTests 5, SitesAuthorizationTests +2 for GET /api/v1/sites/limits),
+# Modules.Sites.Tests 270->275 (validator 3, entity 2), Sdk.Tests 266->267 (SiteAliasLimitExceeded in the status census).
+# Full `maran test backend`: 20 targets: 5125 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
+# rust: maran_agent lib 420->428 (this branch: validated_site 3, validated_existing_site 1; the other 4 are dev's unrecorded
+# growth). Full `maran test rust`: 35 targets: 2857 passed / 0 failed / 155 ignored, TEST VERDICT: OK.
+# spa: new sites/alias-limit.spec.ts 3. `E2E_PORT=5199 maran test spa`: 163 targets: 1104 passed / 0 failed / 2 ignored.
 # RE-MEASURED 2026-10-31 (merge of dev's #272 into #274): edited by hand, rows taken on top of dev's. Maran.Modules.Tasks.Tests.dll 106->109 (#274's RunningTasksStreamServiceTests 3); Maran.Host.IntegrationTests.dll 820->824 (#274's RunningTasksStreamTests 3, plus 1 asserting a failed task on the running stream carries the localized sentence). Full run: backend 20 targets 5119 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
 # RE-MEASURED 2026-10-31 (issue #274, one multiplexed running-tasks stream): edited by hand. Maran.Modules.Tasks.Tests.dll 101->104; Maran.Host.IntegrationTests.dll 810->813; new spa row tasks/running-stream.spec.ts 3. Full runs: backend 20 targets 5102 passed / 0 failed; spa 163 targets 1104 passed / 0 failed / 2 ignored.
 # RE-MEASURED 2026-10-31 (issue #272, merged with dev's #196 phase 4: Host.IntegrationTests 810+10 = 820;, task failure sentence resolved by the backend per reader): edited by hand.
@@ -453,7 +460,7 @@
 # `E2E_PORT=5199 maran test spa` run printing `158 targets: 1066 passed / 0 failed / 2 ignored`.
 # Five spa rows raised: cron/description 3->4, databases/grant-repair 11->12, firewall/bans 6->8,
 # firewall/whitelist 7->8, tasks/failure-sentence 3->5. Backend rows unchanged.
-rust	maran_agent [unittests src/lib.rs]	420	0	0
+rust	maran_agent [unittests src/lib.rs]	428	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -503,11 +510,11 @@ backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	514	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	235	0	0
-backend	Maran.Sdk.Tests.dll	266	0	0
-backend	Maran.Modules.Sites.Tests.dll	270	0	0
+backend	Maran.Sdk.Tests.dll	267	0	0
+backend	Maran.Modules.Sites.Tests.dll	275	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	824	0	0
+backend	Maran.Host.IntegrationTests.dll	831	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
@@ -643,6 +650,7 @@ spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/logs-tab.spec.ts	9	0	0
 spa	sites/php-versions-loading.spec.ts	3	0	0
 spa	sites/ssl-tab.spec.ts	11	0	0
+spa	sites/alias-limit.spec.ts	3	0	0
 spa	tasks/badge.spec.ts	4	0	0
 spa	tasks/running-stream.spec.ts	3	0	0
 spa	tasks/failure-sentence.spec.ts	5	0	0

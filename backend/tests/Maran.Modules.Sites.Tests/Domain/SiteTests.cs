@@ -1,5 +1,6 @@
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Domain.Policies;
 
 namespace Maran.Modules.Sites.Tests.Domain;
 
@@ -78,6 +79,47 @@ public sealed class SiteTests
         site.Enable();
 
         Assert.Equal(SiteStatus.Enabled, site.Status);
+    }
+
+    /// <summary>A site may be built with exactly the maximum number of aliases, each claimed.</summary>
+    [Fact]
+    public void A_site_may_be_built_with_exactly_the_maximum_number_of_aliases()
+    {
+        var site = SiteWithAliases(SiteAliasLimit.MaximumAliases);
+
+        Assert.Equal(SiteAliasLimit.MaximumAliases, site.Aliases.Count);
+        Assert.Equal(SiteAliasLimit.CertificateNameLimit, site.Hostnames.Count);
+    }
+
+    /// <summary>A site cannot be built with one alias over the maximum.</summary>
+    [Fact]
+    public void A_site_cannot_be_built_with_one_alias_over_the_maximum()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            return SiteWithAliases(SiteAliasLimit.MaximumAliases + 1);
+        });
+    }
+
+    /// <summary>Builds a static site carrying the given number of distinct aliases.</summary>
+    /// <param name="count">How many aliases the site carries.</param>
+    /// <returns>The site.</returns>
+    private static Site SiteWithAliases(int count)
+    {
+        var aliases = Enumerable.Range(0, count).Select(index =>
+        {
+            return $"alias{index}.example.com";
+        }).ToList();
+        return new Site(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "example.com",
+            aliases,
+            SiteBackendType.Static,
+            string.Empty,
+            string.Empty,
+            "/home/acct/sites/example.com",
+            CreatedAt);
     }
 
     /// <summary>Builds a plain PHP-backed site.</summary>

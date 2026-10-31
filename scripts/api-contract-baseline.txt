@@ -239,6 +239,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/sftp-users
   GET /api/v1/sftp-users/{}
   GET /api/v1/sites
+  GET /api/v1/sites/limits
   GET /api/v1/sites/php-versions
   GET /api/v1/sites/{}
   GET /api/v1/sites/{}/logs

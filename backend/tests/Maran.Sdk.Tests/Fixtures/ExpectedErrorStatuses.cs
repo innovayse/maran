@@ -253,6 +253,7 @@ public static class ExpectedErrorStatuses
             ["SftpUserProvisioningFailed"] = ErrorType.Failure,
             ["SiteAliasDuplicated"] = ErrorType.Validation,
             ["SiteAliasInvalidFormat"] = ErrorType.Validation,
+            ["SiteAliasLimitExceeded"] = ErrorType.Validation,
             ["SiteAliasReserved"] = ErrorType.Validation,
             ["SiteBackendNotPhp"] = ErrorType.Validation,
             ["SiteBackendTypeUnknown"] = ErrorType.Validation,
