@@ -50,6 +50,13 @@
       "searchClear": "Clear the search",
       "noResultsTitle": "No accounts match",
       "noResultsDescription": "Change the search, or clear it to see every account."
+    },
+    "hostDisk": {
+      "title": "Disk",
+      "used": "In use",
+      "reserved": "Reserved for the system",
+      "available": "Available",
+      "summary": "Disk: {used} in use, {reserved} reserved for the system, {available} available, of {total}"
     }
   }
 }

@@ -214,7 +214,7 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
 
     /// <summary>Projects the wire snapshot onto the panel's own.</summary>
     /// <param name="metrics">The success payload of <c>GetHostMetrics</c>.</param>
-    /// <returns>The same ten figures, unaltered.</returns>
+    /// <returns>The same twelve figures, unaltered.</returns>
     /// <remarks>
     /// Nothing is derived here. The two network counters in particular are passed through as the
     /// counters they are: turning a pair of them into a rate needs the seconds that elapsed between
@@ -227,6 +227,8 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
             metrics.MemoryUsedBytes,
             metrics.MemoryTotalBytes,
             metrics.DiskUsedBytes,
+            metrics.DiskReservedBytes,
+            metrics.DiskAvailableBytes,
             metrics.DiskTotalBytes,
             metrics.NetworkRxBytes,
             metrics.NetworkTxBytes,

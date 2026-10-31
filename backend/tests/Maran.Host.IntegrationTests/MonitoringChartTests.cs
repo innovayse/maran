@@ -180,6 +180,47 @@ public sealed class MonitoringChartTests : IAsyncLifetime
         Assert.True(week.RootElement.GetProperty("buckets").GetArrayLength() <= 2);
     }
 
+    /// <summary>
+    /// The disk series plots df's Used, and a bucket holding only rows sampled before the panel stored
+    /// it comes back as a gap rather than as the older figure.
+    /// </summary>
+    /// <remarks>
+    /// The older rows stored occupied space and the root reserve as one sum, so plotting them beside
+    /// the new figure would draw a step of exactly the reserve at the upgrade. The pre-#77 row is made
+    /// by clearing the column the migration added, which is what every row written before it holds.
+    /// </remarks>
+    [Fact]
+    public async Task The_disk_series_plots_used_as_df_and_leaves_rows_from_before_it_as_a_gap()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+
+        var origin = AlignedInstant(factory, TimeSpan.FromMinutes(60));
+        await SeedSamplesAsync(factory,
+        [
+            Sample(origin, receivedBytes: 10, sentBytes: 10, cpuPercent: 10),
+            Sample(origin.AddMinutes(10), receivedBytes: 20, sentBytes: 20, cpuPercent: 20),
+        ]);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var monitoring = scope.ServiceProvider.GetRequiredService<MonitoringDbContext>();
+            // raw-sql: the entity has no way to clear the column, on purpose — no current code path may
+            // write a row without it — so the pre-update row is made the way the migration left it.
+            await monitoring.Database.ExecuteSqlAsync(
+                $"""UPDATE monitoring."Samples" SET "DiskInUseBytes" = NULL WHERE "CapturedAt" = {origin}""");
+        }
+
+        using var client = await SignInAsync(factory, "admin");
+        using var body = JsonDocument.Parse(
+            await (await client.GetAsync("/api/v1/monitoring/chart?range=1")).Content.ReadAsStringAsync());
+        var buckets = body.RootElement.GetProperty("buckets").EnumerateArray().ToList();
+
+        Assert.Equal(2, buckets.Count);
+        Assert.Equal(JsonValueKind.Null, buckets[0].GetProperty("diskUsedBytes").ValueKind);
+        Assert.Equal(500, buckets[1].GetProperty("diskUsedBytes").GetInt64());
+    }
+
     /// <summary>A panel with no samples yet draws an empty chart rather than failing.</summary>
     [Fact]
     public async Task A_panel_with_no_samples_yet_answers_an_empty_chart()
@@ -223,7 +264,7 @@ public sealed class MonitoringChartTests : IAsyncLifetime
         double cpuPercent)
     {
         return new MetricSample(
-            capturedAt, cpuPercent, 1_000, 4_000, 500, 1_000, receivedBytes, sentBytes, 0.5);
+            capturedAt, cpuPercent, 1_000, 4_000, 550, 500, 1_000, receivedBytes, sentBytes, 0.5);
     }
 
     /// <summary>An instant in the past that sits exactly on a five-minute bucket boundary.</summary>

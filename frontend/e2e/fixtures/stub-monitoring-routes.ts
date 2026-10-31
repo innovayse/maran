@@ -1,9 +1,12 @@
 import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { AccountDiskUsage, ChartRange, MetricBucket, ServiceStatus } from '../../src/types/monitoring'
+import type { AccountDiskUsage, ChartRange, HostMetrics, MetricBucket, ServiceStatus } from '../../src/types/monitoring'
 
 /** The chart endpoint. The query part is optional in the pattern so a missing `range` still matches. */
 const CHART_PATTERN = /\/api\/v1\/monitoring\/chart(\?.*)?$/
+
+/** The host's live resource reading. */
+const METRICS_PATTERN = /\/api\/v1\/monitoring\/metrics$/
 
 /** The watched services' states. */
 const SERVICES_PATTERN = /\/api\/v1\/monitoring\/services$/
@@ -30,6 +33,29 @@ const ACCOUNTS_DISK_RULES: PagedRules<AccountDiskUsage> = {
     },
   },
   filters: {},
+}
+
+/** One gibibyte, the unit the stubbed byte figures are written in. */
+const GIB = 1024 * 1024 * 1024
+
+/**
+ * The live reading a stubbed monitoring screen shows unless a spec passes its own: an ext4 root of
+ * 98 GiB holding 40 GiB, with a 5 GiB root reserve and 53 GiB available — three figures that sum
+ * to the size, as the panel's are (issue #77).
+ */
+export const STUBBED_HOST_METRICS: HostMetrics = {
+  cpuPercent: 12.5,
+  memoryUsedBytes: 2 * GIB,
+  memoryTotalBytes: 8 * GIB,
+  diskUsedBytes: 40 * GIB,
+  diskReservedBytes: 5 * GIB,
+  diskAvailableBytes: 53 * GIB,
+  diskTotalBytes: 98 * GIB,
+  networkRxBytes: 0,
+  networkTxBytes: 0,
+  loadAverage1m: 0.5,
+  loadAverage5m: 0.4,
+  loadAverage15m: 0.3,
 }
 
 /** A fixed UTC instant the stubbed buckets are spaced from, so nothing depends on the clock. */
@@ -68,10 +94,10 @@ export const stubbedBucket = (index: number, cpuPercent: number): MetricBucket =
   return {
     at: new Date(BASE_AT + index * FIVE_MINUTES_MS).toISOString(),
     cpuPercent,
-    memoryUsedBytes: 2 * 1024 * 1024 * 1024,
-    memoryTotalBytes: 8 * 1024 * 1024 * 1024,
-    diskUsedBytes: 40 * 1024 * 1024 * 1024,
-    diskTotalBytes: 100 * 1024 * 1024 * 1024,
+    memoryUsedBytes: 2 * GIB,
+    memoryTotalBytes: 8 * GIB,
+    diskUsedBytes: 40 * GIB,
+    diskTotalBytes: 100 * GIB,
     loadAverage1m: 0.5,
     networkReceivedBytesPerSecond: index === 0 ? null : 1024 * 1024,
     networkSentBytesPerSecond: index === 0 ? null : 512 * 1024,
@@ -79,7 +105,7 @@ export const stubbedBucket = (index: number, cpuPercent: number): MetricBucket =
 }
 
 /**
- * Fulfils the three monitoring reads.
+ * Fulfils the four monitoring reads.
  *
  * **The chart stub echoes back the range it was ASKED for**, which is what the module does
  * (`MetricsChartDto.Range`) and what the store checks before accepting an answer. A stub that
@@ -91,6 +117,7 @@ export const stubbedBucket = (index: number, cpuPercent: number): MetricBucket =
  * @param services The service rows reported.
  * @param accounts Every per-account disk row the stub knows; it answers them a page at a time,
  * honouring `page`, `pageSize`, `search` and `sort` as the panel does.
+ * @param metrics The live host reading reported; {@link STUBBED_HOST_METRICS} by default.
  * @returns Resolves once the routes are installed.
  */
 export const stubMonitoring = async (
@@ -98,6 +125,7 @@ export const stubMonitoring = async (
   buckets: Record<ChartRange, MetricBucket[]>,
   services: ServiceStatus[],
   accounts: AccountDiskUsage[],
+  metrics: HostMetrics = STUBBED_HOST_METRICS,
 ): Promise<void> => {
   await page.route(CHART_PATTERN, async (route: Route) => {
     const requested = new URL(route.request().url()).searchParams.get('range') ?? ''
@@ -123,6 +151,10 @@ export const stubMonitoring = async (
         buckets: buckets[requested],
       }),
     })
+  })
+
+  await page.route(METRICS_PATTERN, async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(metrics) })
   })
 
   await page.route(SERVICES_PATTERN, async (route: Route) => {

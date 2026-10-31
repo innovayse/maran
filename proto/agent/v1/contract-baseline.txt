@@ -422,6 +422,8 @@ field maran.agent.v1.GetSftpJailStatusResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL 
 field maran.agent.v1.GetSftpJailStatusResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.HostMetrics 1 cpu_percent TYPE_DOUBLE LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 10 load_average_15m TYPE_DOUBLE LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.HostMetrics 11 disk_reserved_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.HostMetrics 12 disk_available_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 2 memory_used_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 3 memory_total_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 4 disk_used_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-

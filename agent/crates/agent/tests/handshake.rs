@@ -89,7 +89,7 @@ async fn handshake_over_a_unix_socket_reports_the_agent_and_the_host() {
         other => panic!("the handshake must succeed on a supported host, got {other:?}"),
     };
 
-    assert_eq!(info.proto_version, 5);
+    assert_eq!(info.proto_version, 6);
     assert!(
         !info.version.is_empty(),
         "the agent must report its version"

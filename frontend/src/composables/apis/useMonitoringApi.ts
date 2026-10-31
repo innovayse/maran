@@ -1,10 +1,20 @@
 import { useApi } from '../useApi'
 import { listQuery } from '../../utils/listQuery'
 import type { ListRequest, Paged } from '../../types/list'
-import type { AccountDiskUsage, ChartRange, MetricsChart, MonitoringApi, ServiceStatus } from '../../types/monitoring'
+import type {
+  AccountDiskUsage,
+  ChartRange,
+  HostMetrics,
+  MetricsChart,
+  MonitoringApi,
+  ServiceStatus,
+} from '../../types/monitoring'
 
 /** The endpoint the bucketed samples behind the charts are read from. */
 const CHART_PATH = '/api/v1/monitoring/chart'
+
+/** The endpoint the host's live resource reading is read from. */
+const METRICS_PATH = '/api/v1/monitoring/metrics'
 
 /** The endpoint the watched services' states are read from. */
 const SERVICES_PATH = '/api/v1/monitoring/services'
@@ -41,6 +51,15 @@ export const useMonitoringApi = (): MonitoringApi => {
   }
 
   /**
+   * Reads the host's resource use right now.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The live reading.
+   */
+  const getHostMetrics = (signal?: AbortSignal): Promise<HostMetrics> => {
+    return api.get<HostMetrics>(METRICS_PATH, signal)
+  }
+
+  /**
    * Reads whether each service the agent watches is up, down, or not known.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns One row per watched service.
@@ -63,5 +82,5 @@ export const useMonitoringApi = (): MonitoringApi => {
     )
   }
 
-  return { getChart, listServices, listAccountDiskUsage }
+  return { getChart, getHostMetrics, listServices, listAccountDiskUsage }
 }

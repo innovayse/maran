@@ -1,5 +1,5 @@
 import type { AuditEvent } from './audit'
-import type { ServiceStatus } from './monitoring'
+import type { HostMetrics, ServiceStatus } from './monitoring'
 
 /**
  * One section of the landing screen, mirroring the backend's `DashboardSection<T>`: either the data a
@@ -20,40 +20,6 @@ export type DashboardSection<T> =
       /** The module refused or failed; there is nothing to show. */
       state: 'unavailable'
     }
-
-/**
- * The host's resource use right now, mirroring the backend's `HostMetricsDto` field-for-field.
- *
- * A LIVE reading taken by asking the agent, not the newest stored sample: the two answer different
- * questions, and a landing page fed from the samples table would lag by a sampling interval and
- * would show nothing at all on a server whose sampler has not yet run.
- *
- * The two network figures are COUNTERS since boot, passed through unaltered, not rates. A rate
- * needs two readings, so the backend deliberately does not offer one here rather than offering a
- * fabricated zero — and this page does not display them for that reason.
- */
-export interface DashboardResources {
-  /** Processor utilisation across all cores, 0.0-100.0. */
-  cpuPercent: number
-  /** Memory in use, in bytes. */
-  memoryUsedBytes: number
-  /** Total installed memory, in bytes. */
-  memoryTotalBytes: number
-  /** Disk space in use on the root filesystem, in bytes. */
-  diskUsedBytes: number
-  /** Total capacity of the root filesystem, in bytes. */
-  diskTotalBytes: number
-  /** Bytes received since the host booted — a counter, not traffic. */
-  networkRxBytes: number
-  /** Bytes sent since the host booted — a counter, not traffic. */
-  networkTxBytes: number
-  /** System load average over the last minute. */
-  loadAverage1m: number
-  /** System load average over the last five minutes. */
-  loadAverage5m: number
-  /** System load average over the last fifteen minutes. */
-  loadAverage15m: number
-}
 
 /**
  * How much of each thing this server holds, mirroring the backend's `DashboardCountsDto`.
@@ -106,7 +72,7 @@ export interface Dashboard {
   /** Whether the sections below were filled for this caller. */
   isAdministrator: boolean
   /** The host's live resource reading, or `null` when withheld. */
-  resources: DashboardSection<DashboardResources> | null
+  resources: DashboardSection<HostMetrics> | null
   /** The services the agent watches, or `null` when withheld. */
   services: DashboardSection<ServiceStatus[]> | null
   /** What this server holds, or `null` when withheld. */

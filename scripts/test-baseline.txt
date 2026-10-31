@@ -453,7 +453,13 @@
 # `E2E_PORT=5199 maran test spa` run printing `158 targets: 1066 passed / 0 failed / 2 ignored`.
 # Five spa rows raised: cron/description 3->4, databases/grant-repair 11->12, firewall/bans 6->8,
 # firewall/whitelist 7->8, tasks/failure-sentence 3->5. Backend rows unchanged.
-rust	maran_agent [unittests src/lib.rs]	420	0	0
+# RE-MEASURED 2026-10-31 (#77: disk used / reserved / available) — edited by hand, not by --accept.
+# Source: full runs printing `maran test backend` 20 targets 5125 passed / 0 failed,
+# `maran test rust` 35 targets 2856 passed / 0 failed, `E2E_PORT=5199 maran test spa` 164 targets
+# 1107 passed / 0 failed. Rows raised: Maran.Host.IntegrationTests 824->826,
+# Maran.Modules.Monitoring.Tests 83->87, maran_agent 420->424, maran_ops 1754->1761; spa row
+# disk-usage.spec.ts added at 3.
+rust	maran_agent [unittests src/lib.rs]	424	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -476,7 +482,7 @@ rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
 rust	maran_agent_core [unittests src/lib.rs]	508	0	0
 rust	maran_distro [unittests src/lib.rs]	79	0	0
-rust	maran_ops [unittests src/lib.rs]	1754	0	1
+rust	maran_ops [unittests src/lib.rs]	1761	0	1
 rust	maran_templates [unittests src/lib.rs]	13	0	0
 rust	golden_test [tests/golden_test.rs]	22	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
@@ -495,7 +501,7 @@ backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
 backend	Maran.Modules.Tasks.Tests.dll	109	0	0
 backend	Maran.Modules.Ftp.Tests.dll	169	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	83	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	87	0	0
 backend	Maran.Modules.Backups.Tests.dll	237	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	286	0	0
@@ -507,7 +513,7 @@ backend	Maran.Sdk.Tests.dll	266	0	0
 backend	Maran.Modules.Sites.Tests.dll	270	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	824	0	0
+backend	Maran.Host.IntegrationTests.dll	826	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
@@ -570,6 +576,7 @@ spa	databases/credentials.spec.ts	15	0	0
 spa	databases/grant-repair.spec.ts	12	0	0
 spa	databases/list.spec.ts	15	0	0
 spa	databases/loading.spec.ts	6	0	0
+spa	disk-usage.spec.ts	3	0	0
 spa	file-transfer/account-filter.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	18	0	0
 spa	file-transfer/ftps-create.spec.ts	7	0	0

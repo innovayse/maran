@@ -27,7 +27,7 @@ internal sealed class RecordingAgentMonitorClient : IAgentMonitorClient
     {
         await EnterAsync(cancellationToken);
 
-        return Result<AgentHostMetrics>.Ok(new AgentHostMetrics(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        return Result<AgentHostMetrics>.Ok(new AgentHostMetrics(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
     }
 
     /// <inheritdoc/>

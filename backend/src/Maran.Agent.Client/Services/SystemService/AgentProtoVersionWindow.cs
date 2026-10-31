@@ -27,6 +27,14 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 5 adds <c>GetAccountsDiskUsageRequest.account_usernames</c> (issue #196), and both ends
 /// moved to it as the one-revision default: a revision-4 agent ignores the field and walks every
 /// account's home on each request for one page, which is the unbounded walk the field exists to end.
+/// Revision 6 splits the root filesystem into used, reserved and available
+/// (<c>HostMetrics.disk_reserved_bytes</c>, <c>disk_available_bytes</c>) and redefines
+/// <c>disk_used_bytes</c> as <c>df</c>'s <c>Used</c> where it was total minus available (issue #77).
+/// Both ends moved to it, and here the one-revision default is not a preference but the guarantee:
+/// a revision-5 agent sends no reserve and no available figure, which protobuf reads as zero, and
+/// sends a used figure with the reserve folded in — so a panel driving one would report a full disk
+/// as having nothing left reserved and nothing available, and a field read under the wrong revision
+/// would mean two things.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -53,10 +61,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 5;
+    public const uint Minimum = 6;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 5;
+    public const uint Maximum = 6;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

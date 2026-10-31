@@ -17,7 +17,7 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
 
     /// <summary>What <see cref="GetHostMetricsAsync"/> answers.</summary>
     public Result<AgentHostMetrics> Metrics { get; set; } =
-        Result<AgentHostMetrics>.Ok(new AgentHostMetrics(5, 100, 1_000, 200, 1_000, 10, 20, 0.1, 0.2, 0.3));
+        Result<AgentHostMetrics>.Ok(new AgentHostMetrics(5, 100, 1_000, 200, 50, 750, 1_000, 10, 20, 0.1, 0.2, 0.3));
 
     /// <summary>What <see cref="GetServiceStatusesAsync"/> answers.</summary>
     public Result<IReadOnlyList<AgentServiceStatus>> Statuses { get; set; } =

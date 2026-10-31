@@ -152,7 +152,7 @@ public sealed class MetricsRetentionTests : IAsyncLifetime
     /// <returns>The sample.</returns>
     private static MetricSample Sample(DateTimeOffset capturedAt)
     {
-        return new MetricSample(capturedAt, 1, 1, 2, 1, 2, 1, 2, 0.1);
+        return new MetricSample(capturedAt, 1, 1, 2, 1, 1, 2, 1, 2, 0.1);
     }
 
     /// <summary>Boots the host against this class's PostgreSQL, with the agent replaced.</summary>

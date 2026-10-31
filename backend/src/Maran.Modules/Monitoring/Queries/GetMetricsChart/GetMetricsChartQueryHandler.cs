@@ -78,7 +78,7 @@ public sealed class GetMetricsChartQueryHandler
             AVG(s."CpuPercent")::double precision AS "CpuPercent",
             AVG(s."MemoryUsedBytes")::double precision AS "MemoryUsedBytes",
             AVG(s."MemoryTotalBytes")::double precision AS "MemoryTotalBytes",
-            AVG(s."DiskUsedBytes")::double precision AS "DiskUsedBytes",
+            AVG(s."DiskInUseBytes")::double precision AS "DiskInUseBytes",
             AVG(s."DiskTotalBytes")::double precision AS "DiskTotalBytes",
             AVG(s."LoadAverage1m")::double precision AS "LoadAverage1m",
             (array_agg(s."NetworkRxBytes" ORDER BY s."CapturedAt" DESC))[1] AS "NetworkRxBytes",

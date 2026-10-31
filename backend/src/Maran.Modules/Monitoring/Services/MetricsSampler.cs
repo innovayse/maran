@@ -167,6 +167,7 @@ public sealed class MetricsSampler : BackgroundService
             metrics.CpuPercent,
             ToSignedBytes(metrics.MemoryUsedBytes),
             ToSignedBytes(metrics.MemoryTotalBytes),
+            ToSignedBytes(UnwritableByAccounts(metrics)),
             ToSignedBytes(metrics.DiskUsedBytes),
             ToSignedBytes(metrics.DiskTotalBytes),
             ToSignedBytes(metrics.NetworkRxBytes),
@@ -190,13 +191,39 @@ public sealed class MetricsSampler : BackgroundService
         return value > long.MaxValue ? long.MaxValue : (long)value;
     }
 
-    /// <summary>How full the root filesystem is, or <c>null</c> when the agent reported no capacity.</summary>
+    /// <summary>The bytes of the root filesystem no hosting account may write: occupied plus reserved.</summary>
+    /// <param name="metrics">The reading the agent returned.</param>
+    /// <returns>Capacity minus what is available to non-root writers, never below zero.</returns>
+    /// <remarks>
+    /// Read as capacity minus available rather than as the sum of the two parts, so a reading whose
+    /// parts overflow cannot wrap; and floored at zero, so an agent reporting more available than
+    /// capacity reads as a disk nobody has written to rather than as eighteen exabytes in use.
+    /// </remarks>
+    private static ulong UnwritableByAccounts(AgentHostMetrics metrics)
+    {
+        return metrics.DiskTotalBytes > metrics.DiskAvailableBytes
+            ? metrics.DiskTotalBytes - metrics.DiskAvailableBytes
+            : 0;
+    }
+
+    /// <summary>
+    /// How full the root filesystem is for the hosting accounts on it, or <c>null</c> when the agent
+    /// reported no capacity.
+    /// </summary>
     /// <param name="metrics">The reading the agent returned.</param>
     /// <returns>The percentage, or <c>null</c> when it cannot be computed.</returns>
     /// <remarks>
+    /// <para>
+    /// The alert asks whether customers' writes are about to fail, so the root reserve counts as full
+    /// here: at the instant <c>df</c>'s <c>Avail</c> reaches zero every account's write fails, while
+    /// <c>df</c>'s <c>Used</c> alone still reads about 95%. This is the one place the panel adds the
+    /// reserve back to the occupied space, and it is a percentage, never a figure shown as "used".
+    /// </para>
+    /// <para>
     /// A zero capacity is not a full disk and it is not an empty one — it is a filesystem the agent
     /// could not measure. Dividing by it would produce an infinity that compares greater than every
     /// threshold, so the panel would mail about a disk emergency on a host whose disk it cannot see.
+    /// </para>
     /// </remarks>
     private static double? DiskUsedPercent(AgentHostMetrics metrics)
     {
@@ -205,7 +232,7 @@ public sealed class MetricsSampler : BackgroundService
             return null;
         }
 
-        return metrics.DiskUsedBytes * 100.0 / metrics.DiskTotalBytes;
+        return UnwritableByAccounts(metrics) * 100.0 / metrics.DiskTotalBytes;
     }
 
     /// <summary>Samples on the interval until the host shuts down.</summary>

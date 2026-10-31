@@ -265,65 +265,54 @@ fn spawn_failure(error: SpawnError) -> MonitorError {
     }
 }
 
-/// Turns a filesystem query's block counts into bytes used and bytes in total.
+/// Turns a filesystem query's block counts into the three parts of its
+/// capacity: used, reserved for root, and available to everybody else.
 ///
 /// Split from [`MonitorHost::filesystem_usage`] so that a test can drive it:
-/// the whole question here is WHICH of `statvfs`' three block counts the panel
-/// reports, and that choice is invisible to a test that can only run the real
-/// syscall against whatever filesystem the build machine happens to have.
+/// the whole question here is how `statvfs`' three block counts map onto the
+/// three figures, and that mapping is invisible to a test that can only run the
+/// real syscall against whatever filesystem the build machine happens to have.
 ///
-/// # The rule: the panel reports space the people whose data it is can write
+/// # The rule: three figures, each `df`'s or the gap between two of `df`'s
 ///
-/// Used is total minus **available**, never total minus free. A filesystem
-/// keeps a reserve — 5% by default on ext4 — that only root may write into, so
-/// its blocks are free and unavailable at the same time. A hosting account is
-/// not root: at the instant `f_bavail` reaches zero every customer write fails
-/// with `ENOSPC`, and a panel built on `f_bfree` would be showing "94.9% used,
-/// 23.8 GiB free" at that exact moment. The reserve counts as used because to
-/// every account on the machine it is used, and this number exists so an
-/// operator knows how much room their CUSTOMERS have.
+/// - used = `f_blocks - f_bfree` — `df`'s `Used`;
+/// - reserved = `f_bfree - f_bavail` — free blocks only root may write;
+/// - available = `f_bavail` — `df`'s `Avail`, what a hosting account can add.
 ///
-/// The measurement behind those figures, taken on a real 467 GiB ext4 root:
+/// An earlier version reported ONE "used" figure, `f_blocks - f_bavail`, so
+/// that the reserve counted as used. That number is what customers cannot
+/// write, but it matched nothing `df` prints: on a 97.9 GiB ext4 root it read
+/// 12.7 GiB where `df` said 7.7 GiB (issue #77). Splitting the reserve out
+/// keeps both truths visible without making either figure mean two things —
+/// "used" is `df`'s, and "how full for customers" is `used + reserved`.
+///
+/// The measurement behind the split, taken on a real 467 GiB ext4 root:
 /// `f_blocks=122512118`, `f_bfree=99553529`, `f_bavail=93311878`,
 /// `f_frsize=4096` — a 6,241,651-block reserve, 23.8 GiB, 5.09% of the
-/// filesystem.
-///
-/// # This is deliberately NOT `df`'s `Used`, and the difference is the reserve
-///
-/// Say it plainly, because `df` is the obvious thing to check this against and
-/// the two disagree. `df` reports `Used` as the blocks the filesystem itself
-/// accounts for — `f_blocks - f_bfree` — and computes its `Use%` against
-/// `used + available`, which is why its percentage is right while its byte
-/// count excludes the reserve. This function reports one number for both
-/// purposes, so its `used_bytes` is larger than `df`'s `Used` by exactly the
-/// reserve: on the filesystem above, 121,162,036 KiB and 24.72% here against
-/// `df`'s 96,195,436 KiB and 21%. `total_bytes` does equal `df`'s `Size`.
-///
-/// The gap is not an error to be reconciled away — it is the rule above, in
-/// numbers. The two converge exactly when `f_bavail` reaches zero: at the
-/// moment the filesystem is full for the people whose data it is, this reads
-/// 100% and so does `df`. Anywhere else, this reads higher on purpose, because
-/// the reserve is room no account will ever get.
+/// filesystem. On xfs `f_bfree` equals `f_bavail` and the reserve is zero.
 ///
 /// Block counts are multiplied by the FRAGMENT size and not by the preferred
 /// block size: POSIX defines `f_blocks`, `f_bfree` and `f_bavail` in units of
-/// `f_frsize`, and `df` multiplies by that same field — the one place the two
-/// really are doing the same arithmetic. The two agree on every
+/// `f_frsize`, and `df` multiplies by that same field. The two agree on every
 /// filesystem this panel will meet, which is exactly why using the other one is
 /// a bug that hides until the day they do not.
 ///
-/// Saturating throughout: a filesystem reporting more available blocks than it
-/// has — which a network filesystem may — reads as fully free rather than
-/// wrapping to an enormous "used".
+/// # A filesystem that reports inconsistent counts still partitions
+///
+/// A network filesystem may report more free blocks than it has, or more
+/// available than free. The counts are clamped in order — free to at most the
+/// total, available to at most free — so the three parts never sum past
+/// `f_blocks`, and such a filesystem reads as fully available rather than
+/// wrapping to an enormous "used". Multiplication saturates for the same reason.
 fn usage_of(statistics: &rustix::fs::StatVfs) -> FilesystemUsage {
-    let block = statistics.f_frsize;
+    let fragment = statistics.f_frsize;
+    let free = statistics.f_bfree.min(statistics.f_blocks);
+    let available = statistics.f_bavail.min(free);
 
     FilesystemUsage {
-        used_bytes: statistics
-            .f_blocks
-            .saturating_sub(statistics.f_bavail)
-            .saturating_mul(block),
-        total_bytes: statistics.f_blocks.saturating_mul(block),
+        used_bytes: (statistics.f_blocks - free).saturating_mul(fragment),
+        reserved_bytes: (free - available).saturating_mul(fragment),
+        available_bytes: available.saturating_mul(fragment),
     }
 }
 
