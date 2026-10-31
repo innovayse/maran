@@ -37,14 +37,14 @@
     "form": {
       "heading": "New database",
       "fields": {
-        "accountId": "Account",
+        "account": "Account",
         "name": "Database name",
         "dbUserName": "User name"
       },
       "placeholders": {
         "name": "shop",
         "dbUserName": "shop",
-        "accountId": "Choose an account"
+        "account": "Choose an account"
       },
       "hint": "Lowercase letters and digits only. The account's name is added in front of both.",
       "submit": "Create database",

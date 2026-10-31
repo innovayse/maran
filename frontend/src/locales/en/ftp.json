@@ -35,12 +35,12 @@
     "form": {
       "heading": "New FTPS login",
       "fields": {
-        "accountId": "Account",
+        "account": "Account",
         "name": "Login name"
       },
       "placeholders": {
         "name": "web",
-        "accountId": "Choose an account"
+        "account": "Choose an account"
       },
       "hint": "Lowercase letters and digits only. The account's name is added in front of it.",
       "ftpsOffNote": "FTPS is turned off on this server, so no FTPS login can be created yet. An administrator turns the service on; SFTP logins are unaffected.",

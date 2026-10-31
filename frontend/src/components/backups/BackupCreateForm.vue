@@ -99,8 +99,8 @@ defineExpose({ reset })
         <UiCombobox
           v-model="accountId"
           v-bind="accountPicker"
-          :label="t('backups.form.fields.accountId')"
-          :placeholder="t('backups.form.placeholders.accountId')"
+          :label="t('backups.form.fields.account')"
+          :placeholder="t('backups.form.placeholders.account')"
           :error="accountError"
           required
           @search="emit('searchAccounts', $event)"

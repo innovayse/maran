@@ -9,6 +9,7 @@ import { stubPlans } from '../fixtures/stub-plans-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
 import { runningFtpsStatus, stubFtpUsers, stubFtpsServer } from '../fixtures/stub-ftp-routes'
 import { stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
+import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 
@@ -88,6 +89,35 @@ test('the account pickers of every create form prompt for a choice instead of st
     // screen that failed to render cannot pass the assertion below by matching nothing.
     await expect(picker, `no account picker on ${path}`).toBeVisible()
     await expect(picker, `wrong empty state on ${path}`).toHaveText('Choose an account')
+  }
+})
+
+// #80: the account pickers are named after the account the operator picks, in Armenian too, where
+// two of the five prompts used to drop the definite article the other three carry.
+test('the account pickers of every create form are named after the account in Armenian', async ({ page }) => {
+  await setPersistedLocale(page, 'hy')
+  await stubShell(page, [
+    { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
+    { name: 'sftp', displayName: 'SFTP', tier: 'included', isEnabled: true },
+    { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
+    { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
+    { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+  ])
+  await stubAccounts(page, [ALICE])
+  await stubDatabases(page, [])
+  await stubSftpUsers(page, [])
+  await stubFtpUsers(page, [])
+  await stubFtpsServer(page, runningFtpsStatus)
+  await stubBackups(page, [])
+  await stubSites(page, [])
+  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+
+  for (const path of ['/databases', '/file-transfer/sftp', '/file-transfer/ftps', '/backups', '/sites/new']) {
+    await page.goto(path)
+
+    const picker = page.getByRole('combobox', { name: 'Հաշիվ', exact: true })
+    await expect(picker, `no account picker on ${path}`).toBeVisible()
+    await expect(picker, `wrong empty state on ${path}`).toHaveText('Ընտրեք հաշիվը')
   }
 })
 
