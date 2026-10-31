@@ -27,11 +27,10 @@
  * **How far it got is drawn by {@link TaskProgress}**, the one rule a row and this pane share: a
  * failed task draws no bar, only its figure (#222).
  *
- * **A failure reads as a sentence, with the code as a detail.** The module reports a stable code
- * (`AcmeAccountRejected`), not text, because the task outlives the request that would have carried
- * the operator's language. The known codes have a sentence here; an unknown one falls back to a
- * generic sentence, and the code is always printed beneath it, because it is what an operator quotes
- * in a support ticket.
+ * **A failure reads as the panel's sentence, with the code as a detail.** The backend resolves the
+ * sentence from the stored code every time the task is read, in the operator's language, so this
+ * pane renders it as it arrives and holds no text of its own for it (rules/vue.md). The code is
+ * printed beneath it, because it is what an operator quotes in a support ticket.
  *
  * The correlation id is shown because it is the thread that ties this task to the request that
  * started it and to the panel's own logs — it is the one value an operator reporting a problem
@@ -72,19 +71,12 @@ const emit = defineEmits<{
  */
 const FOLLOW_TOLERANCE_PX = 24
 
-const i18n = useI18n()
-const { t } = i18n
+const { t } = useI18n()
 const localeStore = useLocaleStore()
 const kindLabel = useTaskKindLabel()
 
 /** The log's scroll box, once there is a log to show. */
 const logBox: Ref<HTMLElement | null> = ref(null)
-
-/** The failure as a sentence: the known code's own, or the generic one for a code the panel does not know. */
-const failureSentence: ComputedRef<string> = computed(() => {
-  const key = `tasks.failures.${props.task.errorCode ?? ''}`
-  return props.task.errorCode !== null && i18n.te(key) ? t(key) : t('tasks.failures.generic')
-})
 
 /** When the task started, in the operator's language — the instant, not only the day. */
 const startedAt: ComputedRef<string> = computed(() => {
@@ -164,10 +156,10 @@ watch(
     </UiDescriptionList>
 
     <!-- The sentence first, the machine-stable code beneath it as the detail an operator quotes. -->
-    <UiAlert v-if="task.errorCode !== null" variant="error" class="mb-4">
-      <span class="block wrap-anywhere">{{ failureSentence }}</span>
+    <UiAlert v-if="task.failure !== null" variant="error" class="mb-4">
+      <span class="block wrap-anywhere">{{ task.failure.message }}</span>
       <span class="block font-mono text-sm wrap-anywhere">
-        {{ t('tasks.pane.failureCode', { code: task.errorCode }) }}
+        {{ t('tasks.pane.failureCode', { code: task.failure.code }) }}
       </span>
     </UiAlert>
 

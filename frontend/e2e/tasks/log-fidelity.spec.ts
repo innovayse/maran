@@ -30,7 +30,7 @@ const SUSPEND: PanelTask = {
   percent: 10,
   log: 'Suspending acme.\n',
   logIncluded: true,
-  errorCode: null,
+  failure: null,
   startedAt: '2026-09-11T09:00:00Z',
   finishedAt: null,
   revision: 1,

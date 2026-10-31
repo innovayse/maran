@@ -39,7 +39,11 @@ public sealed class TaskStreamServiceTests
         var watcher = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(watcher, database);
         var service = new TaskStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            watcher);
 
         using var watching = new CancellationTokenSource(ReadTimeout);
         await using var frames = service.ReadAsync(task.Id, watching.Token).GetAsyncEnumerator(watching.Token);
@@ -88,7 +92,11 @@ public sealed class TaskStreamServiceTests
         var watcher = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(watcher, database);
         var service = new TaskStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            watcher);
 
         using var watching = new CancellationTokenSource(ReadTimeout);
         var collected = new List<TaskFrame>();
@@ -122,7 +130,11 @@ public sealed class TaskStreamServiceTests
         var watcher = FakeCurrentUser.Customer();
         await using var context = TasksTestContext.Create(watcher, database);
         var service = new TaskStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            watcher);
 
         var result = await service.ResolveAsync(task.Id, CancellationToken.None);
 
@@ -147,7 +159,11 @@ public sealed class TaskStreamServiceTests
         var watcher = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(watcher, database);
         var service = new TaskStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            watcher);
 
         var result = await service.ResolveAsync(task.Id, CancellationToken.None);
 
@@ -162,7 +178,11 @@ public sealed class TaskStreamServiceTests
         var watcher = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(watcher);
         var service = new TaskStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            watcher);
 
         var result = await service.ResolveAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -192,7 +212,11 @@ public sealed class TaskStreamServiceTests
         var watcher = FakeCurrentUser.Customer(accountId);
         await using var context = TasksTestContext.Create(watcher, database);
         var service = new TaskStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            watcher);
 
         Assert.True((await service.ResolveAsync(task.Id, CancellationToken.None)).IsSuccess);
 
@@ -240,7 +264,11 @@ public sealed class TaskStreamServiceTests
         var watcher = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(watcher, database);
         var service = new TaskStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            watcher);
 
         using var watching = new CancellationTokenSource(ReadTimeout);
         await using var frames = service.ReadAsync(task.Id, watching.Token).GetAsyncEnumerator(watching.Token);
@@ -265,7 +293,11 @@ public sealed class TaskStreamServiceTests
         var watcher = FakeCurrentUser.Customer(Guid.NewGuid());
         await using var context = TasksTestContext.Create(watcher, database);
         var service = new TaskStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            watcher);
 
         var result = await service.ResolveAsync(task.Id, CancellationToken.None);
 

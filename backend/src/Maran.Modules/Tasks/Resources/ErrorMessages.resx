@@ -18,6 +18,9 @@
   <data name="TaskAbandonedByRestart">
     <value>The panel restarted while this task was running, so it did not finish.</value>
   </data>
+  <data name="TaskFailureUnexplained">
+    <value>The operation did not finish, and this panel has no description of why. The code below identifies the failure; quote it when you ask for help.</value>
+  </data>
   <data name="TaskKindFilterInvalid">
     <value>That is not a kind of background task the panel can record.</value>
   </data>

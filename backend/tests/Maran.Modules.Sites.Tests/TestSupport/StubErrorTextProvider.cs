@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Sites.Tests.TestSupport;
@@ -21,5 +22,12 @@ public sealed class StubErrorTextProvider : IErrorTextProvider
     {
         Resolved.Add(code);
         return $"sentence for {code}";
+    }
+
+    /// <inheritdoc />
+    public bool TryResolve(string code, [NotNullWhen(true)] out string? text)
+    {
+        text = Resolve(code);
+        return true;
     }
 }

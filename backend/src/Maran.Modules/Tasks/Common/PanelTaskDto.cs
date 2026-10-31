@@ -33,7 +33,10 @@ namespace Maran.Modules.Tasks.Common;
 /// <c>false</c> for a customer, whose own task's log is withheld because it is operator material.
 /// Its own field so that an empty log means only "nothing reported yet" and never also "withheld".
 /// </param>
-/// <param name="ErrorCode">The machine-stable code it failed with, or <c>null</c>.</param>
+/// <param name="Failure">
+/// Why it failed — the sentence in the request's culture and the code beside it — or <c>null</c>
+/// while it has not failed.
+/// </param>
 /// <param name="StartedAt">When the operation started.</param>
 /// <param name="FinishedAt">When it reached a final state, or <c>null</c> while it runs.</param>
 /// <param name="Revision">
@@ -50,7 +53,7 @@ public sealed record PanelTaskDto(
     int Percent,
     string Log,
     bool LogIncluded,
-    string? ErrorCode,
+    TaskFailureDto? Failure,
     DateTimeOffset StartedAt,
     DateTimeOffset? FinishedAt,
     int Revision);

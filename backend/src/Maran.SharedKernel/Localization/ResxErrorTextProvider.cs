@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Resources;
 using Maran.SharedKernel.Interfaces;
@@ -43,7 +44,7 @@ public sealed class ResxErrorTextProvider : IErrorTextProvider
         LoggerMessage.Define<string>(
             LogLevel.Warning,
             new EventId(1, nameof(ResxErrorTextProvider)),
-            "No module's resources claim the message key {MessageKey}; the key itself was rendered.");
+            "No module's resources claim the message key {MessageKey}; a fallback was rendered in its place.");
 
     /// <summary>Pre-compiled log delegate for a key two modules give two different sentences.</summary>
     private static readonly Action<ILogger, string, string, Exception?> LogCollidingKey =
@@ -73,22 +74,34 @@ public sealed class ResxErrorTextProvider : IErrorTextProvider
     /// <inheritdoc />
     public string Resolve(string code, params object[] arguments)
     {
+        if (!TryResolve(code, out var text))
+        {
+            // No module claims this key. The code itself is the safest fallback: still
+            // machine-stable, never a stack trace or tool output (rules/security.md "Secrets").
+            return code;
+        }
+
+        return arguments.Length > 0 ? string.Format(CultureInfo.CurrentCulture, text, arguments) : text;
+    }
+
+    /// <inheritdoc />
+    public bool TryResolve(string code, [NotNullWhen(true)] out string? text)
+    {
         foreach (var manager in _resourceManagers)
         {
-            var text = manager.GetString(code, CultureInfo.CurrentUICulture);
+            text = manager.GetString(code, CultureInfo.CurrentUICulture);
             if (text is not null)
             {
-                return arguments.Length > 0 ? string.Format(CultureInfo.CurrentCulture, text, arguments) : text;
+                return true;
             }
         }
 
-        // No module claims this key. The code itself is the safest fallback: still machine-stable,
-        // never a stack trace or tool output (rules/security.md "Secrets"). It is logged because it
-        // is otherwise indistinguishable, to everyone except the customer reading it, from a
-        // message that resolved.
+        // Logged because a miss is otherwise indistinguishable, to everyone except the person reading
+        // the fallback, from a message that resolved.
         LogUnclaimedKey(_logger, code, null);
+        text = null;
 
-        return code;
+        return false;
     }
 
     /// <summary>Logs every key two registered tables give two different sentences.</summary>

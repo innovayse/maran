@@ -29,7 +29,7 @@ const SETTLED: PanelTask = {
   percent: 100,
   log: 'ordered\n',
   logIncluded: true,
-  errorCode: null,
+  failure: null,
   startedAt: '2026-09-03T09:00:00Z',
   finishedAt: '2026-09-03T09:02:00Z',
   revision: 4,
