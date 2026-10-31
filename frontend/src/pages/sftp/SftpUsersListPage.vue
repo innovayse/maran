@@ -38,7 +38,7 @@ import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import SftpUserActionConfirm from '../../components/sftp/SftpUserActionConfirm.vue'
 import SftpUsersTable from '../../components/sftp/SftpUsersTable.vue'
-import UiToast from '../../components/ui/UiToast.vue'
+import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import SftpUserCreateForm from '../../components/sftp/SftpUserCreateForm.vue'
 import SftpUserCreatedDialog from '../../components/sftp/SftpUserCreatedDialog.vue'
 import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
@@ -337,10 +337,6 @@ onBeforeUnmount(store.dismissCredential)
       @close="store.dismissCredential"
     />
 
-    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
-      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
-        {{ notice }}
-      </UiToast>
-    </div>
+    <UiPinnedToast :message="notice" :close-label="t('common.close')" @dismiss="dismissNotice" />
   </section>
 </template>

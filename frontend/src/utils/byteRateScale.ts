@@ -8,10 +8,9 @@
  * reason `formatBytes.ts` gives.
  */
 
-/** The binary step between two adjacent units. */
-const STEP = 1024
+import { BINARY_STEP } from './formatBytes'
 
-/** The rate units, smallest first — the index is the power of {@link STEP}. */
+/** The rate units, smallest first — the index is the power of {@link BINARY_STEP}. */
 const RATE_UNITS = ['B/s', 'KiB/s', 'MiB/s', 'GiB/s'] as const
 
 /** The unit a series is drawn in, and what to divide each byte rate by to express it in that unit. */
@@ -34,11 +33,11 @@ export const byteRateScale = (rates: readonly number[]): ByteRateScale => {
   }, 0)
 
   let index = 0
-  while (index < RATE_UNITS.length - 1 && peak >= STEP ** (index + 1)) {
+  while (index < RATE_UNITS.length - 1 && peak >= BINARY_STEP ** (index + 1)) {
     index += 1
   }
 
-  return { unit: RATE_UNITS[index], divisor: STEP ** index }
+  return { unit: RATE_UNITS[index], divisor: BINARY_STEP ** index }
 }
 
 /**

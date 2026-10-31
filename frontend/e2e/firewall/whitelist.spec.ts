@@ -271,3 +271,12 @@ test('dismissing the exemption confirmation sends no request, and confirm is not
   // And the exemption is still on the screen it was never removed from.
   await expect(row).toBeVisible()
 })
+
+// #222: every create confirms itself, the way the rule form and the other screens already did.
+test('adding an exemption is confirmed by a toast naming the range', async ({ page }) => {
+  await openScreen(page, [])
+
+  await addExemption(page, '203.0.113.0/24', 'The office')
+
+  await expect(page.getByRole('status').filter({ hasText: '203.0.113.0/24 will never be banned.' })).toBeVisible()
+})

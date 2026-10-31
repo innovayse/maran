@@ -21,7 +21,6 @@
       "rowActions": "Действия для {name}",
       "confirmDropTitle": "Удалить базу данных {name}",
       "confirmResetPasswordTitle": "Сбросить пароль для {name}",
-      "grantRepairLink": "Исправление прав",
       "sectionTitle": "Все базы данных",
       "created": "База данных создана.",
       "confirmDropAction": "Удалить базу данных",

@@ -37,7 +37,8 @@ import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import FtpUserActionConfirm from '../../components/ftp/FtpUserActionConfirm.vue'
 import FtpUsersTable from '../../components/ftp/FtpUsersTable.vue'
-import UiToast, { type ToastVariant } from '../../components/ui/UiToast.vue'
+import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
+import type { ToastVariant } from '../../components/ui/UiToast.vue'
 import FtpUserCreateForm from '../../components/ftp/FtpUserCreateForm.vue'
 import FtpUserCreatedDialog from '../../components/ftp/FtpUserCreatedDialog.vue'
 import FtpsServerPanel from '../../components/ftp/FtpsServerPanel.vue'
@@ -388,10 +389,6 @@ onBeforeUnmount(store.dismissCredential)
       @close="store.dismissCredential"
     />
 
-    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
-      <UiToast v-if="notice !== null" :variant="noticeVariant" :close-label="t('common.close')" @dismiss="dismissNotice">
-        {{ notice }}
-      </UiToast>
-    </div>
+    <UiPinnedToast :message="notice" :variant="noticeVariant" :close-label="t('common.close')" @dismiss="dismissNotice" />
   </section>
 </template>

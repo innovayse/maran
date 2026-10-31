@@ -106,7 +106,8 @@
       "searchPlaceholder": "Search by address…",
       "searchClear": "Clear the search",
       "noResultsTitle": "No bans match",
-      "noResultsDescription": "Change the search, or clear it to see every ban in force."
+      "noResultsDescription": "Change the search, or clear it to see every ban in force.",
+      "created": "{address} is banned."
     },
     "whitelist": {
       "heading": "Never banned",
@@ -148,7 +149,8 @@
       "searchPlaceholder": "Search by range or note…",
       "searchClear": "Clear the search",
       "noResultsTitle": "No exemptions match",
-      "noResultsDescription": "Change the search, or clear it to see every exempt range."
+      "noResultsDescription": "Change the search, or clear it to see every exempt range.",
+      "created": "{cidr} will never be banned."
     }
   }
 }
