@@ -179,7 +179,6 @@ onMounted(() => {
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('plans.list.eyebrow')"
       :title="t('plans.list.heading')"
       :subtitle="t('plans.list.subtitle')"
     >

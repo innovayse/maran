@@ -89,7 +89,6 @@ void policyStore.load()
 <template>
   <section class="flex w-full max-w-3xl flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('app.securityPolicy.eyebrow')"
       :title="t('app.securityPolicy.heading')"
       :subtitle="t('app.securityPolicy.subtitle')"
     />

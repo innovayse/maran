@@ -5,7 +5,6 @@
       "suspended": "Suspended"
     },
     "list": {
-      "eyebrow": "Hosting",
       "heading": "Accounts",
       "subtitle": "Hosting accounts on this server.",
       "createAction": "New account",

@@ -10,7 +10,6 @@
       "lockoutMinutesLabel": "How long an account stays locked, in minutes",
       "save": "Save policy",
       "saved": "The policy has been saved.",
-      "eyebrow": "Settings",
       "passwordsTitle": "Passwords",
       "passwordsHint": "How short a password may be on any account in this panel.",
       "administratorsTitle": "Administrators",

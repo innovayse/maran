@@ -332,7 +332,6 @@ onMounted(start)
     <!-- The account is the page's context, so its picker sits with the title rather than in a card
          of its own; under 1024px the header drops it below the title at full width. -->
     <UiPageHeading
-      :eyebrow="t('cron.list.eyebrow')"
       :title="t('cron.list.heading')"
       :subtitle="t('cron.list.subtitle')"
     >

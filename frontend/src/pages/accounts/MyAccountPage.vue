@@ -133,7 +133,6 @@ onMounted(async () => {
 
       <div v-else class="flex flex-col gap-4">
         <UiPageHeading
-          :eyebrow="t('myAccount.eyebrow')"
           :title="store.mine?.name ?? ''"
           mono
           :subtitle="store.mine?.primaryDomain ?? ''"

@@ -250,7 +250,6 @@ onMounted(async () => {
     />
     <UiPageHeading
       v-else
-      :eyebrow="t('app.twoFactor.eyebrow')"
       :title="t('app.twoFactor.heading')"
       :subtitle="t('app.twoFactor.subtitle')"
     />

@@ -158,7 +158,6 @@ void smtpStore.load()
   <section class="w-full">
     <UiPageHeading
       class="mb-4"
-      :eyebrow="t('app.smtp.eyebrow')"
       :title="t('app.smtp.heading')"
       :subtitle="t('app.smtp.subtitle')"
     />

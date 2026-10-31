@@ -238,7 +238,6 @@ onBeforeUnmount(store.dismissCredential)
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('ftp.list.eyebrow')"
       :title="t('ftp.list.heading')"
       :subtitle="t('ftp.list.subtitle')"
       :note="t('ftp.list.prefixNote')"

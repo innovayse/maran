@@ -1,7 +1,6 @@
 {
   "app": {
     "upgrade": {
-      "eyebrow": "Licence",
       "heading": "Upgrade required",
       "subtitle": "This area belongs to a module your current licence does not cover.",
       "module": "The \"{module}\" module is not included in your current licence.",

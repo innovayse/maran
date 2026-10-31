@@ -27,9 +27,7 @@
         "backupsList": "Все копии",
         "backupsSchedule": "Расписание",
         "backupsDestinations": "Хранилища"
-      },
-      "signedInDevices": "Устройства",
-      "outgoingMail": "Исходящая почта"
+      }
     },
     "shell": {
       "skipToContent": "Перейти к содержимому",

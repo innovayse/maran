@@ -83,3 +83,14 @@ const LANDING_ROUTES: Readonly<Record<string, string | typeof NO_LANDING_ROUTE>>
 export const moduleLandingRoute = (moduleName: string): string | null | undefined => {
   return Object.hasOwn(LANDING_ROUTES, moduleName) ? LANDING_ROUTES[moduleName] : undefined
 }
+
+/**
+ * Answers which module's entry leads to a route, the reverse of {@link moduleLandingRoute}.
+ * @param routeName The route's name.
+ * @returns The module machine name whose landing page the route is, or `undefined` when none is.
+ */
+export const moduleOfLandingRoute = (routeName: string): string | undefined => {
+  return Object.keys(LANDING_ROUTES).find((moduleName): boolean => {
+    return LANDING_ROUTES[moduleName] === routeName
+  })
+}

@@ -27,9 +27,7 @@
         "backupsList": "Բոլոր պահուստները",
         "backupsSchedule": "Ժամանակացույց",
         "backupsDestinations": "Պահոցներ"
-      },
-      "signedInDevices": "Սարքեր",
-      "outgoingMail": "Ելքային փոստ"
+      }
     },
     "shell": {
       "skipToContent": "Անցնել բովանդակությանը",

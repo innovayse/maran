@@ -1,7 +1,6 @@
 {
   "app": {
     "sessions": {
-      "eyebrow": "Безопасность",
       "heading": "Устройства с входом",
       "subtitle": "Все устройства, с которых сейчас выполнен вход в вашу учётную запись.",
       "emptyTitle": "Других устройств нет",
@@ -19,7 +18,7 @@
       "confirmEndTitle": "Завершить сеанс с {address}",
       "signOutEverywhere": "Выйти на всех устройствах",
       "rowActions": "Действия для сеанса с адреса {address}",
-      "securityPolicyLink": "Политика безопасности"
+      "securityPolicyLink": "Политика входа"
     }
   }
 }

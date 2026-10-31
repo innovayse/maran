@@ -12,53 +12,35 @@
  * It is a `<nav>` with its own
  * translated name so it stays distinguishable from the sidebar's navigation landmark.
  *
- * The trail is derived, not stored. The equivalent of a screen→path map is
- * {@link SHELL_ROUTE_LABEL_KEYS} for the shell's own screens plus the module
- * catalogue for everything module-backed, so the trail never names a screen the
- * panel did not report. Because the labels come from i18n keys and the panel's
- * own localized module names, the trail follows the interface language.
+ * The trail is derived, not stored, from the same sources the sidebar is drawn from
+ * (`utils/locateNavigation.ts`, issue #209): the group the screen's entry is drawn under, the
+ * entry, the submenu page, and — for a screen one level below those, such as a record or a form —
+ * that screen too. A record's crumb is its name (an account's user name, a site's domain), read from
+ * the page's own heading (`utils/pageHeadingKey.ts`), so the two are one string; while the record
+ * loads the crumb is a placeholder, never the id from the address. A screen outside the navigation is named by its own title (`meta.title`). No crumb
+ * is ever a route name or a URL segment: the settings screens once read "Panel / audit", a router
+ * identifier in English whatever the language (issue #72), and a child screen "Panel / accounts-new".
+ * Labels come from i18n keys and the panel's own localized module names, so the trail follows the
+ * interface language.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import UiSkeleton from '../ui/UiSkeleton.vue'
+import { useDelayedFlag } from '../../composables/useDelayedFlag'
+import { moduleNavigationChildren } from '../../router/moduleNavigationChildren'
+import { FALLBACK_GROUP } from '../../utils/groupNavigation'
+import { locateNavigation } from '../../utils/locateNavigation'
+import { PAGE_HEADING_KEY } from '../../utils/pageHeadingKey'
 import type { NavigationEntry } from '../../types/navigation'
+import type { PageHeading } from '../../types/pageHeading'
 
-/**
- * i18n keys naming the shell's own screens in the breadcrumb trail. Only routes this
- * bundle owns appear here — a module's screen is named by the catalogue entry the
- * panel sent, never by a key invented in the frontend.
- */
-const SHELL_ROUTE_LABEL_KEYS: Record<string, string> = {
-  'system-status': 'app.nav.systemStatus',
-  upgrade: 'app.upgrade.heading',
-  'not-found': 'app.notFound.heading',
-  'not-available': 'app.notAvailable.heading',
-  // Every screen under /settings. They were missing once, so each fell through to its own route
-  // name and the first line of the page read "Panel / audit" — a router identifier, lowercase and
-  // in English, whatever language the operator chose. These are the screens reached most often
-  // from the account menu.
-  sessions: 'app.sessions.heading',
-  audit: 'app.audit.heading',
-  'security-policy': 'app.securityPolicy.heading',
-  'two-factor': 'app.twoFactor.heading',
-  'two-factor-setup': 'app.twoFactor.heading',
-  'smtp-settings': 'app.smtp.heading',
-  'php-versions': 'php.title',
-  'my-account': 'app.shell.menu.myAccount',
-  profile: 'app.profile.heading',
-}
-
-/**
- * i18n keys naming a screen that sits BENEATH a module, appended after the module's own
- * crumb. Without this a child route fell through to its raw route name and the trail read
- * "Panel / accounts-new" — a router identifier shown to a customer, in English, whatever
- * language they chose.
- */
-const CHILD_ROUTE_LABEL_KEYS: Record<string, string> = {
-  'accounts-new': 'accounts.form.heading',
-  plans: 'plans.list.heading',
-  'plans-new': 'plans.form.headingNew',
-  'plans-edit': 'plans.form.headingEdit',
+/** One crumb of the trail. */
+interface Crumb {
+  /** Stable identifier for `:key`: the crumb's level. */
+  key: 'group' | 'entry' | 'child' | 'leaf'
+  /** The crumb's text, or `null` while the record it names is loading (drawn as a placeholder). */
+  text: string | null
 }
 
 /** Props accepted by {@link ShellBreadcrumb}. */
@@ -69,6 +51,9 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const route = useRoute()
+
+/** The page heading on screen (`utils/pageHeadingKey.ts`); a record screen's trail ends on its title. */
+const pageHeading: Ref<PageHeading | null> | null = inject(PAGE_HEADING_KEY, null)
 
 /** The `<nav>`: its width is the room the header gave the trail. */
 const root: Ref<HTMLElement | null> = ref(null)
@@ -83,32 +68,72 @@ const fits: Ref<boolean> = ref(true)
 let observer: ResizeObserver | null = null
 
 /**
- * The trail for the active route. One group is all the catalogue supports today (it
- * reports no grouping), so the trail is two levels deep, three on a child screen.
+ * The trail for the active route: group, entry, submenu page, leaf — as deep as the screen sits.
  */
-const crumbs: ComputedRef<string[]> = computed(() => {
-  const routeName = typeof route.name === 'string' ? route.name : ''
-  const shellLabelKey = SHELL_ROUTE_LABEL_KEYS[routeName]
-  if (shellLabelKey !== undefined) {
-    return [t('app.nav.groups.panel'), t(shellLabelKey)]
+const crumbs: ComputedRef<Crumb[]> = computed(() => {
+  const location = locateNavigation(route)
+  const trail: Crumb[] = [{ key: 'group', text: t(`app.nav.groups.${location?.groupKey ?? FALLBACK_GROUP}`) }]
+  if (location === null) {
+    return [...trail, { key: 'leaf', text: t(route.meta.title ?? 'app.title') }]
   }
 
-  // A module screen is named by what the panel called the module. The route's `meta.module` is
-  // the authority — matching on the route NAME missed every child route, whose name
-  // ('accounts-new') is not the module's ('accounts').
-  const moduleName = typeof route.meta.module === 'string' ? route.meta.module : routeName
-  const entry = props.entries.find((candidate) => {
-    return candidate.moduleName === moduleName
+  // The entry is named as the sidebar names it. Until the catalogue has arrived it is not drawn,
+  // so the trail never shows a module's machine name in its place.
+  const entry = props.entries.find((candidate): boolean => {
+    return candidate.key === location.entryKey
   })
-  const trail = [t('app.nav.groups.panel'), entry?.label ?? moduleName]
-
-  const childLabelKey = CHILD_ROUTE_LABEL_KEYS[routeName]
-  if (childLabelKey !== undefined) {
-    trail.push(t(childLabelKey))
+  if (entry !== undefined) {
+    trail.push({ key: 'entry', text: entryLabel(entry) })
   }
 
+  const child = moduleNavigationChildren(location.entryKey).find((candidate): boolean => {
+    return candidate.route === location.childRoute
+  })
+  if (child !== undefined) {
+    trail.push({ key: 'child', text: t(child.labelKey) })
+  }
+
+  if (location.leaf) {
+    trail.push({ key: 'leaf', text: leafText() })
+  }
   return trail
 })
+
+/**
+ * Whether a record crumb's placeholder is drawn: only once the record has been on its way for the
+ * same 150 ms every other placeholder waits, so a quick answer never flashes one in the app bar.
+ */
+const placeholderShown: Readonly<Ref<boolean>> = useDelayedFlag((): boolean => {
+  return route.meta.titledByRecord === true && pageHeading?.value?.loading === true
+})
+
+/**
+ * Names a navigation entry the way the sidebar does: the shell's own key, else the panel's name.
+ * @param entry The entry to name.
+ * @returns Its label.
+ */
+const entryLabel = (entry: NavigationEntry): string => {
+  return entry.labelKey === null ? (entry.label ?? entry.key) : t(entry.labelKey)
+}
+
+/**
+ * The last crumb of a screen one level below a navigation destination. On a record screen it is the
+ * record's name as the page heading shows it, a placeholder while that heading is loading, and the
+ * screen's title when no heading names a record (the record does not exist, or could not be read).
+ * Anywhere else it is the screen's title.
+ * @returns The leaf's text, or `null` while the record is loading.
+ */
+const leafText = (): string | null => {
+  const title = t(route.meta.title ?? 'app.title')
+  const heading = pageHeading?.value ?? null
+  if (route.meta.titledByRecord !== true || heading === null) {
+    return title
+  }
+  if (heading.loading) {
+    return null
+  }
+  return heading.title === '' ? title : heading.title
+}
 
 /**
  * Compares the trail's natural width with the room it has.
@@ -152,11 +177,15 @@ watch(crumbs, async (): Promise<void> => {
            of the locale files: a separator is punctuation, not copy. -->
       <li
         v-for="(crumb, index) in crumbs"
-        :key="crumb"
+        :key="crumb.key"
         class="[&+&]:before:mr-1.5 [&+&]:before:text-text-muted [&+&]:before:content-['/']"
         :class="index === crumbs.length - 1 ? 'font-semibold text-text-primary' : 'text-text-secondary'"
       >
-        {{ crumb }}
+        <!-- A record still on its way: a placeholder the width of a short name, not its raw id. -->
+        <span v-if="crumb.text === null" data-ui="crumb-loading" class="inline-flex w-24 align-middle">
+          <UiSkeleton v-if="placeholderShown" shape="line" />
+        </span>
+        <template v-else>{{ crumb.text }}</template>
       </li>
     </ol>
   </nav>

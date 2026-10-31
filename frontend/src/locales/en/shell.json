@@ -27,9 +27,7 @@
         "backupsList": "Backup list",
         "backupsSchedule": "Schedule",
         "backupsDestinations": "Destinations"
-      },
-      "signedInDevices": "Signed-in devices",
-      "outgoingMail": "Outgoing mail"
+      }
     },
     "shell": {
       "skipToContent": "Skip to content",

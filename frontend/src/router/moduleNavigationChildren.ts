@@ -40,6 +40,9 @@ const CHILDREN: Readonly<Record<string, readonly NavigationChildSpec[]>> = {
       labelKey: 'app.nav.children.sitesNew',
       adminOnly: false,
     },
+    // The PHP runtimes are what a site runs on, so their page sits with the sites (issue #209: it
+    // had no entry at all and was reachable only by its address).
+    { key: 'php-versions', route: 'php-versions', labelKey: 'php.title', adminOnly: true },
   ],
   // The FTPS page is offered under the SFTP module's entry: the two protocols are one subject to the
   // reader ("File transfer"), and two modules on the server. Neither is administrators-only — a
@@ -101,4 +104,17 @@ const CHILDREN: Readonly<Record<string, readonly NavigationChildSpec[]>> = {
  */
 export const moduleNavigationChildren = (key: string): readonly NavigationChildSpec[] => {
   return Object.hasOwn(CHILDREN, key) ? (CHILDREN[key] ?? []) : []
+}
+
+/**
+ * Answers which entry's submenu lists a route, the reverse of {@link moduleNavigationChildren}.
+ * @param routeName The route's name.
+ * @returns The key of the entry whose submenu holds the route, or `undefined` when none does.
+ */
+export const moduleOfNavigationChild = (routeName: string): string | undefined => {
+  return Object.keys(CHILDREN).find((key): boolean => {
+    return (CHILDREN[key] ?? []).some((child): boolean => {
+      return child.route === routeName
+    })
+  })
 }

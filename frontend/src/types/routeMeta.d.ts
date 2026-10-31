@@ -25,5 +25,17 @@ declare module 'vue-router' {
      * "not available" screen instead of showing admin chrome around a refusal (issue #202).
      */
     adminOnly?: boolean
+    /**
+     * Route name of the navigation destination this screen sits beneath, for a screen the
+     * navigation does not list itself (a record, a form under a list). It places the screen in the
+     * breadcrumb, under the right page eyebrow, one level below that destination (issue #209).
+     */
+    navigationParent?: string
+    /**
+     * The screen's breadcrumb leaf is the name of the record it shows, not its title. The page
+     * reports that name through `useBreadcrumbRecord`; until it does the leaf is a placeholder,
+     * never the raw identifier from the address.
+     */
+    titledByRecord?: boolean
   }
 }

@@ -26,7 +26,7 @@
  * The copy is written to this server and is not encrypted at rest. Every one of those is said on
  * the screen, because `retainCount` on its own reads as a promise none of them keep.
  *
- * **Layout (redesign 2026-10).** The page header carries the module name as its eyebrow; whatever
+ * **Layout (redesign 2026-10).** The page header carries the navigation group as its eyebrow; whatever
  * needs attention (a refusal, a blank field, the save result, and an unscheduled scope as an amber
  * warning) comes before the controls; then the scope card, and below it the form beside a column
  * holding the summary and the four retention caveats. Under 1024px that column stacks under the
@@ -311,10 +311,7 @@ watch(
 
 <template>
   <section class="flex w-full flex-col gap-4">
-    <!-- The eyebrow is the module's own name, so it reuses the list screen's heading: the same word
-         the sidebar and the previous screen use, and no new text for the three languages to carry. -->
     <UiPageHeading
-      :eyebrow="t('backups.list.heading')"
       :title="t('backups.schedule.heading')"
       :subtitle="t('backups.schedule.subtitle')"
       :note="t('backups.schedule.utcNote')"
