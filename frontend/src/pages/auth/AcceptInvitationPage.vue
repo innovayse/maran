@@ -42,7 +42,7 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
-import { useAuthStore } from '../../stores/auth'
+import { usePasswordLinksStore } from '../../stores/passwordLinks'
 
 /**
  * The policy's default minimum password length, which is what the server enforces unless an
@@ -52,7 +52,7 @@ const DEFAULT_MIN_PASSWORD_LENGTH = 12
 
 const { t } = useI18n()
 const route = useRoute()
-const authStore = useAuthStore()
+const passwordLinksStore = usePasswordLinksStore()
 
 /** The password being set. */
 const password: Ref<string> = ref('')
@@ -101,7 +101,7 @@ const submit = async (): Promise<void> => {
   }
 
   mismatch.value = null
-  done.value = await authStore.acceptInvitation({ token: token.value, newPassword: password.value })
+  done.value = await passwordLinksStore.acceptInvitation({ token: token.value, newPassword: password.value })
 }
 </script>
 
@@ -119,8 +119,8 @@ const submit = async (): Promise<void> => {
         <p>{{ t('app.acceptInvitation.done') }}</p>
         <!-- The login name the invitation created: the person has never signed in and may not
              know it. Rendered as text; it is the panel's own value, never markup. -->
-        <p v-if="authStore.invitedUsername !== null" class="mt-1">
-          {{ t('app.acceptInvitation.username', { username: authStore.invitedUsername }) }}
+        <p v-if="passwordLinksStore.invitedUsername !== null" class="mt-1">
+          {{ t('app.acceptInvitation.username', { username: passwordLinksStore.invitedUsername }) }}
         </p>
       </UiAlert>
       <UiButton class="w-full justify-center" :to="{ name: 'login' }">
@@ -147,8 +147,8 @@ const submit = async (): Promise<void> => {
              beneath it is the same for every refusal, so it says what to do next without
              disclosing which kind this was; the button at the foot is the way back, because a
              dead end here would leave somebody with a stale link and no route to sign-in. -->
-        <UiAlert v-if="authStore.errorMessage !== null" variant="error">
-          <p>{{ authStore.errorMessage }}</p>
+        <UiAlert v-if="passwordLinksStore.errorMessage !== null" variant="error">
+          <p>{{ passwordLinksStore.errorMessage }}</p>
           <p class="mt-1 text-text-secondary">{{ t('app.acceptInvitation.refusedHint') }}</p>
         </UiAlert>
 
@@ -171,7 +171,7 @@ const submit = async (): Promise<void> => {
         />
 
         <!-- The one primary pill on the screen; everything else here is quieter than it. -->
-        <UiButton class="w-full justify-center" type="submit" :disabled="authStore.loading">
+        <UiButton class="w-full justify-center" type="submit" :disabled="passwordLinksStore.loading">
           {{ t('app.acceptInvitation.setPassword') }}
           <UiIcon name="arrowRight" size="sm" />
         </UiButton>

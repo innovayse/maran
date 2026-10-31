@@ -44,7 +44,12 @@
       "ratioNotEnforced": "{used}, allowance not enforced",
       "meterLabel": "Disk used of the allowance for {username}",
       "emptyTitle": "No accounts yet",
-      "emptyDescription": "There is no hosting account on this server to measure."
+      "emptyDescription": "There is no hosting account on this server to measure.",
+      "searchLabel": "Search accounts",
+      "searchPlaceholder": "Search by account…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No accounts match",
+      "noResultsDescription": "Change the search, or clear it to see every account."
     }
   }
 }

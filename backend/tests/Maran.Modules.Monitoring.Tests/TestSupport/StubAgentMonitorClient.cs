@@ -27,6 +27,12 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     public Result<IReadOnlyList<AgentAccountDiskUsage>> DiskUsage { get; set; } =
         Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([]);
 
+    /// <summary>
+    /// The names every disk-usage request asked about, one entry per call in the order made, so a test
+    /// can prove the agent was asked about exactly one page — or not asked at all.
+    /// </summary>
+    public List<IReadOnlyList<string>> DiskUsageRequests { get; } = [];
+
     /// <summary>How many times the SFTP jail status was asked for.</summary>
     public int SftpJailStatusCalls { get; private set; }
 
@@ -69,8 +75,10 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
 
     /// <inheritdoc />
     public Task<Result<IReadOnlyList<AgentAccountDiskUsage>>> GetAccountsDiskUsageAsync(
+        IReadOnlyCollection<string> accountUsernames,
         CancellationToken cancellationToken)
     {
+        DiskUsageRequests.Add([.. accountUsernames]);
         return Task.FromResult(DiskUsage);
     }
 

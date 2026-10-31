@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useMonitoringApi } from '../composables/apis/useMonitoringApi'
 import { ApiError } from '../composables/useApi'
+import type { ListLoad, ListRequest } from '../types/list'
 import type { LoadingState } from '../types/loading'
 import type { AccountDiskUsage, ChartRange, MetricBucket, MetricsChart, ServiceStatus } from '../types/monitoring'
 
@@ -10,14 +11,14 @@ const DEFAULT_RANGE: ChartRange = 'lastDay'
 
 /**
  * Owns what the monitoring screen is made of — the bucketed samples behind its six charts, the
- * states of the services the agent watches, and what every account occupies on disk. The page reads
+ * states of the services the agent watches, and the page of accounts' disk use on screen. The page reads
  * state from here and calls its actions; it never touches the API layer (rules/vue.md: "API
  * composables are called from Pinia stores ONLY").
  *
  * Error text is never generated here: the panel's already-localized `title`/`detail` is stored
- * verbatim (rules/vue.md: "the backend owns their text"). It is kept in two refs and not one,
- * because the charts and the disk table are on screen at the same time and a refused disk read must
- * not blank the reason the charts are missing.
+ * verbatim (rules/vue.md: "the backend owns their text"). The charts' and services' refusal is kept
+ * here; the disk table is a server-paged list whose refusal travels back to its `useServerTable`
+ * through {@link listAccountDiskUsage}, so a refused disk read never blanks the charts beside it.
  *
  * **A chart answer is accepted only when its echoed range matches the range still selected.** The
  * seven-day request is the slow one, so an operator who switches to it and straight back would
@@ -36,12 +37,12 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   /** The watched services as last reported; empty means the agent watches none. */
   const services: Ref<ServiceStatus[]> = ref([])
 
-  /** What each account occupies on disk, as last reported. */
+  /** The rows of the disk list page last answered by the panel; empty before the first answer. */
   const accountDiskUsage: Ref<AccountDiskUsage[]> = ref([])
 
   /**
-   * Where the read of the whole screen stands: on its way, arrived, or refused. Only the charts and
-   * services decide it; the per-account disk read has its own message and never blanks them.
+   * Where the read of the charts and services stands: on its way, arrived, or refused. The
+   * per-account disk list is paged and loaded on its own, so it never decides this.
    */
   const loadState: Ref<LoadingState> = ref('loading')
 
@@ -50,9 +51,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
 
   /** Backend-localized message from the most recent failed chart or service read, or `null`. */
   const errorMessage: Ref<string | null> = ref(null)
-
-  /** Backend-localized message from the most recent failed per-account disk read, or `null`. */
-  const diskErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * The accepted chart's buckets, or an empty list when none has been accepted yet. The charts
@@ -87,17 +85,17 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   }
 
   /**
-   * Loads everything the screen shows: the charts for the selected range, the service states, and
-   * the per-account disk figures.
+   * Loads the charts for the selected range and the service states.
    *
-   * The three requests go together rather than one per section — they are one screen, and
-   * staggering them would show an operator three panels describing three different moments.
-   * @returns Resolves once every request has settled, successfully or not.
+   * The two requests go together rather than one per section — they describe one moment, and
+   * staggering them would show an operator two panels describing two different moments. The
+   * per-account disk list is not part of it: it is a server page with its own URL state, read by
+   * {@link listAccountDiskUsage}.
+   * @returns Resolves once both requests have settled, successfully or not.
    */
   const load = async (): Promise<void> => {
     loadState.value = 'loading'
     const requested = range.value
-    // Settled after the disk read below, so the screen lands once with all three sections.
     let settled: LoadingState = 'loaded'
     try {
       const [answer, loadedServices] = await Promise.all([api.getChart(requested), api.listServices()])
@@ -113,17 +111,27 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       settled = 'error'
     }
 
-    // Read separately and not inside the same `Promise.all`: this is the one route on the
-    // controller that discloses every tenant's system user name, so it is also the one most likely
-    // to be refused on its own — and a refusal of it must not blank the charts beside it.
-    try {
-      accountDiskUsage.value = await api.listAccountDiskUsage()
-      diskErrorMessage.value = null
-    } catch (error) {
-      diskErrorMessage.value = error instanceof ApiError ? error.message : null
-    }
-
     loadState.value = settled
+  }
+
+  /**
+   * Loads one page of the accounts' disk use into {@link accountDiskUsage} and reports how the read
+   * ended, for the disk table's `useServerTable`.
+   *
+   * Its own request, never inside {@link load}: this is the one route on the controller that
+   * discloses every tenant's system user name, so it is also the one most likely to be refused on
+   * its own — and a refusal of it must not blank the charts beside it.
+   * @param request The page, size, search and sort, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
+   */
+  const listAccountDiskUsage = async (request: ListRequest): Promise<ListLoad<AccountDiskUsage>> => {
+    try {
+      const page = await api.listAccountDiskUsage(request)
+      accountDiskUsage.value = page.items
+      return { kind: 'loaded', page }
+    } catch (error) {
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
+    }
   }
 
   /**
@@ -151,9 +159,9 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     loadState,
     chartLoading,
     errorMessage,
-    diskErrorMessage,
     buckets,
     load,
+    listAccountDiskUsage,
     selectRange,
   }
 })

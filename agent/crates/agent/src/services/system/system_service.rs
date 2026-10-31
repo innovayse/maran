@@ -32,8 +32,10 @@ use crate::proto::{
 /// `refused` answer naming which half of a certificate pair is wrong
 /// (issue #214). 4 adds `ERROR_CODE_PACKAGE_SOURCE_REFUSED` and
 /// `ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE`, the package-install failures
-/// whose fault is a source outside this host (issue #251).
-const PROTO_VERSION: u32 = 4;
+/// whose fault is a source outside this host (issue #251). 5 adds
+/// `GetAccountsDiskUsageRequest.account_usernames`, so a panel listing one
+/// page of accounts has only that page's homes walked (issue #196).
+const PROTO_VERSION: u32 = 5;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

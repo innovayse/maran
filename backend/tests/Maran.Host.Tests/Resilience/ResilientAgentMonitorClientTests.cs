@@ -69,7 +69,7 @@ public sealed class ResilientAgentMonitorClientTests
     {
         var inner = new RecordingAgentMonitorClient { FailuresBeforeSuccess = 1 };
 
-        var result = await Decorate(inner).GetAccountsDiskUsageAsync(default).WaitAsync(TestTimeout);
+        var result = await Decorate(inner).GetAccountsDiskUsageAsync(["alice"], default).WaitAsync(TestTimeout);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, inner.Calls);

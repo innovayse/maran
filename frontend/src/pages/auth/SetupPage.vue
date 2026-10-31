@@ -32,7 +32,7 @@ import UiForm from '../../components/ui/UiForm.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
-import { useAuthStore } from '../../stores/auth'
+import { useSetupStore } from '../../stores/setup'
 
 /** The shortest password the backend accepts. Mirrors its validator, and is only a hint. */
 const MIN_PASSWORD_LENGTH = 12
@@ -40,7 +40,7 @@ const MIN_PASSWORD_LENGTH = 12
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const authStore = useAuthStore()
+const setupStore = useSetupStore()
 
 /** The one-time token. Always typed or pasted by the operator; never prefilled. */
 const token: Ref<string> = ref('')
@@ -123,7 +123,7 @@ const submit = async (): Promise<void> => {
     return
   }
 
-  const created = await authStore.completeSetup({
+  const created = await setupStore.completeSetup({
     token: token.value,
     username: username.value,
     email: email.value,
@@ -163,8 +163,8 @@ onMounted(() => {
     </UiAlert>
 
     <!-- The server's own wording, verbatim: it names the rule a password broke. -->
-    <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-5">
-      {{ authStore.errorMessage }}
+    <UiAlert v-if="setupStore.errorMessage !== null" variant="error" class="mb-5">
+      {{ setupStore.errorMessage }}
     </UiAlert>
 
     <div class="flex flex-col gap-5">
@@ -226,8 +226,8 @@ onMounted(() => {
 
       <!-- The one primary pill on the screen, full width with the arrow after the text. The arrow
            is decorative; the text is the name. -->
-      <UiButton class="w-full" type="submit" :disabled="authStore.loading">
-        {{ authStore.loading ? t('app.auth.creating') : t('app.auth.createAdministrator') }}
+      <UiButton class="w-full" type="submit" :disabled="setupStore.loading">
+        {{ setupStore.loading ? t('app.auth.creating') : t('app.auth.createAdministrator') }}
         <UiIcon name="arrowRight" size="sm" />
       </UiButton>
     </div>

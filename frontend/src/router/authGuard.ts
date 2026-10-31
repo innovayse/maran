@@ -1,4 +1,5 @@
 import { useAuthStore } from '../stores/auth'
+import { useSetupStore } from '../stores/setup'
 import type { NavigationGuardWithThis, RouteLocationNormalized } from 'vue-router'
 
 /** Route name of the sign-in screen. */
@@ -60,11 +61,12 @@ const PUBLIC_ROUTES: readonly string[] = [
 export const createAuthGuard = (): NavigationGuardWithThis<undefined> => {
   return async (to: RouteLocationNormalized) => {
     const authStore = useAuthStore()
+    const setupStore = useSetupStore()
 
     // A panel with no administrator has exactly one meaningful screen, and every
     // other route is a dead end until somebody claims it.
-    await authStore.loadSetupState()
-    if (authStore.isSetupComplete === false) {
+    await setupStore.loadSetupState()
+    if (setupStore.isSetupComplete === false) {
       return to.name === SETUP_ROUTE ? true : { name: SETUP_ROUTE }
     }
 

@@ -1,7 +1,12 @@
 <script setup lang="ts">
 /**
- * What every hosting account occupies on disk, beside what its plan allows, with a ratio bar per
- * row.
+ * One page of what the hosting accounts occupy on disk, beside what each plan allows, with a ratio
+ * bar per row. The page around it owns the paging (`useServerTable`); this component draws the rows
+ * it is given, the loading placeholder, and the sortable headings.
+ *
+ * **Sortable by account and by allowance, never by used bytes.** The panel measures only the page it
+ * answers, so it cannot know which accounts use the most without measuring every one of them — the
+ * host-wide walk the paging exists to avoid. The used column therefore has no sort control.
  *
  * **Three row states, not two.** A `usedBytes` of `null` is the panel saying the agent did not
  * report this account at all, which is a different fact from an account that holds nothing — the
@@ -34,8 +39,20 @@ import type { AccountDiskUsage } from '../../types/monitoring'
 
 /** Props accepted by {@link AccountDiskTable}. */
 defineProps<{
-  /** The rows the panel answered with, in its own order. */
+  /** The rows of the page the panel answered with, in its own order. */
   rows: AccountDiskUsage[]
+  /** Whether the page is still on its way: the real header over placeholder rows. */
+  loading: boolean
+  /** How many placeholder rows to draw while loading — the page size the rows will fill. */
+  skeletonRows: number
+  /** The current sort key, `-` prefixed when descending; empty for the panel's default. */
+  sort: string
+}>()
+
+/** Events emitted by {@link AccountDiskTable}. */
+const emit = defineEmits<{
+  /** A sortable heading was pressed; carries the sort key the panel whitelists. */
+  (e: 'sort', field: string): void
 }>()
 
 const { t } = useI18n()
@@ -43,9 +60,10 @@ const { t } = useI18n()
 /** The table's columns: its header and its cells read this one list. */
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
-    { key: 'account', label: t('monitoring.disk.columnAccount'), kind: 'identifier' },
+    { key: 'account', label: t('monitoring.disk.columnAccount'), kind: 'identifier', sortField: 'username' },
+    // No sort on the used figure: see the component doc comment.
     { key: 'used', label: t('monitoring.disk.columnUsed'), kind: 'number' },
-    { key: 'quota', label: t('monitoring.disk.columnQuota'), kind: 'number' },
+    { key: 'quota', label: t('monitoring.disk.columnQuota'), kind: 'number', sortField: 'quotaBytes' },
     { key: 'ratio', label: t('monitoring.disk.columnRatio'), kind: 'text', minWidth: '11rem' },
   ]
 })
@@ -90,7 +108,16 @@ const notEnforcedRatioText = (row: AccountDiskUsage): string => {
 </script>
 
 <template>
-  <UiTable :caption="t('monitoring.disk.caption')" :columns="columns" :rows="rows" row-key="accountId">
+  <UiTable
+    :caption="t('monitoring.disk.caption')"
+    :columns="columns"
+    :rows="rows"
+    row-key="accountId"
+    :loading="loading"
+    :skeleton-rows="skeletonRows"
+    :sort="sort"
+    @sort="emit('sort', $event)"
+  >
     <template #cell-account="{ row }">{{ row.username }}</template>
     <template #cell-used="{ row }">{{ usedText(row.usedBytes) }}</template>
     <template #cell-quota="{ row }">

@@ -18,7 +18,7 @@ namespace Maran.Modules.Ssl.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("ssl")
-                .HasAnnotation("ProductVersion", "9.0.19")
+                .HasAnnotation("ProductVersion", "9.0.20")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -106,6 +106,9 @@ namespace Maran.Modules.Ssl.Persistence.Migrations
 
                     b.HasIndex("NotAfter")
                         .HasDatabaseName("IX_Certificates_NotAfter");
+
+                    b.HasIndex("SiteId")
+                        .HasDatabaseName("IX_Certificates_SiteId");
 
                     b.ToTable("Certificates", "ssl");
                 });

@@ -2,7 +2,12 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { chartRangeRequests, stubbedBucket, stubMonitoring } from '../fixtures/stub-monitoring-routes'
+import {
+  accountDiskRequests,
+  chartRangeRequests,
+  stubbedBucket,
+  stubMonitoring,
+} from '../fixtures/stub-monitoring-routes'
 import type { AccountDiskUsage, ChartRange, MetricBucket, ServiceStatus } from '../../src/types/monitoring'
 import type { PanelModule } from '../../src/types/module'
 
@@ -76,14 +81,16 @@ const ACCOUNTS: AccountDiskUsage[] = [
 /**
  * Opens the monitoring screen as a signed-in administrator with the three reads stubbed.
  * @param page The Playwright page under test.
+ * @param accounts Every account the disk list stub knows; the four fixture accounts by default.
  * @returns Resolves once the screen has finished its first load.
  */
-const openMonitoring = async (page: Page): Promise<void> => {
+const openMonitoring = async (page: Page, accounts: AccountDiskUsage[] = ACCOUNTS): Promise<void> => {
   chartRangeRequests.length = 0
+  accountDiskRequests.length = 0
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
-  await stubMonitoring(page, BUCKETS, SERVICES, ACCOUNTS)
+  await stubMonitoring(page, BUCKETS, SERVICES, accounts)
   await page.goto('/monitoring')
   // A generous timeout for the FIRST paint only: on the dev server a cold module graph occasionally
   // takes longer than the suite's 5 s default, and a slow compile is not the proposition under test.
@@ -279,4 +286,84 @@ test('each network chart is drawn in the unit its own readings need', async ({ p
 
   await expect(received.locator('span.font-mono')).toHaveText('1.00 MiB/s')
   await expect(sent.locator('span.font-mono')).toHaveText('512 KiB/s')
+})
+
+/** The disk table's accessible name: its caption. */
+const TABLE_NAME = "Disk use by account, against each plan's allowance"
+
+/**
+ * Builds a measured, enforceable account row, for the specs that need more accounts than one page.
+ * @param index Which account this is; also its zero-padded name suffix.
+ * @returns The row.
+ */
+const accountNumbered = (index: number): AccountDiskUsage => {
+  return {
+    accountId: `00000000-0000-0000-0000-${String(index).padStart(12, '0')}`,
+    username: `user${String(index).padStart(2, '0')}`,
+    usedBytes: 1024 * 1024,
+    quotaBytes: 1024 * 1024 * 1024,
+    enforceable: true,
+    note: null,
+  }
+}
+
+// The proposition: the disk table is a server page — it asks the panel for one page, shows the
+// panel's total in the pager, and the next page is a NEW request for page 2 whose rows replace the
+// first page's. Breakable: a table that still fetched the whole list sends no `page` parameter; one
+// that paged in the browser shows user26 without a second request.
+test('the disk table asks the panel for one page at a time and moves to the next', async ({ page }) => {
+  const accounts = Array.from({ length: 30 }, (_, index) => {
+    return accountNumbered(index + 1)
+  })
+  await openMonitoring(page, accounts)
+
+  const table = page.getByRole('table', { name: TABLE_NAME })
+  await expect(table.getByRole('row').filter({ hasText: 'user25' })).toHaveCount(1)
+  await expect(table.getByRole('row').filter({ hasText: 'user26' })).toHaveCount(0)
+  expect(accountDiskRequests.at(-1)?.searchParams.get('page')).toBe('1')
+
+  await page.getByRole('navigation', { name: 'Pagination' }).getByRole('button', { name: 'Next page' }).click()
+
+  await expect(page).toHaveURL(/page=2/)
+  await expect(table.getByRole('row').filter({ hasText: 'user26' })).toHaveCount(1)
+  await expect(table.getByRole('row').filter({ hasText: 'user01' })).toHaveCount(0)
+  expect(accountDiskRequests.at(-1)?.searchParams.get('page')).toBe('2')
+})
+
+// The proposition: the search reaches the panel as a query parameter and the screen shows what the
+// panel answered; a search matching nothing offers the way back instead of "no accounts yet".
+// Breakable: filtering in the browser sends no `search`; reusing the empty-server state for a
+// search that matched nothing tells the operator the host has no accounts.
+test('the disk table searches through the panel and a search matching nothing offers the way back', async ({
+  page,
+}) => {
+  await openMonitoring(page)
+
+  const table = page.getByRole('table', { name: TABLE_NAME })
+  await page.getByRole('searchbox', { name: 'Search accounts' }).fill('bo')
+  await expect(page).toHaveURL(/search=bo/)
+  await expect(table.getByRole('row').filter({ hasText: 'alice' })).toHaveCount(0)
+  await expect(table.getByRole('row').filter({ hasText: 'bob' })).toHaveCount(1)
+  expect(accountDiskRequests.at(-1)?.searchParams.get('search')).toBe('bo')
+
+  await page.getByRole('searchbox', { name: 'Search accounts' }).fill('nobody')
+  await expect(page.getByText('No accounts match')).toBeVisible()
+  await expect(page.getByText('No accounts yet')).toHaveCount(0)
+})
+
+// The proposition: the account heading sorts through the panel, and the used column offers no sort
+// at all — the panel measures only the page, so it cannot order by usage. Breakable: a sort control
+// on the used column would send a key the panel refuses with a 400.
+test('the disk table sorts by account through the panel and never by used bytes', async ({ page }) => {
+  await openMonitoring(page)
+
+  const account = page.getByRole('columnheader', { name: 'Account' }).getByRole('button')
+  await account.click()
+  await expect(page).toHaveURL(/sort=username/)
+  await account.click()
+  await expect(page).toHaveURL(/sort=-username/)
+  expect(accountDiskRequests.at(-1)?.searchParams.get('sort')).toBe('-username')
+  // The panel answered in its descending order, so the last account comes first.
+  await expect(page.getByRole('table', { name: TABLE_NAME }).getByRole('row').nth(1)).toContainText('dave')
+  await expect(page.getByRole('columnheader', { name: 'Used', exact: true }).getByRole('button')).toHaveCount(0)
 })

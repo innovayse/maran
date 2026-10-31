@@ -54,6 +54,7 @@ pub use get_server_fingerprint_inputs::get_server_fingerprint_inputs;
 pub use get_service_statuses::get_service_statuses;
 pub use get_sftp_jail_status::get_sftp_jail_status;
 pub use model::account_disk_usage::AccountDiskUsage;
+pub use model::account_selection::AccountSelection;
 pub use model::filesystem_usage::FilesystemUsage;
 pub use model::host_metrics::HostMetrics;
 pub use model::machine_identity::MachineIdentity;
