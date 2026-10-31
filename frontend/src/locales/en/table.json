@@ -1,0 +1,10 @@
+{
+  "app": {
+    "table": {
+      "sortBy": "Sort by",
+      "defaultOrder": "Default order",
+      "sortAscending": "Sort ascending",
+      "sortDescending": "Sort descending"
+    }
+  }
+}

@@ -157,23 +157,23 @@ for (const { width, percent } of TEXT_SIZES) {
       expect(report.clipped).toBe(false)
       // Whatever else gave way, the person can still open the palette and the language menu.
       await expect(banner.locator('button[aria-keyshortcuts]:visible')).toHaveCount(1)
-      await expect(banner.locator('button[aria-haspopup="menu"]:visible').first()).toBeVisible()
+      await expect(banner.getByTestId('locale-switcher').locator('button[aria-haspopup="menu"]')).toBeVisible()
     })
   }
 }
 
-test('below sm the theme switch is reached from the navigation drawer, visibly labelled', async ({ page }) => {
+test('below sm the theme menu is reached from the navigation drawer, visibly labelled', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await openWithBadge(page)
 
   // Not in the app bar at this width...
-  await expect(page.getByRole('banner').getByRole('button', { name: /^Switch to (light|dark)$/ })).toHaveCount(0)
+  await expect(page.getByRole('banner').getByRole('button', { name: /^Theme: / })).toHaveCount(0)
 
   // ...but one tap away, in the drawer both of the shell's openers lead to.
   await page.getByRole('button', { name: 'Open the navigation' }).click()
   const drawer = page.getByRole('dialog', { name: 'Navigation' })
   // Labelled in words (issue #217): the bare sun icon said nothing about what it does.
-  const toggle = drawer.getByRole('button', { name: /^Switch to (light|dark)$/ })
-  await expect(toggle).toBeVisible()
-  await expect(toggle.getByText(/^Switch to (light|dark)$/)).toBeVisible()
+  const trigger = drawer.getByRole('button', { name: /^Theme: (Light|Dark|System)$/ })
+  await expect(trigger).toBeVisible()
+  await expect(trigger.getByText(/^(Light|Dark|System)$/)).toBeVisible()
 })

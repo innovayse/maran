@@ -185,7 +185,7 @@ const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   const owner: UiTableColumn[] = isAdmin.value ? [{ key: 'owner', label: t('sites.list.columns.owner'), kind: 'mono' }] : []
   return [
-    { key: 'domain', label: t('sites.list.columns.domain'), kind: 'identity', sortField: 'domain' },
+    { key: 'domain', label: t('sites.list.columns.domain'), kind: 'identity', sortField: 'domain', minWidth: '12rem' },
     ...owner,
     { key: 'backendType', label: t('sites.list.columns.backendType'), kind: 'text' },
     { key: 'phpVersion', label: t('sites.list.columns.phpVersion'), kind: 'mono' },
@@ -354,7 +354,7 @@ watch(
               @sort="table.toggleSort"
             >
               <template #cell-domain="{ row }">
-                <div class="flex min-w-48 items-center gap-3">
+                <div class="flex items-center gap-3">
                   <UiIconTile name="earth" />
                   <!-- The way in: everything that can be done to a site lives on its detail page. -->
                   <RouterLink

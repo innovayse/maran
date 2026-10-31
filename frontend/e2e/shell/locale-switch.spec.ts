@@ -12,7 +12,8 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
  * pattern promises is also the point — if the roles regress, every locale test
  * fails, which is exactly what should happen.
  *
- * It is located by ROLE inside the header, never by its accessible name: that
+ * It is located by its test id and ROLE inside the header (the theme menu is a second menu
+ * there), never by its accessible name: that
  * name is itself translated, so a helper that named it in English stopped
  * finding it the moment it had switched the page to Russian — the test would
  * have been asserting against the language it had just changed.
@@ -21,7 +22,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
  * @returns Resolves once the option has been chosen.
  */
 const localeTrigger = (page: Page): Locator => {
-  return page.getByRole('banner').locator('[aria-haspopup="menu"]')
+  return page.getByRole('banner').getByTestId('locale-switcher').locator('[aria-haspopup="menu"]')
 }
 
 /**

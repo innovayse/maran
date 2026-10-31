@@ -65,9 +65,13 @@
         "databases": "Базы",
         "more": "Ещё"
       },
-      "switchTheme": {
-        "dark": "Включить тёмную",
-        "light": "Включить светлую"
+      "theme": {
+        "label": "Тема: {mode}",
+        "modes": {
+          "light": "Светлая",
+          "dark": "Тёмная",
+          "system": "Системная"
+        }
       },
       "company": "Innovayse LLC",
       "companyUrl": "https://innovayse.com"

@@ -29,7 +29,7 @@ const LOCALE_STORAGE_KEY = 'maran.locale'
  * @returns The trigger's locator.
  */
 const localeTrigger = (page: Page): Locator => {
-  return page.getByRole('banner').locator('[aria-haspopup="menu"]')
+  return page.getByRole('banner').getByTestId('locale-switcher').locator('[aria-haspopup="menu"]')
 }
 
 /**

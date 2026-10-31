@@ -103,8 +103,8 @@ of the same blue or hue, with a measurement that forced it. The values that diff
 | `--pu` / `--pus` | `#6B4BD6` / `rgb(107 75 214 / 0.09)` | Same. |
 
 `--ac`, `--acf` and `--ach` are inherited unchanged (white on `--acf` is 5.14:1 on both themes). The
-light theme existed before the redesign with almost no overrides; whether it is **kept** is still an
-open decision (section 8).
+light theme existed before the redesign with almost no overrides; it is **kept**, by the owner's
+decision recorded in section 8.
 
 ### Tailwind utilities: use these names
 
@@ -341,6 +341,11 @@ The sidebar does not vanish; it **becomes a drawer**.
   on screen after the key). A modal panel must, and Maran's does. Each of these behaviours must be
   asserted by a Playwright spec at 390 px (an acceptance criterion of #82).
 - **No screen scrolls horizontally at 390 px**, in any of the three languages.
+- **Tables become cards below 640 px** (`UiTable`, section 7): title and row actions on the first line,
+  the other columns as labelled lines, a sort select in place of the headings. A row's actions are
+  never scrolled off screen.
+- **The theme control** moves from the app bar into the drawer's head below 640 px; it is the same
+  labelled menu (Light, Dark, System) in both places.
 
 ## 5. Pitfalls already found
 
@@ -430,7 +435,7 @@ instead of a class on the tag, an `!` modifier or a selector that reaches into a
 |---|---|---|
 | `UiButton` | `to` renders a `RouterLink` (role `link`) in the same box; `type` and `disabled` are ignored on a link. `size`: `md`, `bar`, `icon`, `icon-sm`, `tab`, independent of `variant`. | Navigation is a link, never a button that calls `router.push`: a link keeps middle-click, "open in new tab" and the right role. |
 | `UiInput` | `mono` (machine text), `icon` (decorative leading glyph), `inputmode`, `disabled`. `UiPasswordInput` forwards `icon` and `disabled`, not `inputmode`. | An attribute on the tag lands on the wrapper `div`, not the `<input>`. A password is free text, so no `numeric` keyboard. |
-| `UiTableCell` | `tone`: `primary`, `secondary`, `muted`; `mono` for figures; `nowrap`; `strong` (medium weight, for what a row is scanned for). | The colour comes only from `tone`, never from a `text-text-*` class (stylesheet order would decide). A cell has a minimum width, so a table scrolls inside its container instead of squashing. |
+| `UiTableCell` | `tone`: `primary`, `secondary`, `muted`; `mono` for figures; `nowrap`; `strong` (medium weight, for what a row is scanned for); `minWidth` (a column's floor, from the schema); `placement` (`column`, or a card's `title`, `actions` or labelled `line`, with `label` and `wide`), all set by `UiTable`. | The colour comes only from `tone`, never from a `text-text-*` class (stylesheet order would decide). A cell has a minimum width, so a table scrolls inside its container instead of squashing; a column of wrapping text that needs more says so in the schema (`minWidth`), never with a `min-w-*` class in its slot, because a slot class would also hold a phone card open past the screen. |
 | `UiTableHeaderCell` | `sort`: `ascending`, `descending` or `none` makes the heading a button that emits `sort`; left out, the heading is plain text. | The `th` carries `aria-sort`, so the order is announced on the heading, never only by the glyph. The caller owns the order (a server-paged list's `useServerTable`). |
 | `UiMeter` | `tone`: `capacity` (default; warns past 80 %, danger at 100 %) or `progress` (colour from `status`: `running`, `success`, `danger`); `showValue` (default on). | For a task a full bar is success, so the ratio cannot pick the colour. The figure is visible text unless the caller prints it. |
 | `UiSearchInput` | Combobox mode: `inputRole="combobox"`, `ariaControls`, `ariaExpanded`, `ariaActivedescendant`. | These must reach the `<input>`, not the wrapper. Defaults are the plain `searchbox`. |
@@ -440,7 +445,10 @@ instead of a class on the tag, an `!` modifier or a selector that reaches into a
 | `UiSelect` | `emptyText` (optional; default the translated `app.select.noOptions`) and `loadError` (the parent's server message for a list that failed to load, shown instead). Issue #225. | Opened with no options the popup shows one `role="status"` line instead of a blank listbox; primary text on `--s3`, never `text-danger` there (4.13:1). |
 | `UiAuthHeading` | `title`, `subtitle`. | The title of a signed-out page, an `h2`; wraps long Armenian and Russian words (`wrap-anywhere`) instead of widening the panel. |
 | `ShellWordmark` | `collapsible`. | The mark and name in the app bar and the drawer head; no heading semantics. |
-| `UiTable` | `columns` (`UiTableColumn[]` from `src/types/tableColumn.ts`, shared with `UiSkeleton` and `UiTableHeaderCell` so no two kit components import each other: `key`, `label`, `kind` — `identity`, `identifier`, `text`, `mono`, `code`, `badge`, `number`, `date`, `actions` — optional `align` and `sortField`), `rows`, `rowKey`, `loading`, `skeletonRows`, `sort` (the list's key, `-` for descending) with `@sort(field)`; cells through `#cell-<key>="{ row }"`. | The schema is the one description of a table: the header, the cells' tone, face and alignment (by `kind`) and the loading rows all come from it, so the placeholder cannot drift from the table. Issue #243. |
+| `UiTable` | `columns` (`UiTableColumn[]` from `src/types/tableColumn.ts`, shared with `UiSkeleton` and `UiTableHeaderCell` so no two kit components import each other: `key`, `label`, `kind` — `identity`, `identifier`, `text`, `mono`, `code`, `badge`, `number`, `date`, `actions` — optional `align`, `sortField` and `minWidth` — `10rem`, `11rem`, `12rem` or `14rem`, for a column of wrapping text), `rows`, `rowKey`, `loading`, `skeletonRows`, `sort` (the list's key, `-` for descending) with `@sort(field)`; cells through `#cell-<key>="{ row }"`. | The schema is the one description of a table: the header, the cells' tone, face and alignment (by `kind`) and the loading rows all come from it, so the placeholder cannot drift from the table. Issue #243. **Below `sm` (640 px) every row is a card built from the same schema** (#217): the `identity` column (else the first `identifier`, else the first column) is the title, the `actions` column sits top right and is always in view, every other column is a line labelled with its heading. The elements keep their table roles explicitly and the header row stays for assistive technology, visually hidden. Sorting moves to `UiTableSortBar`; the loading placeholders take the card shape because they are drawn through the same cells. From `sm` up nothing changes. No page writes phone markup of its own. |
+| `UiTableSortBar` | `columns`, `sort`, `@sort(field)`; drawn by `UiTable` in its card layout only. | A select of the sortable columns (under their headings' names, "Default order" when none is chosen) and a direction button named by what it does ("Sort descending" while ascending). It emits the same `sort(field)` a heading press does, so `useServerTable` needs nothing new. |
+| `UiModal` | (no new prop) Focus inside the scrolling body also reveals the text after the focused control, up to the next control or the end of the body (`utils/revealTextAfterFocus.ts`). | A field's hint under the last input sat beneath the fixed footer while the reader typed (account deletion, #217). Fixed once in the kit, so no dialog's readable text can be left under its footer. |
+| `ShellThemeSwitcher` | `labelled` (always draw the mode's name; the drawer passes it). | One theme control (#217): a menu button showing the mode's icon and name, named "Theme: Light", opening `menuitemradio` items Light, Dark and System. The same component in the app bar from `sm` up and in the drawer's head below it. System follows `prefers-color-scheme` live; the preference is persisted under `maran.theme` (`light`, `dark` or `system`). |
 | `UiSkeleton` | `shape`: `line`, `block`, `circle`, `cell`, `kpi`, `card`; `size` (`sm`, `md`, `lg`) for a line, a circle or a plain block; `kind` for a cell; `control` (`field`, `area`, `switch`, `checkbox`) for a block of a form control's footprint. The hand-drawn `table` shape is gone. | A screen never draws a skeleton of a table or a form by hand: the table and the fields draw their own. Every placeholder is `aria-hidden`. |
 | `UiLoadingRegion` | `state`: `loading`, `loaded`, `error`; default slot (the content, which draws its own placeholders) and `error` slot (the page's alert). | One polite `role="status"` says "Loading…" then "Loaded" (`common.loading.*`); the region is `aria-busy` while loading. Placeholders are mounted for the whole wait, so the space is held, but stay invisible for the first 150 ms (`useDelayedFlag`), so a fast answer neither flashes nor shifts. An error renders only the alert, never a skeleton. |
 | `UiForm` | `loading`, provided to `UiInput` (and `UiPasswordInput`), `UiSelect`, `UiTextarea`, `UiCombobox`, `UiSwitch`, `UiCheckbox`. | Each field keeps its real label and swaps only its control for a placeholder of the control's footprint, so the form's template is its skeleton; a loading form does not submit. |
@@ -460,11 +468,10 @@ The radius tokens (`rounded-inset`, `rounded-row`, `rounded-mark`) are already d
 `h1`; the app bar's wordmark is a link, not a heading. The auth layout has no page title above its
 card, so its wordmark is the `h1` and each auth page opens with `UiAuthHeading` (`h2`).
 
-## 8. Open decision
+## 8. Decided: the light theme is kept
 
-**Light theme: keep it or drop it?** The panel has a light/dark switcher today
-(`ShellThemeSwitcher.vue`); the mockup is dark only. The tokens carry measured light values (section
-2), but keeping the theme doubles the contrast work on every component, and dropping it is a product
-decision, not a technical one. Until the owner decides, dark is the design and light must keep passing
-the numbers in section 2. Whichever way it goes, record
-the answer here and in `rules/vue.md`.
+**Light theme: keep it or drop it?** The owner decided on issue #217 (2026-10-31): it is **kept**, and
+the reader chooses Light, Dark or System (follow the operating system) from one labelled theme menu
+(`ShellThemeSwitcher.vue`, section 7). Dark stays the design's baseline and the first paint; light must
+keep passing the numbers in section 2, so every component still takes its colours from tokens only.
+The answer is recorded in `rules/vue.md` as well.

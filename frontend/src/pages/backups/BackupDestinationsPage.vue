@@ -136,7 +136,13 @@ const hasDefault: ComputedRef<boolean> = computed(() => {
 /** The table's columns: its header, its cells and its loading placeholder all read this one list. */
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
-    { key: 'name', label: t('backups.destinations.columns.name'), kind: 'identity', sortField: 'name' },
+    {
+      key: 'name',
+      label: t('backups.destinations.columns.name'),
+      kind: 'identity',
+      sortField: 'name',
+      minWidth: '12rem',
+    },
     { key: 'kind', label: t('backups.destinations.columns.kind'), kind: 'text' },
     { key: 'path', label: t('backups.destinations.columns.path'), kind: 'mono' },
     {
@@ -278,7 +284,7 @@ const clearAll = async (): Promise<void> => {
               @sort="table.toggleSort"
             >
               <template #cell-name="{ row }">
-                <div class="flex min-w-48 items-center gap-3">
+                <div class="flex items-center gap-3">
                   <UiIconTile name="hardDrive" />
                   <div class="flex min-w-0 flex-col">
                     <!-- The heading is the backend's localized name; the stored one follows whenever

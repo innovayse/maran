@@ -10,16 +10,26 @@
  * step.
  *
  * `data-align` is exposed so {@link UiTable} can keep an end-aligned LAST cell (the row's actions)
- * sticky at the right edge without the caller passing anything else.
+ * sticky at the right edge without the caller passing anything else, and `data-placement` names
+ * the part of a card the cell is, which the phone-width specs measure.
  *
  * **A cell has a floor width (`min-w-20`).** A table wider than its wrapper scrolls inside it
  * ({@link UiTable}); it must never squash instead. A caller that lets long text break anywhere
  * (`wrap-anywhere`, `break-all`) lowers the cell's minimum content width to a single character, and
  * the browser then happily shrinks that column until the text runs one letter per line. The floor
  * keeps every column readable, and the table grows past its wrapper instead.
+ *
+ * **On a phone the cell is a line of a card** ({@link UiTable}'s card layout, issue #217). Its
+ * `placement` then says which part of the card it is: the `title` (the row's identity, top left),
+ * the `actions` (top right, always in view), or a `line`, which draws the column's `label` before
+ * its value so a reader who cannot see the header row still knows what each value is. The label is
+ * `aria-hidden`: the table keeps its roles, so assistive technology already announces the column
+ * header with the cell, and reading the word twice helps nobody. In the card the floor width and
+ * the one-line rule are off, since there is no column to widen and a long value must wrap inside the
+ * card rather than push it past the screen.
  */
 import { computed, type ComputedRef } from 'vue'
-import type { CellAlign } from '../../types/tableColumn'
+import type { CellAlign, ColumnMinWidth } from '../../types/tableColumn'
 
 /**
  * Which text tier the cell is set in. `primary` is what a row is scanned for (a name), `secondary`
@@ -27,6 +37,12 @@ import type { CellAlign } from '../../types/tableColumn'
  * looked for (a timestamp).
  */
 export type CellTone = 'primary' | 'secondary' | 'muted'
+
+/**
+ * Where the cell sits: `column` is a cell of the ordinary table; the other three are the parts of a
+ * row drawn as a card — its `title`, its `actions` and a labelled `line`.
+ */
+export type CellPlacement = 'column' | 'title' | 'actions' | 'line'
 
 /** Props accepted by {@link UiTableCell}. */
 const props = withDefaults(
@@ -62,9 +78,35 @@ const props = withDefaults(
      * rather than a class on the content, so the weight is decided where the tone is.
      */
     strong?: boolean
+    /** The column's least width in the table layout; the cell's own floor when left out. */
+    minWidth?: ColumnMinWidth
+    /** Which part of the row the cell is; see {@link CellPlacement}. */
+    placement?: CellPlacement
+    /** The column's heading, drawn before the value of a card `line`; ignored elsewhere. */
+    label?: string
+    /** Whether the card's title takes the whole width, because the row has no actions column. */
+    wide?: boolean
   }>(),
-  { align: 'start', mono: false, tone: 'primary', nowrap: false, strong: false },
+  {
+    align: 'start',
+    mono: false,
+    tone: 'primary',
+    nowrap: false,
+    strong: false,
+    minWidth: undefined,
+    placement: 'column',
+    label: '',
+    wide: false,
+  },
 )
+
+/** The class of each {@link ColumnMinWidth}, as whole literals so the stylesheet generator sees them. */
+const MIN_WIDTH_CLASSES: Record<ColumnMinWidth, string> = {
+  '10rem': 'min-w-40',
+  '11rem': 'min-w-44',
+  '12rem': 'min-w-48',
+  '14rem': 'min-w-56',
+}
 
 /** The text colour class of each {@link CellTone}. */
 const TONE_CLASSES: Record<CellTone, string> = {
@@ -72,6 +114,24 @@ const TONE_CLASSES: Record<CellTone, string> = {
   secondary: 'text-text-secondary',
   muted: 'text-text-muted',
 }
+
+/** The box of the cell in its placement: a table column, or one part of a card. */
+const placementClasses: ComputedRef<string> = computed(() => {
+  switch (props.placement) {
+    case 'title':
+      return `${props.wide ? 'col-span-2' : 'col-start-1'} row-start-1 block min-w-0 self-center text-left wrap-anywhere`
+    case 'actions':
+      return 'col-start-2 row-start-1 block self-start text-right'
+    case 'line':
+      return 'col-span-2 flex min-w-0 items-baseline justify-between gap-3'
+    default: {
+      const alignment = props.align === 'end' ? 'text-right' : 'text-left'
+      const wrapping = props.nowrap ? 'whitespace-nowrap' : ''
+      const floor = props.minWidth === undefined ? 'min-w-20' : MIN_WIDTH_CLASSES[props.minWidth]
+      return `${floor} px-3 py-1.5 align-middle ${alignment} ${wrapping}`
+    }
+  }
+})
 
 /**
  * The typography and alignment classes for this column.
@@ -82,17 +142,19 @@ const TONE_CLASSES: Record<CellTone, string> = {
  * therefore a prop on BOTH primitives.
  */
 const cellClasses: ComputedRef<string> = computed(() => {
-  const alignment = props.align === 'end' ? 'text-right' : 'text-left'
   const colour = TONE_CLASSES[props.tone]
   const face = props.mono ? 'font-mono tabular-nums' : ''
-  const wrapping = props.nowrap ? 'whitespace-nowrap' : ''
   const weight = props.strong ? 'font-medium' : ''
-  return `${alignment} ${colour} ${face} ${wrapping} ${weight}`
+  return `${colour} ${face} ${weight} ${placementClasses.value}`
 })
 </script>
 
 <template>
-  <td class="min-w-20 px-3 py-1.5 align-middle" :class="cellClasses" :data-align="align">
-    <slot />
+  <td :class="cellClasses" :data-align="align" :data-placement="placement">
+    <template v-if="placement === 'line'">
+      <span class="shrink-0 font-sans text-xs font-normal text-text-muted" aria-hidden="true">{{ label }}</span>
+      <span class="min-w-0 text-right wrap-anywhere"><slot /></span>
+    </template>
+    <slot v-else />
   </td>
 </template>

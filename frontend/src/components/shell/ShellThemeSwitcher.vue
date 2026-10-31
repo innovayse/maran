@@ -1,66 +1,94 @@
 <script setup lang="ts">
 /**
- * The theme control: one button that flips the theme, and says what clicking it will do.
+ * The theme control: one labelled menu button showing the mode in force (an icon and its name),
+ * opening a menu of Light, Dark and System (issue #217). The same component sits in the app bar
+ * on the desktop and in the navigation drawer's head on a phone, so the two places cannot drift.
  *
- * The light theme is KEPT (main.css carries measured light values), so the control stays. Its
- * name is the ACTION ("Switch to light"), not the theme in force (issue #217): a button reading
- * "Light" in the light theme left the reader guessing whether it reported a state or offered one.
- * The icon shows the theme it switches TO, so the glyph and the words agree.
+ * **The accessible name states the setting and its value** ("Theme: Light"), because "Light" on
+ * its own tells a screen-reader user nothing about what the button is for. The visible mode is a
+ * part of that name, so a voice-control user saying the words on screen still hits it (WCAG 2.5.3).
+ * The menu items are `menuitemradio`, checked on the current preference, and the kit dropdown
+ * opens on the checked one, so a keyboard user lands on what is set rather than on Light.
  *
- * **The visible text is the accessible name.** There is no separate `aria-label`: when the text is
- * hidden for want of room it becomes screen-reader-only (`sr-only`) rather than `display: none`,
- * so a voice-control user saying the words on screen always hits the control (WCAG 2.5.3).
+ * **System is a mode of its own**, not a third palette: it follows the operating system's
+ * preference and keeps following it. Its icon is a monitor, so the trigger says "following the
+ * system" rather than showing whichever palette that currently resolves to.
  *
- * "Where there is room" is judged twice in the app bar: by the window (`xl`) and by the bar the
- * control sits in (a container query, 76rem), because a large text size narrows the bar while the
- * window stays wide. `labelled` turns both tests off and always draws the words: the navigation
- * drawer on a phone passes it, since there the switch is otherwise an unexplained sun or moon.
+ * "Where there is room" for the visible mode is judged twice in the app bar: by the window (`xl`)
+ * and by the bar the control sits in (a container query, 76rem), because a large text size narrows
+ * the bar while the window stays wide; the icon carries the meaning when the word steps aside.
+ * `labelled` turns both tests off and always draws the word: the drawer passes it.
  *
- * The geometry is the kit button's `bar` size: a 40px square that a visible label widens,
- * the same box the language picker next to it takes. Nothing is restated here.
+ * The trigger is the kit dropdown's own button in the `bar` geometry, the language picker's twin,
+ * so nothing about its box is restated here.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import UiButton from '../ui/UiButton.vue'
-import UiIcon from '../ui/UiIcon.vue'
+import UiDropdown from '../ui/UiDropdown.vue'
+import UiDropdownItem from '../ui/UiDropdownItem.vue'
+import UiIcon, { type UiIconName } from '../ui/UiIcon.vue'
 import { useThemeStore } from '../../stores/theme'
+import { THEME_PREFERENCES, type ThemePreference } from '../../types/theme'
 
 /** Props accepted by {@link ShellThemeSwitcher}. */
 const props = defineProps<{
-  /** Always draw the label, whatever the width (the phone drawer). */
+  /** Always draw the mode's name beside the icon, whatever the width (the phone drawer). */
   labelled?: boolean
 }>()
+
+/** The glyph of each mode: the palette's own for the two palettes, a screen for following the system. */
+const MODE_ICONS: Record<ThemePreference, UiIconName> = {
+  light: 'sun',
+  dark: 'moon',
+  system: 'monitor',
+}
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
 
-/** The icon of the theme a click switches to: the sun from dark, the moon from light. */
-const icon: ComputedRef<'moon' | 'sun'> = computed(() => {
-  return themeStore.isDark ? 'sun' : 'moon'
+/** The name of the mode in force, as the trigger shows it. */
+const modeName: ComputedRef<string> = computed(() => {
+  return t(`app.shell.theme.modes.${themeStore.preference}`)
 })
 
-/** What clicking does, which is also the control's accessible name. */
-const label: ComputedRef<string> = computed(() => {
-  return t(`app.shell.switchTheme.${themeStore.isDark ? 'light' : 'dark'}`)
-})
-
-/** Classes on the label: always drawn when `labelled`, else screen-reader-only where room is short. */
-const labelClass: ComputedRef<string> = computed(() => {
-  return props.labelled ? 'whitespace-nowrap' : 'max-xl:sr-only @max-[76rem]:sr-only'
+/** Classes on the visible mode: always drawn when `labelled`, else dropped where room is short. */
+const modeClass: ComputedRef<string> = computed(() => {
+  return props.labelled ? 'whitespace-nowrap' : 'whitespace-nowrap max-xl:hidden @max-[76rem]:hidden'
 })
 
 /**
- * Flips the theme.
- * @returns Nothing; the store applies it to `<html data-theme>` synchronously.
+ * Applies the mode the reader chose.
+ * @param mode The chosen preference.
+ * @returns Nothing; the store repaints synchronously.
  */
-const flip = (): void => {
-  themeStore.toggle()
+const select = (mode: ThemePreference): void => {
+  themeStore.setPreference(mode)
 }
 </script>
 
 <template>
-  <UiButton variant="ghost" size="bar" :title="label" @click="flip">
-    <UiIcon :name="icon" size="lg" />
-    <span :class="labelClass">{{ label }}</span>
-  </UiButton>
+  <UiDropdown
+    :align="labelled ? 'start' : 'end'"
+    trigger-variant="ghost"
+    trigger-size="bar"
+    :label="modeName"
+    :aria-label="t('app.shell.theme.label', { mode: modeName })"
+    :chevron="false"
+  >
+    <template #leading>
+      <UiIcon :name="MODE_ICONS[themeStore.preference]" size="lg" />
+    </template>
+    <template #trigger>
+      <span :class="modeClass">{{ modeName }}</span>
+    </template>
+
+    <UiDropdownItem
+      v-for="mode in THEME_PREFERENCES"
+      :key="mode"
+      :checked="themeStore.preference === mode"
+      @select="select(mode)"
+    >
+      {{ t(`app.shell.theme.modes.${mode}`) }}
+    </UiDropdownItem>
+  </UiDropdown>
 </template>

@@ -15,6 +15,7 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMonitoring, stubbedBucket } from '../fixtures/stub-monitoring-routes'
 import { MANAGED_PLANS, stubManagedPlans, stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
+import { expectTablesAsCards, type CardActions } from '../fixtures/expect-table-cards'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
 import {
@@ -495,38 +496,40 @@ interface Screen {
   marker: string | null
   /** Which of the site detail's tabs to open, counting from zero; absent for every other screen. */
   tab?: number
+  /** For a list screen: its tables must be cards, with or without a row-actions column (#217). */
+  cards?: CardActions
 }
 
 const SCREENS: Screen[] = [
   { name: 'dashboard', path: '/', marker: 'Web server' },
-  { name: 'accounts list', path: '/accounts', marker: LONG_ACCOUNT },
+  { name: 'accounts list', path: '/accounts', marker: LONG_ACCOUNT, cards: 'none' },
   { name: 'account form', path: '/accounts/new', marker: null },
   { name: 'account detail', path: `/accounts/${ACCOUNT.id}`, marker: LONG_ACCOUNT },
-  { name: 'plans list', path: '/plans', marker: LONG_PLAN },
+  { name: 'plans list', path: '/plans', marker: LONG_PLAN, cards: 'actions' },
   { name: 'plan form', path: '/plans/new', marker: null },
   { name: 'plan edit', path: `/plans/${MANAGED_PLANS[0]?.id ?? ''}`, marker: null },
-  { name: 'sites list', path: '/sites', marker: LONG_DOMAIN },
+  { name: 'sites list', path: '/sites', marker: LONG_DOMAIN, cards: 'none' },
   { name: 'site form', path: '/sites/new', marker: null },
   { name: 'site detail, overview', path: `/sites/${SITE_ID}`, marker: LONG_DOMAIN, tab: 0 },
   { name: 'site detail, logs', path: `/sites/${SITE_ID}`, marker: LONG_DOMAIN, tab: 1 },
   { name: 'site detail, ssl', path: `/sites/${SITE_ID}`, marker: LONG_DOMAIN, tab: 2 },
-  { name: 'databases', path: '/databases', marker: DATABASE.dbUserName },
+  { name: 'databases', path: '/databases', marker: DATABASE.dbUserName, cards: 'actions' },
   {
     name: 'database grant repair',
     path: '/databases/grant-repair',
     marker: 'reporting_metrics_warehouse_nightly',
   },
-  { name: 'sftp logins', path: '/file-transfer/sftp', marker: SFTP_USER.fullName },
-  { name: 'ftps logins', path: '/file-transfer/ftps', marker: FTP_USER.fullName },
-  { name: 'cron', path: '/cron', marker: '/home/acme-industrial-holdings/public_html' },
-  { name: 'firewall rules', path: '/firewall', marker: '2001:0db8:85a3:0000:0000:8a2e:0370:7334/128' },
-  { name: 'firewall bans', path: '/firewall/bans', marker: '203.0.113.9' },
-  { name: 'firewall whitelist', path: '/firewall/whitelist', marker: '198.51.100.0/24' },
-  { name: 'backups list', path: '/backups', marker: 'removed-customer-account-name' },
+  { name: 'sftp logins', path: '/file-transfer/sftp', marker: SFTP_USER.fullName, cards: 'actions' },
+  { name: 'ftps logins', path: '/file-transfer/ftps', marker: FTP_USER.fullName, cards: 'actions' },
+  { name: 'cron', path: '/cron', marker: '/home/acme-industrial-holdings/public_html', cards: 'actions' },
+  { name: 'firewall rules', path: '/firewall', marker: '2001:0db8:85a3:0000:0000:8a2e:0370:7334/128', cards: 'actions' },
+  { name: 'firewall bans', path: '/firewall/bans', marker: '203.0.113.9', cards: 'actions' },
+  { name: 'firewall whitelist', path: '/firewall/whitelist', marker: '198.51.100.0/24', cards: 'actions' },
+  { name: 'backups list', path: '/backups', marker: 'removed-customer-account-name', cards: 'actions' },
   { name: 'backup schedule', path: '/backups/schedule', marker: null },
-  { name: 'backup destinations', path: '/backups/destinations', marker: 'Off-site object storage bucket' },
-  { name: 'monitoring', path: '/monitoring', marker: LONG_ACCOUNT },
-  { name: 'tasks', path: '/tasks', marker: 'backup.create' },
+  { name: 'backup destinations', path: '/backups/destinations', marker: 'Off-site object storage bucket', cards: 'none' },
+  { name: 'monitoring', path: '/monitoring', marker: LONG_ACCOUNT, cards: 'none' },
+  { name: 'tasks', path: '/tasks', marker: 'backup.create', cards: 'actions' },
 ]
 
 /** What a measurement reports about one page. */
@@ -646,6 +649,10 @@ test.describe('no horizontal scroll at 390 px on an administrator screen', () =>
           widths.mainScrollWidth,
           `the main panel overflows its box; elements past its right edge: ${widths.offenders.join(' | ')}`,
         ).toBeLessThanOrEqual(widths.mainClientWidth)
+
+        if (screen.cards !== undefined) {
+          await expectTablesAsCards(page, screen.cards)
+        }
       })
     }
   }
