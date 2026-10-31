@@ -17,9 +17,9 @@
  *
  * An empty address is caught before any request (#213) and marks the field invalid; that is
  * advice only, and it says nothing about any account. The page opens with no inherited error
- * from another signed-out screen (#221).
+ * from another signed-out screen: the root `App` dismisses it on every navigation (#221).
  */
-import { onMounted, ref, watch, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
@@ -64,11 +64,6 @@ const submit = async (): Promise<void> => {
     submitted.value = true
   }
 }
-
-onMounted((): void => {
-  // A message another signed-out screen left in the shared store is not about this request.
-  authStore.$patch({ errorMessage: null })
-})
 
 // The flag clears as soon as the address is edited, so it never outlives its cause.
 watch(email, (): void => {

@@ -297,12 +297,14 @@ onBeforeUnmount((): void => {
              `scroll-py-3` keeps the browser's focus-driven scroll-into-view from pinning a control
              flush against this region's top or bottom edge: the 4px focus ring is drawn outside the
              control and the region clips it, so a flush control lost its ring on one side (the last
-             row of the cron form, and any control reached by Tab on a phone). 12px clears it. -->
+             row of the cron form, and any control reached by Tab on a phone). 12px clears it.
+             `scrollbar-gutter-stable` reserves the scrollbar's lane on every page (issue #221), so
+             a page long enough to scroll is laid out at the same width as one that is not. -->
         <main
           id="main-content"
           ref="main"
           tabindex="-1"
-          class="relative min-w-0 flex-1 overflow-x-hidden overflow-y-auto rounded-panel border border-border-subtle bg-surface-1 p-4 scroll-py-3 focus:outline-none sm:p-6 lg:p-8"
+          class="relative min-w-0 flex-1 overflow-x-hidden overflow-y-auto scrollbar-gutter-stable rounded-panel border border-border-subtle bg-surface-1 p-4 scroll-py-3 focus:outline-none sm:p-6 lg:p-8"
         >
           <!-- RouterView, not a slot: this layout is a route component with child routes, so the
                page for the active child renders here. A <slot/> would silently render nothing. -->

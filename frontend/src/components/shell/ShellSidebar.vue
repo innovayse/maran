@@ -55,25 +55,29 @@
  * and ArrowUp move between visible links, ArrowRight opens the section of the focused parent, and
  * ArrowLeft closes it or, from a child, moves focus back to its parent.
  *
- * **Current page.** A section's row is lit on every one of its children's pages, Plans under
- * Accounts included (`UiNavLink`'s `active`), and the current row is scrolled into view on every
- * navigation (issue #221).
+ * **Current page (issue #221).** A section's row is lit on every one of its children's pages,
+ * Plans under Accounts included, by the one rule in `useCurrentSection` that the collapsed rail
+ * shares, and it is drawn by `UiNavSection` as wide as every other row. The current row is kept in
+ * view on every navigation and when the catalogue arrives (`useRevealCurrentRow`).
  *
  * **Density (issue #200).** 216px wide, 18px icons, tighter rows and group labels from tablet
  * width up; in the drawer (below 1024px) rows keep a 44px touch height (`UiNavLink`).
  */
 import { readStoredKeys } from '../../utils/readStoredKeys'
-import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import UiBadge from '../ui/UiBadge.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
 import UiNavLink from '../ui/UiNavLink.vue'
+import UiNavSection from '../ui/UiNavSection.vue'
 import ShellUserBlock from './ShellUserBlock.vue'
 import { groupNavigation } from '../../utils/groupNavigation'
+import { useCurrentSection } from '../../composables/useCurrentSection'
+import { useRevealCurrentRow } from '../../composables/useRevealCurrentRow'
 import type { NavigationEntry } from '../../types/navigation'
 import type { NavigationGroup } from '../../types/navigationGroup'
 
@@ -107,7 +111,7 @@ const OPEN_SECTIONS_KEY = 'maran.nav.openSections'
 
 const { t } = useI18n()
 const route = useRoute()
-const router = useRouter()
+const holdsCurrentRoute = useCurrentSection()
 
 /** Keys of the sections currently open. */
 const openSections: Ref<string[]> = ref(readStoredKeys(OPEN_SECTIONS_KEY))
@@ -127,19 +131,6 @@ const groups: ComputedRef<NavigationGroup[]> = computed(() => {
  */
 const labelOf = (entry: NavigationEntry): string => {
   return entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey)
-}
-
-/**
- * Answers whether the current route lies inside one of a section's pages: the page itself or
- * anything under its path (`/accounts/42` is inside "All accounts").
- * @param entry The section to test.
- * @returns True when a child's path is the current path or a prefix of it.
- */
-const holdsCurrentRoute = (entry: NavigationEntry): boolean => {
-  return entry.children.some((child): boolean => {
-    const path = router.resolve(child.target).path
-    return route.path === path || route.path.startsWith(`${path}/`)
-  })
 }
 
 /**
@@ -262,35 +253,9 @@ watch(
   { immediate: true },
 )
 
-// The current row is scrolled into view on every navigation (issue #221): on a short window the
-// lit child of a lower section ("Backup list") sat hidden under the identity card. The wait for
-// the next tick lets a section that just opened render its children first. The list moves only as
-// far as needed, and not at all when the row is already visible.
-watch(
-  (): string => {
-    return route.fullPath
-  },
-  async (): Promise<void> => {
-    await nextTick()
-    const box = scroller.value
-    const current =
-      box?.querySelector<HTMLElement>('nav a[aria-current="page"]') ??
-      box?.querySelector<HTMLElement>('nav a.router-link-active')
-    if (box === null || box === undefined || current === null || current === undefined) {
-      return
-    }
-    // The scroller is moved by hand rather than with `scrollIntoView`, which also scrolls every
-    // scrollable ancestor, the shell's `overflow: hidden` frame included, and shifted the app bar.
-    const row = current.getBoundingClientRect()
-    const view = box.getBoundingClientRect()
-    if (row.top < view.top) {
-      box.scrollTop -= view.top - row.top
-    } else if (row.bottom > view.bottom) {
-      box.scrollTop += row.bottom - view.bottom
-    }
-  },
-  { immediate: true, flush: 'post' },
-)
+useRevealCurrentRow(scroller, (): readonly NavigationEntry[] => {
+  return props.entries
+})
 </script>
 
 <template>
@@ -357,33 +322,19 @@ watch(
               </UiNavLink>
 
               <template v-else>
-                <div class="flex items-center gap-0.5">
-                  <UiNavLink
-                    class="min-w-0 flex-1"
-                    :to="entry.target"
-                    :active="holdsCurrentRoute(entry)"
-                    :data-nav-section="entry.key"
-                    @click="chooseSection(entry.key)"
-                  >
-                    <UiIcon :name="entry.icon" size="md" />
-                    <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
-                  </UiNavLink>
-                  <UiButton
-                    variant="quiet"
-                    size="icon-sm"
-                    :aria-label="t('app.nav.expandSection', { name: labelOf(entry) })"
-                    :aria-expanded="isOpen(entry.key) ? 'true' : 'false'"
-                    :aria-controls="isOpen(entry.key) ? `nav-section-${entry.key}` : undefined"
-                    @click="toggle(entry.key)"
-                  >
-                    <UiIcon
-                      name="chevronDown"
-                      size="sm"
-                      class="transition-transform motion-reduce:transition-none"
-                      :class="isOpen(entry.key) ? 'rotate-180' : ''"
-                    />
-                  </UiButton>
-                </div>
+                <UiNavSection
+                  :to="entry.target"
+                  :current="holdsCurrentRoute(entry)"
+                  :open="isOpen(entry.key)"
+                  :section="entry.key"
+                  :controls="`nav-section-${entry.key}`"
+                  :toggle-label="t('app.nav.expandSection', { name: labelOf(entry) })"
+                  @navigate="chooseSection(entry.key)"
+                  @toggle="toggle(entry.key)"
+                >
+                  <UiIcon :name="entry.icon" size="md" />
+                  <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
+                </UiNavSection>
                 <ul
                   v-if="isOpen(entry.key)"
                   :id="`nav-section-${entry.key}`"
