@@ -22,6 +22,8 @@ import BackupsPage from '../pages/backups/BackupsPage.vue'
 import FtpUsersListPage from '../pages/ftp/FtpUsersListPage.vue'
 import SftpUsersListPage from '../pages/sftp/SftpUsersListPage.vue'
 import FirewallPage from '../pages/firewall/FirewallPage.vue'
+import FirewallBansPage from '../pages/firewall/FirewallBansPage.vue'
+import FirewallWhitelistPage from '../pages/firewall/FirewallWhitelistPage.vue'
 import CronPage from '../pages/cron/CronPage.vue'
 import TasksPage from '../pages/tasks/TasksPage.vue'
 import MonitoringPage from '../pages/monitoring/MonitoringPage.vue'
@@ -206,13 +208,18 @@ export const createAppRouter = (): Router => {
         redirect: { name: 'file-transfer-sftp' },
       },
       {
-        // One route, for the same reason as `/databases`: nothing on this screen has a detail to
-        // open. A rule has no identity beyond its port, protocol and source range — the row IS the
-        // rule — and neither a ban nor a whitelist entry is more than the row that shows it.
+        // Three pages, one per list, and no `:id` child: a rule has no identity beyond its port,
+        // protocol and source range — the row IS the rule — and neither a ban nor a whitelist entry
+        // is more than the row that shows it. The bans and the whitelist are pages of their own
+        // because each is server-paged and keeps its page, search and sort in the URL, which two
+        // lists on one route would fight over. The rules stay at the bare `/firewall`, where every
+        // link the panel has rendered points.
         path: '/firewall',
         component: DefaultLayout,
         children: [
           { path: '', name: 'firewall', component: FirewallPage, meta: { module: 'firewall', title: 'firewall.heading', adminOnly: true } },
+          { path: 'bans', name: 'firewall-bans', component: FirewallBansPage, meta: { module: 'firewall', title: 'firewall.bans.heading', adminOnly: true } },
+          { path: 'whitelist', name: 'firewall-whitelist', component: FirewallWhitelistPage, meta: { module: 'firewall', title: 'firewall.whitelist.heading', adminOnly: true } },
         ],
       },
       {

@@ -35,8 +35,8 @@ namespace Maran.Modules.Sites.Queries.ListSites;
 /// <param name="AccountId">Only this account's sites, or <c>null</c> for every account the caller may see.</param>
 /// <param name="BackendType">Only sites served by this backend, or <c>null</c> for every backend.</param>
 /// <param name="PhpVersion">
-/// Only sites bound to this PHP version (<c>8.3</c>), or empty for every version. Empty and not null
-/// for "none": one spelling of the state.
+/// Only sites bound to this PHP version (<c>8.3</c>), or <see cref="FilterValue.None"/> for every
+/// version.
 /// </param>
 /// <param name="Status">Only sites in this state, or <c>null</c> for every state.</param>
 public sealed record ListSitesQuery(
@@ -46,5 +46,5 @@ public sealed record ListSitesQuery(
     SortRequest Sort = default,
     Guid? AccountId = null,
     SiteBackendType? BackendType = null,
-    string PhpVersion = "",
+    FilterValue PhpVersion = default,
     SiteStatus? Status = null) : IPagedQuery;

@@ -1,7 +1,7 @@
 import { useApi } from '../useApi'
 import { accountListQuery } from '../../utils/accountListQuery'
 import { listQuery } from '../../utils/listQuery'
-import { localDayBoundary } from '../../utils/localDayBoundary'
+import { withInstantWindow } from '../../utils/withInstantWindow'
 import type { AccountListFilter } from '../../types/accountListFilter'
 import type { ListRequest, Paged } from '../../types/list'
 import type {
@@ -23,24 +23,6 @@ const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
   kind: 'kind',
   from: 'from',
   to: 'to',
-}
-
-/**
- * The request as the endpoint takes it: the date window is picked as calendar days, and the panel
- * filters instants, so `from` becomes the first instant of its day and `to` the last of its own, in
- * the reader's time zone. Every other field travels as the URL holds it.
- * @param request The page the URL describes.
- * @returns The same request with the window's days turned into instants.
- */
-const withInstantWindow = (request: ListRequest): ListRequest => {
-  const filters = { ...request.filters }
-  if ('from' in filters) {
-    filters.from = localDayBoundary(filters.from, 'start')
-  }
-  if ('to' in filters) {
-    filters.to = localDayBoundary(filters.to, 'end')
-  }
-  return { ...request, filters }
 }
 
 /**

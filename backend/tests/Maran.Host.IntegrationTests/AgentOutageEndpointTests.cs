@@ -259,8 +259,8 @@ public sealed class AgentOutageEndpointTests : IAsyncLifetime
         var sites = scope.ServiceProvider.GetRequiredService<SitesDbContext>();
         Assert.Empty(await sites.Sites.IgnoreQueryFilters().ToListAsync());
 
-        using var journal = JsonDocument.Parse(await client.GetStringAsync("/api/v1/audit"));
-        var created = journal.RootElement.EnumerateArray()
+        using var journal = JsonDocument.Parse(await client.GetStringAsync("/api/v1/audit?action=SiteCreated"));
+        var created = journal.RootElement.GetProperty("items").EnumerateArray()
             .Where(candidate =>
             {
                 return candidate.GetProperty("action").GetString() == "SiteCreated";

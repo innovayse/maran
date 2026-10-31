@@ -3,6 +3,7 @@ import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubAudit } from '../fixtures/stub-audit-routes'
 
 /**
  * The phone shell's navigation drawer (issue #82, acceptance criterion "Mobile menu"), at 390px.
@@ -38,9 +39,7 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubHealthy(page)
   await stubDashboard(page, WITHHELD_DASHBOARD)
   await stubEmptyModules(page)
-  await page.route('**/api/v1/audit*', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  })
+  await stubAudit(page, [])
 }
 
 /**

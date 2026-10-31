@@ -1,3 +1,5 @@
+import type { ListRequest, Paged } from './list'
+
 /**
  * The transport protocol a port rule applies to, mirroring the backend's `AgentFirewallProtocol`.
  *
@@ -153,11 +155,12 @@ export interface FirewallApi {
   denyPort: (rule: FirewallRule, signal?: AbortSignal) => Promise<boolean>
 
   /**
-   * Lists the bans still in force, newest first.
+   * Lists one page of the bans still in force, newest first unless a sort is named.
+   * @param request The page, size, search and sort.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The bans, each with the reason it was placed.
+   * @returns The page and the total in force.
    */
-  listBans: (signal?: AbortSignal) => Promise<Ban[]>
+  listBans: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<Ban>>
 
   /**
    * Bans an address, for a duration or until somebody lifts it.
@@ -176,11 +179,12 @@ export interface FirewallApi {
   unbanAddress: (address: string, signal?: AbortSignal) => Promise<boolean>
 
   /**
-   * Lists the ranges the automatic bans never touch, oldest first.
+   * Lists one page of the ranges the automatic bans never touch, oldest first unless a sort is named.
+   * @param request The page, size, search and sort.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The exempt ranges.
+   * @returns The page and the total that matched.
    */
-  listWhitelist: (signal?: AbortSignal) => Promise<WhitelistEntry[]>
+  listWhitelist: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<WhitelistEntry>>
 
   /**
    * Exempts a range from the automatic bans.

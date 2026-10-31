@@ -21,6 +21,9 @@ const DESTINATIONS: Destination[] = [
   { label: 'Outgoing mail', path: '/settings/smtp', section: null },
   { label: 'Security policy', path: '/settings/security-policy', section: null },
   { label: 'PHP versions', path: '/settings/php', section: 'Sites' },
+  // The firewall's paged lists (#196) are named by their page titles too.
+  { label: 'Bans', path: '/firewall/bans', section: 'Firewall' },
+  { label: 'Never banned', path: '/firewall/whitelist', section: 'Firewall' },
 ]
 
 test('no entry is named for a module rather than for its screen', async ({ page }) => {
@@ -74,8 +77,19 @@ for (const locale of ['en', 'ru', 'hy'] as const) {
     // The section toggles are named in the interface language, so the Sites section (whose submenu
     // holds PHP versions) is opened by the toggle beside its row.
     await nav.locator('[data-nav-section="sites"]').locator('xpath=..').getByRole('button').click()
+    // The firewall's submenu holds the bans and the whitelist, whose labels are their page titles.
+    await nav.locator('[data-nav-section="firewall"]').locator('xpath=..').getByRole('button').click()
 
-    const renamed = ['/settings/sessions', '/settings/smtp', '/settings/security-policy', '/settings/php', '/tasks', '/cron']
+    const renamed = [
+      '/settings/sessions',
+      '/settings/smtp',
+      '/settings/security-policy',
+      '/settings/php',
+      '/tasks',
+      '/cron',
+      '/firewall/bans',
+      '/firewall/whitelist',
+    ]
     for (const href of renamed) {
       const link = nav.locator(`a[href="${href}"]`)
       await expect(link).toBeVisible()

@@ -18,4 +18,13 @@
   <data name="TaskAbandonedByRestart">
     <value>The panel restarted while this task was running, so it did not finish.</value>
   </data>
+  <data name="TaskKindFilterInvalid">
+    <value>That is not a kind of background task the panel can record.</value>
+  </data>
+  <data name="TaskStatusUnknown">
+    <value>That is not a state a background task can be in.</value>
+  </data>
+  <data name="TaskDateRangeInverted">
+    <value>The start of the date range must not be later than its end.</value>
+  </data>
 </root>

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { stubAudit, stubAuditProblem } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -26,18 +27,6 @@ const REFUSED: AuditEvent = {
   subject: 'admin',
   ipAddress: '198.51.100.4',
   succeeded: false,
-}
-
-/**
- * Fulfils `GET /api/v1/audit` with a chosen journal.
- * @param page The Playwright page whose network the route is installed on.
- * @param events The entries the panel reports.
- * @returns Resolves once the route is installed.
- */
-const stubAudit = async (page: Page, events: AuditEvent[]): Promise<void> => {
-  await page.route('**/api/v1/audit*', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(events) })
-  })
 }
 
 test('the audit screen lists what happened, and marks a refusal as one', async ({ page }) => {
@@ -71,13 +60,7 @@ test('a refusal from the panel is shown verbatim rather than an empty screen', a
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
-  await page.route('**/api/v1/audit*', async (route) => {
-    await route.fulfill({
-      status: 403,
-      contentType: 'application/problem+json',
-      body: JSON.stringify({ title: 'Administrators only.', detail: 'Administrators only.', code: 'Forbidden' }),
-    })
-  })
+  await stubAuditProblem(page, 403, 'Administrators only.')
 
   await page.goto('/settings/audit')
 

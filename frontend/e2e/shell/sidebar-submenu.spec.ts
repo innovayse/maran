@@ -9,11 +9,12 @@ import type { PanelModule } from '../../src/types/module'
 // toggle carries aria-expanded, opens itself on a deep link, is keyboard-operable, and stays
 // reachable from the collapsed rail (flyout) and the phone drawer.
 
-/** Catalogue with two multi-page modules and a single-page one. */
+/** Catalogue with three multi-page modules and a single-page one. */
 const MODULES: PanelModule[] = [
   { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
   { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
   { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
+  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', isEnabled: true },
 ]
 
 /**
@@ -52,7 +53,41 @@ test('a section toggles open and closed and says so with aria-expanded', async (
   await expect(nav.getByRole('link', { name: 'New site' })).toHaveCount(0)
 
   // A single-page module stays a plain link with no toggle.
-  await expect(nav.getByRole('button', { name: 'Show the Firewall pages' })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: 'Monitoring', exact: true })).toBeVisible()
+  await expect(nav.getByRole('button', { name: 'Show the Monitoring pages' })).toHaveCount(0)
+})
+
+// The firewall is three pages (#196): the rules, and the two server-paged lists that each keep their
+// page, search and sort in the URL. The section offers all three, the rules first, each named by
+// the title of the page it opens (#209), so the whitelist entry reads "Never banned".
+test('the firewall section offers its rules, bans and whitelist pages', async ({ page }) => {
+  await open(page, '/')
+  const nav = page.getByRole('navigation', { name: 'Main navigation' })
+  const toggle = nav.getByRole('button', { name: 'Show the Firewall pages' })
+
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(nav.getByRole('link', { name: 'Rules', exact: true })).toHaveAttribute('href', '/firewall')
+  await expect(nav.getByRole('link', { name: 'Bans', exact: true })).toHaveAttribute('href', '/firewall/bans')
+  await expect(nav.getByRole('link', { name: 'Never banned', exact: true })).toHaveAttribute(
+    'href',
+    '/firewall/whitelist',
+  )
+})
+
+test('a deep link to the bans page opens the firewall section and highlights the bans child', async ({
+  page,
+}) => {
+  await open(page, '/firewall/bans')
+  const nav = page.getByRole('navigation', { name: 'Main navigation' })
+
+  await expect(nav.getByRole('button', { name: 'Show the Firewall pages' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
+  await expect(nav.getByRole('link', { name: 'Bans', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(nav.getByRole('link', { name: 'Rules', exact: true })).not.toHaveClass(LIT)
 })
 
 test('a deep link opens its section and highlights the current child', async ({ page }) => {

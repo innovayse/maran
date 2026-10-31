@@ -64,7 +64,7 @@ public sealed class CustomerSelfServiceEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var session = Assert.Single(body.RootElement.EnumerateArray());
+        var session = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray());
         Assert.True(session.GetProperty("isCurrent").GetBoolean());
     }
 

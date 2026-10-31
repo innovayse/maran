@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubSessions } from '../fixtures/stub-sessions-route'
+import { stubAudit } from '../fixtures/stub-audit-routes'
 
 /**
  * Signs a person in with the given role and answers the pages the menu leads to.
@@ -13,12 +15,8 @@ const stubPanel = async (page: Page, role: 'admin' | 'customer'): Promise<void> 
   await stubSignedIn(page, { ...stubbedAdministrator, role })
   await stubHealthy(page)
   await stubEmptyModules(page)
-  await page.route('**/api/v1/sessions', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  })
-  await page.route('**/api/v1/audit*', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  })
+  await stubSessions(page, [])
+  await stubAudit(page, [])
 }
 
 test('the account menu opens the sessions screen', async ({ page }) => {

@@ -24,7 +24,7 @@ public sealed class ListSitesQueryValidatorTests
             Sort: SortRequest.Parse("-domain"),
             AccountId: Guid.NewGuid(),
             BackendType: SiteBackendType.ReverseProxy,
-            PhpVersion: "8.3",
+            PhpVersion: FilterValue.Of("8.3"),
             Status: SiteStatus.Disabled)).IsValid);
     }
 
@@ -89,17 +89,15 @@ public sealed class ListSitesQueryValidatorTests
     [InlineData("%")]
     public void A_php_version_filter_that_is_not_a_version_is_refused(string phpVersion)
     {
-        var result = _validator.Validate(new ListSitesQuery(PhpVersion: phpVersion));
+        var result = _validator.Validate(new ListSitesQuery(PhpVersion: FilterValue.Of(phpVersion)));
 
         Assert.Equal("PhpVersionInvalidFormat", Assert.Single(result.Errors).ErrorCode);
     }
 
-    /// <summary>A null PHP version filter is refused rather than read as "every version".</summary>
+    /// <summary>No PHP version filter is accepted: it is "every version", the type's own state.</summary>
     [Fact]
-    public void A_null_php_version_filter_is_refused()
+    public void No_php_version_filter_is_accepted()
     {
-        var result = _validator.Validate(new ListSitesQuery(PhpVersion: null!));
-
-        Assert.Equal("PhpVersionInvalidFormat", Assert.Single(result.Errors).ErrorCode);
+        Assert.True(_validator.Validate(new ListSitesQuery(PhpVersion: FilterValue.None)).IsValid);
     }
 }

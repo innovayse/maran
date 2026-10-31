@@ -33,19 +33,17 @@ public sealed class ListSitesQueryValidator : PagedQueryValidator<ListSitesQuery
             .WithErrorCode(nameof(ErrorMessages.SiteStatusUnknown))
             .WithMessage(nameof(ErrorMessages.SiteStatusUnknown));
 
-        // Empty means "every version"; anything else must be a version a site could carry. Null is
-        // refused rather than read as empty: one spelling of "every version".
-        RuleFor(query => query.PhpVersion)
+        // None means "every version" and is the type's own state, so only a value is checked: it must be
+        // something the column could hold.
+        RuleFor(query => query.PhpVersion.Value)
             .Cascade(CascadeMode.Stop)
-            .NotNull()
+            .Matches(PhpVersionFormat.Pattern)
             .WithErrorCode(nameof(ErrorMessages.PhpVersionInvalidFormat))
             .WithMessage(nameof(ErrorMessages.PhpVersionInvalidFormat))
-            .Matches(PhpVersionFormat.Pattern)
+            .OverridePropertyName(nameof(ListSitesQuery.PhpVersion))
             .When(query =>
             {
-                return query.PhpVersion is not null && query.PhpVersion.Length > 0;
-            }, ApplyConditionTo.CurrentValidator)
-            .WithErrorCode(nameof(ErrorMessages.PhpVersionInvalidFormat))
-            .WithMessage(nameof(ErrorMessages.PhpVersionInvalidFormat));
+                return !query.PhpVersion.IsNone;
+            });
     }
 }

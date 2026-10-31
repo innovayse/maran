@@ -26,10 +26,12 @@
 
   <ItemGroup>
     <!-- Npgsql.EntityFrameworkCore.PostgreSQL: the module owns its PostgreSQL schema and
-         DbContext (rules/architecture.md). WolverineFx: command/query dispatch. -->
+         DbContext (rules/architecture.md). WolverineFx: command/query dispatch. FluentValidation:
+         the paged list's validator derives from the Sdk's PagedQueryValidator. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
     <PackageReference Include="WolverineFx" />
+    <PackageReference Include="FluentValidation" />
   </ItemGroup>
 
   <ItemGroup>

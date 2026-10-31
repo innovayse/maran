@@ -63,7 +63,7 @@ public sealed class AuditEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var entries = body.RootElement.EnumerateArray().ToList();
+        var entries = body.RootElement.GetProperty("items").EnumerateArray().ToList();
         Assert.Contains(entries, entry =>
         {
             return entry.GetProperty("action").GetString() == "LoginSucceeded";
@@ -115,17 +115,21 @@ public sealed class AuditEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    /// <summary>A limit outside the validator's range is refused rather than clamped.</summary>
+    /// <summary>The action choices are refused to a customer as the journal is.</summary>
+    /// <remarks>
+    /// The choice list is read from the journal, so it names what happened on the server; it must not
+    /// be a side door onto the screen it feeds.
+    /// </remarks>
     [Fact]
-    public async Task A_limit_outside_the_allowed_range_is_refused()
+    public async Task A_signed_in_customer_cannot_read_the_action_choices()
     {
         await using var factory = CreateFactory();
-        await SeedAsync(factory, ("admin", UserRole.Admin));
-        using var client = await SignInAsync(factory, "admin");
+        await SeedAsync(factory, ("admin", UserRole.Admin), ("customer", UserRole.Customer));
+        using var client = await SignInAsync(factory, "customer");
 
-        var response = await client.GetAsync("/api/v1/audit?limit=100000");
+        var response = await client.GetAsync("/api/v1/audit/actions");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     /// <summary>Boots the host against this class's PostgreSQL.</summary>

@@ -74,7 +74,8 @@ public sealed class TasksCustomerScopeTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var task = Assert.Single(body.RootElement.EnumerateArray());
+        Assert.Equal(1, body.RootElement.GetProperty("total").GetInt32());
+        var task = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray());
         Assert.Equal(world.OwnTaskId, task.GetProperty("id").GetGuid());
         Assert.False(task.GetProperty("logIncluded").GetBoolean());
         Assert.Equal(string.Empty, task.GetProperty("log").GetString());
@@ -140,7 +141,7 @@ public sealed class TasksCustomerScopeTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        return body.RootElement.EnumerateArray()
+        return body.RootElement.GetProperty("items").EnumerateArray()
             .Select(task =>
             {
                 return task.GetProperty("id").GetGuid();

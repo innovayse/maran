@@ -2,18 +2,15 @@ using Maran.Host.Authorization;
 using Maran.Modules.Accounts.Queries.CountAccounts;
 using Maran.Modules.Backups.Queries.CountFailedBackups;
 using Maran.Modules.Databases.Queries.CountDatabases;
-using Maran.Modules.Firewall.Common;
-using Maran.Modules.Firewall.Queries.ListBans;
+using Maran.Modules.Firewall.Queries.CountBans;
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Queries.ListAuditEvents;
+using Maran.Modules.Identity.Queries.ListRecentAuditEvents;
 using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 using Maran.Modules.Sites.Queries.CountSites;
 using Maran.Modules.Ssl.Queries.CountExpiringCertificates;
-using Maran.Modules.Tasks.Common;
-using Maran.Modules.Tasks.Domain.Enums;
-using Maran.Modules.Tasks.Queries.ListTasks;
+using Maran.Modules.Tasks.Queries.CountFailedTasks;
 using Maran.SharedKernel.Results;
 using Wolverine;
 
@@ -157,10 +154,10 @@ public static class DashboardEndpoint
             new CountExpiringCertificatesQuery(clock.UtcNow.Add(CertificateExpiryHorizon)),
             cancellationToken);
         var failedBackups = ReadAsync<int>(bus, logger, new CountFailedBackupsQuery(), cancellationToken);
-        var bans = ReadAsync<IReadOnlyList<BanDto>>(bus, logger, new ListBansQuery(), cancellationToken);
-        var tasks = ReadAsync<IReadOnlyList<PanelTaskDto>>(bus, logger, new ListTasksQuery(), cancellationToken);
+        var bans = ReadAsync<int>(bus, logger, new CountBansQuery(), cancellationToken);
+        var failedTasks = ReadAsync<int>(bus, logger, new CountFailedTasksQuery(), cancellationToken);
         var audit = ReadAsync<IReadOnlyList<AuditEventDto>>(
-            bus, logger, new ListAuditEventsQuery(RecentAuditEntries), cancellationToken);
+            bus, logger, new ListRecentAuditEventsQuery(RecentAuditEntries), cancellationToken);
 
         await Task.WhenAll(
             resources,
@@ -171,7 +168,7 @@ public static class DashboardEndpoint
             certificates,
             failedBackups,
             bans,
-            tasks,
+            failedTasks,
             audit);
 
         return new DashboardDto(
@@ -194,19 +191,8 @@ public static class DashboardEndpoint
                 CertificatesExpiringSoon: await certificates,
                 FailedBackups: await failedBackups,
 
-                // Counted off their listings through Map, so a listing that could not be read stays
-                // unavailable here instead of counting as zero things to attend to.
-                BannedAddresses: (await bans).Map(list =>
-                {
-                    return list.Count;
-                }),
-                FailedTasks: (await tasks).Map(list =>
-                {
-                    return list.Count(task =>
-                    {
-                        return task.Status == PanelTaskStatus.Failed;
-                    });
-                })),
+                BannedAddresses: await bans,
+                FailedTasks: await failedTasks),
 
             RecentAudit: await audit);
     }

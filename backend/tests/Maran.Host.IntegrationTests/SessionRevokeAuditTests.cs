@@ -99,6 +99,6 @@ public sealed class SessionRevokeAuditTests : IAsyncLifetime
     {
         using var body = JsonDocument.Parse(await client.GetStringAsync("/api/v1/sessions"));
 
-        return body.RootElement.EnumerateArray().Single().GetProperty("id").GetString()!;
+        return body.RootElement.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetString()!;
     }
 }

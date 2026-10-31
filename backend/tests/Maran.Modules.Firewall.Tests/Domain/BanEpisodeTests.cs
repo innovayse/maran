@@ -51,6 +51,31 @@ public sealed class BanEpisodeTests
         Assert.False(episode.IsInForce(BannedAt.AddYears(5)));
     }
 
+    /// <summary>The query predicate agrees with the entity on every side of the one-second boundary.</summary>
+    /// <param name="millisecondsLeft">How long the timed episode has left at the instant asked about.</param>
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(999)]
+    [InlineData(1000)]
+    [InlineData(1001)]
+    [InlineData(3_600_000)]
+    public void The_query_predicate_agrees_with_the_entity_at_the_one_second_boundary(int millisecondsLeft)
+    {
+        // A listing pages and counts through InForceAt in SQL, while every other caller asks
+        // IsInForce; a disagreement at the boundary would be a ban the screen shows and the
+        // reconciler drops, or the reverse.
+        var now = BannedAt.AddHours(1).AddMilliseconds(-millisecondsLeft);
+        var timed = Timed(TimeSpan.FromHours(1));
+        var lifted = Timed(TimeSpan.FromHours(1));
+        lifted.Lift(BannedAt);
+        var inForce = BanEpisode.InForceAt(now).Compile();
+
+        Assert.Equal(timed.IsInForce(now), inForce(timed));
+        Assert.Equal(Permanent().IsInForce(now), inForce(Permanent()));
+        Assert.False(inForce(lifted));
+    }
+
     /// <summary>The remaining ttl is what is left and never the original duration.</summary>
     [Fact]
     public void The_remaining_ttl_is_what_is_left_and_never_the_original_duration()

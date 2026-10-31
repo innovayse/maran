@@ -81,6 +81,9 @@ public static class ExpectedErrorStatuses
             ["AgentUnavailable"] = ErrorType.Unavailable,
             ["AgentUnspecified"] = ErrorType.Failure,
             ["AgentValidationFailed"] = ErrorType.Validation,
+            ["AuditActionFilterInvalid"] = ErrorType.Validation,
+            ["AuditDateRangeInverted"] = ErrorType.Validation,
+            ["AuditOutcomeUnknown"] = ErrorType.Validation,
             // The four endings a create stream can have that name no artifact. They are recorded on
             // the backup row as its failure code and are classified here for the same reason every
             // other code is: they are user-facing text, and the census refuses an unclassified one.
@@ -275,6 +278,9 @@ public static class ExpectedErrorStatuses
             ["SmtpUsernameInvalid"] = ErrorType.Validation,
             ["TaskAbandonedByRestart"] = ErrorType.Failure,
             ["TaskNotFound"] = ErrorType.NotFound,
+            ["TaskDateRangeInverted"] = ErrorType.Validation,
+            ["TaskKindFilterInvalid"] = ErrorType.Validation,
+            ["TaskStatusUnknown"] = ErrorType.Validation,
             ["TwoFactorAlreadyEnabled"] = ErrorType.Conflict,
             ["TwoFactorNotEnabled"] = ErrorType.Conflict,
             ["TwoFactorRequiredUnauthorized"] = ErrorType.Unauthorized,

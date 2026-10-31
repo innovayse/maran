@@ -222,11 +222,11 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
             alertRecipient = "ops@example.com",
         });
 
-        var response = await client.GetAsync("/api/v1/audit");
+        var response = await client.GetAsync("/api/v1/audit?pageSize=100");
         var payload = await response.Content.ReadAsStringAsync();
 
         using var body = JsonDocument.Parse(payload);
-        var entries = body.RootElement.EnumerateArray()
+        var entries = body.RootElement.GetProperty("items").EnumerateArray()
             .Select(entry =>
             {
                 return (entry.GetProperty("action").GetString(), entry.GetProperty("subject").GetString());

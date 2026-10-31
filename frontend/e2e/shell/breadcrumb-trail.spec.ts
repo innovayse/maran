@@ -90,6 +90,8 @@ const SUBMENU_CASES: SubmenuCase[] = [
   { section: 'Sites', child: 'New site', expected: 'Hosting / Sites / New site' },
   { section: 'Databases', child: 'Grant repair', expected: 'Hosting / Databases / Grant repair' },
   { section: 'Accounts', child: 'New account', expected: 'Hosting / Accounts / New account' },
+  { section: 'Firewall', child: 'Bans', expected: 'Security / Firewall / Bans' },
+  { section: 'Firewall', child: 'Never banned', expected: 'Security / Firewall / Never banned' },
 ]
 
 for (const { section, child, expected } of SUBMENU_CASES) {

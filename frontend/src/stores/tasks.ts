@@ -2,134 +2,138 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useTasksApi } from '../composables/apis/useTasksApi'
 import { ApiError } from '../composables/useApi'
-import type { LoadingState } from '../types/loading'
-import type { PanelTask } from '../types/panelTask'
+import type { ListLoad, ListRequest } from '../types/list'
+import type { PanelTask, TaskFailureCount, TaskKindChoice } from '../types/panelTask'
 
 /**
  * How many task streams the panel holds open at once.
  *
  * Each one is a request pinned for the life of the task, and a browser will only give an origin so
- * many. The listing returns up to two hundred rows, so an unbounded "watch everything running"
- * would exhaust the connection pool and take the rest of the panel down with it — the badge would
- * be perfectly accurate on a screen where nothing else could load.
+ * many. An unbounded "watch everything running" would exhaust the connection pool and take the rest
+ * of the panel down with it — the badge would be perfectly accurate on a screen where nothing else
+ * could load.
  */
 const MAXIMUM_OPEN_WATCHES = 8
 
 /**
- * Owns the panel's background tasks: the listing, the live streams, and therefore the running count
- * the shell header's badge reads.
+ * Owns the panel's background tasks: one server page of them for the tasks screen, the running
+ * ones the shell header's badge counts, the task whose live pane is open, and the live streams that
+ * keep all three current.
  *
- * **One store for the page and for the badge, deliberately.** The badge is not a second fetch with
- * its own idea of how many tasks are running; it is a computed over the same array the page renders
- * from, so a frame that arrives on a stream moves both at once and neither can be stale relative to
- * the other. That is also what makes the badge rise without a navigation: nothing about the count
- * depends on which route is mounted.
+ * **Three reads, one source of change.** The page is a server page (`useServerTable`), the running
+ * tasks are their own unpaged read (`GET /api/v1/tasks/running`), and the open task is the row the
+ * operator chose. Every stream frame merges into all three, so a frame moves the badge, the row and
+ * the pane in the same tick and none of them can be stale relative to another — which is also what
+ * lets the badge rise without a navigation.
  *
  * **The listing is scoped by the panel, not by this store.** An administrator receives every task;
  * a customer receives the tasks started for their own account, with the log left empty because it
  * is written for the operator (issue #201). The store holds whatever arrives.
- *
- * **A failed listing is its own message.** It is kept in `listErrorMessage`, apart from anything
- * about a single task, so a failure to read the list is never shown as "this task could not be
- * found". The badge simply has nothing to count when the listing failed.
  */
 export const useTasksStore = defineStore('tasks', () => {
   const api = useTasksApi()
 
-  /** The tasks as last known: what the listing reported, updated in place by every stream frame. */
-  const tasks: Ref<PanelTask[]> = ref([])
+  /** The rows of the page last answered by the panel, updated in place by stream frames. */
+  const rows: Ref<PanelTask[]> = ref([])
 
-  /** Where the read of the listing stands; every failure sets `error`, whatever its cause. */
-  const loadState: Ref<LoadingState> = ref('loading')
+  /** Every running task the caller may see as last read, updated in place by stream frames. */
+  const running: Ref<PanelTask[]> = ref([])
 
-  /**
-   * Backend-localized message from the most recent failed LISTING, or `null`. Rendered verbatim.
-   * Named for the listing on purpose: it says nothing about any one task.
-   */
-  const listErrorMessage: Ref<string | null> = ref(null)
+  /** The task whose live pane is open, or `null` when no pane is. */
+  const openTask: Ref<PanelTask | null> = ref(null)
 
-  /** The task whose live pane is open, or the empty string when none is. */
-  const openTaskId: Ref<string> = ref('')
+  /** The kinds of task the caller can see, for the kind filter; empty until read or when unreadable. */
+  const kinds: Ref<TaskKindChoice[]> = ref([])
+
+  /** Where the failed-task count stands, for the notice above the list. */
+  const failures: Ref<TaskFailureCount> = ref({ state: 'loading' })
 
   /**
    * The abort controller of every open stream, keyed by task id.
    *
    * A plain `Map` rather than reactive state: nothing renders from it, and a controller is an
-   * identity to call `abort()` on, not a value to watch. What IS reactive is the effect the stream
-   * has — the frames it writes into {@link tasks}.
+   * identity to call `abort()` on, not a value to watch.
    */
   const watches = new Map<string, AbortController>()
 
   /**
-   * The listing request in flight, or `null` when none is. Not reactive: nothing renders from it —
-   * the screen reads {@link loadState} — it only lets a second caller join the request already
-   * running instead of starting another.
+   * The running-tasks read in flight, or `null` when none is. Not reactive: it only lets a second
+   * caller join the request already running instead of starting another.
    */
-  let listing: Promise<void> | null = null
+  let runningRead: Promise<void> | null = null
 
   /**
-   * How many tasks are running right now, and the whole content of the header badge.
-   *
-   * Computed over {@link tasks}, which is what makes the count answer to the streams as well as to
-   * the listing: a frame reporting a task as running raises this the moment it is decoded, wherever
-   * the operator happens to be.
+   * How many tasks are running right now, and the whole content of the header badge. Computed over
+   * {@link running}, which stream frames update, so the count answers to the streams as well as to
+   * the read.
    */
   const runningCount: ComputedRef<number> = computed(() => {
-    return tasks.value.filter((task) => {
+    return running.value.filter((task) => {
       return task.status === 'running'
     }).length
   })
 
-  /** The task whose live pane is open, or `null`. */
-  const openTask: ComputedRef<PanelTask | null> = computed(() => {
-    return (
-      tasks.value.find((task) => {
-        return task.id === openTaskId.value
-      }) ?? null
-    )
-  })
-
-  /** Whether the panel answered successfully and reported no tasks at all. */
-  const isEmpty: ComputedRef<boolean> = computed(() => {
-    return loadState.value === 'loaded' && tasks.value.length === 0
-  })
+  /**
+   * Whether an arrival may replace a held copy of the same task. The module counts a row's changes
+   * in `revision` and sends a frame only when it moves, so a frame slow on the wire must not
+   * overwrite a newer snapshot with an older one.
+   * @param held The copy already held.
+   * @param arrival The copy that arrived.
+   * @returns True when the arrival is at least as new.
+   */
+  const isCurrent = (held: PanelTask, arrival: PanelTask): boolean => {
+    return arrival.revision >= held.revision
+  }
 
   /**
-   * Merges one task into the held list, wherever it came from.
-   *
-   * A task the list does not have is PREPENDED, because the listing is newest-first and anything
-   * arriving live is newer than everything in it. A task already held is replaced only when the
-   * arrival is at least as new: the module counts a row's changes in `revision` and sends a frame
-   * only when it moves, so comparing revisions is how a frame that was slow on the wire is stopped
-   * from overwriting a newer snapshot with an older one.
-   * @param task The task as the listing or a stream frame reported it.
-   * @returns Nothing; the held list updates synchronously.
+   * Replaces one task in a list by id, when the arrival is at least as new.
+   * @param list The list to update.
+   * @param task The arrival.
+   * @returns The updated list, or `null` when the list does not hold the task.
    */
-  const merge = (task: PanelTask): void => {
-    const index = tasks.value.findIndex((held) => {
+  const replaceIn = (list: PanelTask[], task: PanelTask): PanelTask[] | null => {
+    const index = list.findIndex((held) => {
       return held.id === task.id
     })
-
     if (index === -1) {
-      tasks.value = [task, ...tasks.value]
-      return
+      return null
     }
-
-    const held = tasks.value[index]
-    if (held !== undefined && task.revision < held.revision) {
-      return
+    const held = list[index]
+    if (held !== undefined && !isCurrent(held, task)) {
+      return list
     }
-
-    tasks.value = tasks.value.map((candidate, at) => {
+    return list.map((candidate, at) => {
       return at === index ? task : candidate
     })
   }
 
   /**
-   * Stops watching one task and releases its connection.
+   * Merges one stream frame into the page, the running tasks and the open pane.
    *
-   * Idempotent: a stream that has already ended has removed itself from the map, and asking again
-   * is how a component's teardown stays free of knowledge about whether the task finished first.
+   * The page is only updated in place — where a row falls is the server's to decide, so a task the
+   * page does not hold is not inserted. A frame reporting a task the running read did not know as
+   * running is PREPENDED there, because that is what raises the badge for work started elsewhere.
+   * @param task The task as a stream frame reported it.
+   * @returns Nothing; the held state updates synchronously.
+   */
+  const merge = (task: PanelTask): void => {
+    rows.value = replaceIn(rows.value, task) ?? rows.value
+
+    const updated = replaceIn(running.value, task)
+    if (updated !== null) {
+      running.value = updated
+    } else if (task.status === 'running') {
+      running.value = [task, ...running.value]
+    }
+
+    const open = openTask.value
+    if (open !== null && open.id === task.id && isCurrent(open, task)) {
+      openTask.value = task
+    }
+  }
+
+  /**
+   * Stops watching one task and releases its connection. Idempotent.
    * @param id The task to stop watching.
    * @returns Nothing.
    */
@@ -140,16 +144,10 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   /**
-   * Stops every open stream.
-   *
-   * Called when the shell tears down. A stream nobody aborts keeps its connection open for as long
-   * as the tab lives, and this store outlives every page that used it.
+   * Stops every open stream. Called when the shell tears down: this store outlives every page.
    * @returns Nothing.
    */
   const stopAllWatches = (): void => {
-    // Aborted and then cleared in one go, rather than removed one at a time through
-    // `stopWatching`: nothing here needs a per-task decision, and mutating the map while iterating
-    // it is a hazard this avoids having to reason about at all.
     for (const controller of watches.values()) {
       controller.abort()
     }
@@ -157,13 +155,10 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   /**
-   * Watches one task, merging every frame into the held list.
-   *
-   * Returns immediately: the caller is a component's mount or a row's action, and neither should
-   * wait for a task that may run for minutes. Asking to watch a task already being watched does
-   * nothing, so a page that re-mounts does not open a second connection to the same stream.
+   * Watches one task, merging every frame. Returns immediately; asking to watch a task already
+   * watched does nothing, so a page that re-mounts does not open a second connection.
    * @param id The task to watch.
-   * @returns Nothing; frames arrive in {@link tasks} as they are decoded.
+   * @returns Nothing; frames arrive as they are decoded.
    */
   const watch = (id: string): void => {
     if (watches.has(id) || watches.size >= MAXIMUM_OPEN_WATCHES) {
@@ -179,9 +174,7 @@ export const useTasksStore = defineStore('tasks', () => {
         {
           onTask: merge,
           onEnd: () => {
-            // Only if it is still OURS: a later `stopWatching` may already have replaced or
-            // removed the entry, and deleting unconditionally would drop somebody else's stream
-            // out of the map while it was still running.
+            // Only if it is still OURS: a later `stopWatching` may already have replaced it.
             if (watches.get(id) === controller) {
               watches.delete(id)
             }
@@ -190,23 +183,19 @@ export const useTasksStore = defineStore('tasks', () => {
         controller.signal,
       )
       .catch(() => {
-        // `watch` reports every ending through `onEnd`, including the failures, so there is
-        // nothing here that has not already been handled. The catch exists so an unexpected throw
-        // cannot become an unhandled rejection in a panel with `no-floating-promises` on.
+        // `watch` reports every ending through `onEnd`; this only keeps an unexpected throw from
+        // becoming an unhandled rejection.
         watches.delete(id)
       })
   }
 
   /**
-   * Opens a live stream for each running task in the held list, up to the connection cap.
-   *
-   * This is what makes the header badge fall on its own: an operator who starts a certificate order
-   * and walks away to another screen still sees the count drop when it finishes, because the shell
-   * is watching it rather than the page that started it.
+   * Opens a live stream for each running task, up to the connection cap — what makes the badge fall
+   * on its own when work started on another screen finishes.
    * @returns Nothing.
    */
   const watchRunning = (): void => {
-    for (const task of tasks.value) {
+    for (const task of running.value) {
       if (task.status === 'running') {
         watch(task.id)
       }
@@ -214,50 +203,81 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   /**
-   * Loads the listing, replacing what is held.
-   *
-   * The list REPLACES rather than merges, so a task removed by retention leaves the screen. Streams
-   * already open are left alone: their frames merge back in, and aborting them here would mean the
-   * badge went blind every time the page refreshed.
+   * Reads every running task, replacing what is held. A failure leaves nothing to count: the badge
+   * is silent rather than shouting on every screen, and the tasks page reports its own read.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const load = async (): Promise<void> => {
-    // A second request for the same list while one is in flight IS the same request. The shell's
-    // badge and the tasks page both want the listing and both mount at once, and which of them
-    // gets there first is a detail of template order nobody should have to reason about.
-    if (listing !== null) {
-      return listing
+  const loadRunning = async (): Promise<void> => {
+    // A second request while one is in flight IS the same request: the badge and the tasks page
+    // both mount at once.
+    if (runningRead !== null) {
+      return runningRead
     }
 
-    loadState.value = 'loading'
-    listing = (async (): Promise<void> => {
+    runningRead = (async (): Promise<void> => {
       try {
-        tasks.value = await api.list()
-        listErrorMessage.value = null
-        loadState.value = 'loaded'
-      } catch (error) {
-        listErrorMessage.value = error instanceof ApiError ? error.message : null
-        loadState.value = 'error'
+        running.value = await api.running()
+      } catch {
+        running.value = []
       } finally {
-        listing = null
+        runningRead = null
       }
     })()
-    return listing
+    return runningRead
   }
 
+  /**
+   * Loads one page of the tasks into {@link rows} and reports how the read ended, for the tasks
+   * page's `useServerTable`.
+   * @param request The page, size, search, sort and filters, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
+   */
+  const list = async (request: ListRequest): Promise<ListLoad<PanelTask>> => {
+    try {
+      const page = await api.list(request)
+      rows.value = page.items
+      return { kind: 'loaded', page }
+    } catch (error) {
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
+    }
+  }
 
   /**
-   * Opens one task's live pane and starts watching it.
-   *
-   * The stream's first frame is authoritative and always sent, whatever the row's revision — the
-   * module says so explicitly — so opening a pane on a task the listing reported some time ago
-   * corrects it immediately rather than showing a stale row until the next change.
-   * @param id The task to open.
+   * Reads the kinds the caller can see into {@link kinds}.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadKinds = async (): Promise<void> => {
+    try {
+      kinds.value = await api.kinds()
+    } catch {
+      // The filter is an aid, not the list: an unreadable set leaves it offering "any operation".
+      kinds.value = []
+    }
+  }
+
+  /**
+   * Asks the panel how many tasks failed, across every page, into {@link failures}. A failure is
+   * recorded as `unavailable`, never as "nothing failed".
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadFailures = async (): Promise<void> => {
+    failures.value = { state: 'loading' }
+    try {
+      failures.value = { state: 'answered', count: await api.failedCount() }
+    } catch {
+      failures.value = { state: 'unavailable' }
+    }
+  }
+
+  /**
+   * Opens one task's live pane and starts watching it. The stream's first frame is authoritative
+   * and always sent, so a row read some time ago is corrected immediately.
+   * @param task The task to open.
    * @returns Nothing.
    */
-  const select = (id: string): void => {
-    openTaskId.value = id
-    watch(id)
+  const select = (task: PanelTask): void => {
+    openTask.value = task
+    watch(task.id)
   }
 
   /**
@@ -265,18 +285,20 @@ export const useTasksStore = defineStore('tasks', () => {
    * @returns Nothing.
    */
   const deselect = (): void => {
-    openTaskId.value = ''
+    openTask.value = null
   }
 
   return {
-    tasks,
-    loadState,
-    listErrorMessage,
-    openTaskId,
-    runningCount,
+    rows,
+    running,
     openTask,
-    isEmpty,
-    load,
+    kinds,
+    failures,
+    runningCount,
+    list,
+    loadRunning,
+    loadKinds,
+    loadFailures,
     watch,
     watchRunning,
     stopWatching,

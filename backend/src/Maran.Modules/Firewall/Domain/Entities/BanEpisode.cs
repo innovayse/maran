@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Maran.Modules.Firewall.Domain.Enums;
 
 namespace Maran.Modules.Firewall.Domain.Entities;
@@ -135,7 +136,24 @@ public sealed class BanEpisode
             return true;
         }
 
-        return ExpiresAt.Value - now >= ShortestExpressibleRemainder;
+        return ExpiresAt.Value >= InForceHorizon(now);
+    }
+
+    /// <summary>
+    /// <see cref="IsInForce"/> as a predicate a database query can carry, so a listing pages and
+    /// counts exactly the episodes still in force instead of reading every candidate to ask each one.
+    /// </summary>
+    /// <param name="now">The current instant, from <see cref="IClock"/>.</param>
+    /// <returns>
+    /// A predicate true for the same episodes <see cref="IsInForce"/> is true for at
+    /// <paramref name="now"/>: not lifted, and permanent or with at least
+    /// <see cref="ShortestExpressibleRemainder"/> left to run. Both read the one horizon
+    /// <see cref="InForceHorizon"/> computes, so the two cannot disagree about the boundary.
+    /// </returns>
+    public static Expression<Func<BanEpisode, bool>> InForceAt(DateTimeOffset now)
+    {
+        var horizon = InForceHorizon(now);
+        return episode => episode.LiftedAt == null && (episode.ExpiresAt == null || episode.ExpiresAt >= horizon);
     }
 
     /// <summary>How much of the ban is still to run at <paramref name="now"/>.</summary>
@@ -205,5 +223,15 @@ public sealed class BanEpisode
         }
 
         LiftedAt = at;
+    }
+
+    /// <summary>
+    /// The earliest expiry a timed episode may have and still count as in force at <paramref name="now"/>.
+    /// </summary>
+    /// <param name="now">The current instant, from <see cref="IClock"/>.</param>
+    /// <returns><paramref name="now"/> plus <see cref="ShortestExpressibleRemainder"/>.</returns>
+    private static DateTimeOffset InForceHorizon(DateTimeOffset now)
+    {
+        return now + ShortestExpressibleRemainder;
     }
 }

@@ -3,6 +3,7 @@ import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubAudit } from '../fixtures/stub-audit-routes'
 
 /**
  * The measured defect: `/settings/audit` was routed, rendered and tested, and no LINK in the
@@ -23,9 +24,7 @@ const stubRussianShell = async (page: Page, role: 'admin' | 'customer'): Promise
   await stubSignedIn(page, { ...stubbedAdministrator, role })
   await stubHealthy(page)
   await stubEmptyModules(page)
-  await page.route('**/api/v1/audit*', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  })
+  await stubAudit(page, [])
 }
 
 test('an administrator reaches the journal from the sidebar by clicking its link', async ({ page }) => {

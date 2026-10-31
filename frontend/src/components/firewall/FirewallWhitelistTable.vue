@@ -30,18 +30,24 @@ import type { WhitelistEntry } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallWhitelistTable}. */
 const props = defineProps<{
-  /** The exempt ranges the panel reported, oldest first. */
+  /** The page of exempt ranges on screen, in the server's order. */
   entries: readonly WhitelistEntry[]
   /** Whether a change is already in flight, which disables every row's menu. */
   busy: boolean
-  /** Whether the screen's lists are still loading: the real header over placeholder rows. */
+  /** Whether a page is being fetched: the real header over placeholder rows. */
   loading: boolean
+  /** How many placeholder rows to draw while loading: the page size. */
+  skeletonRows: number
+  /** The current sort key, `-` prefixed when descending; empty for the server's default. */
+  sort: string
 }>()
 
 /** Events emitted by {@link FirewallWhitelistTable}. */
 const emit = defineEmits<{
   /** Fired when the operator confirmed removing one exemption. */
   (e: 'remove', id: string): void
+  /** A sortable heading was pressed; carries the server's sort field. */
+  (e: 'sort', field: string): void
 }>()
 
 const { t } = useI18n()
@@ -50,12 +56,15 @@ const localeStore = useLocaleStore()
 /** The row whose removal is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
 
-/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+/**
+ * The table's columns: its header, its cells and its loading placeholder all read this one list.
+ * The range and the instant it was added sort by the server's `cidr` and `createdAt` keys.
+ */
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
-    { key: 'cidr', label: t('firewall.whitelist.columns.cidr'), kind: 'identifier' },
+    { key: 'cidr', label: t('firewall.whitelist.columns.cidr'), kind: 'identifier', sortField: 'cidr' },
     { key: 'note', label: t('firewall.whitelist.columns.note'), kind: 'text' },
-    { key: 'createdAt', label: t('firewall.whitelist.columns.createdAt'), kind: 'date' },
+    { key: 'createdAt', label: t('firewall.whitelist.columns.createdAt'), kind: 'date', sortField: 'createdAt' },
     { key: 'actions', label: t('common.actions'), kind: 'actions' },
   ]
 })
@@ -74,6 +83,15 @@ const confirmationTitle: ComputedRef<string> = computed(() => {
   const pending = pendingEntry.value
   return pending === null ? '' : t('firewall.whitelist.confirmRemoveTitle', { cidr: pending.cidr })
 })
+
+/**
+ * Forwards a sortable heading's press.
+ * @param field The server's sort field.
+ * @returns Nothing.
+ */
+const sortBy = (field: string): void => {
+  emit('sort', field)
+}
 
 /**
  * Starts the row's confirmation.
@@ -131,6 +149,9 @@ watch(
     :rows="entries"
     row-key="id"
     :loading="loading"
+    :skeleton-rows="skeletonRows"
+    :sort="sort"
+    @sort="sortBy"
   >
     <!-- A range is machine text: the mono face, as typed, never uppercased. -->
     <template #cell-cidr="{ row }">{{ row.cidr }}</template>

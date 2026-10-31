@@ -29,18 +29,24 @@ import type { Ban } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallBansTable}. */
 const props = defineProps<{
-  /** The bans the panel reported, newest first. */
+  /** The page of bans on screen, in the server's order. */
   bans: readonly Ban[]
   /** Whether a change is already in flight, which disables every row's menu. */
   busy: boolean
-  /** Whether the screen's lists are still loading: the real header over placeholder rows. */
+  /** Whether a page is being fetched: the real header over placeholder rows. */
   loading: boolean
+  /** How many placeholder rows to draw while loading: the page size. */
+  skeletonRows: number
+  /** The current sort key, `-` prefixed when descending; empty for the server's default. */
+  sort: string
 }>()
 
 /** Events emitted by {@link FirewallBansTable}. */
 const emit = defineEmits<{
   /** Fired when the operator confirmed lifting every ban in force for one address. */
   (e: 'unban', address: string): void
+  /** A sortable heading was pressed; carries the server's sort field. */
+  (e: 'sort', field: string): void
 }>()
 
 /**
@@ -61,14 +67,17 @@ const ticker: Ref<ReturnType<typeof setInterval> | null> = ref(null)
 /** The ban whose lift is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
 
-/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+/**
+ * The table's columns: its header, its cells and its loading placeholder all read this one list.
+ * The address and the two instants sort by the server's keys of the same names.
+ */
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
-    { key: 'address', label: t('firewall.bans.columns.address'), kind: 'identifier' },
+    { key: 'address', label: t('firewall.bans.columns.address'), kind: 'identifier', sortField: 'address' },
     { key: 'reason', label: t('firewall.bans.columns.reason'), kind: 'badge' },
     { key: 'failures', label: t('firewall.bans.columns.failures'), kind: 'number' },
-    { key: 'bannedAt', label: t('firewall.bans.columns.bannedAt'), kind: 'date' },
-    { key: 'expiresAt', label: t('firewall.bans.columns.expiresAt'), kind: 'date' },
+    { key: 'bannedAt', label: t('firewall.bans.columns.bannedAt'), kind: 'date', sortField: 'bannedAt' },
+    { key: 'expiresAt', label: t('firewall.bans.columns.expiresAt'), kind: 'date', sortField: 'expiresAt' },
     { key: 'actions', label: t('common.actions'), kind: 'actions' },
   ]
 })
@@ -97,6 +106,15 @@ const expiry = (ban: Ban): string => {
   return ban.expiresAt === null
     ? t('firewall.bans.permanent')
     : formatCountdown(ban.expiresAt, now.value, localeStore.current)
+}
+
+/**
+ * Forwards a sortable heading's press.
+ * @param field The server's sort field.
+ * @returns Nothing.
+ */
+const sortBy = (field: string): void => {
+  emit('sort', field)
 }
 
 /**
@@ -171,6 +189,9 @@ onBeforeUnmount(() => {
     :rows="bans"
     row-key="id"
     :loading="loading"
+    :skeleton-rows="skeletonRows"
+    :sort="sort"
+    @sort="sortBy"
   >
     <template #cell-address="{ row }">{{ row.ipAddress }}</template>
     <template #cell-reason="{ row }">

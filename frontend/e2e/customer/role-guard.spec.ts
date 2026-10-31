@@ -39,6 +39,8 @@ const ADMIN_ONLY_PATHS = [
   '/backups/schedule',
   '/backups/destinations',
   '/firewall',
+  '/firewall/bans',
+  '/firewall/whitelist',
   '/monitoring',
   '/settings/security-policy',
   '/settings/smtp',

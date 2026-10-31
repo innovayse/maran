@@ -3,6 +3,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubAudit } from '../fixtures/stub-audit-routes'
 import type { AuditEvent } from '../../src/types/audit'
 
 // The journal rendered its When column through `formatDate`, whose pattern is `d MMM yyyy`. Two
@@ -48,13 +49,7 @@ test('the journal states the time of day, so two entries on one day are told apa
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
-  await page.route('**/api/v1/audit*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([SIGNED_IN, ADMIN_CREATED]),
-    })
-  })
+  await stubAudit(page, [SIGNED_IN, ADMIN_CREATED])
 
   await page.goto('/settings/audit')
 

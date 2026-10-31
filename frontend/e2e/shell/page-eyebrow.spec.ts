@@ -69,4 +69,11 @@ test('a submenu page takes its section group, not a word of its own', async ({ p
   await openSection(page, 'Databases')
   await nav.getByRole('link', { name: 'Grant repair', exact: true }).click()
   await expect(page.locator(EYEBROW)).toHaveText('Hosting')
+
+  // The firewall's three pages (#196) carry no eyebrow of their own either.
+  await openSection(page, 'Firewall')
+  for (const child of ['Rules', 'Bans', 'Never banned']) {
+    await nav.getByRole('link', { name: child, exact: true }).click()
+    await expect(page.locator(EYEBROW), child).toHaveText('Security')
+  }
 })

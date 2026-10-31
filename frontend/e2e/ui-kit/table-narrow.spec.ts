@@ -7,6 +7,7 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
 import { stubTasks, stubTaskStream, taskEndFrame, taskFrame } from '../fixtures/stub-tasks-routes'
+import { stubAudit } from '../fixtures/stub-audit-routes'
 import type { Account } from '../../src/types/account'
 import type { AuditEvent } from '../../src/types/audit'
 import type { Backup } from '../../src/types/backup'
@@ -290,9 +291,7 @@ const stubScreens = async (page: Page): Promise<void> => {
   await stubPlans(page, THREE_PLANS)
   await stubAccounts(page, [...ACCOUNTS])
   await stubBackups(page, [...BACKUPS])
-  await page.route('**/api/v1/audit*', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(AUDIT_EVENTS) })
-  })
+  await stubAudit(page, AUDIT_EVENTS)
 }
 
 /** What one cell measurement reports. */

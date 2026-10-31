@@ -1,22 +1,27 @@
 import { useApi } from '../useApi'
-import type {
-  PanelTask,
-  PanelTaskStatus,
-  PanelTaskStreamHandlers,
-  TasksApi,
+import { listQuery } from '../../utils/listQuery'
+import { withInstantWindow } from '../../utils/withInstantWindow'
+import type { ListRequest, Paged } from '../../types/list'
+import {
+  TASK_STATUSES,
+  type PanelTask,
+  type PanelTaskStatus,
+  type PanelTaskStreamHandlers,
+  type TaskKindChoice,
+  type TasksApi,
 } from '../../types/panelTask'
 
 /** The endpoint background tasks are listed, read and watched through. */
 const TASKS_PATH = '/api/v1/tasks'
 
-/**
- * The statuses this panel knows, used to check what arrived on the wire.
- *
- * A status this bundle was built before is reported as no ending at all rather than guessed at: a
- * pane that says "completed" about an outcome it could not read is worse than one that says the
- * stream ended without naming an outcome.
- */
-const TASK_STATUSES: readonly PanelTaskStatus[] = ['running', 'completed', 'failed']
+/** The list endpoint's parameter for each filter the tasks page reads from its URL. */
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
+  account: 'accountId',
+  status: 'status',
+  kind: 'kind',
+  from: 'from',
+  to: 'to',
+}
 
 /**
  * Builds the tasks API on top of the shared low-level client.
@@ -30,7 +35,9 @@ export const useTasksApi = (): TasksApi => {
   const api = useApi()
 
   /**
-   * Reads a status off the wire, refusing to invent one this bundle does not know.
+   * Reads a status off the wire, refusing to invent one this bundle does not know: a pane that says
+   * "completed" about an outcome it could not read is worse than one that says the stream ended
+   * without naming an outcome.
    * @param named The status text a frame carried, or `undefined` when it carried none.
    * @returns The status, or `null` when the wire named none this panel recognises.
    */
@@ -62,13 +69,45 @@ export const useTasksApi = (): TasksApi => {
   }
 
   /**
-   * Lists the panel's most recent background tasks, newest first.
+   * Reads one page of the tasks the caller may see; the panel searches, filters, sorts and counts.
+   * @param request The page, size, search, sort and the account, status, kind, from and to filters.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The tasks, newest first.
+   * @returns The page.
    */
-  const list = async (signal?: AbortSignal): Promise<PanelTask[]> => {
-    const tasks = await api.get<PanelTask[]>(TASKS_PATH, signal)
+  const list = async (request: ListRequest, signal?: AbortSignal): Promise<Paged<PanelTask>> => {
+    const page = await api.get<Paged<PanelTask>>(
+      `${TASKS_PATH}${listQuery(withInstantWindow(request), LIST_FILTER_PARAMS)}`,
+      signal,
+    )
+    return { ...page, items: page.items.map(readTask) }
+  }
+
+  /**
+   * Lists every running task the caller may see, newest first.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The running tasks.
+   */
+  const running = async (signal?: AbortSignal): Promise<PanelTask[]> => {
+    const tasks = await api.get<PanelTask[]>(`${TASKS_PATH}/running`, signal)
     return tasks.map(readTask)
+  }
+
+  /**
+   * Lists the distinct kinds of task the caller can see, for the kind filter.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The kinds with their backend-localized names.
+   */
+  const kinds = (signal?: AbortSignal): Promise<TaskKindChoice[]> => {
+    return api.get<TaskKindChoice[]>(`${TASKS_PATH}/kinds`, signal)
+  }
+
+  /**
+   * Counts the failed tasks the caller may see, across every page.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns How many failed.
+   */
+  const failedCount = (signal?: AbortSignal): Promise<number> => {
+    return api.get<number>(`${TASKS_PATH}/failed-count`, signal)
   }
 
   /**
@@ -134,5 +173,5 @@ export const useTasksApi = (): TasksApi => {
     handlers.onEnd(ending)
   }
 
-  return { list, get, watch }
+  return { list, running, kinds, failedCount, get, watch }
 }

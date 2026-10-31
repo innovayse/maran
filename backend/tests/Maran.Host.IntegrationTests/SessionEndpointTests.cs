@@ -209,7 +209,7 @@ public sealed class SessionEndpointTests : IAsyncLifetime
         var response = await client.GetAsync("/api/v1/sessions");
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var session = Assert.Single(body.RootElement.EnumerateArray());
+        var session = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray());
         Assert.True(session.GetProperty("isCurrent").GetBoolean());
     }
 
@@ -238,7 +238,7 @@ public sealed class SessionEndpointTests : IAsyncLifetime
         var (bobClient, _, _) = await SignInAsync(factory, "bob");
 
         var bobSessions = JsonDocument.Parse(await (await bobClient.GetAsync("/api/v1/sessions")).Content.ReadAsStringAsync());
-        var bobSessionId = bobSessions.RootElement.EnumerateArray().Single().GetProperty("id").GetString();
+        var bobSessionId = bobSessions.RootElement.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetString();
 
         var response = await aliceClient.DeleteAsync($"/api/v1/sessions/{bobSessionId}");
 
@@ -283,7 +283,7 @@ public sealed class SessionEndpointTests : IAsyncLifetime
         var response = await client.GetAsync("/api/v1/sessions");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Empty(JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.EnumerateArray());
+        Assert.Empty(JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.GetProperty("items").EnumerateArray());
     }
 
     /// <summary>Signing out everywhere requires a token.</summary>

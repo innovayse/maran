@@ -75,6 +75,21 @@ const CHILDREN: Readonly<Record<string, readonly NavigationChildSpec[]>> = {
       adminOnly: true,
     },
   ],
+  // Every firewall page is administrators-only, like the module: who may reach the host is not a
+  // tenant's business. Three pages because the bans and the whitelist are each server-paged and keep
+  // their page, search and sort in the URL; the rules stay at the bare `/firewall`, the landing page.
+  // Each child is labelled by the title of the list it opens (issue #209), so the sidebar, the
+  // breadcrumb and the page heading name it with one string.
+  firewall: [
+    { key: 'firewall-rules', route: 'firewall', labelKey: 'firewall.rules.heading', adminOnly: true },
+    { key: 'firewall-bans', route: 'firewall-bans', labelKey: 'firewall.bans.heading', adminOnly: true },
+    {
+      key: 'firewall-whitelist',
+      route: 'firewall-whitelist',
+      labelKey: 'firewall.whitelist.heading',
+      adminOnly: true,
+    },
+  ],
   backups: [
     {
       key: 'backups-list',

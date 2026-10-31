@@ -48,7 +48,7 @@ const openScreen = async (page: Page, bans: Ban[]): Promise<void> => {
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubFirewall(page, { rules: [], bans, whitelist: [] })
-  await page.goto('/firewall')
+  await page.goto('/firewall/bans')
 }
 
 // The expiry is the one value on this screen that changes while nobody touches the page, and it is

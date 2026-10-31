@@ -15,14 +15,16 @@ public static class ModelBindingExtensions
 {
     /// <summary>
     /// Puts <see cref="PagingModelBinderProvider"/> ahead of MVC's own binder providers, tells
-    /// MVC's validation not to walk into the two values it binds, and replaces MVC's codeless
+    /// MVC's validation not to walk into the three values it binds, and replaces MVC's codeless
     /// automatic 400 with <see cref="InvalidModelStateRefusal.Refuse"/>.
     /// </summary>
     /// <remarks>
     /// <see cref="SearchTerm"/> and <see cref="SortRequest"/> are validated when they are built: a
-    /// value that exists is a valid one. MVC's validation visitor would otherwise read every public
+    /// value that exists is a valid one. <see cref="FilterValue"/> is judged by its module's validator,
+    /// which reads its value only when it has one. MVC's validation visitor would otherwise read every public
     /// property of a bound object, and the members that belong to one state only
-    /// (<see cref="SearchTerm.Value"/> of <see cref="SearchTerm.None"/>) refuse to be read in the
+    /// (<see cref="SearchTerm.Value"/> of <see cref="SearchTerm.None"/>, and likewise
+    /// <see cref="FilterValue.Value"/>) refuse to be read in the
     /// other — which is the point of them, so the visitor is stopped rather than the guard removed.
     /// </remarks>
     /// <param name="services">The application service collection.</param>
@@ -35,6 +37,7 @@ public static class ModelBindingExtensions
             options.ModelBinderProviders.Insert(0, new PagingModelBinderProvider());
             options.ModelMetadataDetailsProviders.Add(new SuppressChildValidationMetadataProvider(typeof(SearchTerm)));
             options.ModelMetadataDetailsProviders.Add(new SuppressChildValidationMetadataProvider(typeof(SortRequest)));
+            options.ModelMetadataDetailsProviders.Add(new SuppressChildValidationMetadataProvider(typeof(FilterValue)));
         });
 
         // What MVC's own binders refuse (?page=abc, ?status=7) is refused with a code too, through

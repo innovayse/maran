@@ -18,7 +18,13 @@
       "confirmEndTitle": "Завершить сеанс с {address}",
       "signOutEverywhere": "Выйти на всех устройствах",
       "rowActions": "Действия для сеанса с адреса {address}",
-      "securityPolicyLink": "Политика входа"
+      "securityPolicyLink": "Политика входа",
+      "expiresColumn": "Истекает",
+      "searchLabel": "Поиск устройств",
+      "searchPlaceholder": "Поиск по устройству или адресу…",
+      "searchClear": "Очистить поиск",
+      "noResultsTitle": "Подходящих устройств нет",
+      "noResultsDescription": "Измените запрос или очистите его, чтобы увидеть все устройства, где выполнен вход."
     }
   }
 }

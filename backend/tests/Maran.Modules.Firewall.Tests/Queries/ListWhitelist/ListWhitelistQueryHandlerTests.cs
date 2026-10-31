@@ -5,6 +5,10 @@ using Maran.Modules.Firewall.Tests.TestSupport;
 namespace Maran.Modules.Firewall.Tests.Queries.ListWhitelist;
 
 /// <summary>What the whitelist screen is shown.</summary>
+/// <remarks>
+/// UNOBSERVED HERE: the search. It is an <c>ILIKE</c>, which only PostgreSQL translates, so the
+/// InMemory provider cannot run it; <c>FirewallListEndpointTests</c> covers it against a real server.
+/// </remarks>
 public sealed class ListWhitelistQueryHandlerTests
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 3, 12, 0, 0, TimeSpan.Zero);
@@ -24,11 +28,12 @@ public sealed class ListWhitelistQueryHandlerTests
         var result = await new ListWhitelistQueryHandler(context)
             .HandleAsync(new ListWhitelistQuery(), CancellationToken.None);
 
-        Assert.Equal(["203.0.113.7/32", "198.51.100.0/24"], result.Value.Select(entry =>
+        Assert.Equal(["203.0.113.7/32", "198.51.100.0/24"], result.Value.Items.Select(entry =>
         {
             return entry.Cidr;
         }));
-        Assert.Equal("office", result.Value[0].Note);
+        Assert.Equal("office", result.Value.Items[0].Note);
+        Assert.Equal(2, result.Value.Total);
     }
 
     /// <summary>An empty whitelist lists nothing rather than failing.</summary>
@@ -41,6 +46,7 @@ public sealed class ListWhitelistQueryHandlerTests
             .HandleAsync(new ListWhitelistQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.Items);
+        Assert.Equal(0, result.Value.Total);
     }
 }

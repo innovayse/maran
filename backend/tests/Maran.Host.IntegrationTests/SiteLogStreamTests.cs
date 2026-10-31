@@ -378,8 +378,8 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var admin = await SignInAsync(factory, "admin");
-        using var journal = JsonDocument.Parse(await admin.GetStringAsync("/api/v1/audit", deadline.Token));
-        var tails = journal.RootElement.EnumerateArray().Where(entry =>
+        using var journal = JsonDocument.Parse(await admin.GetStringAsync("/api/v1/audit?action=SiteLogTailed", deadline.Token));
+        var tails = journal.RootElement.GetProperty("items").EnumerateArray().Where(entry =>
         {
             return entry.GetProperty("action").GetString() == "SiteLogTailed";
         }).ToList();
@@ -452,8 +452,8 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         await customer.GetAsync($"/api/v1/sites/{world.StrangerSiteId}/logs?source=access");
 
         using var admin = await SignInAsync(factory, "admin");
-        using var journal = JsonDocument.Parse(await admin.GetStringAsync("/api/v1/audit"));
-        var probes = journal.RootElement.EnumerateArray().Where(entry =>
+        using var journal = JsonDocument.Parse(await admin.GetStringAsync("/api/v1/audit?action=SiteLogTailed"));
+        var probes = journal.RootElement.GetProperty("items").EnumerateArray().Where(entry =>
         {
             return entry.GetProperty("action").GetString() == "SiteLogTailed";
         }).ToList();
