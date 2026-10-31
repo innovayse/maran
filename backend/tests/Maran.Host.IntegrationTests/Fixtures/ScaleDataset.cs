@@ -163,7 +163,7 @@ public static class ScaleDataset
                 site.Id,
                 domain,
                 CertificateSource.Acme,
-                Epoch.AddDays(-365 + (index % 300 * 7)),
+                Epoch.AddDays(index % 300 * 7.0 - 365),
                 Epoch.AddMinutes(index)));
         }
 
