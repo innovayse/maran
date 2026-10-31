@@ -156,7 +156,7 @@ test('lifting a ban reads the page again from the panel', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Lift the ban' }).click()
   await page
     .getByRole('dialog', { name: 'Lift the ban on 198.51.100.1' })
-    .getByRole('button', { name: 'Yes, lift it' })
+    .getByRole('button', { name: 'Lift ban' })
     .click()
 
   await expect(addressCells(page)).toHaveText(['198.51.100.2'])

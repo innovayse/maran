@@ -284,7 +284,7 @@ test('deleting a backup asks first, sends nothing until it is confirmed, then re
   )
   expect(deletions()).toEqual(0)
 
-  await dialog.getByRole('button', { name: 'Yes, delete it' }).click()
+  await dialog.getByRole('button', { name: 'Delete backup' }).click()
 
   await expect(page.getByText('No backups yet')).toBeVisible()
   expect(deletions()).toEqual(1)
@@ -474,7 +474,7 @@ test('dismissing the delete confirmation sends no request, and confirm is not th
   })
   expect(focus.inside).toBe(true)
   expect(focus.label).not.toContain('Actions for')
-  expect(focus.text).not.toEqual('Yes, delete it')
+  expect(focus.text).not.toEqual('Delete backup')
 
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)

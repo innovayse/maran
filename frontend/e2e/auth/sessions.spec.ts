@@ -98,7 +98,7 @@ test('ending another device asks first, then reads the page again without its ro
   const dialog = page.getByRole('dialog', { name: `End the session from ${OTHER.ipAddress}` })
   await expect(dialog).toBeVisible()
   await expect(dialog).toContainText('End this session?')
-  await dialog.getByRole('button', { name: 'End' }).click()
+  await dialog.getByRole('button', { name: 'End session' }).click()
 
   await expect(page.getByText('Safari on iPhone')).toBeHidden()
   await expect(page.getByText('Chrome on Linux')).toBeVisible()
@@ -194,7 +194,7 @@ test('dismissing the session confirmation sends no request, and confirm is not t
   })
   expect(focus.inside).toBe(true)
   expect(focus.label).not.toContain('Actions for')
-  expect(focus.text).not.toEqual('End')
+  expect(focus.text).not.toEqual('End session')
 
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)

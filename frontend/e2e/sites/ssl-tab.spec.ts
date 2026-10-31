@@ -147,7 +147,7 @@ test('removing a certificate asks which one, then takes it off the screen', asyn
 
   const dialog = page.getByRole('dialog', { name: `Remove the certificate for ${SITE.domain}` })
   await expect(dialog).toContainText('The site goes back to serving plain HTTP.')
-  await dialog.getByRole('button', { name: 'Yes, do it' }).click()
+  await dialog.getByRole('button', { name: 'Remove certificate' }).click()
 
   await expect(page.getByText('No certificate installed')).toBeVisible()
 })

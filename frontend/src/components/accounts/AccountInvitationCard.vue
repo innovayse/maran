@@ -159,7 +159,7 @@ onBeforeUnmount(store.forget)
     <UiSpinner v-if="store.loading" :label="t('invitations.loading')" />
 
     <template v-else-if="store.status !== null">
-      <p class="text-base text-text-primary" data-testid="invitation-state">{{ stateText }}</p>
+      <p class="text-sm text-text-primary" data-testid="invitation-state">{{ stateText }}</p>
 
       <!-- Nothing more is offered once the owner has a password: there is no invitation left to
            hand over, and a link here would be a way to reset a live customer's access. -->
@@ -182,7 +182,7 @@ onBeforeUnmount(store.forget)
                other way to hand this value over is to read or select it. -->
           <p
             data-testid="invitation-link"
-            class="rounded-control border border-border-strong bg-surface-2 px-3 py-2.5 font-mono text-base wrap-anywhere text-text-primary"
+            class="rounded-control border border-border-strong bg-surface-2 px-3 py-2.5 font-mono text-sm wrap-anywhere text-text-primary"
           >
             {{ displayedLink }}
           </p>

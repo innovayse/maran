@@ -21,7 +21,7 @@
       },
       "confirmDelete": "Delete this backup? The copy is gone, and nothing here can bring it back.",
       "confirmDeleteTitle": "Delete the backup of {account} from {startedAt}",
-      "confirm": "Yes, delete it",
+      "confirm": "Delete backup",
       "working": "Working…",
       "scheduleLink": "Backup schedule",
       "destinationsLink": "Backup destinations",

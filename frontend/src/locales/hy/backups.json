@@ -21,7 +21,7 @@
       },
       "confirmDelete": "Ջնջե՞լ այս պատճենը։ Այն կվերանա, և այստեղից հետ բերել հնարավոր չէ։",
       "confirmDeleteTitle": "Ջնջել {account}-ի պատճենը {startedAt}-ից",
-      "confirm": "Այո, ջնջել",
+      "confirm": "Ջնջել պատճենը",
       "working": "Կատարվում է…",
       "scheduleLink": "Պատճենների ժամանակացույց",
       "destinationsLink": "Պատճենների պահման վայրեր",
