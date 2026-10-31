@@ -266,8 +266,8 @@ disagreeing about their keys.
 `maran agent` runs the Rust toolchain natively and falls back to a pinned container when the
 machine has no C linker, so a fresh clone can build the agent before installing anything.
 
-Requirements: .NET 9 SDK, Rust (stable), Node.js 20.19+ (or 22.12+), protoc, a C toolchain for Rust linking
-(`build-essential`), and Docker for development only.
+Requirements: .NET 9 SDK, Rust (stable), Node.js 20.19+ (or 22.13+), protoc, a C toolchain for
+Rust linking (`build-essential`), and Docker for development only.
 
 ## Contributing
 
