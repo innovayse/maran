@@ -28,7 +28,7 @@
  * current is this browser's, whichever page it falls on. Ending a session is followed by reading the
  * page again, since the removal pulls a row up from the next page.
  */
-import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -197,11 +197,6 @@ const signOutEverywhere = async (): Promise<void> => {
   await authStore.logoutEverywhere()
   await router.push({ name: 'login' })
 }
-
-// A refusal from another screen's action is not this visit's; the list itself loads from the URL.
-onMounted((): void => {
-  authStore.errorMessage = null
-})
 </script>
 
 <template>

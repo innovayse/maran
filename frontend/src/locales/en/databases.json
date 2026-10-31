@@ -21,7 +21,6 @@
       "rowActions": "Actions for {name}",
       "confirmDropTitle": "Drop database {name}",
       "confirmResetPasswordTitle": "Reset the password for {name}",
-      "grantRepairLink": "Grant repair",
       "sectionTitle": "All databases",
       "created": "Database created.",
       "confirmDropAction": "Drop database",

@@ -14,13 +14,13 @@ import { useI18n } from 'vue-i18n'
 import UiDropdown from '../ui/UiDropdown.vue'
 import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
-import UiMeter, { type UiMeterStatus } from '../ui/UiMeter.vue'
 import UiTable from '../ui/UiTable.vue'
+import TaskProgress from './TaskProgress.vue'
 import TaskStatusBadge from './TaskStatusBadge.vue'
 import { useTaskKindLabel } from '../../composables/useTaskKindLabel'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
-import type { PanelTask, PanelTaskStatus } from '../../types/panelTask'
+import type { PanelTask } from '../../types/panelTask'
 import type { UiTableColumn } from '../../types/tableColumn'
 
 /** Props accepted by {@link TaskTable}. */
@@ -60,23 +60,6 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
 })
 
 /**
- * The meter status of a row's small progress bar: the accent while it runs, green when done, red
- * when it failed — the same three the pane uses, so a row and its pane agree.
- * @param status The task's status.
- * @returns The status the kit's meter colours itself by.
- */
-const meterStatus = (status: PanelTaskStatus): UiMeterStatus => {
-  switch (status) {
-    case 'completed':
-      return 'success'
-    case 'failed':
-      return 'danger'
-    default:
-      return 'running'
-  }
-}
-
-/**
  * Passes a heading's sort up.
  * @param field The server's sort field.
  * @returns Nothing.
@@ -102,26 +85,8 @@ const sortBy = (field: string): void => {
          wrapped: an identifier read across six lines is a different string. -->
     <template #cell-subject="{ row }">{{ row.subject }}</template>
     <template #cell-status="{ row }"><TaskStatusBadge :status="row.status" /></template>
-    <!-- The figure is the cell's text; the bar beside it is decoration (a row's bar must not be
-         announced as a second progressbar next to the pane's). A failed task keeps its figure but
-         loses the bar, which would read as work still under way (#222). -->
-    <template #cell-percent="{ row }">
-      <div class="flex items-center justify-end gap-3">
-        <div class="w-16 shrink-0" aria-hidden="true">
-          <UiMeter
-            v-if="row.status !== 'failed'"
-            tone="progress"
-            :status="meterStatus(row.status)"
-            :value="row.percent"
-            :max="100"
-            :label="t('tasks.columns.percent')"
-            :value-text="t('tasks.list.percentValue', { percent: row.percent })"
-            :show-value="false"
-          />
-        </div>
-        <span class="min-w-10">{{ t('tasks.list.percentValue', { percent: row.percent }) }}</span>
-      </div>
-    </template>
+    <!-- The figure is the cell's text and the bar decoration; a failed task keeps the figure only. -->
+    <template #cell-percent="{ row }"><TaskProgress :status="row.status" :percent="row.percent" size="row" /></template>
     <!-- The instant, not the day: a morning's runs must be told apart. -->
     <template #cell-startedAt="{ row }">{{ formatIsoTimestamp(row.startedAt, localeStore.current) }}</template>
     <template #cell-actions="{ row }">

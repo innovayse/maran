@@ -1,4 +1,4 @@
-import { earlySkeletons, recordSkeletonFlashes } from '../fixtures/skeleton-flash'
+import { earlySkeletons, recordSkeletonFlashes, runPastDelay } from '../fixtures/skeleton-flash'
 import { expect, test, type Page } from '@playwright/test'
 
 // The loading kit through `e2e/fixtures/skeleton-harness.html` (see that file): placeholders drawn
@@ -108,12 +108,29 @@ test('a 50 ms answer shows no placeholder', async ({ page }) => {
   await recordSkeletonFlashes(page)
   await openHarness(page, 'delay=50')
 
-  // Every frame from the first, for longer than the answer and the 150 ms delay together: no
-  // placeholder may be seen in the first 150 ms of its wait, although they are mounted to hold
-  // the space (see `recordSkeletonFlashes` for why the wait, not the stub, is the clock).
-  await page.waitForTimeout(400)
-  expect(await earlySkeletons(page)).toEqual([])
+  // The page's clock is the test's (see `recordSkeletonFlashes`): the harness answers on its own
+  // 50 ms timer, which fires only when page time is run, so the answer lands before the 150 ms
+  // delay however busy the machine is; then time runs far past it.
+  await page.clock.runFor(50)
   await expect(page.getByTestId('loading-status')).toHaveText('Loaded')
+  await runPastDelay(page)
+  expect(await earlySkeletons(page)).toEqual([])
+})
+
+test('the flash recorder sees a placeholder once a wait has lasted the delay', async ({ page }) => {
+  // The positive control for the check above: an empty list there means something only because
+  // the same recorder, given a wait that does pass 150 ms of page time, reports what it saw.
+  await recordSkeletonFlashes(page)
+  await openHarness(page, 'delay=never')
+
+  await page.clock.runFor(149)
+  expect(await earlySkeletons(page)).toEqual([])
+  await page.clock.runFor(1)
+  await expect
+    .poll(async () => {
+      return (await earlySkeletons(page)).length
+    })
+    .toBeGreaterThan(0)
 })
 
 test('a failed load shows the alert and never a skeleton', async ({ page }) => {

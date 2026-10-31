@@ -24,20 +24,14 @@
  * shows a short note that the log stays with the server's administrators, in place of "nothing has
  * been reported yet" — which would read as a task that is stuck (issue #201).
  *
- * **A failed task shows no bar.** A meter stopped at 20 % beside FAILED reads as work still
- * under way, so once the task has failed the bar is gone and the figure stays, muted, as a record of
- * how far it got (#222).
+ * **How far it got is drawn by {@link TaskProgress}**, the one rule a row and this pane share: a
+ * failed task draws no bar, only its figure (#222).
  *
  * **A failure reads as a sentence, with the code as a detail.** The module reports a stable code
  * (`AcmeAccountRejected`), not text, because the task outlives the request that would have carried
  * the operator's language. The known codes have a sentence here; an unknown one falls back to a
  * generic sentence, and the code is always printed beneath it, because it is what an operator quotes
  * in a support ticket.
- *
- * The progress figure is printed as text beside the bar: a bar alone is an unlabelled stripe. The
- * bar is the kit's meter in its `progress` tone, whose colour follows the task's status rather than
- * the capacity thresholds (amber at 80 %, red at 100 %) that would paint a finished run red. The
- * figure is this pane's own large display text, so the meter is told not to print a second one.
  *
  * The correlation id is shown because it is the thread that ties this task to the request that
  * started it and to the panel's own logs — it is the one value an operator reporting a problem
@@ -50,7 +44,7 @@ import UiButton from '../ui/UiButton.vue'
 import UiCard from '../ui/UiCard.vue'
 import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../ui/UiDescriptionList.vue'
-import UiMeter, { type UiMeterStatus } from '../ui/UiMeter.vue'
+import TaskProgress from './TaskProgress.vue'
 import TaskStatusBadge from './TaskStatusBadge.vue'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import { useTaskKindLabel } from '../../composables/useTaskKindLabel'
@@ -85,18 +79,6 @@ const kindLabel = useTaskKindLabel()
 
 /** The log's scroll box, once there is a log to show. */
 const logBox: Ref<HTMLElement | null> = ref(null)
-
-/** The meter's status: the accent while it runs, green when done, red when it failed. */
-const meterStatus: ComputedRef<UiMeterStatus> = computed(() => {
-  switch (props.task.status) {
-    case 'completed':
-      return 'success'
-    case 'failed':
-      return 'danger'
-    default:
-      return 'running'
-  }
-})
 
 /** The failure as a sentence: the known code's own, or the generic one for a code the panel does not know. */
 const failureSentence: ComputedRef<string> = computed(() => {
@@ -165,28 +147,7 @@ watch(
       <UiButton variant="secondary" @click="close">{{ t('common.close') }}</UiButton>
     </div>
 
-    <p
-      v-if="task.status === 'failed'"
-      class="mb-4 font-display text-lg font-black text-text-muted tabular-nums"
-      data-testid="task-failed-progress"
-    >
-      {{ t('tasks.pane.stoppedAt', { percent: task.percent }) }}
-    </p>
-    <div v-else class="mb-4 flex items-center gap-3">
-      <UiMeter
-        tone="progress"
-        :status="meterStatus"
-        :value="task.percent"
-        :max="100"
-        :label="t('tasks.pane.progressLabel')"
-        :value-text="t('tasks.list.percentValue', { percent: task.percent })"
-        :show-value="false"
-      />
-      <!-- The figure is visible text; the bar above already announces it, so it is not read twice. -->
-      <span class="font-display text-lg font-black text-text-primary tabular-nums" aria-hidden="true">
-        {{ t('tasks.list.percentValue', { percent: task.percent }) }}
-      </span>
-    </div>
+    <TaskProgress class="mb-4" :status="task.status" :percent="task.percent" size="pane" />
 
     <!-- The kit's list, not a hand-rolled one: it owns the grid and the `mono` treatment for machine
          text, which a subject, an instant and a correlation id all are. -->

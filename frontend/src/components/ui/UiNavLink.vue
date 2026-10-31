@@ -79,10 +79,16 @@ const props = withDefaults(
      * dark on the Plans page. Left unset, the router's prefix match decides, as before.
      */
     active?: boolean
+    /**
+     * Leaves room at the row's end for a control drawn over it: the section toggle of
+     * `UiNavSection`, which cannot sit inside the link (a button inside a link is invalid markup)
+     * yet must sit inside the row's pill, so a section row is as wide as every other row.
+     */
+    trailing?: boolean
   }>(),
   // `active` defaults to `undefined` on purpose: an absent boolean prop is otherwise cast to
   // `false`, and "not given" (let the router decide) must stay distinct from "given, not lit".
-  { locked: false, compact: false, nested: false, active: undefined },
+  { locked: false, compact: false, nested: false, active: undefined, trailing: false },
 )
 
 /** The label cluster, read for the text the link offers as its `title`. */
@@ -119,7 +125,9 @@ onUpdated(readText)
         ? 'mx-auto size-9 justify-center'
         : nested
           ? 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1 max-lg:py-3'
-          : 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1.5 max-lg:py-3',
+          : trailing
+            ? 'w-full flex-wrap justify-between gap-y-1 py-1.5 pr-9 pl-2.5 max-lg:py-3'
+            : 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1.5 max-lg:py-3',
       { 'router-link-active': active === true },
     ]"
     :aria-disabled="locked ? 'true' : undefined"

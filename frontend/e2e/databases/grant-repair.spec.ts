@@ -11,6 +11,7 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import type { GrantRepairReport } from '../../src/types/grantRepair'
 import type { PanelModule } from '../../src/types/module'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { setPersistedLocale } from '../fixtures/set-locale'
 
 /**
  * The screen's banners: every `status` except the loading region's own announcement.
@@ -336,4 +337,24 @@ test('the databases list links to the grant repair screen', async ({ page }) => 
   await link.click()
 
   await expect(page.getByRole('heading', { name: 'Grant repair' })).toBeVisible()
+})
+
+// #222: the screen has one Armenian name. The in-page button, the page title and the sidebar entry
+// read the same term, so an operator never wonders whether "repair" and "restore" are two screens.
+test('the grant repair screen has one Armenian name in the button, the title and the sidebar', async ({ page }) => {
+  const term = 'Իրավունքների վերականգնում'
+  await setPersistedLocale(page, 'hy')
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubDatabaseGrants(page, REPORT)
+  await stubDatabases(page, [])
+  await stubAccounts(page, [])
+
+  await page.goto('/databases')
+  await page.locator('#main-content').getByRole('link', { name: term, exact: true }).click()
+
+  await expect(page.getByRole('heading', { level: 1, name: term, exact: true })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Հիմնական նավիգացիա' }).getByRole('link', { name: term, exact: true })).toBeVisible()
+  await expect(page.locator('body')).not.toContainText('Իրավունքների ուղղում')
 })

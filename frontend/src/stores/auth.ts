@@ -133,6 +133,15 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
+   * Forgets the last failure's message. A message belongs to the screen that produced it, so the
+   * signed-out layout calls this on every navigation between its screens.
+   * @returns Nothing; `errorMessage` is cleared synchronously.
+   */
+  const dismissError = (): void => {
+    errorMessage.value = null
+  }
+
+  /**
    * Renews the access token from the refresh cookie, sharing one request across
    * concurrent callers.
    * @returns True when a new token was obtained.
@@ -473,6 +482,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     verifyTwoFactor,
     logout,
+    dismissError,
     logoutEverywhere,
     loadSetupState,
     completeSetup,

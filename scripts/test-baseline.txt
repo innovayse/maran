@@ -422,6 +422,15 @@
 # ui-kit/no-horizontal-scroll-admin 69->75). Backend rows unchanged: `maran test backend` printed
 # `collected 20 targets: 5027 passed / 0 failed` against them.
 #
+# RE-MEASURED 2026-10-31 (#221, shell: live locale, stale messages, section rows, current row,
+# scrollbar lane) — edited by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa`
+# run printing `collected 158 targets: 1057 passed / 2 failed`; both failures reproduce on
+# untouched dev (shell/licence-gating:13, an unscoped `Sites` link that also matches the dashboard
+# card, now scoped to the sidebar; sites/detail-loading:98, a timing check that passes at one
+# worker). A second full run after the licence-gating fix printed `collected 158 targets: 1058
+# passed / 1 failed`, the one failure being sites/detail-loading:98 again. Keyed by spec file: shell/content-scroll 1 added (the scroll check needs a browser that
+# draws scrollbars, so it has its own file), auth/client-checks 6->7, shell/sidebar-state 6->10.
+# Backend rows unchanged: no backend file changed.
 # RE-MEASURED 2026-10-31 (#217: phone tables as cards, one theme menu, dialog hints in view) —
 # edited by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa` run printing
 # `158 targets: 1058 passed / 1 failed / 2 ignored`; the one failure,
@@ -429,6 +438,12 @@
 # check that failed under a host load average of 11 and passed 18 of 18 at one worker
 # (`--repeat-each=3 --workers=1`); #217 touches no file it renders, so its row stays 6. One spa
 # row added (ui-kit/table-cards 4) and one raised (shell/theme-switch 2->4). Backend rows unchanged.
+#
+# RE-MEASURED 2026-10-31 (#222: task failure sentences, create toasts, one task progress rule, one
+# Armenian grant repair term) — edited by hand, not by --accept. Source: a full
+# `E2E_PORT=5199 maran test spa` run printing `158 targets: 1066 passed / 0 failed / 2 ignored`.
+# Five spa rows raised: cron/description 3->4, databases/grant-repair 11->12, firewall/bans 6->8,
+# firewall/whitelist 7->8, tasks/failure-sentence 3->5. Backend rows unchanged.
 rust	maran_agent [unittests src/lib.rs]	420	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
@@ -501,7 +516,7 @@ spa	audit/list.spec.ts	6	0	0
 spa	audit/loading.spec.ts	3	0	0
 spa	audit/occurred-at-time.spec.ts	1	0	0
 spa	audit/sidebar-link.spec.ts	2	0	0
-spa	auth/client-checks.spec.ts	6	0	0
+spa	auth/client-checks.spec.ts	7	0	0
 spa	auth/forgot-password.spec.ts	3	0	0
 spa	auth/login.spec.ts	7	0	0
 spa	auth/reset-password.spec.ts	2	0	0
@@ -524,7 +539,7 @@ spa	backups/schedule-loading.spec.ts	3	0	0
 spa	backups/schedule.spec.ts	9	0	0
 spa	backups/weekday-names.spec.ts	1	0	0
 spa	cron/account-filter.spec.ts	3	0	0
-spa	cron/description.spec.ts	3	0	0
+spa	cron/description.spec.ts	4	0	0
 spa	cron/entries.spec.ts	7	0	0
 spa	cron/environment.spec.ts	5	0	0
 spa	cron/loading.spec.ts	3	0	0
@@ -543,7 +558,7 @@ spa	dashboard.spec.ts	10	0	0
 spa	databases/account-filter.spec.ts	3	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
-spa	databases/grant-repair.spec.ts	11	0	0
+spa	databases/grant-repair.spec.ts	12	0	0
 spa	databases/list.spec.ts	15	0	0
 spa	databases/loading.spec.ts	6	0	0
 spa	file-transfer/account-filter.spec.ts	8	0	0
@@ -559,14 +574,14 @@ spa	file-transfer/sftp-create.spec.ts	4	0	0
 spa	file-transfer/sftp-list.spec.ts	9	0	0
 spa	firewall/access.spec.ts	4	0	0
 spa	firewall/bans-list.spec.ts	7	0	0
-spa	firewall/bans.spec.ts	6	0	0
+spa	firewall/bans.spec.ts	8	0	0
 spa	firewall/consistency.spec.ts	5	0	0
 spa	firewall/loading.spec.ts	9	0	0
 spa	firewall/lockout.spec.ts	6	0	0
 spa	firewall/presets.spec.ts	6	0	0
 spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist-list.spec.ts	5	0	0
-spa	firewall/whitelist.spec.ts	7	0	0
+spa	firewall/whitelist.spec.ts	8	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
 spa	monitoring/monitoring.spec.ts	14	0	0
@@ -585,6 +600,7 @@ spa	shell/breadcrumb-trail.spec.ts	11	0	0
 spa	shell/change-password.spec.ts	6	0	0
 spa	shell/command-palette-a11y.spec.ts	3	0	0
 spa	shell/command-palette.spec.ts	1	0	0
+spa	shell/content-scroll.spec.ts	1	0	0
 spa	shell/document-title.spec.ts	5	0	0
 spa	shell/health-server-error.spec.ts	1	0	0
 spa	shell/health-status.spec.ts	2	0	0
@@ -603,7 +619,7 @@ spa	shell/page-eyebrow.spec.ts	3	0	0
 spa	shell/palette-focus.spec.ts	7	0	0
 spa	shell/profile.spec.ts	3	0	0
 spa	shell/renders-title.spec.ts	1	0	0
-spa	shell/sidebar-state.spec.ts	6	0	0
+spa	shell/sidebar-state.spec.ts	10	0	0
 spa	shell/sidebar-submenu.spec.ts	9	0	0
 spa	shell/submenu-current-child.spec.ts	5	0	0
 spa	shell/tasks-naming.spec.ts	1	0	0
@@ -619,7 +635,7 @@ spa	sites/logs-tab.spec.ts	9	0	0
 spa	sites/php-versions-loading.spec.ts	3	0	0
 spa	sites/ssl-tab.spec.ts	11	0	0
 spa	tasks/badge.spec.ts	4	0	0
-spa	tasks/failure-sentence.spec.ts	3	0	0
+spa	tasks/failure-sentence.spec.ts	5	0	0
 spa	tasks/list.spec.ts	14	0	0
 spa	tasks/loading.spec.ts	3	0	0
 spa	tasks/log-fidelity.spec.ts	2	0	0
@@ -638,7 +654,7 @@ spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
 spa	ui-kit/pagination.spec.ts	10	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0
 spa	ui-kit/sentence-case.spec.ts	36	0	0
-spa	ui-kit/skeleton.spec.ts	9	0	0
+spa	ui-kit/skeleton.spec.ts	10	0	0
 spa	ui-kit/table-cards.spec.ts	4	0	0
 spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0
