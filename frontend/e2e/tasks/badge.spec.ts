@@ -3,7 +3,10 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import {
-  stubDeferredTaskStream,
+  RUNNING_STREAM_PATTERN,
+  runningFrame,
+  runningStreamBody,
+  stubRunningStreamSequence,
   stubTaskStream,
   stubTasks,
   taskFrame,
@@ -49,24 +52,27 @@ const badge = (page: Page): Locator => {
   return page.getByRole('link', { name: /background tasks? running/i })
 }
 
-// THE proposition. The badge lives in the shell header and the task arrives on a stream the tasks
-// page opened; both read the same store, so the count moves without a navigation, a reload, or a
-// second fetch of its own.
+// THE proposition. The badge lives in the shell header and the task arrives on the shell's one
+// running-tasks stream; the badge reads the store that stream merges into, so the count moves without
+// a navigation, a reload, or a fetch of its own.
 //
 // What would break it: a badge that counted the listing rather than the store's array; a badge with
-// its own request; a page that kept stream frames in local component state instead of merging them
-// into the store; a `merge` that refused to raise a task's status; or a badge rendered by the tasks
-// page rather than by the shell. The "absent first" assertion is what makes the second one mean
-// something — without it the test would pass on a badge that was always showing.
+// its own request; a store that ignored the tray's frames; or a badge rendered by the tasks page
+// rather than by the shell. The "absent first" assertion is what makes the second half mean
+// something — without it the test would pass on a badge that was always showing. The change is
+// staged as the tray's reconnect (a stub cannot keep a stream open and speak later), held until the
+// badge has been seen absent.
 //
 // The URL assertion is not decoration either: it is what distinguishes "the badge rose" from "the
 // badge rose because the app navigated somewhere that fetched again".
-test('a task arriving in the stream raises the header badge without navigating', async ({ page }) => {
+test('a task arriving on the running-tasks stream raises the header badge without navigating', async ({
+  page,
+}) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubTasks(page, [SETTLED])
-  await stubTaskStream(page, taskFrame(RUNNING))
+  const tray = await stubRunningStreamSequence(page, runningStreamBody([]), runningStreamBody([RUNNING]))
 
   await page.goto('/tasks')
   await expect(page.getByRole('heading', { level: 1, name: 'Background tasks' })).toBeVisible()
@@ -75,22 +81,17 @@ test('a task arriving in the stream raises the header badge without navigating',
   await expect(badge(page)).toHaveCount(0)
 
   const urlBefore = page.url()
-  await page.getByRole('button', { name: `Actions for ${SETTLED.subject}` }).click()
-  await page.getByRole('menuitem', { name: 'Live view' }).click()
+  tray.release()
 
-  await expect(badge(page)).toBeVisible()
   await expect(badge(page)).toHaveText('1')
   expect(page.url()).toBe(urlBefore)
 })
 
-// The other direction, and the reason the shell opens the streams at all: an operator who starts
+// The other direction, and the reason the shell opens the stream at all: an operator who starts
 // something long and walks away to another screen still watches the count fall when it finishes.
-// This spec never visits the tasks page, so it fails if the streams were opened by that page rather
-// than by the shell.
-//
-// The stream is HELD until the badge has been observed running. Answering it immediately would let
-// the finishing frame land before the badge was ever drawn, and the final assertion would then pass
-// without the fall it claims to measure ever having happened — an assertion that cannot fail.
+// This spec never visits the tasks page, so it fails if the stream were opened by that page rather
+// than by the shell. The finishing frame is HELD until the badge has been observed running, or the
+// final assertion would pass without the fall it claims to measure ever having happened.
 test('the shell watches a running task from any screen and the badge falls when it ends', async ({
   page,
 }) => {
@@ -98,26 +99,33 @@ test('the shell watches a running task from any screen and the badge falls when 
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubTasks(page, [RUNNING])
-  const stream = await stubDeferredTaskStream(page, taskFrame({ ...SETTLED, revision: 6 }))
+  const tray = await stubRunningStreamSequence(
+    page,
+    runningStreamBody([RUNNING]),
+    `: open\n\n${taskFrame({ ...SETTLED, revision: 6 })}${runningFrame([])}`,
+  )
 
   // Never /tasks: whatever opens this stream is the shell.
   await page.goto('/')
   await expect(badge(page)).toHaveText('1')
 
-  stream.release()
+  tray.release()
 
   await expect(badge(page)).toHaveCount(0)
 })
 
-// The running read can fail like any other. The badge must be silent about that — it is not an
-// error the shell shouts on every screen.
-test('a refused running read gets no badge and no shell error', async ({
-  page,
-}) => {
+// The stream can be refused like any other request. The badge must be silent about that — it is not
+// an error the shell shouts on every screen — and a refusal is not retried: signed out, forbidden or
+// absent does not change by asking again. The page clock is run a minute past the refusal, longer
+// than any reconnect wait, so a retry would have been made.
+test('a refused running-tasks stream gets no badge, no shell error and no retry', async ({ page }) => {
+  await page.clock.install()
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
-  await page.route(/\/api\/v1\/tasks\/running(\?.*)?$/, async (route) => {
+  let asked = 0
+  await page.route(RUNNING_STREAM_PATTERN, async (route) => {
+    asked += 1
     await route.fulfill({
       status: 404,
       contentType: 'application/problem+json',
@@ -129,13 +137,18 @@ test('a refused running read gets no badge and no shell error', async ({
 
   // Named, so the assertion says which screen rendered rather than that some heading exists.
   await expect(page.getByRole('heading', { level: 1, name: 'System status' })).toBeVisible()
+  await expect.poll(() => {
+    return asked
+  }).toBe(1)
+  await page.clock.runFor(60_000)
   await expect(badge(page)).toHaveCount(0)
   await expect(page.getByRole('banner').getByText('Not found.')).toHaveCount(0)
+  expect(asked).toBe(1)
 })
 
-// The badge counts the panel's running read, not the page on screen: a running task that is not on
+// The badge counts the running-tasks stream, not the page on screen: a running task that is not on
 // the tasks page (filtered out here) still counts.
-test('the badge counts the running read, not the rows of the page on screen', async ({ page }) => {
+test('the badge counts the running-tasks stream, not the rows of the page on screen', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)

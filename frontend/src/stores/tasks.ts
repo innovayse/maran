@@ -5,26 +5,33 @@ import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { PanelTask, TaskFailureCount, TaskKindChoice } from '../types/panelTask'
 
+/** How long the running-tasks stream waits before its first reconnect after the connection ended. */
+const RECONNECT_FIRST_DELAY_MS = 1000
+
 /**
- * How many task streams the panel holds open at once.
- *
- * Each one is a request pinned for the life of the task, and a browser will only give an origin so
- * many. An unbounded "watch everything running" would exhaust the connection pool and take the rest
- * of the panel down with it — the badge would be perfectly accurate on a screen where nothing else
- * could load.
+ * The longest wait between two reconnects. The wait doubles after each attempt that delivered nothing,
+ * so a panel that is down is asked twice a minute rather than hammered, and a restarted one is found
+ * within half a minute.
  */
-const MAXIMUM_OPEN_WATCHES = 8
+const RECONNECT_MAX_DELAY_MS = 30000
+
+/**
+ * HTTP statuses that mean the panel refused the stream rather than lost it: signed out, not allowed,
+ * or the module absent. Retrying cannot change any of them, so the tray stops instead.
+ */
+const REFUSAL_STATUSES: readonly number[] = [401, 403, 404]
 
 /**
  * Owns the panel's background tasks: one server page of them for the tasks screen, the running
  * ones the shell header's badge counts, the task whose live pane is open, and the live streams that
  * keep all three current.
  *
- * **Three reads, one source of change.** The page is a server page (`useServerTable`), the running
- * tasks are their own unpaged read (`GET /api/v1/tasks/running`), and the open task is the row the
- * operator chose. Every stream frame merges into all three, so a frame moves the badge, the row and
- * the pane in the same tick and none of them can be stale relative to another — which is also what
- * lets the badge rise without a navigation.
+ * **Two streams, never more (issue #274).** The running tasks arrive on ONE multiplexed stream the
+ * shell opens (`GET /api/v1/tasks/running/stream`, the "tray"), whatever the number of tasks in
+ * flight; the open pane watches its own task on the per-task stream, because that task may long
+ * since have finished and the tray only carries running work. Every frame of either merges into the
+ * page's rows, the running tasks and the pane, so a frame moves the badge, the row and the pane in
+ * the same tick — which is also what lets the badge rise without a navigation.
  *
  * **The listing is scoped by the panel, not by this store.** An administrator receives every task;
  * a customer receives the tasks started for their own account, with the log left empty because it
@@ -49,18 +56,22 @@ export const useTasksStore = defineStore('tasks', () => {
   const failures: Ref<TaskFailureCount> = ref({ state: 'loading' })
 
   /**
-   * The abort controller of every open stream, keyed by task id.
+   * The abort controller of every open per-task stream, keyed by task id — in practice the open
+   * pane's alone.
    *
    * A plain `Map` rather than reactive state: nothing renders from it, and a controller is an
    * identity to call `abort()` on, not a value to watch.
    */
   const watches = new Map<string, AbortController>()
 
-  /**
-   * The running-tasks read in flight, or `null` when none is. Not reactive: it only lets a second
-   * caller join the request already running instead of starting another.
-   */
-  let runningRead: Promise<void> | null = null
+  /** The abort controller of the open running-tasks stream, or `null` when the tray is closed. */
+  let tray: AbortController | null = null
+
+  /** The reconnect waiting to happen, or `null` when none is scheduled. */
+  let reconnect: ReturnType<typeof setTimeout> | null = null
+
+  /** How long the next reconnect waits; back to the first delay whenever a running set arrives. */
+  let reconnectDelay = RECONNECT_FIRST_DELAY_MS
 
   /**
    * How many tasks are running right now, and the whole content of the header badge. Computed over
@@ -108,28 +119,52 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   /**
-   * Merges one stream frame into the page, the running tasks and the open pane.
+   * Merges one stream frame into the page, the running tasks and the open pane, in place only.
    *
-   * The page is only updated in place — where a row falls is the server's to decide, so a task the
-   * page does not hold is not inserted. A frame reporting a task the running read did not know as
-   * running is PREPENDED there, because that is what raises the badge for work started elsewhere.
+   * Where a row falls is the server's to decide, so a task the page does not hold is not inserted;
+   * and which tasks are running is the tray's to say, so a pane's frame never adds one.
    * @param task The task as a stream frame reported it.
    * @returns Nothing; the held state updates synchronously.
    */
   const merge = (task: PanelTask): void => {
     rows.value = replaceIn(rows.value, task) ?? rows.value
-
-    const updated = replaceIn(running.value, task)
-    if (updated !== null) {
-      running.value = updated
-    } else if (task.status === 'running') {
-      running.value = [task, ...running.value]
-    }
+    running.value = replaceIn(running.value, task) ?? running.value
 
     const open = openTask.value
     if (open !== null && open.id === task.id && isCurrent(open, task)) {
       openTask.value = task
     }
+  }
+
+  /**
+   * Merges one frame of the tray and, when it reports a running task not yet held, PREPENDS it to
+   * the running tasks — that is what raises the badge for work started elsewhere.
+   * @param task The task as the tray reported it.
+   * @returns Nothing.
+   */
+  const admit = (task: PanelTask): void => {
+    const known = running.value.some((held) => {
+      return held.id === task.id
+    })
+    merge(task)
+    if (!known && task.status === 'running') {
+      running.value = [task, ...running.value]
+    }
+  }
+
+  /**
+   * Keeps only the running tasks the tray names, which drops one the caller may no longer see and
+   * reconciles what was held across a reconnect. A set arriving also proves the connection works,
+   * so the reconnect wait starts over.
+   * @param ids Every running task the caller may see now.
+   * @returns Nothing.
+   */
+  const settleRunning = (ids: string[]): void => {
+    const named = new Set(ids)
+    running.value = running.value.filter((task) => {
+      return named.has(task.id)
+    })
+    reconnectDelay = RECONNECT_FIRST_DELAY_MS
   }
 
   /**
@@ -144,24 +179,14 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   /**
-   * Stops every open stream. Called when the shell tears down: this store outlives every page.
-   * @returns Nothing.
-   */
-  const stopAllWatches = (): void => {
-    for (const controller of watches.values()) {
-      controller.abort()
-    }
-    watches.clear()
-  }
-
-  /**
-   * Watches one task, merging every frame. Returns immediately; asking to watch a task already
-   * watched does nothing, so a page that re-mounts does not open a second connection.
+   * Watches one task on its own stream, merging every frame — what the live pane uses. Returns
+   * immediately; asking to watch a task already watched does nothing, so a page that re-mounts does
+   * not open a second connection.
    * @param id The task to watch.
    * @returns Nothing; frames arrive as they are decoded.
    */
   const watch = (id: string): void => {
-    if (watches.has(id) || watches.size >= MAXIMUM_OPEN_WATCHES) {
+    if (watches.has(id)) {
       return
     }
 
@@ -190,40 +215,78 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   /**
-   * Opens a live stream for each running task, up to the connection cap — what makes the badge fall
-   * on its own when work started on another screen finishes.
-   * @returns Nothing.
+   * Opens the tray: the ONE running-tasks stream, held for as long as the shell is signed in.
+   * Idempotent. A stream that ends or breaks is reopened after a wait that doubles up to
+   * {@link RECONNECT_MAX_DELAY_MS}; a refusal ({@link REFUSAL_STATUSES}) closes the tray instead,
+   * and leaves nothing to count — the badge is silent rather than an error on every screen.
+   * @returns Nothing; frames arrive as they are decoded.
    */
-  const watchRunning = (): void => {
-    for (const task of running.value) {
-      if (task.status === 'running') {
-        watch(task.id)
-      }
+  const openTray = (): void => {
+    if (tray !== null) {
+      return
     }
+
+    const controller = new AbortController()
+    tray = controller
+
+    /**
+     * Decides what follows the end of this connection.
+     * @param cause Why it ended: `null` for a clean end, otherwise what was thrown.
+     * @returns Nothing.
+     */
+    const ended = (cause: unknown): void => {
+      // Closed or replaced on purpose: whoever did it owns what happens next.
+      if (tray !== controller) {
+        return
+      }
+
+      tray = null
+      if (cause instanceof ApiError && REFUSAL_STATUSES.includes(cause.status)) {
+        running.value = []
+        return
+      }
+
+      reconnect = setTimeout(() => {
+        reconnect = null
+        openTray()
+      }, reconnectDelay)
+      reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_DELAY_MS)
+    }
+
+    api.watchRunning({ onTask: admit, onRunning: settleRunning }, controller.signal).then(
+      () => {
+        ended(null)
+      },
+      (cause: unknown) => {
+        ended(cause)
+      },
+    )
   }
 
   /**
-   * Reads every running task, replacing what is held. A failure leaves nothing to count: the badge
-   * is silent rather than shouting on every screen, and the tasks page reports its own read.
-   * @returns Resolves once the request has settled, successfully or not.
+   * Closes the tray and cancels a pending reconnect. Called when the shell tears down — on sign-out
+   * above all — because this store outlives every page and nothing else would.
+   * @returns Nothing.
    */
-  const loadRunning = async (): Promise<void> => {
-    // A second request while one is in flight IS the same request: the badge and the tasks page
-    // both mount at once.
-    if (runningRead !== null) {
-      return runningRead
+  const closeTray = (): void => {
+    if (reconnect !== null) {
+      clearTimeout(reconnect)
+      reconnect = null
     }
+    const controller = tray
+    tray = null
+    controller?.abort()
+    reconnectDelay = RECONNECT_FIRST_DELAY_MS
+  }
 
-    runningRead = (async (): Promise<void> => {
-      try {
-        running.value = await api.running()
-      } catch {
-        running.value = []
-      } finally {
-        runningRead = null
-      }
-    })()
-    return runningRead
+  /**
+   * Reopens the tray at once, so its frames are named in the language the reader just chose: the
+   * panel resolves each subscriber's language when the stream opens.
+   * @returns Nothing.
+   */
+  const reopenTray = (): void => {
+    closeTray()
+    openTray()
   }
 
   /**
@@ -281,11 +344,15 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   /**
-   * Closes the live pane. The stream stays open: the badge is still counting.
+   * Closes the live pane and releases its stream; the badge goes on counting from the tray.
    * @returns Nothing.
    */
   const deselect = (): void => {
+    const open = openTask.value
     openTask.value = null
+    if (open !== null) {
+      stopWatching(open.id)
+    }
   }
 
   return {
@@ -296,13 +363,13 @@ export const useTasksStore = defineStore('tasks', () => {
     failures,
     runningCount,
     list,
-    loadRunning,
     loadKinds,
     loadFailures,
     watch,
-    watchRunning,
     stopWatching,
-    stopAllWatches,
+    openTray,
+    closeTray,
+    reopenTray,
     select,
     deselect,
   }

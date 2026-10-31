@@ -247,6 +247,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/tasks/failed-count
   GET /api/v1/tasks/kinds
   GET /api/v1/tasks/running
+  GET /api/v1/tasks/running/stream
   GET /api/v1/tasks/{}
   GET /api/v1/tasks/{}/stream
   POST /api/v1/account-home-groups/repair (binds RepairAccountHomeGroupsCommand, no SPA caller)
