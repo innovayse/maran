@@ -54,13 +54,13 @@ const DATABASES_LICENSED: PanelModule[] = [
 const LOCALE_STORAGE_KEY = 'maran.locale'
 
 /**
- * The header's language trigger, located by role rather than by its accessible name: that name is
+ * The header's language trigger, located by test id and role rather than by its accessible name: that name is
  * itself translated, so naming it in English would stop finding it in a Russian interface.
  * @param page The page under test.
  * @returns The trigger button of the header's language menu.
  */
 const localeTrigger = (page: Page): Locator => {
-  return page.getByRole('banner').locator('[aria-haspopup="menu"]')
+  return page.getByRole('banner').getByTestId('locale-switcher').locator('[aria-haspopup="menu"]')
 }
 
 /**

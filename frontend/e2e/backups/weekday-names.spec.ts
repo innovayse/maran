@@ -46,7 +46,7 @@ const WEEKLY: BackupSchedule = {
  * @returns Resolves once the option has been chosen.
  */
 const chooseLanguage = async (page: Page, language: string): Promise<void> => {
-  await page.getByRole('banner').locator('[aria-haspopup="menu"]').click()
+  await page.getByRole('banner').getByTestId('locale-switcher').locator('[aria-haspopup="menu"]').click()
   await page.getByRole('menuitemradio', { name: language, exact: true }).click()
 }
 

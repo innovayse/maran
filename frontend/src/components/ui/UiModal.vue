@@ -35,6 +35,7 @@
  */
 import { ref, useId, type Ref } from 'vue'
 import { useFocusTrap, type FocusTarget } from '../../composables/useFocusTrap'
+import { revealTextAfterFocus } from '../../utils/revealTextAfterFocus'
 import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiModal}. */
@@ -94,6 +95,9 @@ const titleId: string = useId()
 /** The dialog panel, whose focusable descendants the trap cycles through. */
 const panelElement: Ref<HTMLElement | null> = ref(null)
 
+/** The scrolling body between the fixed header and footer. */
+const bodyElement: Ref<HTMLElement | null> = ref(null)
+
 /**
  * Reports a dismissal. The caller decides whether the dialog actually closes.
  * @returns Nothing; emits synchronously.
@@ -136,6 +140,23 @@ const onEscape = (): void => {
     return
   }
   requestClose()
+}
+
+/**
+ * Keeps the text under a focused control in view, so no hint can sit beneath the footer while the
+ * reader works in the field above it (see {@link revealTextAfterFocus}). Waits a frame so the
+ * browser's own scroll-into-view, which runs after the focus events, has already happened and this
+ * only adds to it.
+ * @param event The `focusin` event from inside the body.
+ * @returns Nothing; the body is scrolled on the next frame if it needs to be.
+ */
+const onBodyFocus = (event: FocusEvent): void => {
+  const control = event.target
+  requestAnimationFrame((): void => {
+    if (bodyElement.value !== null && control instanceof HTMLElement) {
+      revealTextAfterFocus(bodyElement.value, control)
+    }
+  })
 }
 
 // Focus management is the shared trap (composables/useFocusTrap.ts): focus enters when the dialog
@@ -217,8 +238,12 @@ const { onTab } = useFocusTrap({
                So the body keeps 4px above (`pt-1`, taken from the header's bottom padding so nothing
                moves) and 24px below, and `scroll-pb-6` makes keyboard focus scroll the ring into view
                rather than the control's bare edge. -->
+          <!-- Focus inside it also reveals the text after the focused control (a field's hint), so
+               nothing that can only be read is left under the footer while it is needed (#217). -->
           <div
+            ref="bodyElement"
             class="min-h-0 flex-1 scroll-pb-5 overflow-y-auto px-5 pt-1 pb-5 text-sm leading-relaxed text-text-secondary wrap-anywhere"
+            @focusin="onBodyFocus"
           >
             <slot />
           </div>

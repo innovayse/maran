@@ -92,8 +92,8 @@ const pendingEntry: ComputedRef<CronEntry | null> = computed(() => {
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
     { key: 'schedule', label: t('cron.list.columns.schedule'), kind: 'mono' },
-    { key: 'runs', label: t('cron.list.columns.runs'), kind: 'text' },
-    { key: 'command', label: t('cron.list.columns.command'), kind: 'code' },
+    { key: 'runs', label: t('cron.list.columns.runs'), kind: 'text', minWidth: '10rem' },
+    { key: 'command', label: t('cron.list.columns.command'), kind: 'code', minWidth: '14rem' },
     { key: 'state', label: t('cron.list.columns.state'), kind: 'badge' },
     { key: 'actions', label: t('common.actions'), kind: 'actions' },
   ]
@@ -399,11 +399,11 @@ onMounted(start)
           :loading="store.loadState === 'loading'"
         >
           <template #cell-schedule="{ row }">{{ scheduleText(row) }}</template>
-          <template #cell-runs="{ row }"><div class="min-w-40">{{ scheduleDescription(row) }}</div></template>
+          <template #cell-runs="{ row }">{{ scheduleDescription(row) }}</template>
           <!-- The command is shown exactly as the customer wrote it. It can carry a credential, which
                is why the panel keeps it out of its logs and its audit journal — but it is their own
                text on their own screen, and masking it would leave them unable to read their job. -->
-          <template #cell-command="{ row }"><div class="min-w-56">{{ row.command }}</div></template>
+          <template #cell-command="{ row }">{{ row.command }}</template>
           <template #cell-state="{ row }">
             <UiBadge :variant="row.enabled ? 'success' : 'neutral'">
               {{ row.enabled ? t('cron.list.enabled') : t('cron.list.disabled') }}

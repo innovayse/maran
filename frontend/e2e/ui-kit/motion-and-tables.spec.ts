@@ -159,7 +159,8 @@ test('a row menu does not animate for a reader who asked for less motion', async
 })
 
 test.describe('on a phone', () => {
-  test.use({ viewport: { width: 390, height: 844 } })
+  // The narrowest table layout: below 640px rows are cards and nothing scrolls (#217).
+  test.use({ viewport: { width: 640, height: 844 } })
 
   test('an overflowing table shows a scroll cue that follows the scroll position', async ({ page }) => {
     await openDatabases(page)

@@ -57,6 +57,7 @@ import {
   Mail,
   MemoryStick,
   Menu,
+  Monitor,
   Moon,
   Package,
   Pencil,
@@ -102,10 +103,12 @@ export type UiIconName =
   | 'server'
   /** Magnifier — the command/search trigger and the search field. */
   | 'search'
-  /** Crescent — the theme toggle's dark state. */
+  /** Crescent — the dark theme. */
   | 'moon'
-  /** Rayed disc — the theme toggle's light state. */
+  /** Rayed disc — the light theme. */
   | 'sun'
+  /** A screen — the theme that follows the operating system. */
+  | 'monitor'
   /** Meridians — the locale switcher. */
   | 'globe'
   /** Four-point star — an assistant-initiated action. */
@@ -215,6 +218,7 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   server: Server,
   search: Search,
   moon: Moon,
+  monitor: Monitor,
   sun: Sun,
   globe: Globe,
   sparkle: Sparkle,

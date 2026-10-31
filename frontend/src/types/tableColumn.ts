@@ -34,6 +34,14 @@ export type UiTableColumnKind =
   | 'date'
   | 'actions'
 
+/**
+ * The least width a column of WRAPPING content keeps in the table layout, so free text or a long
+ * command is not squeezed into a sliver beside one-line columns. Left out, a column keeps the
+ * cell's own floor (5rem). It does not apply to a row drawn as a card, where there is no column to
+ * hold open and the value wraps inside the card instead.
+ */
+export type ColumnMinWidth = '10rem' | '11rem' | '12rem' | '14rem'
+
 /** One column of a `UiTable`: the single description its header, cells and placeholder share. */
 export interface UiTableColumn {
   /** Stable id of the column; its cells come from the caller's `#cell-<key>` slot. */
@@ -46,4 +54,6 @@ export interface UiTableColumn {
   align?: CellAlign
   /** The server's sort key for this column; left out for a column that cannot be sorted. */
   sortField?: string
+  /** The least width the column keeps in the table layout; see {@link ColumnMinWidth}. */
+  minWidth?: ColumnMinWidth
 }

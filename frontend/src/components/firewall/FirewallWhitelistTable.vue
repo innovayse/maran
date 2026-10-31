@@ -63,7 +63,7 @@ const pendingId: Ref<string> = ref('')
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
     { key: 'cidr', label: t('firewall.whitelist.columns.cidr'), kind: 'identifier', sortField: 'cidr' },
-    { key: 'note', label: t('firewall.whitelist.columns.note'), kind: 'text' },
+    { key: 'note', label: t('firewall.whitelist.columns.note'), kind: 'text', minWidth: '14rem' },
     { key: 'createdAt', label: t('firewall.whitelist.columns.createdAt'), kind: 'date', sortField: 'createdAt' },
     { key: 'actions', label: t('common.actions'), kind: 'actions' },
   ]
@@ -158,7 +158,7 @@ watch(
     <!-- The panel's own words, shown whole and as written: this is what tells an operator that a
          row is the installer's seed rather than one of theirs, so it wraps instead of being cut
          off with an ellipsis. -->
-    <template #cell-note="{ row }"><span class="block min-w-56 max-w-md wrap-anywhere">{{ row.note }}</span></template>
+    <template #cell-note="{ row }"><span class="block max-w-md wrap-anywhere">{{ row.note }}</span></template>
     <template #cell-createdAt="{ row }">{{ formatIsoTimestamp(row.createdAt, localeStore.current) }}</template>
     <template #cell-actions="{ row }">
       <UiDropdown
