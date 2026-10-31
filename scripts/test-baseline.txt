@@ -419,6 +419,14 @@
 # shell/palette-focus 6->7, shell/sidebar-submenu 7->9, tasks/badge 3->4, tasks/list 7->14,
 # ui-kit/no-horizontal-scroll-admin 69->75). Backend rows unchanged: `maran test backend` printed
 # `collected 20 targets: 5027 passed / 0 failed` against them.
+#
+# RE-MEASURED 2026-10-31 (#217: phone tables as cards, one theme menu, dialog hints in view) —
+# edited by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa` run printing
+# `158 targets: 1058 passed / 1 failed / 2 ignored`; the one failure,
+# accounts/detail-loading "resources: a fast summary shows no placeholder", is a 150 ms timing
+# check that failed under a host load average of 11 and passed 18 of 18 at one worker
+# (`--repeat-each=3 --workers=1`); #217 touches no file it renders, so its row stays 6. One spa
+# row added (ui-kit/table-cards 4) and one raised (shell/theme-switch 2->4). Backend rows unchanged.
 rust	maran_agent [unittests src/lib.rs]	420	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
@@ -596,7 +604,7 @@ spa	shell/sidebar-state.spec.ts	6	0	0
 spa	shell/sidebar-submenu.spec.ts	9	0	0
 spa	shell/submenu-current-child.spec.ts	5	0	0
 spa	shell/tasks-naming.spec.ts	1	0	0
-spa	shell/theme-switch.spec.ts	2	0	0
+spa	shell/theme-switch.spec.ts	4	0	0
 spa	sites/account-filter.spec.ts	3	0	0
 spa	sites/detail-loading.spec.ts	6	0	0
 spa	sites/detail.spec.ts	8	0	0
@@ -627,6 +635,7 @@ spa	ui-kit/pagination.spec.ts	10	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0
 spa	ui-kit/sentence-case.spec.ts	36	0	0
 spa	ui-kit/skeleton.spec.ts	9	0	0
+spa	ui-kit/table-cards.spec.ts	4	0	0
 spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	3	0	0

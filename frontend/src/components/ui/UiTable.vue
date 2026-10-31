@@ -1,9 +1,12 @@
 <script setup lang="ts" generic="Row extends object">
-import { computed, onBeforeUnmount, onMounted, ref, useId, useTemplateRef, type ComputedRef, type Ref } from 'vue'
+import { computed, useId, useTemplateRef, type ComputedRef, type Ref } from 'vue'
+import { useHorizontalOverflow } from '../../composables/useHorizontalOverflow'
+import { useMediaQuery } from '../../composables/useMediaQuery'
 import UiSkeleton from './UiSkeleton.vue'
-import UiTableCell, { type CellTone } from './UiTableCell.vue'
+import UiTableCell, { type CellPlacement, type CellTone } from './UiTableCell.vue'
 import UiTableHeaderCell from './UiTableHeaderCell.vue'
 import UiTableRow from './UiTableRow.vue'
+import UiTableSortBar from './UiTableSortBar.vue'
 import type { CellAlign, ColumnSort, UiTableColumn, UiTableColumnKind } from '../../types/tableColumn'
 
 /**
@@ -68,6 +71,20 @@ import type { CellAlign, ColumnSort, UiTableColumn, UiTableColumnKind } from '..
  * right edge, painted with the surface colour so rows slide under it, and it carries a left shadow
  * while there is more table to its left hidden beneath it. Scrolling to read a long row never
  * scrolls away the control that acts on it.
+ *
+ * **Below `sm` every row is a card built from the same schema** (issue #217). A phone has no room
+ * for a table worth scrolling sideways, and a scrolled-away column is a value nobody reads, so the
+ * layout changes STRUCTURE there (which is why it is {@link useMediaQuery} and not CSS alone): the
+ * row's title is its `identity` column (else its first `identifier`, else its first column), its
+ * actions sit at the top right and are always in view, and every other column is a line labelled
+ * with the column's heading. Nothing about it is written per page. The elements stay the table's
+ * own, with their roles stated explicitly (`table`, `rowgroup`, `row`, `columnheader`, `cell`),
+ * because a table element given another `display` loses its implicit role in some browsers; the
+ * header row stays in the accessibility tree, visually hidden, so a cell is still announced with
+ * its column. Sorting stays reachable through {@link UiTableSortBar}, derived from the sortable
+ * columns, in place of the headings that cannot be pressed when they are not drawn. The loading
+ * placeholders are drawn through the same cells, so they take the card's shape too. From `sm` up
+ * the table is exactly the table described above.
  */
 
 /** The fields of a row whose value can key it: those holding a string or a number. */
@@ -137,6 +154,12 @@ const WRAP_KINDS: ReadonlySet<UiTableColumnKind> = new Set<UiTableColumnKind>(['
 /** The kinds that sit at the end of their column unless the column says otherwise. */
 const END_KINDS: ReadonlySet<UiTableColumnKind> = new Set<UiTableColumnKind>(['number', 'actions'])
 
+/** The width from which rows are a table; below it they are cards (`sm`, 40rem). */
+const TABLE_QUERY = '(min-width: 40rem)'
+
+/** Whether the window is wide enough for the table layout. */
+const wide: Readonly<Ref<boolean>> = useMediaQuery(TABLE_QUERY)
+
 /** Unique id tying the scroll region's accessible name to the caption. */
 const captionId: string = useId()
 
@@ -146,17 +169,40 @@ const scroller = useTemplateRef<HTMLElement>('scroller')
 /** The table inside it, observed so growth of the content (not only the viewport) is noticed. */
 const tableElement = useTemplateRef<HTMLElement>('table')
 
-/** Whether the content is wider than the wrapper right now. */
-const overflows: Ref<boolean> = ref(false)
+/** The wrapper's overflow, which decides the keyboard stop and the edge fades. */
+const { overflows, hiddenStart, hiddenEnd, onScroll } = useHorizontalOverflow(scroller, tableElement)
 
-/** Whether content is hidden past the left edge (the user has scrolled). */
-const hiddenStart: Ref<boolean> = ref(false)
+/** Whether the rows are drawn as cards. */
+const cards: ComputedRef<boolean> = computed(() => {
+  return !wide.value
+})
 
-/** Whether content is hidden past the right edge (more to scroll to). */
-const hiddenEnd: Ref<boolean> = ref(false)
+/** Whether any column can be sorted, which is when the cards need their sort control. */
+const sortable: ComputedRef<boolean> = computed(() => {
+  return props.columns.some((column) => {
+    return column.sortField !== undefined
+  })
+})
 
-/** Observer that re-measures on any size change of the wrapper or the table. */
-let observer: ResizeObserver | null = null
+/** The key of the column a card is titled by: the identity, else the first identifier, else the first. */
+const titleKey: ComputedRef<string | undefined> = computed(() => {
+  const title =
+    props.columns.find((column) => {
+      return column.kind === 'identity'
+    }) ??
+    props.columns.find((column) => {
+      return column.kind === 'identifier'
+    }) ??
+    props.columns[0]
+  return title?.key
+})
+
+/** Whether the schema has an actions column, without which a card's title takes the whole width. */
+const hasActions: ComputedRef<boolean> = computed(() => {
+  return props.columns.some((column) => {
+    return column.kind === 'actions'
+  })
+})
 
 /** The placeholder row numbers drawn while loading. */
 const placeholderRows: ComputedRef<number[]> = computed(() => {
@@ -201,6 +247,21 @@ const requestSort = (column: UiTableColumn): void => {
 }
 
 /**
+ * Which part of the row a column's cells are.
+ * @param column The column.
+ * @returns `column` in the table layout; the card's title, actions or a labelled line in cards.
+ */
+const placementOf = (column: UiTableColumn): CellPlacement => {
+  if (!cards.value) {
+    return 'column'
+  }
+  if (column.kind === 'actions') {
+    return 'actions'
+  }
+  return column.key === titleKey.value ? 'title' : 'line'
+}
+
+/**
  * The key of a body row, read from the field the caller named.
  * @param row The row.
  * @param index The row's position, the fallback when no `rowKey` is given.
@@ -209,55 +270,13 @@ const requestSort = (column: UiTableColumn): void => {
 const keyOf = (row: Row, index: number): string => {
   return props.rowKey === undefined ? String(index) : String(row[props.rowKey])
 }
-
-/**
- * Re-reads which edges hide content, so the fades follow the scroll position. Uses the absolute
- * offset so a right-to-left layout, where `scrollLeft` runs negative, reads the same.
- * @returns Nothing; updates `hiddenStart` and `hiddenEnd`.
- */
-const onScroll = (): void => {
-  const element = scroller.value
-  if (element === null || !overflows.value) {
-    hiddenStart.value = false
-    hiddenEnd.value = false
-    return
-  }
-  const offset = Math.abs(element.scrollLeft)
-  hiddenStart.value = offset > 1
-  hiddenEnd.value = offset + element.clientWidth < element.scrollWidth - 1
-}
-
-/**
- * Re-measures the wrapper. A one-pixel tolerance keeps sub-pixel rounding from turning a table
- * that exactly fits into a phantom Tab stop.
- * @returns Nothing; updates `overflows`.
- */
-const measure = (): void => {
-  const element = scroller.value
-  overflows.value = element !== null && element.scrollWidth > element.clientWidth + 1
-  onScroll()
-}
-
-onMounted(() => {
-  measure()
-  observer = new ResizeObserver(measure)
-  if (scroller.value !== null) {
-    observer.observe(scroller.value)
-  }
-  if (tableElement.value !== null) {
-    observer.observe(tableElement.value)
-  }
-})
-
-onBeforeUnmount(() => {
-  observer?.disconnect()
-  observer = null
-})
 </script>
 
 <template>
-  <!-- The outer box only positions the edge fades; the scroller stays the table's direct parent. -->
-  <div class="relative w-full max-w-full">
+  <!-- The outer box holds the cards' sort bar and positions the edge fades; the scroller stays the
+       table's direct parent. -->
+  <div class="relative flex w-full max-w-full flex-col gap-3">
+    <UiTableSortBar v-if="cards && sortable" :columns="columns" :sort="sort" @sort="emit('sort', $event)" />
     <div
       ref="scroller"
       class="ui-table-scroller w-full max-w-full overflow-x-auto focus-visible:shadow-focus focus-visible:outline-none"
@@ -265,49 +284,69 @@ onBeforeUnmount(() => {
       :aria-labelledby="overflows ? captionId : undefined"
       :tabindex="overflows ? 0 : undefined"
       :data-hidden-end="hiddenEnd ? 'true' : undefined"
+      :data-layout="cards ? 'cards' : 'table'"
       data-testid="table-scroller"
       @scroll.passive="onScroll"
     >
       <table
         ref="table"
-        class="w-full border-collapse text-left text-sm"
+        class="w-full text-left text-sm"
+        :class="cards ? 'block' : 'border-collapse'"
+        :role="cards ? 'table' : undefined"
         :aria-busy="loading ? 'true' : undefined"
       >
-        <caption :id="captionId" class="sr-only">
-          {{
-            caption
-          }}
-        </caption>
-        <thead>
-          <UiTableRow>
+        <caption :id="captionId" class="sr-only">{{ caption }}</caption>
+        <thead :class="cards ? 'sr-only' : ''" :role="cards ? 'rowgroup' : undefined">
+          <UiTableRow :role="cards ? 'row' : undefined">
             <UiTableHeaderCell
               v-for="column in columns"
               :key="column.key"
+              :role="cards ? 'columnheader' : undefined"
               :align="alignOf(column)"
-              :sort="sortOf(column)"
+              :sort="cards ? undefined : sortOf(column)"
               @sort="requestSort(column)"
             >
               {{ column.label }}
             </UiTableHeaderCell>
           </UiTableRow>
         </thead>
-        <tbody v-if="loading">
-          <UiTableRow v-for="placeholder in placeholderRows" :key="placeholder" aria-hidden="true">
-            <UiTableCell v-for="column in columns" :key="column.key" :align="alignOf(column)" nowrap>
+        <tbody v-if="loading" :class="cards ? 'flex flex-col gap-2' : ''" :role="cards ? 'rowgroup' : undefined">
+          <UiTableRow
+            v-for="placeholder in placeholderRows"
+            :key="placeholder"
+            :card="cards"
+            :role="cards ? 'row' : undefined"
+            aria-hidden="true"
+          >
+            <UiTableCell
+              v-for="column in columns"
+              :key="column.key"
+              :role="cards ? 'cell' : undefined"
+              :align="alignOf(column)"
+              :placement="placementOf(column)"
+              :label="column.label"
+              :wide="!hasActions"
+              nowrap
+            >
               <UiSkeleton shape="cell" :kind="column.kind" />
             </UiTableCell>
           </UiTableRow>
         </tbody>
-        <tbody v-else>
-          <UiTableRow v-for="(row, index) in rows" :key="keyOf(row, index)">
+        <tbody v-else :class="cards ? 'flex flex-col gap-2' : ''" :role="cards ? 'rowgroup' : undefined">
+          <UiTableRow v-for="(row, index) in rows" :key="keyOf(row, index)" :card="cards" :role="cards ? 'row' : undefined">
             <UiTableCell
               v-for="column in columns"
               :key="column.key"
+              :role="cards ? 'cell' : undefined"
               :align="alignOf(column)"
               :tone="KIND_TONES[column.kind]"
               :mono="MONO_KINDS.has(column.kind)"
               :strong="STRONG_KINDS.has(column.kind)"
               :nowrap="!WRAP_KINDS.has(column.kind)"
+              :min-width="column.minWidth"
+              :placement="placementOf(column)"
+              :label="column.label"
+              :wide="!hasActions"
             >
               <slot :name="`cell-${column.key}`" :row="row" />
             </UiTableCell>
@@ -333,14 +372,14 @@ onBeforeUnmount(() => {
 <style scoped>
 /* The row action column: the last cell of every row when it is end-aligned. Sticky at the right
    edge, painted with the table's surface so the rows scrolling beneath do not show through. */
-.ui-table-scroller :deep(tr > [data-align='end']:last-child) {
+.ui-table-scroller[data-layout='table'] :deep(tr > [data-align='end']:last-child) {
   position: sticky;
   right: 0;
   z-index: 1;
   background-color: var(--s1);
 }
 
-.ui-table-scroller :deep(tbody tr:hover > [data-align='end']:last-child) {
+.ui-table-scroller[data-layout='table'] :deep(tbody tr:hover > [data-align='end']:last-child) {
   background-color: var(--s2);
 }
 

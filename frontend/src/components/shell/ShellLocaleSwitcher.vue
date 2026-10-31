@@ -54,6 +54,7 @@ const select = (locale: AppLocale): void => {
 
 <template>
   <UiDropdown
+    data-testid="locale-switcher"
     align="end"
     trigger-variant="ghost"
     trigger-size="bar"
