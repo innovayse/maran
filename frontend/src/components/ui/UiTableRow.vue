@@ -14,11 +14,32 @@
  *
  * The hairline is `border-border-subtle`, about 1.2:1 against the panel: decoration that groups
  * rows, never the only thing that says where a row ends (the cell padding does that too).
+ *
+ * **As a card** (`card`, the table's phone layout) the row is a bordered `rounded-panel` box laid
+ * out as a two-column grid: the title and the actions share the first line, every other cell is a
+ * full-width labelled line under them (see {@link UiTableCell}'s `placement`). The hover tint
+ * stays; the trailing-rule rule does not apply, since every card has its own whole border.
  */
+
+/** Props accepted by {@link UiTableRow}. */
+withDefaults(
+  defineProps<{
+    /** Draws the row as a card of the table's phone layout. */
+    card?: boolean
+  }>(),
+  { card: false },
+)
 </script>
 
 <template>
   <tr
+    v-if="card"
+    class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 rounded-panel border border-border-subtle p-3 transition-colors motion-reduce:transition-none hover:bg-surface-2"
+  >
+    <slot />
+  </tr>
+  <tr
+    v-else
     class="border-b border-border-subtle transition-colors motion-reduce:transition-none [tbody_&]:last:border-b-0 [tbody_&]:hover:bg-surface-2"
   >
     <slot />

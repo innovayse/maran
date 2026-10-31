@@ -48,7 +48,7 @@ test('switching the language live re-reads the module names', async ({ page }) =
   const nav = page.getByRole('complementary').getByRole('navigation')
   await expect(nav.getByRole('link', { name: 'Firewall', exact: true })).toBeVisible()
 
-  await page.getByRole('banner').locator('[aria-haspopup="menu"]').click()
+  await page.getByRole('banner').getByTestId('locale-switcher').locator('[aria-haspopup="menu"]').click()
   await page.getByRole('menuitemradio', { name: 'Русский', exact: true }).click()
 
   await expect(nav.getByRole('link', { name: 'Брандмауэр' })).toBeVisible()

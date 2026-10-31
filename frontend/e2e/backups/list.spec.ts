@@ -381,13 +381,14 @@ test('a row menu opens, moves and closes from the keyboard, and focus returns to
 // sideways, and the backups table at eight columns is wide enough to do it. A menu positioned
 // inside that container is cut off at its edge — the defect the panel's `Teleport` to `body`
 // exists to prevent — and no amount of reading the component says whether it still holds on a real
-// row, in a window narrow enough for the container to actually scroll. 520px is that window,
-// measured rather than guessed: at 900 the eight columns still fit and the vacuity guard below
-// caught the run reporting on a table that was not scrolling at all.
+// row, in a window narrow enough for the container to actually scroll. 640px is that window, the
+// narrowest table layout (below it every row is a card, #217), measured rather than guessed: at 900 the eight columns
+// still fit and the vacuity guard below caught the run reporting on a table that was not scrolling at all.
 test('a row menu in a horizontally scrolled table is neither clipped nor lost by the scroll', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 520, height: 700 })
+  // The narrowest table layout: below 640px rows are cards and nothing scrolls (#217).
+  await page.setViewportSize({ width: 640, height: 700 })
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
@@ -425,7 +426,7 @@ test('a row menu in a horizontally scrolled table is neither clipped nor lost by
   expect(panelBox).not.toBeNull()
   expect(panelBox?.x ?? -1).toBeGreaterThanOrEqual(0)
   expect(panelBox?.y ?? -1).toBeGreaterThanOrEqual(0)
-  expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThanOrEqual(520)
+  expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThanOrEqual(640)
   expect((panelBox?.y ?? 0) + (panelBox?.height ?? 0)).toBeLessThanOrEqual(700)
 
   // And it survives a scroll under it: the panel follows its trigger instead of being dismissed.

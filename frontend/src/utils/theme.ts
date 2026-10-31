@@ -1,4 +1,4 @@
-import { SUPPORTED_THEMES, type AppTheme } from '../types/theme'
+import { THEME_PREFERENCES, type AppTheme, type ThemePreference } from '../types/theme'
 
 /**
  * Attribute on `<html>` the design's tokens key off: `src/assets/css/main.css`
@@ -23,9 +23,9 @@ export const applyTheme = (theme: AppTheme): void => {
 }
 
 /**
- * Reads the theme the application should start in: a previously chosen one,
- * else the operating system's preference, else dark — the design's baseline,
- * and what `index.html` has already painted.
+ * Reads the theme preference the application should start with: a previously
+ * chosen one, else `system` — which is what a reader who never chose has always
+ * had, the operating system's preference.
  *
  * Never throws. Storage access fails outright in private modes and embedded
  * webviews, and a colour preference must not be able to break the shell.
@@ -33,18 +33,18 @@ export const applyTheme = (theme: AppTheme): void => {
  * The storage key is a parameter rather than a constant here: the store owns
  * persistence and writes with that key, and a second copy in this file is how
  * a rename silently splits the read from the write.
- * @param storageKey Key the chosen theme was persisted under.
- * @returns The theme the application should start in.
+ * @param storageKey Key the chosen preference was persisted under.
+ * @returns The preference the application should start with.
  */
-export const detectInitialTheme = (storageKey: string): AppTheme => {
+export const detectThemePreference = (storageKey: string): ThemePreference => {
   try {
     const stored = window.localStorage.getItem(storageKey)
-    if (stored !== null && (SUPPORTED_THEMES as readonly string[]).includes(stored)) {
-      return stored as AppTheme
+    if (stored !== null && (THEME_PREFERENCES as readonly string[]).includes(stored)) {
+      return stored as ThemePreference
     }
   } catch {
-    // Storage unavailable — fall through to the operating system preference.
+    // Storage unavailable — fall back to following the operating system.
   }
 
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+  return 'system'
 }

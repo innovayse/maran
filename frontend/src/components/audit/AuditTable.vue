@@ -47,7 +47,7 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
     { key: 'when', label: t('app.audit.whenColumn'), kind: 'date', sortField: 'occurredAt' },
     { key: 'actor', label: t('app.audit.actorColumn'), kind: 'identity', sortField: 'actor' },
-    { key: 'action', label: t('app.audit.actionColumn'), kind: 'text', sortField: 'action' },
+    { key: 'action', label: t('app.audit.actionColumn'), kind: 'text', sortField: 'action', minWidth: '12rem' },
     { key: 'subject', label: t('app.audit.subjectColumn'), kind: 'mono' },
     { key: 'address', label: t('app.audit.addressColumn'), kind: 'mono' },
     { key: 'outcome', label: t('app.audit.outcomeColumn'), kind: 'badge' },
@@ -94,7 +94,7 @@ const sortBy = (field: string): void => {
     <template #cell-action="{ row }">
       <!-- Both halves of the action, and neither instead of the other: the backend's localized name,
            and the machine constant an administrator greps a log by, as selectable text. -->
-      <div class="min-w-48">
+      <div>
         <span v-if="actionLabel(row) !== null" class="block wrap-anywhere">{{ actionLabel(row) }}</span>
         <span
           class="block font-mono whitespace-nowrap"

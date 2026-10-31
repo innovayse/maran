@@ -39,13 +39,16 @@ import type { PanelTask } from '../../src/types/panelTask'
  *   3. a table wider than its container is scrolled by the container, and the page itself never
  *      scrolls sideways.
  *
- * Widths are the phone (390 x 844) and the tablet (768 x 1024); languages are English and
+ * Widths are the narrowest table layout (640 x 900; a phone draws cards since #217) and the tablet
+ * (768 x 1024); languages are English and
  * Armenian, whose strings and glyph widths differ most from the default.
  */
 
 /** The viewports the table kit must hold at. */
 const VIEWPORTS = [
-  { name: 'phone', width: 390, height: 844 },
+  // The narrowest width the table layout is drawn at; below it every row is a card (#217), measured
+  // by the no-horizontal-scroll specs and `table-cards.spec.ts` instead.
+  { name: 'narrowest table', width: 640, height: 900 },
   { name: 'tablet', width: 768, height: 1024 },
 ] as const
 
@@ -507,10 +510,10 @@ for (const viewport of VIEWPORTS) {
   }
 }
 
-test('the audit journal at phone width is wider than its container, so the container scrolling is really exercised', async ({
+test('the audit journal at the narrowest table width is wider than its container, so the container scrolling is really exercised', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 640, height: 900 })
   await stubScreens(page)
 
   await page.goto('/settings/audit')
@@ -545,7 +548,7 @@ const tabTo = async (page: Page, target: Locator): Promise<boolean> => {
 test('an overflowing table is a labelled scroll region that takes the design focus ring when tabbed to', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 640, height: 900 })
   await stubScreens(page)
 
   await page.goto('/settings/audit')
