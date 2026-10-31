@@ -26,13 +26,8 @@
         "databasesGrantRepair": "Grant repair",
         "backupsList": "Backup list",
         "backupsSchedule": "Schedule",
-        "backupsDestinations": "Destinations",
-        "firewallRules": "Rules",
-        "firewallBans": "Bans",
-        "firewallWhitelist": "Whitelist"
-      },
-      "signedInDevices": "Signed-in devices",
-      "outgoingMail": "Outgoing mail"
+        "backupsDestinations": "Destinations"
+      }
     },
     "shell": {
       "skipToContent": "Skip to content",

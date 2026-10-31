@@ -4,23 +4,10 @@ import { useCallerRole } from './useCallerRole'
 import { useModulesStore } from '../stores/modules'
 import { NO_LANDING_ROUTE, moduleLandingRoute } from '../router/moduleLandingRoute'
 import { moduleNavigationChildren } from '../router/moduleNavigationChildren'
+import { SHELL_ENTRY_ROUTES } from '../router/shellEntryRoutes'
 import { moduleNavigationIcon } from '../utils/moduleNavigationIcon'
 import { groupNavigation } from '../utils/groupNavigation'
 import type { NavigationEntry } from '../types/navigation'
-
-/**
- * Route name of the always-present system status screen. It ships with the
- * shell itself rather than as a licensed module, so it is not read from the
- * catalogue.
- */
-const SYSTEM_STATUS_ROUTE = 'system-status'
-
-/**
- * Route name of the audit journal. Like system status it ships with the shell
- * itself — the journal is the panel-wide record every module writes into — so
- * its entry is the shell's own rather than read from the catalogue.
- */
-const AUDIT_ROUTE = 'audit'
 
 /**
  * Route name of the upgrade prompt a locked module's entry points to.
@@ -28,16 +15,15 @@ const AUDIT_ROUTE = 'audit'
 const UPGRADE_ROUTE = 'upgrade'
 
 /**
- * Modules whose entry leads to a screen narrower than the module's own name promises, and the
- * SPA's own label for that screen (issue #209). Where an entry leads is this SPA's fact
- * (`router/moduleLandingRoute.ts`), so naming the destination is too: "Users and access" opens
- * the signed-in devices screen and has no user management behind it, and "Notifications" opens
- * the outgoing-mail settings. Naming the module there would promise a screen that does not exist.
+ * Modules whose own name does not say what their entry opens, so the entry is named for the screen
+ * instead, with that screen's own title key (`meta.title`), which keeps the sidebar and the page
+ * title one string (issue #209). "Users and access" opened the signed-in devices screen and had no
+ * user management behind it; "Notifications" opened the outgoing-mail settings; and "Tasks" opened
+ * "Background tasks" beside the cron module's "Scheduled tasks", two entries a reader could not
+ * tell apart. Where an entry leads is this SPA's fact (`router/moduleLandingRoute.ts`), so naming
+ * the destination is too.
  */
-const DESTINATION_LABEL_KEYS: Readonly<Record<string, string>> = {
-  identity: 'app.nav.signedInDevices',
-  notifications: 'app.nav.outgoingMail',
-}
+const NAMED_FOR_DESTINATION: ReadonlySet<string> = new Set(['identity', 'notifications', 'tasks', 'cron'])
 
 /**
  * Builds the sidebar navigation from the module catalogue: one entry per
@@ -69,7 +55,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
   return computed<NavigationEntry[]>(() => {
     const systemStatusEntry: NavigationEntry = {
       key: 'system-status',
-      target: { name: SYSTEM_STATUS_ROUTE },
+      target: { name: SHELL_ENTRY_ROUTES['system-status'] },
       labelKey: 'app.nav.systemStatus',
       label: null,
       moduleName: null,
@@ -146,12 +132,12 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
         target: reachable && typeof landing === 'string' ? { name: landing } : upgrade,
         // The label comes from the panel, already localized: the SPA cannot own translations for
         // modules it learns about at runtime. The machine name is the honest fallback.
-        // A usable entry whose destination the SPA names itself takes that key instead
-        // (DESTINATION_LABEL_KEYS); a locked one keeps the module's name, since it leads to the
+        // A usable entry whose destination the SPA names itself takes that screen's title key
+        // instead (NAMED_FOR_DESTINATION); a locked one keeps the module's name, since it leads to the
         // module's upgrade page rather than to the screen.
         labelKey:
-          reachable && Object.hasOwn(DESTINATION_LABEL_KEYS, module.name)
-            ? (DESTINATION_LABEL_KEYS[module.name] ?? null)
+          reachable && typeof landing === 'string' && NAMED_FOR_DESTINATION.has(module.name)
+            ? (router.resolve({ name: landing }).meta.title ?? null)
             : null,
         label: module.displayName ?? module.name,
         moduleName: module.name,
@@ -167,16 +153,28 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
     })
 
     // The journal sits after the module entries: it is the shell's own record OF them — the place
-    // an operator goes after something on the screens above did not happen as expected.
-    const auditEntry: NavigationEntry[] = offersAdminEntries
+    // an operator goes after something on the screens above did not happen as expected. The
+    // security policy follows it: the rules every sign-in is held to, which had no entry at all
+    // and was reachable only by its address (issue #209).
+    const adminEntries: NavigationEntry[] = offersAdminEntries
       ? [
           {
             key: 'audit-journal',
-            target: { name: AUDIT_ROUTE },
+            target: { name: SHELL_ENTRY_ROUTES['audit-journal'] },
             labelKey: 'app.nav.auditJournal',
             label: null,
             moduleName: null,
             icon: 'scrollText',
+            locked: false,
+            children: [],
+          },
+          {
+            key: 'security-policy',
+            target: { name: SHELL_ENTRY_ROUTES['security-policy'] },
+            labelKey: 'app.securityPolicy.heading',
+            label: null,
+            moduleName: null,
+            icon: 'lock',
             locked: false,
             children: [],
           },
@@ -187,7 +185,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
     // the jump-to palette and the tab bar's fill-up all walk the entries the way the sidebar draws
     // them (issue #209): the rail used to list "Users and access" second while the sidebar drew it
     // under System, near the end.
-    return groupNavigation([systemStatusEntry, ...moduleEntries, ...auditEntry]).flatMap(
+    return groupNavigation([systemStatusEntry, ...moduleEntries, ...adminEntries]).flatMap(
       (group): NavigationEntry[] => {
         return group.entries
       },

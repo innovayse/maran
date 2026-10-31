@@ -29,7 +29,7 @@
  * reader shown an unfamiliar database name will otherwise assume the panel has lost track of one of
  * theirs.
  *
- * **Layout (redesign 2026-10).** The page header carries the module name as its eyebrow; the census is
+ * **Layout (redesign 2026-10).** The page header carries the navigation group as its eyebrow; the census is
  * four large figures in one card with the pass named beneath them; the rewritten rows are a table (it
  * scrolls inside its own container at 390px, never the page); each refused row is its own block with
  * its three raw columns in monospace, because those values are copied into a database client. There is
@@ -182,7 +182,6 @@ onBeforeMount(() => {
 <template>
   <section class="flex w-full flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('databases.list.heading')"
       :title="t('databases.grantRepair.heading')"
       :subtitle="t('databases.grantRepair.subtitle')"
       :note="t('databases.grantRepair.adminNote')"

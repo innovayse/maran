@@ -14,7 +14,7 @@
       "outcomeColumn": "Outcome",
       "succeeded": "Succeeded",
       "failed": "Failed",
-      "eyebrow": "Security",
+      "failedNotice": "{count} entry in this journal failed. | {count} entries in this journal failed.",
       "searchLabel": "Search the journal",
       "searchPlaceholder": "Search by who, subject or address…",
       "searchClear": "Clear the search",

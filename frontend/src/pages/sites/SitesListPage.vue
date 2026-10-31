@@ -273,7 +273,6 @@ watch(
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('sites.list.eyebrow')"
       :title="t('sites.list.heading')"
       :subtitle="t('sites.list.subtitle')"
     >

@@ -1,6 +1,5 @@
 {
   "monitoring": {
-    "eyebrow": "Server health",
     "heading": "Monitoring",
     "subtitle": "What this server has been doing, and what it is running right now.",
     "attention": {

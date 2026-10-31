@@ -172,7 +172,6 @@ const cancel = async (): Promise<void> => {
 <template>
   <section class="flex w-full max-w-3xl flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('accounts.list.heading')"
       :title="t('accounts.form.heading')"
       :subtitle="t('accounts.form.subtitle')"
     />

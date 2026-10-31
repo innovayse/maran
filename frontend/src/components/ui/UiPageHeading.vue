@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The heading block a routed page opens with: its single `<h1>`, an optional
- * small accent line above it, the sentence under it, an optional smaller note,
+ * small accent line above it (the navigation group, from the shell), the sentence under it, an optional smaller note,
  * and the controls that belong beside the title.
  *
  * The page's title is the document's one `<h1>`: the shell's app bar names the
@@ -61,8 +61,11 @@
  * panel's own word and only the subtitle comes from the server (the health verdict on the status
  * screen), the title stays and the subtitle alone draws its placeholder line.
  */
-import { computed, useSlots, type ComputedRef } from 'vue'
+import { computed, inject, onBeforeUnmount, useSlots, watch, type ComputedRef, type Ref } from 'vue'
 import UiSkeleton from './UiSkeleton.vue'
+import { PAGE_EYEBROW_KEY } from '../../utils/pageEyebrowKey'
+import { PAGE_HEADING_KEY } from '../../utils/pageHeadingKey'
+import type { PageHeading } from '../../types/pageHeading'
 
 /**
  * What the heading block shows.
@@ -89,11 +92,6 @@ const props = withDefaults(
      */
     mono?: boolean
     /**
-     * The small accent line above the title — the section of the panel the
-     * page belongs to. Optional: a page that passes none draws just the title.
-     */
-    eyebrow?: string
-    /**
      * Whether the record the title names is still loading: the title, and the subtitle when one
      * is given, draw a placeholder line in place of their text.
      */
@@ -104,7 +102,7 @@ const props = withDefaults(
      */
     subtitleLoading?: boolean
   }>(),
-  { subtitle: undefined, note: undefined, mono: false, eyebrow: undefined, loading: false, subtitleLoading: false },
+  { subtitle: undefined, note: undefined, mono: false, loading: false, subtitleLoading: false },
 )
 
 /**
@@ -116,6 +114,22 @@ const props = withDefaults(
 const slots = useSlots()
 
 /**
+ * The small accent line above the title: the navigation group the page sits in, provided by the
+ * shell (`utils/pageEyebrowKey.ts`). Not a prop, so no page writes its own and none can name a
+ * group the sidebar does not draw it under (issue #209). Absent outside the shell.
+ */
+const eyebrow: Readonly<Ref<string>> | null = inject(PAGE_EYEBROW_KEY, null)
+
+/**
+ * Where the shell keeps the heading on screen (`utils/pageHeadingKey.ts`), which its breadcrumb
+ * ends a record screen's trail on. Absent outside the shell.
+ */
+const onScreen: Ref<PageHeading | null> | null = inject(PAGE_HEADING_KEY, null)
+
+/** What this heading last wrote there, so leaving clears only its own report and never a successor's. */
+let reported: PageHeading | null = null
+
+/**
  * The typography classes for the `<h1>`.
  *
  * The display title is `text-xl` and steps up to `text-2xl` only when the
@@ -125,6 +139,29 @@ const titleClass: ComputedRef<string> = computed(() => {
   return props.mono
     ? 'font-mono text-xl font-semibold text-text-primary break-words @3xl:text-2xl'
     : 'font-display text-xl leading-tight font-black tracking-title text-text-primary break-words @3xl:text-2xl'
+})
+
+// The shell's breadcrumb reads the title and its loading state from here, so the trail's last
+// crumb on a record screen is exactly the record's name this heading shows.
+watch(
+  (): PageHeading => {
+    return { title: props.title, loading: props.loading }
+  },
+  (heading): void => {
+    if (onScreen !== null) {
+      reported = heading
+      onScreen.value = heading
+    }
+  },
+  { immediate: true },
+)
+
+// One screen's heading leaving and the next one's arriving can come in either order, so only the
+// report this heading made is withdrawn.
+onBeforeUnmount((): void => {
+  if (onScreen !== null && onScreen.value === reported) {
+    onScreen.value = null
+  }
 })
 </script>
 
@@ -139,7 +176,7 @@ const titleClass: ComputedRef<string> = computed(() => {
            the actions would take it below that, the row wraps and they drop under the title. -->
       <div class="min-w-0 @3xl:min-w-64 @3xl:flex-1">
         <p
-          v-if="eyebrow !== undefined"
+          v-if="eyebrow !== null"
           data-ui="eyebrow"
           class="mb-1 font-display text-xs font-extrabold text-accent-text break-words"
         >

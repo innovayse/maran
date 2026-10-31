@@ -134,7 +134,6 @@ onMounted(() => {
 <template>
   <section class="flex flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('monitoring.eyebrow')"
       :title="t('monitoring.heading')"
       :subtitle="t('monitoring.subtitle')"
     >

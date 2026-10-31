@@ -37,7 +37,7 @@
  * the panel searches, sorts, filters and counts. The list is small, so the panel pages it in memory;
  * that is its business, and the contract here is the same as for a list of thousands.
  *
- * **Layout (redesign 2026-10).** The header carries the module name as its eyebrow; the recorded
+ * **Layout (redesign 2026-10).** The header carries the navigation group as its eyebrow; the recorded
  * destinations are one table in a card, and the kinds of storage and the "what this does not cover"
  * lines are `UiCard` panels in a two-column grid from 1024px up and one column below it. A failed
  * read takes the table's place. The default destination carries its badge in its name cell, and
@@ -208,7 +208,6 @@ const clearAll = async (): Promise<void> => {
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('backups.list.heading')"
       :title="t('backups.destinations.heading')"
       :subtitle="t('backups.destinations.subtitle')"
       :note="t('backups.destinations.readOnlyNote')"

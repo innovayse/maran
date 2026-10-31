@@ -36,6 +36,8 @@ export type NavigationIcon =
   | 'archive'
   /** The shell's own audit journal entry — the panel's append-only record of who did what. */
   | 'scrollText'
+  /** The shell's own security policy entry — the rules every sign-in to the panel is held to. */
+  | 'lock'
 
 /**
  * One entry in the authenticated shell's sidebar navigation, as built by
@@ -91,4 +93,23 @@ export interface NavigationChildSpec {
    * whatever the sidebar shows, and an unknown role errs permissive (rules/architecture.md).
    */
   adminOnly: boolean
+}
+
+/** The navigation entries the shell owns itself rather than reads from the module catalogue. */
+export type ShellEntryKey = 'system-status' | 'audit-journal' | 'security-policy'
+
+/**
+ * Where a screen sits in the navigation, as `utils/locateNavigation.ts` derives it from the same
+ * sources the sidebar is drawn from: the group, the entry, the submenu child, and whether the
+ * screen is a level below them (a record, a form) that the navigation does not list itself.
+ */
+export interface NavigationLocation {
+  /** Key of the group the entry is drawn under (`app.nav.groups.<key>`). */
+  groupKey: string
+  /** Key of the top-level entry: a module machine name, or a {@link ShellEntryKey}. */
+  entryKey: string
+  /** Route name of the submenu child the screen is, or sits beneath; null for the entry's own landing page. */
+  childRoute: string | null
+  /** Whether the screen is below the destination the navigation lists (`meta.navigationParent`). */
+  leaf: boolean
 }

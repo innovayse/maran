@@ -58,7 +58,8 @@ test('a section toggles open and closed and says so with aria-expanded', async (
 })
 
 // The firewall is three pages (#196): the rules, and the two server-paged lists that each keep their
-// page, search and sort in the URL. The section offers all three, the rules first.
+// page, search and sort in the URL. The section offers all three, the rules first, each named by
+// the title of the page it opens (#209), so the whitelist entry reads "Never banned".
 test('the firewall section offers its rules, bans and whitelist pages', async ({ page }) => {
   await open(page, '/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
@@ -69,7 +70,7 @@ test('the firewall section offers its rules, bans and whitelist pages', async ({
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   await expect(nav.getByRole('link', { name: 'Rules', exact: true })).toHaveAttribute('href', '/firewall')
   await expect(nav.getByRole('link', { name: 'Bans', exact: true })).toHaveAttribute('href', '/firewall/bans')
-  await expect(nav.getByRole('link', { name: 'Whitelist', exact: true })).toHaveAttribute(
+  await expect(nav.getByRole('link', { name: 'Never banned', exact: true })).toHaveAttribute(
     'href',
     '/firewall/whitelist',
   )

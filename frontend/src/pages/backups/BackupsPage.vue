@@ -248,7 +248,6 @@ watch(
 <template>
   <section class="flex w-full flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('backups.list.eyebrow')"
       :title="t('backups.list.heading')"
       :subtitle="t('backups.list.subtitle')"
       :note="t('backups.list.storageNote')"

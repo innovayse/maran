@@ -25,7 +25,7 @@
 // not that any click leads there.
 //
 // The property is static: a route name is reachable when at least one link source targets it —
-// a `:to="{ name: '…' }"` in a component, a navigation entry built by `useNavigation`, a module's
+// a `:to="{ name: '…' }"` in a component, a shell-owned navigation entry (`shellEntryRoutes.ts`), a module's
 // submenu child (`moduleNavigationChildren.ts`), or a module landing route (which the sidebar turns into an entry for every module the panel reports). Pages
 // deliberately outside the shell's links — the unauthenticated screens the auth guard steers
 // visitors to, the catch-all, the screens the account menu opens with a programmatic push — are
@@ -58,8 +58,11 @@ const VUE_IMPORT = /import\s+(\w+)\s+from\s+'([^']+\.vue)'/g
  */
 const ROUTE_COMPONENT = /\bcomponent:\s*(\w+)\b/g
 
-/** The composable that builds the sidebar's entries — one of the two non-component link sources. */
+/** The composable that builds the sidebar's entries, which names the upgrade route a locked one leads to. */
 const NAVIGATION_FILE = join(FRONTEND_ROOT, 'src', 'composables', 'useNavigation.ts')
+
+/** Where the shell's own navigation entries lead — the entries no module reports (issue #209). */
+const SHELL_ENTRY_ROUTES_FILE = join(FRONTEND_ROOT, 'src', 'router', 'shellEntryRoutes.ts')
 
 /** The module-to-route map the sidebar links every reported module through — the other one. */
 const LANDING_ROUTES_FILE = join(FRONTEND_ROOT, 'src', 'router', 'moduleLandingRoute.ts')
@@ -81,6 +84,9 @@ const NAVIGATION_TARGET = /\bname:\s*([A-Z][A-Z_0-9]*)\b/g
 
 /** A `const IDENT = '…'` route-name constant in the navigation composable. */
 const NAVIGATION_CONST = /\bconst\s+([A-Z][A-Z_0-9]*)\s*=\s*'([\w-]+)'/g
+
+/** One `'entry-key': 'route-name',` arm of the shell entry map. */
+const SHELL_ENTRY_ROUTE_VALUE = /^\s*'[\w-]+':\s*'([\w-]+)',?$/gm
 
 /** One `module: 'route-name',` arm of the landing-route map. */
 const LANDING_ROUTE_VALUE = /^\s*\w+:\s*'([\w-]+)',?$/gm
@@ -139,9 +145,10 @@ const vueFiles = (directory) => {
 
 /**
  * Collects every route name some link in the shell targets, from the three places a link is born:
- * `:to="{ name: '…' }"` in components, the navigation composable's entries (its `name:` references
- * resolved through its own consts), and the module landing-route map the sidebar links every
- * reported module through.
+ * `:to="{ name: '…' }"` in components, the navigation composable's consts (the upgrade route), the
+ * shell's own navigation entries (`shellEntryRoutes.ts`),
+ * the module landing-route map the sidebar links every reported module through, and the submenu
+ * children under a module's entry.
  * @param {string[]} problems The shared problem list; each source's vacuity guard reports into it.
  * @returns {Set<string>} The route names at least one link targets.
  */
@@ -181,6 +188,19 @@ const collectLinkTargets = (problems) => {
     problems.push(
       'src/composables/useNavigation.ts: no `name: SOME_ROUTE` entry resolved through its consts — ' +
         'the navigation scan measured nothing',
+    )
+  }
+
+  // Source 2b: the shell's own navigation entries, which no module reports.
+  const shellEntries = readFileSync(SHELL_ENTRY_ROUTES_FILE, 'utf8')
+  let shellTargets = 0
+  for (const match of shellEntries.matchAll(SHELL_ENTRY_ROUTE_VALUE)) {
+    targets.add(match[1])
+    shellTargets++
+  }
+  if (shellTargets === 0) {
+    problems.push(
+      "src/router/shellEntryRoutes.ts: no `'key': 'route'` arm parsed — the shell-entry scan measured nothing",
     )
   }
 

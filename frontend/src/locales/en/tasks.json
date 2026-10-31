@@ -1,7 +1,6 @@
 {
   "tasks": {
     "list": {
-      "eyebrow": "System",
       "heading": "Background tasks",
       "subtitle": "Long operations the panel is running, or has recently run, newest first.",
       "emptyTitle": "No tasks yet",

@@ -107,7 +107,6 @@ onMounted(clearBanError)
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('firewall.eyebrow')"
       :title="t('firewall.bans.heading')"
       :subtitle="t('firewall.bans.subtitle')"
     />

@@ -268,7 +268,6 @@ onMounted(async () => {
              face rather than the display one: the delete dialog asks for it typed exactly, and the
              mono face shows it as the exact string to type. -->
         <UiPageHeading
-          :eyebrow="t('accounts.list.heading')"
           :title="accountsStore.selected?.name ?? ''"
           :subtitle="accountsStore.selected?.primaryDomain ?? ''"
           :loading="isLoading"

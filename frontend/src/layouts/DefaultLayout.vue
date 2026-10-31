@@ -31,8 +31,20 @@
  * of navigating to a `#main-content` fragment: in history mode a fragment would rewrite the URL
  * and push an entry the user then has to Back out of.
  */
-import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch, type Ref } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  provide,
+  ref,
+  shallowRef,
+  useTemplateRef,
+  watch,
+  type ComputedRef,
+  type Ref,
+} from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import ShellCommandPalette from '../components/shell/ShellCommandPalette.vue'
 import ShellDrawer from '../components/shell/ShellDrawer.vue'
 import ShellHeader from '../components/shell/ShellHeader.vue'
@@ -42,6 +54,11 @@ import ShellTabBar from '../components/shell/ShellTabBar.vue'
 import { useNavigation } from '../composables/useNavigation'
 import { useLocaleStore } from '../stores/locale'
 import { useModulesStore } from '../stores/modules'
+import { FALLBACK_GROUP } from '../utils/groupNavigation'
+import { locateNavigation } from '../utils/locateNavigation'
+import { PAGE_EYEBROW_KEY } from '../utils/pageEyebrowKey'
+import { PAGE_HEADING_KEY } from '../utils/pageHeadingKey'
+import type { PageHeading } from '../types/pageHeading'
 
 /**
  * The viewport at which the sidebar can afford a column of its own: Tailwind's `lg`, `64rem`
@@ -55,6 +72,7 @@ import { useModulesStore } from '../stores/modules'
 const WIDE_QUERY = '(min-width: 64rem)'
 
 const { t } = useI18n()
+const route = useRoute()
 const entries = useNavigation()
 const modulesStore = useModulesStore()
 const localeStore = useLocaleStore()
@@ -77,6 +95,25 @@ const collapsed: Ref<boolean> = ref(false)
 
 /** Whether the jump-to palette is open. */
 const paletteOpen: Ref<boolean> = ref(false)
+
+/**
+ * The page eyebrow: the navigation group the current screen is drawn under, read from the same
+ * sources as the sidebar so the two cannot disagree (issue #209). A screen outside the navigation
+ * takes the neutral fallback group.
+ */
+const eyebrow: ComputedRef<string> = computed(() => {
+  return t(`app.nav.groups.${locateNavigation(route)?.groupKey ?? FALLBACK_GROUP}`)
+})
+
+/**
+ * The page heading on screen, which the breadcrumb ends a record screen's trail on. Shallow on
+ * purpose: a heading withdraws its report by comparing it with what it wrote, and a deep ref would
+ * hand back a proxy that never compares equal.
+ */
+const pageHeading: Ref<PageHeading | null> = shallowRef(null)
+
+provide(PAGE_EYEBROW_KEY, eyebrow)
+provide(PAGE_HEADING_KEY, pageHeading)
 
 /** The `<main>` element, the target the skip link moves focus to. */
 const mainElement = useTemplateRef<HTMLElement>('main')

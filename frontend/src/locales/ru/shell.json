@@ -26,13 +26,8 @@
         "databasesGrantRepair": "Восстановление прав",
         "backupsList": "Все копии",
         "backupsSchedule": "Расписание",
-        "backupsDestinations": "Хранилища",
-        "firewallRules": "Правила",
-        "firewallBans": "Блокировки",
-        "firewallWhitelist": "Белый список"
-      },
-      "signedInDevices": "Устройства",
-      "outgoingMail": "Исходящая почта"
+        "backupsDestinations": "Хранилища"
+      }
     },
     "shell": {
       "skipToContent": "Перейти к содержимому",

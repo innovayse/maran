@@ -233,7 +233,6 @@ onBeforeUnmount(dismissCredential)
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('databases.list.eyebrow')"
       :title="t('databases.list.heading')"
       :subtitle="t('databases.list.subtitle')"
       :note="t('databases.list.prefixNote')"

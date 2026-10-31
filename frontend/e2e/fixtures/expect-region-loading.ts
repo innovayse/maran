@@ -59,7 +59,9 @@ export const expectRegionSlowLoad = async (page: Page, scenario: RegionLoadingSc
   // the content has landed NO region still says it is loading.
   const statuses = page.getByTestId('loading-status')
   await expect(anchor).toBeVisible()
-  await expect(page.locator('[data-skeleton]').first()).toBeVisible()
+  // Looked for inside the page: the app bar's breadcrumb holds a placeholder of its own for a record
+  // still on its way, and it is hidden whenever the trail does not fit the bar.
+  await expect(page.getByRole('main').locator('[data-skeleton]').first()).toBeVisible()
   await expect(statuses.filter({ hasText: 'Loading…' }).first()).toBeAttached()
   const before = await boxOf(anchor)
 
