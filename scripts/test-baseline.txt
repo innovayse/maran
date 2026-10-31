@@ -653,7 +653,7 @@ spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
 spa	ui-kit/pagination.spec.ts	10	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0
 spa	ui-kit/sentence-case.spec.ts	36	0	0
-spa	ui-kit/skeleton.spec.ts	9	0	0
+spa	ui-kit/skeleton.spec.ts	10	0	0
 spa	ui-kit/table-cards.spec.ts	4	0	0
 spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0

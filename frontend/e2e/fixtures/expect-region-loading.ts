@@ -1,6 +1,7 @@
-import { earlySkeletons, recordSkeletonFlashes } from './skeleton-flash'
+import { answerBeforeDelay, earlySkeletons, recordSkeletonFlashes, runPastDelay } from './skeleton-flash'
 import { expect, type Locator, type Page } from '@playwright/test'
 import { delayRoute } from './delay-route'
+import { holdRoute } from './hold-route'
 
 /** How one card, detail or form screen is opened and answered, for the `expectRegion*` checks. */
 export interface RegionLoadingScenario {
@@ -25,9 +26,6 @@ export interface RegionLoadingScenario {
 
 /** A wait long enough for the placeholders to show (they appear after 150 ms). */
 const SLOW_MS = 600
-
-/** A wait short enough that no placeholder may ever show. */
-const FAST_MS = 50
 
 /**
  * Where the anchor sits.
@@ -82,16 +80,17 @@ export const expectRegionSlowLoad = async (page: Page, scenario: RegionLoadingSc
  */
 export const expectRegionFastLoad = async (page: Page, scenario: RegionLoadingScenario): Promise<void> => {
   await scenario.stub(page)
-  await delayRoute(page, scenario.pattern, FAST_MS)
+  const held = await holdRoute(page, scenario.pattern)
   await recordSkeletonFlashes(page)
   await page.goto(scenario.path)
 
-  // Every frame from the first, for longer than the answer and the 150 ms delay together: no
-  // placeholder may be seen in the first 150 ms of its wait, although they are mounted to hold
-  // the space (see `recordSkeletonFlashes` for why the wait, not the stub, is the clock).
-  await page.waitForTimeout(400)
-  expect(await earlySkeletons(page)).toEqual([])
+  // The page's clock is the test's (see `recordSkeletonFlashes`): the read is answered after 50 ms
+  // of page time however busy the machine is, then time runs far past the 150 ms delay, and no
+  // placeholder may have been seen at any point.
+  await answerBeforeDelay(page, held)
   await expect(page.getByText(scenario.contentText).first()).toBeVisible()
+  await runPastDelay(page)
+  expect(await earlySkeletons(page)).toEqual([])
 }
 
 /**
