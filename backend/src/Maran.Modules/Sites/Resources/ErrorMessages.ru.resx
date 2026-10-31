@@ -63,6 +63,9 @@
   <data name="SiteDomainReserved">
     <value>Это имя нельзя использовать для сайта.</value>
   </data>
+  <data name="SiteAliasLimitExceeded">
+    <value>У сайта не может быть больше дополнительных имён, чем покрывает один сертификат.</value>
+  </data>
   <data name="SiteAliasReserved">
     <value>Одно из дополнительных имён нельзя использовать для сайта.</value>
   </data>

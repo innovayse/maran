@@ -6,6 +6,7 @@ import type {
   CreateSiteRequest,
   Site,
   SiteDetail,
+  SiteLimits,
   SitesApi,
 } from '../../types/site'
 import type { PhpVersion } from '../../types/phpVersion'
@@ -142,6 +143,15 @@ export const useSitesApi = (): SitesApi => {
   }
 
   /**
+   * Reads the bounds a site's form must respect.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The limits, as the server states them.
+   */
+  const getLimits = (signal?: AbortSignal): Promise<SiteLimits> => {
+    return api.get<SiteLimits>(`${SITES_PATH}/limits`, signal)
+  }
+
+  /**
    * Asks the server to install a PHP version, and answers the versions it has afterwards.
    *
    * Administrator-only on the server, and the SPA does not pretend otherwise: a customer who
@@ -247,6 +257,7 @@ export const useSitesApi = (): SitesApi => {
     disable,
     remove,
     listPhpVersions,
+    getLimits,
     installPhpVersion,
     tailLog,
   }

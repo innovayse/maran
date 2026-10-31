@@ -52,6 +52,7 @@
       },
       "hints": {
         "aliases": "One hostname per line. The same vhost answers all of them.",
+        "aliasesCount": "{count} of {max} additional hostnames.",
         "phpVersion": "Only versions installed on this server can be selected.",
         "proxyUpstream": "Host or host:port requests are forwarded to, for example 127.0.0.1:3000. No scheme, path or query."
       },
@@ -69,6 +70,7 @@
         "accountRequired": "Choose the account that will own the site.",
         "domainRequired": "Domain is required.",
         "domainInvalid": "Domain must be a valid hostname.",
+        "aliasesLimit": "A site can have at most {max} additional hostnames.",
         "phpVersionRequired": "Choose an installed PHP version.",
         "proxyUpstreamRequired": "Upstream is required for a reverse-proxied site.",
         "proxyUpstreamInvalid": "Upstream must be a host or host:port, with no scheme or path."

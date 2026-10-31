@@ -63,6 +63,9 @@
   <data name="SiteDomainReserved">
     <value>This name cannot be used for a site.</value>
   </data>
+  <data name="SiteAliasLimitExceeded">
+    <value>A site cannot have more additional hostnames than one certificate can cover.</value>
+  </data>
   <data name="SiteAliasReserved">
     <value>One of the additional hostnames cannot be used for a site.</value>
   </data>

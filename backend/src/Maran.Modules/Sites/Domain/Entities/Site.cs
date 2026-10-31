@@ -1,4 +1,5 @@
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Domain.Policies;
 
 namespace Maran.Modules.Sites.Domain.Entities;
 
@@ -92,6 +93,11 @@ public sealed class Site
     /// <param name="proxyUpstream">The upstream forwarded to, or the empty string when the backend is not a proxy.</param>
     /// <param name="documentRoot">The absolute document root the agent allocated.</param>
     /// <param name="createdAt">The instant the site was created, taken from <see cref="IClock"/>.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// More aliases than <see cref="SiteAliasLimit.MaximumAliases"/>. The validator refuses such a request
+    /// with a code before it gets here, so reaching this is a caller that skipped validation — a bug,
+    /// not an answer.
+    /// </exception>
     public Site(
         Guid id,
         Guid accountId,
@@ -103,6 +109,11 @@ public sealed class Site
         string documentRoot,
         DateTimeOffset createdAt)
     {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            aliases.Count,
+            SiteAliasLimit.MaximumAliases,
+            nameof(aliases));
+
         Id = id;
         AccountId = accountId;
         Domain = domain;

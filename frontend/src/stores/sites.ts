@@ -4,7 +4,7 @@ import { useSitesApi } from '../composables/apis/useSitesApi'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { LoadingState } from '../types/loading'
-import type { CreateSiteRequest, Site, SiteDetailLoad, DisabledSitesCount } from '../types/site'
+import type { CreateSiteRequest, Site, SiteDetailLoad, SiteLimits, DisabledSitesCount } from '../types/site'
 import type { PhpVersion } from '../types/phpVersion'
 import type {
   SiteLogEndReason,
@@ -61,6 +61,12 @@ export const useSitesStore = defineStore('sites', () => {
 
   /** Where the read of {@link phpVersions} stands; every failure sets `error`, whatever its cause. */
   const phpVersionsState: Ref<LoadingState> = ref('loading')
+
+  /**
+   * The bounds the site form shows, or `null` until the server has answered. A form that could not
+   * read them stays permissive: the server enforces the bounds, the form only advises.
+   */
+  const limits: Ref<SiteLimits | null> = ref(null)
 
   /** The version an install is running for, or `null` when none is. */
   const installingPhpVersion: Ref<string | null> = ref(null)
@@ -206,6 +212,19 @@ export const useSitesStore = defineStore('sites', () => {
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
       phpVersionsState.value = 'error'
+    }
+  }
+
+  /**
+   * Loads the bounds the site form shows. A failure leaves `limits` null rather than raising an
+   * error of its own: the bound is advice here, and the server's refusal is what the operator reads.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadLimits = async (): Promise<void> => {
+    try {
+      limits.value = await api.getLimits()
+    } catch {
+      limits.value = null
     }
   }
 
@@ -455,6 +474,7 @@ export const useSitesStore = defineStore('sites', () => {
     detail,
     phpVersions,
     phpVersionsState,
+    limits,
     installingPhpVersion,
     phpInstallErrorMessage,
     creating,
@@ -470,6 +490,7 @@ export const useSitesStore = defineStore('sites', () => {
     loadDisabledCount,
     loadOne,
     loadPhpVersions,
+    loadLimits,
     installPhpVersion,
     create,
     changePhpVersion,

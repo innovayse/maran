@@ -6,6 +6,7 @@ using Maran.Modules.Sites.Commands.EnableSite;
 using Maran.Modules.Sites.Commands.InstallPhpVersion;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Queries.GetSite;
+using Maran.Modules.Sites.Queries.GetSiteLimits;
 using Maran.Modules.Sites.Queries.ListPhpVersions;
 using Maran.Modules.Sites.Queries.ListSites;
 using Maran.Modules.Sites.Services;
@@ -89,6 +90,20 @@ public sealed class SitesController : BaseApiController
     public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var result = await _bus.InvokeAsync<Result<SiteDetailDto>>(new GetSiteQuery(id), cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Reads the bounds a site's form must respect, so the SPA shows the server's limit rather than
+    /// a copy of it (rules/architecture.md "The backend owns the data, the SPA renders it").
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("limits")]
+    [ProducesResponseType(typeof(SiteLimitsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetLimitsAsync(CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<SiteLimitsDto>>(new GetSiteLimitsQuery(), cancellationToken);
         return ToActionResult(result);
     }
 

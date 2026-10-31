@@ -11,6 +11,17 @@ use crate::proto::{AgentError, SiteBackendType, SiteSpec};
 use crate::services::sites::validated_identity::validated_identity;
 use crate::services::wire::invalid_input::invalid_input;
 
+/// The most names one certificate may cover, the primary domain included:
+/// Let's Encrypt refuses an order naming more than 100 identifiers ("Names per
+/// Certificate", <https://letsencrypt.org/docs/rate-limits/>). The panel
+/// derives its own alias bound from the same figure (`SiteAliasLimit`).
+const CERTIFICATE_NAME_LIMIT: usize = 100;
+
+/// The most aliases a site whose serving configuration is (re)rendered may
+/// carry: every certificate name but the domain's own. Past it the vhost's
+/// `server_name` grows with whatever a request carries.
+pub(super) const MAXIMUM_ALIASES: usize = CERTIFICATE_NAME_LIMIT - 1;
+
 /// Rebuilds the full site description from the identity and the panel's
 /// [`SiteSpec`].
 ///
@@ -25,10 +36,11 @@ use crate::services::wire::invalid_input::invalid_input;
 /// This is the variant for the operations that create or re-render serving
 /// configuration for a name: create, enable, switch PHP version, issue and
 /// install a certificate. It refuses the reserved host name set for the domain
-/// and for every alias. Disabling and removing a certificate use
+/// and for every alias, and more aliases than `MAXIMUM_ALIASES`. Disabling
+/// and removing a certificate use
 /// [`super::validated_existing_site::validated_existing_site`] instead, which
-/// checks shape only, so a site created under a now-reserved name stays
-/// manageable.
+/// checks shape only, so a site created under a now-reserved name — or before
+/// the alias bound existed — stays manageable.
 ///
 /// An absent spec is refused rather than defaulted. proto3 cannot tell
 /// "absent" from "static with no aliases", so accepting the default would let
@@ -39,15 +51,23 @@ use crate::services::wire::invalid_input::invalid_input;
 ///
 /// Returns the wire error when the spec is absent, when its backend is
 /// unspecified, when a PHP site names no valid version, when a proxied site
-/// names no valid upstream, when any alias is not a valid hostname, or when the
-/// domain or any alias is a reserved host name (an address literal, the
-/// loopback family, a special-use suffix).
+/// names no valid upstream, when it carries more than `MAXIMUM_ALIASES`
+/// aliases, when any alias is not a valid hostname, or when the domain or any
+/// alias is a reserved host name (an address literal, the loopback family, a
+/// special-use suffix).
 pub fn validated_site(
     account_username: &str,
     domain: &str,
     spec: Option<&SiteSpec>,
 ) -> Result<CreateSiteInput, AgentError> {
     let identity = validated_identity(account_username, domain)?;
+
+    let alias_count = spec.map_or(0, |spec| spec.aliases.len());
+    if alias_count > MAXIMUM_ALIASES {
+        return Err(invalid_input(format!(
+            "a site may carry at most {MAXIMUM_ALIASES} aliases, this one carries {alias_count}"
+        )));
+    }
 
     site_from_spec(identity, spec, Domain::parse)
 }

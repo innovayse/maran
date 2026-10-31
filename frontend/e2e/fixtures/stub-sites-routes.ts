@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { PhpVersion } from '../../src/types/phpVersion'
-import type { Site, SiteDetail } from '../../src/types/site'
+import type { Site, SiteDetail, SiteLimits } from '../../src/types/site'
 
 /** The collection endpoint the sites list and the create form both talk to, with or without a query. */
 const SITES_PATTERN = /\/api\/v1\/sites(\?.*)?$/
@@ -11,6 +11,9 @@ const SITE_PATTERN = '**/api/v1/sites/*'
 
 /** The installed-PHP endpoint the site form's runtime picker reads. */
 const PHP_VERSIONS_PATTERN = '**/api/v1/sites/php-versions'
+
+/** The limits endpoint the site form reads its alias bound from. */
+const SITE_LIMITS_PATTERN = '**/api/v1/sites/limits'
 
 /** The log-tail endpoint. It does not exist on the backend yet; the contract is Task 16's. */
 const SITE_LOGS_PATTERN = '**/api/v1/sites/*/logs*'
@@ -24,6 +27,22 @@ const SITE_LOGS_PATTERN = '**/api/v1/sites/*/logs*'
 export const stubPhpVersions = async (page: Page, versions: PhpVersion[]): Promise<void> => {
   await page.route(PHP_VERSIONS_PATTERN, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(versions) })
+  })
+}
+
+/**
+ * Answers `GET /api/v1/sites/limits` with the given limits, or with a 500 when `limits` is null.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param limits The limits the stub reports, or null for a server that cannot answer.
+ * @returns Resolves once the route is installed.
+ */
+export const stubSiteLimits = async (page: Page, limits: SiteLimits | null): Promise<void> => {
+  await page.route(SITE_LIMITS_PATTERN, async (route) => {
+    if (limits === null) {
+      await route.fulfill({ status: 500, contentType: 'application/problem+json', body: '{}' })
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(limits) })
   })
 }
 

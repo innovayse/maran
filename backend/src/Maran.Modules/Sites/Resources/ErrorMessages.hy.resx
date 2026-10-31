@@ -63,6 +63,9 @@
   <data name="SiteDomainReserved">
     <value>Այս անունը հնարավոր չէ օգտագործել կայքի համար։</value>
   </data>
+  <data name="SiteAliasLimitExceeded">
+    <value>Կայքը չի կարող ունենալ ավելի շատ լրացուցիչ անուններ, քան ընդգրկում է մեկ վկայականը։</value>
+  </data>
   <data name="SiteAliasReserved">
     <value>Լրացուցիչ անուններից մեկը հնարավոր չէ օգտագործել կայքի համար։</value>
   </data>
