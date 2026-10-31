@@ -69,6 +69,7 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
         {
             { "GET", "/api/v1/sites" },
             { "POST", "/api/v1/sites" },
+            { "GET", "/api/v1/sites/limits" },
             { "GET", "/api/v1/sites/php-versions" },
             { "POST", "/api/v1/sites/php-versions/install" },
             { "GET", "/api/v1/sites/{id}" },

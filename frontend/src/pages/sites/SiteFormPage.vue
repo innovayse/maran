@@ -91,6 +91,20 @@ const aliases: ComputedRef<string[]> = computed(() => {
     })
 })
 
+/** The most aliases the server accepts, or `null` while it has not said (the form then stays permissive). */
+const maximumAliases: ComputedRef<number | null> = computed(() => {
+  return store.limits === null ? null : store.limits.maximumAliases
+})
+
+/**
+ * Whether the list already holds more aliases than the server accepts. Shown as soon as it is
+ * true, not only after a submit: the operator is typing past a hard limit, and finding out on
+ * submit would mean deleting lines they were never going to be allowed to keep.
+ */
+const aliasLimitExceeded: ComputedRef<boolean> = computed(() => {
+  return maximumAliases.value !== null && aliases.value.length > maximumAliases.value
+})
+
 /** Validation message for the account picker, or `null`. */
 const accountError: ComputedRef<string | null> = computed(() => {
   if (!submitted.value || fixedAccountId.value !== null) {
@@ -115,10 +129,14 @@ const domainError: ComputedRef<string | null> = computed(() => {
 })
 
 /**
- * Validation message for the alias list, or `null`. Every alias is checked against the same
- * hostname rule as the domain, because the server checks each of them with `RuleForEach`.
+ * Validation message for the alias list, or `null`. The count is checked against the server's own
+ * limit, and every alias against the same hostname rule as the domain, because the server checks
+ * each of them with `RuleForEach`.
  */
 const aliasesError: ComputedRef<string | null> = computed(() => {
+  if (aliasLimitExceeded.value) {
+    return t('sites.form.errors.aliasesLimit', { max: maximumAliases.value })
+  }
   if (!submitted.value) {
     return null
   }
@@ -163,12 +181,12 @@ const isValid: ComputedRef<boolean> = computed(() => {
 })
 
 /**
- * Loads the PHP versions this host has installed, which the form selects from. The account picker
- * reads its own choices, one search at a time, when it is opened.
- * @returns Resolves once the request has settled.
+ * Loads the PHP versions this host has installed, which the form selects from, and the limits the
+ * form shows. The account picker reads its own choices, one search at a time, when it is opened.
+ * @returns Resolves once both requests have settled.
  */
 const loadReferenceData = async (): Promise<void> => {
-  await store.loadPhpVersions()
+  await Promise.all([store.loadPhpVersions(), store.loadLimits()])
 }
 
 /**
@@ -259,6 +277,9 @@ onMounted(loadReferenceData)
               :rows="3"
             />
             <UiFieldHint class="mt-1.5">{{ t('sites.form.hints.aliases') }}</UiFieldHint>
+            <UiFieldHint v-if="maximumAliases !== null" class="mt-1">
+              {{ t('sites.form.hints.aliasesCount', { count: aliases.length, max: maximumAliases }) }}
+            </UiFieldHint>
           </div>
           <div class="border-t border-border-subtle pt-5">
             <SiteBackendFields
@@ -274,7 +295,9 @@ onMounted(loadReferenceData)
             <UiButton variant="secondary" type="button" @click="cancel">
               {{ t('common.cancel') }}
             </UiButton>
-            <UiButton type="submit" :disabled="store.creating">{{ t('sites.form.submit') }}</UiButton>
+            <UiButton type="submit" :disabled="store.creating || aliasLimitExceeded">
+              {{ t('sites.form.submit') }}
+            </UiButton>
           </div>
         </div>
       </UiForm>
