@@ -46,10 +46,10 @@ import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
-import { useSitesStore } from '../../stores/sites'
+import { usePhpVersionsStore } from '../../stores/phpVersions'
 
 const { t } = useI18n()
-const sitesStore = useSitesStore()
+const phpVersionsStore = usePhpVersionsStore()
 
 /** The version typed into the install field, e.g. `8.4`. */
 const version: Ref<string> = ref('')
@@ -94,14 +94,14 @@ const install = async (): Promise<void> => {
     return
   }
 
-  const installed = await sitesStore.installPhpVersion(wanted)
+  const installed = await phpVersionsStore.installPhpVersion(wanted)
   if (installed) {
     version.value = ''
   }
 }
 
 onMounted(async () => {
-  await sitesStore.loadPhpVersions()
+  await phpVersionsStore.loadPhpVersions()
 })
 </script>
 
@@ -116,15 +116,15 @@ onMounted(async () => {
       <UiCard>
         <UiSectionHeading class="mb-4" :title="t('php.table.heading')" />
 
-        <UiLoadingRegion :state="sitesStore.phpVersionsState">
+        <UiLoadingRegion :state="phpVersionsStore.phpVersionsState">
           <!-- The server's own refusal or failure to list: the backend's localized sentence, so
                the SPA holds no copy of it. -->
           <template #error>
-            <UiAlert variant="error">{{ sitesStore.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
+            <UiAlert variant="error">{{ phpVersionsStore.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
           </template>
 
           <UiEmptyState
-            v-if="sitesStore.phpVersionsState === 'loaded' && sitesStore.phpVersions.length === 0"
+            v-if="phpVersionsStore.phpVersionsState === 'loaded' && phpVersionsStore.phpVersions.length === 0"
             :title="t('php.empty.title')"
             :description="t('php.empty.description')"
           />
@@ -133,9 +133,9 @@ onMounted(async () => {
             v-else
             :caption="t('php.table.caption')"
             :columns="columns"
-            :rows="sitesStore.phpVersions"
+            :rows="phpVersionsStore.phpVersions"
             row-key="version"
-            :loading="sitesStore.phpVersionsState === 'loading'"
+            :loading="phpVersionsStore.phpVersionsState === 'loading'"
           >
             <template #cell-version="{ row }">{{ row.version }}</template>
             <template #cell-default="{ row }">
@@ -154,23 +154,23 @@ onMounted(async () => {
             v-model="version"
             :label="t('php.install.label')"
             placeholder="8.4"
-            :disabled="sitesStore.installingPhpVersion !== null"
+            :disabled="phpVersionsStore.installingPhpVersion !== null"
           />
           <p class="text-sm text-text-secondary">{{ t('php.install.hint') }}</p>
 
-          <UiAlert v-if="sitesStore.phpInstallErrorMessage" variant="error">
-            {{ sitesStore.phpInstallErrorMessage }}
+          <UiAlert v-if="phpVersionsStore.phpInstallErrorMessage" variant="error">
+            {{ phpVersionsStore.phpInstallErrorMessage }}
           </UiAlert>
 
           <div>
             <UiButton
-              :disabled="version.trim().length === 0 || sitesStore.installingPhpVersion !== null"
+              :disabled="version.trim().length === 0 || phpVersionsStore.installingPhpVersion !== null"
               @click="install"
             >
               {{
-                sitesStore.installingPhpVersion === null
+                phpVersionsStore.installingPhpVersion === null
                   ? t('php.install.submit')
-                  : t('php.install.running', { version: sitesStore.installingPhpVersion })
+                  : t('php.install.running', { version: phpVersionsStore.installingPhpVersion })
               }}
             </UiButton>
           </div>

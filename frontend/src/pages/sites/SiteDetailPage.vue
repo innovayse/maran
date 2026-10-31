@@ -40,6 +40,8 @@ import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
 import SiteLogsTab from './SiteLogsTab.vue'
 import SiteSslTab from './SiteSslTab.vue'
 import { useLocaleStore } from '../../stores/locale'
+import { usePhpVersionsStore } from '../../stores/phpVersions'
+import { useSiteLogsStore } from '../../stores/siteLogs'
 import { useSitesStore } from '../../stores/sites'
 import { formatDate } from '../../utils/formatDate'
 import type { SiteDetail } from '../../types/site'
@@ -59,6 +61,8 @@ const props = defineProps<{
 const { t } = useI18n()
 const router = useRouter()
 const store = useSitesStore()
+const phpVersionsStore = usePhpVersionsStore()
+const siteLogsStore = useSiteLogsStore()
 const localeStore = useLocaleStore()
 
 /** The tab currently shown. */
@@ -76,6 +80,14 @@ const chosenPhpVersion: Ref<string> = ref('')
  */
 const site: ComputedRef<SiteDetail | null> = computed(() => {
   return store.detail.state === 'found' ? store.detail.site : null
+})
+
+/**
+ * The panel's reason the page's last request failed: a refused mutation first, otherwise a failed
+ * read of the PHP versions the picker offers. Both stores keep the backend's text verbatim.
+ */
+const pageErrorMessage: ComputedRef<string | null> = computed(() => {
+  return store.errorMessage ?? phpVersionsStore.errorMessage
 })
 
 /** Whether the site is still on its way, so the overview draws placeholders. */
@@ -220,7 +232,7 @@ const load = async (): Promise<void> => {
   const loaded = site.value
   if (loaded !== null && loaded.backendType === 'php') {
     chosenPhpVersion.value = loaded.phpVersion
-    await store.loadPhpVersions()
+    await phpVersionsStore.loadPhpVersions()
   }
 }
 
@@ -230,7 +242,7 @@ onMounted(load)
 // the life of the tab. The log tab stops its own stream on unmount; this is the belt to that
 // braces, because the page can also be left while the log tab was never mounted at all.
 onBeforeUnmount(() => {
-  store.stopLogTail()
+  siteLogsStore.stopLogTail()
 })
 </script>
 
@@ -263,8 +275,8 @@ onBeforeUnmount(() => {
           </template>
         </UiPageHeading>
 
-        <UiAlert v-if="!isLoading && store.errorMessage !== null" variant="error">
-          {{ store.errorMessage }}
+        <UiAlert v-if="!isLoading && pageErrorMessage !== null" variant="error">
+          {{ pageErrorMessage }}
         </UiAlert>
 
         <UiSegmentedControl
@@ -338,7 +350,7 @@ onBeforeUnmount(() => {
               </UiSectionHeading>
               <PhpVersionSelect
                 v-model="chosenPhpVersion"
-                :versions="store.phpVersions"
+                :versions="phpVersionsStore.phpVersions"
                 :disabled="store.acting"
               />
               <div>

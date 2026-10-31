@@ -31,7 +31,7 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
-import { useSitesStore } from '../../stores/sites'
+import { useSiteLogsStore } from '../../stores/siteLogs'
 import type { SiteLogEndReason, SiteLogSource } from '../../types/siteLog'
 
 /**
@@ -48,7 +48,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const store = useSitesStore()
+const store = useSiteLogsStore()
 
 /** Which of the site's two logs is selected. */
 const source: Ref<SiteLogSource> = ref('access')

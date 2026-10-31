@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { createPinia, setActivePinia } from 'pinia'
-import { useSitesStore } from '../../src/stores/sites'
+import { useSiteLogsStore } from '../../src/stores/siteLogs'
 
 // These run in the Playwright runner's Node process rather than in a browser: the sites data layer
 // has no screens until Task 17, and a store is still worth testing before the page that uses it.
@@ -112,7 +112,7 @@ test.beforeEach(() => {
 
 test('site log tail delivers every streamed line, in order, split across chunk boundaries', async () => {
   const stream = stubSseFetch()
-  const store = useSitesStore()
+  const store = useSiteLogsStore()
 
   const tail = store.startLogTail(SITE_ID, 'access')
   await within(stream.opened, 'the log stream to open')
@@ -133,7 +133,7 @@ test('site log tail delivers every streamed line, in order, split across chunk b
 
 test('site log tail keeps the panel’s own ending rather than reporting a generic one', async () => {
   const stream = stubSseFetch()
-  const store = useSitesStore()
+  const store = useSiteLogsStore()
 
   const tail = store.startLogTail(SITE_ID, 'error')
   await within(stream.opened, 'the log stream to open')
@@ -148,7 +148,7 @@ test('site log tail keeps the panel’s own ending rather than reporting a gener
 
 test('site log tail reports a stream that closed without naming an ending as truncated', async () => {
   const stream = stubSseFetch()
-  const store = useSitesStore()
+  const store = useSiteLogsStore()
 
   const tail = store.startLogTail(SITE_ID, 'access')
   await within(stream.opened, 'the log stream to open')
@@ -163,7 +163,7 @@ test('site log tail reports a stream that closed without naming an ending as tru
 
 test('site log tail reports an ending this panel does not recognise as failed, never as completed', async () => {
   const stream = stubSseFetch()
-  const store = useSitesStore()
+  const store = useSiteLogsStore()
 
   const tail = store.startLogTail(SITE_ID, 'access')
   await within(stream.opened, 'the log stream to open')
@@ -177,7 +177,7 @@ test('site log tail reports an ending this panel does not recognise as failed, n
 
 test('stopping a log tail aborts the request, ends as cancelled, and delivers no further lines', async () => {
   const stream = stubSseFetch()
-  const store = useSitesStore()
+  const store = useSiteLogsStore()
 
   const tail = store.startLogTail(SITE_ID, 'access')
   await within(stream.opened, 'the log stream to open')
@@ -203,7 +203,7 @@ test('stopping a log tail aborts the request, ends as cancelled, and delivers no
 
 test('starting a second log tail abandons the first, so two logs never interleave', async () => {
   const first = stubSseFetch()
-  const store = useSitesStore()
+  const store = useSiteLogsStore()
 
   const firstTail = store.startLogTail(SITE_ID, 'access')
   await within(first.opened, 'the first log stream to open')
@@ -237,7 +237,7 @@ test('starting a second log tail abandons the first, so two logs never interleav
 
 test('a line already in flight when a second tail starts is dropped, not appended to the new log', async () => {
   const first = stubSseFetch()
-  const store = useSitesStore()
+  const store = useSiteLogsStore()
 
   const firstTail = store.startLogTail(SITE_ID, 'access')
   await within(first.opened, 'the first log stream to open')
