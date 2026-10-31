@@ -14,7 +14,7 @@
  * **Two kinds of nothing.** No exemption at all is the empty state; a search matching none is the
  * no-results state, with the way back to every range.
  */
-import { computed, onMounted, useTemplateRef, type ComputedRef } from 'vue'
+import { computed, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
@@ -23,6 +23,7 @@ import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
+import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import FirewallWhitelistForm from '../../components/firewall/FirewallWhitelistForm.vue'
@@ -51,6 +52,9 @@ const table = useServerTable<WhitelistEntry>({
 /** The whitelist form, so an accepted exemption can empty the fields it owns. */
 const whitelistForm = useTemplateRef<{ reset: () => void }>('whitelistForm')
 
+/** The confirmation shown after an accepted addition; `null` while there is none. */
+const notice: Ref<string | null> = ref(null)
+
 /** Whether the list is narrowed by a search, so an empty answer means "no match". */
 const isNarrowed: ComputedRef<boolean> = computed(() => {
   return table.request.value.search !== ''
@@ -68,6 +72,7 @@ const answeredNothing: ComputedRef<boolean> = computed(() => {
  */
 const addExemption = async (request: AddWhitelistEntryRequest): Promise<void> => {
   if (await store.addWhitelistEntry(request)) {
+    notice.value = t('firewall.whitelist.created', { cidr: request.cidr })
     whitelistForm.value?.reset()
     await table.reload()
   }
@@ -90,6 +95,14 @@ const removeExemption = async (id: string): Promise<void> => {
  */
 const clearWhitelistError = (): void => {
   store.whitelistErrorMessage = null
+}
+
+/**
+ * Hides the confirmation toast.
+ * @returns Nothing.
+ */
+const dismissNotice = (): void => {
+  notice.value = null
 }
 
 /**
@@ -188,5 +201,7 @@ onMounted(clearWhitelistError)
         </UiLoadingRegion>
       </div>
     </UiCard>
+
+    <UiPinnedToast :message="notice" :close-label="t('common.close')" @dismiss="dismissNotice" />
   </section>
 </template>

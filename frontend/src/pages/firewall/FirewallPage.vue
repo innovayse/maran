@@ -25,7 +25,7 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
-import UiToast from '../../components/ui/UiToast.vue'
+import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import FirewallLockoutDialog from '../../components/firewall/FirewallLockoutDialog.vue'
 import FirewallPresetButtons from '../../components/firewall/FirewallPresetButtons.vue'
 import FirewallRuleForm from '../../components/firewall/FirewallRuleForm.vue'
@@ -296,10 +296,6 @@ onMounted(refresh)
       @close="cancelPending"
     />
 
-    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
-      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
-        {{ notice }}
-      </UiToast>
-    </div>
+    <UiPinnedToast :message="notice" :close-label="t('common.close')" @dismiss="dismissNotice" />
   </section>
 </template>

@@ -90,7 +90,28 @@
       "BackupOutcomeUnobserved": "The panel stopped following this backup before your server reported a result, so it cannot say whether the copy was finished. It is recorded as failed and is not offered for restore. Start a new backup, and contact support if this keeps happening.",
       "BackupScheduledRunAborted": "The scheduled backup stopped before the server agent reported how it ended.",
       "RestoreOutcomeUnobserved": "The panel stopped following this restore before your server reported a result, so it cannot say how far it got. The account may already have been replaced: check its files and databases before starting another restore, and contact support if you are unsure.",
-      "TaskAbandonedByRestart": "The panel restarted while this task was running, so it did not finish."
+      "TaskAbandonedByRestart": "The panel restarted while this task was running, so it did not finish.",
+      "AccountNotFound": "This account could not be found.",
+      "AgentAlreadyExists": "This already exists on your server, so nothing was created again.",
+      "AgentCertificateUnreadable": "The certificate could not be read. Check that you pasted the whole certificate, including its BEGIN and END lines.",
+      "AgentFirewallPortsMisconfigured": "The firewall was not changed, because this panel does not know which ports must stay open on your server. Nothing was changed. Please contact support.",
+      "AgentIncompatible": "The panel and the service that manages your server are at different versions, so this request was not carried out. An update may still be in progress; please try again later, and contact support if it keeps happening.",
+      "AgentInvalidInput": "Some of the details you submitted were not accepted. Please check them and try again.",
+      "AgentInvalidResponse": "Your server did not return a usable answer. Please try again in a few minutes, and contact support if it keeps happening.",
+      "AgentLimitReached": "Your plan's limit for this kind of item was already reached, so nothing was created. Delete one you no longer need, or ask for a larger plan, then try again.",
+      "AgentNotFound": "This no longer exists on your server. Refresh the page to see its current state.",
+      "AgentNotImplemented": "Your server does not support this option yet, so nothing was done. Choose another option, or contact support to find out when it will be available.",
+      "AgentPackageSourceRefused": "A package repository your server installs from refused the download, so nothing was installed. The fault is with that repository, not your server; please try again later, and contact support if it keeps happening.",
+      "AgentPackageSourceUnreachable": "No package repository your server installs from could be reached, so nothing was installed. This is usually a temporary network problem; please try again in a few minutes, and contact support if it keeps happening.",
+      "AgentPrivateKeyMismatch": "The private key does not belong to this certificate. Paste the key that was created together with the certificate request.",
+      "AgentPrivateKeyUnreadable": "The private key could not be read. Check that you pasted the whole key, including its BEGIN and END lines, and that it is not protected by a passphrase.",
+      "AgentSystemFailure": "This operation could not be completed on your server and nothing was changed. Please try again in a few minutes, and contact support if it keeps happening.",
+      "AgentUnavailable": "Your server is not answering right now, so this request could not be confirmed. Please try again in a minute, and contact support if it keeps happening.",
+      "AgentUnspecified": "This operation could not be completed on your server. Please try again in a few minutes, and contact support if it keeps happening.",
+      "AgentValidationFailed": "Your server rejected these details as invalid. Please correct them and try again.",
+      "CertificateAlreadyExists": "This domain already has a certificate.",
+      "PhpInstallOutcomeUnobserved": "The server did not report whether this PHP version was installed. Nothing here can say it was, so it is reported as failed: check the server's package manager before trying again, because a half-finished install is the one state this cannot tell apart from a slow one.",
+      "SiteNotFound": "This site could not be found."
     }
   }
 }

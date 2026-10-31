@@ -3,6 +3,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
+import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Ban } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
 
@@ -187,4 +188,24 @@ test('dismissing the lift confirmation sends no request, and confirm is not the 
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(deletes).toEqual([])
   await expect(row).toBeVisible()
+})
+
+// #222: every create confirms itself, the way the rule form and the other screens already did.
+test('placing a ban is confirmed by a toast naming the address', async ({ page }) => {
+  await openScreen(page, [])
+
+  await page.getByRole('textbox', { name: 'Address', exact: true }).fill('203.0.113.9')
+  await page.getByRole('button', { name: 'Ban the address' }).click()
+
+  await expect(page.getByRole('status').filter({ hasText: '203.0.113.9 is banned.' })).toBeVisible()
+})
+
+test('the ban confirmation is in Armenian for an Armenian interface', async ({ page }) => {
+  await setPersistedLocale(page, 'hy')
+  await openScreen(page, [])
+
+  await page.getByRole('textbox', { name: 'Հասցե', exact: true }).fill('203.0.113.9')
+  await page.getByRole('button', { name: 'Արգելափակել հասցեն' }).click()
+
+  await expect(page.getByRole('status').filter({ hasText: '203.0.113.9 հասցեն արգելափակված է։' })).toBeVisible()
 })

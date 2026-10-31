@@ -427,6 +427,12 @@
 # check that failed under a host load average of 11 and passed 18 of 18 at one worker
 # (`--repeat-each=3 --workers=1`); #217 touches no file it renders, so its row stays 6. One spa
 # row added (ui-kit/table-cards 4) and one raised (shell/theme-switch 2->4). Backend rows unchanged.
+#
+# RE-MEASURED 2026-10-31 (#222: task failure sentences, create toasts, one task progress rule, one
+# Armenian grant repair term) — edited by hand, not by --accept. Source: a full
+# `E2E_PORT=5199 maran test spa` run printing `158 targets: 1066 passed / 0 failed / 2 ignored`.
+# Five spa rows raised: cron/description 3->4, databases/grant-repair 11->12, firewall/bans 6->8,
+# firewall/whitelist 7->8, tasks/failure-sentence 3->5. Backend rows unchanged.
 rust	maran_agent [unittests src/lib.rs]	420	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
@@ -522,7 +528,7 @@ spa	backups/schedule-loading.spec.ts	3	0	0
 spa	backups/schedule.spec.ts	9	0	0
 spa	backups/weekday-names.spec.ts	1	0	0
 spa	cron/account-filter.spec.ts	3	0	0
-spa	cron/description.spec.ts	3	0	0
+spa	cron/description.spec.ts	4	0	0
 spa	cron/entries.spec.ts	7	0	0
 spa	cron/environment.spec.ts	5	0	0
 spa	cron/loading.spec.ts	3	0	0
@@ -541,7 +547,7 @@ spa	dashboard.spec.ts	10	0	0
 spa	databases/account-filter.spec.ts	3	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
-spa	databases/grant-repair.spec.ts	11	0	0
+spa	databases/grant-repair.spec.ts	12	0	0
 spa	databases/list.spec.ts	15	0	0
 spa	databases/loading.spec.ts	6	0	0
 spa	file-transfer/account-filter.spec.ts	8	0	0
@@ -557,13 +563,13 @@ spa	file-transfer/sftp-create.spec.ts	4	0	0
 spa	file-transfer/sftp-list.spec.ts	9	0	0
 spa	firewall/access.spec.ts	4	0	0
 spa	firewall/bans-list.spec.ts	7	0	0
-spa	firewall/bans.spec.ts	6	0	0
+spa	firewall/bans.spec.ts	8	0	0
 spa	firewall/loading.spec.ts	9	0	0
 spa	firewall/lockout.spec.ts	6	0	0
 spa	firewall/presets.spec.ts	6	0	0
 spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist-list.spec.ts	5	0	0
-spa	firewall/whitelist.spec.ts	7	0	0
+spa	firewall/whitelist.spec.ts	8	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
 spa	monitoring/monitoring.spec.ts	11	0	0
@@ -616,7 +622,7 @@ spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/php-versions-loading.spec.ts	3	0	0
 spa	sites/ssl-tab.spec.ts	11	0	0
 spa	tasks/badge.spec.ts	4	0	0
-spa	tasks/failure-sentence.spec.ts	3	0	0
+spa	tasks/failure-sentence.spec.ts	5	0	0
 spa	tasks/list.spec.ts	14	0	0
 spa	tasks/loading.spec.ts	3	0	0
 spa	tasks/log-fidelity.spec.ts	2	0	0

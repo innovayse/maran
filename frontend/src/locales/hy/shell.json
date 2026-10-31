@@ -23,7 +23,7 @@
         "sftpLogins": "SFTP մուտքանուններ",
         "ftpsLogins": "FTPS մուտքանուններ",
         "databasesList": "Բազաների ցանկ",
-        "databasesGrantRepair": "Իրավունքների ուղղում",
+        "databasesGrantRepair": "Իրավունքների վերականգնում",
         "backupsList": "Բոլոր պահուստները",
         "backupsSchedule": "Ժամանակացույց",
         "backupsDestinations": "Պահոցներ"
