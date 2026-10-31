@@ -37,20 +37,18 @@
  */
 import { computed, onMounted, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
 import DashboardAttentionList from '../components/dashboard/DashboardAttentionList.vue'
 import DashboardCountGrid from '../components/dashboard/DashboardCountGrid.vue'
 import DashboardQuickActions from '../components/dashboard/DashboardQuickActions.vue'
 import DashboardRecentAudit from '../components/dashboard/DashboardRecentAudit.vue'
 import DashboardResourceCard from '../components/dashboard/DashboardResourceCard.vue'
-import ServiceStatusBadges from '../components/monitoring/ServiceStatusBadges.vue'
+import DashboardServicesCard from '../components/dashboard/DashboardServicesCard.vue'
+import DashboardUnavailableCard from '../components/dashboard/DashboardUnavailableCard.vue'
 import UiAlert from '../components/ui/UiAlert.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiCard from '../components/ui/UiCard.vue'
 import UiIcon from '../components/ui/UiIcon.vue'
 import UiLoadingRegion from '../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../components/ui/UiPageHeading.vue'
-import UiSectionHeading from '../components/ui/UiSectionHeading.vue'
 import { useCallerRole } from '../composables/useCallerRole'
 import { useAuthStore } from '../stores/auth'
 import { useDashboardStore } from '../stores/dashboard'
@@ -224,26 +222,29 @@ onMounted(refresh)
 
         <!-- Below the verdict, and only for a caller the panel filled the sections for. -->
         <template v-else-if="showsServerDetail">
-          <!-- Each section is drawn only when the panel answered it. A missing section means the agent
-               or a module could not be read, and the panel isolates that on its own side — so the rest
-               of the screen stays up instead of going dark together. The attention notice is first:
-               the one thing that needs looking at goes above everything else. -->
+          <!-- Each section says whether the panel could read it. One the agent or a module could not
+               answer is drawn as "could not be read" in its own place, never as an empty list or a
+               zero (issue #248), and the panel isolates it on its own side — so the rest of the screen
+               stays up instead of going dark together. The attention notice is first: the one thing
+               that needs looking at goes above everything else. -->
           <DashboardAttentionList v-if="dashboard.attention !== null" :attention="dashboard.attention" />
 
           <DashboardCountGrid v-if="dashboard.counts !== null" :counts="dashboard.counts" />
-          <DashboardResourceCard v-if="dashboard.resources !== null" :resources="dashboard.resources" />
 
-          <UiCard v-if="dashboard.services.length > 0">
-            <UiSectionHeading class="mb-4" :title="t('monitoring.services.title')">
-              <template v-if="linksToMonitoring" #action>
-                <RouterLink
-                  to="/monitoring"
-                  class="rounded-control text-accent-text hover:underline focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
-                >{{ t('monitoring.heading') }}</RouterLink>
-              </template>
-            </UiSectionHeading>
-            <ServiceStatusBadges :statuses="dashboard.services" />
-          </UiCard>
+          <template v-if="dashboard.resources !== null">
+            <DashboardResourceCard v-if="dashboard.resources.state === 'loaded'" :resources="dashboard.resources.data" />
+            <DashboardUnavailableCard
+              v-else
+              :title="t('app.status.resources.title')"
+              :message="t('app.status.resources.unavailable')"
+            />
+          </template>
+
+          <DashboardServicesCard
+            v-if="dashboard.services !== null"
+            :services="dashboard.services"
+            :links-to-monitoring="linksToMonitoring"
+          />
 
           <!-- Two columns only when the CONTENT PANEL is wide enough for two readable cards (`@3xl`,
                48rem of container width), not when the viewport is: under a large system font the
@@ -256,7 +257,11 @@ onMounted(refresh)
                 :actions="quickActions"
               />
 
-              <DashboardRecentAudit :entries="dashboard.recentAudit" :class="{ '@3xl:col-span-2': quickActions.length === 0 }" />
+              <DashboardRecentAudit
+                v-if="dashboard.recentAudit !== null"
+                :entries="dashboard.recentAudit"
+                :class="{ '@3xl:col-span-2': quickActions.length === 0 }"
+              />
             </div>
           </div>
         </template>

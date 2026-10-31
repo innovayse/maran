@@ -1,9 +1,21 @@
 import type { Page } from '@playwright/test'
-import type { Dashboard } from '../../src/types/dashboard'
+import type { Dashboard, DashboardSection } from '../../src/types/dashboard'
 
 /**
- * What the panel answers a caller it filled nothing for: a customer, or an administrator on a host
- * where every module refused.
+ * A section the panel read, carrying what it answered with.
+ * @param data What the module answered with.
+ * @returns The loaded section.
+ */
+export const loaded = <T>(data: T): DashboardSection<T> => {
+  return { state: 'loaded', data }
+}
+
+/** A section the panel could not read: no data at all, never an empty list or a zero. */
+export const UNAVAILABLE: DashboardSection<never> = { state: 'unavailable' }
+
+/**
+ * What the panel answers a caller it filled nothing for: a customer. Every section is null, which
+ * means "not for this caller" and nothing else; a section that could not be read is {@link UNAVAILABLE}.
  *
  * Exported so a spec asserting "nothing of the server's state is drawn" says what it means with the
  * payload the panel really sends, rather than with a hand-built object that could drift from it.
@@ -11,10 +23,10 @@ import type { Dashboard } from '../../src/types/dashboard'
 export const WITHHELD_DASHBOARD: Dashboard = {
   isAdministrator: false,
   resources: null,
-  services: [],
+  services: null,
   counts: null,
   attention: null,
-  recentAudit: [],
+  recentAudit: null,
 }
 
 /**

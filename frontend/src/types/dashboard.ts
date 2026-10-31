@@ -2,6 +2,26 @@ import type { AuditEvent } from './audit'
 import type { ServiceStatus } from './monitoring'
 
 /**
+ * One section of the landing screen, mirroring the backend's `DashboardSection<T>`: either the data a
+ * module answered with, or the fact that it could not be read.
+ *
+ * A union and not a value beside a flag: an unavailable section has no `data` at all, so TypeScript
+ * refuses to read the data of a section that has none, and nothing stands in for "could not be read"
+ * — not an empty list, not a zero, not a null (issue #248). Narrow on `state` before reading `data`.
+ */
+export type DashboardSection<T> =
+  | {
+      /** The module answered. */
+      state: 'loaded'
+      /** What it answered with. */
+      data: T
+    }
+  | {
+      /** The module refused or failed; there is nothing to show. */
+      state: 'unavailable'
+    }
+
+/**
  * The host's resource use right now, mirroring the backend's `HostMetricsDto` field-for-field.
  *
  * A LIVE reading taken by asking the agent, not the newest stored sample: the two answer different
@@ -43,67 +63,58 @@ export interface DashboardResources {
  * account.
  */
 export interface DashboardCounts {
-  /** Hosting accounts on this server. */
-  accounts: DashboardCount
+  /** Hosting accounts on this server; a count that could not be taken is unavailable, never zero. */
+  accounts: DashboardSection<number>
   /** Sites across every account. */
-  sites: DashboardCount
+  sites: DashboardSection<number>
   /** Databases across every account. */
-  databases: DashboardCount
-}
-
-/**
- * One count, mirroring the backend's `DashboardCountDto`: whether the module answered, and the number
- * when it did. A count that could not be taken is its own state, never a zero.
- */
-export interface DashboardCount {
-  /** `counted` when the module answered; `unavailable` when it refused or failed. */
-  state: 'counted' | 'unavailable'
-  /** The number; meaningful only when {@link state} is `counted`. */
-  count: number
+  databases: DashboardSection<number>
 }
 
 /**
  * What on this server is asking to be looked at, mirroring the backend's `DashboardAttentionDto`.
  *
  * Zero is the ordinary answer and renders as a zero: on this screen "nothing needs attention" is
- * the good news, and an empty state would read as "not loaded".
+ * the good news, and an empty state would read as "not loaded". Each count carries whether its
+ * source could be read: an unavailable source is named on screen, and the all-clear is drawn only
+ * when every source was read (issue #248).
  */
 export interface DashboardAttention {
   /** Certificates at or inside the backend's expiry horizon, already-expired ones included. */
-  certificatesExpiringSoon: number
+  certificatesExpiringSoon: DashboardSection<number>
   /** Backups whose last run failed. */
-  failedBackups: number
+  failedBackups: DashboardSection<number>
   /** Addresses the firewall is currently refusing. */
-  bannedAddresses: number
+  bannedAddresses: DashboardSection<number>
   /** Panel tasks that ended in failure. */
-  failedTasks: number
+  failedTasks: DashboardSection<number>
 }
 
 /**
  * Everything the landing screen shows, mirroring the backend's `DashboardDto`.
  *
- * **A null section means "not for this caller"** — never "none", and never "not loaded yet". Both
- * audiences receive this one shape, so this SPA has a single contract: an administrator gets every
- * section filled, everyone else gets every administrator-only section null. The decision is the
- * server's, and `isAdministrator` says which answer arrived, so the page can state that there is
- * nothing to show rather than drawing a screen of missing panels.
+ * **A null section means "not for this caller"**, and nothing else. Both audiences receive this one
+ * shape, so this SPA has a single contract: an administrator gets every section, everyone else gets
+ * every section null. The decision is the server's, and `isAdministrator` says which answer arrived,
+ * so the page can state that there is nothing to show rather than drawing a screen of missing panels.
  *
- * The two list sections are not nullable: an empty list and a withheld list look the same on screen,
- * so there is no third state worth carrying for them.
+ * Whether a section could be READ is its {@link DashboardSection} state, never an empty list or a
+ * null: an empty list is a real answer (no services watched, nothing journalled yet) and a different
+ * one from a module that did not answer.
  */
 export interface Dashboard {
   /** Whether the sections below were filled for this caller. */
   isAdministrator: boolean
-  /** The host's live resource reading, or `null` when withheld or unreadable. */
-  resources: DashboardResources | null
-  /** The services the agent watches; empty when withheld or unreadable. */
-  services: ServiceStatus[]
-  /** What this server holds, or `null` when withheld or unreadable. */
+  /** The host's live resource reading, or `null` when withheld. */
+  resources: DashboardSection<DashboardResources> | null
+  /** The services the agent watches, or `null` when withheld. */
+  services: DashboardSection<ServiceStatus[]> | null
+  /** What this server holds, or `null` when withheld. */
   counts: DashboardCounts | null
-  /** What needs looking at, or `null` when withheld or unreadable. */
+  /** What needs looking at, or `null` when withheld. */
   attention: DashboardAttention | null
-  /** The newest audit entries; empty when withheld or unreadable. */
-  recentAudit: AuditEvent[]
+  /** The newest audit entries, or `null` when withheld. */
+  recentAudit: DashboardSection<AuditEvent[]> | null
 }
 
 /** The dashboard endpoint this SPA calls. */

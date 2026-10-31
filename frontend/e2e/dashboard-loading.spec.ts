@@ -6,7 +6,7 @@ import {
   type RegionLoadingScenario,
 } from './fixtures/expect-region-loading'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { stubDashboard, stubDashboardProblem } from './fixtures/stub-dashboard-route'
+import { loaded, stubDashboard, stubDashboardProblem } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import type { Dashboard } from '../src/types/dashboard'
@@ -25,7 +25,7 @@ const LICENSED: PanelModule[] = [
 // what this spec measures.
 const DASHBOARD: Dashboard = {
   isAdministrator: true,
-  resources: {
+  resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 * 1024 * 1024,
     memoryTotalBytes: 8 * 1024 * 1024 * 1024,
@@ -36,15 +36,15 @@ const DASHBOARD: Dashboard = {
     loadAverage1m: 0.21,
     loadAverage5m: 0.34,
     loadAverage15m: 0.55,
-  },
-  services: [],
+  }),
+  services: loaded([]),
   counts: {
-    accounts: { state: 'counted', count: 3 },
-    sites: { state: 'counted', count: 7 },
-    databases: { state: 'counted', count: 4 },
+    accounts: loaded(3),
+    sites: loaded(7),
+    databases: loaded(4),
   },
   attention: null,
-  recentAudit: [],
+  recentAudit: loaded([]),
 }
 
 /** The server's refusal the failure case answers with. */

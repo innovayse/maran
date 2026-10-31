@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { stubDashboard, stubDashboardProblem, WITHHELD_DASHBOARD } from './fixtures/stub-dashboard-route'
+import { loaded, stubDashboard, stubDashboardProblem, UNAVAILABLE, WITHHELD_DASHBOARD } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import type { AuthenticatedUser } from '../src/types/auth'
@@ -27,7 +27,7 @@ const CUSTOMER: AuthenticatedUser = {
 // attention row is non-zero so that all four are drawn.
 const FULL: Dashboard = {
   isAdministrator: true,
-  resources: {
+  resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 * 1024 * 1024,
     memoryTotalBytes: 8 * 1024 * 1024 * 1024,
@@ -38,18 +38,18 @@ const FULL: Dashboard = {
     loadAverage1m: 0.21,
     loadAverage5m: 0.34,
     loadAverage15m: 0.55,
-  },
-  services: [
+  }),
+  services: loaded([
     { service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' },
     { service: 'database', name: 'Database', state: 'stopped', detail: 'inactive (dead)' },
-  ],
+  ]),
   counts: {
-    accounts: { state: 'counted', count: 3 },
-    sites: { state: 'counted', count: 7 },
-    databases: { state: 'counted', count: 4 },
+    accounts: loaded(3),
+    sites: loaded(7),
+    databases: loaded(4),
   },
-  attention: { certificatesExpiringSoon: 2, failedBackups: 5, bannedAddresses: 9, failedTasks: 6 },
-  recentAudit: [
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6) },
+  recentAudit: loaded([
     {
       id: '11111111-1111-1111-1111-111111111111',
       occurredAt: '2026-10-05T12:00:00+00:00',
@@ -70,19 +70,19 @@ const FULL: Dashboard = {
       ipAddress: '203.0.113.9',
       succeeded: false,
     },
-  ],
+  ]),
 }
 
 /** A server with one account and nothing else on it — the state right after an install. */
 const FRESHLY_INSTALLED: Dashboard = {
   ...FULL,
   counts: {
-    accounts: { state: 'counted', count: 0 },
-    sites: { state: 'counted', count: 0 },
-    databases: { state: 'counted', count: 0 },
+    accounts: loaded(0),
+    sites: loaded(0),
+    databases: loaded(0),
   },
-  attention: { certificatesExpiringSoon: 0, failedBackups: 0, bannedAddresses: 0, failedTasks: 0 },
-  recentAudit: [],
+  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), bannedAddresses: loaded(0), failedTasks: loaded(0) },
+  recentAudit: loaded([]),
 }
 
 /**
@@ -147,9 +147,9 @@ test.describe('the landing page', () => {
     await openLandingPage(page, {
       ...FULL,
       counts: {
-        accounts: { state: 'counted', count: 3 },
-        sites: { state: 'unavailable', count: 0 },
-        databases: { state: 'counted', count: 4 },
+        accounts: loaded(3),
+        sites: UNAVAILABLE,
+        databases: loaded(4),
       },
     })
 
@@ -196,11 +196,59 @@ test.describe('the landing page', () => {
 
   test('one unreadable section leaves the rest of the screen standing', async ({ page }) => {
     // What the endpoint's per-section isolation is for: the agent is down, so the live reading and
-    // the services are gone, while the counts — which come from the database — are still there.
-    await openLandingPage(page, { ...FULL, resources: null, services: [] })
+    // the services could not be read, while the counts — which come from the database — are still
+    // there. Each unreadable section says so in its own place instead of vanishing (#248).
+    await openLandingPage(page, { ...FULL, resources: UNAVAILABLE, services: UNAVAILABLE })
 
-    await expect(page.getByText('Right now')).toHaveCount(0)
+    await expect(page.getByText('The live reading could not be taken.')).toBeVisible()
+    await expect(page.getByText('37.4%')).toHaveCount(0)
+    await expect(page.getByText('The services could not be read.')).toBeVisible()
     await expect(page.getByText('On this server')).toBeVisible()
     await expect(page.getByText('Account created')).toBeVisible()
+  })
+
+  test('an attention source the panel could not read is named, and is not an all-clear', async ({ page }) => {
+    // #248: the backups count could not be taken and every other source holds zero. Counted as zero,
+    // this screen would say "Nothing needs attention." about backups nobody checked.
+    await openLandingPage(page, {
+      ...FRESHLY_INSTALLED,
+      attention: {
+        certificatesExpiringSoon: loaded(0),
+        failedBackups: UNAVAILABLE,
+        bannedAddresses: loaded(0),
+        failedTasks: loaded(0),
+      },
+    })
+
+    await expect(page.getByText('Needs attention')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Backups could not be checked' })).toBeVisible()
+    await expect(page.getByText('Nothing needs attention.')).toHaveCount(0)
+
+    // Only the unread source is named: the three that were read and hold zero stay quiet.
+    await expect(page.getByText('Certificates could not be checked')).toHaveCount(0)
+    await expect(page.getByText('Tasks could not be checked')).toHaveCount(0)
+  })
+
+  test('an unread source is named beside the counts that need attention', async ({ page }) => {
+    await openLandingPage(page, {
+      ...FULL,
+      attention: {
+        certificatesExpiringSoon: loaded(2),
+        failedBackups: loaded(5),
+        bannedAddresses: loaded(9),
+        failedTasks: UNAVAILABLE,
+      },
+    })
+
+    await expect(page.getByText('backups failed')).toBeVisible()
+    await expect(page.getByText('Tasks could not be checked')).toBeVisible()
+    await expect(page.getByText('tasks failed')).toHaveCount(0)
+  })
+
+  test('a journal the panel could not read says so, and not that nothing happened', async ({ page }) => {
+    await openLandingPage(page, { ...FULL, recentAudit: UNAVAILABLE })
+
+    await expect(page.getByText('The audit journal could not be read.')).toBeVisible()
+    await expect(page.getByText('Nothing has been recorded yet.')).toHaveCount(0)
   })
 })

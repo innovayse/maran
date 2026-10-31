@@ -13,6 +13,9 @@
  * Each row is the redesign's list row: an initials avatar for whoever did it, the readable action with
  * what it was done to underneath, and the time in the mono face on the right. The "open the journal"
  * link sits in the section heading's `action` slot, as "View all" does in the approved mockup.
+ *
+ * A journal the panel could not read says so in a sentence, and never as the empty state: "nothing
+ * has been recorded yet" about a journal nobody could open would be a false answer (issue #248).
  */
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
@@ -23,10 +26,11 @@ import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import type { AuditEvent } from '../../types/audit'
+import type { DashboardSection } from '../../types/dashboard'
 
 defineProps<{
-  /** The newest entries, as the panel answered them — already the few this card shows. */
-  entries: AuditEvent[]
+  /** The newest entries as the panel answered them (already the few this card shows), or unavailable. */
+  entries: DashboardSection<AuditEvent[]>
 }>()
 
 const { t } = useI18n()
@@ -45,12 +49,14 @@ const localeStore = useLocaleStore()
     </UiSectionHeading>
 
     <!-- Empty is an ordinary answer on a server nobody has touched yet, and a different one from a
-         journal that could not be read — which the store reports as an error instead. -->
-    <p v-if="entries.length === 0" class="text-sm text-text-secondary">{{ t('app.status.audit.empty') }}</p>
+         journal that could not be read, which has a sentence of its own. -->
+    <p v-if="entries.state === 'unavailable'" class="text-sm text-text-secondary">{{ t('app.status.audit.unavailable') }}</p>
+
+    <p v-else-if="entries.data.length === 0" class="text-sm text-text-secondary">{{ t('app.status.audit.empty') }}</p>
 
     <ul v-else class="m-0 list-none p-0">
       <li
-        v-for="entry in entries"
+        v-for="entry in entries.data"
         :key="entry.id"
         class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border-subtle py-3 first:border-t-0 first:pt-0 last:pb-0"
       >

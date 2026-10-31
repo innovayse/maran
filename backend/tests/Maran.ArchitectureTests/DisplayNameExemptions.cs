@@ -46,13 +46,6 @@ public static class DisplayNameExemptions
             + "administrator's list and detail screens already use; the bundle already words every "
             + "value to offer those two."),
         new(
-            "Maran.Host.Dashboard.DashboardCountDto",
-            "State",
-            DisplayNameExemptionKind.NotAnOperatorFacingName,
-            "frontend/src/types/dashboard.ts",
-            "Whether a count was taken decides whether the tile shows a number or the word "
-            + "'unavailable'; the state itself is never printed as a name."),
-        new(
             "Maran.Modules.Accounts.Common.AccountResourceUsageDto",
             "Kind",
             DisplayNameExemptionKind.SpaOwnedVocabulary,
