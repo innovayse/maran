@@ -54,7 +54,7 @@
     },
     "form": {
       "fields": {
-        "accountId": "Account"
+        "account": "Account"
       },
       "hint": "The copy is taken now, and this page waits for it — a large account can take several minutes.",
       "submit": "Take a backup",
@@ -63,7 +63,7 @@
         "accountRequired": "Choose the account to back up."
       },
       "placeholders": {
-        "accountId": "Choose an account"
+        "account": "Choose an account"
       }
     },
     "restore": {

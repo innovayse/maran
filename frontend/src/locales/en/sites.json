@@ -43,7 +43,7 @@
       "heading": "New site",
       "subtitle": "The panel checks these values before sending them, and the server checks them again.",
       "fields": {
-        "accountId": "Account",
+        "account": "Account",
         "domain": "Domain",
         "aliases": "Aliases",
         "backendType": "Backend",
@@ -59,7 +59,7 @@
       "placeholders": {
         "domain": "example.com",
         "proxyUpstream": "127.0.0.1:3000",
-        "accountId": "Choose an account",
+        "account": "Choose an account",
         "phpVersion": "Choose a PHP version"
       },
       "phpVersionOption": "PHP {version}",

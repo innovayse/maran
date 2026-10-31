@@ -43,7 +43,7 @@
       "heading": "Новый сайт",
       "subtitle": "Панель проверяет эти значения перед отправкой, и сервер проверяет их снова.",
       "fields": {
-        "accountId": "Аккаунт",
+        "account": "Аккаунт",
         "domain": "Домен",
         "aliases": "Псевдонимы",
         "backendType": "Бэкенд",
@@ -59,7 +59,7 @@
       "placeholders": {
         "domain": "example.com",
         "proxyUpstream": "127.0.0.1:3000",
-        "accountId": "Выберите аккаунт",
+        "account": "Выберите аккаунт",
         "phpVersion": "Выберите версию PHP"
       },
       "phpVersionOption": "PHP {version}",

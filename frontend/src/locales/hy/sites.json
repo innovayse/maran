@@ -43,7 +43,7 @@
       "heading": "Նոր կայք",
       "subtitle": "Վահանակը ստուգում է այս արժեքները ուղարկելուց առաջ, իսկ սերվերը ստուգում է դրանք կրկին։",
       "fields": {
-        "accountId": "Հաշիվ",
+        "account": "Հաշիվ",
         "domain": "Դոմեյն",
         "aliases": "Այլանուններ",
         "backendType": "Բեքենդ",
@@ -59,7 +59,7 @@
       "placeholders": {
         "domain": "example.com",
         "proxyUpstream": "127.0.0.1:3000",
-        "accountId": "Ընտրեք հաշիվը",
+        "account": "Ընտրեք հաշիվը",
         "phpVersion": "Ընտրեք PHP-ի տարբերակը"
       },
       "phpVersionOption": "PHP {version}",

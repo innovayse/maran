@@ -255,8 +255,8 @@ onMounted(loadReferenceData)
               v-if="fixedAccountId === null"
               v-model="accountId"
               v-bind="accountPicker"
-              :label="t('sites.form.fields.accountId')"
-              :placeholder="t('sites.form.placeholders.accountId')"
+              :label="t('sites.form.fields.account')"
+              :placeholder="t('sites.form.placeholders.account')"
               :error="accountError"
               required
               @search="searchAccounts"

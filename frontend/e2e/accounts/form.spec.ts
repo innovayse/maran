@@ -6,6 +6,7 @@ import type { PanelModule } from '../../src/types/module'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPlans, THE_PLAN, THREE_PLANS } from '../fixtures/stub-plans-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { setPersistedLocale } from '../fixtures/set-locale'
 
 /** Catalogue every spec here starts from: the accounts module licensed, so the form is reachable. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
@@ -284,3 +285,33 @@ test('the plan picker searches the panel and offers what it answers', async ({ p
     return searches.at(-1)
   }).toBe('unlim')
 })
+
+// #80: the plan control picks a plan by its name, so its accessible name and its required-field
+// message say "Plan" in every language, never the DTO property "Plan ID". Asserted on the accessible
+// name, which is what a screen reader announces and what the visible label drives, and in Armenian
+// as well as English, because the leak was in the locale files rather than in the component.
+for (const { locale, label, prompt, required, submit } of [
+  { locale: 'en', label: 'Plan', prompt: 'Choose a plan', required: 'Choose a plan.', submit: 'Create account' },
+  { locale: 'hy', label: 'Սակագին', prompt: 'Ընտրեք սակագինը', required: 'Ընտրեք սակագինը։', submit: 'Ստեղծել հաշիվ' },
+] as const) {
+  test(`the plan control is named after the plan, not its identifier, in ${locale}`, async ({ page }) => {
+    await setPersistedLocale(page, locale)
+    await stubSignedIn(page)
+    await stubHealthy(page)
+    await stubModules(page, LICENSED_ACCOUNTS)
+    await stubAccounts(page, [])
+    await stubPlans(page)
+
+    await page.goto('/accounts/new')
+
+    const chooser = page.getByRole('combobox', { name: label, exact: true })
+    // Positive control: the control is found by the expected name before anything is judged
+    // absent, so a form that failed to render cannot pass the negative assertions by matching nothing.
+    await expect(chooser).toHaveText(prompt)
+
+    await page.getByRole('button', { name: submit }).click()
+    await expect(chooser).toHaveAttribute('aria-invalid', 'true')
+    await expect(page.getByText(required, { exact: true })).toBeVisible()
+    await expect(page.getByText(/\bID\b|Plan ID|ID тарифа|Փաթեթի ID/)).toHaveCount(0)
+  })
+}

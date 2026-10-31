@@ -460,6 +460,12 @@
 # `E2E_PORT=5199 maran test spa` run printing `158 targets: 1066 passed / 0 failed / 2 ignored`.
 # Five spa rows raised: cron/description 3->4, databases/grant-repair 11->12, firewall/bans 6->8,
 # firewall/whitelist 7->8, tasks/failure-sentence 3->5. Backend rows unchanged.
+#
+# RE-MEASURED 2026-10-31 (#80: form fields named after what is chosen, not its identifier) — edited
+# by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa` run printing
+# `164 targets: 1110 passed / 0 failed / 2 ignored`. Two spa rows raised: accounts/form 9->11
+# (the plan control's name and message in en and hy), ui-kit/unfilled-select-prompt 3->4 (the
+# Armenian account pickers). Backend rows unchanged.
 rust	maran_agent [unittests src/lib.rs]	428	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
@@ -519,7 +525,7 @@ spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/edit.spec.ts	9	0	0
-spa	accounts/form.spec.ts	9	0	0
+spa	accounts/form.spec.ts	11	0	0
 spa	accounts/invitation-link.spec.ts	8	0	0
 spa	accounts/list.spec.ts	15	0	0
 spa	accounts/loading.spec.ts	3	0	0
@@ -677,5 +683,5 @@ spa	ui-kit/table-cards.spec.ts	4	0	0
 spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/type-consistency.spec.ts	7	0	0
-spa	ui-kit/unfilled-select-prompt.spec.ts	3	0	0
+spa	ui-kit/unfilled-select-prompt.spec.ts	4	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0
