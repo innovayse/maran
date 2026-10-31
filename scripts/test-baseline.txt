@@ -1,13 +1,18 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
-# RE-MEASURED 2026-10-31 (issue #232 merged with dev's #245/#251: Host.IntegrationTests 737+7 = 744, Sdk.Tests 258+1 = 259;, change password while signed in): edited by hand.
+# RE-MEASURED 2026-10-31 (issue #232 merged with dev's #245/#251: Host.IntegrationTests 738+7 = 745 (with #260), Sdk.Tests 258+1 = 259;, change password while signed in): edited by hand.
 # Modules.Identity.Tests 318->334 (ChangePasswordCommandHandlerTests 11, ChangePasswordCommandValidatorTests 5),
 # Host.IntegrationTests 731->738 (ChangePasswordEndpointTests 7), Sdk.Tests 254->255 (CurrentPasswordIncorrect in
 # the code census). spa: NEW row shell/change-password.spec.ts 6 (both roles x success and refusal, mismatch,
 # permissive length). Full `maran test backend` run before this edit: 20 targets, 4890 passed / 1 failed (the
 # rate-limit test, since rewritten to configure its own budget). After the edit: `maran test backend` 20 targets:
 # 4891 passed / 0 failed / 0 ignored; `E2E_PORT=5199 maran test spa` 148 targets: 975 passed / 0 failed / 2 ignored.
+# RE-MEASURED 2026-10-31 (issue #260, the sixth sign-in attempt at the shipped settings): edited by hand. Full
+# `maran test backend` from a shell that had sourced scripts/dev (15 .env values withheld by the harness): 20 targets:
+# 4885 passed / 0 failed / 0 ignored. Host.IntegrationTests 737->738 (AuthEndpointTests, the sixth attempt answers
+# 429 problem+json with Retry-After). Every other row unchanged.
+#
 # RE-MEASURED 2026-10-31 (issue #245 merged with dev's #248/#251: Host.IntegrationTests 733+4 = 737, Sdk.Tests 256+2 = 258;, an unbindable request value refused with RequestParameterInvalid): edited by
 # hand. Full `maran test backend`: 20 targets: 4858 passed / 0 failed / 0 ignored, Host.IntegrationTests included.
 # Host.IntegrationTests 730->734 (the codeless status test became a 3-case theory plus a ru/hy theory), Sdk.Tests
@@ -448,7 +453,7 @@ backend	Maran.Sdk.Tests.dll	259	0	0
 backend	Maran.Modules.Sites.Tests.dll	270	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	744	0	0
+backend	Maran.Host.IntegrationTests.dll	745	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0

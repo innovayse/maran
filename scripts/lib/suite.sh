@@ -434,8 +434,28 @@ suite_run() {
       #   so the parsed text is identical to a run that wrote the file alone. stderr rather than
       #   stdout, so a caller keeping stdout for the verdict still gets the verdict and nothing
       #   else interleaved with it.
+      #
+      #   WITHOUT THE DEVELOPMENT `.env`. `source scripts/dev` exports every line of `.env` into the
+      #   shell, and the integration tests boot the real host, whose configuration reads the
+      #   environment ahead of appsettings.json. So a run from a sourced shell measured a panel
+      #   configured for clicking around — `RateLimiting__LoginMaxAttempts=50` — while CI, which has
+      #   no `.env`, measured the shipped one: the same tree, two different products, and a sign-in
+      #   limiter that looked broken on a workstation and was not (issue #260). The names the file
+      #   applied are exactly the ones whose value still equals their `MARAN_ENV_FILE_VALUE__<name>`
+      #   record (scripts/dev), and only those are removed: a value the caller set on purpose, such
+      #   as `MARAN_TEST_PG_IMAGE`, is not the file's and still reaches the run.
+      local -a env_file_names=()
+      local record name
+      for record in $(compgen -v MARAN_ENV_FILE_VALUE__ || true); do
+        name="${record#MARAN_ENV_FILE_VALUE__}"
+        if [ -n "${!name+set}" ] && [ "${!name}" = "${!record}" ]; then
+          env_file_names+=(-u "$name")
+        fi
+      done
       echo "harness: backend: dotnet test Maran.sln -m:1 -nodeReuse:false (one project at a time, whole solution)" >&2
-      (cd "$root/backend" && dotnet test Maran.sln -m:1 -nodeReuse:false) 2>&1 | tee "$log" >&2 || true
+      echo "harness: backend: $(( ${#env_file_names[@]} / 2 )) value(s) from .env withheld from the run" >&2
+      (cd "$root/backend" && env "${env_file_names[@]}" dotnet test Maran.sln -m:1 -nodeReuse:false) 2>&1 \
+        | tee "$log" >&2 || true
       ;;
     spa)
       # TWO reporters, and the second one is the one that is scored.
