@@ -6,14 +6,14 @@
 //! FORMAT. They cannot pin two other things, and this suite is the only place
 //! either is reached:
 //!
-//! - **The four `/proc` paths, and the available-versus-free choice.** The paths
-//!   are string literals no structure rule inspects: a reading taken from the
-//!   real kernel fails outright if one is wrong, so the metrics call succeeding
-//!   is what closes them. And `filesystem_usage` measures used space as
-//!   `f_blocks - f_bavail` — AVAILABLE, not free — so that the figure counts
-//!   only what a hosting account could actually write; the root reserve is 5%
-//!   of the filesystem that no customer will ever get. That argument lives in a
-//!   doc comment, and the assertion here is what holds it up.
+//! - **The four `/proc` paths, and the used / reserved / available split.** The
+//!   paths are string literals no structure rule inspects: a reading taken from
+//!   the real kernel fails outright if one is wrong, so the metrics call
+//!   succeeding is what closes them. And `filesystem_usage` reports `df`'s
+//!   `Used` (`f_blocks - f_bfree`), the root reserve (`f_bfree - f_bavail`) and
+//!   `df`'s `Avail` (`f_bavail`) as three figures (issue #77). That mapping
+//!   lives in a doc comment, and the comparison against `df` here is what
+//!   holds it up on a real filesystem.
 //!
 //!   What this suite does NOT settle, said plainly because an earlier version
 //!   of this comment claimed the opposite: the `f_frsize`-over-`f_bsize` choice
@@ -160,10 +160,13 @@ fn every_metric_parses_against_this_familys_own_kernel_and_lands_in_its_range() 
         metrics.memory
     );
 
-    assert!(metrics.root_filesystem.total_bytes > 0, "a host has a disk");
+    assert!(
+        metrics.root_filesystem.total_bytes() > 0,
+        "a host has a disk"
+    );
     assert!(metrics.root_filesystem.used_bytes > 0, "some of it is used");
     assert!(
-        metrics.root_filesystem.used_bytes <= metrics.root_filesystem.total_bytes,
+        metrics.root_filesystem.used_bytes <= metrics.root_filesystem.total_bytes(),
         "used disk cannot exceed the filesystem: {:?}",
         metrics.root_filesystem
     );
@@ -196,33 +199,26 @@ fn every_metric_parses_against_this_familys_own_kernel_and_lands_in_its_range() 
 
 #[test]
 #[ignore = "compares this host's statvfs answer against df's: polygon only"]
-fn the_root_filesystem_is_measured_against_what_an_account_can_actually_write() {
+fn the_root_filesystem_reports_df_used_df_avail_and_the_reserve_between_them() {
     PolygonAccount::require_polygon();
 
-    // `usage_of` reports `used_bytes` as `f_blocks - f_bavail`, deliberately
-    // NOT `df`'s own `Used` column (`f_blocks - f_bfree`). The two differ by
-    // the root reserve — 5% of the filesystem by default — and the doc comment
-    // argues at length for the available-based figure: the reserve is room no
-    // hosting account will ever get, so a gauge built on `f_bfree` tells an
-    // operator they have space their customers cannot use.
+    // `usage_of` reports three figures: used as `df`'s `Used`
+    // (`f_blocks - f_bfree`), available as `df`'s `Avail` (`f_bavail`), and the
+    // root reserve as what lies between (`f_bfree - f_bavail`). Each is
+    // compared against `df`, a separate implementation of the same statvfs
+    // question, which is what makes this evidence rather than a restatement.
     //
-    // That argument had no test. The obvious one — comparing `total_bytes`
-    // against `df --output=size` — cannot supply it, and this file used to
-    // claim it did: `total_bytes` contains neither `f_bfree` nor `f_bavail`, so
-    // swapping them leaves it untouched. Measured: the `f_bavail -> f_bfree`
-    // mutant left all five monitor tests green.
-    //
-    // So the comparison is against `df`'s AVAILABLE column instead. `size -
-    // avail` is `f_blocks - f_bavail` computed by a separate implementation of
-    // the same statvfs question, which is what makes it evidence rather than a
-    // restatement — and it is exactly the quantity the mutant moves, by the
-    // whole reserve.
+    // The used and available comparisons are the ones the reserve makes
+    // load-bearing: swapping `f_bfree` and `f_bavail` anywhere in the mapping
+    // moves one of them by the whole reserve, 5% of an ext4 root. Comparing the
+    // total alone could not see that — it contains neither count — and an
+    // earlier version of this suite was green on exactly that mutant.
     let reported = get_host_metrics(&ProcessMonitorHost::new())
         .expect("this host's statistics must be readable")
         .root_filesystem;
 
     let df = Command::new("df")
-        .args(["-B1", "--output=size,avail", "/"])
+        .args(["-B1", "--output=size,used,avail", "/"])
         .output()
         .expect("the polygon image installs df");
     assert!(df.status.success(), "df must answer about /");
@@ -236,35 +232,35 @@ fn the_root_filesystem_is_measured_against_what_an_account_can_actually_write() 
                 .collect()
         })
         .unwrap_or_default();
-    let [size, available] = figures.as_slice() else {
-        panic!("df must print a size and an available figure in bytes, printed: {printed:?}");
+    let [size, used, available] = figures.as_slice() else {
+        panic!("df must print size, used and available figures in bytes, printed: {printed:?}");
     };
 
-    // The assertion the reserve makes load-bearing.
-    let expected_used = size.saturating_sub(*available);
-    let used_difference = reported.used_bytes.abs_diff(expected_used) as f64 / expected_used as f64;
-    assert!(
-        used_difference <= DF_TOLERANCE,
-        "used bytes must be measured against what an account can write — \
-         df says size {size} minus available {available} = {expected_used}, the \
-         agent reports {}, off by {:.2}%. A gap of about the root reserve is \
-         the signature of f_bfree where f_bavail belongs.",
-        reported.used_bytes,
-        used_difference * 100.0
+    for (name, agent, df) in [
+        ("used", reported.used_bytes, *used),
+        ("available", reported.available_bytes, *available),
+        ("size", reported.total_bytes(), *size),
+    ] {
+        let difference = agent.abs_diff(df) as f64 / (*size).max(1) as f64;
+        assert!(
+            difference <= DF_TOLERANCE,
+            "the agent's {name} ({agent}) must match df's ({df}); off by {:.2}% of the \
+             filesystem. A gap of about the root reserve is the signature of f_bfree \
+             and f_bavail swapped.",
+            difference * 100.0
+        );
+    }
+
+    // The partition: what df leaves unprinted is exactly the reserve.
+    assert_eq!(
+        reported.used_bytes + reported.reserved_bytes + reported.available_bytes,
+        reported.total_bytes(),
+        "used, reserved and available must sum to the size: {reported:?}"
     );
 
-    // The total, which does equal df's Size. Kept because it is true and cheap,
-    // and labelled with what it CANNOT distinguish so nobody reads more into it
-    // later: `f_frsize` against `f_bsize` is invisible on both polygon roots,
-    // where the two fields are both 4096. Nothing here closes that choice, and
-    // saying so is better than a comment implying otherwise.
-    let total_difference = reported.total_bytes.abs_diff(*size) as f64 / *size as f64;
-    assert!(
-        total_difference <= DF_TOLERANCE,
-        "the reported total ({}) must match df's size ({size}); off by {:.2}%",
-        reported.total_bytes,
-        total_difference * 100.0
-    );
+    // What this test CANNOT distinguish, said so nobody reads more into it:
+    // `f_frsize` against `f_bsize` is invisible on both polygon roots, where
+    // the two fields are both 4096.
 }
 
 #[test]

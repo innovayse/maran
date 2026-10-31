@@ -80,11 +80,14 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // no panel window contains it; revision 2 is the contract as of the change
     // that introduced the policy; revision 3 adds `InstallCertificate`'s
     // `refused` answer (issue #214); revision 4 adds the two package-source
-    // error codes (issue #251). The panel's `AgentProtoVersionWindow` moves
+    // error codes (issue #251); revision 5 adds the account filter of
+    // `GetAccountsDiskUsage` (issue #196); revision 6 splits the root
+    // filesystem into used, reserved and available (issue #77). The panel's
+    // `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 5);
+    assert_eq!(info.proto_version, 6);
 }
 
 #[tokio::test]
@@ -117,6 +120,7 @@ const REVISIONS: &[(u32, u64)] = &[
     (3, 0xb880_37f8_ad50_ac7e),
     (4, 0x3db3_ea7e_ab61_b6bb),
     (5, 0x05c6_6b26_aeba_4725),
+    (6, 0x9a63_33b9_4199_bdc7),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

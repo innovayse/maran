@@ -34,8 +34,11 @@ use crate::proto::{
 /// `ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE`, the package-install failures
 /// whose fault is a source outside this host (issue #251). 5 adds
 /// `GetAccountsDiskUsageRequest.account_usernames`, so a panel listing one
-/// page of accounts has only that page's homes walked (issue #196).
-const PROTO_VERSION: u32 = 5;
+/// page of accounts has only that page's homes walked (issue #196). 6 splits
+/// the root filesystem into used, reserved and available
+/// (`HostMetrics.disk_reserved_bytes`, `disk_available_bytes`) and makes
+/// `disk_used_bytes` `df`'s `Used` instead of total minus available (issue #77).
+const PROTO_VERSION: u32 = 6;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

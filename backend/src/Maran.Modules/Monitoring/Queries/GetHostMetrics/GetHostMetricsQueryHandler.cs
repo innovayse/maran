@@ -60,6 +60,8 @@ public sealed class GetHostMetricsQueryHandler
             ToSignedBytes(metrics.MemoryUsedBytes),
             ToSignedBytes(metrics.MemoryTotalBytes),
             ToSignedBytes(metrics.DiskUsedBytes),
+            ToSignedBytes(metrics.DiskReservedBytes),
+            ToSignedBytes(metrics.DiskAvailableBytes),
             ToSignedBytes(metrics.DiskTotalBytes),
             ToSignedBytes(metrics.NetworkRxBytes),
             ToSignedBytes(metrics.NetworkTxBytes),

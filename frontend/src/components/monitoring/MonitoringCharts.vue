@@ -21,6 +21,11 @@
  * **The two network series pick their own unit** (B/s, KiB/s, MiB/s…) from their peak, so a quiet
  * link does not draw an axis of `0.00` ticks (#222).
  *
+ * **The disk history plots used as `df` counts it**, the same figure the disk cards call "In use".
+ * Buckets sampled before issue #77 stored size minus available instead — which counted the root
+ * reserve as used — so the panel sends them as `null` and they are dropped as gaps, exactly like
+ * the network rates below, rather than drawn as a step that never happened.
+ *
  * **The two network series drop their null buckets rather than plotting zeros.** A rate is derived
  * on the server from the difference between two counter readings divided by the seconds actually
  * elapsed, so the first bucket of any chart has nothing to measure against and arrives as `null`.
@@ -61,10 +66,14 @@ const memorySeries: ComputedRef<ChartPoint[]> = computed(() => {
   })
 })
 
-/** Disk space in use on the root filesystem, in GiB. */
+/**
+ * Disk space used on the root filesystem as `df` counts Used, in GiB. A bucket sampled before
+ * issue #77 arrives as `null` and is dropped: it stored size minus available, a different figure.
+ */
 const diskSeries: ComputedRef<ChartPoint[]> = computed(() => {
   return seriesOf((bucket) => {
-    return bytesToGibibytes(bucket.diskUsedBytes)
+    const used = bucket.diskUsedBytes
+    return used === null ? null : bytesToGibibytes(used)
   })
 })
 

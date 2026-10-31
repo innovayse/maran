@@ -1,13 +1,13 @@
-//! Tests for the one arithmetic decision `ProcessMonitorHost` makes: which of a
-//! filesystem's three block counts the panel reports.
+//! Tests for the one arithmetic decision `ProcessMonitorHost` makes: how a
+//! filesystem's three block counts become used, reserved and available.
 //!
 //! The rest of this host is deliberately untested — it reads the real `/proc`,
 //! waits a quarter of a second and spawns the real service manager, none of
 //! which a unit test can pin without asserting on the build machine. This one
 //! piece can be, and had to be: both single-token spellings of the choice
 //! (`f_bavail` against `f_bfree`, `f_frsize` against `f_bsize`) survived the
-//! entire suite while nothing here existed, and the wrong one reports a full
-//! disk as having five percent left.
+//! entire suite while nothing here existed, and the wrong one moves the root
+//! reserve between figures by five percent of the disk.
 
 // A failing assertion IS the reporting mechanism for a test, so the
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
@@ -24,6 +24,7 @@ use maran_agent_core::utils::spawn_error::SpawnError;
 use maran_distro::{DistroFamily, adapter_for};
 
 use super::{ProcessMonitorHost, spawn_failure, usage_of};
+use crate::monitor::model::filesystem_usage::FilesystemUsage;
 use crate::monitor::monitor_error::MonitorError;
 use crate::monitor::monitor_host::MonitorHost;
 
@@ -53,38 +54,81 @@ fn statistics(blocks: u64, free: u64, available: u64) -> StatVfs {
     }
 }
 
+/// The three figures of a usage, in fragments, for a one-line comparison.
+fn fragments(usage: FilesystemUsage) -> (u64, u64, u64) {
+    (
+        usage.used_bytes / FRAGMENT,
+        usage.reserved_bytes / FRAGMENT,
+        usage.available_bytes / FRAGMENT,
+    )
+}
+
 #[test]
-fn used_space_is_measured_against_what_an_account_can_write() {
+fn an_ext4_root_reports_used_as_df_and_the_reserve_on_its_own() {
     // The numbers are a real 467 GiB ext4 root: a 6,241,651-block reserve that
     // only root may write into, 5.09% of the filesystem.
     let usage = usage_of(&statistics(122_512_118, 99_553_529, 93_311_878));
 
-    assert_eq!(usage.total_bytes, 122_512_118 * FRAGMENT);
-    assert_eq!(usage.used_bytes, (122_512_118 - 93_311_878) * FRAGMENT);
-    assert_ne!(
-        usage.used_bytes,
-        (122_512_118 - 99_553_529) * FRAGMENT,
-        "used was measured against the free blocks, so the reserve only root \
-         may write is being reported to customers as room they have"
+    assert_eq!(
+        fragments(usage),
+        (
+            122_512_118 - 99_553_529,
+            99_553_529 - 93_311_878,
+            93_311_878
+        ),
+        "used must be df's Used (blocks - free), reserved the free blocks only \
+         root may write (free - available), available df's Avail"
     );
+    assert_eq!(usage.total_bytes(), 122_512_118 * FRAGMENT);
 }
 
 #[test]
-fn a_filesystem_an_account_cannot_write_to_reads_as_full() {
+fn the_three_figures_always_sum_to_the_size() {
+    for (blocks, free, available) in [
+        (122_512_118, 99_553_529, 93_311_878),
+        (25_665_536, 23_646_000, 22_336_000),
+        (1_000_000, 50_000, 0),
+        (1_000_000, 1_000_000, 1_000_000),
+        (100, 40, 25),
+        (100, 200, 200),
+        (100, 40, 90),
+        (0, 0, 0),
+    ] {
+        let usage = usage_of(&statistics(blocks, free, available));
+
+        assert_eq!(
+            usage.used_bytes + usage.reserved_bytes + usage.available_bytes,
+            blocks * FRAGMENT,
+            "blocks={blocks} free={free} available={available}: {usage:?}"
+        );
+    }
+}
+
+#[test]
+fn an_xfs_root_keeps_no_reserve() {
+    // xfs reports f_bfree equal to f_bavail: nothing is held back for root, so
+    // the reserve is zero and used plus available is the whole filesystem.
+    let usage = usage_of(&statistics(26_201_600, 24_117_248, 24_117_248));
+
+    assert_eq!(fragments(usage), (26_201_600 - 24_117_248, 0, 24_117_248));
+}
+
+#[test]
+fn a_filesystem_an_account_cannot_write_to_has_nothing_available_and_its_reserve_left() {
     // The moment that matters: `f_bavail` is zero, every customer write fails
-    // with ENOSPC, and the reserve is still 5% of the disk. A free-based
-    // reading would report 95% used and call it healthy.
+    // with ENOSPC, and the reserve is still 5% of the disk. Used alone reads
+    // 95% — which is why the reserve is reported beside it, never folded away.
     let usage = usage_of(&statistics(1_000_000, 50_000, 0));
 
-    assert_eq!(usage.used_bytes, usage.total_bytes);
+    assert_eq!(fragments(usage), (950_000, 50_000, 0));
 }
 
 #[test]
 fn an_empty_filesystem_reads_as_empty() {
     let usage = usage_of(&statistics(1_000_000, 1_000_000, 1_000_000));
 
-    assert_eq!(usage.used_bytes, 0);
-    assert_eq!(usage.total_bytes, 1_000_000 * FRAGMENT);
+    assert_eq!(fragments(usage), (0, 0, 1_000_000));
+    assert_eq!(usage.total_bytes(), 1_000_000 * FRAGMENT);
 }
 
 #[test]
@@ -94,15 +138,23 @@ fn the_block_counts_are_measured_in_fragments_not_in_the_preferred_block_size() 
     // panel will meet, which is precisely why the wrong one hides.
     let usage = usage_of(&statistics(100, 40, 25));
 
-    assert_eq!(usage.total_bytes, 100 * FRAGMENT);
-    assert_eq!(usage.used_bytes, 75 * FRAGMENT);
+    assert_eq!(usage.used_bytes, 60 * FRAGMENT);
+    assert_eq!(usage.reserved_bytes, 15 * FRAGMENT);
+    assert_eq!(usage.available_bytes, 25 * FRAGMENT);
 }
 
 #[test]
-fn more_available_blocks_than_the_filesystem_holds_does_not_wrap_around() {
+fn more_free_blocks_than_the_filesystem_holds_reads_as_fully_available() {
     let usage = usage_of(&statistics(100, 200, 200));
 
-    assert_eq!(usage.used_bytes, 0);
+    assert_eq!(fragments(usage), (0, 0, 100));
+}
+
+#[test]
+fn more_available_blocks_than_free_ones_reads_as_no_reserve() {
+    let usage = usage_of(&statistics(100, 40, 90));
+
+    assert_eq!(fragments(usage), (60, 0, 40));
 }
 
 #[test]

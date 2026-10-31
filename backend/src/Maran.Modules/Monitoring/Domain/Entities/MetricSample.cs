@@ -47,8 +47,27 @@ public sealed class MetricSample
     /// <summary>Total installed memory, in bytes. Stored per sample because a host can be resized.</summary>
     public long MemoryTotalBytes { get; private set; }
 
-    /// <summary>Disk space in use on the root filesystem, in bytes.</summary>
+    /// <summary>
+    /// Bytes of the root filesystem no hosting account may write: occupied space plus the root reserve,
+    /// which is capacity minus <c>df</c>'s <c>Avail</c>.
+    /// </summary>
+    /// <remarks>
+    /// The column predates issue #77, when the panel reported this one figure as "used", and it keeps
+    /// exactly the meaning every row in it was written with: the previous release reads it, so a new
+    /// meaning here would make one column mean two things. What the chart plots as "in use" is
+    /// <see cref="DiskInUseBytes"/>.
+    /// </remarks>
     public long DiskUsedBytes { get; private set; }
+
+    /// <summary>
+    /// Bytes the root filesystem accounts as occupied — <c>df</c>'s <c>Used</c>, the reserve excluded —
+    /// or <c>null</c> for a row sampled before the agent reported it (issue #77).
+    /// </summary>
+    /// <remarks>
+    /// Null and not derived for the older rows: they recorded occupied space and the reserve as one sum,
+    /// and nothing stored says how to split it again. The chart draws such a row's bucket as a gap.
+    /// </remarks>
+    public long? DiskInUseBytes { get; private set; }
 
     /// <summary>Total capacity of the root filesystem, in bytes.</summary>
     public long DiskTotalBytes { get; private set; }
@@ -72,7 +91,8 @@ public sealed class MetricSample
     /// <param name="cpuPercent">Processor utilisation across all cores, 0.0-100.0.</param>
     /// <param name="memoryUsedBytes">Memory in use, in bytes.</param>
     /// <param name="memoryTotalBytes">Total installed memory, in bytes.</param>
-    /// <param name="diskUsedBytes">Disk space in use on the root filesystem, in bytes.</param>
+    /// <param name="diskUsedBytes">Bytes no hosting account may write: occupied plus the root reserve.</param>
+    /// <param name="diskInUseBytes">Bytes the root filesystem accounts as occupied, <c>df</c>'s <c>Used</c>.</param>
     /// <param name="diskTotalBytes">Total capacity of the root filesystem, in bytes.</param>
     /// <param name="networkRxBytes">Bytes received since boot, as the counter it is.</param>
     /// <param name="networkTxBytes">Bytes sent since boot, as the counter it is.</param>
@@ -83,6 +103,7 @@ public sealed class MetricSample
         long memoryUsedBytes,
         long memoryTotalBytes,
         long diskUsedBytes,
+        long diskInUseBytes,
         long diskTotalBytes,
         long networkRxBytes,
         long networkTxBytes,
@@ -93,6 +114,7 @@ public sealed class MetricSample
         MemoryUsedBytes = memoryUsedBytes;
         MemoryTotalBytes = memoryTotalBytes;
         DiskUsedBytes = diskUsedBytes;
+        DiskInUseBytes = diskInUseBytes;
         DiskTotalBytes = diskTotalBytes;
         NetworkRxBytes = networkRxBytes;
         NetworkTxBytes = networkTxBytes;

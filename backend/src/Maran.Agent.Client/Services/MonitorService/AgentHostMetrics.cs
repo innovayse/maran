@@ -4,8 +4,19 @@ namespace Maran.Agent.Client.Services.MonitorService;
 /// <param name="CpuPercent">CPU utilisation across all cores, 0.0-100.0.</param>
 /// <param name="MemoryUsedBytes">Memory currently in use.</param>
 /// <param name="MemoryTotalBytes">Total installed memory.</param>
-/// <param name="DiskUsedBytes">Disk space in use on the root filesystem.</param>
-/// <param name="DiskTotalBytes">Total capacity of the root filesystem.</param>
+/// <param name="DiskUsedBytes">
+/// Bytes the root filesystem accounts as occupied — <c>df</c>'s <c>Used</c>, the reserve excluded.
+/// </param>
+/// <param name="DiskReservedBytes">
+/// Bytes of the root filesystem free but writable by root only (5% of ext4 by default, 0 on xfs).
+/// </param>
+/// <param name="DiskAvailableBytes">
+/// Bytes any non-root writer, every hosting account included, may still add — <c>df</c>'s <c>Avail</c>.
+/// </param>
+/// <param name="DiskTotalBytes">
+/// Total capacity of the root filesystem — <c>df</c>'s <c>Size</c>, which the agent states is the sum
+/// of the three figures above.
+/// </param>
 /// <param name="NetworkRxBytes">
 /// Bytes received since the host booted, summed over the physical interfaces with loopback
 /// excluded. A COUNTER, not a per-interval figure.
@@ -26,6 +37,8 @@ public sealed record AgentHostMetrics(
     ulong MemoryUsedBytes,
     ulong MemoryTotalBytes,
     ulong DiskUsedBytes,
+    ulong DiskReservedBytes,
+    ulong DiskAvailableBytes,
     ulong DiskTotalBytes,
     ulong NetworkRxBytes,
     ulong NetworkTxBytes,

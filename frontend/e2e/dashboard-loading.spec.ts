@@ -30,6 +30,8 @@ const DASHBOARD: Dashboard = {
     memoryUsedBytes: 3 * 1024 * 1024 * 1024,
     memoryTotalBytes: 8 * 1024 * 1024 * 1024,
     diskUsedBytes: 44 * 1024 * 1024 * 1024,
+    diskReservedBytes: 5 * 1024 * 1024 * 1024,
+    diskAvailableBytes: 49 * 1024 * 1024 * 1024,
     diskTotalBytes: 98 * 1024 * 1024 * 1024,
     networkRxBytes: 0,
     networkTxBytes: 0,

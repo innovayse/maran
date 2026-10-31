@@ -73,6 +73,23 @@ public sealed class MetricsChartDtoFactoryTests
         Assert.Equal(2_048, chart.Buckets[0].MemoryTotalBytes);
         Assert.Equal(12.5, chart.Buckets[0].CpuPercent);
         Assert.Equal(0.75, chart.Buckets[0].LoadAverage1m);
+        Assert.Equal(4_096, chart.Buckets[0].DiskUsedBytes);
+        Assert.Equal(8_192, chart.Buckets[0].DiskTotalBytes);
+    }
+
+    /// <summary>A bucket with no occupied-space figure is a gap in the disk series, never a zero.</summary>
+    /// <remarks>
+    /// Such a bucket holds only rows sampled before the panel stored <c>df</c>'s <c>Used</c> (issue
+    /// #77). A zero would draw an empty disk; the older figure would draw a step of the root reserve.
+    /// </remarks>
+    [Fact]
+    public void A_bucket_with_no_occupied_space_figure_is_a_gap_in_the_disk_series()
+    {
+        var row = new MetricBucketRow(Start, 1, 1, 1, null, 8_192, 0, 0, 0, Start);
+
+        var chart = MetricsChartMapper.Create(ChartRange.LastDay, [row]);
+
+        Assert.Null(chart.Buckets[0].DiskUsedBytes);
     }
 
     /// <summary>Builds one bucket whose last reading sits a given number of seconds after the start.</summary>

@@ -4,8 +4,8 @@ import { useDashboardApi } from '../composables/apis/useDashboardApi'
 import { ApiError } from '../composables/useApi'
 import type { LoadingState } from '../types/loading'
 import type { AuditEvent } from '../types/audit'
-import type { DashboardAttention, DashboardCounts, DashboardResources, DashboardSection } from '../types/dashboard'
-import type { ServiceStatus } from '../types/monitoring'
+import type { DashboardAttention, DashboardCounts, DashboardSection } from '../types/dashboard'
+import type { HostMetrics, ServiceStatus } from '../types/monitoring'
 
 /**
  * Owns what the landing screen is made of: the host's live resource reading, the services the agent
@@ -29,7 +29,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const isAdministrator: Ref<boolean> = ref(false)
 
   /** The host's live resource reading, or `null` when withheld or not yet read. */
-  const resources: Ref<DashboardSection<DashboardResources> | null> = ref(null)
+  const resources: Ref<DashboardSection<HostMetrics> | null> = ref(null)
 
   /** The watched services as last reported, or `null` when withheld or not yet read. */
   const services: Ref<DashboardSection<ServiceStatus[]> | null> = ref(null)

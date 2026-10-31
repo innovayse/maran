@@ -27,7 +27,10 @@ namespace Maran.Modules.Monitoring.Models;
 /// <param name="CpuPercent">Mean processor utilisation across the bucket.</param>
 /// <param name="MemoryUsedBytes">Mean memory in use across the bucket.</param>
 /// <param name="MemoryTotalBytes">Mean installed memory across the bucket.</param>
-/// <param name="DiskUsedBytes">Mean disk space in use across the bucket.</param>
+/// <param name="DiskInUseBytes">
+/// Mean occupied space (<c>df</c>'s <c>Used</c>) across the bucket's rows that recorded it, or
+/// <c>null</c> when none did — every row in it was sampled before issue #77.
+/// </param>
 /// <param name="DiskTotalBytes">Mean root filesystem capacity across the bucket.</param>
 /// <param name="LoadAverage1m">Mean one-minute load average across the bucket.</param>
 /// <param name="NetworkRxBytes">The last received-bytes counter in the bucket.</param>
@@ -38,7 +41,7 @@ public sealed record MetricBucketRow(
     double CpuPercent,
     double MemoryUsedBytes,
     double MemoryTotalBytes,
-    double DiskUsedBytes,
+    double? DiskInUseBytes,
     double DiskTotalBytes,
     double LoadAverage1m,
     long NetworkRxBytes,

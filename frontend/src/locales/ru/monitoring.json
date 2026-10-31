@@ -50,6 +50,13 @@
       "searchClear": "Очистить поиск",
       "noResultsTitle": "Нет подходящих аккаунтов",
       "noResultsDescription": "Измените запрос или очистите его, чтобы увидеть все аккаунты."
+    },
+    "hostDisk": {
+      "title": "Диск",
+      "used": "Занято",
+      "reserved": "Зарезервировано системой",
+      "available": "Доступно",
+      "summary": "Диск: занято {used}, зарезервировано системой {reserved}, доступно {available} из {total}"
     }
   }
 }

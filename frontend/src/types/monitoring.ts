@@ -15,6 +15,55 @@ import type { ListRequest, Paged } from './list'
 export type ChartRange = 'lastDay' | 'lastWeek'
 
 /**
+ * The host's resource use right now, mirroring the backend's `HostMetricsDto` field-for-field. The
+ * monitoring screen reads it from `GET /api/v1/monitoring/metrics`, and the dashboard receives the
+ * same shape as its `resources` section — one definition, because it is one DTO.
+ *
+ * A LIVE reading taken by asking the agent, not the newest stored sample: the two answer different
+ * questions, and a screen fed from the samples table would lag by a sampling interval and would
+ * show nothing at all on a server whose sampler has not yet run.
+ *
+ * **The root filesystem is reported as three figures that sum to its size** (issue #77): what is
+ * used, what is reserved for root, and what everyone else can still write. ext4 reserves about 5 %
+ * of its blocks for root, so "size minus available" — what the panel once called "in use" — counted
+ * that reserve as occupied and disagreed with `df` by several gibibytes. Each figure now means one
+ * thing, and `diskUsedBytes + diskReservedBytes + diskAvailableBytes === diskTotalBytes`.
+ *
+ * The two network figures are COUNTERS since boot, passed through unaltered, not rates. A rate
+ * needs two readings, so the backend deliberately does not offer one here rather than offering a
+ * fabricated zero — and no screen displays them for that reason.
+ */
+export interface HostMetrics {
+  /** Processor utilisation across all cores, 0.0-100.0. */
+  cpuPercent: number
+  /** Memory in use, in bytes. */
+  memoryUsedBytes: number
+  /** Total installed memory, in bytes. */
+  memoryTotalBytes: number
+  /** Blocks the root filesystem accounts as occupied, in bytes — exactly `df`'s Used column. */
+  diskUsedBytes: number
+  /**
+   * Blocks only root may still write, in bytes: size minus used minus available. The filesystem's
+   * reserve (about 5 % on ext4); 0 on a filesystem that keeps none, such as xfs.
+   */
+  diskReservedBytes: number
+  /** What accounts other than root can still write, in bytes — exactly `df`'s Avail column. */
+  diskAvailableBytes: number
+  /** Size of the root filesystem, in bytes: used plus reserved plus available. */
+  diskTotalBytes: number
+  /** Bytes received since the host booted — a counter, not traffic. */
+  networkRxBytes: number
+  /** Bytes sent since the host booted — a counter, not traffic. */
+  networkTxBytes: number
+  /** System load average over the last minute. */
+  loadAverage1m: number
+  /** System load average over the last five minutes. */
+  loadAverage5m: number
+  /** System load average over the last fifteen minutes. */
+  loadAverage15m: number
+}
+
+/**
  * One point on the monitoring charts, mirroring the backend's `MetricBucketDto` field-for-field.
  *
  * The two network figures are RATES the panel derived from the host's counters, divided by the
@@ -31,8 +80,13 @@ export interface MetricBucket {
   memoryUsedBytes: number
   /** Mean installed memory across the bucket, in bytes. */
   memoryTotalBytes: number
-  /** Mean disk space in use across the bucket, in bytes. */
-  diskUsedBytes: number
+  /**
+   * Mean disk space used across the bucket, in bytes, as `df` counts Used — or `null` for a bucket
+   * sampled before issue #77. Those older samples stored size minus available, which counted the
+   * root reserve as used, so they measure a different thing and are not plotted: a null is a gap,
+   * like a network rate with no earlier reading, never a zero.
+   */
+  diskUsedBytes: number | null
   /** Mean root filesystem capacity across the bucket, in bytes. */
   diskTotalBytes: number
   /** Mean one-minute load average across the bucket. */
@@ -149,6 +203,13 @@ export interface MonitoringApi {
    * @returns The chart, with the range echoed back so a late answer can be recognised.
    */
   getChart: (range: ChartRange, signal?: AbortSignal) => Promise<MetricsChart>
+
+  /**
+   * Reads the host's resource use right now, asked of the agent rather than read from the samples.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The live reading.
+   */
+  getHostMetrics: (signal?: AbortSignal) => Promise<HostMetrics>
 
   /**
    * Reads whether each service the agent watches is up, down, or not known.

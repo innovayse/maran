@@ -66,9 +66,14 @@ message HostMetrics {
   uint64 memory_used_bytes = 2;
   // Total installed memory, in bytes.
   uint64 memory_total_bytes = 3;
-  // Disk space currently in use on the root filesystem, in bytes.
+  // Bytes the root filesystem accounts as occupied: (f_blocks - f_bfree)
+  // fragments, which is `df`'s `Used`. Since contract revision 6 (issue #77);
+  // before it this field carried `f_blocks - f_bavail`, which counted the root
+  // reserve as used. The panel's revision window refuses an agent of the
+  // other revision, so no panel reads this field with the old meaning.
   uint64 disk_used_bytes = 4;
-  // Total disk capacity of the root filesystem, in bytes.
+  // Total capacity of the root filesystem, in bytes: `df`'s `Size`. Always
+  // equal to disk_used_bytes + disk_reserved_bytes + disk_available_bytes.
   uint64 disk_total_bytes = 5;
   // Network bytes received, as a COUNTER since the host booted — summed over
   // the physical interfaces, loopback excluded. It is not a per-interval
@@ -86,6 +91,13 @@ message HostMetrics {
   double load_average_5m = 9;
   // System load average over the last 15 minutes.
   double load_average_15m = 10;
+  // Bytes of the root filesystem that are free but writable by root only:
+  // (f_bfree - f_bavail) fragments, 5% of an ext4 filesystem by default and 0
+  // on xfs. `df` prints no column for it; it is Size - Used - Avail.
+  uint64 disk_reserved_bytes = 11;
+  // Bytes an unprivileged writer — any hosting account — may still add to the
+  // root filesystem: f_bavail fragments, which is `df`'s `Avail`.
+  uint64 disk_available_bytes = 12;
 }
 
 message GetServiceStatusesRequest {}

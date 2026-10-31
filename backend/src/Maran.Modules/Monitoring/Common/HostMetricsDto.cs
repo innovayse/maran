@@ -14,8 +14,23 @@ namespace Maran.Modules.Monitoring.Common;
 /// <param name="CpuPercent">Processor utilisation across all cores, 0.0-100.0.</param>
 /// <param name="MemoryUsedBytes">Memory in use, in bytes.</param>
 /// <param name="MemoryTotalBytes">Total installed memory, in bytes.</param>
-/// <param name="DiskUsedBytes">Disk space in use on the root filesystem, in bytes.</param>
-/// <param name="DiskTotalBytes">Total capacity of the root filesystem, in bytes.</param>
+/// <param name="DiskUsedBytes">
+/// Bytes the root filesystem accounts as occupied — exactly <c>df</c>'s <c>Used</c>, so the panel
+/// never disagrees with the tool an operator checks it against. The root reserve is NOT in it.
+/// </param>
+/// <param name="DiskReservedBytes">
+/// Bytes of the root filesystem that are free but writable by root only: the blocks a filesystem keeps
+/// back for the system (5% of ext4 by default, 0 on xfs). <c>df</c> prints no column for it; it is
+/// <c>Size - Used - Avail</c>.
+/// </param>
+/// <param name="DiskAvailableBytes">
+/// Bytes a non-root writer — every hosting account — may still add: <c>df</c>'s <c>Avail</c>, and
+/// therefore what the server can still hand out.
+/// </param>
+/// <param name="DiskTotalBytes">
+/// Capacity of the root filesystem, <c>df</c>'s <c>Size</c>: always
+/// <c>DiskUsedBytes + DiskReservedBytes + DiskAvailableBytes</c>.
+/// </param>
 /// <param name="NetworkRxBytes">Bytes received since the host booted — a counter, not traffic.</param>
 /// <param name="NetworkTxBytes">Bytes sent since the host booted — a counter, not traffic.</param>
 /// <param name="LoadAverage1m">System load average over the last minute.</param>
@@ -26,6 +41,8 @@ public sealed record HostMetricsDto(
     long MemoryUsedBytes,
     long MemoryTotalBytes,
     long DiskUsedBytes,
+    long DiskReservedBytes,
+    long DiskAvailableBytes,
     long DiskTotalBytes,
     long NetworkRxBytes,
     long NetworkTxBytes,

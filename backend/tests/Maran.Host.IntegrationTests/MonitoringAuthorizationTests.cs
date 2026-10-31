@@ -146,6 +146,34 @@ public sealed class MonitoringAuthorizationTests : IAsyncLifetime
         Assert.Equal(2_048, body.RootElement.GetProperty("memoryUsedBytes").GetInt64());
     }
 
+    /// <summary>
+    /// The live disk reading carries used, reserved and available as three figures that sum to the size.
+    /// </summary>
+    /// <remarks>
+    /// The stub reports 40 used, 5 reserved and 55 available of 100: three different numbers, so a
+    /// projection that dropped one or swapped two cannot still pass, and the sum is asserted on the
+    /// wire because that partition is what the dashboard's stacked bar draws.
+    /// </remarks>
+    [Fact]
+    public async Task The_live_disk_reading_carries_used_reserved_and_available_summing_to_the_size()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/metrics");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var used = body.RootElement.GetProperty("diskUsedBytes").GetInt64();
+        var reserved = body.RootElement.GetProperty("diskReservedBytes").GetInt64();
+        var available = body.RootElement.GetProperty("diskAvailableBytes").GetInt64();
+        var total = body.RootElement.GetProperty("diskTotalBytes").GetInt64();
+        Assert.Equal((40L, 5L, 55L, 100L), (used, reserved, available, total));
+        Assert.Equal(total, used + reserved + available);
+    }
+
     /// <summary>A service the agent cannot judge is reported as not known, never as stopped.</summary>
     /// <remarks>
     /// <para>

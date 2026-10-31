@@ -166,7 +166,8 @@ impl FakeMonitorHost {
             network: Mutex::new(Some(UBUNTU_NET_DEV.to_owned())),
             filesystem: Mutex::new(Ok(FilesystemUsage {
                 used_bytes: 512,
-                total_bytes: 1024,
+                reserved_bytes: 64,
+                available_bytes: 448,
             })),
             units: Mutex::new(BTreeMap::new()),
             service_manager: Mutex::new(Ok(0)),

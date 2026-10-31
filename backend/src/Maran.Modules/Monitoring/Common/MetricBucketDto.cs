@@ -10,7 +10,12 @@ namespace Maran.Modules.Monitoring.Common;
 /// <param name="CpuPercent">Mean processor utilisation across the bucket, 0.0-100.0.</param>
 /// <param name="MemoryUsedBytes">Mean memory in use across the bucket.</param>
 /// <param name="MemoryTotalBytes">Mean installed memory across the bucket.</param>
-/// <param name="DiskUsedBytes">Mean disk space in use across the bucket.</param>
+/// <param name="DiskUsedBytes">
+/// Mean occupied space on the root filesystem across the bucket — <c>df</c>'s <c>Used</c>, the root
+/// reserve excluded, the same figure <c>HostMetricsDto.DiskUsedBytes</c> reports live — or <c>null</c>
+/// for a bucket sampled only before issue #77, whose rows stored a different figure and are drawn as a
+/// gap rather than as a step.
+/// </param>
 /// <param name="DiskTotalBytes">Mean root filesystem capacity across the bucket.</param>
 /// <param name="LoadAverage1m">Mean one-minute load average across the bucket.</param>
 /// <param name="NetworkReceivedBytesPerSecond">Mean bytes received per second, or <c>null</c> for the first bucket.</param>
@@ -20,7 +25,7 @@ public sealed record MetricBucketDto(
     double CpuPercent,
     long MemoryUsedBytes,
     long MemoryTotalBytes,
-    long DiskUsedBytes,
+    long? DiskUsedBytes,
     long DiskTotalBytes,
     double LoadAverage1m,
     double? NetworkReceivedBytesPerSecond,

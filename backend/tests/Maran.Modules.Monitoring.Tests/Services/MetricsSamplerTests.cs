@@ -17,7 +17,7 @@ public sealed class MetricsSamplerTests
         var agent = new StubAgentMonitorClient
         {
             Metrics = Result<AgentHostMetrics>.Ok(
-                new AgentHostMetrics(42.5, 3_000, 8_000, 50, 100, 111, 222, 1.5, 1.2, 1.1)),
+                new AgentHostMetrics(42.5, 3_000, 8_000, 50, 5, 45, 100, 111, 222, 1.5, 1.2, 1.1)),
         };
         var clock = new FakeClock();
         using var scopes = new TestScopeFactory(dbContext, agent, new StubAlertRecipientDirectory(), new RecordingAuditWriter());
@@ -29,6 +29,9 @@ public sealed class MetricsSamplerTests
         Assert.Equal(clock.UtcNow, sample.CapturedAt);
         Assert.Equal(42.5, sample.CpuPercent);
         Assert.Equal(3_000, sample.MemoryUsedBytes);
+        Assert.Equal(50, sample.DiskInUseBytes);
+        Assert.Equal(55, sample.DiskUsedBytes);
+        Assert.Equal(100, sample.DiskTotalBytes);
         Assert.Equal(111, sample.NetworkRxBytes);
         Assert.Equal(222, sample.NetworkTxBytes);
         Assert.Equal(1.5, sample.LoadAverage1m);
@@ -99,7 +102,7 @@ public sealed class MetricsSamplerTests
         var agent = new StubAgentMonitorClient
         {
             Metrics = Result<AgentHostMetrics>.Ok(
-                new AgentHostMetrics(1, ulong.MaxValue, ulong.MaxValue, 1, 2, 3, 4, 0, 0, 0)),
+                new AgentHostMetrics(1, ulong.MaxValue, ulong.MaxValue, 1, 0, 1, 2, 3, 4, 0, 0, 0)),
         };
         using var scopes = new TestScopeFactory(dbContext, agent, new StubAlertRecipientDirectory(), new RecordingAuditWriter());
         var sampler = Sampler(scopes, new FakeClock());
@@ -111,19 +114,25 @@ public sealed class MetricsSamplerTests
         Assert.True(sample.MemoryUsedBytes > 0);
     }
 
-    /// <summary>A full disk observed ten rounds running produces the alert, through the real round.</summary>
+    /// <summary>
+    /// A disk full for the accounts on it, observed ten rounds running, produces the alert through the
+    /// real round — even while df's Used alone is under the threshold, because the root reserve is room
+    /// no account can write.
+    /// </summary>
     /// <remarks>
     /// The evaluator's own tests drive it directly; this one proves the sampler actually calls it with
-    /// the percentage it computed, which is the wiring a unit test of either half alone would miss.
+    /// the percentage it computed, which is the wiring a unit test of either half alone would miss. The
+    /// figures put Used at 86% and Used plus Reserved at 91%, on either side of the 90% threshold, so a
+    /// sampler that measured the alert on Used alone raises nothing and fails here.
     /// </remarks>
     [Fact]
-    public async Task Ten_rounds_over_a_full_disk_raise_the_alert_once()
+    public async Task Ten_rounds_over_a_disk_full_for_its_accounts_raise_the_alert_once()
     {
         await using var dbContext = MonitoringTestContext.Create();
         var agent = new StubAgentMonitorClient
         {
             Metrics = Result<AgentHostMetrics>.Ok(
-                new AgentHostMetrics(1, 10, 100, 990, 1_000, 0, 0, 0, 0, 0)),
+                new AgentHostMetrics(1, 10, 100, 860, 50, 90, 1_000, 0, 0, 0, 0, 0)),
         };
         var clock = new FakeClock();
         var audit = new RecordingAuditWriter();

@@ -31,6 +31,10 @@
  * notice speaks for the accounts on the page on screen, not for the whole host: nothing has measured
  * the rest. The table loads on its own, so a refused disk read never blanks the charts.
  *
+ * **The disk card above the charts is the live reading** ({@link HostDiskCard}): used, reserved for
+ * the system and available, which sum to the size (issue #77). It is read by its own store action
+ * with its own state, so a refused reading is an alert in that card and never blanks the charts.
+ *
  * Every panel is a {@link UiCard}, sixteen pixels apart, on the content panel; the page itself
  * holds no markup of its own beyond the kit's.
  */
@@ -48,6 +52,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import AccountDiskTable from '../../components/monitoring/AccountDiskTable.vue'
+import HostDiskCard from '../../components/monitoring/HostDiskCard.vue'
 import MonitoringCharts from '../../components/monitoring/MonitoringCharts.vue'
 import ServiceStatusBadges from '../../components/monitoring/ServiceStatusBadges.vue'
 import { useListLabels } from '../../composables/useListLabels'
@@ -167,6 +172,7 @@ const clearDiskSearch = (): void => {
 
 onMounted(() => {
   void store.load()
+  void store.loadHostMetrics()
 })
 </script>
 
@@ -211,6 +217,12 @@ onMounted(() => {
           />
           <ServiceStatusBadges v-else :statuses="store.services" />
         </UiCard>
+
+        <HostDiskCard
+          :metrics="store.hostMetrics"
+          :state="store.hostMetricsState"
+          :error-message="store.hostMetricsError"
+        />
 
         <MonitoringCharts :buckets="store.buckets" :loading="isLoading" />
 

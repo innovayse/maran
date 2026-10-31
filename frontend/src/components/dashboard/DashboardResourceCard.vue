@@ -5,10 +5,16 @@
  * A LIVE reading, not the newest stored sample — the panel asks the agent for it, so this card says
  * something on a server whose sampler has not yet run, where the monitoring charts are still empty.
  *
- * The bars are {@link UiMeter}, the kit primitive, so the accessible name and the announced value
- * are decided once for the whole panel rather than per screen. The processor is a PERCENTAGE and the
- * other two are byte pairs, so the processor's bar is given a max of 100 explicitly rather than
- * being passed a total it does not have.
+ * The processor and memory bars are {@link UiMeter}, the kit primitive, so the accessible name and
+ * the announced value are decided once for the whole panel rather than per screen. The processor is
+ * a PERCENTAGE and memory a byte pair, so the processor's bar is given a max of 100 explicitly
+ * rather than being passed a total it does not have.
+ *
+ * **The disk tile's bar has three parts, not one** (issue #77): used (`df`'s Used), reserved for the
+ * system (the filesystem's root reserve, 0 on xfs) and available (`df`'s Avail), which sum to the
+ * size. Its big figure stays "used / size"; under it a {@link UiStackedMeter} prints all three with
+ * their labels, built by `useDiskSegments` — the same composable the monitoring screen's disk card
+ * uses, so the two screens cannot describe the disk differently.
  *
  * **Every bar carries its label and its figure as visible text.** A bar's `label` and `valueText`
  * reach assistive technology through `aria-label` and `aria-valuetext` and are invisible on screen,
@@ -40,17 +46,22 @@ import UiIconTile from '../ui/UiIconTile.vue'
 import UiMeter from '../ui/UiMeter.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import UiSkeleton from '../ui/UiSkeleton.vue'
+import UiStackedMeter from '../ui/UiStackedMeter.vue'
+import { useDiskSegments } from '../../composables/useDiskSegments'
 import { formatBytes } from '../../utils/formatBytes'
-import type { DashboardResources } from '../../types/dashboard'
+import type { HostMetrics } from '../../types/monitoring'
 
 const props = defineProps<{
   /** The host's live reading, as the panel answered it; absent only while `loading`. */
-  resources?: DashboardResources
+  resources?: HostMetrics
   /** Whether the reading is still on its way; see the component note. */
   loading?: boolean
 }>()
 
 const { t } = useI18n()
+const disk = useDiskSegments(() => {
+  return props.resources
+})
 
 /**
  * The processor figure as a reader sees it, to one decimal.
@@ -77,18 +88,17 @@ const memoryText: ComputedRef<string> = computed(() => {
   })
 })
 
-/** Disk in use on the root filesystem beside its capacity, as one sentence for assistive technology. */
-const diskText: ComputedRef<string> = computed(() => {
-  if (props.resources === undefined) {
-    return ''
-  }
-  return t('app.status.resources.ratio', {
-    used: formatBytes(props.resources.diskUsedBytes),
-    total: formatBytes(props.resources.diskTotalBytes),
-  })
-})
+/** What a single-figure tile's {@link UiMeter} draws. */
+interface ReadingMeter {
+  /** How much is used, in the same unit as {@link ReadingMeter.max}. */
+  value: number
+  /** The allowance, in the same unit as {@link ReadingMeter.value}. */
+  max: number
+  /** The whole reading as one sentence, announced by the bar. */
+  text: string
+}
 
-/** One tile: what it measures, how far along it is, and the figure a reader sees. */
+/** One tile: what it measures, the figure a reader sees, and how its bar is drawn. */
 interface Reading {
   /** Stable key for the list. */
   key: string
@@ -96,16 +106,15 @@ interface Reading {
   icon: UiIconName
   /** The measure's name, already translated. */
   label: string
-  /** How much is used, in the same unit as {@link Reading.max}. */
-  value: number
-  /** The allowance, in the same unit as {@link Reading.value}. */
-  max: number
   /** The large figure: the reading itself. */
   figure: string
   /** The small figure beside it — what it is out of — or `null` when the reading stands alone. */
   of: string | null
-  /** The whole reading as one sentence, announced by the bar. */
-  text: string
+  /**
+   * The one-part bar under the figure, or `null` for the disk tile, which draws its three parts
+   * (used, reserved for the system, available) with {@link UiStackedMeter} instead.
+   */
+  meter: ReadingMeter | null
 }
 
 /**
@@ -121,34 +130,36 @@ const readings: ComputedRef<Reading[]> = computed(() => {
       key: 'cpu',
       icon: 'cpu',
       label: t('monitoring.charts.cpu'),
-      value: resources?.cpuPercent ?? 0,
-
-      // 100 explicitly: a percentage carries no total of its own, and passing one of the byte
-      // figures here would draw a bar at a ratio that means nothing.
-      max: 100,
       figure: cpuText.value,
       of: null,
-      text: cpuText.value,
+      meter: {
+        value: resources?.cpuPercent ?? 0,
+
+        // 100 explicitly: a percentage carries no total of its own, and passing one of the byte
+        // figures here would draw a bar at a ratio that means nothing.
+        max: 100,
+        text: cpuText.value,
+      },
     },
     {
       key: 'memory',
       icon: 'memoryStick',
       label: t('monitoring.charts.memory'),
-      value: resources?.memoryUsedBytes ?? 0,
-      max: resources?.memoryTotalBytes ?? 0,
       figure: resources === undefined ? '' : formatBytes(resources.memoryUsedBytes),
       of: resources === undefined ? null : `/ ${formatBytes(resources.memoryTotalBytes)}`,
-      text: memoryText.value,
+      meter: {
+        value: resources?.memoryUsedBytes ?? 0,
+        max: resources?.memoryTotalBytes ?? 0,
+        text: memoryText.value,
+      },
     },
     {
       key: 'disk',
       icon: 'hardDrive',
       label: t('monitoring.charts.disk'),
-      value: resources?.diskUsedBytes ?? 0,
-      max: resources?.diskTotalBytes ?? 0,
       figure: resources === undefined ? '' : formatBytes(resources.diskUsedBytes),
       of: resources === undefined ? null : `/ ${formatBytes(resources.diskTotalBytes)}`,
-      text: diskText.value,
+      meter: null,
     },
   ]
 })
@@ -216,16 +227,23 @@ const loadText: ComputedRef<string> = computed(() => {
         </p>
 
         <div class="mt-auto pt-3.5">
-          <!-- The placeholder is clipped to the bar's own track height. -->
-          <span v-if="loading" class="block h-1 overflow-hidden rounded-full"><UiSkeleton shape="line" size="sm" /></span>
+          <!-- The placeholder is clipped to the bar's own track height; the disk tile also holds
+               a line for each of its three legend rows, so the reading lands without moving. -->
+          <template v-if="loading">
+            <span class="block h-1 overflow-hidden rounded-full"><UiSkeleton shape="line" size="sm" /></span>
+            <div v-if="reading.meter === null" class="mt-3 flex flex-col gap-1.5">
+              <UiSkeleton v-for="row in 3" :key="row" shape="line" size="sm" />
+            </div>
+          </template>
           <UiMeter
-            v-else
-            :value="reading.value"
-            :max="reading.max"
+            v-else-if="reading.meter !== null"
+            :value="reading.meter.value"
+            :max="reading.meter.max"
             :label="reading.label"
-            :value-text="reading.text"
+            :value-text="reading.meter.text"
             :show-value="false"
           />
+          <UiStackedMeter v-else :segments="disk.segments.value" :label="disk.summary.value" />
         </div>
       </UiCard>
     </div>

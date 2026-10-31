@@ -23,7 +23,9 @@ fn a_snapshot_of_the_captured_ubuntu_host_reads_every_statistic() {
     assert_eq!(metrics.network.transmitted_bytes, 42);
     assert_eq!(metrics.load.one_minute, 0.45);
     assert_eq!(metrics.root_filesystem.used_bytes, 512);
-    assert_eq!(metrics.root_filesystem.total_bytes, 1024);
+    assert_eq!(metrics.root_filesystem.reserved_bytes, 64);
+    assert_eq!(metrics.root_filesystem.available_bytes, 448);
+    assert_eq!(metrics.root_filesystem.total_bytes(), 1024);
 }
 
 #[test]

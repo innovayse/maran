@@ -14,7 +14,7 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
 {
     /// <summary>What a request for the host's metrics is answered with.</summary>
     public Result<AgentHostMetrics> Metrics { get; set; } =
-        Result<AgentHostMetrics>.Ok(new AgentHostMetrics(7.5, 2_048, 8_192, 40, 100, 1_000, 2_000, 0.4, 0.3, 0.2));
+        Result<AgentHostMetrics>.Ok(new AgentHostMetrics(7.5, 2_048, 8_192, 40, 5, 55, 100, 1_000, 2_000, 0.4, 0.3, 0.2));
 
     /// <summary>What a request for the service statuses is answered with.</summary>
     public Result<IReadOnlyList<AgentServiceStatus>> Statuses { get; set; } =

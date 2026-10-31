@@ -44,7 +44,7 @@ public static class MetricsChartMapper
                 row.CpuPercent,
                 (long)Math.Round(row.MemoryUsedBytes),
                 (long)Math.Round(row.MemoryTotalBytes),
-                (long)Math.Round(row.DiskUsedBytes),
+                row.DiskInUseBytes is { } inUse ? (long)Math.Round(inUse) : null,
                 (long)Math.Round(row.DiskTotalBytes),
                 row.LoadAverage1m,
                 rate?.ReceivedBytesPerSecond,
