@@ -21,8 +21,11 @@ test('navigation shows an enabled module and marks a disabled module as locked',
   await page.goto('/')
 
   // Module labels come from the panel, already localized (the stub supplies displayName); the SPA
-  // never owns translations for modules it learns about at runtime.
-  const enabledLink = page.getByRole('link', { name: 'Sites' })
+  // never owns translations for modules it learns about at runtime. Scoped to the sidebar: while the
+  // dashboard's counts are on their way its Sites tile is a link named "Sites" too, and whether it
+  // has rendered by the time this asserts is a race the claim is not about (issue #265).
+  const sidebar = page.getByRole('navigation', { name: 'Main navigation' })
+  const enabledLink = sidebar.getByRole('link', { name: 'Sites' })
   await expect(enabledLink).toBeVisible()
   await expect(enabledLink).not.toHaveAttribute('aria-disabled', 'true')
 

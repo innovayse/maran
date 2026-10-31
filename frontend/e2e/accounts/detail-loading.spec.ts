@@ -1,6 +1,7 @@
-import { earlySkeletons, recordSkeletonFlashes } from '../fixtures/skeleton-flash'
+import { answerBeforeDelay, earlySkeletons, recordSkeletonFlashes, runPastDelay } from '../fixtures/skeleton-flash'
 import { expect, test, type Page } from '@playwright/test'
 import { delayRoute } from '../fixtures/delay-route'
+import { holdRoute } from '../fixtures/hold-route'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
@@ -152,17 +153,18 @@ test('resources: a fast summary shows no placeholder', async ({ page }) => {
   await stubShell(page)
   await stubAccount(page)
   await stubAccountResources(page, SUMMARY)
-  await delayRoute(page, SUMMARY_PATTERN, 50)
+  const held = await holdRoute(page, SUMMARY_PATTERN)
   await recordSkeletonFlashes(page)
   await page.goto(`/accounts/${ACCOUNT.id}`)
 
   const region = resourcesRegion(page)
-  // Every frame from the first, for longer than the answer and the 150 ms delay together: no
-  // placeholder may be seen in the first 150 ms of its wait, although they are mounted to hold
-  // the space (see `recordSkeletonFlashes` for why the wait, not the stub, is the clock).
-  await page.waitForTimeout(400)
-  expect(await earlySkeletons(page)).toEqual([])
+  // The page's clock is the test's (see `recordSkeletonFlashes`): the read is answered after 50 ms
+  // of page time however busy the machine is, then time runs far past the 150 ms delay, and no
+  // placeholder may have been seen at any point.
+  await answerBeforeDelay(page, held)
   await expect(region.getByTestId('resource-sites')).toContainText('2 of 5')
+  await runPastDelay(page)
+  expect(await earlySkeletons(page)).toEqual([])
 })
 
 test('resources: a slow refused summary is the card alert, never a skeleton', async ({ page }) => {
