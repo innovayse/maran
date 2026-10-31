@@ -29,22 +29,40 @@ export const useModulesStore = defineStore('modules', () => {
   const isLoaded: Ref<boolean> = ref(false)
 
   /**
+   * Numbers each catalogue read, so only the latest one's answer is kept. A live language switch
+   * re-reads the catalogue, and two quick switches put two reads in flight: without this the
+   * slower, older answer could land last and leave the names in the language switched away from.
+   * Not reactive, because nothing renders it.
+   */
+  let loadTicket = 0
+
+  /**
    * Loads the catalogue, replacing what is held. Safe to call repeatedly; failures leave the
-   * previous catalogue in place so a transient error does not blank the navigation.
+   * previous catalogue in place so a transient error does not blank the navigation. When reads
+   * overlap, the latest one wins: an earlier read's answer or failure is dropped on arrival.
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
+    loadTicket += 1
+    const ticket = loadTicket
     loading.value = true
     try {
-      modules.value = await api.list()
-      errorMessage.value = null
-      isLoaded.value = true
+      const answer = await api.list()
+      if (ticket === loadTicket) {
+        modules.value = answer
+        errorMessage.value = null
+        isLoaded.value = true
+      }
     } catch (error) {
       // The catalogue is advisory for rendering: a failure must not throw into the router guard,
       // which would leave the user on a dead screen instead of a degraded but usable panel.
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      if (ticket === loadTicket) {
+        errorMessage.value = error instanceof ApiError ? error.message : null
+      }
     } finally {
-      loading.value = false
+      if (ticket === loadTicket) {
+        loading.value = false
+      }
     }
   }
 
@@ -84,9 +102,12 @@ export const useModulesStore = defineStore('modules', () => {
    * @returns Nothing; state is cleared synchronously.
    */
   const clear = (): void => {
+    // A read still in flight was asked for the identity that just left; its answer is dropped.
+    loadTicket += 1
     modules.value = []
     errorMessage.value = null
     isLoaded.value = false
+    loading.value = false
   }
 
   return { modules, loading, errorMessage, isLoaded, load, isEnabled, isLocked, clear }
