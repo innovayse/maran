@@ -702,8 +702,21 @@ public interface IErrorTextProvider
 {
     /// <summary>Returns the message for <paramref name="code"/> in the current request culture.</summary>
     string Resolve(string code, params object[] arguments);
+
+    /// <summary>The same lookup, saying whether any registered table claims the code.</summary>
+    bool TryResolve(string code, [NotNullWhen(true)] out string? text);
 }
 ```
+
+- **A stored failure is resolved when it is READ, through this same provider.** A background task
+  outlives the request that started it, so the row keeps only the code, and every read of it — the
+  list, the single read, each subscriber's stream frame — resolves the sentence for that reader's
+  culture (`Tasks/Services/TaskFailureMessages`) and sends it beside the code (`TaskFailureDto`).
+  A sentence stored at write time would be frozen in one language; a table of task sentences kept
+  anywhere else is a second mechanism that a code built in another file never reaches (issue #272).
+  A code no loaded table claims reads as the module's generic sentence (`TryResolve` is what tells
+  the two apart), never as the code. `TaskFailureCodeCensusTests` asks the composed panel for every
+  code every shipped `ErrorMessages` table defines, in en, ru and hy.
 
 ## Cross-cutting infrastructure — one home per concern
 

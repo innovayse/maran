@@ -18,6 +18,9 @@
   <data name="TaskAbandonedByRestart">
     <value>Панель перезапустилась, пока эта задача выполнялась, поэтому она не завершилась.</value>
   </data>
+  <data name="TaskFailureUnexplained">
+    <value>Операция не завершилась, и у панели нет описания причины. Код ниже называет сбой — укажите его, обращаясь за помощью.</value>
+  </data>
   <data name="TaskKindFilterInvalid">
     <value>Такой вид фоновой задачи панель записать не может.</value>
   </data>

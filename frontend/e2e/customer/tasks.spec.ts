@@ -35,7 +35,7 @@ const OWN_BACKUP: PanelTask = {
   percent: 30,
   log: '',
   logIncluded: false,
-  errorCode: null,
+  failure: null,
   startedAt: '2026-10-30T09:00:00Z',
   finishedAt: null,
   revision: 2,

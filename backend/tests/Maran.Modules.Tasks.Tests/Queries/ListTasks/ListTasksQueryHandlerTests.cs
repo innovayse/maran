@@ -29,7 +29,8 @@ public sealed class ListTasksQueryHandlerTests
 
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin, database);
-        var handler = new ListTasksQueryHandler(context, admin, TasksTestContext.KindNames());
+        var handler = new ListTasksQueryHandler(
+            context, admin, TasksTestContext.KindNames(), TasksTestContext.FailureMessages());
 
         var result = await handler.HandleAsync(new ListTasksQuery(), CancellationToken.None);
 
@@ -63,7 +64,8 @@ public sealed class ListTasksQueryHandlerTests
 
         var customer = FakeCurrentUser.Customer(accountId);
         await using var context = TasksTestContext.Create(customer, database);
-        var handler = new ListTasksQueryHandler(context, customer, TasksTestContext.KindNames());
+        var handler = new ListTasksQueryHandler(
+            context, customer, TasksTestContext.KindNames(), TasksTestContext.FailureMessages());
 
         var result = await handler.HandleAsync(new ListTasksQuery(), CancellationToken.None);
 
@@ -88,7 +90,8 @@ public sealed class ListTasksQueryHandlerTests
 
         var customer = FakeCurrentUser.Customer();
         await using var context = TasksTestContext.Create(customer, database);
-        var handler = new ListTasksQueryHandler(context, customer, TasksTestContext.KindNames());
+        var handler = new ListTasksQueryHandler(
+            context, customer, TasksTestContext.KindNames(), TasksTestContext.FailureMessages());
 
         var result = await handler.HandleAsync(new ListTasksQuery(), CancellationToken.None);
 
@@ -113,7 +116,8 @@ public sealed class ListTasksQueryHandlerTests
 
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin, database);
-        var handler = new ListTasksQueryHandler(context, admin, TasksTestContext.KindNames());
+        var handler = new ListTasksQueryHandler(
+            context, admin, TasksTestContext.KindNames(), TasksTestContext.FailureMessages());
 
         var result = await handler.HandleAsync(new ListTasksQuery(), CancellationToken.None);
 
@@ -138,7 +142,8 @@ public sealed class ListTasksQueryHandlerTests
 
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin, database);
-        var handler = new ListTasksQueryHandler(context, admin, TasksTestContext.KindNames());
+        var handler = new ListTasksQueryHandler(
+            context, admin, TasksTestContext.KindNames(), TasksTestContext.FailureMessages());
         var second = await handler.HandleAsync(new ListTasksQuery(Page: 2, PageSize: 10), CancellationToken.None);
         var past = await handler.HandleAsync(new ListTasksQuery(Page: 9, PageSize: 10), CancellationToken.None);
 
@@ -233,7 +238,8 @@ public sealed class ListTasksQueryHandlerTests
 
         var customer = FakeCurrentUser.Customer(mine);
         await using var context = TasksTestContext.Create(customer, database);
-        var handler = new ListTasksQueryHandler(context, customer, TasksTestContext.KindNames());
+        var handler = new ListTasksQueryHandler(
+            context, customer, TasksTestContext.KindNames(), TasksTestContext.FailureMessages());
 
         var byAccount = await handler.HandleAsync(new ListTasksQuery(AccountId: theirs), CancellationToken.None);
         var byRestore = await handler.HandleAsync(new ListTasksQuery(Kind: FilterValue.Of("BackupRestore")), CancellationToken.None);
@@ -268,7 +274,8 @@ public sealed class ListTasksQueryHandlerTests
     {
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin, database);
-        var result = await new ListTasksQueryHandler(context, admin, TasksTestContext.KindNames())
+        var result = await new ListTasksQueryHandler(
+            context, admin, TasksTestContext.KindNames(), TasksTestContext.FailureMessages())
             .HandleAsync(query, CancellationToken.None);
         return result.Value.Items
             .Select(task =>

@@ -25,18 +25,24 @@ public sealed class ListRunningTasksQueryHandler
     /// <summary>Names each task's kind as an operator reads it, in the request's culture.</summary>
     private readonly TaskKindDisplayNames _kindNames;
 
+    /// <summary>Describes a failed task's code as a sentence, in the request's culture.</summary>
+    private readonly TaskFailureMessages _failures;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="currentUser">The authenticated principal of the current request.</param>
     /// <param name="kindNames">Names a task's kind for the request's culture.</param>
+    /// <param name="failures">Describes a failed task's code for the request's culture.</param>
     public ListRunningTasksQueryHandler(
         TasksDbContext dbContext,
         ICurrentUser currentUser,
-        TaskKindDisplayNames kindNames)
+        TaskKindDisplayNames kindNames,
+        TaskFailureMessages failures)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
         _kindNames = kindNames;
+        _failures = failures;
     }
 
     /// <summary>Returns every running task the caller may see, newest first.</summary>
@@ -58,7 +64,8 @@ public sealed class ListRunningTasksQueryHandler
         IReadOnlyList<PanelTaskDto> projected = running
             .Select(task =>
             {
-                return PanelTaskMapper.From(task, _kindNames.Of(task.Kind), includeLog);
+                return PanelTaskMapper.From(
+                    task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), includeLog);
             })
             .ToList();
         return Result<IReadOnlyList<PanelTaskDto>>.Ok(projected);

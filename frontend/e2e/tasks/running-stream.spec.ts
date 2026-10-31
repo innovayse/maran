@@ -28,7 +28,7 @@ const runningTask = (n: number): PanelTask => {
     percent: 10 * n,
     log: '',
     logIncluded: true,
-    errorCode: null,
+    failure: null,
     startedAt: '2026-10-31T09:00:00Z',
     finishedAt: null,
     revision: 1,

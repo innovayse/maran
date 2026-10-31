@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Tasks.Persistence;
@@ -28,6 +29,12 @@ public sealed class RunningTasksStreamTests : IAsyncLifetime
 {
     /// <summary>The URL of the stream under test.</summary>
     private const string StreamPath = "/api/v1/tasks/running/stream";
+
+    /// <summary>A failure code Ssl's own table describes, raised outside the Tasks module.</summary>
+    private const string FailureCode = "AcmeAccountRejected";
+
+    /// <summary>The Armenian sentence Ssl's table writes for <see cref="FailureCode"/>.</summary>
+    private const string ArmenianSentence = "Վկայագրման կենտրոնը մերժեց այս սերվերի գրանցումը։";
 
     /// <summary>The bound on every stream read, so a missing frame fails rather than hangs.</summary>
     private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(30);
@@ -125,6 +132,44 @@ public sealed class RunningTasksStreamTests : IAsyncLifetime
         var set = await ReadEventAsync(reader, deadline.Token);
         Assert.Equal("running", set.Name);
         Assert.Equal([world.OwnSecond], RunningIdsOf(set.Payload));
+    }
+
+    /// <summary>
+    /// A task that fails while the stream is open is sent as it ended with its failure described in the
+    /// subscriber's own language, the code beside the sentence — not the bare code, not English.
+    /// </summary>
+    [Fact]
+    public async Task A_task_failing_is_sent_with_its_failure_described_in_the_subscribers_language()
+    {
+        await using var factory = EndpointHarness.CreateFactory(_pg);
+        var world = await SeedAsync(factory);
+        using var client = await EndpointHarness.SignInAsync(factory, "customer");
+        client.DefaultRequestHeaders.AcceptLanguage.Clear();
+        client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("hy"));
+
+        using var deadline = new CancellationTokenSource(ReadTimeout);
+        using var response = await client.GetAsync(StreamPath, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
+        using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(deadline.Token));
+        var (opening, _) = await ReadUntilRunningSetAsync(reader, deadline.Token);
+        // The stream's writer omits a null member, so a running task's frame carries no failure at all.
+        Assert.All(opening, task =>
+        {
+            Assert.False(task.TryGetProperty("failure", out var failure) && failure.ValueKind != JsonValueKind.Null);
+        });
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<ITaskRecorder>()
+                .FailAsync(world.OwnFirst, FailureCode, CancellationToken.None);
+        }
+
+        var failed = await ReadEventAsync(reader, deadline.Token);
+        Assert.Equal("task", failed.Name);
+        Assert.Equal(world.OwnFirst, failed.Payload.GetProperty("id").GetGuid());
+        Assert.Equal("failed", failed.Payload.GetProperty("status").GetString());
+        var failure = failed.Payload.GetProperty("failure");
+        Assert.Equal(FailureCode, failure.GetProperty("code").GetString());
+        Assert.Equal(ArmenianSentence, failure.GetProperty("message").GetString());
     }
 
     /// <summary>Opens the stream and reads everything up to and including its first running set.</summary>

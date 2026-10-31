@@ -88,8 +88,10 @@ public sealed class TasksModule : IPanelModule
         services.AddScoped<TaskRetentionHandler>();
 
         // Scoped, because IStringLocalizer resolves the culture of the current request and a task's
-        // display name must follow the reader's language rather than the process's.
+        // display name and failure sentence must follow the reader's language rather than the
+        // process's.
         services.AddScoped<TaskKindDisplayNames>();
+        services.AddScoped<TaskFailureMessages>();
 
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T>

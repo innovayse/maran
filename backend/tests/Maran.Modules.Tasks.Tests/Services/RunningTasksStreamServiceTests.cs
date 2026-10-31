@@ -38,7 +38,11 @@ public sealed class RunningTasksStreamServiceTests
         var subscriber = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(subscriber, database);
         var service = new RunningTasksStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), subscriber);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            subscriber);
         using var watching = new CancellationTokenSource(ReadTimeout);
         await using var frames = service.ReadAsync(watching.Token).GetAsyncEnumerator(watching.Token);
 
@@ -82,7 +86,11 @@ public sealed class RunningTasksStreamServiceTests
         var subscriber = FakeCurrentUser.Customer(accountId);
         await using var context = TasksTestContext.Create(subscriber, database);
         var service = new RunningTasksStreamService(
-            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), subscriber);
+            context,
+            TasksTestContext.StreamOptions(),
+            TasksTestContext.KindNames(),
+            TasksTestContext.FailureMessages(),
+            subscriber);
         using var watching = new CancellationTokenSource(ReadTimeout);
         await using var frames = service.ReadAsync(watching.Token).GetAsyncEnumerator(watching.Token);
 

@@ -42,9 +42,10 @@ namespace Maran.Modules.Tasks.Services;
 /// to for the reason <see cref="TaskStreamOptions.PollIntervalMilliseconds"/> states.
 /// </para>
 /// <para>
-/// <b>Language per subscriber.</b> Kind names are resolved through the scoped
-/// <see cref="TaskKindDisplayNames"/> of the request that opened the stream, so each subscriber reads
-/// its frames in its own language; a client that switches language reopens the stream.
+/// <b>Language per subscriber.</b> Kind names and failure sentences are resolved through the scoped
+/// <see cref="TaskKindDisplayNames"/> and <see cref="TaskFailureMessages"/> of the request that opened
+/// the stream, exactly as the per-task stream resolves them, so each subscriber reads its frames in its
+/// own language; a client that switches language reopens the stream.
 /// </para>
 /// </remarks>
 public sealed class RunningTasksStreamService
@@ -58,6 +59,9 @@ public sealed class RunningTasksStreamService
     /// <summary>Names a task's kind in the culture of the request that opened the stream.</summary>
     private readonly TaskKindDisplayNames _kindNames;
 
+    /// <summary>Describes a failed task's code as a sentence, in the request's culture.</summary>
+    private readonly TaskFailureMessages _failures;
+
     /// <summary>The subscriber, whose administrator status decides whether frames carry the log.</summary>
     private readonly ICurrentUser _currentUser;
 
@@ -65,11 +69,16 @@ public sealed class RunningTasksStreamService
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="options">The task stream's settings, chiefly the poll interval.</param>
     /// <param name="kindNames">Names a task's kind for the culture of the request that opened the stream.</param>
+    /// <param name="failures">
+    /// Describes a failed task's code for the culture of the request that opened the stream, so each
+    /// subscriber reads its frames in its own language.
+    /// </param>
     /// <param name="currentUser">The authenticated principal subscribing.</param>
     public RunningTasksStreamService(
         TasksDbContext dbContext,
         IOptions<TaskStreamOptions> options,
         TaskKindDisplayNames kindNames,
+        TaskFailureMessages failures,
         ICurrentUser currentUser)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -77,6 +86,7 @@ public sealed class RunningTasksStreamService
         _dbContext = dbContext;
         _pollInterval = TimeSpan.FromMilliseconds(options.Value.PollIntervalMilliseconds);
         _kindNames = kindNames;
+        _failures = failures;
         _currentUser = currentUser;
     }
 
@@ -153,9 +163,13 @@ public sealed class RunningTasksStreamService
 
     /// <summary>Maps one row as the subscriber may see it.</summary>
     /// <param name="task">The row.</param>
-    /// <returns>The wire shape, with the log only for an administrator.</returns>
+    /// <returns>
+    /// The wire shape, its failure described in the subscriber's language, with the log only for an
+    /// administrator.
+    /// </returns>
     private PanelTaskDto Map(PanelTask task)
     {
-        return PanelTaskMapper.From(task, _kindNames.Of(task.Kind), _currentUser.IsAdmin);
+        return PanelTaskMapper.From(
+            task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.IsAdmin);
     }
 }

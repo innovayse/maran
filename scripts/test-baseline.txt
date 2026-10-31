@@ -1,7 +1,15 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (merge of dev's #272 into #274): edited by hand, rows taken on top of dev's. Maran.Modules.Tasks.Tests.dll 106->109 (#274's RunningTasksStreamServiceTests 3); Maran.Host.IntegrationTests.dll 820->824 (#274's RunningTasksStreamTests 3, plus 1 asserting a failed task on the running stream carries the localized sentence). Full run: backend 20 targets 5119 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
 # RE-MEASURED 2026-10-31 (issue #274, one multiplexed running-tasks stream): edited by hand. Maran.Modules.Tasks.Tests.dll 101->104; Maran.Host.IntegrationTests.dll 810->813; new spa row tasks/running-stream.spec.ts 3. Full runs: backend 20 targets 5102 passed / 0 failed; spa 163 targets 1104 passed / 0 failed / 2 ignored.
+# RE-MEASURED 2026-10-31 (issue #272, merged with dev's #196 phase 4: Host.IntegrationTests 810+10 = 820;, task failure sentence resolved by the backend per reader): edited by hand.
+# One clean whole-solution `maran test backend`: 20 targets: 5073 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
+# Rows raised to that run: Modules.Tasks.Tests 76->106 (this branch: TaskFailureMessagesTests 5; the rest is dev's
+# unrecorded growth), Host.IntegrationTests 745->796 (this branch: TaskFailureSentenceTests 6,
+# TaskFailureCodeCensusTests 4), Sdk.Tests 259->266 (this branch: 1, TaskFailureUnexplained in the status census; the rest is dev's).
+# spa: no row moved (tasks/failure-sentence.spec.ts stays 5). `E2E_PORT=5199 maran test spa`: 162 targets: 1098
+# passed / 0 failed / 2 ignored, TEST VERDICT: OK.
 # RE-MEASURED 2026-10-31 (issue #196 phase 4, accounts-disk paged at the agent, scale dataset and list budget, two indexes): edited by hand. Identity, Tasks, Firewall and Sdk rows were already below the branch's measured counts before this change (phase 3 left them stale); Maran.Agent.Client.Tests.dll 378->380; Maran.Modules.Identity.Tests.dll 334->373; Maran.Modules.Tasks.Tests.dll 76->101; Maran.Modules.Monitoring.Tests.dll 70->83; Maran.Modules.Firewall.Tests.dll 255->286; Maran.Sdk.Tests.dll 259->265; Maran.Host.IntegrationTests.dll 745->810; monitoring/monitoring.spec.ts 11->14. Full runs: backend 20 targets 5096 passed / 0 failed; rust 35 targets 2853 passed; spa 161 targets 1087 passed / 0 failed.
 # RE-MEASURED 2026-10-31 (issue #218, UI consistency: spa auth/signed-out-console.spec.ts 2 -> 7; new spa firewall/consistency.spec.ts 5, ui-kit/actions-and-links.spec.ts 8, ui-kit/type-consistency.spec.ts 7): edited by hand. Full `maran test spa`: 155 targets, 1048 passed / 0 failed.
 # RE-MEASURED 2026-10-31 (issue #209 merged with dev's #196 phase 3, firewall split into three pages): edited by hand.
@@ -485,7 +493,7 @@ backend	Maran.SharedKernel.Tests.dll	349	0	0
 backend	Maran.Modules.Identity.Tests.dll	373	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
-backend	Maran.Modules.Tasks.Tests.dll	104	0	0
+backend	Maran.Modules.Tasks.Tests.dll	109	0	0
 backend	Maran.Modules.Ftp.Tests.dll	169	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	83	0	0
 backend	Maran.Modules.Backups.Tests.dll	237	0	0
@@ -495,11 +503,11 @@ backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	514	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	235	0	0
-backend	Maran.Sdk.Tests.dll	265	0	0
+backend	Maran.Sdk.Tests.dll	266	0	0
 backend	Maran.Modules.Sites.Tests.dll	270	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	813	0	0
+backend	Maran.Host.IntegrationTests.dll	824	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0

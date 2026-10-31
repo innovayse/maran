@@ -26,7 +26,7 @@ const INSTALL: PanelTask = {
   percent: 40,
   log: 'fetching packages\n',
   logIncluded: true,
-  errorCode: null,
+  failure: null,
   startedAt: '2026-09-03T09:00:00Z',
   finishedAt: null,
   revision: 5,
@@ -91,9 +91,9 @@ test('opening a task shows what its stream reports, not what the listing said', 
   await expect(page.getByText(INSTALL.correlationId ?? '')).toBeVisible()
 })
 
-// A failed task carries a machine-stable code. The pane leads with a sentence (#222) — the generic
-// one for a code this panel has no sentence for — and keeps the code beneath it, because the code is
-// what an operator quotes.
+// A failed task carries the panel's sentence and its machine-stable code (#272). The pane leads with
+// the sentence exactly as the panel wrote it and keeps the code beneath it, because the code is what an
+// operator quotes.
 test('a task that failed shows the code it failed with', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
@@ -104,7 +104,10 @@ test('a task that failed shows the code it failed with', async ({ page }) => {
     taskFrame({
       ...INSTALL,
       status: 'failed',
-      errorCode: 'SitesPhpVersionUnavailable',
+      failure: {
+        code: 'SitesPhpVersionUnavailable',
+        message: 'That PHP version cannot be installed on this server.',
+      },
       finishedAt: '2026-09-03T09:05:00Z',
       revision: 9,
     }) + taskEndFrame('failed'),
@@ -115,11 +118,11 @@ test('a task that failed shows the code it failed with', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Live view' }).click()
 
   await expect(page.getByText('Code: SitesPhpVersionUnavailable', { exact: true })).toBeVisible()
-  await expect(page.getByText('The operation failed. The code below says why', { exact: false })).toBeVisible()
+  await expect(page.getByText('That PHP version cannot be installed on this server.', { exact: true })).toBeVisible()
   // Exact, because `failed` is the status on the wire and `Failed` is the badge's translated label:
   // a loose `getByText` matches a substring case-insensitively and would read the raw constant as
-  // the fix. Nothing else in this test observes the wording — the code assertion above it is about
-  // `errorCode`, which is machine-stable and untranslated by design.
+  // the fix. The code assertion above it is about `failure.code`, which is machine-stable and
+  // untranslated by design.
   await expect(page.getByText('Failed', { exact: true }).first()).toBeVisible()
 })
 
@@ -196,7 +199,10 @@ const FAILED: PanelTask = {
   kind: 'CertificateIssue',
   subject: 'shop.example.com',
   status: 'failed',
-  errorCode: 'AcmeValidationFailed',
+  failure: {
+    code: 'AcmeValidationFailed',
+    message: 'The certificate authority could not verify this domain.',
+  },
   startedAt: '2026-09-02T09:00:00Z',
   finishedAt: '2026-09-02T09:01:00Z',
 }
