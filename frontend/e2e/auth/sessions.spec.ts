@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubSessions } from '../fixtures/stub-sessions-route'
 import type { Session } from '../../src/types/auth'
 
 /** The device making the request. */
@@ -22,23 +23,6 @@ const OTHER: Session = {
   ipAddress: '198.51.100.4',
   userAgent: 'Safari on iPhone',
   isCurrent: false,
-}
-
-/**
- * Fulfils `GET /api/v1/sessions` with a chosen list.
- * @param page The Playwright page whose network the route is installed on.
- * @param sessions The devices the panel reports.
- * @returns Resolves once the route is installed.
- */
-const stubSessions = async (page: Page, sessions: Session[]): Promise<void> => {
-  await page.route('**/api/v1/sessions', async (route) => {
-    if (route.request().method() !== 'GET') {
-      await route.fallback()
-      return
-    }
-
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(sessions) })
-  })
 }
 
 test('the sessions screen lists the devices and marks the one being used', async ({ page }) => {
@@ -84,12 +68,16 @@ test('a listed session never carries a token or a hash of one', async ({ page })
   await expect(page.locator('body')).not.toContainText('sha256:0000feed')
 })
 
-test('ending another device asks first, then removes its row', async ({ page }) => {
+test('ending another device asks first, then reads the page again without its row', async ({ page }) => {
+  // The panel's list, which the stubbed DELETE changes: the row disappears because the page asked
+  // the panel again after the revocation, not because the SPA dropped it locally.
+  const listed = [CURRENT, OTHER]
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
-  await stubSessions(page, [CURRENT, OTHER])
+  const listRequests = await stubSessions(page, listed)
   await page.route(`**/api/v1/sessions/${OTHER.id}`, async (route) => {
+    listed.splice(listed.indexOf(OTHER), 1)
     await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
   })
 
@@ -114,6 +102,7 @@ test('ending another device asks first, then removes its row', async ({ page }) 
 
   await expect(page.getByText('Safari on iPhone')).toBeHidden()
   await expect(page.getByText('Chrome on Linux')).toBeVisible()
+  expect(listRequests().length).toBeGreaterThanOrEqual(2)
 })
 
 test('signing out everywhere returns to the sign-in screen', async ({ page }) => {

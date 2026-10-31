@@ -109,16 +109,15 @@ test('the shell watches a running task from any screen and the badge falls when 
   await expect(badge(page)).toHaveCount(0)
 })
 
-// The listing answers 404 to a caller the surface does not exist for, rather than an empty 200, so
-// a customer is not told there is an administrator-only feed they were refused. The badge must be
-// silent about that — it is not an error the shell shouts on every screen.
-test('a caller the tasks surface does not exist for gets no badge and no shell error', async ({
+// The running read can fail like any other. The badge must be silent about that — it is not an
+// error the shell shouts on every screen.
+test('a refused running read gets no badge and no shell error', async ({
   page,
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
-  await page.route(/\/api\/v1\/tasks(\?.*)?$/, async (route) => {
+  await page.route(/\/api\/v1\/tasks\/running(\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 404,
       contentType: 'application/problem+json',
@@ -132,4 +131,19 @@ test('a caller the tasks surface does not exist for gets no badge and no shell e
   await expect(page.getByRole('heading', { level: 1, name: 'System status' })).toBeVisible()
   await expect(badge(page)).toHaveCount(0)
   await expect(page.getByRole('banner').getByText('Not found.')).toHaveCount(0)
+})
+
+// The badge counts the panel's running read, not the page on screen: a running task that is not on
+// the tasks page (filtered out here) still counts.
+test('the badge counts the running read, not the rows of the page on screen', async ({ page }) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubTasks(page, [RUNNING])
+  await stubTaskStream(page, '')
+
+  await page.goto('/tasks?status=completed')
+
+  await expect(page.getByText('No tasks match')).toBeVisible()
+  await expect(badge(page)).toHaveText('1')
 })

@@ -25,9 +25,14 @@ const SEEDED: WhitelistEntry = {
  * happened, because the point of every test here is WHICH range left the browser.
  * @param page The Playwright page under test.
  * @param entries The exemptions the stubbed panel reports.
+ * @param path Where to open the list; the default page unless a test needs a longer one.
  * @returns The recorded create bodies, newest last.
  */
-const openScreen = async (page: Page, entries: WhitelistEntry[]): Promise<unknown[]> => {
+const openScreen = async (
+  page: Page,
+  entries: WhitelistEntry[],
+  path = '/firewall/whitelist',
+): Promise<unknown[]> => {
   const creates: unknown[] = []
   await stubSignedIn(page)
   await stubHealthy(page)
@@ -38,7 +43,7 @@ const openScreen = async (page: Page, entries: WhitelistEntry[]): Promise<unknow
       creates.push(request.postDataJSON())
     }
   })
-  await page.goto('/firewall')
+  await page.goto(path)
   return creates
 }
 
@@ -168,12 +173,13 @@ const LAST: WhitelistEntry = MANY[MANY.length - 1]
 // the absence of a flake on a path pressed three times per run — which is not evidence.
 //
 // The geometry this spec sets up, deliberately, rather than hoping the browser produces it:
-// a 700px window, 40 exemptions so `<main class="overflow-y-auto">` (src/layouts/DefaultLayout.vue)
-// genuinely scrolls, the container parked ONE PIXEL short of its maximum, the last row's menu
+// a 700px window, 40 exemptions on one 50-row page (the list is server-paged, and the default 25
+// would leave the last row on page two) so `<main class="overflow-y-auto">`
+// (src/layouts/DefaultLayout.vue) genuinely scrolls, the container parked ONE PIXEL short of its maximum, the last row's menu
 // opened there, and then that single pixel spent.
 test('a one-pixel scroll under an open row menu moves it instead of closing it', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 700 })
-  await openScreen(page, MANY)
+  await openScreen(page, MANY, '/firewall/whitelist?pageSize=50')
 
   const row = page.getByRole('row').filter({ hasText: LAST.cidr })
   await expect(row).toBeVisible()

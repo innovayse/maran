@@ -1,4 +1,5 @@
 using Maran.Modules.Tasks.Domain.Entities;
+using Maran.Modules.Tasks.Domain.Enums;
 using Maran.Sdk.Contracts;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -7,9 +8,6 @@ namespace Maran.Modules.Tasks.Persistence.Configurations;
 /// <summary>EF Core mapping for <see cref="PanelTask"/> onto the <c>tasks.PanelTasks</c> table.</summary>
 public sealed class PanelTaskConfiguration : IEntityTypeConfiguration<PanelTask>
 {
-    /// <summary>Ceiling on a task's kind, which is a machine-stable identifier and never a sentence.</summary>
-    private const int KindMaxLength = 64;
-
     /// <summary>Ceiling on a task's subject: a domain name is the longest thing recorded there.</summary>
     private const int SubjectMaxLength = 253;
 
@@ -18,6 +16,9 @@ public sealed class PanelTaskConfiguration : IEntityTypeConfiguration<PanelTask>
 
     /// <summary>Ceiling on an error code, which is a resx key in flat PascalCase.</summary>
     private const int ErrorCodeMaxLength = 128;
+
+    /// <summary>Upper bound on the stored name of a <see cref="PanelTaskStatus"/> member.</summary>
+    private const int StatusMaxLength = 64;
 
     /// <summary>Upper bound on the stored name of a <see cref="TaskAudience"/> member.</summary>
     private const int AudienceMaxLength = 64;
@@ -33,7 +34,7 @@ public sealed class PanelTaskConfiguration : IEntityTypeConfiguration<PanelTask>
 
         builder.Property(task => task.Kind)
             .IsRequired()
-            .HasMaxLength(KindMaxLength);
+            .HasMaxLength(PanelTask.KindMaxLength);
 
         builder.Property(task => task.Subject)
             .IsRequired()
@@ -45,7 +46,7 @@ public sealed class PanelTaskConfiguration : IEntityTypeConfiguration<PanelTask>
         builder.Property(task => task.Status)
             .IsRequired()
             .HasConversion<string>()
-            .HasMaxLength(KindMaxLength);
+            .HasMaxLength(StatusMaxLength);
 
         // Stored by name like the status, and defaulted to the closed answer so every row written
         // before the column existed stays administrator-only. That answer is also the enum's zero,
@@ -93,5 +94,10 @@ public sealed class PanelTaskConfiguration : IEntityTypeConfiguration<PanelTask>
         // administrator looks up every task about one account. Nullable, because server-wide work
         // and a task whose account was deleted concern no account.
         builder.HasIndex(task => task.AccountId).HasDatabaseName("IX_PanelTasks_AccountId");
+
+        // The fourth: the header badge reads the running tasks on every page load and the dashboard
+        // counts the failed ones (ListRunningTasksQuery, CountFailedTasksQuery), and the list filters
+        // by status. Each is one status out of three, asked of the whole table.
+        builder.HasIndex(task => task.Status).HasDatabaseName("IX_PanelTasks_Status");
     }
 }

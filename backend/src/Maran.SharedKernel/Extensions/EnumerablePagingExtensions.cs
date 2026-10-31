@@ -6,7 +6,7 @@ namespace Maran.SharedKernel.Extensions;
 
 /// <summary>
 /// The same paging contract as <see cref="QueryablePagingExtensions"/>, over a list held in memory —
-/// the bounded answer the agent returns whole (cron entries, firewall rules, PHP versions). Same
+/// the bounded answer the agent returns whole (cron entries, PHP versions). Same
 /// <see cref="SortMap{T}"/>, same <see cref="PageWindow"/>, same page-past-the-end answer.
 /// </summary>
 public static class EnumerablePagingExtensions

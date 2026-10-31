@@ -1,4 +1,6 @@
 import { useApi } from '../useApi'
+import { listQuery } from '../../utils/listQuery'
+import type { ListRequest, Paged } from '../../types/list'
 import type {
   AddWhitelistEntryRequest,
   Ban,
@@ -90,12 +92,14 @@ export const useFirewallApi = (): FirewallApi => {
   }
 
   /**
-   * Lists the bans still in force, newest first.
+   * Lists one page of the bans still in force, newest first unless a sort is named. The list takes
+   * no typed filter, so none is ever sent.
+   * @param request The page, size, search and sort.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The bans, each with the reason it was placed.
+   * @returns The page, each ban with the reason it was placed, and the total in force.
    */
-  const listBans = (signal?: AbortSignal): Promise<Ban[]> => {
-    return api.get<Ban[]>(BANS_PATH, signal)
+  const listBans = (request: ListRequest, signal?: AbortSignal): Promise<Paged<Ban>> => {
+    return api.get<Paged<Ban>>(`${BANS_PATH}${listQuery(request, {})}`, signal)
   }
 
   /**
@@ -120,12 +124,14 @@ export const useFirewallApi = (): FirewallApi => {
   }
 
   /**
-   * Lists the ranges the automatic bans never touch, oldest first.
+   * Lists one page of the ranges the automatic bans never touch, oldest first unless a sort is
+   * named. The list takes no typed filter, so none is ever sent.
+   * @param request The page, size, search and sort.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The exempt ranges.
+   * @returns The page of exempt ranges and the total that matched.
    */
-  const listWhitelist = (signal?: AbortSignal): Promise<WhitelistEntry[]> => {
-    return api.get<WhitelistEntry[]>(WHITELIST_PATH, signal)
+  const listWhitelist = (request: ListRequest, signal?: AbortSignal): Promise<Paged<WhitelistEntry>> => {
+    return api.get<Paged<WhitelistEntry>>(`${WHITELIST_PATH}${listQuery(request, {})}`, signal)
   }
 
   /**

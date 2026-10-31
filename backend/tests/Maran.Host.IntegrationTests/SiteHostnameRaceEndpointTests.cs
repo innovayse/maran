@@ -135,9 +135,9 @@ public sealed class SiteHostnameRaceEndpointTests : IAsyncLifetime
             PostSiteAsync(second, world.SecondAccountId, "zero.example.com", ["shop.example.com"]));
         var loserDomain = responses[0].StatusCode == HttpStatusCode.Created ? "zero.example.com" : "shop.example.com";
 
-        var audit = await admin.GetAsync("/api/v1/audit?limit=500");
+        var audit = await admin.GetAsync("/api/v1/audit?action=SiteCreated&pageSize=100");
         using var body = JsonDocument.Parse(await audit.Content.ReadAsStringAsync());
-        var entries = body.RootElement.EnumerateArray()
+        var entries = body.RootElement.GetProperty("items").EnumerateArray()
             .Select(entry =>
             {
                 return (

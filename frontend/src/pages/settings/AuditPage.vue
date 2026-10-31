@@ -9,84 +9,111 @@
  * endpoint is administrators-only; a customer who reaches this URL sees the panel's own refusal,
  * rendered verbatim like any other.
  *
- * **Layout (redesign 2026-10).** The heading block with its eyebrow, then what needs attention — a
- * warning notice naming how many recorded entries failed, shown only when there are any — then the
- * journal in a card. The notice is a count and nothing more: the page offers no filter, so it
- * promises no action. A refusal, the loading state and the empty state all render inside the same
- * card, so the screen keeps one shape whatever the endpoint answered.
+ * **The journal is a server page** (`useServerTable`): page, page size, the search (the actor, the
+ * subject or the address), the sort (`occurredAt`, `actor`, `action`) and the `action`, `outcome`,
+ * `from` and `to` filters live in the URL, and the panel searches, filters, sorts and counts. The
+ * journal records no account, so there is no account filter; a failed action is found with the
+ * outcome filter rather than counted off whatever page is on screen.
  *
- * **A failure is told by its text, never by its colour alone.** The outcome column prints
- * "Failed" or "Succeeded" in words (the badge leads the word with a dot in the status colour, and
- * the word stays primary text); a reader who cannot tell red from green loses nothing.
- *
- * **Machine text is mono and never uppercased.** The instant, the address, the subject and the
- * action constant are values an administrator copies into a ticket or greps a log by, so they are
- * set in the mono face (the `mono` and `date` column kinds) and keep their own case. An identifier
- * (the actor, the subject, the address) is one unit and never wraps — every column kind but `text`
- * keeps one line: a login read across six lines is a different string, and a truncated one is too,
- * so the column takes the identifier's width and the table scrolls inside its container. The
- * localized action name is prose (`text`) and still wraps at word boundaries.
- *
- * **Loading keeps the journal's shape.** While the entries are on the way the table shows its real
- * header over placeholder rows drawn from its own `columns`, inside a {@link UiLoadingRegion} that
- * announces the wait once; a failed read is the region's alert, never a skeleton.
- *
- * **The table scrolls inside its own container at 390px.** Six columns do not fit a phone; the
- * `UiTable` wrapper is the scroll container, so the content panel never scrolls sideways.
+ * The parts are their own components, props in and events out:
+ * {@link ../../components/audit/AuditTable.vue} and
+ * {@link ../../components/audit/AuditFilterSheet.vue}.
  */
-import { computed, onMounted, type ComputedRef } from 'vue'
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
-import UiBadge from '../../components/ui/UiBadge.vue'
+import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiFilterTrigger from '../../components/ui/UiFilterTrigger.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
-import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
-import UiTable from '../../components/ui/UiTable.vue'
-import type { UiTableColumn } from '../../types/tableColumn'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiPagination from '../../components/ui/UiPagination.vue'
+import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import AuditFilterSheet from '../../components/audit/AuditFilterSheet.vue'
+import AuditTable from '../../components/audit/AuditTable.vue'
+import { useAuditFilters } from '../../composables/useAuditFilters'
+import { useListLabels } from '../../composables/useListLabels'
+import { useServerTable } from '../../composables/useServerTable'
 import { useAuditStore } from '../../stores/audit'
-import { useLocaleStore } from '../../stores/locale'
-import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import type { AuditEvent } from '../../types/audit'
+import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 
 const { t } = useI18n()
 const auditStore = useAuditStore()
-const localeStore = useLocaleStore()
+const labels = useListLabels()
+const auditFilters = useAuditFilters()
 
-/** The journal's columns: its header, its cells and its loading placeholder all read this one list. */
-const columns: ComputedRef<UiTableColumn[]> = computed(() => {
-  return [
-    { key: 'when', label: t('app.audit.whenColumn'), kind: 'date' },
-    { key: 'actor', label: t('app.audit.actorColumn'), kind: 'identity' },
-    { key: 'action', label: t('app.audit.actionColumn'), kind: 'text' },
-    { key: 'subject', label: t('app.audit.subjectColumn'), kind: 'mono' },
-    { key: 'address', label: t('app.audit.addressColumn'), kind: 'mono' },
-    { key: 'outcome', label: t('app.audit.outcomeColumn'), kind: 'badge' },
-  ]
+const table = useServerTable<AuditEvent>({
+  filters: auditFilters.schema,
+  /**
+   * Reads one page through the store.
+   * @param request The page the URL describes.
+   * @returns How the read ended.
+   */
+  load: (request: ListRequest): Promise<ListLoad<AuditEvent>> => {
+    return auditStore.list(request)
+  },
 })
 
-/** How many of the held entries record a failed action — the notice above the journal. */
-const failedCount: ComputedRef<number> = computed(() => {
-  return auditStore.events.filter((event) => {
-    return !event.succeeded
-  }).length
+/** Whether the filter sheet is open. */
+const filtersOpen: Ref<boolean> = ref(false)
+
+/** Whether the journal is narrowed by a search or a filter, so an empty answer means "no match". */
+const isNarrowed: ComputedRef<boolean> = computed(() => {
+  return table.request.value.search !== '' || table.activeFilterCount.value > 0
+})
+
+/** Whether the latest answer arrived and holds no rows at all. */
+const answeredNothing: ComputedRef<boolean> = computed(() => {
+  return table.state.value.status === 'loaded' && table.total.value === 0
 })
 
 /**
- * The readable half of an event's action cell, or `null` when there is nothing beyond the machine
- * constant to show: a panel older than the display name sends no name at all, and an action this
- * build has no entry for arrives named as itself — either way one line is enough.
- * @param event The journal row the cell is drawn for.
- * @returns The backend-localized name, or `null` when only the constant should render.
+ * The applied action as an operator reads it: the panel's name when the journal's actions are
+ * known, the machine constant otherwise.
  */
-const actionLabel = (event: AuditEvent): string | null => {
-  const name: unknown = event.actionName
-  return typeof name === 'string' && name.length > 0 && name !== event.action ? name : null
+const actionName: ComputedRef<string> = computed(() => {
+  const applied = table.filters.value.action ?? ''
+  return auditStore.actions.find((choice) => {
+    return choice.action === applied
+  })?.actionName ?? applied
+})
+
+/** One removable chip per applied filter. */
+const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
+  return auditFilters.chips(table.filters.value, actionName.value)
+})
+
+/**
+ * Opens the filter sheet.
+ * @returns Nothing.
+ */
+const openFilters = (): void => {
+  filtersOpen.value = true
+}
+
+/**
+ * Closes the filter sheet.
+ * @returns Nothing.
+ */
+const closeFilters = (): void => {
+  filtersOpen.value = false
+}
+
+/**
+ * Clears the search and every filter, the way back from a question that matched nothing.
+ * @returns Resolves once the filters left the URL; the search follows after the box's pause.
+ */
+const clearAll = async (): Promise<void> => {
+  table.search.value = ''
+  await table.clearFilters()
 }
 
 onMounted(async () => {
-  await auditStore.load()
+  await auditStore.loadActions()
 })
 </script>
 
@@ -98,62 +125,87 @@ onMounted(async () => {
       :subtitle="t('app.audit.subtitle')"
     />
 
-    <!-- What needs attention goes first: an action that was refused or failed. -->
-    <UiAlert v-if="auditStore.loadState === 'loaded' && failedCount > 0" variant="warning">
-      {{ t('app.audit.failedNotice', { count: failedCount }, failedCount) }}
-    </UiAlert>
+    <UiCard class="min-w-0">
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-end gap-3">
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85 flex-1"
+            :label="t('app.audit.searchLabel')"
+            :placeholder="t('app.audit.searchPlaceholder')"
+            :clear-label="t('app.audit.searchClear')"
+          />
+          <UiFilterTrigger
+            :label="t('common.list.filters')"
+            :active-count="table.activeFilterCount.value"
+            :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
+            @click="openFilters"
+          />
+        </div>
 
-    <UiCard>
-      <UiLoadingRegion :state="auditStore.loadState">
-        <template #error>
-          <UiAlert variant="error">{{ auditStore.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
-        </template>
+        <UiActiveFilter
+          v-if="chips.length > 0"
+          :chips="chips"
+          :clear-label="t('common.list.clearAll')"
+          @remove="table.clearFilter"
+          @clear="table.clearFilters"
+        />
 
-        <UiEmptyState
-          v-if="auditStore.loadState === 'loaded' && auditStore.events.length === 0"
-          :title="t('app.audit.emptyTitle')"
-          :description="t('app.audit.emptyDescription')"
-        >
-          <template #icon><UiIcon name="fileText" size="lg" /></template>
-        </UiEmptyState>
-
-        <UiTable
-          v-else
-          :caption="t('app.audit.tableCaption')"
-          :columns="columns"
-          :rows="auditStore.events"
-          row-key="id"
-          :loading="auditStore.loadState === 'loading'"
-        >
-          <!-- The instant, not the day: two entries seconds apart must be told apart on the one
-               screen whose whole subject is WHEN something happened. -->
-          <template #cell-when="{ row }">{{ formatIsoTimestamp(row.occurredAt, localeStore.current) }}</template>
-          <template #cell-actor="{ row }">{{ row.actorUsername }}</template>
-          <template #cell-action="{ row }">
-            <!-- Both halves of the action, and neither instead of the other. The name is the
-                 backend's own, already localized (rules/vue.md: the SPA owns no text for a server
-                 outcome); the machine constant below it is what an administrator greps a log by,
-                 kept as visible, selectable text. A panel older than the display name sends no
-                 name, and then the constant is the whole cell. -->
-            <div class="min-w-48">
-              <span v-if="actionLabel(row) !== null" class="block wrap-anywhere">{{ actionLabel(row) }}</span>
-              <span
-                class="block font-mono whitespace-nowrap"
-                :class="actionLabel(row) !== null ? 'mt-0.5 text-xs text-text-muted' : ''"
-              >
-                {{ row.action }}
-              </span>
-            </div>
+        <UiLoadingRegion :state="table.loadingState.value">
+          <template #error>
+            <UiAlert v-if="table.state.value.status === 'refused'" variant="error">
+              {{ table.state.value.message }}
+            </UiAlert>
+            <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
           </template>
-          <template #cell-subject="{ row }">{{ row.subject }}</template>
-          <template #cell-address="{ row }">{{ row.ipAddress }}</template>
-          <template #cell-outcome="{ row }">
-            <UiBadge :variant="row.succeeded ? 'success' : 'danger'">
-              {{ row.succeeded ? t('app.audit.succeeded') : t('app.audit.failed') }}
-            </UiBadge>
-          </template>
-        </UiTable>
-      </UiLoadingRegion>
+
+          <!-- Two kinds of nothing: an empty journal, and a search or filter matching none. -->
+          <UiEmptyState
+            v-if="answeredNothing && !isNarrowed"
+            :title="t('app.audit.emptyTitle')"
+            :description="t('app.audit.emptyDescription')"
+          >
+            <template #icon><UiIcon name="fileText" size="lg" /></template>
+          </UiEmptyState>
+
+          <UiEmptyState
+            v-else-if="answeredNothing"
+            :title="t('app.audit.noResultsTitle')"
+            :description="t('app.audit.noResultsDescription')"
+          >
+            <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
+          </UiEmptyState>
+
+          <div v-else class="flex flex-col gap-4">
+            <AuditTable
+              :rows="auditStore.events"
+              :loading="table.state.value.status === 'loading'"
+              :skeleton-rows="table.pageSize.value"
+              :sort="table.sort.value"
+              @sort="table.toggleSort"
+            />
+
+            <UiPagination
+              v-if="table.state.value.status === 'loaded'"
+              :page="table.page.value"
+              :page-size="table.pageSize.value"
+              :total="table.total.value"
+              :page-sizes="table.pageSizes"
+              :labels="labels.pagination.value"
+              @update:page="table.setPage"
+              @update:page-size="table.setPageSize"
+            />
+          </div>
+        </UiLoadingRegion>
+      </div>
     </UiCard>
+
+    <AuditFilterSheet
+      :open="filtersOpen"
+      :model-value="table.filters.value"
+      :actions="auditStore.actions"
+      @update:model-value="table.setFilters"
+      @close="closeFilters"
+    />
   </section>
 </template>

@@ -144,8 +144,8 @@ public sealed class PhpVersionInstallEndpointTests : IAsyncLifetime
         using var response = await admin.PostAsJsonAsync("/api/v1/sites/php-versions/install", new { version });
         var body = await response.Content.ReadAsStringAsync();
 
-        using var journal = JsonDocument.Parse(await admin.GetStringAsync("/api/v1/audit"));
-        var entry = journal.RootElement.EnumerateArray().Single(candidate =>
+        using var journal = JsonDocument.Parse(await admin.GetStringAsync("/api/v1/audit?action=PhpVersionInstalled"));
+        var entry = journal.RootElement.GetProperty("items").EnumerateArray().Single(candidate =>
         {
             return candidate.GetProperty("action").GetString() == "PhpVersionInstalled";
         }).Clone();

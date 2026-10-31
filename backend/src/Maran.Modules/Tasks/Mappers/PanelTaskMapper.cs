@@ -4,9 +4,10 @@ using Maran.Modules.Tasks.Domain.Entities;
 namespace Maran.Modules.Tasks.Mappers;
 
 /// <summary>
-/// Builds a <see cref="PanelTaskDto"/> from a <see cref="PanelTask"/>. One place, because three
-/// readers project the same row — the listing, the single read and every frame of the stream — and
-/// three copies of the same projection are three chances for a column to be forgotten in one of them.
+/// Builds a <see cref="PanelTaskDto"/> from a <see cref="PanelTask"/>. One place, because four
+/// readers project the same row — the paged list, the running list, the single read and every frame
+/// of the stream — and four copies of the same projection are four chances for a column to be
+/// forgotten in one of them.
 /// </summary>
 public static class PanelTaskMapper
 {

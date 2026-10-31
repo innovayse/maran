@@ -67,3 +67,16 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('button', { name: 'Search or jump to…' })).toHaveCount(1)
   })
 }
+
+// A module with a submenu offers each of its pages by its own name (#195, #196): the firewall's
+// bans page is reached by typing "bans", not only through the module's landing page.
+test('the palette offers a firewall child page by its own name', async ({ page }) => {
+  await open(page, 1440)
+  await page.keyboard.press('Control+k')
+  const dialog = page.getByRole('dialog', { name: 'Jump to' })
+  await dialog.getByRole('combobox', { name: 'Search the panel' }).fill('bans')
+
+  const options = dialog.getByRole('option')
+  await expect(options).toHaveCount(1)
+  await expect(options.first()).toHaveText(/Bans/)
+})

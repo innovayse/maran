@@ -19,7 +19,13 @@
       "confirmEndTitle": "Ավարտել սեսիան {address}-ից",
       "signOutEverywhere": "Դուրս գալ բոլոր սարքերից",
       "rowActions": "Գործողություններ {address} հասցեից բացված աշխատաշրջանի համար",
-      "securityPolicyLink": "Անվտանգության քաղաքականություն"
+      "securityPolicyLink": "Անվտանգության քաղաքականություն",
+      "expiresColumn": "Ավարտվում է",
+      "searchLabel": "Սարքերի որոնում",
+      "searchPlaceholder": "Որոնել ըստ սարքի կամ հասցեի…",
+      "searchClear": "Մաքրել որոնումը",
+      "noResultsTitle": "Համապատասխան սարքեր չկան",
+      "noResultsDescription": "Փոխեք որոնումը կամ մաքրեք այն՝ մուտք գործած բոլոր սարքերը տեսնելու համար։"
     }
   }
 }

@@ -8,12 +8,10 @@ import {
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { SESSIONS_LIST_PATTERN, stubSessions, stubSessionsProblem } from '../fixtures/stub-sessions-route'
 import type { Session } from '../../src/types/auth'
 
 // The signed-in devices while they are on the way (#243): drawn from the table's own column schema.
-
-/** The caller's sessions. */
-const SESSIONS_PATTERN = '**/api/v1/sessions'
 
 const CURRENT: Session = {
   id: '00000000-0000-0000-0000-0000000000a1',
@@ -39,21 +37,13 @@ const signIn = async (page: Page): Promise<void> => {
 const SESSIONS_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
-    await page.route(SESSIONS_PATTERN, async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([CURRENT]) })
-    })
+    await stubSessions(page, [CURRENT])
   },
   stubFailure: async (page) => {
     await signIn(page)
-    await page.route(SESSIONS_PATTERN, async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: 'application/problem+json',
-        body: JSON.stringify({ code: 'HostUnexpectedError', title: 'Unexpected error', detail: 'The sessions could not be read.' }),
-      })
-    })
+    await stubSessionsProblem(page, 500, 'The sessions could not be read.')
   },
-  pattern: SESSIONS_PATTERN,
+  pattern: SESSIONS_LIST_PATTERN,
   path: '/settings/sessions',
   table: 'Devices signed in to your account',
   rowText: 'Chrome on Linux',

@@ -203,6 +203,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/accounts/{}
   GET /api/v1/accounts/{}/resource-summary
   GET /api/v1/audit
+  GET /api/v1/audit/actions
   GET /api/v1/backup-destinations
   GET /api/v1/backup-schedules
   GET /api/v1/backups
@@ -242,6 +243,9 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/sites/{}
   GET /api/v1/sites/{}/logs
   GET /api/v1/tasks
+  GET /api/v1/tasks/failed-count
+  GET /api/v1/tasks/kinds
+  GET /api/v1/tasks/running
   GET /api/v1/tasks/{}
   GET /api/v1/tasks/{}/stream
   POST /api/v1/account-home-groups/repair (binds RepairAccountHomeGroupsCommand, no SPA caller)

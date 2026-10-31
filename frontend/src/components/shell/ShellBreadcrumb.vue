@@ -59,6 +59,8 @@ const CHILD_ROUTE_LABEL_KEYS: Record<string, string> = {
   plans: 'plans.list.heading',
   'plans-new': 'plans.form.headingNew',
   'plans-edit': 'plans.form.headingEdit',
+  'firewall-bans': 'firewall.bans.heading',
+  'firewall-whitelist': 'firewall.whitelist.heading',
 }
 
 /** Props accepted by {@link ShellBreadcrumb}. */

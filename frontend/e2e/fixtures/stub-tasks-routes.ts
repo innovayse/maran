@@ -1,40 +1,117 @@
 import type { Page, Route } from '@playwright/test'
-import type { PanelTask } from '../../src/types/panelTask'
+import { pagedAnswer, type PagedRules } from './paged-answer'
+import type { PanelTask, TaskKindChoice } from '../../src/types/panelTask'
 
-/** The listing endpoint the tasks page and the shell header's badge both read. */
+/** The paged list endpoint the tasks page reads. */
 const TASKS_PATTERN = /\/api\/v1\/tasks(\?.*)?$/
+
+/** The running-tasks endpoint the shell header's badge reads on every screen. */
+const RUNNING_PATTERN = /\/api\/v1\/tasks\/running(\?.*)?$/
+
+/** The kinds endpoint the kind filter reads. */
+const KINDS_PATTERN = /\/api\/v1\/tasks\/kinds(\?.*)?$/
+
+/** The failed-count endpoint the attention notice reads. */
+const FAILED_COUNT_PATTERN = /\/api\/v1\/tasks\/failed-count(\?.*)?$/
 
 /** The per-task SSE endpoint. */
 const TASK_STREAM_PATTERN = /\/api\/v1\/tasks\/[^/?]+\/stream(\?.*)?$/
 
+/** How the tasks endpoint searches (the subject), sorts and filters, as the panel does. */
+const TASK_RULES: PagedRules<PanelTask> = {
+  matches: (task, term) => {
+    return task.subject.toLowerCase().includes(term)
+  },
+  sorts: {
+    startedAt: (task) => {
+      return task.startedAt
+    },
+    subject: (task) => {
+      return task.subject
+    },
+  },
+  filters: {
+    status: (task, value) => {
+      return task.status === value
+    },
+    kind: (task, value) => {
+      return task.kind === value
+    },
+    from: (task, value) => {
+      return Date.parse(task.startedAt) >= Date.parse(value)
+    },
+    to: (task, value) => {
+      return Date.parse(task.startedAt) <= Date.parse(value)
+    },
+  },
+}
+
 /**
- * Fulfils `GET /api/v1/tasks` with the given listing.
+ * Fulfils one JSON route with a fixed body.
  * @param page The Playwright page whose network the route is installed on.
- * @param tasks The tasks the stub reports, newest first.
+ * @param pattern The route's URL pattern.
+ * @param body The value to serialize.
  * @returns Resolves once the route is installed.
  */
-export const stubTasks = async (page: Page, tasks: PanelTask[]): Promise<void> => {
-  await page.route(TASKS_PATTERN, async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(tasks),
-    })
+const fulfilJson = async (page: Page, pattern: RegExp, body: unknown): Promise<void> => {
+  await page.route(pattern, async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
   })
 }
 
 /**
- * Fulfils `GET /api/v1/tasks` the way the module answers a caller the surface does not exist for.
- *
- * **404, not an empty 200**, and that is the module's own decision rather than this stub's:
- * `ListTasksQueryHandler` answers `TaskNotFound` to a non-administrator precisely so a customer is
- * not told there is an administrator-only feed they were refused. A stub serving `[]` here would
- * agree with a belief the SPA might hold instead of with the module.
+ * Fulfils every tasks endpoint from one set of tasks, as the panel would answer it: `GET
+ * /api/v1/tasks` as a page honouring `page`, `pageSize`, `search`, `sort`, `status`, `kind`,
+ * `from` and `to` (the stub holds no accounts, so `accountId` narrows nothing); `/running` with the
+ * running ones; `/kinds` with the distinct kinds, named by their machine names; and `/failed-count`.
+ * @param page The Playwright page whose network the routes are installed on.
+ * @param tasks The tasks the stub knows, newest first — the panel's default order.
+ * @returns A function reporting every list request so far, oldest first.
+ */
+export const stubTasks = async (page: Page, tasks: PanelTask[]): Promise<() => readonly URL[]> => {
+  const listRequests: URL[] = []
+  await page.route(TASKS_PATTERN, async (route: Route) => {
+    listRequests.push(new URL(route.request().url()))
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pagedAnswer(tasks, route.request().url(), TASK_RULES)),
+    })
+  })
+  await fulfilJson(
+    page,
+    RUNNING_PATTERN,
+    tasks.filter((task) => {
+      return task.status === 'running'
+    }),
+  )
+  const kinds: TaskKindChoice[] = [...new Set(tasks.map((task) => {
+    return task.kind
+  }))].map((kind) => {
+    return { kind, kindName: kind }
+  })
+  await fulfilJson(page, KINDS_PATTERN, kinds)
+  await fulfilJson(
+    page,
+    FAILED_COUNT_PATTERN,
+    tasks.filter((task) => {
+      return task.status === 'failed'
+    }).length,
+  )
+  return () => {
+    return listRequests
+  }
+}
+
+/**
+ * Fulfils `GET /api/v1/tasks` with an RFC 7807 refusal, so a spec can assert the page renders the
+ * panel's own message verbatim rather than an empty list. The other tasks endpoints answer empty.
  * @param page The Playwright page whose network the route is installed on.
  * @param detail The backend-localized message the stub reports in `detail`.
- * @returns Resolves once the route is installed.
+ * @returns Resolves once the routes are installed.
  */
 export const stubTasksNotFound = async (page: Page, detail: string): Promise<void> => {
+  await stubTasks(page, [])
   await page.route(TASKS_PATTERN, async (route: Route) => {
     await route.fulfill({
       status: 404,
@@ -115,9 +192,9 @@ export const stubDeferredTaskStream = async (
 }
 
 /**
- * Fulfils `GET /api/v1/tasks` with an empty listing — the default every authenticated spec gets.
+ * Fulfils every tasks endpoint as empty — the default every authenticated spec gets.
  *
- * The shell's tasks badge loads the listing once on every screen, so without this the suite fires
+ * The shell's tasks badge reads the running tasks once on every screen, so without this the suite fires
  * one unstubbed request per authenticated navigation: measured at 197 of the 200 `ECONNREFUSED`
  * lines in a full local run. Those cost real latency on every navigation, and a page whose network
  * is only half stubbed is a page under test conditions nobody wrote down.

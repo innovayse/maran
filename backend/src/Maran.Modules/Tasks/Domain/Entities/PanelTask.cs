@@ -59,6 +59,13 @@ public sealed class PanelTask
     /// </remarks>
     public const int MaxLogLength = 16384;
 
+    /// <summary>The width of <see cref="Kind"/>, in characters: a machine-stable identifier, never a sentence.</summary>
+    /// <remarks>
+    /// Here rather than in the EF configuration so the configuration and the list's kind filter read
+    /// the same number, rather than each restating a literal the other can outgrow.
+    /// </remarks>
+    public const int KindMaxLength = 64;
+
     /// <summary>What is appended in place of the text that did not fit.</summary>
     /// <remarks>
     /// Operator-facing English and not localized (rules/csharp.md): it is part of the log's own

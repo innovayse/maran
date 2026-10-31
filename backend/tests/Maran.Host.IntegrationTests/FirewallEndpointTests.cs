@@ -248,7 +248,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         var response = await client.GetAsync("/api/v1/firewall/bans");
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var ban = Assert.Single(body.RootElement.EnumerateArray().ToList());
+        var ban = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray().ToList());
         Assert.Equal("203.0.113.7", ban.GetProperty("ipAddress").GetString());
         // Camel-cased by the panel's own JSON convention (JsonSerializationExtensions), like every
         // other enum it sends.
@@ -290,7 +290,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
 
         var listed = await client.GetAsync("/api/v1/firewall/whitelist");
         using var body = JsonDocument.Parse(await listed.Content.ReadAsStringAsync());
-        var row = Assert.Single(body.RootElement.EnumerateArray().ToList());
+        var row = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray().ToList());
         Assert.Equal("203.0.113.7/32", row.GetProperty("cidr").GetString());
     }
 
@@ -335,7 +335,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
         var listed = await client.GetAsync("/api/v1/firewall/whitelist");
         using var body = JsonDocument.Parse(await listed.Content.ReadAsStringAsync());
-        var row = Assert.Single(body.RootElement.EnumerateArray().ToList());
+        var row = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray().ToList());
         Assert.Equal("203.0.113.0/24", row.GetProperty("cidr").GetString());
     }
 
@@ -353,9 +353,9 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         await client.PostAsJsonAsync("/api/v1/firewall/bans", new { address = "203.0.113.7", durationMinutes = 60 });
         await client.PostAsJsonAsync("/api/v1/firewall/whitelist", new { cidr = "198.51.100.0/24", note = "office" });
 
-        var response = await client.GetAsync("/api/v1/audit");
+        var response = await client.GetAsync("/api/v1/audit?pageSize=100");
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var entries = body.RootElement.EnumerateArray()
+        var entries = body.RootElement.GetProperty("items").EnumerateArray()
             .Select(entry =>
             {
                 return (entry.GetProperty("action").GetString(), entry.GetProperty("subject").GetString());

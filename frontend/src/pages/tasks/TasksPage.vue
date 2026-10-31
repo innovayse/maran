@@ -3,101 +3,110 @@
  * Background tasks screen: what the panel has been doing, and one task watched live.
  *
  * Renders a `<section>`, not a `<main>` — the single `<main>` landmark lives in the layout this
- * page is nested under. State comes exclusively from the tasks store, which is the same store the
- * shell header's badge reads; the page never touches the API layer (rules/vue.md).
+ * page is nested under. State comes exclusively from the tasks store, the same store the shell
+ * header's badge reads; the page never touches the API layer (rules/vue.md).
  *
- * **Layout (redesign 2026-10).** The heading block with its eyebrow, then what needs attention —
- * a failed task, as a warning notice with the way to open it — then the live pane when a task is
- * open, then the listing in a card. The notice names the count and nothing else: the failure code
- * belongs to the pane, where it is shown once, as the thing an operator quotes.
+ * **The list is a server page** (`useServerTable`): page, page size, the search on the subject, the
+ * sort (`startedAt`, `subject`) and the `account`, `status`, `kind`, `from` and `to` filters live in
+ * the URL, and the panel searches, filters, sorts and counts. What needs attention — how many tasks
+ * failed, across every page — is asked of the panel too, and its one action narrows the list to the
+ * failed ones.
  *
- * **Customers see their own tasks (issue #201).** The panel scopes the listing: a customer gets the
- * tasks started for their own account, with an empty log, because the log is written for the
- * operator and may carry tool output, and the panel marks each such task `logIncluded: false`. When
- * a customer opens one, the pane shows its progress and, in place of the log, a short note that the
- * detailed log stays with the server's administrators. A failed listing is rendered verbatim from
- * the panel's own message.
+ * **Customers see their own tasks (issue #201).** The panel scopes the list: a customer gets the
+ * tasks started for their own account, with an empty log the panel marks `logIncluded: false`, and
+ * no account field in the filters.
  *
  * Opening a task starts its stream and leaves it running when the pane is closed, because the badge
  * is still counting. The shell releases every stream when it tears down.
  */
-import { computed, onMounted, type ComputedRef } from 'vue'
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
-import UiDropdown from '../../components/ui/UiDropdown.vue'
-import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiFilterTrigger from '../../components/ui/UiFilterTrigger.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
-import UiMeter, { type UiMeterStatus } from '../../components/ui/UiMeter.vue'
-import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
-import UiTable from '../../components/ui/UiTable.vue'
-import type { UiTableColumn } from '../../types/tableColumn'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiPagination from '../../components/ui/UiPagination.vue'
+import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import TaskFilterSheet from '../../components/tasks/TaskFilterSheet.vue'
 import TaskLivePane from '../../components/tasks/TaskLivePane.vue'
-import TaskStatusBadge from '../../components/tasks/TaskStatusBadge.vue'
+import TaskTable from '../../components/tasks/TaskTable.vue'
+import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useAccountFilter } from '../../composables/useAccountFilter'
+import { useCallerRole } from '../../composables/useCallerRole'
+import { useListLabels } from '../../composables/useListLabels'
+import { useServerTable } from '../../composables/useServerTable'
+import { useTaskFilters } from '../../composables/useTaskFilters'
 import { useTaskKindLabel } from '../../composables/useTaskKindLabel'
-import { useLocaleStore } from '../../stores/locale'
 import { useTasksStore } from '../../stores/tasks'
-import type { PanelTask, PanelTaskStatus } from '../../types/panelTask'
-import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
+import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
+import type { PanelTask } from '../../types/panelTask'
 
 const { t } = useI18n()
 const store = useTasksStore()
-const localeStore = useLocaleStore()
+const { picker: accountPicker, search: searchAccounts } = useAccountChoice()
+const { spec: accountSpec, name: accountFilterName } = useAccountFilter()
+const { isCustomer } = useCallerRole()
+const labels = useListLabels()
 const kindLabel = useTaskKindLabel()
+const taskFilters = useTaskFilters(accountSpec)
 
-
-/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
-const columns: ComputedRef<UiTableColumn[]> = computed(() => {
-  return [
-    { key: 'kind', label: t('tasks.columns.kind'), kind: 'identity' },
-    { key: 'subject', label: t('tasks.columns.subject'), kind: 'mono' },
-    { key: 'status', label: t('tasks.columns.status'), kind: 'badge' },
-    { key: 'percent', label: t('tasks.columns.percent'), kind: 'number' },
-    { key: 'startedAt', label: t('tasks.columns.startedAt'), kind: 'date' },
-    { key: 'actions', label: t('common.actions'), kind: 'actions' },
-  ]
+const table = useServerTable<PanelTask>({
+  filters: taskFilters.schema,
+  /**
+   * Reads one page through the store.
+   * @param request The page the URL describes.
+   * @returns How the read ended.
+   */
+  load: (request: ListRequest): Promise<ListLoad<PanelTask>> => {
+    return store.list(request)
+  },
 })
 
-/** The failed tasks, in the listing's order — newest first — so the first is the latest failure. */
-const failedTasks: ComputedRef<PanelTask[]> = computed(() => {
-  return store.tasks.filter((task) => {
-    return task.status === 'failed'
-  })
+/** Whether the filter sheet is open. */
+const filtersOpen: Ref<boolean> = ref(false)
+
+/** Whether the list is narrowed by a search or a filter, so an empty answer means "no match". */
+const isNarrowed: ComputedRef<boolean> = computed(() => {
+  return table.request.value.search !== '' || table.activeFilterCount.value > 0
 })
 
-/**
- * Reads the listing.
- *
- * The store drops a second request while one is already in flight, so mounting this page at the
- * same moment as the header's badge is one request rather than two.
- * @returns Resolves once the request has settled.
- */
-const refresh = async (): Promise<void> => {
-  await store.load()
-}
+/** Whether the latest answer arrived and holds no rows at all. */
+const answeredNothing: ComputedRef<boolean> = computed(() => {
+  return table.state.value.status === 'loaded' && table.total.value === 0
+})
+
+/** How many tasks failed, across every page, when the panel answered and some did; otherwise 0. */
+const failedCount: ComputedRef<number> = computed(() => {
+  const failures = store.failures
+  return failures.state === 'answered' ? failures.count : 0
+})
+
+/** The applied operation as an operator reads it: the panel's name, or this bundle's word for it. */
+const kindName: ComputedRef<string> = computed(() => {
+  const applied = table.filters.value.kind ?? ''
+  return store.kinds.find((choice) => {
+    return choice.kind === applied
+  })?.kindName ?? kindLabel(applied)
+})
+
+/** One removable chip per applied filter. */
+const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
+  return taskFilters.chips(table.filters.value, accountFilterName.value, kindName.value)
+})
 
 /**
  * Opens one task's live pane and starts watching it.
- * @param id The task to open.
+ * @param task The task to open.
  * @returns Nothing.
  */
-const open = (id: string): void => {
-  store.select(id)
-}
-
-/**
- * Opens the latest failed task, the one the attention notice is about.
- * @returns Nothing.
- */
-const openLatestFailure = (): void => {
-  const latest = failedTasks.value[0]
-  if (latest !== undefined) {
-    open(latest.id)
-  }
+const open = (task: PanelTask): void => {
+  store.select(task)
 }
 
 /**
@@ -109,36 +118,41 @@ const close = (): void => {
 }
 
 /**
- * Renders when a task started, in the operator's language.
- *
- * The instant, not the day: `formatDate` printed `3 Sep 2026` for every task started on that day,
- * so a list of a morning's provisioning runs said nothing about which ran when. A task is a thing
- * that happened at a moment, and the panel already owns the formatter for one.
- * @param startedAt The instant, as the module sent it.
- * @returns The formatted instant, date and time of day.
+ * Narrows the list to the failed tasks, the way in from the attention notice.
+ * @returns Resolves once the filter reached the URL.
  */
-const started = (startedAt: string): string => {
-  return formatIsoTimestamp(startedAt, localeStore.current)
+const showFailed = async (): Promise<void> => {
+  await table.setFilters({ ...table.filters.value, status: 'failed' })
 }
 
 /**
- * The meter status of a row's small progress bar: the accent while it runs, green when done, red
- * when it failed — the same three the pane uses, so a row and its pane agree.
- * @param status The task's status.
- * @returns The status the kit's meter colours itself by.
+ * Opens the filter sheet.
+ * @returns Nothing.
  */
-const meterStatus = (status: PanelTaskStatus): UiMeterStatus => {
-  switch (status) {
-    case 'completed':
-      return 'success'
-    case 'failed':
-      return 'danger'
-    default:
-      return 'running'
-  }
+const openFilters = (): void => {
+  filtersOpen.value = true
 }
 
-onMounted(refresh)
+/**
+ * Closes the filter sheet.
+ * @returns Nothing.
+ */
+const closeFilters = (): void => {
+  filtersOpen.value = false
+}
+
+/**
+ * Clears the search and every filter, the way back from a question that matched nothing.
+ * @returns Resolves once the filters left the URL; the search follows after the box's pause.
+ */
+const clearAll = async (): Promise<void> => {
+  table.search.value = ''
+  await table.clearFilters()
+}
+
+onMounted(async () => {
+  await Promise.all([store.loadFailures(), store.loadKinds()])
+})
 </script>
 
 <template>
@@ -149,13 +163,11 @@ onMounted(refresh)
       :subtitle="t('tasks.list.subtitle')"
     />
 
-    <!-- What needs attention goes first: a task that failed. -->
-    <UiAlert v-if="failedTasks.length > 0" variant="warning">
-      {{ t('tasks.list.failedNotice', { count: failedTasks.length }, failedTasks.length) }}
+    <!-- What needs attention goes first: tasks that failed, counted by the panel across every page. -->
+    <UiAlert v-if="failedCount > 0" variant="warning">
+      {{ t('tasks.list.failedNotice', { count: failedCount }, failedCount) }}
       <template #actions>
-        <UiButton variant="secondary" @click="openLatestFailure">
-          {{ t('tasks.list.openFailure') }}
-        </UiButton>
+        <UiButton variant="secondary" @click="showFailed">{{ t('tasks.list.showFailed') }}</UiButton>
       </template>
     </UiAlert>
 
@@ -163,85 +175,94 @@ onMounted(refresh)
          included — instead of reusing the previous task's. -->
     <TaskLivePane v-if="store.openTask !== null" :key="store.openTask.id" :task="store.openTask" @close="close" />
 
-    <UiCard>
+    <UiCard class="min-w-0">
       <UiSectionHeading class="mb-4" :title="t('tasks.list.recentHeading')" />
 
-      <UiLoadingRegion :state="store.loadState">
-        <template #error>
-          <UiAlert variant="error">{{ store.listErrorMessage ?? t('common.list.unreachable') }}</UiAlert>
-        </template>
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-end gap-3">
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85 flex-1"
+            :label="t('tasks.list.searchLabel')"
+            :placeholder="t('tasks.list.searchPlaceholder')"
+            :clear-label="t('tasks.list.searchClear')"
+          />
+          <UiFilterTrigger
+            :label="t('common.list.filters')"
+            :active-count="table.activeFilterCount.value"
+            :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
+            @click="openFilters"
+          />
+        </div>
 
-        <UiEmptyState
-          v-if="store.isEmpty"
-          :title="t('tasks.list.emptyTitle')"
-          :description="t('tasks.list.emptyDescription')"
-        >
-          <template #icon><UiIcon name="listChecks" size="lg" /></template>
-        </UiEmptyState>
+        <UiActiveFilter
+          v-if="chips.length > 0"
+          :chips="chips"
+          :clear-label="t('common.list.clearAll')"
+          @remove="table.clearFilter"
+          @clear="table.clearFilters"
+        />
 
-        <UiTable
-          v-else
-          :caption="t('tasks.list.tableCaption')"
-          :columns="columns"
-          :rows="store.tasks"
-          row-key="id"
-          :loading="store.loadState === 'loading'"
-        >
-          <template #cell-kind="{ row }">{{ kindLabel(row.kind) }}</template>
-          <!-- The subject is whatever the module named the task after, and it is machine text as
-               often as not — a domain, a system user name, an identifier. Monospaced so a column of
-               them lines up and a zero is not an O; never uppercased. It never wraps (a hyphen or a
-               dot is a break opportunity): an identifier read across six lines is a different
-               string, so the table scrolls instead. -->
-          <template #cell-subject="{ row }">{{ row.subject }}</template>
-          <template #cell-status="{ row }"><TaskStatusBadge :status="row.status" /></template>
-          <!-- The wire value is an integer 0-100 clamped by the module, never absent, so the cell
-               always carries a percentage and says so: a bare "100" names no unit. The bar beside
-               it is decoration and carries no text, so the cell's text is the figure alone (the
-               meter is told not to print its own, which would read "40%40%"). -->
-          <template #cell-percent="{ row }">
-            <div class="flex items-center justify-end gap-3">
-              <!-- Decoration: the figure beside it is the text, and a row's bar must not be announced
-                   as a second progressbar next to the pane's (nor share its name). The fixed width
-                   keeps the column's bars aligned whatever the figure's length. A failed task keeps
-                   its figure but loses the bar, which would read as work still under way (#222);
-                   the empty box keeps the column aligned. -->
-              <div class="w-16 shrink-0" aria-hidden="true">
-                <UiMeter
-                  v-if="row.status !== 'failed'"
-                  tone="progress"
-                  :status="meterStatus(row.status)"
-                  :value="row.percent"
-                  :max="100"
-                  :label="t('tasks.columns.percent')"
-                  :value-text="t('tasks.list.percentValue', { percent: row.percent })"
-                  :show-value="false"
-                />
-              </div>
-              <span class="min-w-10">{{ t('tasks.list.percentValue', { percent: row.percent }) }}</span>
-            </div>
+        <UiLoadingRegion :state="table.loadingState.value">
+          <template #error>
+            <UiAlert v-if="table.state.value.status === 'refused'" variant="error">
+              {{ table.state.value.message }}
+            </UiAlert>
+            <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
           </template>
-          <template #cell-startedAt="{ row }">{{ started(row.startedAt) }}</template>
-          <template #cell-actions="{ row }">
-            <!-- One command today and a menu anyway, so the last column has one shape in every
-                 table of the panel and an operator learns the control once. The trigger's name
-                 carries the row's subject, because "Actions" repeated down a column of identical
-                 triggers names nothing to a screen reader. -->
-            <UiDropdown
-              :label="t('common.actions')"
-              :aria-label="t('tasks.list.rowActions', { subject: row.subject })"
-              align="end"
-              variant="bare"
-              :chevron="false"
-            >
-              <template #trigger>
-                <UiIcon name="ellipsis" size="md" />
-              </template>
-              <UiDropdownItem @select="open(row.id)">{{ t('tasks.list.watch') }}</UiDropdownItem>
-            </UiDropdown>
-          </template>
-        </UiTable>
-      </UiLoadingRegion>
+
+          <UiEmptyState
+            v-if="answeredNothing && !isNarrowed"
+            :title="t('tasks.list.emptyTitle')"
+            :description="t('tasks.list.emptyDescription')"
+          >
+            <template #icon><UiIcon name="listChecks" size="lg" /></template>
+          </UiEmptyState>
+
+          <UiEmptyState
+            v-else-if="answeredNothing"
+            :title="t('tasks.list.noResultsTitle')"
+            :description="t('tasks.list.noResultsDescription')"
+          >
+            <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
+          </UiEmptyState>
+
+          <div v-else class="flex flex-col gap-4">
+            <TaskTable
+              :rows="store.rows"
+              :loading="table.state.value.status === 'loading'"
+              :skeleton-rows="table.pageSize.value"
+              :sort="table.sort.value"
+              @sort="table.toggleSort"
+              @open="open"
+            />
+
+            <UiPagination
+              v-if="table.state.value.status === 'loaded'"
+              :page="table.page.value"
+              :page-size="table.pageSize.value"
+              :total="table.total.value"
+              :page-sizes="table.pageSizes"
+              :labels="labels.pagination.value"
+              @update:page="table.setPage"
+              @update:page-size="table.setPageSize"
+            />
+          </div>
+        </UiLoadingRegion>
+      </div>
     </UiCard>
+
+    <!-- A customer's tasks are already their own account's; there is no account to narrow to. -->
+    <TaskFilterSheet
+      :open="filtersOpen"
+      :model-value="table.filters.value"
+      :show-account="!isCustomer"
+      :account-picker="accountPicker"
+      :account-name="accountFilterName"
+      :kinds="store.kinds"
+      @update:model-value="table.setFilters"
+      @close="closeFilters"
+      @search-accounts="searchAccounts"
+    />
   </section>
 </template>

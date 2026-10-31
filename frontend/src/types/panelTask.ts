@@ -1,3 +1,5 @@
+import type { ListRequest, Paged } from './list'
+
 /**
  * Where a panel task has got to, mirroring the backend's `PanelTaskStatus`.
  *
@@ -6,6 +8,41 @@
  * is the contract on the plain endpoints and inside the stream alike.
  */
 export type PanelTaskStatus = 'running' | 'completed' | 'failed'
+
+/** Every {@link PanelTaskStatus}, in the order the status filter offers them. */
+export const TASK_STATUSES: readonly PanelTaskStatus[] = ['running', 'completed', 'failed']
+
+/**
+ * One kind of task the caller can see, as the kind filter offers it: the machine-stable kind the
+ * filter sends, and the name an operator reads, localized by the backend.
+ */
+export interface TaskKindChoice {
+  /** The machine-stable kind, sent back as the `kind` filter. */
+  kind: string
+  /** The kind as an operator reads it, in the request's language. */
+  kindName: string
+}
+
+/**
+ * Where the failed-task count stands on the tasks page: not answered yet, answered, or not
+ * answerable. A union rather than a number, so "no task failed" and "the panel could not say" are
+ * never the same value.
+ */
+export type TaskFailureCount =
+  | {
+      /** The question is on its way. */
+      state: 'loading'
+    }
+  | {
+      /** The panel answered. */
+      state: 'answered'
+      /** How many tasks the caller may see have failed. */
+      count: number
+    }
+  | {
+      /** The panel could not be asked or did not answer. */
+      state: 'unavailable'
+    }
 
 /**
  * Outward view of one background task, mirroring the backend's `PanelTaskDto` field-for-field.
@@ -88,13 +125,35 @@ export interface PanelTaskStreamHandlers {
  */
 export interface TasksApi {
   /**
-   * Lists the most recent background tasks the caller may see, newest first: every task for an
-   * administrator, the tasks recorded for their own account for a customer (each with
-   * `logIncluded: false`). A customer with none receives an empty list.
+   * Reads one page of the background tasks the caller may see: every task for an administrator,
+   * the tasks recorded for their own account for a customer (each with `logIncluded: false`).
+   * @param request The page, size, search, sort and the account, status, kind, from and to filters.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The tasks, newest first.
+   * @returns The page.
    */
-  list: (signal?: AbortSignal) => Promise<PanelTask[]>
+  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<PanelTask>>
+
+  /**
+   * Lists every running task the caller may see, newest first. Unpaged: running work is transient,
+   * and this is what the header badge counts and the shell watches.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The running tasks.
+   */
+  running: (signal?: AbortSignal) => Promise<PanelTask[]>
+
+  /**
+   * Lists the distinct kinds of task the caller can see, for the kind filter.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The kinds with their localized names.
+   */
+  kinds: (signal?: AbortSignal) => Promise<TaskKindChoice[]>
+
+  /**
+   * Counts the failed tasks the caller may see, across every page.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns How many failed.
+   */
+  failedCount: (signal?: AbortSignal) => Promise<number>
 
   /**
    * Reads one task. A task the caller may not see answers 404, not 403.

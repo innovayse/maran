@@ -1,4 +1,6 @@
 import { useApi } from '../useApi'
+import { listQuery } from '../../utils/listQuery'
+import type { ListRequest, Paged } from '../../types/list'
 import type {
   AcceptInvitationRequest,
   AcceptInvitationResult,
@@ -131,13 +133,15 @@ export const useAuthApi = (): AuthApi => {
   }
 
   /**
-   * Lists the caller's live sessions. Takes no user parameter: the endpoint is
-   * scoped to the caller's own token, so there is nothing to point elsewhere.
+   * Lists one page of the caller's live sessions, newest first unless a sort is named. Takes no
+   * user parameter: the endpoint is scoped to the caller's own token, so there is nothing to point
+   * elsewhere, and the list takes no typed filter, so none is ever sent.
+   * @param request The page, size, search and sort.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The caller's signed-in devices.
+   * @returns The page of the caller's signed-in devices and their total.
    */
-  const listSessions = (signal?: AbortSignal): Promise<Session[]> => {
-    return api.get<Session[]>(SESSIONS_PATH, signal)
+  const listSessions = (request: ListRequest, signal?: AbortSignal): Promise<Paged<Session>> => {
+    return api.get<Paged<Session>>(`${SESSIONS_PATH}${listQuery(request, {})}`, signal)
   }
 
   /**

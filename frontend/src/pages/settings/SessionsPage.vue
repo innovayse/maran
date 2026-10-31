@@ -22,6 +22,11 @@
  *   itself never scrolls sideways; the device name truncates instead of widening the column.
  * - Only the fields the screen knows are rendered, never the response wholesale (a leaked
  *   token hash must not reach the page).
+ *
+ * **The list is one server page at a time** (`useServerTable`): page, page size, search and sort live
+ * in the URL. The panel searches the address and the user agent, sorts and counts; the row it marks
+ * current is this browser's, whichever page it falls on. Ending a session is followed by reading the
+ * page again, since the removal pulls a row up from the next page.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -38,18 +43,36 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
+import UiPagination from '../../components/ui/UiPagination.vue'
+import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import { useCallerRole } from '../../composables/useCallerRole'
+import { useListLabels } from '../../composables/useListLabels'
+import { useServerTable } from '../../composables/useServerTable'
 import { useAuthStore } from '../../stores/auth'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
+import type { Session } from '../../types/auth'
+import type { ListLoad, ListRequest } from '../../types/list'
 
 const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 const localeStore = useLocaleStore()
 const { isAdmin } = useCallerRole()
+const labels = useListLabels()
+
+const table = useServerTable<Session>({
+  /**
+   * Reads one page through the store.
+   * @param request The page the URL describes.
+   * @returns How the read ended.
+   */
+  load: (request: ListRequest): Promise<ListLoad<Session>> => {
+    return authStore.listSessions(request)
+  },
+})
 
 /** The session the user has asked to end and is being asked to confirm, or `null`. */
 const pendingRevocation: Ref<string | null> = ref(null)
@@ -63,16 +86,29 @@ const pendingRevocation: Ref<string | null> = ref(null)
  */
 const revoking: Ref<boolean> = ref(false)
 
-/** The devices table's columns: its header, its cells and its loading placeholder all read this one list. */
+/**
+ * The devices table's columns: its header, its cells and its loading placeholder all read this one
+ * list. The two instants sort by the server's `issuedAt` and `expiresAt` keys.
+ */
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
     { key: 'device', label: t('app.sessions.deviceColumn'), kind: 'identity' },
     { key: 'address', label: t('app.sessions.addressColumn'), kind: 'mono' },
-    { key: 'signedIn', label: t('app.sessions.signedInColumn'), kind: 'date', align: 'end' },
+    { key: 'signedIn', label: t('app.sessions.signedInColumn'), kind: 'date', sortField: 'issuedAt' },
+    { key: 'expires', label: t('app.sessions.expiresColumn'), kind: 'date', sortField: 'expiresAt' },
     { key: 'actions', label: t('common.actions'), kind: 'actions' },
   ]
 })
 
+/** Whether the list is narrowed by a search, so an empty answer means "no match". */
+const isNarrowed: ComputedRef<boolean> = computed(() => {
+  return table.request.value.search !== ''
+})
+
+/** Whether the latest answer arrived and holds no rows at all. */
+const answeredNothing: ComputedRef<boolean> = computed(() => {
+  return table.state.value.status === 'loaded' && table.total.value === 0
+})
 
 /** The session the confirmation is open for, or `null` when none is. */
 const pendingSession: ComputedRef<{ id: string; ipAddress: string; isCurrent: boolean } | null> =
@@ -138,7 +174,19 @@ const revoke = async (): Promise<void> => {
   if (ended && pending.isCurrent) {
     await authStore.logout()
     await router.push({ name: 'login' })
+    return
   }
+  if (ended) {
+    await table.reload()
+  }
+}
+
+/**
+ * Clears the search, the way back from a question that matched nothing.
+ * @returns Nothing; the URL follows after the box's pause.
+ */
+const clearSearch = (): void => {
+  table.search.value = ''
 }
 
 /**
@@ -150,8 +198,9 @@ const signOutEverywhere = async (): Promise<void> => {
   await router.push({ name: 'login' })
 }
 
-onMounted(async () => {
-  await authStore.loadSessions()
+// A refusal from another screen's action is not this visit's; the list itself loads from the URL.
+onMounted((): void => {
+  authStore.errorMessage = null
 })
 </script>
 
@@ -170,7 +219,7 @@ onMounted(async () => {
              them on its own (rules/security.md). -->
         <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'security-policy' }">{{ t('app.sessions.securityPolicyLink') }}</UiButton>
         <UiButton
-          v-if="authStore.sessions.length > 0"
+          v-if="table.total.value > 0"
           variant="destructive"
           @click="signOutEverywhere"
         >
@@ -179,66 +228,106 @@ onMounted(async () => {
       </template>
     </UiPageHeading>
 
-    <!-- A refused sign-out, reported above the list it was asked from rather than in its place. -->
-    <UiAlert v-if="authStore.sessionsState === 'loaded' && authStore.errorMessage !== null" variant="error">
+    <!-- A refused sign-out or end, reported above the list it was asked from rather than in its place. -->
+    <UiAlert v-if="authStore.errorMessage !== null" variant="error">
       {{ authStore.errorMessage }}
     </UiAlert>
 
-    <UiLoadingRegion :state="authStore.sessionsState">
-      <template #error>
-        <UiAlert variant="error">{{ authStore.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
-      </template>
+    <UiCard>
+      <div class="flex flex-col gap-4">
+        <!-- No search has anything to narrow on a list with nothing in it. -->
+        <UiSearchInput
+          v-if="!answeredNothing || isNarrowed"
+          v-model="table.search.value"
+          class="min-w-55 max-w-85"
+          :label="t('app.sessions.searchLabel')"
+          :placeholder="t('app.sessions.searchPlaceholder')"
+          :clear-label="t('app.sessions.searchClear')"
+        />
 
-      <UiEmptyState
-        v-if="authStore.sessionsState === 'loaded' && authStore.sessions.length === 0"
-        :title="t('app.sessions.emptyTitle')"
-        :description="t('app.sessions.emptyDescription')"
-      />
-
-      <UiCard v-else>
-        <UiTable
-          :caption="t('app.sessions.tableCaption')"
-          :columns="columns"
-          :rows="authStore.sessions"
-          row-key="id"
-          :loading="authStore.sessionsState === 'loading'"
-        >
-          <template #cell-device="{ row }">
-            <div class="flex items-center gap-3">
-              <!-- Decorative: the device's name beside it is the cell's whole content. -->
-              <UiIconTile name="globe" size="sm" />
-              <div class="flex min-w-0 flex-col items-start gap-1">
-                <span class="block max-w-65 min-w-35 truncate font-semibold">{{ row.userAgent }}</span>
-                <UiBadge v-if="row.isCurrent" variant="success">
-                  {{ t('app.sessions.currentDevice') }}
-                </UiBadge>
-              </div>
-            </div>
+        <UiLoadingRegion :state="table.loadingState.value">
+          <template #error>
+            <UiAlert v-if="table.state.value.status === 'refused'" variant="error">
+              {{ table.state.value.message }}
+            </UiAlert>
+            <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
           </template>
-          <template #cell-address="{ row }">{{ row.ipAddress }}</template>
-          <template #cell-signedIn="{ row }">{{ formatDate(row.issuedAt, localeStore.current) }}</template>
-          <template #cell-actions="{ row }">
-            <!-- One command today and a menu anyway, so the last column has one shape in every
-                 table of the panel. The trigger's name carries the row's address, because
-                 "Actions" repeated down a column names nothing to a screen reader. -->
-            <UiDropdown
-              :label="t('common.actions')"
-              :aria-label="t('app.sessions.rowActions', { address: row.ipAddress })"
-              align="end"
-              variant="bare"
-              :chevron="false"
+
+          <UiEmptyState
+            v-if="answeredNothing && !isNarrowed"
+            :title="t('app.sessions.emptyTitle')"
+            :description="t('app.sessions.emptyDescription')"
+          />
+
+          <UiEmptyState
+            v-else-if="answeredNothing"
+            :title="t('app.sessions.noResultsTitle')"
+            :description="t('app.sessions.noResultsDescription')"
+          >
+            <UiButton variant="secondary" @click="clearSearch">{{ t('app.sessions.searchClear') }}</UiButton>
+          </UiEmptyState>
+
+          <div v-else class="flex flex-col gap-4">
+            <UiTable
+              :caption="t('app.sessions.tableCaption')"
+              :columns="columns"
+              :rows="authStore.sessions"
+              row-key="id"
+              :loading="table.state.value.status === 'loading'"
+              :skeleton-rows="table.pageSize.value"
+              :sort="table.sort.value"
+              @sort="table.toggleSort"
             >
-              <template #trigger>
-                <UiIcon name="ellipsis" size="md" />
+              <template #cell-device="{ row }">
+                <div class="flex items-center gap-3">
+                  <!-- Decorative: the device's name beside it is the cell's whole content. -->
+                  <UiIconTile name="globe" size="sm" />
+                  <div class="flex min-w-0 flex-col items-start gap-1">
+                    <span class="block max-w-65 min-w-35 truncate font-semibold">{{ row.userAgent }}</span>
+                    <UiBadge v-if="row.isCurrent" variant="success">
+                      {{ t('app.sessions.currentDevice') }}
+                    </UiBadge>
+                  </div>
+                </div>
               </template>
-              <UiDropdownItem destructive @select="askToRevoke(row.id)">
-                {{ t('app.sessions.end') }}
-              </UiDropdownItem>
-            </UiDropdown>
-          </template>
-        </UiTable>
-      </UiCard>
-    </UiLoadingRegion>
+              <template #cell-address="{ row }">{{ row.ipAddress }}</template>
+              <template #cell-signedIn="{ row }">{{ formatDate(row.issuedAt, localeStore.current) }}</template>
+              <template #cell-expires="{ row }">{{ formatDate(row.expiresAt, localeStore.current) }}</template>
+              <template #cell-actions="{ row }">
+                <!-- One command today and a menu anyway, so the last column has one shape in every
+                     table of the panel. The trigger's name carries the row's address, because
+                     "Actions" repeated down a column names nothing to a screen reader. -->
+                <UiDropdown
+                  :label="t('common.actions')"
+                  :aria-label="t('app.sessions.rowActions', { address: row.ipAddress })"
+                  align="end"
+                  variant="bare"
+                  :chevron="false"
+                >
+                  <template #trigger>
+                    <UiIcon name="ellipsis" size="md" />
+                  </template>
+                  <UiDropdownItem destructive @select="askToRevoke(row.id)">
+                    {{ t('app.sessions.end') }}
+                  </UiDropdownItem>
+                </UiDropdown>
+              </template>
+            </UiTable>
+
+            <UiPagination
+              v-if="table.state.value.status === 'loaded'"
+              :page="table.page.value"
+              :page-size="table.pageSize.value"
+              :total="table.total.value"
+              :page-sizes="table.pageSizes"
+              :labels="labels.pagination.value"
+              @update:page="table.setPage"
+              @update:page-size="table.setPageSize"
+            />
+          </div>
+        </UiLoadingRegion>
+      </div>
+    </UiCard>
 
     <!-- Outside the table on purpose: the branch above swaps the table for an alert or an empty
          state, and a dialog mounted inside it would be unmounted by the very refresh it survives.

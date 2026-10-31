@@ -67,7 +67,7 @@ const sources: ComputedRef<AttentionSource[]> = computed(() => {
     { key: 'certificates', section: props.attention.certificatesExpiringSoon, to: '/sites' },
     { key: 'backups', section: props.attention.failedBackups, to: '/backups' },
     { key: 'tasks', section: props.attention.failedTasks, to: '/tasks' },
-    { key: 'bans', section: props.attention.bannedAddresses, to: '/firewall' },
+    { key: 'bans', section: props.attention.bannedAddresses, to: '/firewall/bans' },
   ]
 })
 

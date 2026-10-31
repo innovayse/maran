@@ -48,6 +48,11 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         builder.HasIndex(e => e.OccurredAt).IsDescending().HasDatabaseName("IX_AuditEvents_OccurredAt");
         builder.HasIndex(e => e.ActorUserId).HasDatabaseName("IX_AuditEvents_ActorUserId");
 
+        // The journal screen filters by one action and its action filter lists the distinct actions
+        // the journal holds (ListAuditActionChoicesQuery). The table only grows, so both would be a
+        // sequential pass over every entry ever written without this index.
+        builder.HasIndex(e => e.Action).HasDatabaseName("IX_AuditEvents_Action");
+
         // Deliberately NO foreign key to Users: the journal outlives the accounts it describes.
         // A deleted user must not take the record of what they did with them, and a failed login
         // names a user who never existed at all.

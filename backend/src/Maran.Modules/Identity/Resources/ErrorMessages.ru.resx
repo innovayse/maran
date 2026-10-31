@@ -96,4 +96,13 @@
   <data name="AdminRecoveryLoginNotActive">
     <value>Вход этого администратора не активен (приостановлен или ещё ждёт первого пароля), поэтому восстановить его с консоли нельзя.</value>
   </data>
+  <data name="AuditActionFilterInvalid">
+    <value>Такое действие журнал аудита записать не может.</value>
+  </data>
+  <data name="AuditOutcomeUnknown">
+    <value>У записи аудита не может быть такого результата.</value>
+  </data>
+  <data name="AuditDateRangeInverted">
+    <value>Начало периода не может быть позже его конца.</value>
+  </data>
 </root>

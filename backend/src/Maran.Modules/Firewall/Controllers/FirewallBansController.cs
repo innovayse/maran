@@ -40,16 +40,22 @@ public sealed class FirewallBansController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists the bans still in force, newest first, each with the reason it was placed.</summary>
+    /// <summary>
+    /// Lists one page of the bans still in force, newest first unless a sort is named, each with the
+    /// reason it was placed.
+    /// </summary>
+    /// <param name="query">The page, page size, search and sort, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<BanDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<BanDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync(
+        [FromQuery] ListBansQuery query,
+        CancellationToken cancellationToken)
     {
-        var query = new ListBansQuery();
-        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<BanDto>>>(query, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<BanDto>>>(query, cancellationToken));
     }
 
     /// <summary>Bans an address, for a duration or until somebody lifts it.</summary>

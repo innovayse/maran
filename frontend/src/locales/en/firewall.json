@@ -2,7 +2,7 @@
   "firewall": {
     "eyebrow": "Security",
     "heading": "Firewall",
-    "subtitle": "What this host lets through, who it is currently refusing, and who it will never refuse.",
+    "subtitle": "The ports this host lets through, and from where.",
     "sshNote": "The accept rules the panel generates for SSH and for its own port are not listed here and cannot be removed from this screen. Which port SSH listens on is a host fact the panel holds and does not send to the browser, so read the port yourself before changing a rule.",
     "protocols": {
       "tcp": "TCP",
@@ -101,7 +101,13 @@
         },
         "hint": "Leave the minutes empty for a ban that lasts until somebody lifts it.",
         "submit": "Ban the address"
-      }
+      },
+      "listTitle": "Bans in force",
+      "searchLabel": "Search bans",
+      "searchPlaceholder": "Search by address…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No bans match",
+      "noResultsDescription": "Change the search, or clear it to see every ban in force."
     },
     "whitelist": {
       "heading": "Never banned",
@@ -137,7 +143,13 @@
         },
         "hint": "Say what the range is. In six months the note is the only thing that will explain the row.",
         "submit": "Add the exemption"
-      }
+      },
+      "listTitle": "Exempt ranges",
+      "searchLabel": "Search exemptions",
+      "searchPlaceholder": "Search by range or note…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No exemptions match",
+      "noResultsDescription": "Change the search, or clear it to see every exempt range."
     }
   }
 }
