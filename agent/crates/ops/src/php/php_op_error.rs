@@ -152,17 +152,47 @@ pub enum PhpOpError {
         reason: String,
     },
 
-    /// The install unit could not be started, failed, or succeeded without
-    /// the version appearing.
+    /// The install unit could not be started, failed for a reason that is not
+    /// a package source's, or succeeded without the version appearing.
     ///
     /// The package manager runs inside that unit, not in the agent, so its
-    /// own output is in the unit's journal and not in this error.
+    /// own output is in the unit's journal and not in this error; the agent
+    /// reads that journal only to classify the failure
+    /// (`classify_install_failure`), and when it cannot, the reason is
+    /// appended here.
     #[error("the PHP install unit failed: {stderr}")]
     PackageManager {
         /// The service manager's standard error, followed by the unit name, a
         /// pointer to `journalctl -u <unit>` where the package manager's own
         /// output lives, and a hint that a missing unit means the installer
         /// must be re-run, for an operator's log.
+        stderr: String,
+    },
+
+    /// The install unit's package manager failed because a package source
+    /// answered and refused — an HTTP error for repository metadata or for a
+    /// package archive (issue #251).
+    ///
+    /// Separate from [`Self::PackageManager`] because the fault is outside
+    /// this host: the remedy is the mirror, and a panel reporting it as a
+    /// fault of the server would send the operator to the wrong machine.
+    #[error("a package source refused the PHP install: {stderr}")]
+    PackageSourceRefused {
+        /// The service manager's standard error and the unit name, as for
+        /// [`Self::PackageManager`], for an operator's log.
+        stderr: String,
+    },
+
+    /// The install unit's package manager failed because no package source
+    /// could be reached — a name that did not resolve, a connection refused or
+    /// timed out (issue #251).
+    ///
+    /// Separate from [`Self::PackageSourceRefused`] because nothing answered:
+    /// a later attempt may succeed without anyone changing anything.
+    #[error("no package source could be reached for the PHP install: {stderr}")]
+    PackageSourceUnreachable {
+        /// The service manager's standard error and the unit name, as for
+        /// [`Self::PackageManager`], for an operator's log.
         stderr: String,
     },
 

@@ -4,7 +4,7 @@ import { useDashboardApi } from '../composables/apis/useDashboardApi'
 import { ApiError } from '../composables/useApi'
 import type { LoadingState } from '../types/loading'
 import type { AuditEvent } from '../types/audit'
-import type { DashboardAttention, DashboardCounts, DashboardResources } from '../types/dashboard'
+import type { DashboardAttention, DashboardCounts, DashboardResources, DashboardSection } from '../types/dashboard'
 import type { ServiceStatus } from '../types/monitoring'
 
 /**
@@ -13,10 +13,11 @@ import type { ServiceStatus } from '../types/monitoring'
  * reads state from here and calls `load`; it never touches the API layer (rules/vue.md: "API
  * composables are called from Pinia stores ONLY").
  *
- * **The nulls are kept as nulls, deliberately.** The panel answers with a null section to mean "not
- * for this caller", and collapsing that into an empty object here would make a withheld section
- * indistinguishable from an empty one — which is the difference the page needs in order to say
- * "nothing to show you" instead of drawing four blank panels at a customer.
+ * **The nulls are kept as nulls, and the sections as sections, deliberately.** The panel answers with
+ * a null section to mean "not for this caller", and collapsing that into an empty object here would
+ * make a withheld section indistinguishable from an empty one. A section the panel could not read
+ * arrives as `unavailable` and is stored as that, never unwrapped into an empty list, so the page can
+ * say "could not be read" rather than "nothing here" (issue #248).
  *
  * Error text is never generated here: the panel's already-localized message is stored verbatim
  * (rules/vue.md: "the backend owns their text").
@@ -27,20 +28,20 @@ export const useDashboardStore = defineStore('dashboard', () => {
   /** Whether the panel filled the administrator sections for this caller. */
   const isAdministrator: Ref<boolean> = ref(false)
 
-  /** The host's live resource reading, or `null` when withheld, unreadable, or not yet read. */
-  const resources: Ref<DashboardResources | null> = ref(null)
+  /** The host's live resource reading, or `null` when withheld or not yet read. */
+  const resources: Ref<DashboardSection<DashboardResources> | null> = ref(null)
 
-  /** The watched services as last reported. */
-  const services: Ref<ServiceStatus[]> = ref([])
+  /** The watched services as last reported, or `null` when withheld or not yet read. */
+  const services: Ref<DashboardSection<ServiceStatus[]> | null> = ref(null)
 
-  /** What this server holds, or `null` when withheld, unreadable, or not yet read. */
+  /** What this server holds, or `null` when withheld or not yet read. */
   const counts: Ref<DashboardCounts | null> = ref(null)
 
-  /** What needs looking at, or `null` when withheld, unreadable, or not yet read. */
+  /** What needs looking at, or `null` when withheld or not yet read. */
   const attention: Ref<DashboardAttention | null> = ref(null)
 
-  /** The newest audit entries as last reported. */
-  const recentAudit: Ref<AuditEvent[]> = ref([])
+  /** The newest audit entries as last reported, or `null` when withheld or not yet read. */
+  const recentAudit: Ref<DashboardSection<AuditEvent[]> | null> = ref(null)
 
   /** Where the read of the screen stands: on its way, arrived, or refused. */
   const loadState: Ref<LoadingState> = ref('loading')

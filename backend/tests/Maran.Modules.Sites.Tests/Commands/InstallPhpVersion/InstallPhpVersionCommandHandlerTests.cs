@@ -68,15 +68,28 @@ public sealed class InstallPhpVersionCommandHandlerTests
         Assert.True(audit.Entries.Single().Succeeded);
     }
 
-    /// <summary>A failure the agent names is the failure the task and the caller are given.</summary>
-    [Fact]
-    public async Task A_named_failure_fails_the_task_with_the_agents_own_code()
+    /// <summary>
+    /// A failure the agent names reaches the caller and the task exactly as the client typed it —
+    /// code AND kind — so each answers with its own status (issue #251). The statuses themselves are
+    /// proved over HTTP in <c>PhpVersionInstallEndpointTests</c>.
+    /// </summary>
+    /// <param name="code">The code the client stamped on the failed event.</param>
+    /// <param name="kind">The kind the client decided for it.</param>
+    [Theory]
+    [InlineData("AgentPackageSourceRefused", ErrorType.UpstreamRefused)]
+    [InlineData("AgentPackageSourceUnreachable", ErrorType.Unavailable)]
+    [InlineData("AgentNotImplemented", ErrorType.Unavailable)]
+    [InlineData("AgentUnavailable", ErrorType.Unavailable)]
+    [InlineData("AgentSystemFailure", ErrorType.Failure)]
+    public async Task A_named_failure_is_passed_through_with_its_code_and_its_kind(
+        string code,
+        ErrorType kind)
     {
         var php = new RecordingAgentPhpClient("8.3");
         php.StageInstall(
             [
                 new PhpInstallEvent(PhpInstallEventKind.Progress, 10, "fetching packages", "8.4", null),
-                new PhpInstallEvent(PhpInstallEventKind.Failed, 10, "package manager refused", "8.4", "PhpRepositoryUnavailable"),
+                new PhpInstallEvent(PhpInstallEventKind.Failed, 10, string.Empty, string.Empty, Error.Of(code, kind)),
             ]);
         var tasks = new RecordingTaskRecorder();
         var audit = new RecordingAuditWriter();
@@ -85,8 +98,9 @@ public sealed class InstallPhpVersionCommandHandlerTests
         var result = await handler.HandleAsync(Command("8.4"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("PhpRepositoryUnavailable", result.Error!.Code);
-        Assert.Equal("PhpRepositoryUnavailable", tasks.Tasks.Single().FailureCode);
+        Assert.Equal(code, result.Error!.Code);
+        Assert.Equal(kind, result.Error.Type);
+        Assert.Equal(code, tasks.Tasks.Single().FailureCode);
         Assert.False(audit.Entries.Single().Succeeded);
     }
 
@@ -114,6 +128,7 @@ public sealed class InstallPhpVersionCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("PhpInstallOutcomeUnobserved", result.Error!.Code);
+        Assert.Equal(ErrorType.Failure, result.Error.Type);
         Assert.Equal("PhpInstallOutcomeUnobserved", tasks.Tasks.Single().FailureCode);
         Assert.False(audit.Entries.Single().Succeeded);
     }

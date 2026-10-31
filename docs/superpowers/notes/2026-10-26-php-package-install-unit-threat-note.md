@@ -895,3 +895,35 @@ socket by a scratch client (never committed). The built agent equals the worktre
 9. Findings carried forward: the empty-stderr message on an agent restart (7.2); the open doc-only
    items of 6.3 A to C and the CHANGELOG entry (6.4 K) were assigned to fixers and this stage did not
    re-check them.
+
+## 8. Reading a failed run back (issue #251) *(added 2026-10-31)*
+
+The agent now tells a package source outside the host apart from a local failure, and to do it reads
+the failed run back. After `systemctl start` of the unit exits non-zero, `ops::php::classify_install_failure`
+runs two more programs, both read-only and both under `CallClass::Query`:
+
+- `systemctl show --property=InvocationID --property=ExecMainStatus -- <unit>` — the unit name is the
+  same adapter-built name the start used. Its answer is parsed by `ops::php::model::InstallRun`, which
+  accepts an invocation id of exactly 32 lowercase hexadecimal characters and a numeric status, and
+  nothing else.
+- `journalctl --output=cat --no-pager _SYSTEMD_INVOCATION_ID=<id>` — `journalctl` is a new entry on the
+  allow-list (`DistroAdapter::journal_binary`, `/usr/bin/journalctl` on both families). The one
+  argument built at run time is the match, and its value is the validated id, so the argv carries no
+  text the caller or the package manager chose.
+
+What the agent does with the output: `DistroAdapter::classify_package_failure` reads the package
+manager's exit status (apt-get 100, dnf 1; any other status is a local failure without reading a line)
+and its fetch-failure lines, and answers refused, unreachable or local. The output itself is NOT
+forwarded: `tool_output` still carries the service manager's stderr and the unit name, as before. What
+an attacker who controls a mirror can do with this is choose between the two package-source codes and
+the local one — that is, choose which of 502, 503 and 500 the administrator sees for an install that
+failed anyway. Nothing is installed, executed or written on the strength of the classification.
+
+A run that cannot be read back (no run named, a reader that fails or outlives its deadline) stays the
+local failure, with the reason appended to the operator-facing text. Stated limit, unmeasured: a
+journal line journald had not yet stored when it was read is not seen, and errs towards "local".
+
+Not verified here: either reader on a real systemd host. The classification is unit-tested against
+package-manager output recorded on `ubuntu:24.04` and `almalinux:9`
+(`agent/crates/distro/tests/fixtures/package_manager/`), and `journal_binary` is in the polygon's
+binary-path census, which has not been run for this change.

@@ -102,6 +102,36 @@ fn every_fault_of_this_machine_is_a_system_failure() {
 }
 
 #[test]
+fn a_package_source_that_refused_the_install_is_its_own_code_and_not_a_system_failure() {
+    let error = PhpOpError::PackageSourceRefused {
+        stderr: "Job for maran-php-install@php8.3-fpm.service failed".to_owned(),
+    };
+
+    let wire = to_agent_error(&error);
+
+    assert_eq!(wire.code, ErrorCode::PackageSourceRefused as i32);
+    assert_eq!(
+        wire.tool_output,
+        "Job for maran-php-install@php8.3-fpm.service failed"
+    );
+}
+
+#[test]
+fn a_package_source_nobody_reached_is_its_own_code_and_not_a_refusal() {
+    let error = PhpOpError::PackageSourceUnreachable {
+        stderr: "Job for maran-php-install@php8.3-fpm.service failed".to_owned(),
+    };
+
+    let wire = to_agent_error(&error);
+
+    assert_eq!(wire.code, ErrorCode::PackageSourceUnreachable as i32);
+    assert_eq!(
+        wire.tool_output,
+        "Job for maran-php-install@php8.3-fpm.service failed"
+    );
+}
+
+#[test]
 fn only_the_failures_that_ran_a_tool_carry_that_tools_output() {
     for (error, expected) in [
         (

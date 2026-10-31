@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { setPersistedLocale } from './fixtures/set-locale'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { stubDashboard } from './fixtures/stub-dashboard-route'
+import { loaded, stubDashboard, UNAVAILABLE } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import type { Dashboard } from '../src/types/dashboard'
@@ -23,20 +23,20 @@ const LICENSED: PanelModule[] = [
 const dashboardWith = (count: number): Dashboard => {
   return {
     isAdministrator: true,
-    resources: null,
-    services: [],
+    resources: UNAVAILABLE,
+    services: loaded([]),
     counts: {
-    accounts: { state: 'counted', count: 1 },
-    sites: { state: 'counted', count: 1 },
-    databases: { state: 'counted', count: 1 },
+    accounts: loaded(1),
+    sites: loaded(1),
+    databases: loaded(1),
   },
     attention: {
-      certificatesExpiringSoon: count,
-      failedBackups: count,
-      bannedAddresses: count,
-      failedTasks: count,
+      certificatesExpiringSoon: loaded(count),
+      failedBackups: loaded(count),
+      bannedAddresses: loaded(count),
+      failedTasks: loaded(count),
     },
-    recentAudit: [],
+    recentAudit: loaded([]),
   }
 }
 

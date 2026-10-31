@@ -4,7 +4,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupDestinations } from '../fixtures/stub-backup-destination-routes'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
-import { stubDashboard } from '../fixtures/stub-dashboard-route'
+import { loaded, stubDashboard } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
@@ -81,7 +81,7 @@ const BACKUP: Backup = {
 
 const DASHBOARD: Dashboard = {
   isAdministrator: true,
-  resources: {
+  resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 ** 3,
     memoryTotalBytes: 8 * 1024 ** 3,
@@ -92,15 +92,15 @@ const DASHBOARD: Dashboard = {
     loadAverage1m: 0.21,
     loadAverage5m: 0.34,
     loadAverage15m: 0.55,
-  },
-  services: [{ service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' }],
+  }),
+  services: loaded([{ service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' }]),
   counts: {
-    accounts: { state: 'counted', count: 3 },
-    sites: { state: 'counted', count: 7 },
-    databases: { state: 'counted', count: 4 },
+    accounts: loaded(3),
+    sites: loaded(7),
+    databases: loaded(4),
   },
-  attention: { certificatesExpiringSoon: 2, failedBackups: 5, bannedAddresses: 9, failedTasks: 6 },
-  recentAudit: [
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6) },
+  recentAudit: loaded([
     {
       id: '22222222-2222-2222-2222-222222222222',
       occurredAt: '2026-10-05T11:00:00+00:00',
@@ -111,7 +111,7 @@ const DASHBOARD: Dashboard = {
       ipAddress: '203.0.113.9',
       succeeded: false,
     },
-  ],
+  ]),
 }
 
 /**

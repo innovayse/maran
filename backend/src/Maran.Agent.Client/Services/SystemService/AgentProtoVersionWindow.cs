@@ -20,7 +20,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// <c>InstallCertificate</c>'s <c>refused</c> answer (issue #214), and both ends moved to it: a
 /// revision-2 agent would answer a refused pair with a bare <c>InvalidInput</c>, and the panel
 /// could no longer tell the customer which half to fix. A 0 is what protobuf reads
-/// from a sender that does not set the field at all, and it is outside the window too.
+/// from a sender that does not set the field at all, and it is outside the window too. Revision 4
+/// adds the two package-source failure codes (issue #251), and both ends moved to it as the
+/// one-revision default: a revision-3 agent reports a mirror that refused or could not be reached as
+/// a bare <c>SystemFailure</c>, so the panel would answer a fault outside the host as a 500 of its own.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -47,10 +50,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 3;
+    public const uint Minimum = 4;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 3;
+    public const uint Maximum = 4;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

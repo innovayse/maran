@@ -5,6 +5,7 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use crate::DistroAdapter;
 use crate::adapter_binary::AdapterBinary;
 use crate::family::DistroFamily;
+use crate::package_failure::PackageFailure;
 use crate::rhel::{rhel_packages, rhel_paths, rhel_services};
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 
@@ -64,6 +65,14 @@ impl DistroAdapter for RhelAdapter {
 
     fn package_manager(&self) -> &'static str {
         rhel_packages::package_manager()
+    }
+
+    fn classify_package_failure(&self, status: i32, output: &str) -> PackageFailure {
+        rhel_packages::classify_package_failure(status, output)
+    }
+
+    fn journal_binary(&self) -> AdapterBinary {
+        rhel_services::journal_binary()
     }
 
     fn tar_binary(&self) -> AdapterBinary {

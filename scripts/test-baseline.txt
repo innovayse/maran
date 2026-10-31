@@ -1,11 +1,22 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
-# RE-MEASURED 2026-10-31 (issue #245, an unbindable request value refused with RequestParameterInvalid): edited by
+# RE-MEASURED 2026-10-31 (issue #245 merged with dev's #248/#251: Host.IntegrationTests 733+4 = 737, Sdk.Tests 256+2 = 258;, an unbindable request value refused with RequestParameterInvalid): edited by
 # hand. Full `maran test backend`: 20 targets: 4858 passed / 0 failed / 0 ignored, Host.IntegrationTests included.
 # Host.IntegrationTests 730->734 (the codeless status test became a 3-case theory plus a ru/hy theory), Sdk.Tests
 # 254->256 (InvalidModelStateRefusalTests, the census row for the new code). Every other row unchanged.
 #
+# RE-MEASURED 2026-10-31 (issue #251 merged with dev's #248: Host.IntegrationTests 730+2+1 = 733; package-source failure codes): edited by hand. Full `maran test backend`:
+# 20 targets, 0 failed / 0 ignored; full `maran test rust`: 35 targets, 0 failed. Changed rows: maran_agent [unittests
+# src/lib.rs] 418->420, maran_agent_core [unittests src/lib.rs] 486->508, maran_distro [unittests src/lib.rs] 57->79,
+# maran_ops [unittests src/lib.rs] 1624->1754, Maran.Agent.Client.Tests.dll 375->378, Maran.Sdk.Tests.dll 254->256,
+# Maran.Modules.Sites.Tests.dll 266->270, Maran.Host.IntegrationTests.dll 730->732. agent_core and most of ops' growth
+# predates this change (the rows were already behind the tree before #251; only ~15 ops tests are new here).
+# RE-MEASURED 2026-10-31 (issue #248, every dashboard section is loaded or unavailable): edited by hand.
+# Host.Tests 392->406 (DashboardSectionTests 6, DashboardSectionJsonConverterTests 8), Host.IntegrationTests
+# 730->731 (an attention source that cannot answer is unavailable and not an all-clear). spa: dashboard.spec 7->10
+# (an unread attention source is named; beside real counts; an unread journal). ArchitectureTests 91 unchanged (the
+# DashboardCountDto display-name exemption is gone with the type; the law walks the list in one test).
 # RE-MEASURED 2026-10-31 (issue #196 phase 2, databases/backups/plans/certificates/file-transfer lists paged on the
 # server, merged with dev's #243 loading-spec fix below): edited by hand. Full `maran test backend`: 20 targets: 4852
 # passed / 0 failed / 0 ignored, Host.IntegrationTests included. Host.IntegrationTests 662->730, Modules.Accounts.Tests
@@ -376,7 +387,7 @@
 # The header above was regenerated away by 'maran test spa --accept' and is restored here by
 # hand: the accept path rewrites this file from the run alone and keeps no prose, so every
 # re-measurement note in it is one --accept away from being lost. Worth fixing in the script.
-rust	maran_agent [unittests src/lib.rs]	418	0	0
+rust	maran_agent [unittests src/lib.rs]	420	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -397,9 +408,9 @@ rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	
 rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	13
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
-rust	maran_agent_core [unittests src/lib.rs]	486	0	0
-rust	maran_distro [unittests src/lib.rs]	57	0	0
-rust	maran_ops [unittests src/lib.rs]	1624	0	1
+rust	maran_agent_core [unittests src/lib.rs]	508	0	0
+rust	maran_distro [unittests src/lib.rs]	79	0	0
+rust	maran_ops [unittests src/lib.rs]	1754	0	1
 rust	maran_templates [unittests src/lib.rs]	13	0	0
 rust	golden_test [tests/golden_test.rs]	22	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
@@ -411,7 +422,7 @@ rust	doc-tests maran_templates	0	0	0
 rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
-backend	Maran.Agent.Client.Tests.dll	375	0	0
+backend	Maran.Agent.Client.Tests.dll	378	0	0
 backend	Maran.SharedKernel.Tests.dll	343	0	0
 backend	Maran.Modules.Identity.Tests.dll	318	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
@@ -426,11 +437,11 @@ backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	514	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	235	0	0
-backend	Maran.Sdk.Tests.dll	256	0	0
-backend	Maran.Modules.Sites.Tests.dll	266	0	0
+backend	Maran.Sdk.Tests.dll	258	0	0
+backend	Maran.Modules.Sites.Tests.dll	270	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
-backend	Maran.Host.Tests.dll	392	0	0
-backend	Maran.Host.IntegrationTests.dll	734	0	0
+backend	Maran.Host.Tests.dll	406	0	0
+backend	Maran.Host.IntegrationTests.dll	737	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
@@ -484,7 +495,7 @@ spa	customer/own-account-create.spec.ts	5	0	0
 spa	customer/role-guard.spec.ts	18	0	0
 spa	customer/tasks.spec.ts	3	0	0
 spa	dashboard-loading.spec.ts	3	0	0
-spa	dashboard.spec.ts	7	0	0
+spa	dashboard.spec.ts	10	0	0
 spa	databases/account-filter.spec.ts	3	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0

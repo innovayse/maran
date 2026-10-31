@@ -31,7 +31,7 @@ import type { UiIconName } from '../ui/UiIcon.vue'
 import UiIconTile from '../ui/UiIconTile.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import UiSkeleton from '../ui/UiSkeleton.vue'
-import type { DashboardCount, DashboardCounts } from '../../types/dashboard'
+import type { DashboardCounts, DashboardSection } from '../../types/dashboard'
 
 /** One tile as the grid knows it before any count: what it counts and where the detail lives. */
 interface TileSpec {
@@ -45,8 +45,8 @@ interface TileSpec {
 
 /** One tile as drawn: its spec and, once the counts are in, its count. */
 interface CountTile extends TileSpec {
-  /** The count, with whether it could be taken; absent while the counts are loading. */
-  value?: DashboardCount
+  /** The count, or the fact that it could not be taken; absent while the counts are loading. */
+  value?: DashboardSection<number>
 }
 
 /** Props accepted by {@link DashboardCountGrid}. */
@@ -101,7 +101,7 @@ const tiles: ComputedRef<CountTile[]> = computed(() => {
             <UiSkeleton shape="line" size="lg" />
           </span>
           <template v-else-if="tile.value !== undefined">{{
-            tile.value.state === 'counted' ? tile.value.count : t('app.status.counts.unavailable')
+            tile.value.state === 'loaded' ? tile.value.data : t('app.status.counts.unavailable')
           }}</template>
         </span>
         <span class="mt-2 block font-display text-xs font-extrabold text-text-secondary break-words">{{ t(`app.status.counts.${tile.key}`) }}</span>

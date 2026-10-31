@@ -73,6 +73,8 @@ public static class ExpectedErrorStatuses
             ["AgentLimitReached"] = ErrorType.Conflict,
             ["AgentNotFound"] = ErrorType.NotFound,
             ["AgentNotImplemented"] = ErrorType.Unavailable,
+            ["AgentPackageSourceRefused"] = ErrorType.UpstreamRefused,
+            ["AgentPackageSourceUnreachable"] = ErrorType.Unavailable,
             ["AgentPrivateKeyMismatch"] = ErrorType.Validation,
             ["AgentPrivateKeyUnreadable"] = ErrorType.Validation,
             ["AgentSystemFailure"] = ErrorType.Failure,
