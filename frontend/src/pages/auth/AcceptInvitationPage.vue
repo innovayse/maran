@@ -33,7 +33,7 @@
  * sent, and a second press with the same value sends it anyway: the check never refuses what
  * the panel might accept, and the server's refusal is still what decides.
  */
-import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -103,11 +103,6 @@ const submit = async (): Promise<void> => {
   mismatch.value = null
   done.value = await authStore.acceptInvitation({ token: token.value, newPassword: password.value })
 }
-
-onMounted((): void => {
-  // A message another signed-out screen left in the shared store is not about this invitation.
-  authStore.$patch({ errorMessage: null })
-})
 </script>
 
 <template>

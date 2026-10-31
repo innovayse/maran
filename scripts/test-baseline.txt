@@ -419,6 +419,16 @@
 # shell/palette-focus 6->7, shell/sidebar-submenu 7->9, tasks/badge 3->4, tasks/list 7->14,
 # ui-kit/no-horizontal-scroll-admin 69->75). Backend rows unchanged: `maran test backend` printed
 # `collected 20 targets: 5027 passed / 0 failed` against them.
+#
+# RE-MEASURED 2026-10-31 (#221, shell: live locale, stale messages, section rows, current row,
+# scrollbar lane) — edited by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa`
+# run printing `collected 158 targets: 1057 passed / 2 failed`; both failures reproduce on
+# untouched dev (shell/licence-gating:13, an unscoped `Sites` link that also matches the dashboard
+# card, now scoped to the sidebar; sites/detail-loading:98, a timing check that passes at one
+# worker). A second full run after the licence-gating fix printed `collected 158 targets: 1058
+# passed / 1 failed`, the one failure being sites/detail-loading:98 again. Keyed by spec file: shell/content-scroll 1 added (the scroll check needs a browser that
+# draws scrollbars, so it has its own file), auth/client-checks 6->7, shell/sidebar-state 6->10.
+# Backend rows unchanged: no backend file changed.
 rust	maran_agent [unittests src/lib.rs]	420	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
@@ -491,7 +501,7 @@ spa	audit/list.spec.ts	6	0	0
 spa	audit/loading.spec.ts	3	0	0
 spa	audit/occurred-at-time.spec.ts	1	0	0
 spa	audit/sidebar-link.spec.ts	2	0	0
-spa	auth/client-checks.spec.ts	6	0	0
+spa	auth/client-checks.spec.ts	7	0	0
 spa	auth/forgot-password.spec.ts	3	0	0
 spa	auth/login.spec.ts	7	0	0
 spa	auth/reset-password.spec.ts	2	0	0
@@ -574,6 +584,7 @@ spa	shell/breadcrumb-trail.spec.ts	11	0	0
 spa	shell/change-password.spec.ts	6	0	0
 spa	shell/command-palette-a11y.spec.ts	3	0	0
 spa	shell/command-palette.spec.ts	1	0	0
+spa	shell/content-scroll.spec.ts	1	0	0
 spa	shell/document-title.spec.ts	5	0	0
 spa	shell/health-server-error.spec.ts	1	0	0
 spa	shell/health-status.spec.ts	2	0	0
@@ -592,7 +603,7 @@ spa	shell/page-eyebrow.spec.ts	3	0	0
 spa	shell/palette-focus.spec.ts	7	0	0
 spa	shell/profile.spec.ts	3	0	0
 spa	shell/renders-title.spec.ts	1	0	0
-spa	shell/sidebar-state.spec.ts	6	0	0
+spa	shell/sidebar-state.spec.ts	10	0	0
 spa	shell/sidebar-submenu.spec.ts	9	0	0
 spa	shell/submenu-current-child.spec.ts	5	0	0
 spa	shell/tasks-naming.spec.ts	1	0	0

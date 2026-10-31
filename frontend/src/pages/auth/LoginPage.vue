@@ -11,11 +11,11 @@
  * invalid with their own message and nothing is sent. That is advice only — the
  * backend still refuses an empty credential on its own.
  *
- * The page opens with no inherited error (#221): the auth store's message is shared by
- * every signed-out screen, and a refusal from the invitation or reset screen must not
- * greet the visitor here as if the sign-in had failed.
+ * The page opens with no inherited error (#221): the root `App` dismisses the auth store's
+ * message on every navigation, so a refusal from the invitation or reset screen never
+ * greets the visitor here as if the sign-in had failed.
  */
-import { onMounted, ref, watch, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -75,12 +75,6 @@ const submit = async (): Promise<void> => {
     await router.push({ name: 'login-two-factor', state: { password: password.value } })
   }
 }
-
-onMounted((): void => {
-  // A message left in the shared store by another signed-out screen (a refused invitation, a
-  // dead reset link) is not about this sign-in.
-  authStore.$patch({ errorMessage: null })
-})
 
 // A field flagged as empty stops saying so the moment something is typed into it: a message that
 // outlives its cause reads as a second, unexplained error.

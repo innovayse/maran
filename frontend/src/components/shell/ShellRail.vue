@@ -33,6 +33,7 @@ import UiIcon from '../ui/UiIcon.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
 import UiNavLink from '../ui/UiNavLink.vue'
+import { useCurrentSection } from '../../composables/useCurrentSection'
 import type { NavigationEntry } from '../../types/navigation'
 
 /** Props accepted by {@link ShellRail}. */
@@ -54,6 +55,7 @@ const CLOSE_DELAY_MS = 150
 const FLYOUT_OFFSET_PX = 8
 
 const { t } = useI18n()
+const holdsCurrentRoute = useCurrentSection()
 
 /** Key of the entry whose flyout is open, or null. */
 const flyoutKey: Ref<string | null> = ref(null)
@@ -177,7 +179,14 @@ onBeforeUnmount(cancelClose)
             @focusout="onFocusOut"
             @keydown="onKeydown"
           >
-            <UiNavLink :to="entry.target" :locked="entry.locked" compact>
+            <!-- A section is lit on any of its children's pages, by the sidebar's own rule; a
+                 single page is left to the router's match. -->
+            <UiNavLink
+              :to="entry.target"
+              :locked="entry.locked"
+              :active="entry.children.length > 0 ? holdsCurrentRoute(entry) : undefined"
+              compact
+            >
               <UiIcon :name="entry.icon" size="md" />
               <span class="sr-only">
                 {{ labelOf(entry) }}

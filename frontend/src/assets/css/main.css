@@ -382,3 +382,13 @@ html[data-theme='light'] {
     ease-out, ease-out, ease-out, ease-out,
     linear(0, 0.5 7%, 1.07 15%, 1.13 19%, 1.12 22%, 1.04 30%, 0.98 38%, 0.97 43%, 1 55%, 1.01 65%, 1);
 }
+
+/*
+ * Reserves the scrollbar's lane whether or not the region overflows (issue #221). The content
+ * panel is the shell's one scroll container; without the reserved lane its content narrowed by
+ * the scrollbar's width the moment a page grew past the window, so moving between a short page
+ * and a long one (the dashboard and Firewall) shifted everything sideways.
+ */
+@utility scrollbar-gutter-stable {
+  scrollbar-gutter: stable;
+}
