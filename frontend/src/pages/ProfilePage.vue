@@ -16,10 +16,14 @@
  * line in place of each value ({@link UiLoadingRegion}, `UiDescriptionList loading`), so the loaded
  * profile lands in the space that was held for it.
  *
+ * The password card (`ChangePasswordCard`) changes the caller's own password and ends every
+ * other sign-in (issue #232).
+ *
  * Renders a `<section>`, not a `<main>`: the layout owns the landmark.
  */
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ChangePasswordCard from '../components/auth/ChangePasswordCard.vue'
 import UiAlert from '../components/ui/UiAlert.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -91,6 +95,10 @@ onMounted(async () => {
             </UiDescriptionItem>
           </UiDescriptionList>
         </UiCard>
+
+        <!-- Every role changes its own password here; the card holds no profile data, so it is
+             drawn at once and does not wait on the read above. -->
+        <ChangePasswordCard />
 
         <!-- Only a customer owns a hosting account. An administrator is never sent to
              `/my-account`: its endpoint answers "the account you own" and has none to give. -->

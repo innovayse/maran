@@ -30,6 +30,9 @@
   <data name="SessionNotFound">
     <value>Աշխատաշրջանը չի գտնվել։</value>
   </data>
+  <data name="CurrentPasswordIncorrect">
+    <value>Ընթացիկ գաղտնաբառը սխալ է։</value>
+  </data>
   <data name="UserNotFound">
     <value>Օգտվողը չի գտնվել։</value>
   </data>

@@ -1,3 +1,4 @@
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Extensions;
 using Maran.SharedKernel.Constants;
 using Maran.SharedKernel.Utilities.Network;
@@ -73,6 +74,24 @@ public abstract class BaseApiController : ControllerBase
         get
         {
             return UserAgentText.Capped(Request.Headers.UserAgent.ToString());
+        }
+    }
+
+    /// <summary>
+    /// The session the caller's access token was issued for (its <c>sid</c> claim), or
+    /// <see cref="Guid.Empty"/> when the request carries no such claim.
+    /// </summary>
+    /// <remarks>
+    /// Here for the same reason <see cref="ClientIpAddress"/> is: more than one controller needs to
+    /// know which sign-in is asking — the sessions list marks it, a password change keeps it — and a
+    /// private copy of the claim parse in each is a copy to drift. Read from the validated token
+    /// only, never from anything the request body or query carries.
+    /// </remarks>
+    protected Guid CallerSessionId
+    {
+        get
+        {
+            return Guid.TryParse(User.FindFirst(PanelClaimTypes.SessionId)?.Value, out var id) ? id : Guid.Empty;
         }
     }
 

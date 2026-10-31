@@ -17,7 +17,13 @@
       "manageSessions": "Manage devices",
       "hostingHeading": "Hosting account",
       "hostingDescription": "Your sites, plan and limits live in your hosting account.",
-      "openHostingAccount": "Open my hosting account"
+      "openHostingAccount": "Open my hosting account",
+      "passwordHeading": "Password",
+      "passwordDescription": "Changing it signs you out on every other device. This one stays signed in.",
+      "currentPasswordLabel": "Current password",
+      "newPasswordLabel": "New password",
+      "changePassword": "Change password",
+      "passwordChanged": "Your password has been changed. Every other device has been signed out."
     }
   }
 }
