@@ -132,8 +132,8 @@ defineExpose({ reset })
           v-if="fixedAccountId === null"
           v-model="accountId"
           v-bind="accountPicker"
-          :label="t('sftp.form.fields.accountId')"
-          :placeholder="t('sftp.form.placeholders.accountId')"
+          :label="t('sftp.form.fields.account')"
+          :placeholder="t('sftp.form.placeholders.account')"
           :error="accountError"
           required
           @search="emit('searchAccounts', $event)"
