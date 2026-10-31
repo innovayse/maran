@@ -25,7 +25,7 @@ import { useCallerRole } from '../composables/useCallerRole'
  * checks the licence on every request independently (rules/architecture.md,
  * rules/vue.md "the frontend gate is cosmetic only"), so when the SPA does not
  * KNOW it must let the navigation through and let the server answer. The same
- * choice `auth.loadSetupState` already makes for the same reason: an
+ * choice `setup.loadSetupState` already makes for the same reason: an
  * unreachable panel is not an un-set-up one.
  *
  * A catalogue that loaded and simply does not list the module is a different

@@ -52,6 +52,7 @@ import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { useAuthStore } from '../../stores/auth'
 import { useLocaleStore } from '../../stores/locale'
+import { useSessionsStore } from '../../stores/sessions'
 import { formatDate } from '../../utils/formatDate'
 import type { Session } from '../../types/auth'
 import type { ListLoad, ListRequest } from '../../types/list'
@@ -59,6 +60,7 @@ import type { ListLoad, ListRequest } from '../../types/list'
 const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
+const sessionsStore = useSessionsStore()
 const localeStore = useLocaleStore()
 const { isAdmin } = useCallerRole()
 const labels = useListLabels()
@@ -70,7 +72,7 @@ const table = useServerTable<Session>({
    * @returns How the read ended.
    */
   load: (request: ListRequest): Promise<ListLoad<Session>> => {
-    return authStore.listSessions(request)
+    return sessionsStore.listSessions(request)
   },
 })
 
@@ -114,7 +116,7 @@ const answeredNothing: ComputedRef<boolean> = computed(() => {
 const pendingSession: ComputedRef<{ id: string; ipAddress: string; isCurrent: boolean } | null> =
   computed(() => {
     return (
-      authStore.sessions.find((session) => {
+      sessionsStore.sessions.find((session) => {
         return session.id === pendingRevocation.value
       }) ?? null
     )
@@ -164,7 +166,7 @@ const revoke = async (): Promise<void> => {
   }
 
   revoking.value = true
-  const ended = await authStore.revokeSession(pending.id)
+  const ended = await sessionsStore.revokeSession(pending.id)
   revoking.value = false
 
   // Closed after the request settles rather than before it is sent: the dialog holds the spinner
@@ -223,8 +225,8 @@ const signOutEverywhere = async (): Promise<void> => {
     </UiPageHeading>
 
     <!-- A refused sign-out or end, reported above the list it was asked from rather than in its place. -->
-    <UiAlert v-if="authStore.errorMessage !== null" variant="error">
-      {{ authStore.errorMessage }}
+    <UiAlert v-if="sessionsStore.errorMessage !== null" variant="error">
+      {{ sessionsStore.errorMessage }}
     </UiAlert>
 
     <UiCard>
@@ -265,7 +267,7 @@ const signOutEverywhere = async (): Promise<void> => {
             <UiTable
               :caption="t('app.sessions.tableCaption')"
               :columns="columns"
-              :rows="authStore.sessions"
+              :rows="sessionsStore.sessions"
               row-key="id"
               :loading="table.state.value.status === 'loading'"
               :skeleton-rows="table.pageSize.value"

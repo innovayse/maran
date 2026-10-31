@@ -2,23 +2,14 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useAuthApi } from '../composables/apis/useAuthApi'
 import { ApiError } from '../composables/useApi'
-import { useModulesStore } from './modules'
-import type {
-  AcceptInvitationRequest,
-  AuthenticatedUser,
-  CompleteSetupRequest,
-  LoginRequest,
-  AuthenticatedSession,
-  RecoveryCodes,
-  ResetPasswordRequest,
-  Session,
-  TotpEnrolment,
-} from '../types/auth'
-import type { ListLoad, ListRequest } from '../types/list'
+import type { AuthenticatedSession, AuthenticatedUser, LoginRequest } from '../types/auth'
 
 /**
- * Owns who is signed in. Every screen reads state from here and calls its actions;
- * none of them touches the API composable directly (rules/vue.md).
+ * Owns who is signed in: the access token, the user it belongs to, and the actions that obtain,
+ * renew and end it. Every screen reads state from here and calls its actions; none of them touches
+ * the API composable directly (rules/vue.md). The other account flows have stores of their own —
+ * first-run setup (`setup.ts`), the second factor's enrolment (`twoFactor.ts`), the signed-in
+ * devices (`sessions.ts`) and the e-mailed password links (`passwordLinks.ts`).
  *
  * The access token lives in this store's `ref` and nowhere else — not
  * `localStorage`, not a readable cookie. A token in `localStorage` is readable by
@@ -38,14 +29,11 @@ export const useAuthStore = defineStore('auth', () => {
   /** True while a sign-in, refresh or sign-out is in flight. */
   const loading: Ref<boolean> = ref(false)
 
-  /** Backend-localized message from the last failed action, rendered verbatim. */
+  /** Backend-localized message from the last failed sign-in or sign-out, rendered verbatim. */
   const errorMessage: Ref<string | null> = ref(null)
 
   /** The username whose sign-in is waiting for a second factor, or `null`. */
   const twoFactorUsername: Ref<string | null> = ref(null)
-
-  /** Whether the panel already has an administrator; `null` until asked. */
-  const isSetupComplete: Ref<boolean | null> = ref(null)
 
   /**
    * True when the panel forces administrators to hold a second factor and the
@@ -60,18 +48,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   /** True once the store has tried to restore a session, successfully or not. */
   const isRestored: Ref<boolean> = ref(false)
-
-  /**
-   * The page of the caller's live sessions last answered by the panel; empty before the first
-   * answer. Where its read stands is the sessions page's `useServerTable`'s to hold.
-   */
-  const sessions: Ref<Session[]> = ref([])
-
-  /**
-   * The login name the last accepted invitation created, or `null`. Shown on the success screen so
-   * the person knows what to sign in with; the panel returns it only to the holder of the token.
-   */
-  const invitedUsername: Ref<string | null> = ref(null)
 
   /**
    * The renewal currently in flight, shared by every caller.
@@ -107,19 +83,16 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * Forgets everything about the signed-in user.
    *
-   * Also clears the module catalogue: it is now filtered by the signed-in identity's role, and
-   * sign-out routes without a full page reload, so leaving it loaded would hand the next
-   * signed-in identity on this tab — possibly holding a different role entirely — a catalogue that
-   * was never theirs.
+   * What other stores hold for that user (the module catalogue, the signed-in devices) is cleared
+   * by the root component when it sees `isAuthenticated` turn false, not from here: a store never
+   * reaches into another (rules/vue.md "State").
    * @returns Nothing; state is cleared synchronously.
    */
   const clear = (): void => {
     accessToken.value = null
     user.value = null
-    sessions.value = []
     twoFactorUsername.value = null
     requiresTwoFactorSetup.value = false
-    useModulesStore().clear()
   }
 
   /**
@@ -134,7 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Forgets the last failure's message. A message belongs to the screen that produced it, so the
-   * signed-out layout calls this on every navigation between its screens.
+   * root component calls this on every navigation between screens (`App.vue`).
    * @returns Nothing; `errorMessage` is cleared synchronously.
    */
   const dismissError = (): void => {
@@ -276,195 +249,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /**
-   * Asks whether the panel already has an administrator, once per page load.
-   * @returns Resolves once the answer is known.
-   */
-  const loadSetupState = async (): Promise<void> => {
-    if (isSetupComplete.value !== null) {
-      return
-    }
-
-    try {
-      isSetupComplete.value = (await api.setupState()).isComplete
-    } catch {
-      // An unreachable panel is not an un-set-up one. Assuming "complete" keeps a
-      // visitor on the login screen rather than offering to claim a server that
-      // may well already have an owner.
-      isSetupComplete.value = true
-    }
-  }
-
-  /**
-   * Creates the panel's first administrator.
-   * @param request The token and the administrator's details.
-   * @returns True when the administrator was created.
-   */
-  const completeSetup = async (request: CompleteSetupRequest): Promise<boolean> => {
-    loading.value = true
-    errorMessage.value = null
-    try {
-      await api.completeSetup(request)
-      isSetupComplete.value = true
-      return true
-    } catch (error) {
-      remember(error)
-      return false
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
-   * Loads one page of the caller's live sessions into {@link sessions} and reports how the read
-   * ended, for the sessions page's `useServerTable`.
-   * @param request The page, size, search and sort, as the URL describes them.
-   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
-   */
-  const listSessions = async (request: ListRequest): Promise<ListLoad<Session>> => {
-    try {
-      const page = await api.listSessions(request)
-      sessions.value = page.items
-      return { kind: 'loaded', page }
-    } catch (error) {
-      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
-    }
-  }
-
-  /**
-   * Ends one of the caller's sessions. The page reads its list again on success rather than
-   * dropping the row here: the removal pulls a row up from the next page, and the total moves.
-   * @param id The session to end.
-   * @returns True when it was ended.
-   */
-  const revokeSession = async (id: string): Promise<boolean> => {
-    errorMessage.value = null
-    try {
-      await api.revokeSession(id)
-      return true
-    } catch (error) {
-      remember(error)
-      return false
-    }
-  }
-
-  /**
-   * Starts a two-factor enrolment. Nothing is enabled until it is confirmed.
-   * @returns The secret and its provisioning URI, or `null` when the request failed.
-   */
-  const beginTwoFactorEnrolment = async (): Promise<TotpEnrolment | null> => {
-    errorMessage.value = null
-    try {
-      return await api.beginTwoFactorEnrolment()
-    } catch (error) {
-      remember(error)
-      return null
-    }
-  }
-
-  /**
-   * Completes an enrolment.
-   * @param secret The secret handed out by the enrolment step.
-   * @param code A code the user's app produced from it.
-   * @returns The recovery codes, shown once, or `null` when the code was refused.
-   */
-  const confirmTwoFactorEnrolment = async (secret: string, code: string): Promise<RecoveryCodes | null> => {
-    errorMessage.value = null
-    try {
-      return await api.confirmTwoFactorEnrolment(secret, code)
-    } catch (error) {
-      remember(error)
-      return null
-    }
-  }
-
-  /**
-   * Turns the second factor off.
-   * @param code A current code or a recovery code.
-   * @returns True when it was turned off.
-   */
-  const disableTwoFactor = async (code: string): Promise<boolean> => {
-    errorMessage.value = null
-    try {
-      await api.disableTwoFactor(code)
-      return true
-    } catch (error) {
-      remember(error)
-      return false
-    }
-  }
-
-  /**
-   * Asks the panel to send a password-reset link.
-   *
-   * **Reports nothing about the address, and that is the whole point.** The backend
-   * answers identically for an address that has an account and one that does not,
-   * so this action returns `void` rather than a boolean: a caller with a boolean
-   * would eventually branch on it, and a screen that renders two outcomes is the
-   * account-enumeration oracle the backend spent effort closing. A transport
-   * failure is remembered as an error because it says nothing about the address —
-   * it says the panel could not be reached.
-   * @param email The address to send the link to.
-   * @returns Resolves once the request has settled, whatever it settled as.
-   */
-  const requestPasswordReset = async (email: string): Promise<void> => {
-    loading.value = true
-    errorMessage.value = null
-    try {
-      await api.requestPasswordReset(email)
-    } catch (error) {
-      remember(error)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
-   * Sets a new password from a reset link.
-   * @param request The token from the mail and the new password.
-   * @returns True when the password was changed; false when the panel refused.
-   */
-  const resetPassword = async (request: ResetPasswordRequest): Promise<boolean> => {
-    loading.value = true
-    errorMessage.value = null
-    try {
-      await api.resetPassword(request)
-      return true
-    } catch (error) {
-      // The backend gives one refusal for a token that never existed, one that has
-      // expired and one already spent. It is rendered as sent, and nothing here
-      // inspects it: any branch on the reason would re-create the distinction the
-      // single message exists to hide.
-      remember(error)
-      return false
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
-   * Sets the first password for an invited login.
-   * @param request The token from the invitation mail and the chosen password.
-   * @returns True when the password was set; false when the panel refused.
-   */
-  const acceptInvitation = async (request: AcceptInvitationRequest): Promise<boolean> => {
-    loading.value = true
-    errorMessage.value = null
-    invitedUsername.value = null
-    try {
-      const result = await api.acceptInvitation(request)
-      invitedUsername.value = result.username
-      return true
-    } catch (error) {
-      // Same non-branching rule as resetPassword: an unknown, expired and spent token all
-      // arrive as one refusal, and this store must not reconstruct the distinction.
-      remember(error)
-      return false
-    } finally {
-      loading.value = false
-    }
-  }
-
   return {
     accessToken,
     user,
@@ -472,10 +256,7 @@ export const useAuthStore = defineStore('auth', () => {
     errorMessage,
     twoFactorUsername,
     requiresTwoFactorSetup,
-    isSetupComplete,
     isRestored,
-    sessions,
-    invitedUsername,
     isAuthenticated,
     renewAccessToken,
     restore,
@@ -484,15 +265,5 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     dismissError,
     logoutEverywhere,
-    loadSetupState,
-    completeSetup,
-    listSessions,
-    revokeSession,
-    beginTwoFactorEnrolment,
-    confirmTwoFactorEnrolment,
-    disableTwoFactor,
-    requestPasswordReset,
-    resetPassword,
-    acceptInvitation,
   }
 })
