@@ -17,7 +17,13 @@
       "manageSessions": "Управлять устройствами",
       "hostingHeading": "Хостинг-аккаунт",
       "hostingDescription": "Ваши сайты, тариф и лимиты находятся в хостинг-аккаунте.",
-      "openHostingAccount": "Открыть мой хостинг-аккаунт"
+      "openHostingAccount": "Открыть мой хостинг-аккаунт",
+      "passwordHeading": "Пароль",
+      "passwordDescription": "После смены пароля все остальные устройства будут отключены. Это устройство останется в системе.",
+      "currentPasswordLabel": "Текущий пароль",
+      "newPasswordLabel": "Новый пароль",
+      "changePassword": "Сменить пароль",
+      "passwordChanged": "Пароль изменён. Все остальные устройства отключены."
     }
   }
 }

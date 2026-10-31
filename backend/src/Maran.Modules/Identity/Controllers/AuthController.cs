@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.AcceptInvitation;
 using Maran.Modules.Identity.Commands.BeginTotpEnrolment;
+using Maran.Modules.Identity.Commands.ChangePassword;
 using Maran.Modules.Identity.Commands.ConfirmTotpEnrolment;
 using Maran.Modules.Identity.Commands.DisableTotp;
 using Maran.Modules.Identity.Commands.Login;
@@ -280,6 +281,41 @@ public sealed class AuthController : BaseApiController
         command = command with
         {
             UserId = CurrentUser.UserId,
+            IpAddress = ClientIpAddress,
+            UserAgent = CallerUserAgent,
+        };
+        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Changes the signed-in caller's password, proving the current one first, and ends every other
+    /// sign-in they had. The caller's own sign-in stays; no new session or cookie is issued.
+    /// </summary>
+    /// <remarks>
+    /// Rate limited by the sign-in policy: a wrong current password is a guess at a password, and it
+    /// comes out of the same budget as a guess at <c>login</c>. Bearer-authenticated and cookie-free,
+    /// so a cross-site request cannot reach it. Threat note:
+    /// docs/superpowers/notes/2026-10-31-change-password-threat-note.md.
+    /// </remarks>
+    /// <param name="command">Both passwords. The caller, their session, address and user agent are
+    /// stamped here.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("change-password")]
+    [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ChangePasswordAsync(
+        [FromBody] ChangePasswordCommand command,
+        CancellationToken cancellationToken)
+    {
+        command = command with
+        {
+            UserId = CurrentUser.UserId,
+            CurrentSessionId = CallerSessionId,
             IpAddress = ClientIpAddress,
             UserAgent = CallerUserAgent,
         };

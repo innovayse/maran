@@ -193,6 +193,9 @@ public static class ExpectedErrorStatuses
             ["MailServerUnreachable"] = ErrorType.Unavailable,
             ["PasswordResetEmailInvalid"] = ErrorType.Validation,
             ["PasswordResetTokenInvalid"] = ErrorType.Validation,
+            // Change password (#232): 400, not 401 — a 401 makes the SPA renew the token and
+            // replay, and the caller's token is fine; what was wrong is the password they typed.
+            ["CurrentPasswordIncorrect"] = ErrorType.Validation,
             // The break-glass console recovery (#130). NotFound: no login has that name or address.
             // Conflict: the login exists but is not an active administrator, a state of the account
             // rather than a malformed request.

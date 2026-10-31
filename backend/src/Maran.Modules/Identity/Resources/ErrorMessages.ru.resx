@@ -30,6 +30,9 @@
   <data name="SessionNotFound">
     <value>Сеанс не найден.</value>
   </data>
+  <data name="CurrentPasswordIncorrect">
+    <value>Текущий пароль указан неверно.</value>
+  </data>
   <data name="UserNotFound">
     <value>Пользователь не найден.</value>
   </data>
