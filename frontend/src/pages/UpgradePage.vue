@@ -79,7 +79,6 @@ const tierSentence: ComputedRef<string | undefined> = computed(() => {
   <section class="w-full">
     <UiPageHeading
       class="mb-4"
-      :eyebrow="t('app.upgrade.eyebrow')"
       :title="t('app.upgrade.heading')"
       :subtitle="t('app.upgrade.subtitle')"
     />

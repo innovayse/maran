@@ -182,7 +182,6 @@ onMounted(refresh)
     <UiLoadingRegion :state="headingState">
       <div class="flex flex-col gap-6">
         <UiPageHeading
-          :eyebrow="t('app.status.eyebrow')"
           :title="t('app.status.heading')"
           :subtitle="system.healthState === 'error' ? undefined : t('app.status.ok')"
           :subtitle-loading="system.healthState === 'loading'"

@@ -102,7 +102,6 @@ onMounted(prepare)
 <template>
   <section class="flex w-full max-w-3xl flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('plans.form.eyebrow')"
       :title="t(headingKey)"
       :subtitle="isEditing ? t('plans.form.subtitleEdit') : t('plans.form.subtitleNew')"
     />

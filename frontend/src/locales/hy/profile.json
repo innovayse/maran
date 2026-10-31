@@ -12,7 +12,7 @@
       "twoFactorOn": "Միացված է",
       "twoFactorOff": "Անջատված է",
       "manageTwoFactor": "Կարգավորել երկքայլ ստուգումը",
-      "sessionsLabel": "Մուտք գործած սարքեր",
+      "sessionsLabel": "Մուտքի սարքեր",
       "sessionCount": "{count} սարք",
       "manageSessions": "Կառավարել սարքերը",
       "hostingHeading": "Հոսթինգի հաշիվ",

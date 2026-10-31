@@ -55,7 +55,7 @@ test('the firewall sidebar section opens the whitelist page, which reads its own
 
   await page.goto('/firewall')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  await nav.getByRole('link', { name: 'Whitelist', exact: true }).click()
+  await nav.getByRole('link', { name: 'Never banned', exact: true }).click()
 
   await expect(page).toHaveURL(/\/firewall\/whitelist$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Never banned' })).toBeVisible()

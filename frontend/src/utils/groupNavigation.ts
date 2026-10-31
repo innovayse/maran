@@ -16,7 +16,7 @@ import type { NavigationGroup } from '../types/navigationGroup'
  * must still appear in the navigation, so an unknown key is never an error and never dropped: it
  * lands in this trailing group, whose label is the catalogue's original neutral "Panel".
  */
-const FALLBACK_GROUP = 'panel'
+export const FALLBACK_GROUP = 'panel'
 
 /**
  * Groups in the order they are drawn. The fallback is last on purpose: a known module should
@@ -33,8 +33,8 @@ const GROUP_ORDER: readonly string[] = ['overview', 'hosting', 'security', 'syst
  *   are created on (now a child of accounts, issue #195), sites, databases, file transfer, scheduled jobs.
  * - **security**: what protects the host and its data — the firewall, and backups (a copy is the
  *   last defence against loss, and the approved design files it beside the firewall).
- * - **system**: the panel's own settings and records — the audit journal, the identity module's
- *   sessions and two-step screens, and the outgoing-mail (SMTP) settings.
+ * - **system**: the panel's own settings and records — the audit journal, the sign-in security
+ *   policy, the identity module's signed-in devices screen, and the outgoing-mail (SMTP) settings.
  *
  * `ssl` and `ftp` have no entry of their own (`router/moduleLandingRoute.ts`), so they are absent
  * here by construction rather than by omission.
@@ -51,16 +51,18 @@ const ENTRY_GROUPS: Readonly<Record<string, string>> = {
   firewall: 'security',
   backups: 'security',
   'audit-journal': 'system',
+  'security-policy': 'system',
   identity: 'system',
   notifications: 'system',
 }
 
 /**
- * Answers which group an entry is drawn under.
+ * Answers which group an entry is drawn under. The page eyebrow and the breadcrumb ask it too
+ * (`utils/locateNavigation.ts`), so a screen names the group the sidebar draws its entry in.
  * @param key The entry's stable key.
  * @returns The mapped group, or the fallback group for a key the map does not know.
  */
-const groupOf = (key: string): string => {
+export const navigationGroupOf = (key: string): string => {
   return Object.hasOwn(ENTRY_GROUPS, key) ? (ENTRY_GROUPS[key] ?? FALLBACK_GROUP) : FALLBACK_GROUP
 }
 
@@ -76,7 +78,7 @@ const groupOf = (key: string): string => {
 export const groupNavigation = (entries: readonly NavigationEntry[]): NavigationGroup[] => {
   return GROUP_ORDER.flatMap((key): NavigationGroup[] => {
     const members = entries.filter((entry): boolean => {
-      return groupOf(entry.key) === key
+      return navigationGroupOf(entry.key) === key
     })
     return members.length === 0
       ? []

@@ -107,7 +107,6 @@ onMounted(clearWhitelistError)
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('firewall.eyebrow')"
       :title="t('firewall.whitelist.heading')"
       :subtitle="t('firewall.whitelist.subtitle')"
       :note="t('firewall.whitelist.seedNote')"

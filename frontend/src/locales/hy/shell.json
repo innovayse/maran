@@ -26,13 +26,8 @@
         "databasesGrantRepair": "Իրավունքների ուղղում",
         "backupsList": "Բոլոր պահուստները",
         "backupsSchedule": "Ժամանակացույց",
-        "backupsDestinations": "Պահոցներ",
-        "firewallRules": "Կանոններ",
-        "firewallBans": "Արգելափակումներ",
-        "firewallWhitelist": "Սպիտակ ցուցակ"
-      },
-      "signedInDevices": "Սարքեր",
-      "outgoingMail": "Ելքային փոստ"
+        "backupsDestinations": "Պահոցներ"
+      }
     },
     "shell": {
       "skipToContent": "Անցնել բովանդակությանը",

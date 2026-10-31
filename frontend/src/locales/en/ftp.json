@@ -1,7 +1,6 @@
 {
   "ftp": {
     "list": {
-      "eyebrow": "Hosting",
       "heading": "FTPS logins",
       "subtitle": "Logins that reach one account's files over FTPS.",
       "prefixNote": "FTPS logins are separate users from SFTP logins on this server. Every login carries the owning account's name as a prefix, and the names below are exactly what the server holds — sign in with them as they are.",

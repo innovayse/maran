@@ -253,7 +253,6 @@ onBeforeUnmount(() => {
       <div class="flex min-w-0 flex-col gap-4">
         <UiPageHeading
           mono
-          :eyebrow="t('sites.list.heading')"
           :title="site?.domain ?? ''"
           :subtitle="site === null ? '' : t(`sites.backendType.${site.backendType}`)"
           :loading="isLoading"

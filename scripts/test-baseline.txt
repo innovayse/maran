@@ -2,6 +2,17 @@
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
 # RE-MEASURED 2026-10-31 (issue #218, UI consistency: spa auth/signed-out-console.spec.ts 2 -> 7; new spa firewall/consistency.spec.ts 5, ui-kit/actions-and-links.spec.ts 8, ui-kit/type-consistency.spec.ts 7): edited by hand. Full `maran test spa`: 155 targets, 1048 passed / 0 failed.
+# RE-MEASURED 2026-10-31 (issue #209 merged with dev's #196 phase 3, firewall split into three pages): edited by hand.
+# spa: shell/breadcrumb-trail 9->11 (Firewall -> Bans, Firewall -> Never banned), shell/navigation-destination-labels
+# 8->10 (the two firewall children open their titled pages). page-eyebrow and the 216px check gained firewall
+# assertions inside existing tests (counts unchanged). Every other row is the merge of both sides, unchanged.
+# Measured `E2E_PORT=5199 maran test spa`: 157 targets: 1052 passed / 1 failed / 2 ignored; the one failure,
+# sites/detail-loading "a fast answer shows no placeholder", is a timing assertion untouched by this merge: it passed
+# in the previous full run and 30/30 with --repeat-each=5 --workers=1, so its row stays 6.
+# RE-MEASURED 2026-10-31 (issue #209, one navigation source for sidebar, eyebrow and breadcrumb; #72): edited by hand.
+# spa: NEW rows shell/breadcrumb-trail 9, shell/navigation-destination-labels 8, shell/page-eyebrow 3,
+# shell/submenu-current-child 5, shell/tasks-naming 1. Every other row unchanged. Before the edit
+# `E2E_PORT=5199 maran test spa`: 153 targets: 1001 passed / 0 failed / 2 ignored (only finding: the five new rows).
 # RE-MEASURED 2026-10-31 (issue #232 merged with dev's #245/#251: Host.IntegrationTests 738+7 = 745 (with #260), Sdk.Tests 258+1 = 259;, change password while signed in): edited by hand.
 # Modules.Identity.Tests 318->334 (ChangePasswordCommandHandlerTests 11, ChangePasswordCommandValidatorTests 5),
 # Host.IntegrationTests 731->738 (ChangePasswordEndpointTests 7), Sdk.Tests 254->255 (CurrentPasswordIncorrect in
@@ -561,6 +572,7 @@ spa	settings/smtp-loading.spec.ts	3	0	0
 spa	settings/two-factor-loading.spec.ts	3	0	0
 spa	shell/account-menu.spec.ts	4	0	0
 spa	shell/app-bar-fits.spec.ts	16	0	0
+spa	shell/breadcrumb-trail.spec.ts	11	0	0
 spa	shell/change-password.spec.ts	6	0	0
 spa	shell/command-palette-a11y.spec.ts	3	0	0
 spa	shell/command-palette.spec.ts	1	0	0
@@ -575,13 +587,17 @@ spa	shell/locale-switch.spec.ts	5	0	0
 spa	shell/locale.spec.ts	4	0	0
 spa	shell/mobile-drawer.spec.ts	15	0	0
 spa	shell/module-landing-coverage.spec.ts	2	0	0
+spa	shell/navigation-destination-labels.spec.ts	10	0	0
 spa	shell/navigation-order-labels.spec.ts	2	0	0
 spa	shell/not-found.spec.ts	1	0	0
+spa	shell/page-eyebrow.spec.ts	3	0	0
 spa	shell/palette-focus.spec.ts	7	0	0
 spa	shell/profile.spec.ts	3	0	0
 spa	shell/renders-title.spec.ts	1	0	0
 spa	shell/sidebar-state.spec.ts	6	0	0
 spa	shell/sidebar-submenu.spec.ts	9	0	0
+spa	shell/submenu-current-child.spec.ts	5	0	0
+spa	shell/tasks-naming.spec.ts	1	0	0
 spa	shell/theme-switch.spec.ts	2	0	0
 spa	sites/account-filter.spec.ts	3	0	0
 spa	sites/detail-loading.spec.ts	6	0	0

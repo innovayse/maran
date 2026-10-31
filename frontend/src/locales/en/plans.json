@@ -1,7 +1,6 @@
 {
   "plans": {
     "list": {
-      "eyebrow": "Hosting",
       "heading": "Plans",
       "subtitle": "What each package contains. An account is created on one plan, and the plan's limits apply to it.",
       "createAction": "New plan",
@@ -34,7 +33,6 @@
       "showAccountsOnPlan": "Show the account on this plan | Show the {count} accounts on this plan"
     },
     "form": {
-      "eyebrow": "Plans",
       "headingNew": "New plan",
       "headingEdit": "Edit plan",
       "subtitleNew": "Name the plan and set what each account on it may use. The panel checks these values before sending them, and the server checks them again.",

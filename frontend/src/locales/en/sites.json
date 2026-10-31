@@ -10,7 +10,6 @@
       "reverseProxy": "Reverse proxy"
     },
     "list": {
-      "eyebrow": "Hosting",
       "heading": "Sites",
       "subtitle": "Websites served from this server.",
       "createAction": "New site",

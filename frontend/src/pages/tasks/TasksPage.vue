@@ -158,7 +158,6 @@ onMounted(async () => {
 <template>
   <section class="flex w-full flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('tasks.list.eyebrow')"
       :title="t('tasks.list.heading')"
       :subtitle="t('tasks.list.subtitle')"
     />

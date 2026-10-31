@@ -3,7 +3,6 @@
     "list": {
       "heading": "Планировщик",
       "subtitle": "Что запускает crontab этого аккаунта — прочитано с сервера, а не запомнено панелью.",
-      "eyebrow": "Автоматизация",
       "entriesHeading": "Задания",
       "accountLabel": "Аккаунт",
       "accountPlaceholder": "Выберите аккаунт",

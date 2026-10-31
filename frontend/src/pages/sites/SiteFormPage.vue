@@ -213,7 +213,6 @@ onMounted(loadReferenceData)
 <template>
   <section class="flex w-full max-w-3xl min-w-0 flex-col gap-4">
     <UiPageHeading
-      :eyebrow="t('sites.list.heading')"
       :title="t('sites.form.heading')"
       :subtitle="t('sites.form.subtitle')"
     />
