@@ -952,6 +952,52 @@ while IFS= read -r line; do
   [ -n "$line" ] && report "$line"
 done <<< "$locale_report"
 
+# 18b. A form field, its placeholder, a filter or a table column is named after the thing a person
+#     chooses or reads, never after the DTO property that carries its identifier (issue #80). The
+#     account form labelled its plan picker "Plan ID" and five create forms kept `fields.accountId`
+#     keys, because the key was copied from the request body; the label text follows the key the
+#     next time someone translates it. So under `fields`, `placeholders`, `filters` and `columns`
+#     no key ends in `Id`/`Ids`, and no English value ends in the word "ID". Keys elsewhere (a task's
+#     correlation id is an identifier the operator quotes on purpose) are out of scope.
+id_label_report="$(python3 - "$root" <<'PYEOF'
+import json, pathlib, re, sys
+
+GROUPS = {'fields', 'placeholders', 'filters', 'columns'}
+KEY = re.compile(r'[a-z0-9](Id|Ids)$')
+VALUE = re.compile(r'\bID\s*$', re.IGNORECASE)
+
+def offences(value, trail):
+    found = []
+    for key, item in value.items():
+        path = trail + [key]
+        if isinstance(item, dict):
+            found += offences(item, path)
+        elif len(path) >= 2 and path[-2] in GROUPS:
+            if KEY.search(key):
+                found.append((path, 'its key names a DTO identifier'))
+            elif isinstance(item, str) and VALUE.search(item):
+                found.append((path, f'its text "{item}" names an identifier'))
+    return found
+
+# Positive control: the matcher must find a planted offence of each kind, or it is blind.
+planted = {'form': {'fields': {'planId': 'Plan', 'owner': 'Owner ID'}}}
+if len(offences(planted, [])) != 2:
+    print('scripts/lib/check-structure.sh: check 18b did not find its planted `fields.planId` and "Owner ID" -- the control that proves it can see a violation failed (rules/testing.md)')
+
+root = pathlib.Path(sys.argv[1]) / 'frontend' / 'src' / 'locales' / 'en'
+for path in sorted(root.glob('*.json')) if root.is_dir() else []:
+    try:
+        tree = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        continue  # check 18 already reports the file
+    for trail, reason in offences(tree, []):
+        print(f'frontend/src/locales/en/{path.name}: `{".".join(trail)}` -- {reason}; name the thing chosen or shown (issue #80)')
+PYEOF
+)"
+while IFS= read -r line; do
+  [ -n "$line" ] && report "$line"
+done <<< "$id_label_report"
+
 # 19. Every polygon suite is named in docker/README.md's run commands. The commands pass an explicit
 #    --test list rather than running everything ignored, so a suite absent from the file is a suite
 #    nobody runs — and that is not hypothetical: the file listed six of ten for the whole of plan 5,
