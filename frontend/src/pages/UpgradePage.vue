@@ -18,9 +18,8 @@
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
 import UiCard from '../components/ui/UiCard.vue'
-import UiIcon from '../components/ui/UiIcon.vue'
+import UiLink from '../components/ui/UiLink.vue'
 import UiIconTile from '../components/ui/UiIconTile.vue'
 import UiPageHeading from '../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../components/ui/UiSectionHeading.vue'
@@ -102,14 +101,7 @@ const tierSentence: ComputedRef<string | undefined> = computed(() => {
       <div class="mt-5 border-t border-border-subtle pt-4">
         <UiSectionHeading class="mb-3" :title="t('app.upgrade.how.heading')" />
         <p class="mb-4 max-w-prose text-sm text-text-secondary">{{ t('app.upgrade.how.body') }}</p>
-        <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
-        <RouterLink
-          :to="{ name: 'system-status' }"
-          class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
-        >
-          <UiIcon name="chevronLeft" size="sm" />
-          {{ t('app.upgrade.backHome') }}
-        </RouterLink>
+        <UiLink :to="{ name: 'system-status' }" icon="chevronLeft">{{ t('app.upgrade.backHome') }}</UiLink>
       </div>
     </UiCard>
   </section>

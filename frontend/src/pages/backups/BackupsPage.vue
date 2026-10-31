@@ -24,7 +24,7 @@
  * Where the bytes rest is {@link ./BackupDestinationsPage.vue}, linked from the heading. The history
  * card has `min-w-0`, so the table scrolls inside its own container and never sizes the panel.
  */
-import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, useTemplateRef, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -82,14 +82,11 @@ const table = useServerTable<Backup>({
 /** The backup whose deletion is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
 
-/**
- * The backup the restore dialog is open for, or `null` when it is closed.
- *
- * The whole backup rather than its id: the dialog has to state what the copy holds — when it was
- * taken and how many databases are in it — and re-finding the row from an id would be a lookup that
- * can miss while the dialog it feeds is already on screen.
- */
+/** The backup the restore dialog is open for (whole, as the dialog states what it holds), or `null`. */
 const restoreTarget: Ref<Backup | null> = ref(null)
+
+/** The create form, so an accepted backup can empty the picker it owns. */
+const createForm = useTemplateRef<{ reset: () => void }>('createForm')
 
 /** Whether the filter sheet is open. */
 const filtersOpen: Ref<boolean> = ref(false)
@@ -142,6 +139,7 @@ const refresh = async (): Promise<void> => {
  */
 const create = async (request: CreateBackupRequest): Promise<void> => {
   if (await store.create(request)) {
+    createForm.value?.reset()
     await refresh()
   }
 }
@@ -271,6 +269,7 @@ watch(
     </UiAlert>
 
     <BackupCreateForm
+      ref="createForm"
       :account-picker="accountPicker"
       :fixed-account-id="fixedAccountId"
       :submitting="store.creating"

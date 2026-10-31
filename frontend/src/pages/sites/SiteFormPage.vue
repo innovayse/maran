@@ -22,6 +22,7 @@ import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
+import UiFieldHint from '../../components/ui/UiFieldHint.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiCombobox from '../../components/ui/UiCombobox.vue'
@@ -257,7 +258,7 @@ onMounted(loadReferenceData)
               :error="aliasesError"
               :rows="3"
             />
-            <p class="mt-1.5 text-sm text-text-muted">{{ t('sites.form.hints.aliases') }}</p>
+            <UiFieldHint class="mt-1.5">{{ t('sites.form.hints.aliases') }}</UiFieldHint>
           </div>
           <div class="border-t border-border-subtle pt-5">
             <SiteBackendFields

@@ -122,3 +122,20 @@ test('a refused invitation does not carry its error to the sign-in screen', asyn
   await expect(page.getByRole('heading', { level: 2, name: 'Sign in' })).toBeVisible()
   await expect(page.getByText('Refused by the stub.')).toHaveCount(0)
 })
+
+test('a refused reset link does not carry its error to the sign-in screen', async ({ page }) => {
+  await stubSignedOutShell(page)
+  await countRequests(page, '**/api/v1/auth/reset-password')
+
+  await page.goto('/reset-password?token=spent')
+  await page.getByLabel('Password', { exact: true }).fill('correct horse battery staple')
+  await page.getByLabel('Confirm password').fill('correct horse battery staple')
+  await page.getByRole('button', { name: 'Set the password' }).click()
+  await expect(page.getByText('Refused by the stub.')).toBeVisible()
+
+  await page.getByRole('link', { name: 'Back to sign in' }).click()
+  await expect(page).toHaveURL('/login')
+
+  await expect(page.getByRole('heading', { level: 2, name: 'Sign in' })).toBeVisible()
+  await expect(page.getByText('Refused by the stub.')).toHaveCount(0)
+})
