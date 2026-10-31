@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Sites.Domain.Entities;
@@ -212,21 +213,57 @@ public sealed class SiteListEndpointTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// A status number that names no member is refused with 400 while binding, before the
-    /// validator's <c>SiteStatusUnknown</c> rule is reached: MVC's enum binder refuses an undefined
-    /// value itself, and its answer carries no code. The validator rule stays for callers that
-    /// dispatch the query on the bus without HTTP binding.
+    /// A value MVC cannot bind — a status number that names no member, a page or a page size that is
+    /// not a number — is refused with 400 before the validator runs, and the answer carries the
+    /// panel's code <c>RequestParameterInvalid</c> and a title naming the value, like every other
+    /// validation 400. The validator's <c>SiteStatusUnknown</c> rule stays for callers that dispatch
+    /// the query on the bus without HTTP binding.
     /// </summary>
-    [Fact]
-    public async Task A_status_number_naming_no_member_is_refused_while_binding()
+    /// <param name="queryString">The unbindable query string.</param>
+    /// <param name="parameter">The value the answer names.</param>
+    [Theory]
+    [InlineData("status=7", "Status")]
+    [InlineData("page=abc", "Page")]
+    [InlineData("pageSize=x", "PageSize")]
+    public async Task A_value_that_cannot_bind_answers_400_with_a_code_naming_it(string queryString, string parameter)
     {
         await using var factory = EndpointHarness.CreateFactory(_pg);
         await SeedWorldAsync(factory, "owner");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
 
-        var response = await admin.GetAsync("/api/v1/sites?status=7");
+        var response = await admin.GetAsync("/api/v1/sites?" + queryString);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("RequestParameterInvalid", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal(
+            $"The value given for “{parameter}” cannot be read.",
+            body.RootElement.GetProperty("title").GetString());
+    }
+
+    /// <summary>
+    /// The refusal of an unbindable value is localized like any other: Russian and Armenian callers
+    /// read it in their own language, from the Sdk's resx table.
+    /// </summary>
+    /// <param name="language">The Accept-Language sent.</param>
+    /// <param name="title">The title expected in that language.</param>
+    [Theory]
+    [InlineData("ru", "Значение параметра «Page» не удаётся прочитать.")]
+    [InlineData("hy", "«Page» պարամետրի արժեքը հնարավոր չէ կարդալ։")]
+    public async Task A_value_that_cannot_bind_is_refused_in_the_callers_language(string language, string title)
+    {
+        await using var factory = EndpointHarness.CreateFactory(_pg);
+        await SeedWorldAsync(factory, "owner");
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+        admin.DefaultRequestHeaders.AcceptLanguage.Clear();
+        admin.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue(language));
+
+        var response = await admin.GetAsync("/api/v1/sites?page=abc");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("RequestParameterInvalid", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal(title, body.RootElement.GetProperty("title").GetString());
     }
 
     /// <summary>

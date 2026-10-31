@@ -16,8 +16,9 @@ public sealed class ListBackupsQueryValidator : PagedQueryValidator<ListBackupsQ
     public ListBackupsQueryValidator()
         : base(ListBackupsSorts.Map)
     {
-        // The query string binds a number to an enum without checking it names a member, so
-        // ?status=7 would otherwise arrive as a filter no row can match.
+        // Over HTTP, ?status=7 never reaches this rule: MVC's binder refuses a number naming no
+        // member, answered as RequestParameterInvalid. The rule holds the query to its members for
+        // a caller that dispatches it on the bus without HTTP binding.
         RuleFor(query => query.Status)
             .IsInEnum()
             .WithErrorCode(nameof(ErrorMessages.BackupStatusUnknown))

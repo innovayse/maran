@@ -1,6 +1,11 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (issue #245 merged with dev's #248/#251: Host.IntegrationTests 733+4 = 737, Sdk.Tests 256+2 = 258;, an unbindable request value refused with RequestParameterInvalid): edited by
+# hand. Full `maran test backend`: 20 targets: 4858 passed / 0 failed / 0 ignored, Host.IntegrationTests included.
+# Host.IntegrationTests 730->734 (the codeless status test became a 3-case theory plus a ru/hy theory), Sdk.Tests
+# 254->256 (InvalidModelStateRefusalTests, the census row for the new code). Every other row unchanged.
+#
 # RE-MEASURED 2026-10-31 (issue #251 merged with dev's #248: Host.IntegrationTests 730+2+1 = 733; package-source failure codes): edited by hand. Full `maran test backend`:
 # 20 targets, 0 failed / 0 ignored; full `maran test rust`: 35 targets, 0 failed. Changed rows: maran_agent [unittests
 # src/lib.rs] 418->420, maran_agent_core [unittests src/lib.rs] 486->508, maran_distro [unittests src/lib.rs] 57->79,
@@ -432,11 +437,11 @@ backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	514	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	235	0	0
-backend	Maran.Sdk.Tests.dll	256	0	0
+backend	Maran.Sdk.Tests.dll	258	0	0
 backend	Maran.Modules.Sites.Tests.dll	270	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	733	0	0
+backend	Maran.Host.IntegrationTests.dll	737	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0

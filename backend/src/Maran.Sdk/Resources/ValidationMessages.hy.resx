@@ -27,4 +27,7 @@
   <data name="ListSortUnknown">
     <value>Այս ցուցակը հնարավոր չէ դասավորել այդ կերպ։</value>
   </data>
+  <data name="RequestParameterInvalid">
+    <value>«{0}» պարամետրի արժեքը հնարավոր չէ կարդալ։</value>
+  </data>
 </root>

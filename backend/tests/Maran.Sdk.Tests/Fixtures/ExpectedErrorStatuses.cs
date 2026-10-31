@@ -216,6 +216,9 @@ public static class ExpectedErrorStatuses
             ["PrivateKeyPemTooLarge"] = ErrorType.Validation,
             ["RefreshTokenInvalidUnauthorized"] = ErrorType.Unauthorized,
             ["RefreshTokenReusedUnauthorized"] = ErrorType.Unauthorized,
+            // A request value MVC could not bind (?page=abc, ?status=7): the caller sent something
+            // unreadable, written by the Host's exception middleware like every validation 400 (#245).
+            ["RequestParameterInvalid"] = ErrorType.Validation,
             ["RestoreArtifactRejected"] = ErrorType.Validation,
             ["RestoreCancelled"] = ErrorType.Failure,
             ["RestoreConfirmationMismatch"] = ErrorType.Conflict,
