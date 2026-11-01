@@ -177,6 +177,9 @@
   <data name="AuditActionCronEnvironmentChanged">
     <value>Փոխվեց cron միջավայրը</value>
   </data>
+  <data name="AuditActionCronEntryRun">
+    <value>Cron առաջադրանքը գործարկվեց ձեռքով</value>
+  </data>
   <data name="AuditActionFirewallRuleAllowed">
     <value>Բացվեց firewall-ի պորտ</value>
   </data>

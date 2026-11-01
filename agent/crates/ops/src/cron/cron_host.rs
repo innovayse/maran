@@ -6,6 +6,8 @@ use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::cron::cron_error::CronError;
+use crate::cron::model::cron_environment::CronEnvironment;
+use crate::cron::model::cron_run::CronRun;
 use crate::cron::model::cron_run_record::CronRunRecord;
 
 /// Everything the cron operations do to this machine.
@@ -241,4 +243,26 @@ pub trait CronHost: Send + Sync {
         entry: &CronEntryId,
         max_bytes: usize,
     ) -> Result<Option<String>, CronError>;
+
+    /// Starts `entry` now, as the account, inside the account's slice, and
+    /// waits for it (issue #158).
+    ///
+    /// `environment` is the crontab's managed assignments, given to the job the
+    /// way cron gives them. The implementation runs the entry's own command file
+    /// and nothing else, bounded by a runtime and an output ceiling; the job's
+    /// own failure is an answer inside the returned run, never an error.
+    ///
+    /// Implementations MUST be called from `tokio::task::spawn_blocking`, as
+    /// above: the call waits for the whole run.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CronError::RunUnavailable`] when the run could not be started
+    /// or waited for.
+    fn run_entry(
+        &self,
+        account: &ManagedAccount,
+        entry: &CronEntryId,
+        environment: &[CronEnvironment],
+    ) -> Result<CronRun, CronError>;
 }

@@ -161,6 +161,26 @@ pub enum CronError {
     /// once the host is fixed.
     #[error("no cron entry id could be generated")]
     EntryIdUnavailable,
+
+    /// The entry was asked to run now and the ACCOUNT is suspended, so nothing
+    /// was started.
+    ///
+    /// Read from the crontab's own suspension marker, which is where the
+    /// suspension is written: a suspended entry is invisible to cron, and
+    /// starting it by hand would be a way around the panel's decision. A
+    /// DISABLED entry is not this — that is the customer's own switch, and it
+    /// does not refuse a run the customer asked for.
+    #[error("the account is suspended, so its cron entry was not run")]
+    Suspended,
+
+    /// The program that starts a run by hand could not be started, or could not
+    /// be waited for, so nothing is known about the run.
+    ///
+    /// Its own variant rather than a [`Self::CrontabRefused`]: no crontab was
+    /// involved, and an operator reading "crontab refused" would look in the
+    /// wrong place. Carries nothing, for the reason the enum states.
+    #[error("the cron entry could not be started")]
+    RunUnavailable,
 }
 
 #[cfg(test)]

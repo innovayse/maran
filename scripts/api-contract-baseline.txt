@@ -86,6 +86,8 @@ PUT /api/v1/cron-entries/{}  ->  UpdateCronEntryCommand
 POST /api/v1/cron-entries/{}/enabled  ->  SetCronEntryEnabledCommand
   accountId: string
   enabled: boolean
+POST /api/v1/cron-entries/{}/runs  ->  RunCronEntryCommand
+  accountId: string
 PUT /api/v1/cron-environment  ->  SetCronEnvironmentCommand
   accountId: string
   variables: object[]
@@ -234,6 +236,8 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/certificates
   GET /api/v1/cron-entries
   GET /api/v1/cron-entries/{}/output
+  GET /api/v1/cron-entries/{}/runs
+  GET /api/v1/cron-entries/{}/runs/{}
   GET /api/v1/cron-environment
   GET /api/v1/database-grants
   GET /api/v1/databases

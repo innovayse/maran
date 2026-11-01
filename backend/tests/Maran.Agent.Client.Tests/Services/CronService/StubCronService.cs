@@ -53,6 +53,12 @@ internal sealed class StubCronService : ICronServiceInvoker
     /// <summary>The last output request the stub received, for asserting the mapping.</summary>
     public GetCronEntryOutputRequest? LastOutputRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="RunCronEntryAsync"/>.</summary>
+    public RunCronEntryResponse RunResponse { get; set; } = new();
+
+    /// <summary>The last run request the stub received, for asserting the mapping.</summary>
+    public RunCronEntryRequest? LastRunRequest { get; private set; }
+
     /// <summary>Response returned from <see cref="GetCronEnvironmentAsync"/>.</summary>
     public GetCronEnvironmentResponse GetEnvironmentResponse { get; set; } = new();
 
@@ -141,6 +147,15 @@ internal sealed class StubCronService : ICronServiceInvoker
     {
         LastOutputRequest = request;
         return Task.FromResult(OutputResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<RunCronEntryResponse> RunCronEntryAsync(
+        RunCronEntryRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastRunRequest = request;
+        return Task.FromResult(RunResponse);
     }
 
     /// <inheritdoc/>

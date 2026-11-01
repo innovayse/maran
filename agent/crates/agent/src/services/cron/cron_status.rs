@@ -45,6 +45,9 @@ pub fn to_agent_error(error: &CronError) -> AgentError {
         // identical request — this one will answer the same until the account
         // holds fewer entries or the allowance is raised.
         CronError::EntryLimitReached => ErrorCode::LimitReached,
+        // `common.proto`: the account is suspended, so a run by hand was refused
+        // before anything started. Not retryable until the account is resumed.
+        CronError::Suspended => ErrorCode::AccountSuspended,
         // Faults of this machine, not of the request. Every one of them leaves
         // the account's live crontab exactly as it was: `crontab(1)` installs a
         // table or it does not, an entry file writes or it does not, and there
@@ -54,7 +57,8 @@ pub fn to_agent_error(error: &CronError) -> AgentError {
         | CronError::EntryFileUnwritable
         | CronError::EntryFileUnreadable
         | CronError::EntryFileUnremovable
-        | CronError::EntryIdUnavailable => ErrorCode::SystemFailure,
+        | CronError::EntryIdUnavailable
+        | CronError::RunUnavailable => ErrorCode::SystemFailure,
         // A deadline or an output cap ended the program and its process group was
         // killed. This is a fault of the host, never a verdict on the request: the
         // work may or may not have finished, and `tool_output` stays empty because

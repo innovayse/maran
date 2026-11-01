@@ -177,6 +177,9 @@
   <data name="AuditActionCronEnvironmentChanged">
     <value>Изменено окружение cron</value>
   </data>
+  <data name="AuditActionCronEntryRun">
+    <value>Задание cron запущено вручную</value>
+  </data>
   <data name="AuditActionFirewallRuleAllowed">
     <value>Открыт порт брандмауэра</value>
   </data>

@@ -283,6 +283,12 @@ public static class AuditActions
     /// <summary>An account's cron environment variables were replaced. Names are recorded; values are not.</summary>
     public const string CronEnvironmentChanged = "CronEnvironmentChanged";
 
+    /// <summary>
+    /// A cron entry was started by hand (issue #158). The entry id is recorded; the command and what it
+    /// printed are not.
+    /// </summary>
+    public const string CronEntryRun = "CronEntryRun";
+
     /// <summary>A port was opened on the host firewall, optionally scoped to a source range.</summary>
     public const string FirewallRuleAllowed = "FirewallRuleAllowed";
 

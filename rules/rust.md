@@ -258,6 +258,8 @@ agent/
     │                          excluded because they hold nothing) · pkill_answer.rs (the one
     │                          spelling of a uid-wide pkill and of what its exit status
     │                          means, shared by suspension and deletion, issue #103) ·
+    │                          account_slice_unit.rs (the one spelling of
+    │                          user-<uid>.slice, issue #158) ·
     │                          apply_child_environment.rs
     │                          — the ONE environment any of them gives a child (cleared,
     │                          then the declared entries). A host whose spawn is

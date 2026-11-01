@@ -49,6 +49,9 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 10 adds <c>MonitorService.GetClockSync</c> (issue #150), and both ends moved to it as the
 /// one-revision default: a revision-9 agent answers it <c>UNIMPLEMENTED</c>, so the panel would report
 /// the clock as unchecked on every round and never warn about one that drifted.
+/// Revision 11 adds <c>CronService.RunCronEntry</c> and <c>ERROR_CODE_ACCOUNT_SUSPENDED</c>
+/// (issue #158), and both ends moved to it again: an older agent answers the rpc <c>UNIMPLEMENTED</c>, so
+/// "Run now" could never succeed against it.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -75,10 +78,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 10;
+    public const uint Minimum = 11;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 10;
+    public const uint Maximum = 11;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

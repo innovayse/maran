@@ -3,11 +3,17 @@
 use std::fs::{self, Permissions};
 use std::io;
 use std::os::unix::fs::PermissionsExt as _;
+use std::time::Instant;
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::child_input::ChildInput;
+use maran_agent_core::utils::child_output::ChildOutput;
+use maran_agent_core::utils::run_bounded::run_bounded;
+use maran_agent_core::utils::spawn_request::SpawnRequest;
 use maran_agent_core::validation::system::cron_command::CronCommand;
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
 use maran_agent_core::validation::system::managed_account::ManagedAccount;
@@ -21,7 +27,11 @@ use crate::cron::crontab_spool::CrontabSpool;
 use crate::cron::entry_files::EntryFiles;
 use crate::cron::mint_entry_id::mint_entry_id;
 use crate::cron::model::cron_entry::CronEntry;
+use crate::cron::model::cron_environment::CronEnvironment;
+use crate::cron::model::cron_run::CronRun;
 use crate::cron::model::cron_run_record::CronRunRecord;
+use crate::cron::run_now_arguments::{RUN_NOW_OUTPUT_CEILING, run_now_arguments};
+use crate::cron::run_now_outcome::run_now_outcome;
 
 /// The mode the account's cron directory is created with.
 ///
@@ -239,5 +249,34 @@ impl CronHost for ProcessCronHost {
         max_bytes: usize,
     ) -> Result<Option<String>, CronError> {
         EntryFiles::of(account.name(), entry).output_tail(max_bytes)
+    }
+
+    fn run_entry(
+        &self,
+        account: &ManagedAccount,
+        entry: &CronEntryId,
+        environment: &[CronEnvironment],
+    ) -> Result<CronRun, CronError> {
+        // The service manager, not this daemon, forks the job and drops to the
+        // account: the job must land in the account's cgroup, which a child of
+        // the agent could not be moved into without a second privileged step.
+        // The agent spawns only the client, through the bounded core.
+        let program = self.distro.systemd_run_binary();
+        let arguments = run_now_arguments(account, entry, environment, self.distro.sh_binary());
+        let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
+
+        let started = Instant::now();
+        let answer = run_bounded(SpawnRequest {
+            program: program.as_path(),
+            arguments: &arguments,
+            class: CallClass::CronRun,
+            input: ChildInput::Null,
+            output: ChildOutput::Capture {
+                stdout_cap: RUN_NOW_OUTPUT_CEILING,
+                stderr_cap: RUN_NOW_OUTPUT_CEILING,
+            },
+        });
+
+        run_now_outcome(answer, started.elapsed())
     }
 }
