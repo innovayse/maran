@@ -241,12 +241,20 @@ backend/
 │   │                                    #     ILIKE pattern: \ % _ escaped)
 │   │                                    #   Tokens/: RefreshTokenHasher, PasswordResetTokenHasher
 │   ├── Maran.Sdk/                   # the module contract consumed by paid modules too
+│   │   ├── DependencyInjection.cs       # AddSdk — the project's registrations
 │   │   ├── Interfaces/                  # IPanelModule.cs — the module contract — plus the
 │   │   │                                #   read-only windows one module opens onto another's data,
 │   │   │                                #   implemented by the OWNING module (IAccountDirectory,
-│   │   │                                #   ISiteDirectory, IAuditWriter, IAlertRecipientDirectory).
+│   │   │                                #   ISiteDirectory, IAuditWriter, IAlertRecipientDirectory),
+│   │   │                                #   and ISystemAuditJournal, which every module's journal
+│   │   │                                #   implements so a shared facility writes into it.
 │   │   │                                #   A seam holding a credential stays module-internal
 │   │   │                                #   (rules/architecture.md "A shared facility's contract").
+│   │   ├── Alerts/                      # OperatorAlertMailer — the ONE path an alert to the
+│   │   │                                #   server's operator takes: journal it through the caller's
+│   │   │                                #   ISystemAuditJournal, read the address, publish
+│   │   │                                #   SendMailRequested or journal MailSkippedNoSmtp. Callers
+│   │   │                                #   supply only the localized words (issue #290)
 │   │   ├── Controllers/                 # BaseApiController (+ controller-scoped filters)
 │   │   ├── Extensions/                  # ApiResultExtensions and other Sdk extensions
 │   │   ├── Permissions/                 # permission constants per area, one file each
@@ -737,8 +745,16 @@ Maran.Sdk/
 │   ├── EventStreamWriter.cs      #   streams: server-sent events over an HttpResponse — framing,
 │   └── EventStreamFrame.cs       #   heartbeat, flushing, shutdown ordering; a module supplies only
 │                                 #   its frame type, event name and payload
+├── Alerts/
+│   └── OperatorAlertMailer.cs    # the one operator-alert path every module that alerts calls
 └── GlobalUsings.cs
 ```
+
+`Alerts/` is in the Sdk for the same kind of reason: it publishes a Wolverine message, and the Sdk
+is the shared project that references WolverineFx and declares `SendMailRequested`. A module that
+alerts the operator **MUST NOT** read the recipient and publish the mail itself — two copies of that
+path (Monitoring's and Backups') existed until issue #290, and a difference between them would have
+been invisible to either module's tests.
 
 `Streaming/` is in the Sdk and not in `SharedKernel/Utilities/` for a mechanical reason: an SSE
 writer takes an `HttpResponse`, and `Maran.SharedKernel.csproj` carries no

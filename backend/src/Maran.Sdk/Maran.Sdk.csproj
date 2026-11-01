@@ -20,6 +20,11 @@
          validator derives from, so the paging bounds are enforced in one place for ours and
          third-party modules alike. -->
     <PackageReference Include="FluentValidation" />
+    <!-- WolverineFx: Alerts/OperatorAlertMailer publishes SendMailRequested — the message this
+         project already declares — so the operator-alert path every module shares is one
+         implementation here rather than a copy per module (issue #290). The Sdk declares no
+         handler; Wolverine discovers handlers only in the module assemblies the Host names. -->
+    <PackageReference Include="WolverineFx" />
   </ItemGroup>
 
   <ItemGroup>
