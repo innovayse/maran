@@ -39,6 +39,11 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// <c>HostMetrics.free_space_floor_bytes</c> (issue #148), and both ends moved to it as the
 /// one-revision default: a revision-6 agent never refuses at a floor and sends no floor, which
 /// protobuf reads as zero, so the panel's "approaching the floor" alert could never fire against it.
+/// Revision 9 adds <c>InstallPanelCertificate</c>, <c>WritePanelChallenge</c> and
+/// <c>RemovePanelChallenge</c> (issue #132), and both ends moved to it: a revision-7 agent answers
+/// the three rpcs <c>UNIMPLEMENTED</c>, so the panel's own certificate could never be issued or
+/// renewed against it. Revision 8 was claimed by a branch in flight when this one was written
+/// (issue #133); the gap is the number left for it, not a revision of its own.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -65,10 +70,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 7;
+    public const uint Minimum = 9;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 7;
+    public const uint Maximum = 9;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

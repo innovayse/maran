@@ -444,6 +444,12 @@ field maran.agent.v1.InstallCertificateRequest 5 site TYPE_MESSAGE LABEL_OPTIONA
 field maran.agent.v1.InstallCertificateResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.InstallCertificateOk oneof=result
 field maran.agent.v1.InstallCertificateResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.InstallCertificateResponse 3 refused TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.InstallCertificateRefused oneof=result
+field maran.agent.v1.InstallPanelCertificateOk 1 expires_at_unix TYPE_INT64 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.InstallPanelCertificateRequest 1 certificate_pem TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.InstallPanelCertificateRequest 2 private_key_pem TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.InstallPanelCertificateResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.InstallPanelCertificateOk oneof=result
+field maran.agent.v1.InstallPanelCertificateResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.InstallPanelCertificateResponse 3 refused TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.InstallCertificateRefused oneof=result
 field maran.agent.v1.InstallPhpVersionOk 1 version TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.InstallPhpVersionRequest 1 version TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.InstallPhpVersionResponse 1 progress TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.Progress oneof=result
@@ -535,6 +541,9 @@ field maran.agent.v1.RemoveCertificateRequest 2 domain TYPE_STRING LABEL_OPTIONA
 field maran.agent.v1.RemoveCertificateRequest 3 site TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SiteSpec oneof=-
 field maran.agent.v1.RemoveCertificateResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RemoveCertificateOk oneof=result
 field maran.agent.v1.RemoveCertificateResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.RemovePanelChallengeRequest 1 token TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RemovePanelChallengeResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RemovePanelChallengeOk oneof=result
+field maran.agent.v1.RemovePanelChallengeResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.RepairAccountHomeGroupsOk 1 examined TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RepairAccountHomeGroupsOk 2 already_correct TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RepairAccountHomeGroupsOk 3 repaired TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.RepairedHome oneof=-
@@ -663,6 +672,10 @@ field maran.agent.v1.WriteFileRequest 1 header TYPE_MESSAGE LABEL_OPTIONAL type_
 field maran.agent.v1.WriteFileRequest 2 chunk TYPE_BYTES LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.WriteFileResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.WriteFileOk oneof=result
 field maran.agent.v1.WriteFileResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.WritePanelChallengeRequest 1 token TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.WritePanelChallengeRequest 2 key_authorization TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.WritePanelChallengeResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.WritePanelChallengeOk oneof=result
+field maran.agent.v1.WritePanelChallengeResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 message maran.agent.v1.AccountDiskUsage
 message maran.agent.v1.AgentError
 message maran.agent.v1.AgentInfo
@@ -799,6 +812,9 @@ message maran.agent.v1.InstallCertificateOk
 message maran.agent.v1.InstallCertificateRefused
 message maran.agent.v1.InstallCertificateRequest
 message maran.agent.v1.InstallCertificateResponse
+message maran.agent.v1.InstallPanelCertificateOk
+message maran.agent.v1.InstallPanelCertificateRequest
+message maran.agent.v1.InstallPanelCertificateResponse
 message maran.agent.v1.InstallPhpVersionOk
 message maran.agent.v1.InstallPhpVersionRequest
 message maran.agent.v1.InstallPhpVersionResponse
@@ -850,6 +866,9 @@ message maran.agent.v1.ReloadWebServerResponse
 message maran.agent.v1.RemoveCertificateOk
 message maran.agent.v1.RemoveCertificateRequest
 message maran.agent.v1.RemoveCertificateResponse
+message maran.agent.v1.RemovePanelChallengeOk
+message maran.agent.v1.RemovePanelChallengeRequest
+message maran.agent.v1.RemovePanelChallengeResponse
 message maran.agent.v1.RepairAccountHomeGroupsOk
 message maran.agent.v1.RepairAccountHomeGroupsRequest
 message maran.agent.v1.RepairAccountHomeGroupsResponse
@@ -912,6 +931,9 @@ message maran.agent.v1.WriteFileHeader
 message maran.agent.v1.WriteFileOk
 message maran.agent.v1.WriteFileRequest
 message maran.agent.v1.WriteFileResponse
+message maran.agent.v1.WritePanelChallengeOk
+message maran.agent.v1.WritePanelChallengeRequest
+message maran.agent.v1.WritePanelChallengeResponse
 reserved-name maran.agent.v1.AllowPortRequest ssh_port
 reserved-name maran.agent.v1.CreateSftpUserRequest chroot_path
 reserved-name maran.agent.v1.DenyPortRequest ssh_port
@@ -991,7 +1013,10 @@ rpc maran.agent.v1.SitesService TailSiteLog in=.maran.agent.v1.TailSiteLogReques
 rpc maran.agent.v1.SitesService UpdateSitePhpVersion in=.maran.agent.v1.UpdateSitePhpVersionRequest out=.maran.agent.v1.UpdateSitePhpVersionResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SslService GenerateSelfSigned in=.maran.agent.v1.GenerateSelfSignedRequest out=.maran.agent.v1.GenerateSelfSignedResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SslService InstallCertificate in=.maran.agent.v1.InstallCertificateRequest out=.maran.agent.v1.InstallCertificateResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.SslService InstallPanelCertificate in=.maran.agent.v1.InstallPanelCertificateRequest out=.maran.agent.v1.InstallPanelCertificateResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SslService RemoveCertificate in=.maran.agent.v1.RemoveCertificateRequest out=.maran.agent.v1.RemoveCertificateResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.SslService RemovePanelChallenge in=.maran.agent.v1.RemovePanelChallengeRequest out=.maran.agent.v1.RemovePanelChallengeResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.SslService WritePanelChallenge in=.maran.agent.v1.WritePanelChallengeRequest out=.maran.agent.v1.WritePanelChallengeResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SystemService GetAgentInfo in=.maran.agent.v1.GetAgentInfoRequest out=.maran.agent.v1.GetAgentInfoResponse client_streaming=false server_streaming=false
 service maran.agent.v1.AccountsService
 service maran.agent.v1.BackupService

@@ -1,6 +1,7 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-11-01 (issue #132, the panel's own certificate): edited by hand. maran_agent [unittests src/lib.rs] 436->442; maran_agent_core [unittests src/lib.rs] 515->523; maran_ops [unittests src/lib.rs] 1770->1780; Maran.Agent.Client.Tests.dll 380->384; Maran.Modules.Ssl.Tests.dll 235->250; Maran.Sdk.Tests.dll 268->271; Maran.Host.Tests.dll 406->414; new spa row admin/panel-certificate.spec.ts 3.
 # RE-MEASURED 2026-11-01 (issue #148, free-space floor): edited by hand. maran_agent [unittests src/lib.rs] 428->436; maran_agent_core [unittests src/lib.rs] 508->515; maran_ops [unittests src/lib.rs] 1761->1770; Maran.Modules.Monitoring.Tests.dll 87->95; Maran.Sdk.Tests.dll 267->268. Full runs: `maran test rust` 35 targets: 2884 passed / 0 failed / 155 ignored; `maran test backend` 20 targets: 5147 passed / 0 failed / 0 ignored; both TEST VERDICT: OK.
 # RE-MEASURED 2026-10-31 (issue #275, merged with dev's #274: Host.IntegrationTests 824+7 = 831;, a site carries at most 99 aliases): edited by hand.
 # backend: Host.IntegrationTests 820->827 (SiteAliasLimitEndpointTests 5, SitesAuthorizationTests +2 for GET /api/v1/sites/limits),
@@ -473,7 +474,7 @@
 # `164 targets: 1110 passed / 0 failed / 2 ignored`. Two spa rows raised: accounts/form 9->11
 # (the plan control's name and message in en and hy), ui-kit/unfilled-select-prompt 3->4 (the
 # Armenian account pickers). Backend rows unchanged.
-rust	maran_agent [unittests src/lib.rs]	436	0	0
+rust	maran_agent [unittests src/lib.rs]	442	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -494,9 +495,9 @@ rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	
 rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	13
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
-rust	maran_agent_core [unittests src/lib.rs]	515	0	0
+rust	maran_agent_core [unittests src/lib.rs]	523	0	0
 rust	maran_distro [unittests src/lib.rs]	79	0	0
-rust	maran_ops [unittests src/lib.rs]	1770	0	1
+rust	maran_ops [unittests src/lib.rs]	1780	0	1
 rust	maran_templates [unittests src/lib.rs]	13	0	0
 rust	golden_test [tests/golden_test.rs]	22	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
@@ -508,7 +509,7 @@ rust	doc-tests maran_templates	0	0	0
 rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
-backend	Maran.Agent.Client.Tests.dll	380	0	0
+backend	Maran.Agent.Client.Tests.dll	384	0	0
 backend	Maran.SharedKernel.Tests.dll	349	0	0
 backend	Maran.Modules.Identity.Tests.dll	373	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
@@ -522,11 +523,11 @@ backend	Maran.Modules.Firewall.Tests.dll	286	0	0
 backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	514	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
-backend	Maran.Modules.Ssl.Tests.dll	235	0	0
-backend	Maran.Sdk.Tests.dll	268	0	0
+backend	Maran.Modules.Ssl.Tests.dll	250	0	0
+backend	Maran.Sdk.Tests.dll	271	0	0
 backend	Maran.Modules.Sites.Tests.dll	275	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
-backend	Maran.Host.Tests.dll	406	0	0
+backend	Maran.Host.Tests.dll	414	0	0
 backend	Maran.Host.IntegrationTests.dll	833	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
@@ -539,6 +540,7 @@ spa	accounts/loading.spec.ts	3	0	0
 spa	accounts/my-account-loading.spec.ts	3	0	0
 spa	accounts/resources.spec.ts	9	0	0
 spa	admin/audit.spec.ts	3	0	0
+spa	admin/panel-certificate.spec.ts	3	0	0
 spa	admin/smtp-settings.spec.ts	2	0	0
 spa	audit/action-names.spec.ts	2	0	0
 spa	audit/list.spec.ts	6	0	0

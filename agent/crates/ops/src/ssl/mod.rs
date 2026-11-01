@@ -31,6 +31,12 @@
 //!   variant that can carry key material, and the pair's `Debug` prints
 //!   `<redacted>`.
 //!
+//! The panel's OWN certificate lives here too (issue #132):
+//! [`install_panel_certificate`] replaces the pair the panel vhost names, and
+//! [`write_panel_challenge`] / [`remove_panel_challenge`] place the HTTP-01
+//! file for the panel's host name through their own seam,
+//! [`PanelChallengeHost`], refusing below the free-space floor first.
+//!
 //! The area also owns [`purge_certificate`], which is not an rpc: it is what a
 //! site deletion calls to take the material with it. It lives here rather than
 //! in `delete_site` because this area already depends on `sites`, and the
@@ -47,30 +53,44 @@ mod certificate_expiry;
 mod certificate_state;
 mod delete_site_with_certificate;
 #[cfg(test)]
+#[path = "../tests/ssl/fake_panel_challenge_host.rs"]
+pub(crate) mod fake_panel_challenge_host;
+#[cfg(test)]
 #[path = "../tests/ssl/fake_ssl_host.rs"]
 pub(crate) mod fake_ssl_host;
 mod generate_self_signed;
 mod install_certificate;
+mod install_panel_certificate;
 mod key_matches_certificate;
+mod material_installed;
 pub mod model;
+mod panel_challenge_host;
+mod process_panel_challenge_host;
 mod process_ssl_host;
 mod purge_certificate;
 mod remove_certificate;
 mod remove_material;
+mod remove_panel_challenge;
 mod self_signed_marker;
 mod ssl_host;
 mod ssl_op_error;
 mod write_material;
+mod write_panel_challenge;
 
 pub use certificate_state::certificate_state;
 pub use delete_site_with_certificate::delete_site_with_certificate;
 pub use generate_self_signed::generate_self_signed;
 pub use install_certificate::install_certificate;
+pub use install_panel_certificate::install_panel_certificate;
 pub use model::certificate_material::CertificateMaterial;
 pub use model::certificate_state::CertificateState;
 pub use model::self_signed_request::SelfSignedRequest;
+pub use panel_challenge_host::PanelChallengeHost;
+pub use process_panel_challenge_host::ProcessPanelChallengeHost;
 pub use process_ssl_host::ProcessSslHost;
 pub use purge_certificate::purge_certificate;
 pub use remove_certificate::remove_certificate;
+pub use remove_panel_challenge::remove_panel_challenge;
 pub use ssl_host::SslHost;
 pub use ssl_op_error::SslOpError;
+pub use write_panel_challenge::write_panel_challenge;

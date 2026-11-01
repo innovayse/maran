@@ -29,6 +29,15 @@ public sealed class RecordingAgentSslClient : IAgentSslClient
     /// <summary>The account, domain and descriptor of every removal, in order.</summary>
     public List<(string Account, string Domain, SiteDescriptor Site)> Removals { get; } = [];
 
+    /// <summary>The certificate and key of every install of the panel's own pair, in order.</summary>
+    public List<(string CertificatePem, string PrivateKeyPem)> PanelInstalls { get; } = [];
+
+    /// <summary>The token and content of every panel challenge written, in order.</summary>
+    public List<(string Token, string KeyAuthorization)> PanelChallengesWritten { get; } = [];
+
+    /// <summary>The token of every panel challenge removed, in order.</summary>
+    public List<string> PanelChallengesRemoved { get; } = [];
+
     /// <summary>Creates a client that succeeds, or one that always refuses.</summary>
     /// <param name="failure">The refusal to answer with, or null to succeed.</param>
     /// <param name="expiresAt">When a successful install reports the certificate expires.</param>
@@ -62,6 +71,38 @@ public sealed class RecordingAgentSslClient : IAgentSslClient
         CancellationToken cancellationToken)
     {
         Removals.Add((accountUsername, domain, site));
+
+        return Task.FromResult(_failure is null ? Result<bool>.Ok(true) : Result<bool>.Fail(_failure));
+    }
+
+    /// <inheritdoc />
+    public Task<Result<InstalledCertificateDto>> InstallPanelCertificateAsync(
+        string certificatePem,
+        string privateKeyPem,
+        CancellationToken cancellationToken)
+    {
+        PanelInstalls.Add((certificatePem, privateKeyPem));
+
+        return Task.FromResult(_failure is null
+            ? Result<InstalledCertificateDto>.Ok(new InstalledCertificateDto(_expiresAt))
+            : Result<InstalledCertificateDto>.Fail(_failure));
+    }
+
+    /// <inheritdoc />
+    public Task<Result<bool>> WritePanelChallengeAsync(
+        string token,
+        string keyAuthorization,
+        CancellationToken cancellationToken)
+    {
+        PanelChallengesWritten.Add((token, keyAuthorization));
+
+        return Task.FromResult(_failure is null ? Result<bool>.Ok(true) : Result<bool>.Fail(_failure));
+    }
+
+    /// <inheritdoc />
+    public Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+    {
+        PanelChallengesRemoved.Add(token);
 
         return Task.FromResult(_failure is null ? Result<bool>.Ok(true) : Result<bool>.Fail(_failure));
     }

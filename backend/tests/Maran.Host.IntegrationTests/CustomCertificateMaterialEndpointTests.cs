@@ -316,5 +316,29 @@ public sealed class CustomCertificateMaterialEndpointTests : IAsyncLifetime
         {
             return Task.FromResult(Result<bool>.Ok(true));
         }
+
+        /// <inheritdoc />
+        public Task<Result<InstalledCertificateDto>> InstallPanelCertificateAsync(
+            string certificatePem,
+            string privateKeyPem,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Result<InstalledCertificateDto>.Ok(new InstalledCertificateDto(DateTimeOffset.UnixEpoch.AddYears(60))));
+        }
+
+        /// <inheritdoc />
+        public Task<Result<bool>> WritePanelChallengeAsync(
+            string token,
+            string keyAuthorization,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Result<bool>.Ok(true));
+        }
+
+        /// <inheritdoc />
+        public Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Result<bool>.Ok(true));
+        }
     }
 }

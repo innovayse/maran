@@ -99,6 +99,8 @@ public sealed class SslModule : IPanelModule
         services.AddScoped<IAcmeChallengeWriter, AcmeChallengeWriter>();
         services.AddScoped<IAcmeClient, AcmeClient>();
         services.AddScoped<CertificateRenewalHandler>();
+        services.AddScoped<PanelCertificateIssuer>();
+        services.AddScoped<PanelCertificateRenewalHandler>();
 
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T> instead.

@@ -43,6 +43,24 @@ impl SiteCertificate {
         }
     }
 
+    /// The panel's OWN certificate material: the pair the panel's nginx vhost
+    /// names, in [`AgentPaths::PANEL_TLS_DIRECTORY`].
+    ///
+    /// The panel vhost is a site of this web server like any other — one
+    /// `server` block, one `ssl_certificate` pair — so its material takes the
+    /// same write path a site's does (issue #132). Like
+    /// [`Self::for_domain`] it takes nothing a caller could choose: both paths
+    /// are the fixed names the installer rendered the vhost against.
+    #[must_use]
+    pub fn for_panel() -> Self {
+        let directory = PathBuf::from(AgentPaths::PANEL_TLS_DIRECTORY);
+
+        Self {
+            certificate_path: directory.join(AgentPaths::PANEL_CERTIFICATE_FILE),
+            key_path: directory.join(AgentPaths::PANEL_KEY_FILE),
+        }
+    }
+
     /// Absolute path of the full certificate chain.
     #[must_use]
     pub fn certificate_path(&self) -> &Path {

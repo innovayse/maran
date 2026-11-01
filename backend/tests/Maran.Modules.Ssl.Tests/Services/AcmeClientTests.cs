@@ -190,7 +190,7 @@ public sealed class AcmeClientTests : IDisposable
         using var garbling = new FakeAcmeAuthority("not a certificate");
 
         var result = await ClientFor(new StubHttpClientFactory(garbling))
-            .OrderAsync(new AcmeOrderRequest("example.com", "acct"), CancellationToken.None);
+            .OrderAsync(new AcmeOrderRequest("example.com", new SiteDocumentRootChallenge("acct")), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AcmeCertificateUnreadable", result.Error!.Code);
@@ -209,7 +209,7 @@ public sealed class AcmeClientTests : IDisposable
         var failingFiles = new RecordingAgentFilesClient(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await ClientFor(new StubHttpClientFactory(_authority), failingFiles)
-            .OrderAsync(new AcmeOrderRequest("example.com", "acct"), CancellationToken.None);
+            .OrderAsync(new AcmeOrderRequest("example.com", new SiteDocumentRootChallenge("acct")), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AcmeChallengeWriteFailed", result.Error!.Code);
@@ -221,7 +221,7 @@ public sealed class AcmeClientTests : IDisposable
     public async Task The_client_asks_the_factory_for_the_named_governed_acme_client()
     {
         var factory = new StubHttpClientFactory(_authority);
-        await ClientFor(factory).OrderAsync(new AcmeOrderRequest("example.com", "acct"), CancellationToken.None);
+        await ClientFor(factory).OrderAsync(new AcmeOrderRequest("example.com", new SiteDocumentRootChallenge("acct")), CancellationToken.None);
 
         // A client built any other way carries no timeout at all.
         Assert.Equal([AcmeOptions.HttpClientName], factory.RequestedNames);
@@ -245,7 +245,7 @@ public sealed class AcmeClientTests : IDisposable
     private async Task<Result<IssuedCertificate>> OrderAsync()
     {
         return await ClientFor(new StubHttpClientFactory(_authority))
-            .OrderAsync(new AcmeOrderRequest("example.com", "acct"), CancellationToken.None);
+            .OrderAsync(new AcmeOrderRequest("example.com", new SiteDocumentRootChallenge("acct")), CancellationToken.None);
     }
 
     /// <summary>Builds the production client over this class's doubles.</summary>
@@ -270,7 +270,7 @@ public sealed class AcmeClientTests : IDisposable
         return new AcmeClient(
             factory,
             options,
-            new AcmeChallengeWriter(files ?? _files),
+            new AcmeChallengeWriter(files ?? _files, new RecordingAgentSslClient()),
             new AcmeAccountStore(_dbContext, new FakeClock(Expiry), NullLogger<AcmeAccountStore>.Instance),
             new AdvancingClock(Expiry),
             NullLogger<AcmeClient>.Instance);

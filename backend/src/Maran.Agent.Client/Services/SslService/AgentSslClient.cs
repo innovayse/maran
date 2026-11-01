@@ -95,4 +95,62 @@ public sealed class AgentSslClient : IAgentSslClient
             _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<InstalledCertificateDto>> InstallPanelCertificateAsync(
+        string certificatePem,
+        string privateKeyPem,
+        CancellationToken cancellationToken)
+    {
+        var request = new InstallPanelCertificateRequest
+        {
+            CertificatePem = certificatePem,
+            PrivateKeyPem = privateKeyPem,
+        };
+        var response = await _invoker.InstallPanelCertificateAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            InstallPanelCertificateResponse.ResultOneofCase.Ok => Result<InstalledCertificateDto>.Ok(
+                new InstalledCertificateDto(DateTimeOffset.FromUnixTimeSeconds(response.Ok.ExpiresAtUnix))),
+            InstallPanelCertificateResponse.ResultOneofCase.Error => Result<InstalledCertificateDto>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(InstallPanelCertificateAsync))),
+            InstallPanelCertificateResponse.ResultOneofCase.Refused => Result<InstalledCertificateDto>.Fail(
+                CertificateMaterialRefusalTranslator.ToError(response.Refused.Reason)),
+            _ => Result<InstalledCertificateDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<bool>> WritePanelChallengeAsync(
+        string token,
+        string keyAuthorization,
+        CancellationToken cancellationToken)
+    {
+        var request = new WritePanelChallengeRequest { Token = token, KeyAuthorization = keyAuthorization };
+        var response = await _invoker.WritePanelChallengeAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            WritePanelChallengeResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
+            WritePanelChallengeResponse.ResultOneofCase.Error => Result<bool>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(WritePanelChallengeAsync))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+    {
+        var request = new RemovePanelChallengeRequest { Token = token };
+        var response = await _invoker.RemovePanelChallengeAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            RemovePanelChallengeResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
+            RemovePanelChallengeResponse.ResultOneofCase.Error => Result<bool>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(RemovePanelChallengeAsync))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
 }

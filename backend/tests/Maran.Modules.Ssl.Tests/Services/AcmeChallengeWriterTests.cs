@@ -1,3 +1,4 @@
+using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Services;
 using Maran.Modules.Ssl.Tests.TestSupport;
 using Maran.SharedKernel.Results;
@@ -10,14 +11,17 @@ public sealed class AcmeChallengeWriterTests
     /// <summary>The challenge token every test here writes.</summary>
     private const string Token = "tok3n-value";
 
+    /// <summary>The site target every document-root test here writes for.</summary>
+    private static readonly SiteDocumentRootChallenge Site = new("acct");
+
     /// <summary>The challenge is written through the agent under the owning accounts name.</summary>
     [Fact]
     public async Task The_challenge_is_written_through_the_agent_under_the_owning_accounts_name()
     {
         var files = new RecordingAgentFilesClient();
 
-        var result = await new AcmeChallengeWriter(files)
-            .WriteAsync("acct", "example.com", Token, "key-authorization", CancellationToken.None);
+        var result = await new AcmeChallengeWriter(files, new RecordingAgentSslClient())
+            .WriteAsync(Site, "example.com", Token, "key-authorization", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         var write = Assert.Single(files.Writes);
@@ -31,8 +35,8 @@ public sealed class AcmeChallengeWriterTests
     {
         var files = new RecordingAgentFilesClient();
 
-        await new AcmeChallengeWriter(files)
-            .WriteAsync("acct", "example.com", Token, "key-authorization", CancellationToken.None);
+        await new AcmeChallengeWriter(files, new RecordingAgentSslClient())
+            .WriteAsync(Site, "example.com", Token, "key-authorization", CancellationToken.None);
 
         Assert.Equal($"sites/example.com/.well-known/acme-challenge/{Token}", Assert.Single(files.Writes).Path);
     }
@@ -43,24 +47,69 @@ public sealed class AcmeChallengeWriterTests
     {
         var files = new RecordingAgentFilesClient();
 
-        await new AcmeChallengeWriter(files)
-            .WriteAsync("acct", "example.com", Token, "key-authorization", CancellationToken.None);
+        await new AcmeChallengeWriter(files, new RecordingAgentSslClient())
+            .WriteAsync(Site, "example.com", Token, "key-authorization", CancellationToken.None);
 
         // 0644 — the web server runs as its own user and must be able to read it.
         Assert.Equal(0b110_100_100u, Assert.Single(files.Writes).Mode);
     }
 
-    /// <summary>An agent that refuses the write is surfaced as a failure rather than swallowed.</summary>
+    /// <summary>An agent that refuses the write is surfaced as a local challenge-write fault rather than swallowed.</summary>
     [Fact]
     public async Task An_agent_that_refuses_the_write_is_surfaced_as_a_failure_rather_than_swallowed()
     {
         var files = new RecordingAgentFilesClient(Error.Of("AgentValidationFailed", ErrorType.Validation));
 
-        var result = await new AcmeChallengeWriter(files)
-            .WriteAsync("acct", "example.com", Token, "key-authorization", CancellationToken.None);
+        var result = await new AcmeChallengeWriter(files, new RecordingAgentSslClient())
+            .WriteAsync(Site, "example.com", Token, "key-authorization", CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("AgentValidationFailed", result.Error!.Code);
+        Assert.Equal("AcmeChallengeWriteFailed", result.Error!.Code);
+        Assert.Equal(ErrorType.Failure, result.Error.Type);
+    }
+
+    /// <summary>A write refused at the free-space floor keeps the floor's own code (issue #148).</summary>
+    [Fact]
+    public async Task A_write_refused_at_the_free_space_floor_keeps_the_floors_own_code()
+    {
+        var files = new RecordingAgentFilesClient(Error.Of("AgentBelowFreeSpaceFloor", ErrorType.Unavailable));
+
+        var result = await new AcmeChallengeWriter(files, new RecordingAgentSslClient())
+            .WriteAsync(Site, "example.com", Token, "key-authorization", CancellationToken.None);
+
+        Assert.Equal("AgentBelowFreeSpaceFloor", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+    }
+
+    /// <summary>The panel's challenge goes to the agent's panel directory and never into a home.</summary>
+    [Fact]
+    public async Task The_panels_challenge_goes_to_the_agents_panel_directory_and_never_into_a_home()
+    {
+        var files = new RecordingAgentFilesClient();
+        var ssl = new RecordingAgentSslClient();
+        var writer = new AcmeChallengeWriter(files, ssl);
+
+        var written = await writer.WriteAsync(
+            new PanelChallengeDirectory(), "panel.example.net", Token, "key-authorization", CancellationToken.None);
+        await writer.RemoveAsync(new PanelChallengeDirectory(), "panel.example.net", Token, CancellationToken.None);
+
+        Assert.True(written.IsSuccess);
+        Assert.Equal((Token, "key-authorization"), Assert.Single(ssl.PanelChallengesWritten));
+        Assert.Equal(Token, Assert.Single(ssl.PanelChallengesRemoved));
+        Assert.Empty(files.Writes);
+        Assert.Empty(files.Deletes);
+    }
+
+    /// <summary>The panel's challenge refused at the free-space floor keeps the floor's own code.</summary>
+    [Fact]
+    public async Task The_panels_challenge_refused_at_the_floor_keeps_the_floors_own_code()
+    {
+        var ssl = new RecordingAgentSslClient(Error.Of("AgentBelowFreeSpaceFloor", ErrorType.Unavailable));
+
+        var result = await new AcmeChallengeWriter(new RecordingAgentFilesClient(), ssl).WriteAsync(
+            new PanelChallengeDirectory(), "panel.example.net", Token, "key-authorization", CancellationToken.None);
+
+        Assert.Equal("AgentBelowFreeSpaceFloor", result.Error!.Code);
     }
 
     /// <summary>Removing deletes the same path it wrote and never recursively.</summary>
@@ -69,8 +118,8 @@ public sealed class AcmeChallengeWriterTests
     {
         var files = new RecordingAgentFilesClient();
 
-        await new AcmeChallengeWriter(files)
-            .RemoveAsync("acct", "example.com", Token, CancellationToken.None);
+        await new AcmeChallengeWriter(files, new RecordingAgentSslClient())
+            .RemoveAsync(Site, "example.com", Token, CancellationToken.None);
 
         var delete = Assert.Single(files.Deletes);
         Assert.Equal($"sites/example.com/.well-known/acme-challenge/{Token}", delete.Path);
@@ -90,8 +139,8 @@ public sealed class AcmeChallengeWriterTests
         // the old defence, "the agent re-validates", describes a file service that does not exist yet.
         var files = new RecordingAgentFilesClient();
 
-        var result = await new AcmeChallengeWriter(files)
-            .WriteAsync("acct", "example.com", token, "key-authorization", CancellationToken.None);
+        var result = await new AcmeChallengeWriter(files, new RecordingAgentSslClient())
+            .WriteAsync(Site, "example.com", token, "key-authorization", CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AcmeChallengeTokenInvalid", result.Error!.Code);
@@ -105,8 +154,8 @@ public sealed class AcmeChallengeWriterTests
     {
         var files = new RecordingAgentFilesClient();
 
-        var result = await new AcmeChallengeWriter(files)
-            .RemoveAsync("acct", "example.com", "../../../etc/passwd", CancellationToken.None);
+        var result = await new AcmeChallengeWriter(files, new RecordingAgentSslClient())
+            .RemoveAsync(Site, "example.com", "../../../etc/passwd", CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Empty(files.Deletes);
@@ -120,8 +169,8 @@ public sealed class AcmeChallengeWriterTests
     {
         var files = new RecordingAgentFilesClient();
 
-        var result = await new AcmeChallengeWriter(files)
-            .WriteAsync("acct", "example.com", token, "key-authorization", CancellationToken.None);
+        var result = await new AcmeChallengeWriter(files, new RecordingAgentSslClient())
+            .WriteAsync(Site, "example.com", token, "key-authorization", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Single(files.Writes);

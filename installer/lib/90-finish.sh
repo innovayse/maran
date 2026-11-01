@@ -85,13 +85,14 @@ Maran is installed and reachable at https://${hostname}:${MARAN_PANEL_PORT}/
 
 Your browser will warn the first time you open that address, and the warning is expected: this
 installer generated the certificate and signed it itself. The connection is encrypted all the
-same, and the panel answers over HTTPS only — it opens no plain-HTTP port — but a certificate a
-browser trusts is issued only against a publicly resolving name, proved by a challenge no
-installer can answer on a host it has just met. When this server has such a name, put your own
-certificate and key at /etc/maran/tls/panel.crt and /etc/maran/tls/panel.key and reload nginx;
-whatever is already at those paths is left alone, by this install and by the next. Replacing it
-is a manual step today: the panel's SSL page issues certificates for the sites you host, not for
-the panel's own address.
+same, and the panel's interface is served over HTTPS only — its one port-80 block answers the
+certificate authority's challenge for the panel's own name and nothing else. A certificate a
+browser trusts is issued only against a publicly resolving name. When this server's name resolves
+here, open Security policy, then Panel certificate, and request a trusted certificate: the panel
+orders it, installs it and renews it by itself, and keeps this self-signed one if issuance fails.
+You may instead put your own certificate and key at /etc/maran/tls/panel.crt and
+/etc/maran/tls/panel.key and reload nginx; whatever is already at those paths is left alone by
+this install and by the next.
 
 Open the link above and paste the setup token printed with it to create the first
 administrator. The token stops working the moment the panel has a user, so it is worth

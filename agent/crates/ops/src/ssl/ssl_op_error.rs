@@ -1,6 +1,7 @@
 //! Failures of the certificate operations.
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_agent_core::utils::spawn_error::SpawnError;
 
 use crate::safe_write::SafeWriteError;
@@ -161,6 +162,25 @@ pub enum SslOpError {
     /// never a byte the program printed, so it cannot hold key material.
     #[error(transparent)]
     Bound(#[from] BoundExceeded),
+
+    /// No challenge file for the token is in place to remove — the ordinary
+    /// answer to removing one twice (issue #132).
+    #[error("no challenge file is in place for this token")]
+    ChallengeNotFound,
+
+    /// The panel's challenge file could not be written or removed.
+    #[error("failed to write the challenge file: {reason}")]
+    ChallengeWrite {
+        /// What the filesystem reported. Never content: a challenge file holds
+        /// a public key authorization, and this names only the failure.
+        reason: String,
+    },
+
+    /// The challenge write was refused at the free-space floor before
+    /// anything was created (issue #148), exactly as a customer's challenge
+    /// written through `WriteFile` is.
+    #[error(transparent)]
+    FreeSpace(#[from] FloorRefusal),
 }
 
 impl From<SitesOpError> for SslOpError {

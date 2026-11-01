@@ -30,9 +30,20 @@ public static class ModuleExtensions
         services.AddScoped<IAccountResidueAuditor, ModuleAccountResidueAuditor>();
 
         // The Host's too: it alone reads the configured panel name, and answers the Sites, Ssl and Ftp
-        // modules' one question, "is this name the panel's own", with a verdict and never the name.
-        // Singleton because it normalises the configured value once and holds nothing else.
-        services.AddSingleton<IReservedHostDirectory, PanelHostDirectory>();
+        // modules' one question, "is this name the panel's own", with a verdict and never the name —
+        // and, through a second, separate window, gives the name itself to the Ssl module's
+        // administrator-only panel certificate (issue #132). One instance behind both windows, so the
+        // two can never disagree about what the name is. Singleton because it normalises the
+        // configured value once and holds nothing else.
+        services.AddSingleton<PanelHostDirectory>();
+        services.AddSingleton<IReservedHostDirectory>(provider =>
+        {
+            return provider.GetRequiredService<PanelHostDirectory>();
+        });
+        services.AddSingleton<IPanelHostName>(provider =>
+        {
+            return provider.GetRequiredService<PanelHostDirectory>();
+        });
 
         // Also the Host's and no module's: a licence tier is declared in the Sdk's module contract
         // and belongs to none of the modules that declare one, so no module's resources may name
