@@ -177,6 +177,9 @@
   <data name="AuditActionCronEnvironmentChanged">
     <value>Cron environment changed</value>
   </data>
+  <data name="AuditActionCronEntryRun">
+    <value>Cron entry run by hand</value>
+  </data>
   <data name="AuditActionFirewallRuleAllowed">
     <value>Firewall port opened</value>
   </data>

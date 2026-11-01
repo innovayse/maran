@@ -57,4 +57,13 @@
   <data name="CronEntryLimitReachedConcurrently">
     <value>Your plan's limit on scheduled tasks was reached by another request made at the same moment, so this task was not created. Nothing you entered is wrong. Delete a scheduled task you no longer need, or ask for a larger plan, then try again.</value>
   </data>
+  <data name="CronEntrySuspended">
+    <value>The account is suspended, so its scheduled task was not run. Resume the account, then try again.</value>
+  </data>
+  <data name="CronRunOutcomeUnknown">
+    <value>This run outcome is not one the panel recognises.</value>
+  </data>
+  <data name="CronRunNotFound">
+    <value>This run could not be found.</value>
+  </data>
 </root>

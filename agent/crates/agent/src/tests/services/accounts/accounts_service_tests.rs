@@ -39,7 +39,7 @@ use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::{AdapterBinary, DistroFamily, adapter_for};
 use maran_ops::accounts::{AccountError, AccountOperations, CommandOutcome, SystemHost};
 use maran_ops::cron::model::cron_run_record::CronRunRecord;
-use maran_ops::cron::{CronError, CronHost};
+use maran_ops::cron::{CronEnvironment, CronError, CronHost, CronRun};
 use maran_ops::db::{DbError, DbHost};
 use maran_ops::ftps::{CandidateOutcome, FtpsError, FtpsHost};
 use maran_ops::logins::{LoginsError, LoginsHost};
@@ -702,6 +702,16 @@ impl CronHost for UnusedCronHost {
         _max_bytes: usize,
     ) -> Result<Option<String>, CronError> {
         unreachable!("no rpc in this file reads an output tail")
+    }
+
+    /// Unreachable: see [`UnusedCronHost`].
+    fn run_entry(
+        &self,
+        _account: &ManagedAccount,
+        _entry: &CronEntryId,
+        _environment: &[CronEnvironment],
+    ) -> Result<CronRun, CronError> {
+        unreachable!("no rpc in this file runs an entry")
     }
 }
 

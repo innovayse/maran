@@ -161,6 +161,21 @@ enum ErrorCode {
   // disk's fill. It is also NOT the code for an account over its own quota,
   // which the filesystem enforces by itself.
   ERROR_CODE_BELOW_FREE_SPACE_FLOOR = 13;
+  // Added 2026-11-01, additively (issue #158). The operation was refused
+  // because the ACCOUNT is suspended, and performing it would act on the
+  // account's behalf while the panel has stopped it doing so. Today only
+  // RunCronEntry asks: a suspended entry is invisible to cron, and starting it
+  // by hand would be a way around the suspension.
+  //
+  // **Nothing happened.** The refusal is decided before any program starts, so
+  // the account is exactly as the caller found it. It is NOT retryable as it
+  // stands: the answer is the same until the account is resumed.
+  //
+  // It is NOT the code for an entry the customer disabled themselves — that is
+  // the customer's own switch and does not refuse a run they asked for — and it
+  // is not ERROR_CODE_ACCOUNT_BUSY, which means a lock was held and invites a
+  // retry.
+  ERROR_CODE_ACCOUNT_SUSPENDED = 14;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

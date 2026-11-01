@@ -12,17 +12,21 @@ namespace Maran.Host.Resilience;
 /// at all, and a stuck unix socket hangs the HTTP request that made it.
 /// </summary>
 /// <remarks>
-/// Every method below goes through the pipeline, including the read-only ones. A listing that hangs
-/// hangs a request exactly as a creation does, and the defect this repository has already found was
-/// one method quietly left undecorated while the class as a whole looked wired.
+/// Every method below goes through a pipeline, including the read-only ones, and the run by hand
+/// through its own, longer one. A listing that hangs hangs a request exactly as a creation does, and
+/// the defect this repository has already found was one method quietly left undecorated while the
+/// class as a whole looked wired.
 /// </remarks>
 public sealed class ResilientAgentCronClient : IAgentCronClient
 {
     /// <summary>The client that actually talks to the agent; this type only adds the policy.</summary>
     private readonly IAgentCronClient _inner;
 
-    /// <summary>The named operation pipeline every call below is executed through.</summary>
+    /// <summary>The named operation pipeline every call below but the run is executed through.</summary>
     private readonly ResiliencePipeline _pipeline;
+
+    /// <summary>The longer pipeline a run by hand is executed through (<see cref="AgentCronRunPipeline"/>).</summary>
+    private readonly ResiliencePipeline _runPipeline;
 
     /// <summary>Wraps the real client with the named operation pipeline.</summary>
     /// <param name="inner">The client that actually talks to the agent.</param>
@@ -31,6 +35,7 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
     {
         _inner = inner;
         _pipeline = pipelines.GetPipeline(AgentOperationPipeline.Name);
+        _runPipeline = pipelines.GetPipeline(AgentCronRunPipeline.Name);
     }
 
     /// <inheritdoc/>
@@ -159,6 +164,26 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
             async (state, token) =>
             {
                 return await state.Client.GetEntryOutputAsync(state.AccountUsername, state.EntryId, token);
+            },
+            (Client: _inner, AccountUsername: accountUsername, EntryId: entryId),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Through <see cref="AgentCronRunPipeline"/> and not the operation pipeline: the call lasts as long
+    /// as the customer's job, and thirty seconds would report the agent unavailable while it still ran.
+    /// </remarks>
+    public async Task<Result<AgentCronRun>> RunEntryAsync(
+        string accountUsername,
+        string entryId,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _runPipeline,
+            async (state, token) =>
+            {
+                return await state.Client.RunEntryAsync(state.AccountUsername, state.EntryId, token);
             },
             (Client: _inner, AccountUsername: accountUsername, EntryId: entryId),
             cancellationToken);

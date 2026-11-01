@@ -44,6 +44,18 @@ pub fn journal_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/bin/journalctl")
 }
 
+/// Absolute path of the transient-unit starter, for the process-execution
+/// allow-list.
+///
+/// systemd installs `systemd-run` at `/usr/bin/systemd-run` on both families,
+/// beside `systemctl`; it is asked of the adapter all the same, for the reason
+/// [`service_manager`] gives. It starts a customer's cron entry by hand inside
+/// the account's slice (issue #158).
+#[must_use]
+pub fn systemd_run_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/systemd-run")
+}
+
 /// The user the web server runs as.
 ///
 /// RHEL's nginx package creates and runs as `nginx`, not `www-data`.

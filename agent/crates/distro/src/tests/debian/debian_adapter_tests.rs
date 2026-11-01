@@ -222,7 +222,7 @@ fn declared_binary_methods() -> usize {
 
 /// Every program the Debian adapter lets the agent execute, with the method that names it.
 ///
-/// One entry per `AdapterBinary`-returning method of the trait (28 fixed paths
+/// One entry per `AdapterBinary`-returning method of the trait (29 fixed paths
 /// plus the version-built php-fpm validator). `sh` and the login shell are not
 /// here: they are written somewhere, never executed by the agent, so they stay
 /// plain strings (see the type assertion below).
@@ -232,6 +232,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("nginx", DebianAdapter.nginx_binary()),
         ("service_manager", DebianAdapter.service_manager()),
         ("journal", DebianAdapter.journal_binary()),
+        ("systemd_run", DebianAdapter.systemd_run_binary()),
         ("php_fpm", DebianAdapter.php_fpm_binary(&version)),
         ("openssl", DebianAdapter.openssl_binary()),
         ("tar", DebianAdapter.tar_binary()),

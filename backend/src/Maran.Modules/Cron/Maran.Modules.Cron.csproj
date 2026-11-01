@@ -31,14 +31,17 @@
 
   <ItemGroup>
     <!-- WolverineFx: command/query dispatch. FluentValidation: command/query validators
-         (rules/csharp.md "Operation naming is fixed").
+         (rules/csharp.md "Operation naming is fixed"). Npgsql + EF Core: the module's one table,
+         cron.CronRuns (issue #158).
 
-         There is deliberately NO Npgsql, no EF Core and no PostgreSQL schema. Every other module
-         so far owns a schema and a DbContext; this one owns neither, because the account's
-         crontab IS the record and the account can edit it directly over SFTP. A panel table
-         beside it would be a second answer to "what does this account run", stale from the first
-         time the customer edited their own crontab — and the panel's copy is the one an operator
-         would trust. The absence is the design, not an omission to be tidied up later. -->
+         The table holds what the PANEL ran — the runs an operator or a customer started by hand
+         — and nothing about what the account runs on a schedule. The crontab stays the only record
+         of the entries themselves: a panel copy of them would be a second answer to "what does this
+         account run", stale from the first time the customer edited their own crontab. A run started
+         from the panel is the opposite case: the panel is the only party that knows it happened, so
+         the panel is where it is kept. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="FluentValidation" />
   </ItemGroup>

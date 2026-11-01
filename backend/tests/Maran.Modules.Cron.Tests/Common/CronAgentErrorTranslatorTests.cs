@@ -42,6 +42,16 @@ public sealed class CronAgentErrorTranslatorTests
         Assert.NotEqual("CronEntryLimitReached", translated.Code);
     }
 
+    /// <summary>A suspended account the agent refused a run for is the module's own conflict.</summary>
+    [Fact]
+    public void A_suspended_account_the_agent_refused_a_run_for_is_the_modules_own_conflict()
+    {
+        var translated = Translate("AgentAccountSuspended");
+
+        Assert.Equal("CronEntrySuspended", translated.Code);
+        Assert.Equal(ErrorType.Conflict, translated.Type);
+    }
+
     /// <summary>Every other agent failure collapses to one operator facing code.</summary>
     [Theory]
     [InlineData("AgentUnspecified")]
@@ -61,6 +71,7 @@ public sealed class CronAgentErrorTranslatorTests
     [InlineData("AgentNotFound")]
     [InlineData("AgentAlreadyExists")]
     [InlineData("AgentLimitReached")]
+    [InlineData("AgentAccountSuspended")]
     [InlineData("AgentSystemFailure")]
     [InlineData("SomethingTheAgentGrewLater")]
     public void No_agent_code_is_ever_forwarded_to_the_caller_unchanged(string agentCode)

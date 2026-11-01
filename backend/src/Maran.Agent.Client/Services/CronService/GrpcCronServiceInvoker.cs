@@ -73,6 +73,14 @@ internal sealed class GrpcCronServiceInvoker : ICronServiceInvoker
     }
 
     /// <inheritdoc/>
+    public async Task<RunCronEntryResponse> RunCronEntryAsync(
+        RunCronEntryRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.RunCronEntryAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<GetCronEnvironmentResponse> GetCronEnvironmentAsync(
         GetCronEnvironmentRequest request,
         CancellationToken cancellationToken)

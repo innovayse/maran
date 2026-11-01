@@ -20,6 +20,16 @@ fn every_call_class_deadline_is_the_pinned_value() {
     );
     assert_eq!(CallClass::Listing.deadline(), Duration::from_secs(3_600));
     assert_eq!(CallClass::Bulk.deadline(), Duration::from_secs(43_200));
+    assert_eq!(CallClass::CronRun.deadline(), Duration::from_secs(180));
+}
+
+/// A run-now outlasts the job's own 120 s runtime ceiling, so the service
+/// manager stops the job before the agent kills its client, and stays under the
+/// panel's 200 s wait for the answer.
+#[test]
+fn a_cron_run_outlasts_the_jobs_runtime_ceiling_and_not_the_panels_wait() {
+    assert!(CallClass::CronRun.deadline() > Duration::from_secs(120));
+    assert!(CallClass::CronRun.deadline() < Duration::from_secs(200));
 }
 
 /// A pre-scan listing is bounded well below a bulk job, so an archive that
@@ -63,6 +73,7 @@ fn no_class_is_shorter_than_query() {
         CallClass::PackageInstall,
         CallClass::Listing,
         CallClass::Bulk,
+        CallClass::CronRun,
     ];
 
     for class in all {

@@ -5,5 +5,7 @@ pub mod account_cron_suspension;
 pub mod cron_entry;
 pub mod cron_entry_output;
 pub mod cron_environment;
+pub mod cron_run;
+pub mod cron_run_limit;
 pub mod cron_run_record;
 pub mod crontab_document;

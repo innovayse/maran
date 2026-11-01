@@ -222,7 +222,7 @@ fn declared_binary_methods() -> usize {
 
 /// Every program the RHEL adapter lets the agent execute, with the method that names it.
 ///
-/// One entry per `AdapterBinary`-returning method of the trait (28 fixed paths
+/// One entry per `AdapterBinary`-returning method of the trait (29 fixed paths
 /// plus the version-built php-fpm validator). `sh` and the login shell are not
 /// here: they are written somewhere, never executed by the agent, so they stay
 /// plain strings (see the type assertion below).
@@ -232,6 +232,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("nginx", RhelAdapter.nginx_binary()),
         ("service_manager", RhelAdapter.service_manager()),
         ("journal", RhelAdapter.journal_binary()),
+        ("systemd_run", RhelAdapter.systemd_run_binary()),
         ("php_fpm", RhelAdapter.php_fpm_binary(&version)),
         ("openssl", RhelAdapter.openssl_binary()),
         ("tar", RhelAdapter.tar_binary()),

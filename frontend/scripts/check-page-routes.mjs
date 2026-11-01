@@ -100,6 +100,7 @@ const DELIBERATELY_UNLINKED = new Map([
   ['login-two-factor', 'mid-sign-in step: the login flow pushes forward carrying in-flight state'],
   ['setup', 'first-boot screen: the auth guard steers here while the panel has no administrator'],
   ['reset-password', 'its URL arrives in the reset mail; nothing in the SPA links it on purpose'],
+  ['cron-runs', 'reached from the Run history item of a cron entry\'s actions menu, which pushes with the entry and the account'],
   ['accept-invitation', 'its URL arrives in the invitation mail; nothing in the SPA links it on purpose'],
   ['two-factor-setup', 'the auth guard steers an obliged administrator here; the router documents that nothing links it'],
   ['not-found', 'the catch-all: a page nothing should ever link to'],

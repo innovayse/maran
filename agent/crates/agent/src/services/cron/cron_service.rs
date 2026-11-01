@@ -12,17 +12,19 @@ use crate::proto::{
     DeleteCronEntryOk, DeleteCronEntryRequest, DeleteCronEntryResponse, GetCronEntryOutputRequest,
     GetCronEntryOutputResponse, GetCronEnvironmentOk, GetCronEnvironmentRequest,
     GetCronEnvironmentResponse, ListCronEntriesOk, ListCronEntriesRequest, ListCronEntriesResponse,
-    SetAccountCronSuspendedOk, SetAccountCronSuspendedRequest, SetAccountCronSuspendedResponse,
-    SetCronEntryEnabledOk, SetCronEntryEnabledRequest, SetCronEntryEnabledResponse,
-    SetCronEnvironmentOk, SetCronEnvironmentRequest, SetCronEnvironmentResponse, UpdateCronEntryOk,
+    RunCronEntryRequest, RunCronEntryResponse, SetAccountCronSuspendedOk,
+    SetAccountCronSuspendedRequest, SetAccountCronSuspendedResponse, SetCronEntryEnabledOk,
+    SetCronEntryEnabledRequest, SetCronEntryEnabledResponse, SetCronEnvironmentOk,
+    SetCronEnvironmentRequest, SetCronEnvironmentResponse, UpdateCronEntryOk,
     UpdateCronEntryRequest, UpdateCronEntryResponse, create_cron_entry_response,
     delete_cron_entry_response, get_cron_entry_output_response, get_cron_environment_response,
-    list_cron_entries_response, set_account_cron_suspended_response,
+    list_cron_entries_response, run_cron_entry_response, set_account_cron_suspended_response,
     set_cron_entry_enabled_response, set_cron_environment_response, update_cron_entry_response,
 };
 use crate::services::cron::cron_status::to_agent_error;
 use crate::services::cron::entry_output::entry_output;
 use crate::services::cron::listed_entry::listed_entry;
+use crate::services::cron::run_outcome::run_outcome;
 use crate::services::cron::validated_creation::validated_creation;
 use crate::services::cron::validated_entry::validated_entry;
 use crate::services::cron::validated_environment::validated_environment;
@@ -366,6 +368,31 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         };
 
         Ok(Response::new(SetCronEnvironmentResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Starts one of the account's entries now, as the account, and waits.
+    async fn run_cron_entry(
+        &self,
+        request: Request<RunCronEntryRequest>,
+    ) -> Result<Response<RunCronEntryResponse>, Status> {
+        let request = request.into_inner();
+        let result = match validated_entry(&request.account_username, &request.entry_id) {
+            Ok((account, entry)) => {
+                let host = Arc::clone(&self.host);
+                run_blocking("cron operation", to_agent_error, move || {
+                    cron::run_cron_entry(host.as_ref(), &account, &entry)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+        let result = match result {
+            Ok(run) => run_cron_entry_response::Result::Ok(run_outcome(run)),
+            Err(error) => run_cron_entry_response::Result::Error(error),
+        };
+        Ok(Response::new(RunCronEntryResponse {
             result: Some(result),
         }))
     }

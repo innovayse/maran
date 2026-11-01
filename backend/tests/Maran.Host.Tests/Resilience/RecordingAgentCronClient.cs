@@ -149,6 +149,20 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<AgentCronRun>> RunEntryAsync(
+        string accountUsername,
+        string entryId,
+        CancellationToken cancellationToken)
+    {
+        LastAccountUsername = accountUsername;
+        LastEntryId = entryId;
+
+        await EnterAsync(cancellationToken);
+
+        return Result<AgentCronRun>.Ok(new AgentCronRun(0, 0, string.Empty, string.Empty, null));
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<AgentCronEnvVar>>> GetEnvironmentAsync(
         string accountUsername,
         CancellationToken cancellationToken)
