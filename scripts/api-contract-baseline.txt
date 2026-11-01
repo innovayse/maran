@@ -192,6 +192,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   POST /api/v1/ftps-server/disable — route-only call, no JSON body
   POST /api/v1/invitations/{}/link — route-only call, no JSON body
   POST /api/v1/invitations/{}/resend — route-only call, no JSON body
+  POST /api/v1/panel-certificate — route-only call, no JSON body
   POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/sites/{}/disable — route-only call, no JSON body
   POST /api/v1/sites/{}/enable — route-only call, no JSON body
@@ -229,6 +230,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/monitoring/metrics
   GET /api/v1/monitoring/services
   GET /api/v1/notifications/smtp
+  GET /api/v1/panel-certificate
   GET /api/v1/plans
   GET /api/v1/plans/choices
   GET /api/v1/plans/{}
