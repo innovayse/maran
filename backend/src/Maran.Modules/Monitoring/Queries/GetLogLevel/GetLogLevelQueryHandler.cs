@@ -44,10 +44,19 @@ public sealed class GetLogLevelQueryHandler
         var choices = Enum.GetValues<PanelLogLevel>()
             .Select(level =>
             {
-                return new LogLevelChoiceDto(level, _displayNames[DisplayNameKeyPrefix + level].Value);
+                return new LogLevelChoiceDto(level, NameOf(level));
             })
             .ToList();
+        var current = _levelSwitch.Current;
 
-        return Result<LogLevelDto>.Ok(new LogLevelDto(_levelSwitch.Current, choices));
+        return Result<LogLevelDto>.Ok(new LogLevelDto(current, NameOf(current), choices));
+    }
+
+    /// <summary>Names a level in the request's culture.</summary>
+    /// <param name="level">The level to name.</param>
+    /// <returns>The level's display name.</returns>
+    private string NameOf(PanelLogLevel level)
+    {
+        return _displayNames[DisplayNameKeyPrefix + level].Value;
     }
 }

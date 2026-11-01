@@ -16,13 +16,15 @@ export interface LogLevelChoice {
   /** The level's machine value, as a change request names it. */
   level: PanelLogLevel
   /** What the level is called, already in the reader's language. */
-  displayName: string
+  levelDisplayName: string
 }
 
 /** The panel's log level as `GET /api/v1/log-level` reports it (`LogLevelDto`). */
 export interface LogLevel {
   /** The level the running logger writes at — the panel's observation, not a stored choice. */
   level: PanelLogLevel
+  /** The running level's name, already in the reader's language. */
+  levelDisplayName: string
   /** Every level an administrator may choose. */
   choices: LogLevelChoice[]
 }

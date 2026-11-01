@@ -37,7 +37,7 @@ public sealed class GetLogLevelQueryHandlerTests
         }));
         Assert.All(choices, choice =>
         {
-            Assert.DoesNotContain("LogLevel", choice.DisplayName, StringComparison.Ordinal);
+            Assert.DoesNotContain("LogLevel", choice.LevelDisplayName, StringComparison.Ordinal);
         });
     }
 
@@ -57,7 +57,7 @@ public sealed class GetLogLevelQueryHandlerTests
                     return choice.Level == PanelLogLevel.Debug;
                 });
 
-            Assert.StartsWith("Отладка", debug.DisplayName, StringComparison.Ordinal);
+            Assert.StartsWith("Отладка", debug.LevelDisplayName, StringComparison.Ordinal);
         }
         finally
         {

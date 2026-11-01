@@ -68,13 +68,14 @@ export const STUBBED_HOST_METRICS: HostMetrics = {
  */
 export const STUBBED_LOG_LEVEL: LogLevel = {
   level: 'information',
+  levelDisplayName: 'Information — the normal level',
   choices: [
-    { level: 'verbose', displayName: 'Verbose — everything' },
-    { level: 'debug', displayName: 'Debug — diagnostic detail' },
-    { level: 'information', displayName: 'Information — the normal level' },
-    { level: 'warning', displayName: 'Warning — only what needs attention' },
-    { level: 'error', displayName: 'Error — only failures' },
-    { level: 'fatal', displayName: 'Fatal — only failures that stop the panel' },
+    { level: 'verbose', levelDisplayName: 'Verbose — everything' },
+    { level: 'debug', levelDisplayName: 'Debug — diagnostic detail' },
+    { level: 'information', levelDisplayName: 'Information — the normal level' },
+    { level: 'warning', levelDisplayName: 'Warning — only what needs attention' },
+    { level: 'error', levelDisplayName: 'Error — only failures' },
+    { level: 'fatal', levelDisplayName: 'Fatal — only failures that stop the panel' },
   ],
 }
 
@@ -156,7 +157,7 @@ export const stubMonitoring = async (
   let current = logLevel.level
   await page.route(LOG_LEVEL_PATTERN, async (route: Route) => {
     if (route.request().method() === 'PUT') {
-      const requested = (route.request().postDataJSON() as { level: string }).level
+      const requested = (route.request().postDataJSON() as { level: LogLevel['level'] }).level
       logLevelChanges.push(requested)
       current = requested
       await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
@@ -166,7 +167,14 @@ export const stubMonitoring = async (
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ...logLevel, level: current }),
+      body: JSON.stringify({
+        ...logLevel,
+        level: current,
+        levelDisplayName:
+          logLevel.choices.find((choice) => {
+            return choice.level === current
+          })?.levelDisplayName ?? current,
+      }),
     })
   })
 

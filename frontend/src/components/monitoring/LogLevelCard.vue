@@ -49,7 +49,7 @@ const selected: Ref<string> = ref('')
 /** The panel's choices, as the select's options. */
 const options: ComputedRef<SelectOption[]> = computed(() => {
   return (props.logLevel?.choices ?? []).map((choice) => {
-    return { value: choice.level, label: choice.displayName }
+    return { value: choice.level, label: choice.levelDisplayName }
   })
 })
 
