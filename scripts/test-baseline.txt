@@ -511,6 +511,8 @@ rust	doc-tests maran_templates	0	0	0
 rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
+# RE-KEYED 2026-11-01 (issue #289, perf off the PR path): edited by hand. Maran.Host.IntegrationTests.dll 833 is now two
+# rows: 814 (main part) + 19 (`[PerformanceBudget]` part, ListPerformanceBudgetTests); `--list-tests` lists 833.
 backend	Maran.Agent.Client.Tests.dll	380	0	0
 backend	Maran.SharedKernel.Tests.dll	349	0	0
 backend	Maran.Modules.Identity.Tests.dll	373	0	0
@@ -530,7 +532,8 @@ backend	Maran.Sdk.Tests.dll	268	0	0
 backend	Maran.Modules.Sites.Tests.dll	275	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0
-backend	Maran.Host.IntegrationTests.dll	833	0	0
+backend	Maran.Host.IntegrationTests.dll	814	0	0
+backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
