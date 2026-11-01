@@ -16,9 +16,20 @@ on:
       - 'scripts/**'
       - '.github/workflows/cross.yml'
 
+# One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
+# dev and main are never cancelled, and never even queued behind each other — their group carries
+# the run id, so each push is alone in its own group (a shared group would let GitHub drop a
+# PENDING push run when a newer one queues, even with cancel-in-progress false).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   handshake:
     runs-on: ubuntu-latest
+    # Measured basis: successful dev runs 41293966789, 41279955157, 41242417685 took 2.1, 2.1 and
+    # 1.5 min on a warm rust-cache. 20 leaves room for a cold agent build plus the API build.
+    timeout-minutes: 20
 
     # The API refuses to start without a database, so the handshake needs one. The credentials
     # match docker/docker-compose.dev.yml because appsettings.Development.json — which the script
