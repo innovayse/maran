@@ -46,11 +46,7 @@ pub fn get_clock_sync(
 ) -> Result<ClockSyncState, MonitorError> {
     let outcome = host.run(
         &distro.timedatectl_binary(),
-        &[
-            "show",
-            "--property=NTP",
-            "--property=NTPSynchronized",
-        ],
+        &["show", "--property=NTP", "--property=NTPSynchronized"],
         CallClass::Query,
     )?;
     if outcome.status != 0 {

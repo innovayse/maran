@@ -17,7 +17,10 @@ fn wire_state(state: ClockSyncState) -> WireState {
 
 #[test]
 fn each_state_maps_onto_its_own_wire_value() {
-    assert_eq!(wire_state(ClockSyncState::Synchronized), WireState::Synchronized);
+    assert_eq!(
+        wire_state(ClockSyncState::Synchronized),
+        WireState::Synchronized
+    );
     assert_eq!(
         wire_state(ClockSyncState::NotSynchronized),
         WireState::NotSynchronized

@@ -12,16 +12,16 @@ use tonic::{Request, Response, Status};
 use crate::proto::monitor_service_server::MonitorService;
 use crate::proto::{
     AccountDiskUsage, GetAccountsDiskUsageOk, GetAccountsDiskUsageRequest,
-    GetAccountsDiskUsageResponse, GetClockSyncRequest, GetClockSyncResponse, GetHostMetricsRequest, GetHostMetricsResponse,
-    GetQuotaEnforceabilityOk, GetQuotaEnforceabilityRequest, GetQuotaEnforceabilityResponse,
-    GetServerFingerprintInputsOk, GetServerFingerprintInputsRequest,
-    GetServerFingerprintInputsResponse, GetServiceStatusesOk, GetServiceStatusesRequest,
-    GetServiceStatusesResponse, GetSftpJailStatusOk, GetSftpJailStatusRequest,
-    GetSftpJailStatusResponse, HostMetrics, MachineIdStatus, PrimaryInterfaceStatus,
-    QuotaEnforceability, QuotaEnforceabilityReason, ServiceStatus, SftpJailState,
-    get_accounts_disk_usage_response, get_host_metrics_response, get_quota_enforceability_response,
-    get_server_fingerprint_inputs_response, get_service_statuses_response,
-    get_sftp_jail_status_response,
+    GetAccountsDiskUsageResponse, GetClockSyncRequest, GetClockSyncResponse, GetHostMetricsRequest,
+    GetHostMetricsResponse, GetQuotaEnforceabilityOk, GetQuotaEnforceabilityRequest,
+    GetQuotaEnforceabilityResponse, GetServerFingerprintInputsOk,
+    GetServerFingerprintInputsRequest, GetServerFingerprintInputsResponse, GetServiceStatusesOk,
+    GetServiceStatusesRequest, GetServiceStatusesResponse, GetSftpJailStatusOk,
+    GetSftpJailStatusRequest, GetSftpJailStatusResponse, HostMetrics, MachineIdStatus,
+    PrimaryInterfaceStatus, QuotaEnforceability, QuotaEnforceabilityReason, ServiceStatus,
+    SftpJailState, get_accounts_disk_usage_response, get_host_metrics_response,
+    get_quota_enforceability_response, get_server_fingerprint_inputs_response,
+    get_service_statuses_response, get_sftp_jail_status_response,
 };
 use crate::services::monitor::managed_service::managed_service;
 use crate::services::monitor::monitor_status::to_agent_error;

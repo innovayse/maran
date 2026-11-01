@@ -2,7 +2,9 @@
 
 use maran_ops::monitor::ClockSyncState;
 
-use crate::proto::{AgentError, ClockSyncState as WireState, GetClockSyncOk, get_clock_sync_response};
+use crate::proto::{
+    AgentError, ClockSyncState as WireState, GetClockSyncOk, get_clock_sync_response,
+};
 
 /// Maps one `GetClockSync` outcome onto the response's `oneof`.
 ///
