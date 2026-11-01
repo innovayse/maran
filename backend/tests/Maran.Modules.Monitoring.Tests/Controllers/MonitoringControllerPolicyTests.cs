@@ -84,6 +84,7 @@ public sealed class MonitoringControllerPolicyTests
         var expected = new[]
         {
             nameof(MonitoringController),
+            nameof(PanelLogLevelController),
         };
         Assert.Equal(expected.Order(StringComparer.Ordinal), names);
     }

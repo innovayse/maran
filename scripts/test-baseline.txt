@@ -535,7 +535,7 @@ backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
 backend	Maran.Modules.Tasks.Tests.dll	109	0	0
 backend	Maran.Modules.Ftp.Tests.dll	169	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	95	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	106	0	0
 backend	Maran.Modules.Backups.Tests.dll	247	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	286	0	0
@@ -543,11 +543,11 @@ backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	529	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	250	0	0
-backend	Maran.Sdk.Tests.dll	271	0	0
+backend	Maran.Sdk.Tests.dll	272	0	0
 backend	Maran.Modules.Sites.Tests.dll	275	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
-backend	Maran.Host.Tests.dll	414	0	0
-backend	Maran.Host.IntegrationTests.dll	814	0	0
+backend	Maran.Host.Tests.dll	423	0	0
+backend	Maran.Host.IntegrationTests.dll	819	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
@@ -635,6 +635,7 @@ spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist-list.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	8	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
+spa	monitoring/log-level.spec.ts	3	0	0
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
 spa	monitoring/monitoring.spec.ts	14	0	0
 spa	plans/list.spec.ts	6	0	0
@@ -715,3 +716,8 @@ spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/type-consistency.spec.ts	7	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	4	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0
+# RE-MEASURED 2026-11-02 (issue #131, install log rotation and runtime panel log level): edited by hand.
+# Maran.Host.Tests.dll 414->423; Maran.Host.IntegrationTests.dll 814->819; Maran.Modules.Monitoring.Tests.dll 95->106;
+# Maran.Sdk.Tests.dll 271->272 (the LogLevelUnknown census row); new spa row monitoring/log-level.spec.ts 3.
+# Source: `maran test backend` printing 21 targets 5230 passed / 1 failed (the controller census this commit
+# also fixes) and `maran test spa` printing 167 targets: 1121 passed / 0 failed / 2 ignored. NOTHING FELL.
