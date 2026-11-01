@@ -622,6 +622,12 @@ field maran.agent.v1.SetFtpsPasswordRequest 2 ftps_username TYPE_STRING LABEL_OP
 field maran.agent.v1.SetFtpsPasswordRequest 3 password TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetFtpsPasswordResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SetFtpsPasswordOk oneof=result
 field maran.agent.v1.SetFtpsPasswordResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.SetSftpAuthorizedKeysOk 1 key_count TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.SetSftpAuthorizedKeysRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.SetSftpAuthorizedKeysRequest 2 sftp_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.SetSftpAuthorizedKeysRequest 3 public_keys TYPE_STRING LABEL_REPEATED type_name=- oneof=-
+field maran.agent.v1.SetSftpAuthorizedKeysResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SetSftpAuthorizedKeysOk oneof=result
+field maran.agent.v1.SetSftpAuthorizedKeysResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.SetSftpPasswordRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetSftpPasswordRequest 2 sftp_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetSftpPasswordRequest 3 password TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -915,6 +921,9 @@ message maran.agent.v1.SetDatabasePasswordResponse
 message maran.agent.v1.SetFtpsPasswordOk
 message maran.agent.v1.SetFtpsPasswordRequest
 message maran.agent.v1.SetFtpsPasswordResponse
+message maran.agent.v1.SetSftpAuthorizedKeysOk
+message maran.agent.v1.SetSftpAuthorizedKeysRequest
+message maran.agent.v1.SetSftpAuthorizedKeysResponse
 message maran.agent.v1.SetSftpPasswordOk
 message maran.agent.v1.SetSftpPasswordRequest
 message maran.agent.v1.SetSftpPasswordResponse
@@ -1017,6 +1026,7 @@ rpc maran.agent.v1.PhpService ListPhpVersions in=.maran.agent.v1.ListPhpVersions
 rpc maran.agent.v1.SftpService CreateSftpUser in=.maran.agent.v1.CreateSftpUserRequest out=.maran.agent.v1.CreateSftpUserResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService DeleteSftpUser in=.maran.agent.v1.DeleteSftpUserRequest out=.maran.agent.v1.DeleteSftpUserResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService SetAccountLoginsLocked in=.maran.agent.v1.SetAccountLoginsLockedRequest out=.maran.agent.v1.SetAccountLoginsLockedResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.SftpService SetSftpAuthorizedKeys in=.maran.agent.v1.SetSftpAuthorizedKeysRequest out=.maran.agent.v1.SetSftpAuthorizedKeysResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService SetSftpPassword in=.maran.agent.v1.SetSftpPasswordRequest out=.maran.agent.v1.SetSftpPasswordResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SitesService CreateSite in=.maran.agent.v1.CreateSiteRequest out=.maran.agent.v1.CreateSiteResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SitesService DeleteSite in=.maran.agent.v1.DeleteSiteRequest out=.maran.agent.v1.DeleteSiteResponse client_streaming=false server_streaming=false
