@@ -4,5 +4,6 @@
 pub mod managed_service;
 pub mod monitor_service;
 pub mod monitor_status;
+pub mod reported_clock_sync;
 pub mod reported_state;
 pub mod validated_account_selection;

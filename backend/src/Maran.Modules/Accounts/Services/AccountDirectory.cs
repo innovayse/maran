@@ -77,7 +77,8 @@ public sealed class AccountDirectory : IAccountDirectory
                     plan.DiskQuotaMb,
                     account.Status == AccountStatus.Suspended ? AccountState.Suspended : AccountState.Active,
                     plan.MaxFtpUsers,
-                    account.OwnerEmail))
+                    account.OwnerEmail,
+                    account.OwnerLanguage))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -129,7 +130,8 @@ public sealed class AccountDirectory : IAccountDirectory
                     plan.DiskQuotaMb,
                     account.Status == AccountStatus.Suspended ? AccountState.Suspended : AccountState.Active,
                     plan.MaxFtpUsers,
-                    account.OwnerEmail))
+                    account.OwnerEmail,
+                    account.OwnerLanguage))
             .ToListAsync(cancellationToken);
     }
 

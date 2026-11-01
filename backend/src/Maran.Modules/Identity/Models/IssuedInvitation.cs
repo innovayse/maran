@@ -18,8 +18,10 @@ namespace Maran.Modules.Identity.Models;
 /// <param name="OwnerEmail">The owner's own stored address, where a mail would be sent.</param>
 /// <param name="Token">The plaintext token. Its digest, not it, is what the database holds.</param>
 /// <param name="ExpiresAt">When the token stops being accepted.</param>
+/// <param name="OwnerLanguage">The account owner's language, which a mailed invitation is written in.</param>
 public sealed record IssuedInvitation(
     string Username,
     string OwnerEmail,
     SensitiveString Token,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    string OwnerLanguage);

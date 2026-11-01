@@ -37,6 +37,7 @@
 #[path = "../tests/monitor/fake_monitor_host.rs"]
 pub(crate) mod fake_monitor_host;
 mod get_accounts_disk_usage;
+mod get_clock_sync;
 mod get_host_metrics;
 mod get_quota_enforceability;
 mod get_server_fingerprint_inputs;
@@ -48,6 +49,7 @@ mod monitor_host;
 mod process_monitor_host;
 
 pub use get_accounts_disk_usage::get_accounts_disk_usage;
+pub use get_clock_sync::get_clock_sync;
 pub use get_host_metrics::get_host_metrics;
 pub use get_quota_enforceability::get_quota_enforceability;
 pub use get_server_fingerprint_inputs::get_server_fingerprint_inputs;
@@ -55,6 +57,7 @@ pub use get_service_statuses::get_service_statuses;
 pub use get_sftp_jail_status::get_sftp_jail_status;
 pub use model::account_disk_usage::AccountDiskUsage;
 pub use model::account_selection::AccountSelection;
+pub use model::clock_sync_state::ClockSyncState;
 pub use model::filesystem_usage::FilesystemUsage;
 pub use model::host_metrics::HostMetrics;
 pub use model::machine_identity::MachineIdentity;

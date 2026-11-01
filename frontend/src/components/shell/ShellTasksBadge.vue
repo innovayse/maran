@@ -54,7 +54,7 @@ watch(
   <RouterLink
     v-if="store.runningCount > 0"
     :to="{ name: 'tasks' }"
-    class="flex h-control shrink-0 items-center gap-2 rounded-full px-3 text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+    class="flex h-control shrink-0 items-center gap-2 rounded-full px-3 text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
     :aria-label="t('tasks.badge.label', { count: store.runningCount }, store.runningCount)"
   >
     <UiIcon name="listChecks" size="lg" />

@@ -114,6 +114,17 @@ pub enum MonitorError {
     #[error("the host's IPv4 routing table could not be read")]
     Ipv4RoutesUnavailable,
 
+    /// `timedatectl show` exited non-zero, or did not print both of the
+    /// properties it was asked for as `yes` or `no` (issue #150).
+    ///
+    /// Its own variant rather than [`Self::ServiceManagerUnavailable`]: the
+    /// program started and answered, and what it answered could not be read
+    /// as a clock state — timedated unreachable over the system bus is the
+    /// usual cause, and an operator chasing it looks there, not at units.
+    /// Never read as "not synchronised": the agent did not find out.
+    #[error("the clock synchronisation state could not be read")]
+    ClockStateUnavailable,
+
     /// A program this area ran was stopped by the agent: it ran past its
     /// deadline, or wrote more than the host will read, and it was killed
     /// together with its process group.

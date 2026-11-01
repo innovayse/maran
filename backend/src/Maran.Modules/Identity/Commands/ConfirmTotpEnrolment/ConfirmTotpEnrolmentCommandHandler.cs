@@ -22,21 +22,27 @@ public sealed class ConfirmTotpEnrolmentCommandHandler
     /// <summary>Records the change.</summary>
     private readonly IdentityAuditJournal _journal;
 
+    /// <summary>The answer to a refused code, which says when the server's clock may be why.</summary>
+    private readonly TwoFactorCodeRejection _rejection;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="totpService">Verifies the proving code.</param>
     /// <param name="recoveryCodeService">Issues the recovery codes.</param>
     /// <param name="journal">Records the change.</param>
+    /// <param name="rejection">The answer to a refused code.</param>
     public ConfirmTotpEnrolmentCommandHandler(
         IdentityDbContext dbContext,
         ITotpService totpService,
         IRecoveryCodeService recoveryCodeService,
-        IdentityAuditJournal journal)
+        IdentityAuditJournal journal,
+        TwoFactorCodeRejection rejection)
     {
         _dbContext = dbContext;
         _totpService = totpService;
         _recoveryCodeService = recoveryCodeService;
         _journal = journal;
+        _rejection = rejection;
     }
 
     /// <summary>Enables the factor and hands over the recovery codes.</summary>
@@ -60,7 +66,7 @@ public sealed class ConfirmTotpEnrolmentCommandHandler
 
         if (!_totpService.Verify(command.Secret, command.Code, user.LastTotpWindow, out var window))
         {
-            return Result<RecoveryCodesDto>.Fail(Error.Of(nameof(ErrorMessages.InvalidTwoFactorCodeUnauthorized), ErrorType.Unauthorized));
+            return Result<RecoveryCodesDto>.Fail(await _rejection.ErrorAsync(cancellationToken));
         }
 
         user.EnableTotp(command.Secret);

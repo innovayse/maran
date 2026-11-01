@@ -27,6 +27,12 @@
   <data name="AccountDomainTaken">
     <value>Этот домен уже используется другим аккаунтом.</value>
   </data>
+  <data name="AccountDomainWwwPrefix">
+    <value>Укажите основной домен без «www.», например example.com.</value>
+  </data>
+  <data name="AccountOwnerLanguageUnsupported">
+    <value>Выберите язык владельца из списка: английский, русский или армянский.</value>
+  </data>
   <data name="PlanNotFound">
     <value>Тарифный план не найден.</value>
   </data>

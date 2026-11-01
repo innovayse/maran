@@ -143,6 +143,10 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::quotaon_binary()
     }
 
+    fn timedatectl_binary(&self) -> AdapterBinary {
+        rhel_services::timedatectl_binary()
+    }
+
     fn pkill_binary(&self) -> AdapterBinary {
         rhel_services::pkill_binary()
     }

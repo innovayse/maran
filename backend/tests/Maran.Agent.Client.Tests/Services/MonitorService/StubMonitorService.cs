@@ -42,6 +42,9 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     /// <summary>The last quota-enforceability request the stub received, for asserting the call was made.</summary>
     public GetQuotaEnforceabilityRequest? LastQuotaEnforceabilityRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="GetClockSyncAsync"/>.</summary>
+    public GetClockSyncResponse ClockSyncResponse { get; set; } = new();
+
     /// <summary>The reply this stub returns for a fingerprint-inputs call.</summary>
     public GetServerFingerprintInputsResponse ServerFingerprintInputsResponse { get; set; } = new();
 
@@ -124,6 +127,14 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     {
         LastQuotaEnforceabilityRequest = request;
         return Task.FromResult(QuotaEnforceabilityResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<GetClockSyncResponse> GetClockSyncAsync(
+        GetClockSyncRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(ClockSyncResponse);
     }
 
     /// <inheritdoc/>

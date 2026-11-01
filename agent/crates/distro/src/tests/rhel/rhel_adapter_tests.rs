@@ -111,7 +111,7 @@ fn the_rhel_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 23] = [
+const EXPECTED_BINARIES: [(&str, &str); 24] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
@@ -125,6 +125,7 @@ const EXPECTED_BINARIES: [(&str, &str); 23] = [
     ("setquota", "/usr/sbin/setquota"),
     ("quota", "/usr/bin/quota"),
     ("quotaon", "/usr/sbin/quotaon"),
+    ("timedatectl", "/usr/bin/timedatectl"),
     ("id", "/usr/bin/id"),
     ("chmod", "/usr/bin/chmod"),
     ("chgrp", "/usr/bin/chgrp"),
@@ -138,7 +139,7 @@ const EXPECTED_BINARIES: [(&str, &str); 23] = [
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [String; 23] {
+fn actual_binaries() -> [String; 24] {
     [
         RhelAdapter.useradd_binary().to_string(),
         RhelAdapter.usermod_binary().to_string(),
@@ -153,6 +154,7 @@ fn actual_binaries() -> [String; 23] {
         RhelAdapter.setquota_binary().to_string(),
         RhelAdapter.quota_binary().to_string(),
         RhelAdapter.quotaon_binary().to_string(),
+        RhelAdapter.timedatectl_binary().to_string(),
         RhelAdapter.id_binary().to_string(),
         RhelAdapter.chmod_binary().to_string(),
         RhelAdapter.chgrp_binary().to_string(),
@@ -252,6 +254,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("setquota", RhelAdapter.setquota_binary()),
         ("quota", RhelAdapter.quota_binary()),
         ("quotaon", RhelAdapter.quotaon_binary()),
+        ("timedatectl", RhelAdapter.timedatectl_binary()),
         ("id", RhelAdapter.id_binary()),
         ("chmod", RhelAdapter.chmod_binary()),
         ("chgrp", RhelAdapter.chgrp_binary()),

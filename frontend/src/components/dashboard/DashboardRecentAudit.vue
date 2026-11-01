@@ -43,7 +43,7 @@ const localeStore = useLocaleStore()
       <template #action>
         <RouterLink
           to="/settings/audit"
-          class="rounded-control text-accent-text transition-colors hover:underline focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+          class="rounded-control text-accent-text transition-colors hover:underline focus-visible:shadow-focus focus-visible:outline-none"
         >{{ t('app.status.audit.all') }}</RouterLink>
       </template>
     </UiSectionHeading>

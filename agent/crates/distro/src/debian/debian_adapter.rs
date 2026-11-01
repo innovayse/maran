@@ -143,6 +143,10 @@ impl DistroAdapter for DebianAdapter {
         debian_services::quotaon_binary()
     }
 
+    fn timedatectl_binary(&self) -> AdapterBinary {
+        debian_services::timedatectl_binary()
+    }
+
     fn pkill_binary(&self) -> AdapterBinary {
         debian_services::pkill_binary()
     }

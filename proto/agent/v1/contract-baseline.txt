@@ -1,6 +1,7 @@
 enum maran.agent.v1.ArchiveFormat
 enum maran.agent.v1.BackupDestinationKind
 enum maran.agent.v1.CertificateMaterialRefusal
+enum maran.agent.v1.ClockSyncState
 enum maran.agent.v1.CronRunLimit
 enum maran.agent.v1.DistroFamily
 enum maran.agent.v1.ErrorCode
@@ -30,6 +31,10 @@ enum-value maran.agent.v1.CertificateMaterialRefusal 0 CERTIFICATE_MATERIAL_REFU
 enum-value maran.agent.v1.CertificateMaterialRefusal 1 CERTIFICATE_MATERIAL_REFUSAL_MALFORMED_CERTIFICATE
 enum-value maran.agent.v1.CertificateMaterialRefusal 2 CERTIFICATE_MATERIAL_REFUSAL_MALFORMED_PRIVATE_KEY
 enum-value maran.agent.v1.CertificateMaterialRefusal 3 CERTIFICATE_MATERIAL_REFUSAL_KEY_DOES_NOT_MATCH_CERTIFICATE
+enum-value maran.agent.v1.ClockSyncState 0 CLOCK_SYNC_STATE_UNSPECIFIED
+enum-value maran.agent.v1.ClockSyncState 1 CLOCK_SYNC_STATE_SYNCHRONIZED
+enum-value maran.agent.v1.ClockSyncState 2 CLOCK_SYNC_STATE_NOT_SYNCHRONIZED
+enum-value maran.agent.v1.ClockSyncState 3 CLOCK_SYNC_STATE_SYNC_SERVICE_DISABLED
 enum-value maran.agent.v1.CronRunLimit 0 CRON_RUN_LIMIT_UNSPECIFIED
 enum-value maran.agent.v1.CronRunLimit 1 CRON_RUN_LIMIT_RUNTIME
 enum-value maran.agent.v1.CronRunLimit 2 CRON_RUN_LIMIT_OUTPUT
@@ -381,6 +386,9 @@ field maran.agent.v1.GetAccountsDiskUsageResponse 1 ok TYPE_MESSAGE LABEL_OPTION
 field maran.agent.v1.GetAccountsDiskUsageResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.GetAgentInfoResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentInfo oneof=result
 field maran.agent.v1.GetAgentInfoResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.GetClockSyncOk 1 state TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.ClockSyncState oneof=-
+field maran.agent.v1.GetClockSyncResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetClockSyncOk oneof=result
+field maran.agent.v1.GetClockSyncResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.GetCronEntryOutputOk 1 output TYPE_STRING LABEL_OPTIONAL type_name=- oneof=_output
 field maran.agent.v1.GetCronEntryOutputOk 2 last_exit_code TYPE_INT32 LABEL_OPTIONAL type_name=- oneof=_last_exit_code
 field maran.agent.v1.GetCronEntryOutputOk 3 last_run_at_unix TYPE_INT64 LABEL_OPTIONAL type_name=- oneof=_last_run_at_unix
@@ -803,6 +811,9 @@ message maran.agent.v1.GetAccountsDiskUsageRequest
 message maran.agent.v1.GetAccountsDiskUsageResponse
 message maran.agent.v1.GetAgentInfoRequest
 message maran.agent.v1.GetAgentInfoResponse
+message maran.agent.v1.GetClockSyncOk
+message maran.agent.v1.GetClockSyncRequest
+message maran.agent.v1.GetClockSyncResponse
 message maran.agent.v1.GetCronEntryOutputOk
 message maran.agent.v1.GetCronEntryOutputRequest
 message maran.agent.v1.GetCronEntryOutputResponse
@@ -1025,6 +1036,7 @@ rpc maran.agent.v1.FtpsService GetFtpsStatus in=.maran.agent.v1.GetFtpsStatusReq
 rpc maran.agent.v1.FtpsService ReloadFtpsTls in=.maran.agent.v1.ReloadFtpsTlsRequest out=.maran.agent.v1.ReloadFtpsTlsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.FtpsService SetFtpsPassword in=.maran.agent.v1.SetFtpsPasswordRequest out=.maran.agent.v1.SetFtpsPasswordResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetAccountsDiskUsage in=.maran.agent.v1.GetAccountsDiskUsageRequest out=.maran.agent.v1.GetAccountsDiskUsageResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.MonitorService GetClockSync in=.maran.agent.v1.GetClockSyncRequest out=.maran.agent.v1.GetClockSyncResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetHostMetrics in=.maran.agent.v1.GetHostMetricsRequest out=.maran.agent.v1.GetHostMetricsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetQuotaEnforceability in=.maran.agent.v1.GetQuotaEnforceabilityRequest out=.maran.agent.v1.GetQuotaEnforceabilityResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetServerFingerprintInputs in=.maran.agent.v1.GetServerFingerprintInputsRequest out=.maran.agent.v1.GetServerFingerprintInputsResponse client_streaming=false server_streaming=false

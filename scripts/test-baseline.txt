@@ -527,11 +527,18 @@ rust	doc-tests maran_templates	0	0	0
 rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
+# RE-MEASURED 2026-11-01 (issue #194, new account form: username, www refusal, owner language): edited by hand.
+# Full `maran test backend`: 21 targets 5228 passed / 0 failed / 0 ignored, TEST VERDICT: OK. Rows raised:
+# Modules.Accounts.Tests 529->541, Modules.Identity.Tests 373->379, Sdk.Tests 271->273,
+# Host.IntegrationTests 814->817. Full `maran test spa` (load average ~55): 167 targets 1120 passed /
+# 3 failed / 2 ignored; two of the failures were a wrong locale key in the new form (fixed; form and
+# form-options then 16/16 at one worker) and auth/sessions-loading's slow-answer case, which passed
+# 3/3 alone at load 12. New spa row accounts/form-options.spec.ts 5.
 # RE-KEYED 2026-11-01 (issue #289, perf off the PR path): edited by hand. Maran.Host.IntegrationTests.dll 833 is now two
 # rows: 814 (main part) + 19 (`[PerformanceBudget]` part, ListPerformanceBudgetTests); `--list-tests` lists 833.
 backend	Maran.Agent.Client.Tests.dll	387	0	0
 backend	Maran.SharedKernel.Tests.dll	349	0	0
-backend	Maran.Modules.Identity.Tests.dll	373	0	0
+backend	Maran.Modules.Identity.Tests.dll	379	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
 backend	Maran.Modules.Tasks.Tests.dll	109	0	0
@@ -541,20 +548,28 @@ backend	Maran.Modules.Backups.Tests.dll	247	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	286	0	0
 backend	Maran.Modules.Cron.Tests.dll	190	0	0
-backend	Maran.Modules.Accounts.Tests.dll	529	0	0
+backend	Maran.Modules.Accounts.Tests.dll	541	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	250	0	0
-backend	Maran.Sdk.Tests.dll	271	0	0
+backend	Maran.Sdk.Tests.dll	273	0	0
 backend	Maran.Modules.Sites.Tests.dll	275	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	414	0	0
-backend	Maran.Host.IntegrationTests.dll	814	0	0
+backend	Maran.Host.IntegrationTests.dll	817	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
+# RAISED 2026-11-01 (issue #149, accessibility): edited by hand. Three new spa rows from e2e/accessibility/:
+# axe-scan 11 (5 screens x 2 themes + the planted-violation control), document-language 2, reduced-motion 2.
+# Measured by `maran test spa` (169 targets: 1132 passed / 1 failed / 2 ignored; the one failure,
+# shell/command-palette-a11y:98, passed 3/3 re-run alone at one load and its row is unchanged).
+spa	accessibility/axe-scan.spec.ts	11	0	0
+spa	accessibility/document-language.spec.ts	2	0	0
+spa	accessibility/reduced-motion.spec.ts	2	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/edit.spec.ts	9	0	0
 spa	accounts/form.spec.ts	11	0	0
+spa	accounts/form-options.spec.ts	5	0	0
 spa	accounts/invitation-link.spec.ts	8	0	0
 spa	accounts/list.spec.ts	15	0	0
 spa	accounts/loading.spec.ts	3	0	0
@@ -607,7 +622,7 @@ spa	customer/own-account-create.spec.ts	5	0	0
 spa	customer/role-guard.spec.ts	20	0	0
 spa	customer/tasks.spec.ts	3	0	0
 spa	dashboard-loading.spec.ts	3	0	0
-spa	dashboard.spec.ts	10	0	0
+spa	dashboard.spec.ts	12	0	0
 spa	databases/account-filter.spec.ts	3	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
@@ -637,6 +652,10 @@ spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist-list.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	8	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
+# ADDED 2026-11-01 (issue #150, clock synchronisation): edited by hand. New row monitoring/clock-sync.spec.ts 2;
+# dashboard.spec.ts 10->12 (a clock not synchronised, a clock unchecked). Full runs: spa 167 targets 1122 passed /
+# 0 failed; rust 35 targets 2945 passed; backend 21 targets 5236 passed / 0 failed. Backend rows only grew.
+spa	monitoring/clock-sync.spec.ts	2	0	0
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
 spa	monitoring/monitoring.spec.ts	14	0	0
 spa	plans/list.spec.ts	6	0	0

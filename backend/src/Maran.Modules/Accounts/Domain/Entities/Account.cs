@@ -1,4 +1,6 @@
 using Maran.Modules.Accounts.Domain.Enums;
+using Maran.SharedKernel.Constants;
+
 namespace Maran.Modules.Accounts.Domain.Entities;
 
 /// <summary>
@@ -49,6 +51,14 @@ public sealed class Account
     /// </summary>
     public string? OwnerEmail { get; private set; }
 
+    /// <summary>
+    /// The owner's language, one of <see cref="PanelLanguages.Supported"/>: the language the owner's
+    /// invitation is written in, at creation and on every resend (issue #194). Chosen by whoever
+    /// creates the account, because the creator's own interface language says nothing about the
+    /// owner's.
+    /// </summary>
+    public string OwnerLanguage { get; private set; }
+
     /// <summary>The instant the account was created.</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -66,14 +76,26 @@ public sealed class Account
     /// production call site, <c>CreateAccountCommandHandler</c>, always passes a real, validated
     /// address.
     /// </param>
+    /// <param name="ownerLanguage">
+    /// The owner's language. Defaulted to English for the same test-site reason as
+    /// <paramref name="ownerEmail"/>; <c>CreateAccountCommandHandler</c> always passes the validated
+    /// choice.
+    /// </param>
     public Account(
-        Guid id, string name, string primaryDomain, Guid planId, DateTimeOffset createdAt, string ownerEmail = "")
+        Guid id,
+        string name,
+        string primaryDomain,
+        Guid planId,
+        DateTimeOffset createdAt,
+        string ownerEmail = "",
+        string ownerLanguage = PanelLanguages.English)
     {
         Id = id;
         Name = name;
         PrimaryDomain = primaryDomain;
         PlanId = planId;
         OwnerEmail = ownerEmail;
+        OwnerLanguage = ownerLanguage;
         Status = AccountStatus.Active;
         CreatedAt = createdAt;
     }
@@ -83,6 +105,7 @@ public sealed class Account
     {
         Name = string.Empty;
         PrimaryDomain = string.Empty;
+        OwnerLanguage = PanelLanguages.English;
     }
 
     /// <summary>Moves the account onto another plan, which from now on bounds its limits.</summary>

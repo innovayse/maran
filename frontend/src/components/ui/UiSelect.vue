@@ -446,7 +446,7 @@ watch(
         <UiIcon
           name="chevronDown"
           size="sm"
-          class="shrink-0 text-text-secondary transition-transform motion-reduce:transition-none"
+          class="shrink-0 text-text-secondary transition-transform"
           :class="isOpen ? 'rotate-180' : ''"
         />
       </button>

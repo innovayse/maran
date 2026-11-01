@@ -12,13 +12,14 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 38 endpoints, 134 members
+covered: 38 endpoints, 135 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
   primaryDomain: string
   planId: string
   ownerEmail: string
+  ownerLanguage: string
 PUT /api/v1/accounts/{}/owner-email  ->  ChangeAccountOwnerEmailCommand
   ownerEmail: string
 PUT /api/v1/accounts/{}/plan  ->  ChangeAccountPlanCommand
@@ -249,6 +250,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/licence-status
   GET /api/v1/monitoring/accounts-disk
   GET /api/v1/monitoring/chart
+  GET /api/v1/monitoring/clock
   GET /api/v1/monitoring/metrics
   GET /api/v1/monitoring/services
   GET /api/v1/notifications/smtp

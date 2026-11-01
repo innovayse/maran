@@ -37,6 +37,9 @@ public sealed class VerifyTwoFactorCommandHandler
     /// <summary>Counts refusals per source address and announces an attack.</summary>
     private readonly BruteForceDetector _bruteForceDetector;
 
+    /// <summary>The answer to a refused code, which says when the server's clock may be why.</summary>
+    private readonly TwoFactorCodeRejection _rejection;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="passwordHasher">Verifies the password.</param>
@@ -45,6 +48,7 @@ public sealed class VerifyTwoFactorCommandHandler
     /// <param name="authenticationCompleter">Checks sign-in eligibility and issues the session.</param>
     /// <param name="journal">Records the attempt.</param>
     /// <param name="bruteForceDetector">Counts refusals per source address.</param>
+    /// <param name="rejection">The answer to a refused code.</param>
     public VerifyTwoFactorCommandHandler(
         IdentityDbContext dbContext,
         IPasswordHasher passwordHasher,
@@ -52,7 +56,8 @@ public sealed class VerifyTwoFactorCommandHandler
         IRecoveryCodeService recoveryCodeService,
         AuthenticationCompleter authenticationCompleter,
         IdentityAuditJournal journal,
-        BruteForceDetector bruteForceDetector)
+        BruteForceDetector bruteForceDetector,
+        TwoFactorCodeRejection rejection)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
@@ -61,6 +66,7 @@ public sealed class VerifyTwoFactorCommandHandler
         _authenticationCompleter = authenticationCompleter;
         _journal = journal;
         _bruteForceDetector = bruteForceDetector;
+        _rejection = rejection;
     }
 
     /// <summary>Verifies password and code together, then issues the session.</summary>
@@ -117,7 +123,7 @@ public sealed class VerifyTwoFactorCommandHandler
         {
             await WriteAuditAsync(user.Id, user.Username, AuditActions.LoginFailed, command, false, cancellationToken);
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
-            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidTwoFactorCodeUnauthorized), ErrorType.Unauthorized));
+            return Result<AuthenticatedOutcome>.Fail(await _rejection.ErrorAsync(cancellationToken));
         }
 
         var completed = await _authenticationCompleter.CompleteAsync(

@@ -4,6 +4,7 @@ import type { ListRequest, Paged } from '../../types/list'
 import type {
   AccountDiskUsage,
   ChartRange,
+  ClockSync,
   HostMetrics,
   MetricsChart,
   MonitoringApi,
@@ -15,6 +16,9 @@ const CHART_PATH = '/api/v1/monitoring/chart'
 
 /** The endpoint the host's live resource reading is read from. */
 const METRICS_PATH = '/api/v1/monitoring/metrics'
+
+/** The endpoint the host clock's synchronisation is read from. */
+const CLOCK_PATH = '/api/v1/monitoring/clock'
 
 /** The endpoint the watched services' states are read from. */
 const SERVICES_PATH = '/api/v1/monitoring/services'
@@ -82,5 +86,14 @@ export const useMonitoringApi = (): MonitoringApi => {
     )
   }
 
-  return { getChart, getHostMetrics, listServices, listAccountDiskUsage }
+  /**
+   * Reads whether the host's clock is synchronised with a time source.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The state with the backend's explanation of it.
+   */
+  const getClockSync = (signal?: AbortSignal): Promise<ClockSync> => {
+    return api.get<ClockSync>(CLOCK_PATH, signal)
+  }
+
+  return { getChart, getHostMetrics, listServices, listAccountDiskUsage, getClockSync }
 }

@@ -383,6 +383,13 @@ pub fn quotaon_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/sbin/quotaon")
 }
 
+/// Absolute path of `timedatectl`, for the process-execution allow-list.
+/// systemd ships it in `/usr/bin` on both families.
+#[must_use]
+pub fn timedatectl_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/timedatectl")
+}
+
 /// Absolute path of `id`, for the process-execution allow-list.
 #[must_use]
 pub fn id_binary() -> AdapterBinary {

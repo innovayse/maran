@@ -3,6 +3,7 @@
 
 pub mod account_disk_usage;
 pub mod account_selection;
+pub mod clock_sync_state;
 pub mod cpu_times;
 pub mod filesystem_usage;
 pub mod host_metrics;

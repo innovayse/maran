@@ -1,0 +1,22 @@
+/*
+ * Reduced motion, once for the whole panel (issue #149). A reader who asked the operating system
+ * for less motion gets every transition finished on its first frame: colours, the button's spring,
+ * a section's chevron, a drawer sliding in. Written once here rather than as `motion-reduce:` on
+ * each transition, because a per-call-site opt-out is one the next transition forgets.
+ *
+ * Unlayered on purpose: unlayered CSS beats every Tailwind layer whatever its specificity, so no
+ * utility can win against it and no `!important` is needed. A component's own scoped rules are
+ * unlayered too and outrank `*`; the ones that animate (UiModal, UiToast, UiDropdown, UiSwitch,
+ * UiSkeleton) carry their own reduced-motion rule beside the motion it overrides.
+ *
+ * Animations are left to their components: UiSkeleton's shimmer stops, while UiSpinner's arc slows
+ * rather than stopping, because a spinner that stands still reads as a screen that has hung.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0s;
+    scroll-behavior: auto;
+  }
+}
