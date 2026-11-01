@@ -30,7 +30,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for};
 
-use crate::safe_write::model::{Reload, Validator};
+use crate::safe_write::model::{ConfigFile, Reload, Validator};
 use crate::sftp::model::account_jail::AccountJail;
 use crate::sftp::model::account_ownership::AccountOwnership;
 use crate::sftp::model::sftp_user_request::SftpUserRequest;
@@ -778,6 +778,32 @@ impl SftpHost for FakeSftpHost {
             validator_class: validator.class,
             reload: Self::command_of(reload.program.as_str(), reload.arguments),
         });
+
+        Ok(())
+    }
+
+    /// Records the key file as a config write with no reload, and puts it on
+    /// the "host" so `path_exists` and a removal see it.
+    fn write_key_file(
+        &self,
+        file: &ConfigFile<'_>,
+        validator: &Validator<'_>,
+    ) -> Result<(), SftpError> {
+        if *self.config_refuses.lock().unwrap() {
+            return Err(SftpError::KeyFileFailed);
+        }
+
+        let target = file.target.display().to_string();
+        self.configs.lock().unwrap().push(RecordedConfig {
+            target: target.clone(),
+            contents: file.contents.to_owned(),
+            validator: Self::command_of(validator.program.as_str(), validator.arguments),
+            validator_class: validator.class,
+            reload: Vec::new(),
+        });
+        let mut paths = self.paths.lock().unwrap();
+        paths.retain(|held| *held != target);
+        paths.push(target);
 
         Ok(())
     }

@@ -32,6 +32,9 @@ pub fn to_agent_error(error: &SftpError) -> AgentError {
         // The name is not a managed hosting account (reserved, system identity or
         // wrong home). A request fault with a fixed sentence that names no rule.
         SftpError::AccountNotManaged => ErrorCode::InvalidInput,
+        // More keys than a login may hold (issue #135): the request's fault,
+        // refused before anything was written.
+        SftpError::TooManyKeys { .. } => ErrorCode::InvalidInput,
         // The one failure that leaves a login the customer cannot use: the
         // account exists and the password it was to be reached with was not
         // set. VALIDATION_FAILED rather than SYSTEM_FAILURE because that is
@@ -47,6 +50,9 @@ pub fn to_agent_error(error: &SftpError) -> AgentError {
         // customer as data loss, so the panel must report a fault rather than a
         // success.
         SftpError::JailFailed | SftpError::SpawnFailed { .. } => ErrorCode::SystemFailure,
+        // A key file that could not be written, moved or removed: the host's
+        // fault, with the previous file restored when the write was refused.
+        SftpError::KeyFileFailed => ErrorCode::SystemFailure,
         // The hosting account's wait-free lock was held by another operation,
         // so this one was refused before `useradd`, `chpasswd` or the jail ran.
         // ACCOUNT_BUSY rather than SYSTEM_FAILURE: the login is exactly as the

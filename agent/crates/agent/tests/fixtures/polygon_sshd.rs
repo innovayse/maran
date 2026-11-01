@@ -36,7 +36,7 @@
 
 use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -219,6 +219,54 @@ impl PolygonSshd {
             .env("SSH_ASKPASS", &askpass)
             .env("SSH_ASKPASS_REQUIRE", "force")
             .env("DISPLAY", ":0")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap_or_else(|error| panic!("the polygon image installs an sftp client: {error}"));
+
+        if let Some(mut pipe) = child.stdin.take() {
+            let _ = pipe.write_all(script.as_bytes());
+        }
+
+        child
+            .wait_with_output()
+            .unwrap_or_else(|error| panic!("the sftp client could not be waited for: {error}"))
+    }
+
+    /// Runs `script` as an SFTP batch, authenticating as `user` with the private
+    /// key at `identity` and with nothing else (issue #135).
+    ///
+    /// Password authentication is switched off on the CLIENT, so a success here
+    /// can only be the key: a fallback to a password prompt would otherwise
+    /// make a refused key look like a working one.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the sftp client cannot be run at all.
+    pub fn sftp_with_key(&self, user: &str, identity: &Path, script: &str) -> Output {
+        let mut child = Command::new("sftp")
+            .args([
+                "-P",
+                SSHD_PORT,
+                "-i",
+                &identity.display().to_string(),
+                "-o",
+                "IdentitiesOnly=yes",
+                "-o",
+                "PasswordAuthentication=no",
+                "-o",
+                "KbdInteractiveAuthentication=no",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                "-b",
+                "-",
+                &format!("{user}@{SSHD_ADDRESS}"),
+            ])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

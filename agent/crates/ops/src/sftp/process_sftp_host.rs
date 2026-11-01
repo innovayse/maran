@@ -20,8 +20,8 @@ use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 use maran_distro::AdapterBinary;
 
 use crate::accounts::read_managed_account;
-use crate::safe_write::model::{Reload, Validator};
-use crate::safe_write::{ConfigHost, SafeWriteError, write_config};
+use crate::safe_write::model::{ConfigFile, Reload, Validator};
+use crate::safe_write::{ConfigHost, SafeWriteError, write_config, write_unreloaded_config};
 use crate::sftp::model::account_ownership::AccountOwnership;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
@@ -295,6 +295,15 @@ impl SftpHost for ProcessSftpHost {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
             Err(_) => Err(SftpError::JailFailed),
         }
+    }
+
+    /// Hands the key file to the config-write protocol with no reload.
+    fn write_key_file(
+        &self,
+        file: &ConfigFile<'_>,
+        validator: &Validator<'_>,
+    ) -> Result<(), SftpError> {
+        write_unreloaded_config(self, file, validator).map_err(SftpError::from_key_file_write)
     }
 }
 

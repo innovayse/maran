@@ -3,6 +3,7 @@
 
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 use maran_distro::DistroAdapter;
 
 use crate::accounts::take_account_lock;
@@ -11,7 +12,10 @@ use crate::logins::end_account_sessions::end_account_sessions;
 use crate::logins::logins_error::LoginsError;
 use crate::logins::logins_host::LoginsHost;
 use crate::logins::model::account_lock_outcome::AccountLockOutcome;
+use crate::logins::model::account_login::AccountLogin;
+use crate::logins::model::login_protocol::LoginProtocol;
 use crate::logins::resolve_managed_account::resolve_managed_account;
+use crate::sftp::LoginKeyFile;
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The flag that prefixes a password hash so nothing can match it.
@@ -72,6 +76,16 @@ const UNLOCK: &str = "--unlock";
 /// area, and this entry point is public), whose own doc comment carries the
 /// confinement argument and which is a privileged surface with an outstanding
 /// second review (`docs/superpowers/notes/2026-09-12-suspension-session-cull-threat-note.md`).
+///
+/// # A locked password does not refuse a public key
+///
+/// With `UsePAM yes` — the default on every supported family — sshd does not
+/// consult the shadow lock when a login authenticates with a key, so a locked
+/// SFTP login with a key file in place would still be let in (issue #135). So
+/// the locking direction first parks each SFTP login's key file under the name
+/// sshd never reads (`LoginKeyFile::suspended`), and the unlocking direction
+/// moves it back — but only for a login the host then reports as unlocked: a
+/// login whose password could not be unlocked must not regain its keys either.
 ///
 /// **Order: lock first, then cull.** The other way round leaves a window in
 /// which the customer's client simply reconnects, which would make the cull
@@ -231,8 +245,20 @@ pub(crate) fn set_account_logins_locked_under_lock(
     let managed = resolve_managed_account(host, distro, account)?;
 
     let flag = if locked { LOCK } else { UNLOCK };
+    let before = account_logins(host, distro, account)?.logins;
 
-    for login in account_logins(host, distro, account)?.logins {
+    // Keys first on the way in: the door a key opens is closed before the
+    // password's is, so there is no moment with the password locked and a key
+    // still read.
+    if locked {
+        for login in &before {
+            if let Some(keys) = key_file_of(account, login) {
+                host.rename_if_present(keys.active(), keys.suspended())?;
+            }
+        }
+    }
+
+    for login in before {
         // `usermod` parses with `getopt_long`, which honours the end-of-options
         // marker on both families, so a login name can never be read as an
         // option.
@@ -261,10 +287,32 @@ pub(crate) fn set_account_logins_locked_under_lock(
         None
     };
 
+    let after = account_logins(host, distro, account)?;
+
+    // Keys last on the way out, and only where the host now reports the login
+    // unlocked: its own password answer decides, not the request.
+    if !locked {
+        for login in after.logins.iter().filter(|login| !login.locked) {
+            if let Some(keys) = key_file_of(account, login) {
+                host.rename_if_present(keys.suspended(), keys.active())?;
+            }
+        }
+    }
+
     Ok(AccountLockOutcome {
-        logins: account_logins(host, distro, account)?,
+        logins: after,
         sessions_ended,
     })
+}
+
+/// The key file of `login` when it is an SFTP login of `account`; FTPS logins
+/// have none.
+fn key_file_of(account: &AccountName, login: &AccountLogin) -> Option<LoginKeyFile> {
+    if login.protocol != LoginProtocol::Sftp {
+        return None;
+    }
+
+    SftpUserName::decode(account, &login.name).map(|user| LoginKeyFile::for_login(&user))
 }
 
 #[cfg(test)]

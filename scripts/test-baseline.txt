@@ -491,7 +491,15 @@
 # `164 targets: 1110 passed / 0 failed / 2 ignored`. Two spa rows raised: accounts/form 9->11
 # (the plan control's name and message in en and hy), ui-kit/unfilled-select-prompt 3->4 (the
 # Armenian account pickers). Backend rows unchanged.
-rust	maran_agent [unittests src/lib.rs]	446	0	0
+#
+# RE-MEASURED 2026-11-01 (#135: SFTP public-key login, agent slice) — edited by hand, not by
+# --accept. Source: a `maran test rust` run printing `35 targets: 2972 passed / 0 failed /
+# 156 ignored`. maran_agent 446->451, maran_agent_core 535->555, maran_ops 1787->1802,
+# golden_test 22->23, and sftp_on_a_real_host 13->14 IGNORED (the key login case, polygon only).
+# Then, same day, the suite was split at the 800-line test-file trigger: sftp_on_a_real_host
+# 14 -> 9 IGNORED and the new sftp_suspension_on_a_real_host at 5 IGNORED — the same 14 tests,
+# names unchanged (`cargo test --test <suite>` listing 9 and 5).
+rust	maran_agent [unittests src/lib.rs]	451	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -509,14 +517,15 @@ rust	php_socket_migration_on_a_real_host [tests/php_socket_migration_on_a_real_h
 rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	3
 rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	15
 rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	4
-rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	13
+rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	9
+rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	0	5
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
-rust	maran_agent_core [unittests src/lib.rs]	535	0	0
+rust	maran_agent_core [unittests src/lib.rs]	555	0	0
 rust	maran_distro [unittests src/lib.rs]	79	0	0
-rust	maran_ops [unittests src/lib.rs]	1787	0	1
+rust	maran_ops [unittests src/lib.rs]	1802	0	1
 rust	maran_templates [unittests src/lib.rs]	13	0	0
-rust	golden_test [tests/golden_test.rs]	22	0	0
+rust	golden_test [tests/golden_test.rs]	23	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
 rust	doc-tests maran_agent	0	0	0
 rust	doc-tests maran_agent_core	0	0	0

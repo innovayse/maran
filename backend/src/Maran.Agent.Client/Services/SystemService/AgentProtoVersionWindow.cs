@@ -72,10 +72,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 9;
+    public const uint Minimum = 10;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 9;
+    public const uint Maximum = 10;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

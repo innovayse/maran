@@ -1017,6 +1017,7 @@ dependencies = [
 name = "maran-agent-core"
 version = "1.0.0-beta.3"
 dependencies = [
+ "base64 0.22.1",
  "libc",
  "rustix",
  "tempfile",
@@ -1035,6 +1036,7 @@ dependencies = [
 name = "maran-ops"
 version = "1.0.0-beta.3"
 dependencies = [
+ "base64 0.22.1",
  "libc",
  "maran-agent-core",
  "maran-distro",

@@ -159,6 +159,18 @@ impl AgentPaths {
     /// and not on the `DistroAdapter` as the same literal written twice.
     pub const SFTP_JAIL_ROOT: &'static str = "/var/lib/maran-sftp";
 
+    /// Directory holding one root-owned key file per SFTP login (issue #135),
+    /// named by the login: `<this>/<login>`, which is the path the installer's
+    /// `Match Group` block gives sshd as `AuthorizedKeysFile <this>/%u`.
+    ///
+    /// Outside every jail and every home on purpose: a key file a customer uid
+    /// could write is a customer choosing who may log in, and sshd's
+    /// `StrictModes` would refuse it anyway. The installer creates it
+    /// root:root 0711 — traversable, so sshd reading as the login's uid can
+    /// open a file it names, and not listable. `/etc/ssh` is the same path on
+    /// every family, which is why this is here and not on the adapter.
+    pub const SFTP_AUTHORIZED_KEYS_DIRECTORY: &'static str = "/etc/ssh/maran-sftp-keys";
+
     /// Base directory holding one root-owned FTPS jail per account.
     ///
     /// The chroot an FTPS login lands in is `<this>/<account>`, and the

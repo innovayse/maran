@@ -338,7 +338,7 @@ fn restore_the_lock(
 ///   could not be run at all.
 /// - [`SftpError::StatusUnreadable`] when the entry it printed is not
 ///   `<login>:<password>:…` for the login that was asked about.
-fn stored_password(
+pub(crate) fn stored_password(
     host: &dyn SftpHost,
     distro: &dyn DistroAdapter,
     user: &SftpUserName,

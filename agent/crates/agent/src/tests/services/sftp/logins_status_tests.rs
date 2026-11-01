@@ -19,6 +19,7 @@ fn every_variant() -> Vec<LoginsError> {
         LoginsError::StatusUnreadable,
         LoginsError::AccountBusy,
         LoginsError::AccountNotManaged,
+        LoginsError::KeyFileFailed,
         LoginsError::SessionCullFailed { code: 1 },
     ]
 }

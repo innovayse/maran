@@ -167,6 +167,13 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
                 "&service_manager",
                 "CallClass::Reload"
             ),
+            // Pure — OpenSSH's own parser reading an SFTP login's key file
+            // (issue #135); it writes nothing.
+            row(
+                "sftp/set_sftp_authorized_keys.rs",
+                "&keygen",
+                "CallClass::Validate"
+            ),
             // Pure — the web server's own validate-only flag, over the real tree.
             // `create_vhost` is the creation twin of `write_vhost`: same binary,
             // and its caller also reads the validator's stderr for a warning.

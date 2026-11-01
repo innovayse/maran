@@ -191,6 +191,10 @@ impl DistroAdapter for DebianAdapter {
         debian_services::chpasswd_binary()
     }
 
+    fn ssh_keygen_binary(&self) -> AdapterBinary {
+        debian_services::ssh_keygen_binary()
+    }
+
     fn systemd_unit_directory(&self) -> &'static str {
         debian_services::systemd_unit_directory()
     }
