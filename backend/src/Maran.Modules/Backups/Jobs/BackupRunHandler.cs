@@ -98,6 +98,9 @@ public sealed class BackupRunHandler
     /// <summary>Where the retention request for a completed run is published.</summary>
     private readonly IMessageBus _bus;
 
+    /// <summary>Tells the administrator about a run that failed, was refused, or missed its hour.</summary>
+    private readonly BackupAlertMailer _alerts;
+
     /// <summary>Where the outcome of each sweep is reported.</summary>
     private readonly ILogger<BackupRunHandler> _logger;
 
@@ -111,6 +114,7 @@ public sealed class BackupRunHandler
     /// <param name="correlationIds">The correlation id this sweep's tasks are recorded under.</param>
     /// <param name="destinations">Resolves which destination each schedule writes to.</param>
     /// <param name="bus">Where the retention request for a completed run is published.</param>
+    /// <param name="alerts">Tells the administrator about a run that did not happen as scheduled.</param>
     /// <param name="logger">Where the outcome of each sweep is reported.</param>
     public BackupRunHandler(
         BackupsDbContext dbContext,
@@ -122,6 +126,7 @@ public sealed class BackupRunHandler
         ITaskRecorder tasks,
         ICorrelationIdAccessor correlationIds,
         IMessageBus bus,
+        BackupAlertMailer alerts,
         ILogger<BackupRunHandler> logger)
     {
         _dbContext = dbContext;
@@ -133,6 +138,7 @@ public sealed class BackupRunHandler
         _tasks = tasks;
         _correlationIds = correlationIds;
         _bus = bus;
+        _alerts = alerts;
         _logger = logger;
     }
 
@@ -158,12 +164,23 @@ public sealed class BackupRunHandler
 
         foreach (var schedule in due)
         {
+            // Asked before the stamp, which moves the occurrence it measures from.
+            var missed = schedule.TryGetMissedOccurrence(now, out var dueAt);
+
             // Written and committed before anything runs, so the next tick — five minutes from now,
-            // while this sweep may still be inside its first archive — does not select it again.
+            // while this sweep may still be inside its first archive — does not select it again. The
+            // same commit is what makes the missed-hour alert below fire once and not every tick.
             schedule.MarkRunStarted(now);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
-            foreach (var account in Targets(schedule, accounts))
+            var targets = Targets(schedule, accounts).ToList();
+            if (missed)
+            {
+                var usernames = targets.Select(account => { return account.Username; }).ToList();
+                await _alerts.ScheduledRunMissedAsync(schedule.Id, usernames, dueAt, now, cancellationToken);
+            }
+
+            foreach (var account in targets)
             {
                 started += await RunOneAsync(
                     account, schedule.DestinationId, schedule.RetainCount, cancellationToken);
@@ -235,6 +252,7 @@ public sealed class BackupRunHandler
         if (!destination.IsSuccess)
         {
             LogRefused(_logger, account.Id, destination.Error!.Code, null);
+            await _alerts.DestinationRefusedAsync(account.Username, destination.Error.Code, cancellationToken);
             return 0;
         }
 
@@ -279,6 +297,7 @@ public sealed class BackupRunHandler
             if (!outcome.Succeeded)
             {
                 await _tasks.FailAsync(taskId, outcome.FailureCode, cancellationToken);
+                await _alerts.ScheduledRunFailedAsync(account.Username, outcome.FailureCode, cancellationToken);
                 return 1;
             }
 
@@ -350,6 +369,8 @@ public sealed class BackupRunHandler
 
             await _journal.RecordScheduledAsync(
                 AuditActions.BackupCreated, accountUsername, succeeded: false, cancellationToken);
+            await _alerts.ScheduledRunFailedAsync(
+                accountUsername, nameof(ErrorMessages.BackupScheduledRunAborted), cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
