@@ -25,9 +25,20 @@ on:
 permissions:
   contents: read
 
+# One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
+# dev and main are never cancelled, and never even queued behind each other — their group carries
+# the run id, so each push is alone in its own group (a shared group would let GitHub drop a
+# PENDING push run when a newer one queues, even with cancel-in-progress false).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   current:
     runs-on: ubuntu-latest
+    # Measured basis: successful dev runs 41293966828, 41279955197, 41242417666 took 1.6, 2.1 and
+    # 1.2 min. 10 covers cold caches for all three ecosystems.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
