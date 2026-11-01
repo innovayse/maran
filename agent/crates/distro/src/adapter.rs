@@ -176,6 +176,13 @@ pub trait DistroAdapter: Send + Sync {
     /// journal; this is the program that reads it back.
     fn journal_binary(&self) -> AdapterBinary;
 
+    /// Absolute path of `systemd-run`, for the process-execution allow-list.
+    ///
+    /// It is how a customer's cron entry is started by hand (issue #158): the
+    /// service manager runs the entry as the account, inside the account's
+    /// `user-<uid>.slice`, under a runtime ceiling it enforces itself.
+    fn systemd_run_binary(&self) -> AdapterBinary;
+
     /// Absolute path of `tar`, for the process-execution allow-list.
     ///
     /// A backup archive is `tar` told which compressor to run, by the absolute

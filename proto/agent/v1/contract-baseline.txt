@@ -1,6 +1,7 @@
 enum maran.agent.v1.ArchiveFormat
 enum maran.agent.v1.BackupDestinationKind
 enum maran.agent.v1.CertificateMaterialRefusal
+enum maran.agent.v1.CronRunLimit
 enum maran.agent.v1.DistroFamily
 enum maran.agent.v1.ErrorCode
 enum maran.agent.v1.GrantRepairRefusal
@@ -29,6 +30,9 @@ enum-value maran.agent.v1.CertificateMaterialRefusal 0 CERTIFICATE_MATERIAL_REFU
 enum-value maran.agent.v1.CertificateMaterialRefusal 1 CERTIFICATE_MATERIAL_REFUSAL_MALFORMED_CERTIFICATE
 enum-value maran.agent.v1.CertificateMaterialRefusal 2 CERTIFICATE_MATERIAL_REFUSAL_MALFORMED_PRIVATE_KEY
 enum-value maran.agent.v1.CertificateMaterialRefusal 3 CERTIFICATE_MATERIAL_REFUSAL_KEY_DOES_NOT_MATCH_CERTIFICATE
+enum-value maran.agent.v1.CronRunLimit 0 CRON_RUN_LIMIT_UNSPECIFIED
+enum-value maran.agent.v1.CronRunLimit 1 CRON_RUN_LIMIT_RUNTIME
+enum-value maran.agent.v1.CronRunLimit 2 CRON_RUN_LIMIT_OUTPUT
 enum-value maran.agent.v1.DistroFamily 0 DISTRO_FAMILY_UNSPECIFIED
 enum-value maran.agent.v1.DistroFamily 1 DISTRO_FAMILY_DEBIAN
 enum-value maran.agent.v1.DistroFamily 2 DISTRO_FAMILY_RHEL
@@ -38,6 +42,7 @@ enum-value maran.agent.v1.ErrorCode 10 ERROR_CODE_LIMIT_REACHED
 enum-value maran.agent.v1.ErrorCode 11 ERROR_CODE_PACKAGE_SOURCE_REFUSED
 enum-value maran.agent.v1.ErrorCode 12 ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE
 enum-value maran.agent.v1.ErrorCode 13 ERROR_CODE_BELOW_FREE_SPACE_FLOOR
+enum-value maran.agent.v1.ErrorCode 14 ERROR_CODE_ACCOUNT_SUSPENDED
 enum-value maran.agent.v1.ErrorCode 2 ERROR_CODE_ALREADY_EXISTS
 enum-value maran.agent.v1.ErrorCode 3 ERROR_CODE_NOT_FOUND
 enum-value maran.agent.v1.ErrorCode 4 ERROR_CODE_VALIDATION_FAILED
@@ -579,6 +584,15 @@ field maran.agent.v1.RestoreBackupRequest 5 allowed_databases TYPE_STRING LABEL_
 field maran.agent.v1.RestoreBackupResponse 1 progress TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.Progress oneof=result
 field maran.agent.v1.RestoreBackupResponse 2 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RestoreBackupOk oneof=result
 field maran.agent.v1.RestoreBackupResponse 3 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.RunCronEntryOk 1 duration_ms TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RunCronEntryOk 2 exit_code TYPE_INT32 LABEL_OPTIONAL type_name=- oneof=_exit_code
+field maran.agent.v1.RunCronEntryOk 3 stdout TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RunCronEntryOk 4 stderr TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RunCronEntryOk 5 limit TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.CronRunLimit oneof=-
+field maran.agent.v1.RunCronEntryRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RunCronEntryRequest 2 entry_id TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RunCronEntryResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RunCronEntryOk oneof=result
+field maran.agent.v1.RunCronEntryResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.ServiceStatus 1 service TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.ManagedService oneof=-
 field maran.agent.v1.ServiceStatus 2 running TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ServiceStatus 3 uptime_seconds TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
@@ -890,6 +904,9 @@ message maran.agent.v1.ResourceCeilingUnlimited
 message maran.agent.v1.RestoreBackupOk
 message maran.agent.v1.RestoreBackupRequest
 message maran.agent.v1.RestoreBackupResponse
+message maran.agent.v1.RunCronEntryOk
+message maran.agent.v1.RunCronEntryRequest
+message maran.agent.v1.RunCronEntryResponse
 message maran.agent.v1.ServiceStatus
 message maran.agent.v1.SetAccountCronSuspendedOk
 message maran.agent.v1.SetAccountCronSuspendedRequest
@@ -974,6 +991,7 @@ rpc maran.agent.v1.CronService DeleteCronEntry in=.maran.agent.v1.DeleteCronEntr
 rpc maran.agent.v1.CronService GetCronEntryOutput in=.maran.agent.v1.GetCronEntryOutputRequest out=.maran.agent.v1.GetCronEntryOutputResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.CronService GetCronEnvironment in=.maran.agent.v1.GetCronEnvironmentRequest out=.maran.agent.v1.GetCronEnvironmentResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.CronService ListCronEntries in=.maran.agent.v1.ListCronEntriesRequest out=.maran.agent.v1.ListCronEntriesResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.CronService RunCronEntry in=.maran.agent.v1.RunCronEntryRequest out=.maran.agent.v1.RunCronEntryResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.CronService SetAccountCronSuspended in=.maran.agent.v1.SetAccountCronSuspendedRequest out=.maran.agent.v1.SetAccountCronSuspendedResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.CronService SetCronEntryEnabled in=.maran.agent.v1.SetCronEntryEnabledRequest out=.maran.agent.v1.SetCronEntryEnabledResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.CronService SetCronEnvironment in=.maran.agent.v1.SetCronEnvironmentRequest out=.maran.agent.v1.SetCronEnvironmentResponse client_streaming=false server_streaming=false

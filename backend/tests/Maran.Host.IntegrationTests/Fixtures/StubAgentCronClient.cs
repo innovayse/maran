@@ -125,6 +125,18 @@ public sealed class StubAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
+    public Task<Result<AgentCronRun>> RunEntryAsync(
+        string accountUsername,
+        string entryId,
+        CancellationToken cancellationToken)
+    {
+        AddressedAccounts.Add(accountUsername);
+
+        return Task.FromResult(Result<AgentCronRun>.Ok(
+            new AgentCronRun(1200, 0, "done", string.Empty, null)));
+    }
+
+    /// <inheritdoc/>
     public Task<Result<IReadOnlyList<AgentCronEnvVar>>> GetEnvironmentAsync(
         string accountUsername,
         CancellationToken cancellationToken)

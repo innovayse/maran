@@ -28,6 +28,14 @@ internal static class OperationPipelineRegistry
             AgentOperationPipeline.Configure(builder, new AgentOptions { OperationTimeoutSeconds = seconds });
         });
 
+        // The run-by-hand pipeline carries the same retry under the same short timeout, so a decorator
+        // that holds both is tested under one bound. Its own production timeout is pinned by
+        // AgentCronRunPipelineTests, not here.
+        services.AddResiliencePipeline(AgentCronRunPipeline.Name, builder =>
+        {
+            AgentOperationPipeline.Configure(builder, TimeSpan.FromSeconds(seconds));
+        });
+
         return services.BuildServiceProvider().GetRequiredService<ResiliencePipelineProvider<string>>();
     }
 }

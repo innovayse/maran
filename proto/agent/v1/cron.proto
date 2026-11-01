@@ -70,6 +70,31 @@ service CronService {
   // suspended account. GetAccountSuspensionState reports how many there are so
   // the panel can say so rather than certify a silence it did not achieve.
   rpc SetAccountCronSuspended(SetAccountCronSuspendedRequest) returns (SetAccountCronSuspendedResponse);
+
+  // Added 2026-11-01 (issue #158). Starts one of the account's existing entries
+  // NOW, as the account, and waits for it. No program travels on the wire: the
+  // request names an entry the agent installed, and what runs is that entry's
+  // own command file, exactly as cron would run it — `/bin/sh <command file>`,
+  // with the crontab's managed environment.
+  //
+  // The run is a transient systemd unit started by the service manager with the
+  // account's own uid and gid, placed in the account's `user-<uid>.slice` so
+  // the CPU, memory and task ceilings of that slice apply to it, and stopped by
+  // the service manager after a fixed runtime ceiling. Each output stream is
+  // captured under a fixed ceiling; past it the run is stopped and no output is
+  // returned.
+  //
+  // A DISABLED entry runs — disabling is the customer's switch for "not on a
+  // schedule", and a run they asked for is not a scheduled one. A SUSPENDED
+  // entry is refused with ERROR_CODE_ACCOUNT_SUSPENDED. An entry the account
+  // does not have is ERROR_CODE_NOT_FOUND.
+  //
+  // Not idempotent, and cannot be: every call is a new run of the customer's
+  // program. Cancellation class: run to completion. The work is inside the
+  // service manager, so a caller that goes away does not stop the run; the
+  // runtime ceiling is what ends it. Threat note:
+  // docs/superpowers/notes/2026-11-01-cron-run-now-threat-note.md.
+  rpc RunCronEntry(RunCronEntryRequest) returns (RunCronEntryResponse);
 }
 
 // Standard five-field cron schedule. Each field uses conventional cron
@@ -382,3 +407,50 @@ message SetAccountCronSuspendedResponse {
 }
 
 message SetAccountCronSuspendedOk {}
+
+message RunCronEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Identifier of the entry to run. Must name an entry in the account's
+  // crontab; the command that runs is that entry's own command file.
+  string entry_id = 2;
+}
+
+message RunCronEntryResponse {
+  oneof result {
+    RunCronEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Which of the run's ceilings stopped it, if one did.
+enum CronRunLimit {
+  // No ceiling was reached: the program ended on its own and `exit_code`
+  // carries its status.
+  CRON_RUN_LIMIT_UNSPECIFIED = 0;
+  // The run lasted as long as the runtime ceiling and was stopped by the
+  // service manager.
+  CRON_RUN_LIMIT_RUNTIME = 1;
+  // A stream went past the output ceiling. The run was stopped and no output is
+  // returned: a prefix of it would read as the whole.
+  CRON_RUN_LIMIT_OUTPUT = 2;
+}
+
+message RunCronEntryOk {
+  // How long the run took, in milliseconds, measured by the agent from the
+  // moment it started the unit to the moment the unit's client returned.
+  uint64 duration_ms = 1;
+  // The program's exit status.
+  //
+  // ABSENT when a ceiling stopped the run (`limit` says which): a killed run
+  // has no status of its own, and 0 would read as a success.
+  optional int32 exit_code = 2;
+  // What the program wrote to its standard output, decoded lossily, at most
+  // 64 KiB. Empty when `limit` is CRON_RUN_LIMIT_OUTPUT.
+  string stdout = 3;
+  // What the program wrote to its standard error, decoded lossily, at most
+  // 64 KiB. Empty when `limit` is CRON_RUN_LIMIT_OUTPUT.
+  string stderr = 4;
+  // Which ceiling stopped the run, or CRON_RUN_LIMIT_UNSPECIFIED when none did.
+  CronRunLimit limit = 5;
+}

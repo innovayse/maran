@@ -795,7 +795,7 @@ done < <(find agent/crates/ops/src agent/crates/agent/src -name '*.rs' -not -pat
 #      in every sanctioned file, and an `#[allow]` written to make a gate pass is the thing the
 #      rules avoid.
 #
-#      CENSUS (rules/testing.md): the 14 listed files are exactly what this prints, and it is the
+#      CENSUS (rules/testing.md): the 15 listed files are exactly what this prints, and it is the
 #      positive control -- each of them must still hit the pattern, so a pattern that stopped
 #      matching fails the stale-entry check below instead of passing silently:
 #        grep -rlE '\b(spawn_argv|run_bounded|run_unthreaded|run_for_window|run_discarding)\(|SpawnRequest \{' \
@@ -808,6 +808,7 @@ sanctioned_spawn_hosts=(
   agent/crates/ops/src/backup/process_backup_host.rs
   agent/crates/ops/src/backup/run_discarding.rs
   agent/crates/ops/src/cron/crontab_spool.rs
+  agent/crates/ops/src/cron/process_cron_host.rs
   agent/crates/ops/src/db/process_db_host.rs
   agent/crates/ops/src/firewall/process_firewall_host.rs
   agent/crates/ops/src/ftps/process_ftps_host.rs

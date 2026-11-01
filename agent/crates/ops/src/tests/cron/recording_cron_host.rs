@@ -42,6 +42,7 @@ use crate::cron::cron_error::CronError;
 use crate::cron::cron_host::CronHost;
 use crate::cron::model::cron_entry::CronEntry;
 use crate::cron::model::cron_environment::CronEnvironment;
+use crate::cron::model::cron_run::CronRun;
 use crate::cron::model::cron_run_record::CronRunRecord;
 use crate::cron::unmanaged_case::UnmanagedCase;
 
@@ -185,6 +186,10 @@ pub(crate) struct RecordingCronHost {
     account_row_present: Mutex<bool>,
     /// How many times the crontab was read.
     reads: Mutex<usize>,
+    /// Every run started by hand: the entry id and the environment it was given.
+    runs: Mutex<Vec<(String, Vec<(String, String)>)>>,
+    /// Whether starting a run refuses.
+    run_refuses: Mutex<bool>,
 }
 
 impl RecordingCronHost {
@@ -207,6 +212,8 @@ impl RecordingCronHost {
             account_home: Mutex::new(None),
             account_row_present: Mutex::new(true),
             reads: Mutex::new(0),
+            runs: Mutex::new(Vec::new()),
+            run_refuses: Mutex::new(false),
         }
     }
 
@@ -369,6 +376,16 @@ impl RecordingCronHost {
     /// Makes removing an entry's files refuse.
     pub(crate) fn refuse_removals(&self) {
         *self.remove_refuses.lock().unwrap() = true;
+    }
+
+    /// Makes starting a run by hand fail.
+    pub(crate) fn refuse_runs(&self) {
+        *self.run_refuses.lock().unwrap() = true;
+    }
+
+    /// Every run started by hand, in order: its entry id and its environment.
+    pub(crate) fn runs(&self) -> Vec<(String, Vec<(String, String)>)> {
+        self.runs.lock().unwrap().clone()
     }
 
     /// Makes the host unable to mint an id.
@@ -536,6 +553,33 @@ impl CronHost for RecordingCronHost {
             let start = text.len().saturating_sub(max_bytes);
             text[start..].to_owned()
         }))
+    }
+
+    fn run_entry(
+        &self,
+        _account: &ManagedAccount,
+        entry: &CronEntryId,
+        environment: &[CronEnvironment],
+    ) -> Result<CronRun, CronError> {
+        if *self.run_refuses.lock().unwrap() {
+            return Err(CronError::RunUnavailable);
+        }
+
+        self.runs.lock().unwrap().push((
+            entry.as_str().to_owned(),
+            environment
+                .iter()
+                .map(|pair| (pair.name.as_str().to_owned(), pair.value.as_str().to_owned()))
+                .collect(),
+        ));
+
+        Ok(CronRun {
+            duration: Duration::from_millis(1500),
+            exit_code: Some(0),
+            stdout: "done\n".to_owned(),
+            stderr: String::new(),
+            limit: None,
+        })
     }
 }
 

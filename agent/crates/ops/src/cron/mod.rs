@@ -138,6 +138,11 @@ mod mint_entry_id;
 pub mod model;
 mod open_cron_directory;
 mod process_cron_host;
+mod run_cron_entry;
+// Private: the argv that starts an entry by hand, and the reading of what it
+// answered. `ProcessCronHost` is their only caller.
+mod run_now_arguments;
+mod run_now_outcome;
 #[cfg(test)]
 #[path = "../tests/cron/recording_cron_host.rs"]
 pub(crate) mod recording_cron_host;
@@ -170,7 +175,10 @@ pub use model::cron_entry_output::CronEntryOutput;
 pub use model::cron_environment::CronEnvironment;
 pub use model::cron_run_record::CronRunRecord;
 pub use model::crontab_document::CrontabDocument;
+pub use model::cron_run::CronRun;
+pub use model::cron_run_limit::CronRunLimit;
 pub use process_cron_host::ProcessCronHost;
+pub use run_cron_entry::run_cron_entry;
 pub use set_account_cron_suspended::set_account_cron_suspended;
 pub use set_cron_entry_enabled::set_cron_entry_enabled;
 pub use set_cron_environment::set_cron_environment;

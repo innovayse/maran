@@ -75,6 +75,10 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::journal_binary()
     }
 
+    fn systemd_run_binary(&self) -> AdapterBinary {
+        rhel_services::systemd_run_binary()
+    }
+
     fn tar_binary(&self) -> AdapterBinary {
         rhel_services::tar_binary()
     }

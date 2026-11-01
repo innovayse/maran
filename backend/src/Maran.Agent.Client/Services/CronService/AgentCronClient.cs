@@ -219,6 +219,34 @@ public sealed class AgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<AgentCronRun>> RunEntryAsync(
+        string accountUsername,
+        string entryId,
+        CancellationToken cancellationToken)
+    {
+        var request = new RunCronEntryRequest { AccountUsername = accountUsername, EntryId = entryId };
+        var response = await _invoker.RunCronEntryAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            RunCronEntryResponse.ResultOneofCase.Ok => Result<AgentCronRun>.Ok(new AgentCronRun(
+                (long)Math.Min(response.Ok.DurationMs, long.MaxValue),
+                response.Ok.HasExitCode ? response.Ok.ExitCode : null,
+                response.Ok.Stdout,
+                response.Ok.Stderr,
+                response.Ok.Limit switch
+                {
+                    CronRunLimit.Runtime => AgentCronRunLimit.Runtime,
+                    CronRunLimit.Output => AgentCronRunLimit.Output,
+                    _ => null,
+                })),
+            RunCronEntryResponse.ResultOneofCase.Error => Result<AgentCronRun>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(RunEntryAsync))),
+            _ => Result<AgentCronRun>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<AgentCronEnvVar>>> GetEnvironmentAsync(
         string accountUsername,
         CancellationToken cancellationToken)

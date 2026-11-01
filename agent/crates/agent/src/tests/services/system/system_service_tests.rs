@@ -127,6 +127,7 @@ const REVISIONS: &[(u32, u64)] = &[
     (7, 0xb283_18aa_a02e_4f4e),
     (8, 0xd31a_75ce_b42d_6396),
     (9, 0x5e80_6a10_6744_3e8c),
+    (10, 0x93a6_e7eb_2aed_7744),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

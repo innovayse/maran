@@ -30,6 +30,8 @@ fn every_variant() -> Vec<CronError> {
         CronError::EntryFileUnremovable,
         CronError::EntryIdUnavailable,
         CronError::EntryLimitReached,
+        CronError::Suspended,
+        CronError::RunUnavailable,
         CronError::Account(ManagedAccountError::Reserved),
         CronError::Account(ManagedAccountError::NotFound),
         CronError::Account(ManagedAccountError::SystemIdentity),
@@ -122,6 +124,24 @@ fn the_three_entry_file_failures_are_faults_of_the_host() {
 fn a_host_that_cannot_mint_an_id_is_a_system_failure_and_nothing_was_written() {
     assert_eq!(
         code_of(&CronError::EntryIdUnavailable),
+        ErrorCode::SystemFailure as i32
+    );
+}
+
+#[test]
+fn a_suspended_account_refusing_a_run_is_its_own_code() {
+    // Not INVALID_INPUT, which blames the request, and not ACCOUNT_BUSY, which
+    // invites a retry that would meet the same suspension.
+    assert_eq!(
+        code_of(&CronError::Suspended),
+        ErrorCode::AccountSuspended as i32
+    );
+}
+
+#[test]
+fn a_run_that_could_not_be_started_is_a_system_failure() {
+    assert_eq!(
+        code_of(&CronError::RunUnavailable),
         ErrorCode::SystemFailure as i32
     );
 }

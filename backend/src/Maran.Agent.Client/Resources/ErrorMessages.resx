@@ -66,4 +66,7 @@
   <data name="AgentBelowFreeSpaceFloor">
     <value>The server is nearly out of disk space, so it refused to start this and nothing was changed. Free some space on the server, then try again.</value>
   </data>
+  <data name="AgentAccountSuspended">
+    <value>The account is suspended, so this was refused and nothing was started. Resume the account, then try again.</value>
+  </data>
 </root>
