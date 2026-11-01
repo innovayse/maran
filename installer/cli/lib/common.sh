@@ -13,6 +13,9 @@
 readonly MARAN_CLI_BINARY="/usr/local/maran/api/Maran.Host"
 readonly MARAN_CLI_ENV_FILE="/etc/maran/panel.env"
 readonly MARAN_CLI_SERVICE_USER="maran"
+# Where every verb that builds something on disk stages it: root-owned 0700, outside every account's
+# home and outside the service account's own /var/lib/maran.
+readonly MARAN_CLI_STAGING_BASE="/var/lib/maran-cli-staging"
 
 # cli_fail: prints one message on stderr and ends the command with exit 1.
 cli_fail() {
@@ -51,5 +54,47 @@ cli_dotnet() {
     set +a
     cd "$(dirname "$MARAN_CLI_BINARY")" || exit 1
     exec runuser -u "$MARAN_CLI_SERVICE_USER" -- "$MARAN_CLI_BINARY" --cli "$@"
+  )
+}
+
+# cli_require_private_out_dir: refuses unless $1 is an absolute path of plain characters with no
+# `..` component, naming a plain (non-symlink) directory owned by root that neither group nor
+# others can write. A verb writes something sensitive there, so the directory is checked, not
+# interpreted, and nobody but root can swap a file into it.
+cli_require_private_out_dir() {
+  local out="$1" mode owner
+  [[ "$out" =~ ^/[A-Za-z0-9._/-]*$ ]] && [[ "$out" != *..* ]] \
+    || cli_fail "--out must be an absolute path of letters, digits, '.', '_', '-' and '/'"
+  [ -d "$out" ] && [ ! -L "$out" ] || cli_fail "--out is not a plain directory"
+  mode="$(stat -c '%a' -- "$out")"
+  owner="$(stat -c '%u' -- "$out")"
+  [ "$owner" = "0" ] || cli_fail "--out must be owned by root"
+  # The last two permission digits are group and other; any write bit (2, 3, 6, 7) refuses.
+  [[ "${mode: -2}" =~ ^[0145]{2}$ ]] || cli_fail "--out must not be writable by group or others"
+}
+
+# cli_prepare_staging_base: creates the staging base if absent and then CHECKS what is there:
+# `install -d` accepts an existing path, so a symlink or a loosened mode left by anybody is refused
+# rather than staged into. The same gate 50-artifacts.sh applies to its own staging directory.
+cli_prepare_staging_base() {
+  install -d -m 0700 -o root -g root "$MARAN_CLI_STAGING_BASE"
+  if [ -L "$MARAN_CLI_STAGING_BASE" ] || [ ! -d "$MARAN_CLI_STAGING_BASE" ] \
+     || [ "$(stat -c '%u %a' -- "$MARAN_CLI_STAGING_BASE")" != "0 700" ]; then
+    cli_fail "${MARAN_CLI_STAGING_BASE} is not a root-owned 0700 directory; refusing to stage there"
+  fi
+}
+
+# cli_panel_env_value: prints the value the live panel.env gives the setting named $1, read the way
+# systemd reads the file, inside a subshell so no other setting reaches this shell. Only for the
+# installed, root-owned file — an archive's copy is never sourced (see panel-restore.sh).
+cli_panel_env_value() {
+  local name="$1"
+  [ -r "$MARAN_CLI_ENV_FILE" ] || cli_fail "${MARAN_CLI_ENV_FILE} is missing; is Maran installed?"
+  (
+    set -a
+    # shellcheck disable=SC1090
+    . "$MARAN_CLI_ENV_FILE"
+    set +a
+    printf '%s' "${!name-}"
   )
 }
