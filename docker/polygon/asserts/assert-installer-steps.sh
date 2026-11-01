@@ -488,7 +488,8 @@ for __part in \
   "${ASSERT_PARTS_DIR}/uninstaller.sh" \
   "${ASSERT_PARTS_DIR}/ftps.sh" \
   "${ASSERT_PARTS_DIR}/artifacts-and-packages.sh" \
-  "${ASSERT_PARTS_DIR}/cli-recovery.sh"; do
+  "${ASSERT_PARTS_DIR}/cli-recovery.sh" \
+  "${ASSERT_PARTS_DIR}/log-retention.sh"; do
   [ -r "$__part" ] || fail "assert-installer-steps.sh: ${__part} is not in this image; the Dockerfile must COPY docker/polygon/asserts/parts/"
   # shellcheck source=/dev/null
   . "$__part"
@@ -603,6 +604,9 @@ main() {
   # depend on that restoration having worked.
   # Before it, and textual where that one is behavioural: the census over what the installer drops
   # into the distribution's own configuration directories and what the uninstaller takes back out.
+  # Step 41's rotation policy, installed and parsed by the real logrotate (issue #131). Before the
+  # census, which reads the same step as text.
+  assert_the_install_log_rotation_policy_is_installed_and_parsed
   assert_the_uninstaller_removes_every_drop_in_the_installer_creates
   # The process-signalling census: a text comparison plus one install and one probe, so it sits
   # beside the other census rather than among the assertions that start daemons.
@@ -615,7 +619,7 @@ main() {
   # which takes /usr/local/maran with it (the layout is put back inside the assertion).
   assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should
   assert_the_uninstaller_removes_the_break_glass_command
-  echo "Installer steps 40, 50, 60, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
+  echo "Installer steps 40, 41, 50, 60, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
   echo "the on-disk boundary the two privilege-escalation fixes moved, verified inside the polygon."
 }
 

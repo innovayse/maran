@@ -337,6 +337,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpam0g-dev \
 # rotation policies whose count is the whole subject.
 COPY installer/lib/30-postgresql.sh /tmp/maran-installer/lib/30-postgresql.sh
 COPY installer/lib/81-site-logs.sh /tmp/maran-installer/lib/81-site-logs.sh
+# Step 41 and its payload, the rotation policy for the installer's own transcript (issue #131).
+# The census above reads the step because install.sh runs it; parts/log-retention.sh RUNS it and
+# hands the installed policy to the real logrotate, which is why logrotate itself is installed
+# here: a policy no logrotate has parsed is a file, not a retention policy.
+COPY installer/lib/41-log-retention.sh /tmp/maran-installer/lib/41-log-retention.sh
+COPY installer/logrotate/maran-install /tmp/maran-installer/logrotate/maran-install
+RUN apt-get update && apt-get install -y --no-install-recommends logrotate \
+    && rm -rf /var/lib/apt/lists/*
 # 88-cron.sh is COPY'd again further down for the cron suite's own reasons; it is needed HERE,
 # before the assert script runs, because the census reads it too. The same duplication
 # 40-user.sh and 80-nginx.sh already carry, and for the same reason: a COPY is cheap, a step the

@@ -204,6 +204,9 @@
   <data name="AuditActionSmtpSettingsSaved">
     <value>Mail settings saved</value>
   </data>
+  <data name="AuditActionPanelLogLevelChanged">
+    <value>Panel log level changed</value>
+  </data>
   <data name="AuditActionTestMailSent">
     <value>Test mail sent</value>
   </data>

@@ -365,6 +365,7 @@ main() {
   run_step 20-dependencies.sh step_dependencies
   run_step 30-postgresql.sh   step_postgresql
   run_step 40-user.sh         step_user
+  run_step 41-log-retention.sh step_log_retention
   run_step 50-artifacts.sh    step_artifacts
   run_step 60-config.sh       step_config
   run_step 65-schema.sh       step_schema

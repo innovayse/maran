@@ -1,0 +1,48 @@
+# Rotation for the installer's own transcript, /var/log/maran/install.log.
+#
+# Installed to /etc/logrotate.d/maran-install, root:root 0644, by installer/lib/41-log-retention.sh
+# (issue #131).
+#
+# It was the last file under /var/log/maran that nothing bounded. The other three policies cover the
+# panel vhost's nginx logs (maran-panel), the customers' site logs (maran-sites) and the FTPS
+# transfer log (maran-ftps); install.sh appends a full transcript to this file on every install,
+# upgrade and re-run, and nothing ever removed a line of it. It grows slowly — one transcript per
+# run — which is exactly why it was missed: on a host that is upgraded for years it is the one file
+# in the tree that only ever gets longer.
+#
+# The panel's and the agent's own logs are not files: both write to standard output, which systemd
+# puts in the journal, and the journal is bounded by journald's own limits (SystemMaxUse=, by
+# default a tenth of the filesystem it lives on, capped at 4 GiB). /var/log/maran/panel exists for
+# a file sink an operator might configure, and no shipped build writes one — so it has no stanza
+# here, and a log that starts being written there gets a stanza of its own in the same change.
+#
+# RETENTION: monthly, twelve months, compressed. A transcript is read when an upgrade is being
+# diagnosed, often long after it ran, and a year of them is a few hundred kilobytes compressed.
+#
+# Every other choice is the one the sibling policies argue, for the same reasons:
+#
+#   * The path is a literal under /var/log/maran, which install.sh makes root-owned and 0750 and
+#     re-asserts on every run (harden_log_directory). No glob: logrotate runs as root, and a pattern
+#     is how a rotation policy ends up reaching a file it was not written for.
+#   * `su root root` names the privileges explicitly instead of letting logrotate infer them from the
+#     directory's owner, so a later change of ownership cannot make the rotation run as whoever now
+#     owns the tree.
+#   * `nocreate`, NOT `create`: nothing writes this file between runs, and the next run's `tee -a`
+#     creates it. A rotation that created an empty file would put a file on disk that no process
+#     owns the mode of.
+#   * No postrotate and no `copytruncate`. The only writer is an installer run's `tee`, which holds
+#     the file open for that run alone; a rotation that lands mid-run moves the open inode aside and
+#     the rest of that transcript is still written into it, so no line is lost.
+#   * `missingok` for a host whose transcript an operator deleted, and `notifempty` because an empty
+#     transcript records nothing worth a numbered file.
+
+/var/log/maran/install.log {
+    monthly
+    rotate 12
+    missingok
+    notifempty
+    compress
+    delaycompress
+    nocreate
+    su root root
+}
