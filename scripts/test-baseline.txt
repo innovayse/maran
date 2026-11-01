@@ -4,7 +4,8 @@
 # RE-MEASURED 2026-11-01 (issue #133, account runtime limits, merged on top of dev's #148): edited by hand, #133's deltas added to #148's rows.
 # rust: maran_agent 436->440 (+4), maran_agent_core 515->527 (+12), maran_ops 1770->1777 (+7); backend: Agent.Client.Tests 380->383,
 # Modules.Accounts.Tests 514->529; spa: plans/plans.spec.ts 15->17. Pre-merge #133 runs: rust 2883 passed / 0 failed / 155 ignored;
-# backend 20 targets 5156 passed / 0 failed; spa 165 targets 1115 passed / 0 failed / 2 ignored. Post-merge run below in the PR.
+# backend 20 targets 5156 passed / 0 failed; spa 165 targets 1115 passed. Post-merge: rust 35 targets 2907 passed / 0 failed / 155 ignored;
+# backend 20 targets 5165 passed / 0 failed; spa 165 targets 1115 passed / 0 failed / 2 ignored; all TEST VERDICT: OK.
 # RE-MEASURED 2026-11-01 (issue #148, free-space floor): edited by hand. maran_agent [unittests src/lib.rs] 428->436; maran_agent_core [unittests src/lib.rs] 508->515; maran_ops [unittests src/lib.rs] 1761->1770; Maran.Modules.Monitoring.Tests.dll 87->95; Maran.Sdk.Tests.dll 267->268. Full runs: `maran test rust` 35 targets: 2884 passed / 0 failed / 155 ignored; `maran test backend` 20 targets: 5147 passed / 0 failed / 0 ignored; both TEST VERDICT: OK.
 # RE-MEASURED 2026-10-31 (issue #275, merged with dev's #274: Host.IntegrationTests 824+7 = 831;, a site carries at most 99 aliases): edited by hand.
 # backend: Host.IntegrationTests 820->827 (SiteAliasLimitEndpointTests 5, SitesAuthorizationTests +2 for GET /api/v1/sites/limits),

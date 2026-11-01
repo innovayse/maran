@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::system::cpu_quota_percent::CpuQuotaPercent;
 use maran_agent_core::validation::system::memory_max_mib::MemoryMaxMib;
 use maran_agent_core::validation::system::name::AccountName;
@@ -86,6 +87,10 @@ impl SystemHost for SliceHost {
     fn pause(&self, _interval: Duration) {
         panic!("setting a slice's ceilings never waits")
     }
+
+    fn available_bytes(&self, _directory: &std::path::Path) -> Result<u64, std::io::Error> {
+        panic!("setting a slice's ceilings writes nothing to disk")
+    }
 }
 
 fn name(raw: &str) -> AccountName {
@@ -109,6 +114,7 @@ fn the_ceilings_are_set_on_the_slice_named_after_the_accounts_uid() {
     let operations = AccountOperations::new(
         SliceHost::new(&row("alice", 2001), 0),
         adapter_for(DistroFamily::Debian),
+        FreeSpaceFloor::default_floor(),
     );
 
     set_account_resource_limits(&operations, &name("alice"), &capped()).unwrap();
@@ -139,6 +145,7 @@ fn unlimited_ceilings_reset_every_property_rather_than_leaving_one_behind() {
     let operations = AccountOperations::new(
         SliceHost::new(&row("alice", 2001), 0),
         adapter_for(DistroFamily::Rhel),
+        FreeSpaceFloor::default_floor(),
     );
     let unlimited = AccountResourceLimits {
         cpu: ResourceCeiling::Unlimited,
@@ -160,6 +167,7 @@ fn an_absent_account_is_not_found_and_nothing_runs() {
     let operations = AccountOperations::new(
         SliceHost::new(&row("bob", 2002), 0),
         adapter_for(DistroFamily::Debian),
+        FreeSpaceFloor::default_floor(),
     );
 
     let refused = set_account_resource_limits(&operations, &name("alice"), &capped());
@@ -173,6 +181,7 @@ fn a_system_identity_is_refused_so_roots_slice_is_never_capped() {
     let operations = AccountOperations::new(
         SliceHost::new("daemon:x:1:1::/home/daemon:/usr/sbin/nologin\n", 0),
         adapter_for(DistroFamily::Debian),
+        FreeSpaceFloor::default_floor(),
     );
 
     let refused = set_account_resource_limits(&operations, &name("daemon"), &capped());
@@ -186,6 +195,7 @@ fn a_refusing_service_manager_is_a_command_failure() {
     let operations = AccountOperations::new(
         SliceHost::new(&row("alice", 2001), 1),
         adapter_for(DistroFamily::Debian),
+        FreeSpaceFloor::default_floor(),
     );
 
     let refused = set_account_resource_limits(&operations, &name("alice"), &capped());
