@@ -141,6 +141,26 @@ enum ErrorCode {
   // the agent reports ERROR_CODE_PACKAGE_SOURCE_REFUSED: a source that answered
   // with a refusal is the more specific observation.
   ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE = 12;
+  // Added 2026-11-01, additively (issue #148). The operation would write into
+  // a filesystem that has less than the agent's free-space floor available to
+  // an unprivileged writer (`f_bavail`), so it was refused. The floor is the
+  // agent's own `--free-space-floor-mib`, written by the installer; no request
+  // carries it. HostMetrics.free_space_floor_bytes reports it.
+  //
+  // Four operations ask: CreateAccount and WriteFile (the filesystem holding
+  // the account homes), CreateBackup (the account's backup directory) and
+  // RestoreBackup (the account homes again, before anything is extracted).
+  //
+  // **Nothing happened.** The check is made before the operation's first
+  // write, so the host is exactly as the caller found it. It is NOT retryable
+  // as it stands: the answer is the same until space is freed or the floor is
+  // lowered, and a panel tells the operator so rather than retrying.
+  //
+  // A filesystem the agent could not measure is not this code: it is
+  // ERROR_CODE_SYSTEM_FAILURE, because the host is at fault and not the
+  // disk's fill. It is also NOT the code for an account over its own quota,
+  // which the filesystem enforces by itself.
+  ERROR_CODE_BELOW_FREE_SPACE_FLOOR = 13;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

@@ -79,3 +79,26 @@ fn the_files_mapping_names_no_bound_variant() {
     assert!(SOURCE.contains("FilesOpError"));
     assert!(!SOURCE.contains("Bound("));
 }
+
+#[test]
+fn an_upload_below_the_free_space_floor_travels_as_its_own_code() {
+    let refusal = maran_agent_core::utils::floor_refusal::FloorRefusal::BelowFloor {
+        available: 1,
+        floor: 2,
+    };
+
+    assert_eq!(
+        code_of(&FilesOpError::FreeSpace(refusal)),
+        ErrorCode::BelowFreeSpaceFloor as i32
+    );
+}
+
+#[test]
+fn a_home_filesystem_that_cannot_be_measured_is_a_system_failure() {
+    assert_eq!(
+        code_of(&FilesOpError::FreeSpace(
+            maran_agent_core::utils::floor_refusal::FloorRefusal::Unmeasurable
+        )),
+        ErrorCode::SystemFailure as i32
+    );
+}

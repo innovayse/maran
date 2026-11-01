@@ -244,6 +244,8 @@ impl ServedSite {
                 contents: format!("<?php echo '{SERVED_BODY}';\n").into_bytes(),
                 mode: FileMode::parse(0o644).expect("a plain permission mode"),
             },
+            &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
         );
         assert!(written.is_ok(), "the page write must succeed: {written:?}");
 

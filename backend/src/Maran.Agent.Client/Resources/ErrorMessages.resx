@@ -63,4 +63,7 @@
   <data name="AgentPrivateKeyMismatch">
     <value>The private key does not belong to this certificate. Paste the key that was created together with the certificate request.</value>
   </data>
+  <data name="AgentBelowFreeSpaceFloor">
+    <value>The server is nearly out of disk space, so it refused to start this and nothing was changed. Free some space on the server, then try again.</value>
+  </data>
 </root>

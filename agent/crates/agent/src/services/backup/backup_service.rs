@@ -4,6 +4,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_ops::backup::{self, BackupHost};
@@ -75,16 +76,26 @@ pub struct BackupServiceImpl<B, D> {
     /// the web server's group, which a restore re-applies to the home root; a
     /// service never branches on a distribution itself (rules/rust.md).
     distro: &'static dyn maran_distro::DistroAdapter,
+    /// The free-space floor a backup and a restore are refused below
+    /// (issue #148).
+    floor: FreeSpaceFloor,
 }
 
 impl<B: BackupHost + 'static, D: DbHost + 'static> BackupServiceImpl<B, D> {
-    /// Creates the service around the two hosts it runs operations against.
+    /// Creates the service around the two hosts it runs operations against
+    /// and the free-space floor it refuses below.
     #[must_use]
-    pub fn new(host: B, db_host: D, distro: &'static dyn maran_distro::DistroAdapter) -> Self {
+    pub fn new(
+        host: B,
+        db_host: D,
+        distro: &'static dyn maran_distro::DistroAdapter,
+        floor: FreeSpaceFloor,
+    ) -> Self {
         Self {
             host: Arc::new(host),
             db_host: Arc::new(db_host),
             distro,
+            floor,
         }
     }
 }
@@ -129,6 +140,7 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
                 let host = Arc::clone(&self.host);
                 let catalog = DbHostCatalog::new(Arc::clone(&self.db_host));
                 let progress = sender.clone();
+                let floor = self.floor;
 
                 tokio::task::spawn_blocking(move || {
                     let mut sink = ChannelProgressSink::new(progress);
@@ -138,6 +150,7 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
                         &account,
                         &backup_id,
                         &root,
+                        &floor,
                         &mut sink,
                     );
 
@@ -213,6 +226,7 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
             Ok((account, input, group)) => {
                 let host = Arc::clone(&self.host);
                 let progress = sender.clone();
+                let floor = self.floor;
 
                 tokio::task::spawn_blocking(move || {
                     let mut sink = ChannelRestoreSink::new(progress);
@@ -224,6 +238,7 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
                         &input.allowed_databases,
                         &input.expected_sha256,
                         group,
+                        &floor,
                         &mut sink,
                     );
 

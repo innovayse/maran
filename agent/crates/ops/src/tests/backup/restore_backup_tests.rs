@@ -6,6 +6,7 @@ use std::fs::{DirBuilder, Permissions, create_dir_all, read_to_string, set_permi
 use std::os::unix::fs::{MetadataExt as _, symlink};
 
 use maran_agent_core::utils::current_uid::current_uid;
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use sha2::{Digest as _, Sha256};
 use tempfile::TempDir;
 
@@ -232,6 +233,7 @@ impl Fixture {
             owner: current_uid().unwrap(),
             account_group: self.homes.path().symlink_metadata().unwrap().gid(),
             group: self.homes.path().symlink_metadata().unwrap().gid(),
+            floor: FreeSpaceFloor::from_mebibytes(1).unwrap(),
         }
     }
 }
@@ -326,6 +328,32 @@ fn a_hostile_archive_member_outside_home_and_databases_is_refused_before_anythin
         other => panic!("expected a refused member, got {other:?}"),
     }
     // Not one member was unpacked — not even the ones that looked ordinary.
+    assert!(host.extractions().is_empty());
+    assert!(host.dropped().is_empty());
+    assert_eq!(
+        read_to_string(fixture.home().join("live.txt")).unwrap(),
+        LIVE_FILE
+    );
+}
+
+/// Below the free-space floor a restore extracts nothing and touches no
+/// database; the filesystem asked is the home root's (issue #148).
+#[test]
+fn a_restore_below_the_free_space_floor_is_refused_before_anything_is_extracted() {
+    let fixture = Fixture::new(1);
+    let host = host_with(&fixture, 1);
+    host.has_available(0);
+
+    let error = run(&fixture, &host, &databases(1), &mut sink()).unwrap_err();
+
+    assert!(
+        matches!(
+            error,
+            BackupError::FreeSpace(FloorRefusal::BelowFloor { available: 0, .. })
+        ),
+        "{error:?}"
+    );
+    assert_eq!(host.measured(), vec![fixture.placement().home_root]);
     assert!(host.extractions().is_empty());
     assert!(host.dropped().is_empty());
     assert_eq!(

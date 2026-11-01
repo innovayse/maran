@@ -49,6 +49,14 @@ pub enum OptionsError {
         /// The value that could not be parsed as a port.
         value: String,
     },
+    /// `--free-space-floor-mib` was not a whole number of mebibytes from one
+    /// up, or its byte count overflows. Refused rather than defaulted: a floor
+    /// that could not be read must not become a floor nobody chose.
+    #[error("--free-space-floor-mib expects a whole number of mebibytes from 1, got '{value}'")]
+    InvalidFreeSpaceFloor {
+        /// The value as it was written on the command line.
+        value: String,
+    },
     /// A flag that names one thing was given twice.
     ///
     /// Refused rather than resolved by last-wins, for the reason every refusal

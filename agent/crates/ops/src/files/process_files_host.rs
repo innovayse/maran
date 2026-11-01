@@ -7,6 +7,7 @@ use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
+use maran_agent_core::utils::available_bytes::available_bytes;
 use maran_agent_core::validation::fs::file_mode::FileMode;
 use maran_agent_core::validation::fs::path::resolve_in_home;
 use maran_agent_core::validation::fs::relative_path::RelativePath;
@@ -173,5 +174,14 @@ impl super::FilesHost for ProcessFilesHost {
         relative: &Path,
     ) -> Result<PathBuf, FilesOpError> {
         Ok(resolve_in_home(account, relative)?)
+    }
+
+    /// Asks `statvfs` of `directory` itself.
+    ///
+    /// # Errors
+    ///
+    /// As [`available_bytes`].
+    fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error> {
+        available_bytes(directory)
     }
 }

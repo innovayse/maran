@@ -98,6 +98,15 @@ message HostMetrics {
   // Bytes an unprivileged writer — any hosting account — may still add to the
   // root filesystem: f_bavail fragments, which is `df`'s `Avail`.
   uint64 disk_available_bytes = 12;
+  // The agent's free-space floor, in bytes: the least an unprivileged writer
+  // must still be able to add to a filesystem before the agent starts an
+  // operation that writes into it (ERROR_CODE_BELOW_FREE_SPACE_FLOOR). Set by
+  // the agent's own command line, never by a request; at least one mebibyte.
+  // Since contract revision 7 (issue #148). The panel compares it with
+  // disk_available_bytes to warn before the refusals begin; that comparison
+  // speaks for the root filesystem only, while the agent's refusal follows the
+  // filesystem each write lands on.
+  uint64 free_space_floor_bytes = 13;
 }
 
 message GetServiceStatusesRequest {}

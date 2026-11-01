@@ -207,6 +207,10 @@ impl SystemHost for BlockingSystemHost {
 
     /// Returns at once: virtual time, and no rpc driven here deletes an account.
     fn pause(&self, _interval: Duration) {}
+
+    fn available_bytes(&self, _directory: &std::path::Path) -> Result<u64, std::io::Error> {
+        Ok(u64::MAX)
+    }
 }
 
 /// The php host the service holds for the deletion cascade.
@@ -743,7 +747,11 @@ fn service_over(passwd: String) -> ServiceAndCells {
 
     (
         Arc::new(AccountsServiceImpl::new(
-            AccountOperations::new(host, distro),
+            AccountOperations::new(
+                host,
+                distro,
+                maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+            ),
             UnusedPhpHost,
             UnusedDbHost,
             UnusedSftpHost,

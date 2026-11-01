@@ -613,6 +613,8 @@ fn a_backup_of_a_real_account_publishes_a_root_only_artifact_whose_digest_is_the
         account.name(),
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut sink,
     )
     .unwrap_or_else(|error| panic!("a backup of a real account must succeed: {error}"));
@@ -682,6 +684,8 @@ fn a_symbolic_link_in_a_home_is_archived_as_a_link_and_never_followed() {
         account.name(),
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("a backup of a home holding a link must succeed: {error}"));
@@ -740,6 +744,8 @@ fn a_restore_puts_the_home_and_the_database_back_and_leaves_the_home_as_the_acco
         account.name(),
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -770,6 +776,8 @@ fn a_restore_puts_the_home_and_the_database_back_and_leaves_the_home_as_the_acco
         std::slice::from_ref(&database),
         &digest,
         group,
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut sink,
     )
     .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));
@@ -819,6 +827,8 @@ fn an_archive_naming_a_member_outside_the_layout_is_refused_and_writes_nothing()
         account.name(),
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -864,6 +874,8 @@ fn an_archive_naming_a_member_outside_the_layout_is_refused_and_writes_nothing()
         &[database],
         &sha256sum_of(&artifact),
         group,
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut RecordingSink::default(),
     )
     .expect_err("a hostile archive must be refused");
@@ -904,6 +916,8 @@ fn creating_the_same_backup_twice_reports_already_exists_and_does_not_rewrite_it
         account.name(),
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the first backup must succeed: {error}"));
@@ -918,6 +932,8 @@ fn creating_the_same_backup_twice_reports_already_exists_and_does_not_rewrite_it
         account.name(),
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut RecordingSink::default(),
     )
     .expect_err("a repeated creation is refused");
@@ -946,6 +962,8 @@ fn deleting_a_backup_removes_both_files_and_deleting_again_reports_not_found() {
         account.name(),
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -1286,6 +1304,8 @@ fn a_dump_is_refused_at_nine_tenths_of_what_the_scratch_filesystem_actually_hold
         account.name(),
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut RecordingSink::default(),
     )
     .expect_err("a dump larger than the scratch's share must be refused");
@@ -1422,6 +1442,8 @@ fn a_deletion_that_overlaps_a_restore_is_refused_and_the_home_keeps_its_own_uid(
         &name,
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -1449,6 +1471,8 @@ fn a_deletion_that_overlaps_a_restore_is_refused_and_the_home_keeps_its_own_uid(
                 std::slice::from_ref(&database),
                 &digest,
                 group,
+                &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                    .expect("a one-mebibyte floor"),
                 &mut RecordingSink::default(),
             )
         }
@@ -1458,17 +1482,21 @@ fn a_deletion_that_overlaps_a_restore_is_refused_and_the_home_keeps_its_own_uid(
     // the account's lock and has not yet swapped the home.
     wait_until_staging_exists(&AgentPaths::restore_staging_dir(&name, &fixture_id()));
 
-    let deletion =
-        AccountOperations::new(ProcessSystemHost::new(polygon_distro()), polygon_distro()).delete(
-            &ProcessPhpHost::new(),
-            &ProcessDbHost::new(polygon_distro()),
-            &ProcessSftpHost::new(),
-            // The cascade's FTPS step. This account has no FTPS login and no
-            // FTPS jail, so the step touches nothing — what this test is about
-            // is the deletion being REFUSED before it reaches any of them.
-            &maran_ops::ftps::ProcessFtpsHost::new(),
-            &name,
-        );
+    let deletion = AccountOperations::new(
+        ProcessSystemHost::new(polygon_distro()),
+        polygon_distro(),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    )
+    .delete(
+        &ProcessPhpHost::new(),
+        &ProcessDbHost::new(polygon_distro()),
+        &ProcessSftpHost::new(),
+        // The cascade's FTPS step. This account has no FTPS login and no
+        // FTPS jail, so the step touches nothing — what this test is about
+        // is the deletion being REFUSED before it reaches any of them.
+        &maran_ops::ftps::ProcessFtpsHost::new(),
+        &name,
+    );
 
     let restored = restoring.join().expect("the restore thread must not panic");
 

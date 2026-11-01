@@ -15,6 +15,9 @@ service AccountsService {
   // the initial quota. Idempotent: if the account already exists with the
   // same uid/quota it returns AlreadyExists; a mismatched existing account
   // is left untouched and reported as AlreadyExists (caller decides).
+  // Refused with ERROR_CODE_BELOW_FREE_SPACE_FLOOR, before anything is
+  // written, when the filesystem holding the account homes has less than the agent's free-space floor available
+  // (issue #148).
   rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
 
   // Locks the account's own login: `usermod --lock` on its password hash and

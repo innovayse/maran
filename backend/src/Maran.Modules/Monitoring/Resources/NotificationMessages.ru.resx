@@ -76,4 +76,16 @@
   <data name="AlertCodeIntegrityDriftedResolvedBody">
     <value>Собственная проверка панелью установленных файлов относительно подписанного релиза больше не находит отличий (либо сама проверка снова работает): {1}.</value>
   </data>
+  <data name="AlertFreeSpaceFloorApproachingRaisedSubject">
+    <value>Сервер скоро начнёт отказывать в новых операциях на {0}: свободное место близко к нижнему пределу</value>
+  </data>
+  <data name="AlertFreeSpaceFloorApproachingRaisedBody">
+    <value>В файловой системе {0} осталось {1} ГиБ — меньше двух нижних пределов свободного места, и так уже десять проверок подряд. Ниже предела сервер отказывается создавать аккаунты, создавать и восстанавливать резервные копии и принимать загрузки. Освободите место сейчас.</value>
+  </data>
+  <data name="AlertFreeSpaceFloorApproachingResolvedSubject">
+    <value>Свободное место на {0} снова выше нижнего предела</value>
+  </data>
+  <data name="AlertFreeSpaceFloorApproachingResolvedBody">
+    <value>В файловой системе {0} осталось {1} ГиБ — не меньше двух нижних пределов свободного места.</value>
+  </data>
 </root>

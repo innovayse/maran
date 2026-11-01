@@ -133,6 +133,10 @@ impl SystemHost for ScriptedHost {
     }
 
     fn pause(&self, _interval: Duration) {}
+
+    fn available_bytes(&self, _directory: &std::path::Path) -> Result<u64, std::io::Error> {
+        Ok(u64::MAX)
+    }
 }
 
 /// The distribution the binaries come from.

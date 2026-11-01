@@ -9,6 +9,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
+use maran_agent_core::utils::available_bytes::available_bytes;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::child_input::ChildInput;
 use maran_agent_core::utils::run_unthreaded::run_unthreaded;
@@ -162,6 +163,15 @@ impl ProcessBackupHost {
 }
 
 impl BackupHost for ProcessBackupHost {
+    /// Asks `statvfs` of `directory` itself.
+    ///
+    /// # Errors
+    ///
+    /// As [`available_bytes`].
+    fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error> {
+        available_bytes(directory)
+    }
+
     /// The host's wall clock, in seconds since the Unix epoch.
     ///
     /// A clock before the epoch answers 0 rather than panicking or wrapping: a

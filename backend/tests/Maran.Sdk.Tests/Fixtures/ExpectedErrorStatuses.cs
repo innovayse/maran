@@ -65,6 +65,7 @@ public static class ExpectedErrorStatuses
             ["AcmeValidationFailed"] = ErrorType.UpstreamRefused,
             ["AcmeValidationTimedOut"] = ErrorType.Unavailable,
             ["AgentAlreadyExists"] = ErrorType.Conflict,
+            ["AgentBelowFreeSpaceFloor"] = ErrorType.Unavailable,
             ["AgentCertificateUnreadable"] = ErrorType.Validation,
             ["AgentFirewallPortsMisconfigured"] = ErrorType.Failure,
             ["AgentIncompatible"] = ErrorType.Unavailable,

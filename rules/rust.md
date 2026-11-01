@@ -239,6 +239,11 @@ agent/
     │                          (how much room the filesystem UNDER a given directory
     │                          still has, asked at the directory the write lands on and
     │                          never at its parent — a parent can be a different mount) ·
+    │                          free_space_floor.rs + free_space_floor_error.rs +
+    │                          floor_refusal.rs (the configured free-space floor
+    │                          and the refusal the accounts, files and backup areas
+    │                          share before their first write, issue #148 — a type
+    │                          three areas need) ·
     │                          pkill_uid_arguments.rs · pgrep_live_uid_arguments.rs
     │                          (the deletion check: live processes of a uid, zombies
     │                          excluded because they hold nothing) · pkill_answer.rs (the one

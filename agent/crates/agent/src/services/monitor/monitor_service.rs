@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_distro::DistroAdapter;
 use maran_ops::monitor::{
     self, MachineIdentity, MonitorHost, PrimaryInterface, QuotaEnforceabilityStatus, SftpJailStatus,
@@ -68,15 +69,21 @@ pub struct MonitorServiceImpl<H> {
     host: Arc<H>,
     /// The password database's path and the managed units, per family.
     distro: &'static dyn DistroAdapter,
+    /// The free-space floor the writing operations refuse below, reported
+    /// beside the disk figures so the panel can warn before it is reached
+    /// (issue #148).
+    floor: FreeSpaceFloor,
 }
 
 impl<H: MonitorHost + 'static> MonitorServiceImpl<H> {
-    /// Creates the service around the host it takes readings from.
+    /// Creates the service around the host it takes readings from and the
+    /// free-space floor it reports.
     #[must_use]
-    pub fn new(host: H, distro: &'static dyn DistroAdapter) -> Self {
+    pub fn new(host: H, distro: &'static dyn DistroAdapter, floor: FreeSpaceFloor) -> Self {
         Self {
             host: Arc::new(host),
             distro,
+            floor,
         }
     }
 }
@@ -109,6 +116,7 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
                 load_average_1m: metrics.load.one_minute,
                 load_average_5m: metrics.load.five_minutes,
                 load_average_15m: metrics.load.fifteen_minutes,
+                free_space_floor_bytes: self.floor.bytes(),
             }),
             Err(error) => get_host_metrics_response::Result::Error(error),
         };

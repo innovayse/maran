@@ -66,6 +66,9 @@
   <data name="BackupFailureAgentPackageSourceUnreachable">
     <value>No package source could be reached</value>
   </data>
+  <data name="BackupFailureAgentBelowFreeSpaceFloor">
+    <value>The server was nearly out of disk space</value>
+  </data>
   <data name="BackupFailureAgentLimitReached">
     <value>A plan allowance for this account was already used up</value>
   </data>

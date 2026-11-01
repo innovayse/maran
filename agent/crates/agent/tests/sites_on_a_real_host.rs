@@ -433,6 +433,8 @@ fn a_real_nginx_serves_a_site_out_of_the_accounts_own_home() {
                     contents: SERVED_BODY.as_bytes().to_vec(),
                     mode: FileMode::parse(0o644).expect("a plain permission mode"),
                 },
+                &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                    .expect("a one-mebibyte floor"),
             )
         }
     });
@@ -758,6 +760,8 @@ fn write_as_account(account: &PolygonAccount, path: &str, contents: &str) {
                         contents,
                         mode: FileMode::parse(0o644).expect("a plain permission mode"),
                     },
+                    &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                        .expect("a one-mebibyte floor"),
                 ),
                 length,
             )

@@ -1,5 +1,6 @@
 //! The one mapping from customer-file operation failures onto the wire error.
 
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_ops::files::FilesOpError;
 
 use crate::proto::{AgentError, ErrorCode};
@@ -40,6 +41,9 @@ pub fn to_agent_error(error: &FilesOpError) -> AgentError {
         FilesOpError::Privilege(_) | FilesOpError::WriteFailed | FilesOpError::RemoveFailed => {
             ErrorCode::SystemFailure
         }
+        // The home filesystem is within the floor of full: nothing was written,
+        // and the panel tells the operator to free space (issue #148).
+        FilesOpError::FreeSpace(FloorRefusal::BelowFloor { .. }) => ErrorCode::BelowFreeSpaceFloor,
         // FilesOpError is #[non_exhaustive] (rules/rust.md), so a variant added
         // in the ops crate lands here rather than failing this build. It maps
         // to a system failure: the panel then reports a fault instead of

@@ -92,6 +92,7 @@ fn asking_for_help_prints_usage_instead_of_starting_a_daemon() {
     // The text has to name both flags it documents, or it is not usage.
     assert!(USAGE.contains("--socket"));
     assert!(USAGE.contains("--allow-uid"));
+    assert!(USAGE.contains("--free-space-floor-mib"));
 }
 
 #[test]
@@ -394,6 +395,53 @@ fn a_repeated_panel_port_is_refused_rather_than_silently_last_wins() {
         error,
         OptionsError::RepeatedFlag {
             flag: "--panel-port"
+        }
+    );
+}
+
+#[test]
+fn no_free_space_floor_flag_applies_the_default_floor() {
+    let options = running(Invocation::parse(&arguments(&[]), DEFAULT_UID).unwrap());
+
+    assert_eq!(
+        options.free_space_floor,
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor()
+    );
+}
+
+#[test]
+fn the_free_space_floor_flag_is_read_in_mebibytes() {
+    let options = running(
+        Invocation::parse(&arguments(&["--free-space-floor-mib", "512"]), DEFAULT_UID).unwrap(),
+    );
+
+    assert_eq!(options.free_space_floor.bytes(), 512 * 1024 * 1024);
+}
+
+#[test]
+fn a_free_space_floor_that_is_zero_or_not_a_number_is_refused() {
+    for value in ["0", "-1", "1.5", "lots", "18446744073709551615"] {
+        let error = Invocation::parse(&arguments(&["--free-space-floor-mib", value]), DEFAULT_UID)
+            .expect_err("a malformed floor must not parse");
+
+        assert_eq!(
+            error,
+            OptionsError::InvalidFreeSpaceFloor {
+                value: value.to_owned()
+            }
+        );
+    }
+}
+
+#[test]
+fn a_dangling_free_space_floor_flag_is_refused() {
+    let error = Invocation::parse(&arguments(&["--free-space-floor-mib"]), DEFAULT_UID)
+        .expect_err("a flag with no value must not parse");
+
+    assert_eq!(
+        error,
+        OptionsError::MissingValue {
+            flag: "--free-space-floor-mib"
         }
     );
 }

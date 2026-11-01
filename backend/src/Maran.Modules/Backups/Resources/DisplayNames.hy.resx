@@ -66,6 +66,9 @@
   <data name="BackupFailureAgentPackageSourceUnreachable">
     <value>Փաթեթների աղբյուրի հետ կապ հաստատել չհաջողվեց</value>
   </data>
+  <data name="BackupFailureAgentBelowFreeSpaceFloor">
+    <value>Սերվերում սկավառակի տեղը գրեթե սպառվել էր</value>
+  </data>
   <data name="BackupFailureAgentLimitReached">
     <value>Այս հաշվի սակագնային սահմանաչափն արդեն սպառված էր</value>
   </data>

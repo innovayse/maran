@@ -25,6 +25,11 @@ namespace Maran.Agent.Client.Services.MonitorService;
 /// <param name="LoadAverage1m">System load average over the last minute.</param>
 /// <param name="LoadAverage5m">System load average over the last five minutes.</param>
 /// <param name="LoadAverage15m">System load average over the last fifteen minutes.</param>
+/// <param name="FreeSpaceFloorBytes">
+/// The agent's free-space floor: the least room a filesystem must still have before the agent starts
+/// an account creation, a backup, a restore or an upload that writes into it (issue #148). Set by the
+/// agent's own command line; at least one mebibyte from a revision-7 agent.
+/// </param>
 /// <remarks>
 /// The two network figures are the only ones that are not a level, and the difference matters to
 /// whoever renders them: the agent holds no previous sample and takes one reading, so a RATE is
@@ -44,4 +49,5 @@ public sealed record AgentHostMetrics(
     ulong NetworkTxBytes,
     double LoadAverage1m,
     double LoadAverage5m,
-    double LoadAverage15m);
+    double LoadAverage15m,
+    ulong FreeSpaceFloorBytes);

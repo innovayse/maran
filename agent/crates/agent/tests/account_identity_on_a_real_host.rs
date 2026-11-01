@@ -94,7 +94,11 @@ fn polygon_distro() -> &'static dyn DistroAdapter {
 
 /// The account operations, bound to the real host.
 fn operations() -> AccountOperations<ProcessSystemHost> {
-    AccountOperations::new(ProcessSystemHost::new(polygon_distro()), polygon_distro())
+    AccountOperations::new(
+        ProcessSystemHost::new(polygon_distro()),
+        polygon_distro(),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    )
 }
 
 /// Parses a name this suite wrote itself.

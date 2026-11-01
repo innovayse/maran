@@ -103,4 +103,17 @@ pub trait FilesHost: Send + Sync {
         account: &AccountName,
         relative: &Path,
     ) -> Result<PathBuf, FilesOpError>;
+
+    /// Bytes an unprivileged writer could still add to the filesystem
+    /// `directory` lives on — `f_bavail`, asked of the directory itself.
+    ///
+    /// A host question and not a customer one, so it is asked as root and
+    /// needs no fork: the free-space floor (issue #148) is decided on the
+    /// answer before anything is written.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying error when the filesystem cannot be measured;
+    /// the caller refuses the write rather than assuming room.
+    fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error>;
 }

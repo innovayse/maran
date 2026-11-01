@@ -153,6 +153,10 @@ impl SystemHost for StateHost {
     fn pause(&self, interval: Duration) {
         self.pauses.lock().unwrap().push(interval);
     }
+
+    fn available_bytes(&self, _directory: &std::path::Path) -> Result<u64, std::io::Error> {
+        Ok(u64::MAX)
+    }
 }
 
 /// The distribution the argv is pinned against.
