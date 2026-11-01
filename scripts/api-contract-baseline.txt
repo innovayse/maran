@@ -12,7 +12,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 38 endpoints, 134 members
+covered: 38 endpoints, 135 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
