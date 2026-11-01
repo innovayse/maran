@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Monitoring.Persistence;
 using Maran.Modules.Monitoring.Resources;
 using Maran.Modules.Monitoring.Services;
+using Maran.Sdk.Alerts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,10 +19,11 @@ namespace Maran.Modules.Monitoring.Tests.TestSupport;
 /// let a sampler that captured a context pass.
 ///
 /// Registrations mirror <c>MonitoringModule.ConfigureServices</c> — the journal and the evaluator
-/// scoped — so a round that resolves something the panel does not register fails here rather than on
-/// a customer's server at midnight. Nothing about mail is registered: the evaluator publishes a
-/// request and the Notifications module sends it, so what this container serves for mail is a
-/// recording bus and a stub address.
+/// scoped — plus the <c>OperatorAlertMailer</c> the Host registers through <c>AddSdk</c>, so a round
+/// that resolves something the panel does not register fails here rather than on a customer's
+/// server at midnight. Nothing about mail sending is registered: the alert path publishes a request
+/// and the Notifications module sends it, so what this container serves for mail is a recording bus
+/// and a stub address.
 /// </remarks>
 public sealed class TestScopeFactory : IDisposable
 {
@@ -61,6 +63,7 @@ public sealed class TestScopeFactory : IDisposable
         Bus = new RecordingMessageBus();
         services.AddSingleton<IMessageBus>(Bus);
 
+        services.AddScoped<OperatorAlertMailer>();
         services.AddScoped<MonitoringAuditJournal>();
         services.AddScoped<AlertObserver>();
         services.AddScoped<AlertEvaluator>();
