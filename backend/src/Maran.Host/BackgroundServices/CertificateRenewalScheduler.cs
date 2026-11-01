@@ -108,6 +108,10 @@ public sealed class CertificateRenewalScheduler : BackgroundService
             var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
             await bus.PublishAsync(new CertificateRenewalRequested());
+
+            // The panel's own certificate renews on the same day, under its own message and handler
+            // (issue #132), so a failure in the pass over every site cannot hold it back.
+            await bus.PublishAsync(new PanelCertificateRenewalRequested());
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

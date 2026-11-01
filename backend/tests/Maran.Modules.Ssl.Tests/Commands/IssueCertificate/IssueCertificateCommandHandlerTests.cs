@@ -1,5 +1,6 @@
 using Maran.Modules.Ssl.Commands.IssueCertificate;
 using Maran.Modules.Ssl.Domain.Enums;
+using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Tests.TestSupport;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -63,7 +64,7 @@ public sealed class IssueCertificateCommandHandlerTests
 
         var order = Assert.Single(fixture.Acme.Orders);
         Assert.Equal(Domain, order.Domain);
-        Assert.Equal(fixture.Username, order.AccountUsername);
+        Assert.Equal(new SiteDocumentRootChallenge(fixture.Username), order.Challenge);
     }
 
     /// <summary>Installing marks the site as carrying a certificate.</summary>

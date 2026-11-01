@@ -25,4 +25,28 @@ internal interface ISslServiceInvoker
     Task<RemoveCertificateResponse> RemoveCertificateAsync(
         RemoveCertificateRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>InstallPanelCertificate</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying one branch of its oneof.</returns>
+    Task<InstallPanelCertificateResponse> InstallPanelCertificateAsync(
+        InstallPanelCertificateRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>WritePanelChallenge</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<WritePanelChallengeResponse> WritePanelChallengeAsync(
+        WritePanelChallengeRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>RemovePanelChallenge</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<RemovePanelChallengeResponse> RemovePanelChallengeAsync(
+        RemovePanelChallengeRequest request,
+        CancellationToken cancellationToken);
 }

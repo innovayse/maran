@@ -78,4 +78,13 @@
   <data name="CertificateStatusUnknown">
     <value>Սա վկայականի կարգավիճակ չէ։</value>
   </data>
+  <data name="PanelHostNameNotConfigured">
+    <value>Վահանակի համար հոսթի անուն սահմանված չէ, ուստի նրա համար հավաստագիր պատվիրել հնարավոր չէ։ Նշեք Panel__HostName-ը /etc/maran/panel.env-ում և վերագործարկեք վահանակը։</value>
+  </data>
+  <data name="PanelCertificateNotIssued">
+    <value>Վահանակի համար վստահելի հավաստագիր չի թողարկվել․ այն աշխատում է ինքնաստորագրված հավաստագրով։</value>
+  </data>
+  <data name="PanelChallengeWriteFailed">
+    <value>Վահանակի հոսթի անվան ստուգման ֆայլը չհաջողվեց տեղադրել սերվերում։</value>
+  </data>
 </root>

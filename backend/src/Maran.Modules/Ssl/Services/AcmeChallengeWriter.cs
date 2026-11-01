@@ -1,12 +1,16 @@
+using System.Diagnostics;
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Ssl.Interfaces;
+using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Resources;
 
 namespace Maran.Modules.Ssl.Services;
 
 /// <summary>
 /// Answers an ACME HTTP-01 challenge by placing the token file inside the site's document root —
-/// through the agent, as the owning account.
+/// through the agent, as the owning account — or, for the panel's own host name, in the agent's
+/// panel challenge directory (issue #132).
 /// </summary>
 /// <remarks>
 /// The file lives at <c>&lt;document root&gt;/.well-known/acme-challenge/&lt;token&gt;</c>, which is
@@ -18,6 +22,11 @@ namespace Maran.Modules.Ssl.Services;
 /// The agent's nginx template already serves <c>^~ /.well-known/acme-challenge/</c> from the document
 /// root, and keeps serving it for a SUSPENDED site — which is why a suspended site can still renew
 /// rather than losing TLS as well as its content.
+///
+/// The panel's own challenge belongs to no account, so it does not go through the file rpcs at all:
+/// the agent's <c>WritePanelChallenge</c> places it in a root-owned directory the panel's port-80
+/// block serves. Both paths meet the agent's free-space floor before anything is written (#148), and
+/// a refusal there comes back as the floor's own code.
 /// </remarks>
 public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
 {
@@ -47,16 +56,21 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     /// <summary>The agent, which owns every write inside a customer's home.</summary>
     private readonly IAgentFilesClient _files;
 
-    /// <summary>Creates the writer over the agent's file operations.</summary>
+    /// <summary>The agent's TLS operations, which own the panel's challenge directory.</summary>
+    private readonly IAgentSslClient _ssl;
+
+    /// <summary>Creates the writer over the agent's file and TLS operations.</summary>
     /// <param name="files">The agent client that writes as the owning account.</param>
-    public AcmeChallengeWriter(IAgentFilesClient files)
+    /// <param name="ssl">The agent client that writes the panel's own challenge.</param>
+    public AcmeChallengeWriter(IAgentFilesClient files, IAgentSslClient ssl)
     {
         _files = files;
+        _ssl = ssl;
     }
 
     /// <inheritdoc />
     public async Task<Result<bool>> WriteAsync(
-        string accountUsername,
+        AcmeChallengeTarget target,
         string domain,
         string token,
         string keyAuthorization,
@@ -68,19 +82,20 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
                 Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.UpstreamRefused));
         }
 
-        var written = await _files.WriteFileAsync(
-            accountUsername,
-            ChallengePath(domain, token),
-            keyAuthorization,
-            ChallengeFileMode,
-            cancellationToken);
-
-        return written.IsSuccess ? Result<bool>.Ok(true) : Result<bool>.Fail(written.Error!);
+        return target switch
+        {
+            SiteDocumentRootChallenge site => await WriteIntoDocumentRootAsync(
+                site, domain, token, keyAuthorization, cancellationToken),
+            PanelChallengeDirectory => ChallengeFailure(
+                await _ssl.WritePanelChallengeAsync(token, keyAuthorization, cancellationToken),
+                nameof(ErrorMessages.PanelChallengeWriteFailed)),
+            _ => throw new UnreachableException("AcmeChallengeTarget is closed to the two targets this module declares."),
+        };
     }
 
     /// <inheritdoc />
     public async Task<Result<bool>> RemoveAsync(
-        string accountUsername,
+        AcmeChallengeTarget target,
         string domain,
         string token,
         CancellationToken cancellationToken)
@@ -91,11 +106,63 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
                 Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.UpstreamRefused));
         }
 
-        return await _files.DeleteEntryAsync(
-            accountUsername,
+        return target switch
+        {
+            SiteDocumentRootChallenge site => await _files.DeleteEntryAsync(
+                site.AccountUsername,
+                ChallengePath(domain, token),
+                recursive: false,
+                cancellationToken),
+            PanelChallengeDirectory => await _ssl.RemovePanelChallengeAsync(token, cancellationToken),
+            _ => throw new UnreachableException("AcmeChallengeTarget is closed to the two targets this module declares."),
+        };
+    }
+
+    /// <summary>Writes the file into the site's document root, as the owning account.</summary>
+    /// <param name="site">The account whose document root answers.</param>
+    /// <param name="domain">The domain being validated, which names its document root.</param>
+    /// <param name="token">The challenge token, which is also the file name.</param>
+    /// <param name="keyAuthorization">The file's content.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, the floor's refusal, or <c>AcmeChallengeWriteFailed</c>.</returns>
+    private async Task<Result<bool>> WriteIntoDocumentRootAsync(
+        SiteDocumentRootChallenge site,
+        string domain,
+        string token,
+        string keyAuthorization,
+        CancellationToken cancellationToken)
+    {
+        var written = await _files.WriteFileAsync(
+            site.AccountUsername,
             ChallengePath(domain, token),
-            recursive: false,
+            keyAuthorization,
+            ChallengeFileMode,
             cancellationToken);
+
+        return ChallengeFailure(
+            written.IsSuccess ? Result<bool>.Ok(true) : Result<bool>.Fail(written.Error!),
+            nameof(ErrorMessages.AcmeChallengeWriteFailed));
+    }
+
+    /// <summary>Words a failed challenge write as this module's failure, except the floor's refusal.</summary>
+    /// <param name="written">What the agent answered the write with.</param>
+    /// <param name="failureCode">
+    /// This module's code for the place that could not be written: a site's document root, or the
+    /// panel's own challenge directory — two places, two sentences.
+    /// </param>
+    /// <returns>
+    /// Success unchanged; the agent's free-space floor refusal unchanged, so the operator reads "the
+    /// server is nearly out of disk space" (issues #148, #132); every other failure as
+    /// <paramref name="failureCode"/>, a local fault.
+    /// </returns>
+    private static Result<bool> ChallengeFailure(Result<bool> written, string failureCode)
+    {
+        if (written.IsSuccess || AgentFloorRefusal.Is(written.Error!))
+        {
+            return written;
+        }
+
+        return Result<bool>.Fail(Error.Of(failureCode, ErrorType.Failure));
     }
 
     /// <summary>Builds the challenge file's path relative to the account's home.</summary>

@@ -31,4 +31,28 @@ internal sealed class GrpcSslServiceInvoker : ISslServiceInvoker
     {
         return await _client.RemoveCertificateAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<InstallPanelCertificateResponse> InstallPanelCertificateAsync(
+        InstallPanelCertificateRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.InstallPanelCertificateAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<WritePanelChallengeResponse> WritePanelChallengeAsync(
+        WritePanelChallengeRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.WritePanelChallengeAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<RemovePanelChallengeResponse> RemovePanelChallengeAsync(
+        RemovePanelChallengeRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.RemovePanelChallengeAsync(request, cancellationToken: cancellationToken);
+    }
 }

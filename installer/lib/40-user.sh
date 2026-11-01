@@ -222,6 +222,13 @@ create_directory_layout() {
   rm -rf -- /var/lib/maran-scratch
   install -d -o root -g root -m 0700 /var/lib/maran-scratch
   assert_root_only_directory /var/lib/maran-scratch
+  # AgentPaths::PANEL_ACME_CHALLENGE_DIRECTORY, root:root 0755 (issue #132): the agent writes the
+  # HTTP-01 file for the panel's OWN host name here, and the panel vhost's port-80 block serves
+  # /.well-known/acme-challenge/ from it, so nginx's workers must traverse it — hence 0755 and not
+  # 0700. Root-owned and outside every home, so no customer can place a file the certificate
+  # authority would read as proof of control over the panel's name. Created here, below step 70,
+  # because maran-agent.service names it in ReadWritePaths= and a missing entry is a start failure.
+  install -d -o root -g root -m 0755 /var/lib/maran-acme
   # AgentPaths::SFTP_JAIL_ROOT, root:root 0700, and — like the scratch above and the
   # release staging directory — deliberately a SIBLING of /var/lib/maran rather than a
   # child of it.

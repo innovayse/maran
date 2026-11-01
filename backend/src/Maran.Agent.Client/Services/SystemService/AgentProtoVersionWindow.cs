@@ -42,6 +42,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 8 adds <c>AccountsService.SetAccountResourceLimits</c> (issue #133), and both ends moved
 /// to it: the panel calls that rpc whenever an account is created or its plan's ceilings change, and
 /// a revision-7 agent answers it <c>UNIMPLEMENTED</c>, so every account creation would fail.
+/// Revision 9 adds <c>InstallPanelCertificate</c>, <c>WritePanelChallenge</c> and
+/// <c>RemovePanelChallenge</c> (issue #132), and both ends moved to it: an older agent answers
+/// the three rpcs <c>UNIMPLEMENTED</c>, so the panel's own certificate could never be issued or
+/// renewed against it.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -68,10 +72,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 8;
+    public const uint Minimum = 9;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 8;
+    public const uint Maximum = 9;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

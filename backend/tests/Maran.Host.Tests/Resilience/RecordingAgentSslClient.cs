@@ -77,4 +77,57 @@ internal sealed class RecordingAgentSslClient : IAgentSslClient
 
         return Result<bool>.Ok(true);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<InstalledCertificateDto>> InstallPanelCertificateAsync(
+        string certificatePem,
+        string privateKeyPem,
+        CancellationToken cancellationToken)
+    {
+        LastCertificatePem = certificatePem;
+        LastPrivateKeyPem = privateKeyPem;
+        Calls++;
+
+        if (Calls <= FailuresBeforeSuccess)
+        {
+            throw AgentTransportFaults.ConnectRefused();
+        }
+
+        await Task.Yield();
+
+        return Result<InstalledCertificateDto>.Ok(new InstalledCertificateDto(DateTimeOffset.UnixEpoch));
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<bool>> WritePanelChallengeAsync(
+        string token,
+        string keyAuthorization,
+        CancellationToken cancellationToken)
+    {
+        Calls++;
+
+        if (Calls <= FailuresBeforeSuccess)
+        {
+            throw AgentTransportFaults.ConnectRefused();
+        }
+
+        await Task.Yield();
+
+        return Result<bool>.Ok(true);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+    {
+        Calls++;
+
+        if (Calls <= FailuresBeforeSuccess)
+        {
+            throw AgentTransportFaults.ConnectRefused();
+        }
+
+        await Task.Yield();
+
+        return Result<bool>.Ok(true);
+    }
 }

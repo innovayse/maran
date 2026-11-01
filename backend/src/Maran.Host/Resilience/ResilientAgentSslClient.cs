@@ -76,4 +76,51 @@ public sealed class ResilientAgentSslClient : IAgentSslClient
             (Client: _inner, AccountUsername: accountUsername, Domain: domain, Site: site),
             cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<InstalledCertificateDto>> InstallPanelCertificateAsync(
+        string certificatePem,
+        string privateKeyPem,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.Client.InstallPanelCertificateAsync(
+                    state.CertificatePem, state.PrivateKeyPem, token);
+            },
+            (Client: _inner, CertificatePem: certificatePem, PrivateKeyPem: privateKeyPem),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<bool>> WritePanelChallengeAsync(
+        string token,
+        string keyAuthorization,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, cancellation) =>
+            {
+                return await state.Client.WritePanelChallengeAsync(
+                    state.Token, state.KeyAuthorization, cancellation);
+            },
+            (Client: _inner, Token: token, KeyAuthorization: keyAuthorization),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, cancellation) =>
+            {
+                return await state.Client.RemovePanelChallengeAsync(state.Token, cancellation);
+            },
+            (Client: _inner, Token: token),
+            cancellationToken);
+    }
 }

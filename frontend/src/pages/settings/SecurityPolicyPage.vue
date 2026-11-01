@@ -91,7 +91,15 @@ void policyStore.load()
     <UiPageHeading
       :title="t('app.securityPolicy.heading')"
       :subtitle="t('app.securityPolicy.subtitle')"
-    />
+    >
+      <!-- The panel's own TLS is part of how it is secured, so its screen is reached from here
+           (issue #132) rather than from an entry of its own. -->
+      <template #actions>
+        <UiButton :to="{ name: 'panel-certificate' }" variant="secondary" class="whitespace-nowrap">
+          {{ t('panelCertificate.link') }}
+        </UiButton>
+      </template>
+    </UiPageHeading>
 
     <!-- A refused save; a refused read is the region's own error below. -->
     <UiAlert v-if="policyStore.loadState === 'loaded' && policyStore.errorMessage !== null" variant="error">

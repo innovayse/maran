@@ -46,4 +46,36 @@ public interface IAgentSslClient
         string domain,
         SiteDescriptor site,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Replaces the panel's OWN certificate and key — the pair the panel's nginx vhost names —
+    /// validates and reloads, restoring the previous pair on any refusal (issue #132).
+    /// </summary>
+    /// <param name="certificatePem">PEM-encoded leaf certificate, optionally followed by its chain.</param>
+    /// <param name="privateKeyPem">PEM-encoded private key matching the certificate. Never logged.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>When the installed certificate expires, or a typed failure.</returns>
+    Task<Result<InstalledCertificateDto>> InstallPanelCertificateAsync(
+        string certificatePem,
+        string privateKeyPem,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Writes the HTTP-01 challenge file for the panel's own host name. Refused below the agent's
+    /// free-space floor (<c>AgentBelowFreeSpaceFloor</c>) before anything is written.
+    /// </summary>
+    /// <param name="token">The challenge token, which names the file.</param>
+    /// <param name="keyAuthorization">The file's content: the token joined to the account key's thumbprint.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, or a typed failure.</returns>
+    Task<Result<bool>> WritePanelChallengeAsync(
+        string token,
+        string keyAuthorization,
+        CancellationToken cancellationToken);
+
+    /// <summary>Removes the panel's challenge file for a token.</summary>
+    /// <param name="token">The challenge token whose file is removed.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, or a typed failure — <c>AgentNotFound</c> when no file was in place.</returns>
+    Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken);
 }

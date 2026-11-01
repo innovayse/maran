@@ -18,6 +18,21 @@ internal sealed class StubSslService : ISslServiceInvoker
     /// <summary>The last removal request the stub received, for asserting the mapping.</summary>
     public RemoveCertificateRequest? LastRemoveRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="InstallPanelCertificateAsync"/>.</summary>
+    public InstallPanelCertificateResponse InstallPanelResponse { get; set; } = new();
+
+    /// <summary>The last panel install request the stub received.</summary>
+    public InstallPanelCertificateRequest? LastPanelRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="WritePanelChallengeAsync"/>.</summary>
+    public WritePanelChallengeResponse WriteChallengeResponse { get; set; } = new();
+
+    /// <summary>The last panel challenge write the stub received.</summary>
+    public WritePanelChallengeRequest? LastChallengeRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="RemovePanelChallengeAsync"/>.</summary>
+    public RemovePanelChallengeResponse RemoveChallengeResponse { get; set; } = new();
+
     /// <inheritdoc/>
     public Task<InstallCertificateResponse> InstallCertificateAsync(
         InstallCertificateRequest request,
@@ -34,5 +49,31 @@ internal sealed class StubSslService : ISslServiceInvoker
     {
         LastRemoveRequest = request;
         return Task.FromResult(RemoveResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<InstallPanelCertificateResponse> InstallPanelCertificateAsync(
+        InstallPanelCertificateRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastPanelRequest = request;
+        return Task.FromResult(InstallPanelResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<WritePanelChallengeResponse> WritePanelChallengeAsync(
+        WritePanelChallengeRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastChallengeRequest = request;
+        return Task.FromResult(WriteChallengeResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<RemovePanelChallengeResponse> RemovePanelChallengeAsync(
+        RemovePanelChallengeRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(RemoveChallengeResponse);
     }
 }

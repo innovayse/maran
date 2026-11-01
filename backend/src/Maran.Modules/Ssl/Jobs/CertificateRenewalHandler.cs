@@ -304,7 +304,7 @@ public sealed class CertificateRenewalHandler
         await _tasks.ReportAsync(taskId, 20, "re-ordering the certificate from the authority", cancellationToken);
 
         var issued = await _acme.OrderAsync(
-            new AcmeOrderRequest(certificate.Domain, account.Username), cancellationToken);
+            new AcmeOrderRequest(certificate.Domain, new SiteDocumentRootChallenge(account.Username)), cancellationToken);
         if (!issued.IsSuccess)
         {
             return await RecordFailureAsync(certificate, issued.Error!.Code, taskId, cancellationToken);
