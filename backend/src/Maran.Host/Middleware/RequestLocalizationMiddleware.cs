@@ -1,4 +1,5 @@
 using System.Globalization;
+using Maran.SharedKernel.Constants;
 
 namespace Maran.Host.Middleware;
 
@@ -10,11 +11,8 @@ namespace Maran.Host.Middleware;
 /// </summary>
 public sealed class RequestLocalizationMiddleware
 {
-    /// <summary>Two-letter culture names the backend has (or will have) resources for.</summary>
-    private static readonly string[] SupportedCultures = ["en", "ru", "hy"];
-
     /// <summary>The culture used when <c>Accept-Language</c> is absent or names no supported culture.</summary>
-    private static readonly CultureInfo FallbackCulture = CultureInfo.GetCultureInfo("en");
+    private static readonly CultureInfo FallbackCulture = CultureInfo.GetCultureInfo(PanelLanguages.English);
 
     /// <summary>The next component in the pipeline.</summary>
     private readonly RequestDelegate _next;
@@ -69,7 +67,7 @@ public sealed class RequestLocalizationMiddleware
 
         foreach (var candidate in candidates)
         {
-            var match = SupportedCultures.FirstOrDefault(supported =>
+            var match = PanelLanguages.Supported.FirstOrDefault(supported =>
             {
                 return string.Equals(supported, candidate!.Value.Language, StringComparison.OrdinalIgnoreCase);
             });

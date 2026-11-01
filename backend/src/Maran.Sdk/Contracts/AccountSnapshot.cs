@@ -1,3 +1,5 @@
+using Maran.SharedKernel.Constants;
+
 namespace Maran.Sdk.Contracts;
 
 /// <summary>
@@ -98,6 +100,12 @@ namespace Maran.Sdk.Contracts;
 /// remarks, and a required parameter would stop them building. Both production construction
 /// sites, in <c>AccountDirectory</c>, always pass the account's real (possibly null) value.
 /// </param>
+/// <param name="OwnerLanguage">
+/// The account owner's language, one of <see cref="PanelLanguages.Supported"/>, which an invitation
+/// resent for this account is written in (issue #194). Defaulted for the reason
+/// <paramref name="OwnerEmail"/> is; both production construction sites, in <c>AccountDirectory</c>,
+/// pass the stored value.
+/// </param>
 public sealed record AccountSnapshot(
     Guid Id,
     string Username,
@@ -109,4 +117,5 @@ public sealed record AccountSnapshot(
     int DiskQuotaMb,
     AccountState State,
     int MaxFtpUsers = 0,
-    string? OwnerEmail = null);
+    string? OwnerEmail = null,
+    string OwnerLanguage = PanelLanguages.English);

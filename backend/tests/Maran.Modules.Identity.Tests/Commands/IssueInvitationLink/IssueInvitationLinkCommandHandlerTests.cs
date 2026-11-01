@@ -74,6 +74,7 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
     /// <param name="token">The plaintext of the invitation token already outstanding.</param>
     private async Task<User> SeedInvitedLoginAsync(string token)
     {
+        _accountDirectory.Add(AccountId, "owner-one", maxFtpUsers: 1);
         var user = User.Invite(Guid.NewGuid(), "owner-one", "owner@example.com", AccountId, Now);
         _context.Users.Add(user);
         _context.InvitationTokens.Add(new InvitationToken(Guid.NewGuid(), user.Id, InvitationTokenHasher.Hash(token), Now));

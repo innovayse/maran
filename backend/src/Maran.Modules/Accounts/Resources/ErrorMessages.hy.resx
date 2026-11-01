@@ -27,6 +27,12 @@
   <data name="AccountDomainTaken">
     <value>Այս տիրույթն արդեն օգտագործվում է այլ հաշվի կողմից։</value>
   </data>
+  <data name="AccountDomainWwwPrefix">
+    <value>Նշեք հիմնական դոմենն առանց «www.»-ի, օրինակ՝ example.com։</value>
+  </data>
+  <data name="AccountOwnerLanguageUnsupported">
+    <value>Ընտրեք սեփականատիրոջ լեզուն ցանկից՝ անգլերեն, ռուսերեն կամ հայերեն։</value>
+  </data>
   <data name="PlanNotFound">
     <value>Սակագինը չի գտնվել։</value>
   </data>
