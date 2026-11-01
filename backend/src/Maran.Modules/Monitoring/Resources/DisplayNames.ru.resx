@@ -39,4 +39,22 @@
   <data name="AccountQuotaNotEnforceableNote">
     <value>Сейчас не применяется — это лимит из тарифа, но этот сервер сейчас не может обеспечить его реальным ограничением на диске, поэтому аккаунт может использовать больше. Чтобы восстановить применение, смонтируйте файловую систему с учётом квот и выполните quotaon; панель не сделает это за вас.</value>
   </data>
+  <data name="LogLevelVerbose">
+    <value>Подробный — всё</value>
+  </data>
+  <data name="LogLevelDebug">
+    <value>Отладка — диагностические подробности</value>
+  </data>
+  <data name="LogLevelInformation">
+    <value>Информация — обычный уровень</value>
+  </data>
+  <data name="LogLevelWarning">
+    <value>Предупреждение — только то, что требует внимания</value>
+  </data>
+  <data name="LogLevelError">
+    <value>Ошибка — только сбои</value>
+  </data>
+  <data name="LogLevelFatal">
+    <value>Критический — только сбои, останавливающие панель</value>
+  </data>
 </root>

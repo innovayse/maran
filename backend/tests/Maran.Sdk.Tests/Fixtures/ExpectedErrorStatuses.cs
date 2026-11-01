@@ -194,6 +194,7 @@ public static class ExpectedErrorStatuses
             ["ListSearchInvalid"] = ErrorType.Validation,
             ["ListSearchTooLong"] = ErrorType.Validation,
             ["ListSortUnknown"] = ErrorType.Validation,
+            ["LogLevelUnknown"] = ErrorType.Validation,
             ["InvalidTwoFactorCodeUnauthorized"] = ErrorType.Unauthorized,
             ["MailDeliveryFailed"] = ErrorType.UpstreamRefused,
             ["MailRecipientInvalid"] = ErrorType.Validation,

@@ -83,6 +83,12 @@ public static class BackgroundWorkExtensions
         // every start, because the panel records nothing about which site was converged.
         services.AddHostedService<StartupPhpSiteReconciler>();
 
+        // A one-off that reads a CHOICE rather than repairing state: an administrator's runtime log
+        // level lives in the logger's switch, which a restart resets to the configured level. The
+        // Monitoring module owns the stored choice and this owns the fact that it is applied at
+        // every start (issue #131).
+        services.AddHostedService<StartupLogLevelRestorer>();
+
         return services;
     }
 }

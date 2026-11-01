@@ -35,6 +35,10 @@
  * the system and available, which sum to the size (issue #77). It is read by its own store action
  * with its own state, so a refused reading is an alert in that card and never blanks the charts.
  *
+ * **The log level card comes last** ({@link LogLevelCard}, issue #131): the level the panel's own
+ * logger writes at, read and changed through its own store, so a refused read is an alert in that
+ * card and never blanks the readings above it.
+ *
  * Every panel is a {@link UiCard}, sixteen pixels apart, on the content panel; the page itself
  * holds no markup of its own beyond the kit's.
  */
@@ -53,16 +57,20 @@ import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import AccountDiskTable from '../../components/monitoring/AccountDiskTable.vue'
 import HostDiskCard from '../../components/monitoring/HostDiskCard.vue'
+import LogLevelCard from '../../components/monitoring/LogLevelCard.vue'
 import MonitoringCharts from '../../components/monitoring/MonitoringCharts.vue'
 import ServiceStatusBadges from '../../components/monitoring/ServiceStatusBadges.vue'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
+import { useLogLevelStore } from '../../stores/logLevel'
 import { useMonitoringStore } from '../../stores/monitoring'
 import type { ListLoad, ListRequest } from '../../types/list'
+import type { PanelLogLevel } from '../../types/logLevel'
 import type { AccountDiskUsage, ChartRange } from '../../types/monitoring'
 
 const { t } = useI18n()
 const store = useMonitoringStore()
+const logLevelStore = useLogLevelStore()
 const labels = useListLabels()
 
 const diskTable = useServerTable<AccountDiskUsage>({
@@ -170,9 +178,19 @@ const clearDiskSearch = (): void => {
   diskTable.search.value = ''
 }
 
+/**
+ * Applies the level the log level card asked for.
+ * @param level The chosen level.
+ * @returns Resolves once the change has settled; the card shows how.
+ */
+const changeLogLevel = async (level: PanelLogLevel): Promise<void> => {
+  await logLevelStore.change(level)
+}
+
 onMounted(() => {
   void store.load()
   void store.loadHostMetrics()
+  void logLevelStore.load()
 })
 </script>
 
@@ -280,6 +298,15 @@ onMounted(() => {
             </UiLoadingRegion>
           </div>
         </UiCard>
+
+        <LogLevelCard
+          :log-level="logLevelStore.logLevel"
+          :state="logLevelStore.loadState"
+          :saving="logLevelStore.saving"
+          :saved="logLevelStore.saved"
+          :error-message="logLevelStore.errorMessage"
+          @change="changeLogLevel"
+        />
       </div>
     </UiLoadingRegion>
   </section>

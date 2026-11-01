@@ -201,6 +201,9 @@
   <data name="AuditActionSmtpSettingsSaved">
     <value>Сохранены настройки почты</value>
   </data>
+  <data name="AuditActionPanelLogLevelChanged">
+    <value>Изменён уровень журнала панели</value>
+  </data>
   <data name="AuditActionTestMailSent">
     <value>Отправлено тестовое письмо</value>
   </data>

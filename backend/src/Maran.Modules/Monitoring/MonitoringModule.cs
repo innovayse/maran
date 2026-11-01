@@ -25,6 +25,9 @@ public sealed class MonitoringModule : IPanelModule
     /// <summary>The embedded resource base name of <c>Resources/DisplayNames*.resx</c>.</summary>
     private const string DisplayNamesResourceBaseName = "Maran.Modules.Monitoring.Resources.DisplayNames";
 
+    /// <summary>The embedded resource base name of <c>Resources/ErrorMessages*.resx</c>.</summary>
+    private const string ErrorMessagesResourceBaseName = "Maran.Modules.Monitoring.Resources.ErrorMessages";
+
     /// <inheritdoc />
     public string Name
     {
@@ -82,9 +85,10 @@ public sealed class MonitoringModule : IPanelModule
         // which is also the right split — how often a server is sampled is a deployment decision,
         // not the module's behaviour. The same shape StartupBanReconciler uses.
 
-        // The shared resource pool the panel-wide ResxErrorTextProvider resolves
-        // Manifest.DisplayNameKey against. No ErrorMessages pool: this module returns no error codes
-        // of its own. Module-internal lookups inject IStringLocalizer<T> instead.
+        // The shared resource pools the panel-wide ResxErrorTextProvider resolves
+        // Manifest.DisplayNameKey and this module's error codes against (the one a refused log level
+        // answers with, issue #131). Module-internal lookups inject IStringLocalizer<T> instead.
+        services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(MonitoringModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(MonitoringModule).Assembly));
     }
 }

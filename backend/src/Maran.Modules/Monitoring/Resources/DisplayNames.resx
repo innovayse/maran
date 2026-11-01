@@ -39,4 +39,22 @@
   <data name="AccountQuotaNotEnforceableNote">
     <value>Not currently enforced — this is the plan's allowance, but this server cannot back it with a real disk limit right now, so this account may use more. Mount the filesystem with quota accounting and run quotaon to restore enforcement; the panel will not do this for you.</value>
   </data>
+  <data name="LogLevelVerbose">
+    <value>Verbose — everything</value>
+  </data>
+  <data name="LogLevelDebug">
+    <value>Debug — diagnostic detail</value>
+  </data>
+  <data name="LogLevelInformation">
+    <value>Information — the normal level</value>
+  </data>
+  <data name="LogLevelWarning">
+    <value>Warning — only what needs attention</value>
+  </data>
+  <data name="LogLevelError">
+    <value>Error — only failures</value>
+  </data>
+  <data name="LogLevelFatal">
+    <value>Fatal — only failures that stop the panel</value>
+  </data>
 </root>

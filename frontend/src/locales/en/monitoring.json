@@ -57,6 +57,13 @@
       "reserved": "Reserved for the system",
       "available": "Available",
       "summary": "Disk: {used} in use, {reserved} reserved for the system, {available} available, of {total}"
+    },
+    "logLevel": {
+      "title": "Panel log level",
+      "hint": "How much the panel writes to its own log. A change takes effect at once, survives a restart and is recorded in the audit log.",
+      "label": "Log level",
+      "apply": "Apply level",
+      "saved": "The log level has been changed."
     }
   }
 }
