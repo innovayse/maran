@@ -11,9 +11,18 @@ on:
 permissions:
   contents: read
 
+# One run per pull request: a new push to the same PR cancels the check it supersedes, since only
+# the latest head is judged. This workflow has no push trigger.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
+
 jobs:
   source-branch:
     runs-on: ubuntu-latest
+    # Measured basis: no dev run exists to measure (it runs only on pull requests into main); the job is
+    # one shell comparison with no checkout, which finishes in seconds. 5 is a generous ceiling.
+    timeout-minutes: 5
     steps:
       - name: main takes nothing but dev
         env:

@@ -20,9 +20,20 @@ defaults:
   run:
     working-directory: frontend
 
+# One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
+# dev and main are never cancelled, and never even queued behind each other — their group carries
+# the run id, so each push is alone in its own group (a shared group would let GitHub drop a
+# PENDING push run when a newer one queues, even with cancel-in-progress false).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # Measured basis: successful dev runs 41293966857, 41279955166, 41242417734 took 12.6, 12.3 and
+    # 10.7 min. 25 is the slowest run roughly doubled.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
