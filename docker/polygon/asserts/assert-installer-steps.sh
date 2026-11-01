@@ -234,7 +234,7 @@ require_installer_file "$UNINSTALLER" installer/uninstall.sh
 require_installer_file "$FTPS_STEP" installer/lib/89-ftps.sh
 require_installer_file "$CLI_STEP" installer/lib/66-cli.sh
 require_installer_file "$CLI_WRAPPER_SOURCE" installer/cli/maran
-for __cli_lib in common.sh status.sh reset.sh diagnostics.sh; do
+for __cli_lib in common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup.sh panel-restore.sh; do
   require_installer_file "${CLI_LIB_SOURCE_DIR}/${__cli_lib}" "installer/cli/lib/${__cli_lib}"
 done
 unset __cli_lib
