@@ -46,7 +46,7 @@ const PARTIAL_SUFFIX: &str = ".partial";
 /// implementation of "publish a backup into a directory on this machine",
 /// beside the one `create_backup` actually runs, and the two are not the same
 /// code: `put` streams a copy between two files in eight-mebibyte chunks, while
-/// `create_backup::publish` renames a file the archiver already wrote and first
+/// `publish_artifact` renames a file the archiver already wrote and first
 /// re-`stat`s it for uid, exact mode and `nlink == 1`. Neither can be replaced
 /// by a call to the other — one would lose the inode check, the other would gain
 /// a copy of up to sixty-four gibibytes — so this is not the rule of two firing;

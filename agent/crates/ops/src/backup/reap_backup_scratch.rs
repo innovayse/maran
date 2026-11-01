@@ -16,7 +16,7 @@ const SCRATCH_AREA: &str = "backup";
 /// The subdirectory of one operation's scratch holding its pre-drop rollback
 /// dumps.
 ///
-/// Must agree with `restore_backup::ROLLBACK_DIRECTORY`. The two are separate
+/// Must agree with `replace_databases::ROLLBACK_DIRECTORY`. The two are separate
 /// constants in separate units by the same argument the manifest's version
 /// number gets: this reaper is the one thing in the system whose job is to NOT
 /// delete that directory, and importing the name from the module that creates it

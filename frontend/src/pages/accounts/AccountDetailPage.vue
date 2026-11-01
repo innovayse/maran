@@ -42,34 +42,28 @@
  *
  * **While the account loads**, the heading and the details card are drawn already, with their real
  * terms and a placeholder line in place of each value ({@link UiLoadingRegion},
- * `UiDescriptionList loading`), so the account lands in the space held for it. The resources card
+ * {@link AccountDetailsCard}), so the account lands in the space held for it. The resources card
  * reads its own summary and says on its own how that read stands.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
-import UiBadge from '../../components/ui/UiBadge.vue'
-import UiButton from '../../components/ui/UiButton.vue'
-import UiCard from '../../components/ui/UiCard.vue'
 import UiLink from '../../components/ui/UiLink.vue'
-import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
-import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
-import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
+import AccountActionsCard from '../../components/accounts/AccountActionsCard.vue'
 import AccountDeleteDialog from '../../components/accounts/AccountDeleteDialog.vue'
+import AccountDetailsCard from '../../components/accounts/AccountDetailsCard.vue'
 import AccountInvitationCard from '../../components/accounts/AccountInvitationCard.vue'
 import AccountOwnerEmailDialog from '../../components/accounts/AccountOwnerEmailDialog.vue'
 import AccountPlanDialog from '../../components/accounts/AccountPlanDialog.vue'
 import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
-import { formatDate } from '../../utils/formatDate'
 import { takeFlashNotice } from '../../utils/flashNotice'
 
 /** Props accepted by this page, bound from the route. */
@@ -290,67 +284,21 @@ onMounted(async () => {
         </UiAlert>
 
         <div class="grid gap-4 lg:grid-cols-3">
-          <UiCard class="lg:col-span-2">
-            <!-- The values are read only once loaded: while loading each item draws a placeholder
-                 line in place of its slot. -->
-            <UiDescriptionList :loading="isLoading">
-              <UiDescriptionItem :term="t('common.name')" mono>
-                {{ accountsStore.selected?.name }}
-              </UiDescriptionItem>
-              <UiDescriptionItem :term="t('accounts.detail.primaryDomainLabel')" mono>
-                {{ accountsStore.selected?.primaryDomain }}
-              </UiDescriptionItem>
-              <UiDescriptionItem :term="t('accounts.detail.statusLabel')">
-                <UiBadge
-                  v-if="accountsStore.selected !== null"
-                  :variant="accountsStore.selected.status === 'active' ? 'success' : 'warning'"
-                >
-                  {{ t(`accounts.status.${accountsStore.selected.status}`) }}
-                </UiBadge>
-              </UiDescriptionItem>
-              <UiDescriptionItem :term="t('accounts.detail.planLabel')">
-                {{ accountsStore.selected?.planDisplayName }}
-              </UiDescriptionItem>
-              <UiDescriptionItem :term="t('accounts.detail.ownerEmailLabel')" mono>
-                {{ accountsStore.selected?.ownerEmail ?? t('accounts.detail.ownerEmailUnknown') }}
-              </UiDescriptionItem>
-              <UiDescriptionItem :term="t('accounts.detail.createdAtLabel')" mono>
-                {{ accountsStore.selected === null ? '' : formatDate(accountsStore.selected.createdAt, localeStore.current) }}
-              </UiDescriptionItem>
-            </UiDescriptionList>
-          </UiCard>
-
-          <UiCard class="flex flex-col gap-4">
-            <UiSectionHeading :title="t('common.actions')" />
-            <!-- Which actions apply depends on the account's status, so none is offered before it
-                 is known; a placeholder holds the row. -->
-            <UiSkeleton v-if="isLoading" shape="block" />
-            <div v-else class="flex flex-wrap items-center gap-2">
-              <UiButton
-                v-if="accountsStore.selected?.status === 'active'"
-                variant="secondary"
-                @click="ask('suspend')"
-              >
-                {{ t('accounts.detail.suspend') }}
-              </UiButton>
-              <UiButton v-else variant="secondary" @click="ask('reactivate')">
-                {{ t('accounts.detail.reactivate') }}
-              </UiButton>
-              <UiButton variant="secondary" @click="openEdit('plan')">
-                {{ t('accounts.edit.planAction') }}
-              </UiButton>
-              <UiButton variant="secondary" @click="openEdit('ownerEmail')">
-                {{ t('accounts.edit.ownerEmailAction') }}
-              </UiButton>
-            </div>
-            <!-- Deletion sits apart, under a rule: it is the one action that cannot be undone, and it
-                 must not read as a sibling of the two above it. -->
-            <div v-if="!isLoading" class="border-t border-border-subtle pt-4">
-              <UiButton variant="destructive" @click="askDelete">
-                {{ t('common.delete') }}
-              </UiButton>
-            </div>
-          </UiCard>
+          <AccountDetailsCard
+            class="lg:col-span-2"
+            :account="accountsStore.selected"
+            :loading="isLoading"
+            :locale="localeStore.current"
+          />
+          <AccountActionsCard
+            :status="accountsStore.selected?.status ?? null"
+            :loading="isLoading"
+            @suspend="ask('suspend')"
+            @reactivate="ask('reactivate')"
+            @edit-plan="openEdit('plan')"
+            @edit-owner-email="openEdit('ownerEmail')"
+            @delete="askDelete"
+          />
         </div>
       </div>
     </UiLoadingRegion>

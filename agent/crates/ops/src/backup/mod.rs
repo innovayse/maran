@@ -88,15 +88,21 @@ mod executable_lookup;
 // operations, which is the point — it is not an inspection a caller may skip.
 mod backup_root;
 mod create_backup;
+mod create_partial;
 mod database_catalog;
 mod delete_backup;
+mod finalise_restore;
 mod list_archive_members;
 mod list_backups;
 mod local_object_store_host;
 pub mod model;
 mod object_key;
 mod object_store_host;
+mod open_backup_scratch;
+mod open_restore_scratch;
+mod prepare_restore;
 mod process_backup_host;
+mod publish_artifact;
 // Private: the one place a sidecar's bytes become a trusted `BackupSummary`.
 // `list_backups` and `restore_backup` both call it rather than each parsing
 // the file and checking its version on its own.
@@ -108,6 +114,7 @@ mod real_executable_lookup;
 // restart an operator performs to recover. Its only caller is
 // `recover_restores`, and the ordering that makes it safe is that caller's.
 mod reap_backup_scratch;
+mod replace_databases;
 // Public: the startup reconciliation. The daemon runs this BEFORE it binds the
 // socket, which is what makes a restore killed between its two renames a state
 // the host comes back from instead of a home nothing puts back.
@@ -118,17 +125,23 @@ mod recover_restores;
 // Private: the pre-flight refusal. The scratch filesystem is asked whether it
 // can take what is about to be written, before it is written.
 mod require_scratch_room;
+mod require_sidecar_agrees;
+mod resolve_databases;
 mod restore_backup;
 // Private: the marker one restore writes before it moves a home, and the only
 // thing that lets a later process say WHOSE swap was interrupted as a fact
 // rather than by parsing a directory's name.
 mod restore_marker_file;
+mod restore_placement;
+mod restore_plan;
 mod root_only_chain;
 mod run_discarding;
 mod s3_object_store_host;
 // Private: the live per-dump ceiling, derived from the same measurement.
 mod scratch_dump_ceiling;
+mod swap_home;
 mod verify_backup_binaries;
+mod write_sidecar;
 
 pub use backup_error::BackupError;
 pub use backup_host::BackupHost;
