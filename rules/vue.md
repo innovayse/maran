@@ -32,7 +32,7 @@ Required configuration, at minimum:
   - `stores/<feature>.ts` — flat, camelCase (`auditLogs.ts`, `sites.ts`), one Pinia setup store per file.
   - `types/<domain>.ts` — flat, camelCase, one domain per file, named after it.
   - `utils/<purpose>.ts` — pure helpers, one purpose per file.
-  - `assets/css/main.css` (+ tokens), `assets/icons/`, `locales/{en,ru,hy}/`, `router/index.ts`.
+  - `assets/css/main.css` (+ tokens), `assets/css/fonts.css` (the self-hosted faces), `assets/css/motion.css` (the panel-wide reduced-motion rule), `assets/icons/`, `locales/{en,ru,hy}/`, `router/index.ts`.
 - A feature's files MUST NOT import from another feature's folders — shared things move down (`components/ui`, `composables`, `utils`, `types/common.ts`), same rule as the backend.
 
 ## Modules in the frontend: one bundle, licence-gated
@@ -371,6 +371,8 @@ error.value = t(`errors.${problem.code}`)
 - **Below 1024px the sidebar is a modal drawer.** It opens from the hamburger and from the tab bar's "More", and closes on its own button, the backdrop, a chosen destination and `Escape`. Focus moves in on open, stays inside while it is open, and returns to the opener on close; `aria-expanded` on both openers follows the state. A modal panel that does not close on `Escape` traps a keyboard user, which is why this is a rule and not a styling choice.
 - **No screen scrolls horizontally at 390px, in any of the three languages.** Armenian labels are long (`Հայտարարություններ`) and are the usual cause; labels wrap (`overflow-wrap: anywhere`) and tab-bar labels are short enough to fit.
 - **One `<h1>` per screen, and it is the page heading.** In the authenticated shell the page's own title is the `h1` (`UiPageHeading`); the app bar's wordmark (`ShellWordmark`) is plain content or a link, never a heading, so the document does not get two. The one exception is the auth layout: it renders no page title of its own above the card, so its wordmark is the screen's `h1` and every auth page opens with `UiAuthHeading`, an `h2`. Specs and the page outline are written against those levels.
+- **Reduced motion is honoured once, in `assets/css/motion.css`**: under `prefers-reduced-motion: reduce` every transition ends on its first frame. A component that animates (a keyframe, not a transition) states its own reduced-motion rule beside the animation.
+- **axe scans the sign-in screen, the dashboard and the main lists in both themes** (`e2e/accessibility/axe-scan.spec.ts`) and fails on any serious or critical WCAG 2.2 AA violation. A new top-level list joins that spec.
 - Destructive actions get a confirmation dialog (`UiConfirm`). Keyboard path and focus order are checked in review for every new view.
 
 ## TypeScript stays on 5.x until vue-tsc can read 7
