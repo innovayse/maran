@@ -12,6 +12,9 @@ namespace Maran.Modules.Accounts.Common;
 /// <param name="MaxFtpUsers">The maximum number of FTPS logins the account may create; zero sells none.</param>
 /// <param name="MaxCronEntries">The maximum number of cron entries the account may keep; zero sells none.</param>
 /// <param name="MaxPhpWorkersPerPool">The maximum number of php-fpm workers one of the account's pools may run.</param>
+/// <param name="CpuQuotaPercent">The share of CPU time the account may use, in percent of ONE CPU, or no ceiling.</param>
+/// <param name="MemoryMaxMb">The most memory the account's processes may hold together, in megabytes, or no ceiling.</param>
+/// <param name="MaxProcesses">The most processes and threads the account may run at once, or no ceiling.</param>
 /// <param name="AccountCount">
 /// How many accounts are on this plan right now. It is what an administrator needs to see before
 /// editing a plan (an edit reaches every one of them) or deleting it (a plan with accounts cannot be
@@ -27,4 +30,7 @@ public sealed record PlanDto(
     int MaxFtpUsers,
     int MaxCronEntries,
     int MaxPhpWorkersPerPool,
+    ResourceCeilingDto CpuQuotaPercent,
+    ResourceCeilingDto MemoryMaxMb,
+    ResourceCeilingDto MaxProcesses,
     int AccountCount);

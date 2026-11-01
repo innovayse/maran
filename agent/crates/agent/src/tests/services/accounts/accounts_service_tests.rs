@@ -54,11 +54,12 @@ use tonic::Request;
 use crate::proto::accounts_service_server::AccountsService;
 use crate::proto::{
     AgentError, CreateAccountRequest, DeleteAccountRequest, ErrorCode,
-    GetAccountSuspensionStateRequest, GetAccountUsageRequest, LoginPasswordState,
-    SetAccountQuotaRequest, SuspendAccountRequest, UnsuspendAccountRequest,
-    create_account_response, delete_account_response, get_account_suspension_state_response,
-    get_account_usage_response, set_account_quota_response, suspend_account_response,
-    unsuspend_account_response,
+    GetAccountSuspensionStateRequest, GetAccountUsageRequest, LoginPasswordState, ResourceCeiling,
+    ResourceCeilingUnlimited, SetAccountQuotaRequest, SetAccountResourceLimitsRequest,
+    SuspendAccountRequest, UnsuspendAccountRequest, create_account_response,
+    delete_account_response, get_account_suspension_state_response, get_account_usage_response,
+    resource_ceiling, set_account_quota_response, set_account_resource_limits_response,
+    suspend_account_response, unsuspend_account_response,
 };
 use crate::services::accounts::accounts_service::AccountsServiceImpl;
 
@@ -935,6 +936,15 @@ fn refusal_of<T>(
     result.and_then(pick)
 }
 
+/// A wire ceiling stating "no ceiling".
+fn unlimited_ceiling() -> ResourceCeiling {
+    ResourceCeiling {
+        ceiling: Some(resource_ceiling::Ceiling::Unlimited(
+            ResourceCeilingUnlimited {},
+        )),
+    }
+}
+
 /// Sends every rpc that acts on an account to `service`, naming `username`,
 /// and returns each rpc's refusal (`None` when it answered with an ok).
 async fn every_rpc_for(
@@ -1027,6 +1037,26 @@ async fn every_rpc_for(
                 |result| match result {
                     set_account_quota_response::Result::Error(error) => Some(error),
                     set_account_quota_response::Result::Ok(_) => None,
+                },
+            ),
+        ),
+        (
+            "resource_limits",
+            refusal_of(
+                service
+                    .set_account_resource_limits(Request::new(SetAccountResourceLimitsRequest {
+                        username: username.clone(),
+                        cpu_quota_percent: Some(unlimited_ceiling()),
+                        memory_max_mib: Some(unlimited_ceiling()),
+                        tasks_max: Some(unlimited_ceiling()),
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .result,
+                |result| match result {
+                    set_account_resource_limits_response::Result::Error(error) => Some(error),
+                    set_account_resource_limits_response::Result::Ok(_) => None,
                 },
             ),
         ),

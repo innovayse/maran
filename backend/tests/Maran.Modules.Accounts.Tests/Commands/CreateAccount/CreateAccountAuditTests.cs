@@ -159,6 +159,7 @@ public sealed class CreateAccountAuditTests
             _handler = new CreateAccountCommandHandler(
                 dbContext,
                 agent,
+                new AccountRuntimeLimitsEnforcer(agent),
                 new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
                 new AccountAuditJournal(Audit, FakeCurrentUser.Admin()),
                 new StubMessageBus(),

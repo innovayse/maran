@@ -43,6 +43,9 @@
       "nameSection": "Name",
       "limitsSection": "Limits for each account",
       "limitsHint": "Zero FTPS logins or zero cron entries sells none of them. Every other limit must be at least 1.",
+      "runtimeSection": "Runtime limits for each account",
+      "runtimeHint": "What an account may use at once. CPU is a share of one core: 50 is half a core, 200 is two cores. Tick no limit to leave a resource uncapped.",
+      "noLimit": "No limit",
       "fields": {
         "name": "Plan name",
         "diskQuotaMb": "Disk quota (MB)",
@@ -51,7 +54,10 @@
         "maxSftpUsers": "SFTP logins",
         "maxFtpUsers": "FTPS logins",
         "maxCronEntries": "Cron entries",
-        "maxPhpWorkersPerPool": "PHP workers per pool"
+        "maxPhpWorkersPerPool": "PHP workers per pool",
+        "cpuQuotaPercent": "CPU (% of one core)",
+        "memoryMaxMb": "Memory (MB)",
+        "maxProcesses": "Processes"
       },
       "placeholders": {
         "name": "Business"
@@ -70,7 +76,8 @@
         "accounts": "{count} account is on this plan. The new limits apply to it at once. | {count} accounts are on this plan. The new limits apply to all of them at once.",
         "disk": "A lowered disk quota is written to every account on the server. If any account already uses more than the new figure, the panel refuses the whole edit and changes nothing.",
         "counts": "A lowered number of sites, databases, logins or cron entries removes nothing: an account above it keeps what it has and cannot add more.",
-        "none": "No account is on this plan yet, so this edit changes nothing for anyone."
+        "none": "No account is on this plan yet, so this edit changes nothing for anyone.",
+        "runtime": "Changed CPU, memory or process limits are applied to every account on the server at once. A lowered memory limit can stop an account's own processes that already use more."
       },
       "diskLowered": "The disk quota goes down from {from} to {to}. If any account on this plan already uses more than {to}, the server refuses the edit and nothing is changed.",
       "created": "Plan {name} created."

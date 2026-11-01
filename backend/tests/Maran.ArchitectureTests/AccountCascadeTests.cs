@@ -470,7 +470,10 @@ public sealed class AccountCascadeTests
     {
         foreach (var context in contexts)
         {
+            // Owned values (a plan's runtime ceilings) share one CLR type across several owners and
+            // are columns of their owner's table, never an entity another row can reference.
             var byName = context.Model.GetEntityTypes()
+                .Where(entity => { return !entity.IsOwned(); })
                 .ToDictionary(entity => { return entity.ClrType.Name; }, StringComparer.Ordinal);
 
             foreach (var entity in context.Model.GetEntityTypes())

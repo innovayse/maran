@@ -103,6 +103,18 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
+    public Task<Result<bool>> SetResourceLimitsAsync(
+        string username,
+        AccountSliceLimitsDto limits,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(token =>
+        {
+            return _inner.SetResourceLimitsAsync(username, limits, token);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public Task<Result<AccountUsageDto>> GetUsageAsync(string username, CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>

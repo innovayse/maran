@@ -62,6 +62,24 @@ public interface IAgentAccountsClient
     /// <returns>Success, or a typed failure.</returns>
     Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Holds the account's systemd slice to <paramref name="limits"/>, replacing every ceiling it held
+    /// (issue #133).
+    /// </summary>
+    /// <remarks>
+    /// Reaches every process systemd places under the account's slice — its login sessions. The
+    /// account's php-fpm workers and, on a host whose cron registers no session, its cron jobs are
+    /// outside it; the agent's rpc documentation says so.
+    /// </remarks>
+    /// <param name="username">The account's system user name.</param>
+    /// <param name="limits">The three ceilings, each stated, none left to a default.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, or a typed failure.</returns>
+    Task<Result<bool>> SetResourceLimitsAsync(
+        string username,
+        AccountSliceLimitsDto limits,
+        CancellationToken cancellationToken);
+
     /// <summary>Reads current disk usage and the quota it is measured against.</summary>
     /// <param name="username">The account's system user name.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

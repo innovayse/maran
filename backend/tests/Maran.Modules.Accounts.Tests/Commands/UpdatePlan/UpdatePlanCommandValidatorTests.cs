@@ -1,5 +1,6 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Accounts.Commands.UpdatePlan;
+using Maran.Modules.Accounts.Tests.TestSupport;
 
 namespace Maran.Modules.Accounts.Tests.Commands.UpdatePlan;
 
@@ -18,7 +19,7 @@ public sealed class UpdatePlanCommandValidatorTests
     /// <summary>Builds a command that satisfies every rule.</summary>
     private static UpdatePlanCommand ValidCommand()
     {
-        return new("Agency", 10_240, 10, 5, 5, 0, 0, 8, Guid.NewGuid(), "203.0.113.7", "unit-tests");
+        return new("Agency", 10_240, 10, 5, 5, 0, 0, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, Guid.NewGuid(), "203.0.113.7", "unit-tests");
     }
 
     /// <summary>A fully valid command passes every rule.</summary>

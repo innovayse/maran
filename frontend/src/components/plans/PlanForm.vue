@@ -24,6 +24,11 @@
  * the next one being created. The number of accounts comes from the server (`accountCount`); the
  * form does not count anything itself.
  *
+ * **Runtime ceilings** (CPU, memory, processes; issue #133) are each a figure or a ticked "No limit"
+ * (`PlanCeilingField`), never a zero standing for "none" — the server refuses both a limited zero
+ * and an unlimited ceiling carrying a figure. A new plan starts with neither, so the administrator
+ * decides; a changed ceiling is written to every account on the plan at once.
+ *
  * **Numbers are typed as text.** The kit's input is a text field, and `type="number"` would bring
  * the browser's own spinner and its own validation bubble (rules/vue.md: "the browser never
  * validates"). The `numeric` keyboard is requested instead, and the text is parsed here.
@@ -36,11 +41,13 @@ import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
+import PlanCeilingField from './PlanCeilingField.vue'
 import { formatMegabytes } from '../../utils/formatBytes'
+import { usePlanCeilings, type PlanCeilingKey } from '../../composables/usePlanCeilings'
 import type { ManagedPlan, PlanRequest } from '../../types/plan'
 
-/** The limits a plan states, by the name the request and the locale file both use. */
-type LimitKey = Exclude<keyof PlanRequest, 'name'>
+/** The count and disk limits a plan states, by the name the request and the locale file both use. */
+type LimitKey = Exclude<keyof PlanRequest, 'name' | PlanCeilingKey>
 
 /** One limit's bounds, as the server's validator states them. */
 interface LimitField {
@@ -119,6 +126,9 @@ const values: Ref<Record<LimitKey, string>> = ref({
 /** Whether a submit has been attempted, so nothing turns red before the administrator has tried. */
 const submitted: Ref<boolean> = ref(false)
 
+/** The runtime ceilings: their fields, state and the client's mirror of the server's rules. */
+const runtime = usePlanCeilings(props.plan, submitted)
+
 /** Whether this form edits an existing plan. */
 const isEditing: ComputedRef<boolean> = computed(() => {
   return props.plan !== null
@@ -145,7 +155,8 @@ const isValid: ComputedRef<boolean> = computed(() => {
     nameError.value === null &&
     LIMIT_FIELDS.every((field) => {
       return limitError(field) === null
-    })
+    }) &&
+    runtime.isValid.value
   )
 })
 
@@ -223,6 +234,7 @@ const submit = (): void => {
     maxFtpUsers: figureOf('maxFtpUsers'),
     maxCronEntries: figureOf('maxCronEntries'),
     maxPhpWorkersPerPool: figureOf('maxPhpWorkersPerPool'),
+    ...runtime.toRequest(),
   })
 }
 
@@ -246,6 +258,7 @@ const cancel = (): void => {
         <p class="mt-1">{{ t('plans.form.reach.accounts', plan.accountCount) }}</p>
         <p class="mt-1">{{ t('plans.form.reach.disk') }}</p>
         <p class="mt-1">{{ t('plans.form.reach.counts') }}</p>
+        <p class="mt-1">{{ t('plans.form.reach.runtime') }}</p>
       </template>
       <p v-else class="mt-1">{{ t('plans.form.reach.none') }}</p>
     </UiAlert>
@@ -292,6 +305,23 @@ const cancel = (): void => {
             })
           }}
         </UiAlert>
+
+        <UiSectionHeading
+          class="mt-6 mb-4"
+          :title="t('plans.form.runtimeSection')"
+          :subtitle="t('plans.form.runtimeHint')"
+        />
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <PlanCeilingField
+            v-for="field in runtime.fields"
+            :key="field.key"
+            v-model:unlimited="runtime.ceilings.value[field.key].unlimited"
+            v-model:figure="runtime.ceilings.value[field.key].figure"
+            :label="t(`plans.form.fields.${field.key}`)"
+            :unlimited-label="t('plans.form.noLimit')"
+            :error="runtime.errorOf(field)"
+          />
+        </div>
 
         <div class="mt-5 flex flex-wrap justify-end gap-2 border-t border-border-subtle pt-4">
           <UiButton variant="secondary" type="button" @click="cancel">{{ t('common.cancel') }}</UiButton>

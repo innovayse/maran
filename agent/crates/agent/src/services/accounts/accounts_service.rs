@@ -3,7 +3,9 @@
 use std::sync::Arc;
 
 use maran_agent_core::validation::system::name::AccountName;
-use maran_ops::accounts::{AccountError, AccountOperations, SystemHost};
+use maran_ops::accounts::{
+    AccountError, AccountOperations, SystemHost, set_account_resource_limits,
+};
 use maran_ops::cron::CronHost;
 use maran_ops::db::DbHost;
 use maran_ops::ftps::FtpsHost;
@@ -20,17 +22,19 @@ use crate::proto::{
     GetAccountSuspensionStateRequest, GetAccountSuspensionStateResponse, GetAccountUsageOk,
     GetAccountUsageRequest, GetAccountUsageResponse, RepairAccountHomeGroupsRequest,
     RepairAccountHomeGroupsResponse, SetAccountQuotaOk, SetAccountQuotaRequest,
-    SetAccountQuotaResponse, SftpLoginSuspensionFact, SiteSuspensionFact, SuspendAccountOk,
-    SuspendAccountRequest, SuspendAccountResponse, UnsuspendAccountOk, UnsuspendAccountRequest,
-    UnsuspendAccountResponse, create_account_response, delete_account_response,
-    get_account_suspension_state_response, get_account_usage_response,
-    repair_account_home_groups_response, set_account_quota_response, suspend_account_response,
-    unsuspend_account_response,
+    SetAccountQuotaResponse, SetAccountResourceLimitsOk, SetAccountResourceLimitsRequest,
+    SetAccountResourceLimitsResponse, SftpLoginSuspensionFact, SiteSuspensionFact,
+    SuspendAccountOk, SuspendAccountRequest, SuspendAccountResponse, UnsuspendAccountOk,
+    UnsuspendAccountRequest, UnsuspendAccountResponse, create_account_response,
+    delete_account_response, get_account_suspension_state_response, get_account_usage_response,
+    repair_account_home_groups_response, set_account_quota_response,
+    set_account_resource_limits_response, suspend_account_response, unsuspend_account_response,
 };
 use crate::services::accounts::account_status::to_agent_error;
 use crate::services::accounts::to_login_password_state::to_login_password_state;
 use crate::services::accounts::to_transfer_protocol::to_transfer_protocol;
 use crate::services::accounts::to_wire_quota_state::to_wire_quota_state;
+use crate::services::accounts::validated_resource_limits::validated_resource_limits;
 use crate::services::accounts::wire_home_group_repair_report::wire_home_group_repair_report;
 use crate::services::wire::run_blocking::run_blocking;
 
@@ -468,6 +472,35 @@ impl<
         };
 
         Ok(Response::new(SetAccountQuotaResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Holds the account's systemd slice to its plan's CPU, memory and process
+    /// ceilings, replacing the ones it held.
+    async fn set_account_resource_limits(
+        &self,
+        request: Request<SetAccountResourceLimitsRequest>,
+    ) -> Result<Response<SetAccountResourceLimitsResponse>, Status> {
+        let request = request.into_inner();
+        let result = match validated_resource_limits(&request) {
+            Ok(limits) => {
+                self.with_account(&request.username, {
+                    let operations = Arc::clone(&self.operations);
+                    move |name| set_account_resource_limits(&operations, &name, &limits)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+        let result = match result {
+            Ok(()) => {
+                set_account_resource_limits_response::Result::Ok(SetAccountResourceLimitsOk {})
+            }
+            Err(error) => set_account_resource_limits_response::Result::Error(error),
+        };
+
+        Ok(Response::new(SetAccountResourceLimitsResponse {
             result: Some(result),
         }))
     }

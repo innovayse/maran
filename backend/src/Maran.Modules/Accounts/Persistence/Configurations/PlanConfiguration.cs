@@ -1,4 +1,6 @@
+using System.Linq.Expressions;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Accounts.Persistence.Configurations;
@@ -50,11 +52,42 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         builder.Property(p => p.MaxPhpWorkersPerPool)
             .IsRequired();
 
+        // Owned rather than a complex type: the module's tests run on the in-memory provider, which
+        // does not materialise complex types, and an owned value is split into this same table either
+        // way. Every column is named here, because the provider's default (RuntimeLimits_Cpu..._Kind)
+        // would put an implementation detail into a schema an operator reads with psql.
+        builder.OwnsOne(p => p.RuntimeLimits, limits =>
+        {
+            MapCeiling(limits, l => l.CpuQuotaPercent, "CpuLimitKind", "CpuQuotaPercent");
+            MapCeiling(limits, l => l.MemoryMaxMb, "MemoryLimitKind", "MemoryMaxMb");
+            MapCeiling(limits, l => l.MaxProcesses, "ProcessLimitKind", "MaxProcesses");
+        });
+        builder.Navigation(p => p.RuntimeLimits).IsRequired();
+
         // A plan's display-name key is its human-visible identity; two plans sharing one would be
         // indistinguishable to a customer choosing between them. Because an operator's plan mirrors
         // its name into this column, this one index also makes operators' names unique. It is
         // exact-match: the handlers refuse a name that differs only by case, or that reads the same
         // as a shipped plan's translated name, before the database is asked.
         builder.HasIndex(p => p.DisplayNameKey).IsUnique().HasDatabaseName("IX_Plans_DisplayNameKey");
+    }
+
+    /// <summary>Maps one runtime ceiling onto its two columns of the plan's own table.</summary>
+    /// <param name="limits">The owned runtime limits being configured.</param>
+    /// <param name="ceiling">Which of the three ceilings.</param>
+    /// <param name="kindColumn">The column holding whether the ceiling is set, as its enum name.</param>
+    /// <param name="maximumColumn">The column holding the figure; zero when unlimited.</param>
+    private static void MapCeiling(
+        OwnedNavigationBuilder<Plan, RuntimeLimits> limits,
+        Expression<Func<RuntimeLimits, ResourceLimit?>> ceiling,
+        string kindColumn,
+        string maximumColumn)
+    {
+        limits.OwnsOne(ceiling, owned =>
+        {
+            owned.Property(l => l.Kind).HasColumnName(kindColumn).HasConversion<string>().HasMaxLength(16).IsRequired();
+            owned.Property(l => l.Maximum).HasColumnName(maximumColumn).IsRequired();
+        });
+        limits.Navigation(ceiling).IsRequired();
     }
 }

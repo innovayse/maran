@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Interfaces;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
@@ -21,6 +22,9 @@ namespace Maran.Modules.Accounts.Commands.CreatePlan;
 /// <param name="MaxFtpUsers">The maximum number of FTPS logins the account may create; zero sells none.</param>
 /// <param name="MaxCronEntries">The maximum number of cron entries the account may keep; zero sells none.</param>
 /// <param name="MaxPhpWorkersPerPool">The maximum number of php-fpm workers one of the account's pools may run.</param>
+/// <param name="CpuQuotaPercent">The share of CPU time the account may use, in percent of ONE CPU, or no ceiling.</param>
+/// <param name="MemoryMaxMb">The most memory the account's processes may hold together, in megabytes, or no ceiling.</param>
+/// <param name="MaxProcesses">The most processes and threads the account may run at once, or no ceiling.</param>
 /// <param name="IpAddress">The caller's address, recorded in the audit journal. Never bound from the request.</param>
 /// <param name="UserAgent">The caller's user agent, recorded in the audit journal. Never bound from the request.</param>
 public sealed record CreatePlanCommand(
@@ -32,5 +36,8 @@ public sealed record CreatePlanCommand(
     int MaxFtpUsers,
     int MaxCronEntries,
     int MaxPhpWorkersPerPool,
+    ResourceCeilingDto CpuQuotaPercent,
+    ResourceCeilingDto MemoryMaxMb,
+    ResourceCeilingDto MaxProcesses,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "") : IPlanDefinition;

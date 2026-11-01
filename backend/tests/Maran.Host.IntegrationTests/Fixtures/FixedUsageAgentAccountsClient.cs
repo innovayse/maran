@@ -32,6 +32,21 @@ public sealed class FixedUsageAgentAccountsClient : IAgentAccountsClient
             new AccountUsageDto(_usedBytes, 0, AccountQuotaState.Enforced, QuotaUnenforceableReason.Unspecified)));
     }
 
+    /// <summary>Every runtime-ceiling push, as <c>username:cpu/memory/processes</c>, in order.</summary>
+    public List<string> RuntimeLimitsSet { get; } = [];
+
+    /// <inheritdoc />
+    public Task<Result<bool>> SetResourceLimitsAsync(
+        string username,
+        AccountSliceLimitsDto limits,
+        CancellationToken cancellationToken)
+    {
+        RuntimeLimitsSet.Add(
+            $"{username}:{limits.CpuQuotaPercent.Kind}{limits.CpuQuotaPercent.Maximum}/"
+            + $"{limits.MemoryMaxMib.Kind}{limits.MemoryMaxMib.Maximum}/{limits.TasksMax.Kind}{limits.TasksMax.Maximum}");
+        return Task.FromResult(Result<bool>.Ok(true));
+    }
+
     /// <inheritdoc />
     public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {
