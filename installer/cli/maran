@@ -8,6 +8,8 @@
 #   maran status
 #   maran admin-reset-password <email|username> [--clear-two-factor] [--allow-non-terminal]
 #   maran collect-diagnostics [--out DIR] [--no-logs]
+#   maran panel-backup --passphrase-file FILE [--out DIR]
+#   maran panel-restore --passphrase-file FILE --replace-this-panel ARCHIVE
 #   maran help
 #
 # Nothing the operator types is ever interpreted: the verb is matched against a fixed list, every
@@ -39,6 +41,12 @@ readonly MARAN_CLI_LIB_DIR="/usr/local/maran/cli/lib"
 . "${MARAN_CLI_LIB_DIR}/reset.sh"
 # shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/diagnostics.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/panel-archive.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/panel-backup.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/panel-restore.sh"
 
 # cli_usage: the help text, on stdout.
 cli_usage() {
@@ -52,6 +60,12 @@ Usage: maran <command>
                                            terminal unless --allow-non-terminal is given.
   collect-diagnostics [--out DIR] [--no-logs]
                                            Write a redacted support bundle (0600 tar.gz).
+  panel-backup --passphrase-file FILE [--out DIR]
+                                           Write an encrypted archive of the panel's database,
+                                           keys, licence and configuration (0600 .tar.gpg).
+  panel-restore --passphrase-file FILE --replace-this-panel ARCHIVE
+                                           Replace this freshly installed panel's database, keys
+                                           and licence with those of a panel-backup archive.
   help                                     This text.
 USAGE
 }
@@ -63,6 +77,8 @@ main() {
     status) cli_status "$@" ;;
     admin-reset-password) cli_reset "$@" ;;
     collect-diagnostics) cli_diagnostics "$@" ;;
+    panel-backup) cli_panel_backup "$@" ;;
+    panel-restore) cli_panel_restore "$@" ;;
     help|--help|-h) cli_usage ;;
     *)
       echo "maran: unknown command" >&2
