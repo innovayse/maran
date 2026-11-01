@@ -200,6 +200,56 @@ public sealed class BackupScheduleTests
         Assert.True(schedule.IsDue(Thursday0400.AddHours(20)));
     }
 
+    /// <summary>A run that starts within the tolerance of its named hour has missed nothing.</summary>
+    [Fact]
+    public void A_run_on_time_has_missed_nothing()
+    {
+        var schedule = Enabled(3);
+
+        var missed = schedule.TryGetMissedOccurrence(
+            Friday0300 + BackupSchedule.MissedRunTolerance, out _);
+
+        Assert.False(missed);
+    }
+
+    /// <summary>A run that starts past the tolerance missed its named hour, and names that hour.</summary>
+    /// <remarks>
+    /// The inverse of the case above, one minute apart, so a tolerance mutated to "never" or to
+    /// "always" fails one of the two.
+    /// </remarks>
+    [Fact]
+    public void A_run_past_the_tolerance_missed_its_named_hour()
+    {
+        var schedule = Enabled(3);
+
+        var missed = schedule.TryGetMissedOccurrence(
+            Friday0300 + BackupSchedule.MissedRunTolerance + TimeSpan.FromMinutes(1), out var dueAt);
+
+        Assert.True(missed);
+        Assert.Equal(Friday0300, dueAt);
+    }
+
+    /// <summary>After several nights down, the missed occurrence named is the first of them.</summary>
+    [Fact]
+    public void Several_missed_nights_name_the_first()
+    {
+        var schedule = Enabled(3);
+
+        var missed = schedule.TryGetMissedOccurrence(Friday0300.AddDays(3), out var dueAt);
+
+        Assert.True(missed);
+        Assert.Equal(Friday0300, dueAt);
+    }
+
+    /// <summary>A disabled schedule never reports a missed run.</summary>
+    [Fact]
+    public void A_disabled_schedule_misses_nothing()
+    {
+        var schedule = Daily();
+
+        Assert.False(schedule.TryGetMissedOccurrence(Friday0300.AddDays(30), out _));
+    }
+
     /// <summary>Builds a disabled daily schedule at 03:00 keeping seven backups.</summary>
     /// <returns>The schedule.</returns>
     private static BackupSchedule Daily()

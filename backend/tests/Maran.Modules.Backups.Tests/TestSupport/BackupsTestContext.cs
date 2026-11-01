@@ -123,7 +123,14 @@ public static class BackupsTestContext
         return new BackupDestinationDisplayNames(new StringLocalizer<DisplayNames>(LocalizerFactory()));
     }
 
-    /// <summary>The localizer factory both resolvers are built over.</summary>
+    /// <summary>Builds the alert-mail text over this module's REAL resource files.</summary>
+    /// <returns>A localizer reading <c>Resources/NotificationMessages*.resx</c> as the panel does.</returns>
+    public static IStringLocalizer<NotificationMessages> AlertText()
+    {
+        return new StringLocalizer<NotificationMessages>(LocalizerFactory());
+    }
+
+    /// <summary>The localizer factory every resolver here is built over.</summary>
     /// <returns>A factory reading the module assembly's embedded resources.</returns>
     private static ResourceManagerStringLocalizerFactory LocalizerFactory()
     {

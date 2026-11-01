@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AlertScheduledRunFailedSubject">
+    <value>Плановая резервная копия {0} не создана</value>
+  </data>
+  <data name="AlertScheduledRunFailedBody">
+    <value>Плановая резервная копия аккаунта {0} не завершилась: {1} (код {2}). Новой копии от этого запуска нет; предыдущие копии сохранены.</value>
+  </data>
+  <data name="AlertDestinationRefusedSubject">
+    <value>Плановая резервная копия {0} не смогла достичь хранилища</value>
+  </data>
+  <data name="AlertDestinationRefusedBody">
+    <value>Плановая резервная копия аккаунта {0} не запущена, потому что хранилище её отклонило: {1} (код {2}). Проверьте хранилище в настройках резервного копирования; следующий запуск — в обычное время.</value>
+  </data>
+  <data name="AlertScheduledRunMissedSubject">
+    <value>Плановая резервная копия запущена с опозданием</value>
+  </data>
+  <data name="AlertScheduledRunMissedBody">
+    <value>Расписание резервного копирования должно было сработать в {0} UTC, но запуск начался только в {1} UTC, поэтому запуск в назначенный час пропущен. Охват: {2}. Скорее всего, панель в тот час не работала.</value>
+  </data>
+</root>

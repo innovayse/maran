@@ -133,6 +133,9 @@
 # Host.IntegrationTests ran filtered to CustomCertificateMaterialEndpointTests, CertificatesAuthorizationTests and
 # ReservedHostNameEndpointTests (69/0); its row is left to CI. spa: sites/ssl-tab.spec.ts 9->11.
 # Full suite at E2E_PORT=5199: 683 passed / 0 failed / 3 skipped.
+# RE-MEASURED 2026-11-01 (issue #134, backup alerts: failed, refused and missed scheduled runs mail the
+# administrator): edited by hand. Modules.Backups.Tests 237->247 (6 alert tests, 4 missed-occurrence tests);
+# maran test backend printed 20 targets: 5157 passed / 0 failed.
 # RE-MEASURED 2026-10-30 (issue #211, an empty schedule scope is a 200, not a 404): edited by hand. Modules.Backups.Tests
 # 209->210, Sdk.Tests 215->214 (the retired BackupScheduleNotFound census row), 0 failed; ArchitectureTests 91 unchanged.
 # Host.IntegrationTests ran filtered to BackupScheduleTests, BackupDestinationTests and BackupsAuthorizationTests (34/0);
@@ -516,7 +519,7 @@ backend	Maran.Modules.Notifications.Tests.dll	53	0	0
 backend	Maran.Modules.Tasks.Tests.dll	109	0	0
 backend	Maran.Modules.Ftp.Tests.dll	169	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	95	0	0
-backend	Maran.Modules.Backups.Tests.dll	237	0	0
+backend	Maran.Modules.Backups.Tests.dll	247	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	286	0	0
 backend	Maran.Modules.Cron.Tests.dll	190	0	0
