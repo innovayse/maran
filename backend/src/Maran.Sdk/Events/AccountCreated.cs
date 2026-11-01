@@ -24,4 +24,8 @@ namespace Maran.Sdk.Events;
 /// <param name="AccountId">The account that was created; the login issued for it carries this id.</param>
 /// <param name="Username">The account's Linux system user name, which is also the login name.</param>
 /// <param name="OwnerEmail">The address the invitation is sent to, as supplied by whoever created the account.</param>
-public sealed record AccountCreated(Guid AccountId, string Username, string OwnerEmail);
+/// <param name="OwnerLanguage">
+/// The owner's language, one of <c>PanelLanguages.Supported</c>: the invitation is written in it,
+/// not in the language of the administrator whose request created the account (issue #194).
+/// </param>
+public sealed record AccountCreated(Guid AccountId, string Username, string OwnerEmail, string OwnerLanguage);

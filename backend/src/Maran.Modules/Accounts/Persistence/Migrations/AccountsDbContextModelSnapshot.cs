@@ -41,6 +41,13 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("OwnerLanguage")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasDefaultValue("en");
+
                     b.Property<Guid>("PlanId")
                         .HasColumnType("uuid");
 

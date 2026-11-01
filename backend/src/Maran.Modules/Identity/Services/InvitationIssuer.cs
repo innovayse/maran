@@ -99,12 +99,21 @@ public sealed class InvitationIssuer
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        // Read before the login, for both paths: a missing login is rebuilt from it, and an existing
+        // one's invitation is written in the owner's language it records (issue #194).
+        var account = await _accountDirectory.FindAsync(accountId, cancellationToken);
+        if (account is null)
+        {
+            return Result<IssuedInvitation?>.Fail(
+                Error.Of(nameof(ErrorMessages.InvitationAccountNotFound), ErrorType.NotFound));
+        }
+
         var user = await _dbContext.Users
             .SingleOrDefaultAsync(candidate => candidate.AccountId == accountId, cancellationToken);
 
         if (user is null)
         {
-            var created = await CreateMissingLoginAsync(accountId, now, cancellationToken);
+            var created = await CreateMissingLoginAsync(account, now, cancellationToken);
             if (!created.IsSuccess)
             {
                 return Result<IssuedInvitation?>.Fail(created.Error!);
@@ -144,32 +153,29 @@ public sealed class InvitationIssuer
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return Result<IssuedInvitation?>.Ok(
-            new IssuedInvitation(user.Username, user.Email, new SensitiveString(token), issued.ExpiresAt));
+            new IssuedInvitation(
+                user.Username, user.Email, new SensitiveString(token), issued.ExpiresAt, account.OwnerLanguage));
     }
 
     /// <summary>
     /// Creates the account's login exactly as <c>AccountCreatedHandler</c> would have, from the
     /// account's own directory entry.
     /// </summary>
-    /// <param name="accountId">The account whose login is missing.</param>
+    /// <param name="account">The account whose login is missing, as its directory entry reads.</param>
     /// <param name="now">The current instant, taken from <see cref="IClock"/>.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
-    /// <c>InvitationAccountNotFound</c> when no such account exists; <c>InvitationAccountSuspended</c>
+    /// <c>InvitationAccountSuspended</c>
     /// when it is suspended, and then no login is created; <c>Ok(null)</c> when a concurrent call
     /// already won the race to create its login (see the type's remarks); or the newly created,
     /// saved login.
     /// </returns>
     private async Task<Result<User?>> CreateMissingLoginAsync(
-        Guid accountId,
+        AccountSnapshot account,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var account = await _accountDirectory.FindAsync(accountId, cancellationToken);
-        if (account is null)
-        {
-            return Result<User?>.Fail(Error.Of(nameof(ErrorMessages.InvitationAccountNotFound), ErrorType.NotFound));
-        }
+        var accountId = account.Id;
 
         if (account.State == AccountState.Suspended)
         {

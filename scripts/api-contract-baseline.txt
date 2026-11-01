@@ -12,13 +12,14 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 37 endpoints, 133 members
+covered: 37 endpoints, 134 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
   primaryDomain: string
   planId: string
   ownerEmail: string
+  ownerLanguage: string
 PUT /api/v1/accounts/{}/owner-email  ->  ChangeAccountOwnerEmailCommand
   ownerEmail: string
 PUT /api/v1/accounts/{}/plan  ->  ChangeAccountPlanCommand

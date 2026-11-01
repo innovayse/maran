@@ -37,7 +37,9 @@
  * 4.5:1 in both themes, and the controls on the card carry their own opaque fills.
  *
  * **The backdrop belongs to the right column.** Its blooms are `--ac` graphics, never directly
- * under text (the text is on the card, above the backdrop at `z-10`). It is clipped by its own
+ * under text (the text is on the card, above the backdrop at `z-10`). The credit line below the
+ * card is the one exception, which is why the central bloom is 15% and not stronger: at 25% the
+ * credit link measured 4.15:1 in the light theme (issue #149). It is clipped by its own
  * `overflow-hidden` wrapper, not by the column, because a blurred circle larger than its box
  * otherwise creates scrollbars while the column must stay un-clipped for the language menu. The
  * credit line is plain text, never a link out: an unauthenticated screen of a control panel has no
@@ -110,7 +112,7 @@ const year: number = new Date().getFullYear()
     <div class="relative min-w-0">
       <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <div
-          class="absolute top-1/2 left-1/2 size-[min(80vmin,40rem)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/25 blur-3xl"
+          class="absolute top-1/2 left-1/2 size-[min(80vmin,40rem)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/15 blur-3xl"
         ></div>
         <div class="absolute -top-32 -right-24 size-96 rounded-full bg-accent/10 blur-3xl"></div>
         <div class="absolute -bottom-24 -left-20 size-80 rounded-full bg-accent/10 blur-3xl"></div>
@@ -133,16 +135,18 @@ const year: number = new Date().getFullYear()
             </div>
           </div>
 
-          <!-- The glass card: a 5% wash of the text colour over a blurred backdrop, so the accent
-               glow behind it shows through, with the soft `shadow-glass` lift and the `--r-card`
-               radius. Every field, alert and button on it
+          <!-- The glass card: `--s1` at 85% over a blurred backdrop, so the accent glow behind it
+               shows through as a tint, with the soft `shadow-glass` lift and the `--r-card` radius.
+               It was a 5% wash of the text colour until the axe scan of issue #149 measured the
+               muted field labels at 3.39:1 (light) and 3.82:1 (dark) over the glow. Every field,
+               alert and button on it
                draws its own opaque fill, and the card's own text is the primary and secondary
                tiers, which keep 4.5:1 over the blurred glow in both themes.
                A signed-out screen holds two or three fields and nothing else, so it trades the
                panel's desktop density (#200) for the full 44px touch height on every width: the
                density tokens are set back to their phone values for this card only. -->
           <div
-            class="rounded-card border border-border-subtle bg-text-primary/5 p-6 shadow-glass backdrop-blur-xl [--d-choice:2.75rem] [--d-control:2.75rem] [--d-inset:2.5rem] sm:p-8"
+            class="rounded-card border border-border-subtle bg-surface-1/85 p-6 shadow-glass backdrop-blur-xl [--d-choice:2.75rem] [--d-control:2.75rem] [--d-inset:2.5rem] sm:p-8"
           >
             <!-- RouterView, not a slot: this layout is a route component with child routes, so the
                  page for the active child renders here. A <slot/> would silently render nothing. -->

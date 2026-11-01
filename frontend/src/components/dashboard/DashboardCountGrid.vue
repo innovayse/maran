@@ -91,7 +91,7 @@ const tiles: ComputedRef<CountTile[]> = computed(() => {
         v-for="tile in tiles"
         :key="tile.key"
         :to="tile.to"
-        class="block min-w-0 rounded-panel border border-border-subtle bg-surface-1 p-4 text-text-primary transition duration-300 last:col-span-2 hover:-translate-y-0.5 hover:border-accent/45 focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none motion-reduce:hover:translate-y-0 @xl:p-5 @xl:last:col-span-1"
+        class="block min-w-0 rounded-panel border border-border-subtle bg-surface-1 p-4 text-text-primary transition duration-300 last:col-span-2 hover:-translate-y-0.5 hover:border-accent/45 focus-visible:shadow-focus focus-visible:outline-none @xl:p-5 @xl:last:col-span-1"
       >
         <UiIconTile :name="tile.icon" />
         <!-- While loading, the placeholder sits in the figure's own line, which gives it the

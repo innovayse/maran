@@ -37,8 +37,8 @@
  * clears the screen exactly, with no second copy of the inset in a `calc()`, and its
  * `max-w-full` keeps the panel inside a viewport narrower than the panel.
  *
- * Motion is a slide and a fade, and `motion-reduce` removes both: a person who asked for less
- * motion gets the panel without the travel.
+ * Motion is a slide and a fade, and the panel-wide rule in `assets/css/motion.css` removes both:
+ * a person who asked for less motion gets the panel without the travel.
  */
 import { onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -120,8 +120,8 @@ onBeforeUnmount((): void => {
 
 <template>
   <Transition
-    enter-active-class="transition-opacity duration-300 motion-reduce:transition-none"
-    leave-active-class="transition-opacity duration-300 motion-reduce:transition-none"
+    enter-active-class="transition-opacity duration-300"
+    leave-active-class="transition-opacity duration-300"
     enter-from-class="opacity-0"
     leave-to-class="opacity-0"
   >
@@ -136,8 +136,8 @@ onBeforeUnmount((): void => {
   </Transition>
 
   <Transition
-    enter-active-class="transition-transform duration-300 ease-out motion-reduce:transition-none"
-    leave-active-class="transition-transform duration-300 ease-in motion-reduce:transition-none"
+    enter-active-class="transition-transform duration-300 ease-out"
+    leave-active-class="transition-transform duration-300 ease-in"
     enter-from-class="-translate-x-full"
     leave-to-class="-translate-x-full"
   >
