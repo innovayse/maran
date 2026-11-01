@@ -440,6 +440,13 @@ Each row names the workflow that runs it, so this list can be checked against
   (`branch-policy.yml`, on `pull_request_target` so it cannot be edited by the branch it
   judges).
 
+- Every job in every workflow carries a `timeout-minutes`, and each value is commented with the
+  measured `dev` runs it was sized from, so a hung step fails at its limit instead of idling. A job
+  whose durations grow re-measures and raises the limit with the new basis, never without it. Every
+  workflow also declares `concurrency` grouped per pull request, cancelling a superseded run on
+  pull-request events only; a push to `dev` or `main` gets a group of its own run and is never
+  cancelled or dropped from the queue.
+
 **Structure, contract and schema — the checks no compiler can express**
 
 - `maran structure` — one type per file, file name equals type name, the folder maps, member order

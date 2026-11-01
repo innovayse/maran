@@ -28,9 +28,20 @@ on:
     - cron: '23 2 * * *'
 
 
+# One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
+# dev and main are never cancelled, and never even queued behind each other — their group carries
+# the run id, so each push is alone in its own group (a shared group would let GitHub drop a
+# PENDING push run when a newer one queues, even with cancel-in-progress false).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # Measured basis: the gates only since issue #289 moved the suite to `shard`/`suite` — 5.2 min on
+    # PR run 41298256624. 20 is that run plus generous headroom for a cold apt mirror.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -258,6 +269,9 @@ jobs:
   shard:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    # Measured basis: PR run 41298256624, shards 1-4 took 10.5, 7.2, 9.1 and 7.3 min (build ~1 min, tests
+    # 5-9 min; shard 1 also runs every other assembly). 25 is the slowest plus ~140% headroom.
+    timeout-minutes: 25
     strategy:
       # Every shard reports, always: a verdict missing a shard is a verdict over part of the suite.
       fail-fast: false
@@ -355,6 +369,8 @@ jobs:
     if: ${{ always() && github.event_name == 'pull_request' }}
     needs: shard
     runs-on: ubuntu-latest
+    # Downloads four artifacts and parses them; no build, no database.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -385,6 +401,9 @@ jobs:
   suite:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Measured basis (#292, then on `ci`, which ran this suite): dev runs 41293966787, 41279955125,
+    # 41242417610 took 31.3, 34.5 and 34.6 min. 60 is that slowest run plus ~75% headroom.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
@@ -603,6 +622,9 @@ jobs:
   ci-pg13:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Measured basis: successful dev runs 41293966787, 41279955125, 41242417610 took 21.8, 29.6 and
+    # 24.0 min. 50 is that slowest run plus ~70% headroom.
+    timeout-minutes: 50
     env:
       MARAN_TEST_PG_IMAGE: postgres:13-alpine
       MARAN_TEST_PG_MAJOR: '13'
