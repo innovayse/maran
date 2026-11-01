@@ -45,6 +45,8 @@
 #   maran test backend      the backend solution only
 #   maran test spa          the SPA's Playwright suite only
 #   maran test [stack] --accept   record the current totals as the baseline (then commit it)
+#   maran test backend --shard i/N --out DIR   run shard i of N of the main part (test-shards.sh)
+#   maran test backend --combine DIR           the verdict over every shard in DIR (test-shards.sh)
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -55,15 +57,22 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 usage() {
   echo "usage: maran test [rust|backend|spa|all] [--accept]" >&2
+  echo "       maran test backend --shard i/N --out DIR | --combine DIR" >&2
   exit 2
 }
 
 which_stacks="all"
 accept=0
+shard_args=()
 while [ $# -gt 0 ]; do
   case "$1" in
     rust|backend|spa|all) which_stacks="$1"; shift ;;
     --accept) accept=1; shift ;;
+    # Sharding is not a subset: the shards are a deterministic partition of the main part, and only
+    # the combine step — which proves the partition and compares every main-part row — prints a
+    # verdict (scripts/lib/test-shards.sh).
+    --shard) shard_args=(--shard "${2:-}" "${3:-}" "${4:-}"); shift $(( $# < 4 ? $# : 4 )) ;;
+    --combine) shard_args=(--combine "${2:-}"); shift $(( $# < 2 ? $# : 2 )) ;;
     -h|--help) usage ;;
     --filter|-p|--package)
       echo "REFUSED: $1 narrows the run, and this command's job is to compare a WHOLE suite" >&2
@@ -100,6 +109,24 @@ if ! tree_lock_refuse_pending "$root" readonly; then
   echo "         Nothing was measured. Recover with: maran mutate --recover" >&2
   suite_did_not_run "TEST VERDICT" "a killed mutation run left its mutant in this tree (named above)."
   exit "$SUITE_STATUS_DID_NOT_RUN"
+fi
+
+if [ "${#shard_args[@]}" -gt 0 ]; then
+  if [ "$which_stacks" != backend ] || [ "$accept" = 1 ]; then
+    echo "REFUSED: --shard and --combine are backend-only and never record a baseline." >&2
+    exit 2
+  fi
+  if [ "${shard_args[0]}" = --shard ]; then
+    if ! suite_require_toolchain backend "$root" || ! suite_selftest_parsers backend ||
+       ! suite_refuse_concurrency backend "$root"; then
+      suite_did_not_run "TEST VERDICT" "the shard could not be measured (see above)."
+      exit "$SUITE_STATUS_DID_NOT_RUN"
+    fi
+  elif ! suite_selftest_parsers backend; then
+    suite_did_not_run "TEST VERDICT" "the log parsers are blind (see the self-test above)."
+    exit "$SUITE_STATUS_DID_NOT_RUN"
+  fi
+  exec bash "$root/scripts/lib/test-shards.sh" "${shard_args[@]}"
 fi
 
 baseline="$root/scripts/test-baseline.txt"

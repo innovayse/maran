@@ -4,6 +4,7 @@ using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Jobs;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
+using Maran.Sdk.Alerts;
 using Maran.Sdk.Contracts;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -134,8 +135,7 @@ public sealed class BackupSweepWorld
             new StubCorrelationIdAccessor("corr-sweep"),
             Bus,
             new BackupAlertMailer(
-                Recipients,
-                Bus,
+                new OperatorAlertMailer(Recipients, Bus),
                 new BackupAuditJournal(Audit, _currentUser),
                 BackupsTestContext.AlertText(),
                 BackupsTestContext.FailureNames()),

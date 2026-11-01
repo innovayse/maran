@@ -1,5 +1,7 @@
 using FluentValidation;
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Interfaces;
 
 namespace Maran.Modules.Accounts.Validators;
@@ -40,6 +42,24 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
     /// <summary>The largest worker budget a plan may state for one php-fpm pool.</summary>
     private const int MaxWorkers = 10_000;
 
+    /// <summary>
+    /// The largest CPU quota a plan may state, in percent of one CPU: 1024 whole CPUs. The agent's
+    /// own bound (<c>cpu_quota_percent::MAXIMUM</c>); the two must stay equal.
+    /// </summary>
+    private const int MaxCpuQuotaPercent = 102_400;
+
+    /// <summary>
+    /// The largest memory ceiling a plan may state, in megabytes: one pebibyte. The agent's own bound
+    /// (<c>memory_max_mib::MAXIMUM</c>); the two must stay equal.
+    /// </summary>
+    private const int MaxMemoryMb = 1_073_741_824;
+
+    /// <summary>
+    /// The largest process ceiling a plan may state: the kernel's <c>PID_MAX_LIMIT</c> on 64-bit hosts.
+    /// The agent's own bound (<c>tasks_max::MAXIMUM</c>); the two must stay equal.
+    /// </summary>
+    private const int MaxProcessCeiling = 4_194_304;
+
     /// <summary>Configures the field rules every plan-stating command shares.</summary>
     protected PlanDefinitionValidator()
     {
@@ -62,5 +82,51 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
         RuleFor(command => command.MaxFtpUsers).InclusiveBetween(0, MaxCount);
         RuleFor(command => command.MaxCronEntries).InclusiveBetween(0, MaxCount);
         RuleFor(command => command.MaxPhpWorkersPerPool).InclusiveBetween(1, MaxWorkers);
+
+        // A ceiling the caller left out binds to null; NotNull answers that before the child rules
+        // read it, so an absent ceiling is refused rather than read as "unlimited".
+        RuleFor(command => command.CpuQuotaPercent)
+            .NotNull()
+            .ChildRules(ceiling =>
+            {
+                CeilingRules(ceiling, MaxCpuQuotaPercent);
+            });
+        RuleFor(command => command.MemoryMaxMb)
+            .NotNull()
+            .ChildRules(ceiling =>
+            {
+                CeilingRules(ceiling, MaxMemoryMb);
+            });
+        RuleFor(command => command.MaxProcesses)
+            .NotNull()
+            .ChildRules(ceiling =>
+            {
+                CeilingRules(ceiling, MaxProcessCeiling);
+            });
+    }
+
+    /// <summary>
+    /// The rules for one runtime ceiling: a known kind, a figure from 1 to the agent's own bound when
+    /// limited, and no figure at all when unlimited — an unlimited ceiling carrying a figure is refused,
+    /// not ignored (one field, one meaning). Child rules rather than a validator class of its own,
+    /// because the module registers every validator type it finds and this one needs its bound.
+    /// </summary>
+    /// <param name="ceiling">The child validator for the ceiling.</param>
+    /// <param name="maximum">The largest figure the agent accepts for this ceiling.</param>
+    private static void CeilingRules(InlineValidator<ResourceCeilingDto> ceiling, int maximum)
+    {
+        ceiling.RuleFor(c => c.Kind).IsInEnum();
+        ceiling.RuleFor(c => c.Maximum)
+            .InclusiveBetween(1, maximum)
+            .When(c =>
+            {
+                return c.Kind == ResourceLimitKind.Limited;
+            });
+        ceiling.RuleFor(c => c.Maximum)
+            .Equal(0)
+            .When(c =>
+            {
+                return c.Kind == ResourceLimitKind.Unlimited;
+            });
     }
 }

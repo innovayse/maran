@@ -399,6 +399,21 @@ suite_recheck_concurrency() {
   return 1
 }
 
+# The backend suite's two PARTS, in run order, and the VSTest filter that selects each. Together
+# they are every test of the solution exactly once: the budget part is the tests carrying the typed
+# `[PerformanceBudget]` trait (backend/tests/Maran.Host.IntegrationTests/Traits), the main part is
+# everything else. A row of the budget part is keyed `<dll> [PerformanceBudget]` in the baseline.
+SUITE_BACKEND_PARTS="main PerformanceBudget"
+
+# suite_backend_filter: the VSTest filter expression for one backend part.
+suite_backend_filter() {
+  case "$1" in
+    main) echo "Category!=PerformanceBudget" ;;
+    PerformanceBudget) echo "Category=PerformanceBudget" ;;
+    *) echo "suite_backend_filter: unknown part '$1'" >&2; return 1 ;;
+  esac
+}
+
 # suite_run: runs one stack's ENTIRE suite into a log file.
 #
 # There is deliberately no scope parameter. `cargo test -p` and `dotnet test --filter` are the same
@@ -452,10 +467,21 @@ suite_run() {
           env_file_names+=(-u "$name")
         fi
       done
-      echo "harness: backend: dotnet test Maran.sln -m:1 -nodeReuse:false (one project at a time, whole solution)" >&2
-      echo "harness: backend: $(( ${#env_file_names[@]} / 2 )) value(s) from .env withheld from the run" >&2
-      (cd "$root/backend" && env "${env_file_names[@]}" dotnet test Maran.sln -m:1 -nodeReuse:false) 2>&1 \
-        | tee "$log" >&2 || true
+      # TWO INVOCATIONS, ONE PER PART (issue #289). The performance budgets carry the
+      # `[PerformanceBudget]` trait and run on the push-to-dev and nightly lanes rather than on every
+      # pull request, so the pull request lane must be able to leave them out WITHOUT the census
+      # losing sight of them. A dll's summary line cannot say which of its tests were budgets, so the
+      # parts are run separately and `suite_parse` keys the second part's rows with the part's name.
+      # Both parts together are still the whole solution, unfiltered in sum.
+      : >"$log"
+      local part
+      for part in $SUITE_BACKEND_PARTS; do
+        echo "harness: backend part: $part (dotnet test Maran.sln -m:1 -nodeReuse:false --filter $(suite_backend_filter "$part"))" |
+          tee -a "$log" >&2
+        echo "harness: backend: $(( ${#env_file_names[@]} / 2 )) value(s) from .env withheld from the run" >&2
+        (cd "$root/backend" && env "${env_file_names[@]}" dotnet test Maran.sln -m:1 -nodeReuse:false \
+          --filter "$(suite_backend_filter "$part")") 2>&1 | tee -a "$log" >&2 || true
+      done
       ;;
     spa)
       # TWO reporters, and the second one is the one that is scored.
@@ -594,11 +620,21 @@ elif stack == "backend":
     result = re.compile(
         r"^\s*\w+!\s+-\s+Failed:\s+(\d+),\s+Passed:\s+(\d+),\s+Skipped:\s+(\d+),\s+Total:\s+(\d+).*?-\s+(\S+\.dll)"
     )
+    # A row of any part after `main` is keyed with that part's name, so the PerformanceBudget tests
+    # keep their own baseline row and a lane that leaves them out can say exactly which rows it did
+    # not run (see SUITE_BACKEND_PARTS).
+    part_marker = re.compile(r"^harness: backend part: (\w+)")
+    part = "main"
     for line in lines:
+        marker = part_marker.match(line)
+        if marker:
+            part = marker.group(1)
+            continue
         match = result.match(line)
         if match:
             failed, passed, skipped, _total, dll = match.groups()
-            rows.append((dll, passed, failed, skipped))
+            key = dll if part == "main" else f"{dll} [{part}]"
+            rows.append((key, passed, failed, skipped))
 elif stack == "spa":
     # One row per SPEC FILE, which is the SPA's unit of disappearance. A suite that stops collecting
     # a file — a rename, a bad import, a `testDir` or `testMatch` change — loses every test in it at
@@ -842,6 +878,8 @@ selftest::a_planted_should_panic_case'
         '  Failed Selftest.Control.A_planted_theory_case(values: [1, 2]) [2 ms]' \
         '  Error Message:' \
         'Failed!  - Failed:     3, Passed:     2, Skipped:     3, Total:     8, Duration: 1 ms - Selftest.Control.dll (net9.0)' \
+        'harness: backend part: PerformanceBudget (planted)' \
+        'Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 1 ms - Selftest.Control.dll (net9.0)' \
         >"$sample"
       expected_names='Selftest.Control.A_planted_failure_name
 Selftest.Control.A_planted_theory_case(candidate: "/tmpfiles")
@@ -980,6 +1018,19 @@ selftest/control.spec.ts:22 [chromium] a planted flaky case (flaky: passed on re
       return 1
       ;;
   esac
+  # The budget part's row must carry the part's name: a parser that dropped the marker would file
+  # the PerformanceBudget totals under the main row and the census would compare the wrong numbers.
+  if [ "$stack" = backend ]; then
+    case "$rows" in
+      *"Selftest.Control.dll [PerformanceBudget]	7	0	0"*) : ;;
+      *)
+        rm -f "$sample" "$sample.json"
+        echo "SELF-TEST FAILED: the backend totals parser did not key the planted PerformanceBudget" >&2
+        echo "                  part's row by its part, and produced [$rows]. Fix suite_parse." >&2
+        return 1
+        ;;
+    esac
+  fi
   if [ "$stack" = rust ]; then
     local expected
     expected="selftest_control [unittests src/lib.rs]	2	2	3

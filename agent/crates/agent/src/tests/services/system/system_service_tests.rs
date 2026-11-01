@@ -83,8 +83,9 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // error codes (issue #251); revision 5 adds the account filter of
     // `GetAccountsDiskUsage` (issue #196); revision 6 splits the root
     // filesystem into used, reserved and available (issue #77); revision 7
-    // adds the free-space floor's error code and figure (issue #148); revision 9 adds
-    // the panel's own certificate rpcs (issue #132). The panel's
+    // adds the free-space floor's error code and figure (issue #148); revision 8
+    // adds `SetAccountResourceLimits` (issue #133); revision 9 adds the panel's own
+    // certificate rpcs (issue #132). The panel's
     // `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
@@ -124,7 +125,8 @@ const REVISIONS: &[(u32, u64)] = &[
     (5, 0x05c6_6b26_aeba_4725),
     (6, 0x9a63_33b9_4199_bdc7),
     (7, 0xb283_18aa_a02e_4f4e),
-    (9, 0xfc45_fe06_e880_0902),
+    (8, 0xd31a_75ce_b42d_6396),
+    (9, 0x5e80_6a10_6744_3e8c),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

@@ -59,6 +59,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         return new UpdatePlanCommandHandler(
             _dbContext,
             new AccountDiskQuotaEnforcer(_agent),
+            new AccountRuntimeLimitsEnforcer(_agent),
             new PlanNameDirectory(_dbContext, _displayNames),
             new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
             _displayNames);
@@ -68,7 +69,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
     /// <param name="planId">The plan to edit; <see cref="_plan"/> unless a test aims elsewhere.</param>
     private UpdatePlanCommand Same(Guid? planId = null)
     {
-        return new("Agency", 10_240, 10, 5, 4, 2, 3, 8, planId ?? _plan.Id, "203.0.113.7", "unit-tests");
+        return new("Agency", 10_240, 10, 5, 4, 2, 3, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, planId ?? _plan.Id, "203.0.113.7", "unit-tests");
     }
 
     /// <summary>Puts an account on <see cref="_plan"/> and returns its name.</summary>
@@ -194,7 +195,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         var result = await NewHandler().HandleAsync(
-            new("Starter", 5_120, 6, 2, 3, 0, 5, 5, shipped.Id, "203.0.113.7", "unit-tests"), CancellationToken.None);
+            new("Starter", 5_120, 6, 2, 3, 0, 5, 5, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, shipped.Id, "203.0.113.7", "unit-tests"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         var stored = await ReloadAsync(shipped.Id);
@@ -214,7 +215,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         await NewHandler().HandleAsync(
-            new("Entry", 5_120, 5, 2, 3, 0, 5, 5, shipped.Id, "203.0.113.7", "unit-tests"), CancellationToken.None);
+            new("Entry", 5_120, 5, 2, 3, 0, 5, 5, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, shipped.Id, "203.0.113.7", "unit-tests"), CancellationToken.None);
 
         Assert.Equal("PlanStarterName -> Entry", Assert.Single(_audit.Entries).Subject);
         Assert.Equal("Entry", (await ReloadAsync(shipped.Id)).Name);
@@ -345,6 +346,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         var handler = new UpdatePlanCommandHandler(
             _dbContext,
             new AccountDiskQuotaEnforcer(unavailable),
+            new AccountRuntimeLimitsEnforcer(unavailable),
             new PlanNameDirectory(_dbContext, _displayNames),
             new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
             _displayNames);

@@ -6,10 +6,10 @@ using Maran.Modules.Monitoring.Domain.Policies;
 using Maran.Modules.Monitoring.Models;
 using Maran.Modules.Monitoring.Persistence;
 using Maran.Modules.Monitoring.Resources;
+using Maran.Sdk.Alerts;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Localization;
-using Wolverine;
 
 namespace Maran.Modules.Monitoring.Services;
 
@@ -121,11 +121,8 @@ public sealed class AlertEvaluator
     /// <summary>The module's database context, which owns the alert rows.</summary>
     private readonly MonitoringDbContext _dbContext;
 
-    /// <summary>Where an operator alert is addressed, read from the module that owns mail settings.</summary>
-    private readonly IAlertRecipientDirectory _recipients;
-
-    /// <summary>The bus a request to send is published on, for the Notifications module to pick up.</summary>
-    private readonly IMessageBus _bus;
+    /// <summary>The panel's one path for an operator alert: journal, recipient, mail (issue #290).</summary>
+    private readonly OperatorAlertMailer _operatorAlerts;
 
     /// <summary>The panel's append-only journal.</summary>
     private readonly MonitoringAuditJournal _journal;
@@ -135,20 +132,17 @@ public sealed class AlertEvaluator
 
     /// <summary>Creates the evaluator.</summary>
     /// <param name="dbContext">The module's database context.</param>
-    /// <param name="recipients">Where an operator alert is addressed.</param>
-    /// <param name="bus">The bus a request to send is published on.</param>
+    /// <param name="operatorAlerts">The panel's one path for an operator alert.</param>
     /// <param name="journal">The panel's append-only journal.</param>
     /// <param name="text">The localized subjects and bodies of the alert mail.</param>
     public AlertEvaluator(
         MonitoringDbContext dbContext,
-        IAlertRecipientDirectory recipients,
-        IMessageBus bus,
+        OperatorAlertMailer operatorAlerts,
         MonitoringAuditJournal journal,
         IStringLocalizer<NotificationMessages> text)
     {
         _dbContext = dbContext;
-        _recipients = recipients;
-        _bus = bus;
+        _operatorAlerts = operatorAlerts;
         _journal = journal;
         _text = text;
     }
@@ -506,14 +500,12 @@ public sealed class AlertEvaluator
     /// </param>
     /// <param name="transition">Whether the episode opened or closed.</param>
     /// <param name="detail">The figure or the service manager's words that go in the body.</param>
-    /// <param name="cancellationToken">Cancels the send.</param>
+    /// <param name="cancellationToken">Cancels the journal writes and the recipient read.</param>
     /// <remarks>
-    /// The journal entry is written whatever happens to the mail, and it is written first: "the disk
-    /// filled at 02:14" is a fact about the server, while "the mail about it was delivered" is a fact
-    /// about the mail server, and an operator investigating an outage needs the first one even when —
-    /// especially when — the second never happened. <c>MailSkippedNoSmtp</c> is still recorded here,
-    /// because "there was nobody to tell" is this class's own finding; a send that was requested and
-    /// then refused is journalled by the module that attempted it.
+    /// The words are composed here; journalling the transition, finding the recipient, requesting
+    /// the mail and journalling <c>MailSkippedNoSmtp</c> when there is nobody to tell are
+    /// <see cref="OperatorAlertMailer"/>'s, the one path the Backups module's alerts take too — its
+    /// remarks carry why the journal entry comes first and why a skipped mail is a success.
     /// </remarks>
     private async Task AnnounceAsync(
         AlertKind kind,
@@ -524,35 +516,11 @@ public sealed class AlertEvaluator
         CancellationToken cancellationToken)
     {
         var action = transition == AlertTransition.Raised ? AuditActions.AlertRaised : AuditActions.AlertResolved;
-        await _journal.RecordSystemAsync(action, $"{kind}:{auditSubject}", succeeded: true, cancellationToken);
-
-        var recipient = await _recipients.GetAlertRecipientAsync(cancellationToken);
-        if (recipient is null)
-        {
-            // SUCCEEDED, not failed. Nothing went wrong here: outgoing mail is not configured, so
-            // there was nobody to tell, and skipping the send is the correct thing to do rather
-            // than a thing that failed to happen. Recorded as a failure, it put a red row in the
-            // audit journal of every freshly installed server within minutes — for working
-            // correctly — and an operator who learns that red rows are normal has lost the one
-            // thing the journal is for (issue #71).
-            //
-            // The action name carries the meaning: "Mail skipped: no SMTP settings" beside
-            // "Succeeded" reads as what happened. A third outcome of its own — skipped, distinct
-            // from both — would say it better, and that is a change to the journal's schema and to
-            // every reader of it; it is recorded in the issue rather than smuggled in here.
-            await _journal.RecordSystemAsync(
-                AuditActions.MailSkippedNoSmtp, $"{kind}:{auditSubject}", succeeded: true, cancellationToken);
-            return;
-        }
-
         var subjectLine = _text[SubjectKey(kind, transition), subject].Value;
         var body = _text[BodyKey(kind, transition), subject, detail].Value;
 
-        // Published, not sent. Whether the mail server accepted it is the sending module's business
-        // and is journalled there; this class's business is that the transition was recorded and the
-        // request was made. Publishing also keeps the sampler's round off a multi-second SMTP round
-        // trip to somebody else's server.
-        await _bus.PublishAsync(new SendMailRequested(recipient, subjectLine, body));
+        await _operatorAlerts.AlertAsync(
+            _journal, action, $"{kind}:{auditSubject}", subjectLine, body, cancellationToken);
     }
 
     /// <summary>The resource key of the subject line for one kind of transition.</summary>

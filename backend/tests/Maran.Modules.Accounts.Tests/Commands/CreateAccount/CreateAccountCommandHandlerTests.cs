@@ -47,7 +47,7 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
@@ -73,7 +73,7 @@ public sealed class CreateAccountCommandHandlerTests
         var agent = new RecordingAgentAccountsClient();
         dbContext.Accounts.Add(new Account(Guid.NewGuid(), "acme", "existing.example.com", Guid.NewGuid(), clock.UtcNow));
         await dbContext.SaveChangesAsync();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
 
         var result = await handler.HandleAsync(
             new CreateAccountCommand("acme", "different.example.com", Guid.NewGuid(), "owner@example.com", IpAddress: Ip, UserAgent: Client),
@@ -92,7 +92,7 @@ public sealed class CreateAccountCommandHandlerTests
         var agent = new RecordingAgentAccountsClient();
         dbContext.Accounts.Add(new Account(Guid.NewGuid(), "existing", "acme.example.com", Guid.NewGuid(), clock.UtcNow));
         await dbContext.SaveChangesAsync();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
 
         var result = await handler.HandleAsync(
             new CreateAccountCommand("newname", "acme.example.com", Guid.NewGuid(), "owner@example.com", IpAddress: Ip, UserAgent: Client),
@@ -116,13 +116,15 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
         var planId = await SeedPlanAsync(dbContext, diskQuotaMb: 5_120);
 
         await handler.HandleAsync(
             new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", IpAddress: Ip, UserAgent: Client), CancellationToken.None);
 
-        Assert.Equal($"create:acme:{5_120UL * 1024 * 1024}", Assert.Single(agent.Calls));
+        Assert.Equal(
+            [$"create:acme:{5_120UL * 1024 * 1024}", "limits:acme:Unlimited0/Unlimited0/Unlimited0"],
+            agent.Calls);
     }
 
     /// <summary>A refused provisioning leaves no account row behind.</summary>
@@ -134,7 +136,7 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient(Error.Of("AgentUnavailable", ErrorType.Unavailable));
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
@@ -157,7 +159,7 @@ public sealed class CreateAccountCommandHandlerTests
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
         var bus = new StubMessageBus(new InvalidOperationException("SMTP relay unreachable"));
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), bus, NullLogger<CreateAccountCommandHandler>.Instance);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), bus, NullLogger<CreateAccountCommandHandler>.Instance);
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
@@ -178,7 +180,7 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
 
         var result = await handler.HandleAsync(
             new CreateAccountCommand("acme", "acme.example.com", Guid.NewGuid(), "owner@example.com", IpAddress: Ip, UserAgent: Client), CancellationToken.None);

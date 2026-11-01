@@ -5,7 +5,8 @@ namespace Maran.Modules.Accounts.Domain.Entities;
 
 /// <summary>
 /// A plan an <see cref="Account"/> is created against: the resource limits spec §8 requires — disk
-/// quota and counts for sites, databases, SFTP logins, FTPS logins and cron entries. A fresh panel
+/// quota, counts for sites, databases, SFTP logins, FTPS logins and cron entries, and the CPU, memory
+/// and process ceilings of <see cref="RuntimeLimits"/>. A fresh panel
 /// ships three (seeded by <see cref="Seeders.PlanSeeder"/>); an administrator defines, edits and
 /// retires the rest, which is what lets an operator sell something other than what shipped.
 /// </summary>
@@ -109,6 +110,13 @@ public sealed class Plan
     /// bound lets one customer's traffic spike consume the whole server.
     /// </remarks>
     public int MaxPhpWorkersPerPool { get; private set; }
+
+    /// <summary>
+    /// The CPU, memory and process ceilings of every account on the plan, which the agent writes onto
+    /// each account's systemd slice. Unlimited until an operator states them; see
+    /// <see cref="ValueObjects.RuntimeLimits"/>.
+    /// </summary>
+    public RuntimeLimits RuntimeLimits { get; private set; } = RuntimeLimits.Unlimited();
 
     /// <summary>Creates a plan.</summary>
     /// <param name="id">The plan's identity, stable across seeding runs so re-seeding is idempotent.</param>
@@ -324,6 +332,16 @@ public sealed class Plan
         MaxFtpUsers = maxFtpUsers;
         MaxCronEntries = maxCronEntries;
         MaxPhpWorkersPerPool = maxPhpWorkersPerPool;
+    }
+
+    /// <summary>
+    /// Replaces the plan's runtime ceilings. The value enforces its own rules, so nothing here can
+    /// leave the plan holding a ceiling of zero.
+    /// </summary>
+    /// <param name="runtimeLimits">The new ceilings.</param>
+    public void ChangeRuntimeLimits(RuntimeLimits runtimeLimits)
+    {
+        RuntimeLimits = runtimeLimits;
     }
 
     /// <summary>What this plan says about one kind of resource an account owns.</summary>

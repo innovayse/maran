@@ -59,6 +59,19 @@ public sealed class RecordingCreateAgentAccountsClient : IAgentAccountsClient
         throw new NotSupportedException();
     }
 
+    /// <summary>Succeeds without recording: no test that uses this double is about runtime ceilings.</summary>
+    /// <param name="username">Unused.</param>
+    /// <param name="limits">Unused.</param>
+    /// <param name="cancellationToken">Unused.</param>
+    /// <returns>Success.</returns>
+    public Task<Result<bool>> SetResourceLimitsAsync(
+        string username,
+        AccountSliceLimitsDto limits,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Result<bool>.Ok(true));
+    }
+
     /// <inheritdoc />
     public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {

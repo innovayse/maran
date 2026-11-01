@@ -1181,7 +1181,10 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   which, the returned error does not.
     /// - [`AccountError::HomeInspection`] when the database cannot be read, in
     ///   which case nothing is acted on.
-    fn resolve_managed(&self, name: &AccountName) -> Result<ManagedAccount, AccountError> {
+    pub(crate) fn resolve_managed(
+        &self,
+        name: &AccountName,
+    ) -> Result<ManagedAccount, AccountError> {
         let passwd = self
             .host
             .read_password_database(self.distro.passwd_database())?;

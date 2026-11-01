@@ -43,11 +43,24 @@ public sealed class CreateAccountCommandHandler
             new EventId(1, nameof(CreateAccountCommandHandler)),
             "Account {AccountName} was created, but its owner's login could not be issued.");
 
+    /// <summary>
+    /// The one log line for a system user whose creation could not be undone after its runtime
+    /// ceilings were refused: the operator must remove it by hand before the name can be created again.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, Exception?> LogRollbackFailed =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Error,
+            new EventId(2, nameof(CreateAccountCommandHandler)),
+            "Account {AccountName} was provisioned but its runtime ceilings were refused, and removing it failed ({Code}); the system user is left behind.");
+
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
     /// <summary>The agent, which owns everything about the account that lives on the host.</summary>
     private readonly IAgentAccountsClient _agent;
+
+    /// <summary>Puts the plan's runtime ceilings on the new account's slice.</summary>
+    private readonly AccountRuntimeLimitsEnforcer _runtimeLimits;
 
     /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
     private readonly IClock _clock;
@@ -64,6 +77,7 @@ public sealed class CreateAccountCommandHandler
     /// <summary>Creates the handler with the module's own database context, the agent, the clock and the bus.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="agent">The agent client that provisions the system user.</param>
+    /// <param name="runtimeLimits">Puts the plan's runtime ceilings on the new account's slice.</param>
     /// <param name="clock">The injected time source used to stamp the new account's creation time.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="bus">The bus <see cref="AccountCreated"/> is invoked on.</param>
@@ -71,6 +85,7 @@ public sealed class CreateAccountCommandHandler
     public CreateAccountCommandHandler(
         AccountsDbContext dbContext,
         IAgentAccountsClient agent,
+        AccountRuntimeLimitsEnforcer runtimeLimits,
         IClock clock,
         AccountAuditJournal journal,
         IMessageBus bus,
@@ -78,6 +93,7 @@ public sealed class CreateAccountCommandHandler
     {
         _dbContext = dbContext;
         _agent = agent;
+        _runtimeLimits = runtimeLimits;
         _clock = clock;
         _journal = journal;
         _bus = bus;
@@ -126,6 +142,22 @@ public sealed class CreateAccountCommandHandler
         if (!provisioned.IsSuccess)
         {
             return await FailAsync(command, provisioned.Error!, cancellationToken);
+        }
+
+        // Always pushed, unlimited included: a uid recycled from a deleted account must not keep a
+        // ceiling its previous owner's plan put on the slice. A refusal undoes the system user, as the
+        // agent undoes its own half-made creation: an account the panel has no row for blocks its name
+        // for good, because the agent never adopts an existing user.
+        var ceilingFailure = await _runtimeLimits.ApplyAsync([command.Name], plan.RuntimeLimits, cancellationToken);
+        if (ceilingFailure is not null)
+        {
+            var undone = await _agent.DeleteAsync(command.Name, cancellationToken);
+            if (!undone.IsSuccess)
+            {
+                LogRollbackFailed(_logger, command.Name, undone.Error!.Code, null);
+            }
+
+            return await FailAsync(command, ceilingFailure, cancellationToken);
         }
 
         var account = new Account(Guid.NewGuid(), command.Name, command.PrimaryDomain, command.PlanId, _clock.UtcNow, command.OwnerEmail);

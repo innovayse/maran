@@ -1,5 +1,6 @@
 using Maran.Modules.Accounts.Commands.ChangeAccountPlan;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
@@ -72,6 +73,7 @@ public sealed class ChangeAccountPlanCommandHandlerTests : IDisposable
         return new ChangeAccountPlanCommandHandler(
             _dbContext,
             new AccountDiskQuotaEnforcer(agent ?? _agent),
+            new AccountRuntimeLimitsEnforcer(agent ?? _agent),
             new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
             _displayNames);
     }
@@ -201,5 +203,34 @@ public sealed class ChangeAccountPlanCommandHandlerTests : IDisposable
         Assert.Equal(ErrorType.NotFound, result.Error.Type);
         Assert.Equal(missing.ToString("D"), Assert.Single(_audit.Entries).Subject);
         Assert.Empty(_agent.Calls);
+    }
+
+    /// <summary>A move to a plan with other runtime ceilings holds the account's slice to them.</summary>
+    [Fact]
+    public async Task A_move_to_a_plan_with_other_runtime_ceilings_holds_the_accounts_slice_to_them()
+    {
+        _sameDisk.ChangeRuntimeLimits(RuntimeLimits.Of(
+            ResourceLimit.Limited(100), ResourceLimit.Limited(512), ResourceLimit.Limited(40)));
+        await _dbContext.SaveChangesAsync();
+
+        var result = await NewHandler().HandleAsync(MoveTo(_sameDisk.Id), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(["limits:olive:Limited100/Limited512/Limited40"], _agent.Calls);
+    }
+
+    /// <summary>A refused ceiling leaves the account on its plan.</summary>
+    [Fact]
+    public async Task A_refused_ceiling_leaves_the_account_on_its_plan()
+    {
+        _sameDisk.ChangeRuntimeLimits(RuntimeLimits.Of(
+            ResourceLimit.Limited(100), ResourceLimit.Unlimited(), ResourceLimit.Unlimited()));
+        await _dbContext.SaveChangesAsync();
+        _agent.RuntimeLimitRefusals["olive"] = Error.Of("AgentSystemFailure", ErrorType.Failure);
+
+        var result = await NewHandler().HandleAsync(MoveTo(_sameDisk.Id), CancellationToken.None);
+
+        Assert.Equal("AgentSystemFailure", result.Error!.Code);
+        Assert.Equal(_large.Id, await StoredPlanIdAsync());
     }
 }

@@ -143,6 +143,29 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     /// <summary>What an account uses when <see cref="UsedBytes"/> says nothing about it.</summary>
     public const ulong DefaultUsedBytes = 2048;
 
+    /// <summary>
+    /// Accounts whose runtime-ceiling push the agent refuses, with the error it refuses with. Every
+    /// other push succeeds, unless the whole double was built to fail.
+    /// </summary>
+    public Dictionary<string, Error> RuntimeLimitRefusals { get; } = [];
+
+    /// <inheritdoc/>
+    public Task<Result<bool>> SetResourceLimitsAsync(
+        string username,
+        AccountSliceLimitsDto limits,
+        CancellationToken cancellationToken)
+    {
+        Calls.Add(
+            $"limits:{username}:{limits.CpuQuotaPercent.Kind}{limits.CpuQuotaPercent.Maximum}/"
+            + $"{limits.MemoryMaxMib.Kind}{limits.MemoryMaxMib.Maximum}/{limits.TasksMax.Kind}{limits.TasksMax.Maximum}");
+        if (RuntimeLimitRefusals.TryGetValue(username, out var refusal))
+        {
+            return Task.FromResult(Result<bool>.Fail(refusal));
+        }
+
+        return Task.FromResult(Answer());
+    }
+
     /// <inheritdoc/>
     public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {

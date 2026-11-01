@@ -41,10 +41,10 @@ use crate::proto::{
 /// 7 adds `ERROR_CODE_BELOW_FREE_SPACE_FLOOR` and
 /// `HostMetrics.free_space_floor_bytes`, the agent's refusal to start a write
 /// below its free-space floor and the floor it refuses at (issue #148).
-/// 9 adds `InstallPanelCertificate`, `WritePanelChallenge` and
-/// `RemovePanelChallenge`, the panel's own certificate and its HTTP-01 file
-/// (issue #132). 8 was claimed by a branch in flight when 9 was taken (issue
-/// #133), so the gap is that branch's number, not a revision of its own.
+/// 8 adds `AccountsService.SetAccountResourceLimits`, the CPU, memory and
+/// process ceilings of an account's systemd slice (issue #133). 9 adds
+/// `InstallPanelCertificate`, `WritePanelChallenge` and `RemovePanelChallenge`,
+/// the panel's own certificate and its HTTP-01 file (issue #132).
 const PROTO_VERSION: u32 = 9;
 
 /// Answers "what agent is this, and what host is it on?".
