@@ -12,7 +12,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 37 endpoints, 133 members
+covered: 38 endpoints, 134 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -113,6 +113,8 @@ POST /api/v1/ftp-users  ->  CreateFtpUserCommand
 POST /api/v1/ftps-server/enable  ->  EnableFtpsCommand
   hostname: string
   passiveAddress: string
+PUT /api/v1/log-level  ->  ChangeLogLevelCommand
+  level: enum(debug|error|fatal|information|verbose|warning)
 PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
   host: string
   port: number
@@ -243,6 +245,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/ftps-server
   GET /api/v1/invitations/{}
   GET /api/v1/licence-status
+  GET /api/v1/log-level
   GET /api/v1/monitoring/accounts-disk
   GET /api/v1/monitoring/chart
   GET /api/v1/monitoring/metrics
