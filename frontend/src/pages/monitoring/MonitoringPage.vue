@@ -35,6 +35,10 @@
  * the system and available, which sum to the size (issue #77). It is read by its own store action
  * with its own state, so a refused reading is an alert in that card and never blanks the charts.
  *
+ * **The clock card beside it is live too** ({@link ClockSyncCard}): whether the host's clock is
+ * synchronised with a time source, with the backend's sentence as a warning when it is not
+ * (issue #150). Its own request and state, for the same reason as the disk card's.
+ *
  * **The log level card comes last** ({@link LogLevelCard}, issue #131): the level the panel's own
  * logger writes at, read and changed through its own store, so a refused read is an alert in that
  * card and never blanks the readings above it.
@@ -56,6 +60,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import AccountDiskTable from '../../components/monitoring/AccountDiskTable.vue'
+import ClockSyncCard from '../../components/monitoring/ClockSyncCard.vue'
 import HostDiskCard from '../../components/monitoring/HostDiskCard.vue'
 import LogLevelCard from '../../components/monitoring/LogLevelCard.vue'
 import MonitoringCharts from '../../components/monitoring/MonitoringCharts.vue'
@@ -191,6 +196,7 @@ onMounted(() => {
   void store.load()
   void store.loadHostMetrics()
   void logLevelStore.load()
+  void store.loadClockSync()
 })
 </script>
 
@@ -240,6 +246,12 @@ onMounted(() => {
           :metrics="store.hostMetrics"
           :state="store.hostMetricsState"
           :error-message="store.hostMetricsError"
+        />
+
+        <ClockSyncCard
+          :clock="store.clockSync"
+          :state="store.clockSyncState"
+          :error-message="store.clockSyncError"
         />
 
         <MonitoringCharts :buckets="store.buckets" :loading="isLoading" />

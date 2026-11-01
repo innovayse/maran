@@ -21,6 +21,9 @@
   <data name="InvalidTwoFactorCodeUnauthorized">
     <value>Код неверен. Проверьте приложение-аутентификатор и попробуйте снова.</value>
   </data>
+  <data name="InvalidTwoFactorCodeClockUnsynchronizedUnauthorized">
+    <value>Код неверен. Часы сервера не синхронизированы, из-за чего правильные коды могут не приниматься — попросите администратора сервера проверить синхронизацию времени.</value>
+  </data>
   <data name="RefreshTokenInvalidUnauthorized">
     <value>Сеанс завершён. Войдите заново.</value>
   </data>

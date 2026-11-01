@@ -1,5 +1,6 @@
 @import './fonts.css';
 @import 'tailwindcss';
+@import './motion.css';
 
 /*
  * Design tokens for the redesign (#82). Names are the design's own (--s1, --b1, --t1,

@@ -1,6 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { loaded, stubDashboard, stubDashboardProblem, UNAVAILABLE, WITHHELD_DASHBOARD } from './fixtures/stub-dashboard-route'
+import {
+  loaded,
+  stubDashboard,
+  stubDashboardProblem,
+  SYNCHRONIZED_CLOCK,
+  UNAVAILABLE,
+  WITHHELD_DASHBOARD,
+} from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import type { AuthenticatedUser } from '../src/types/auth'
@@ -50,7 +57,7 @@ const FULL: Dashboard = {
     sites: loaded(7),
     databases: loaded(4),
   },
-  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6) },
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([
     {
       id: '11111111-1111-1111-1111-111111111111',
@@ -83,7 +90,7 @@ const FRESHLY_INSTALLED: Dashboard = {
     sites: loaded(0),
     databases: loaded(0),
   },
-  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), bannedAddresses: loaded(0), failedTasks: loaded(0) },
+  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), bannedAddresses: loaded(0), failedTasks: loaded(0), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([]),
 }
 
@@ -219,6 +226,7 @@ test.describe('the landing page', () => {
         failedBackups: UNAVAILABLE,
         bannedAddresses: loaded(0),
         failedTasks: loaded(0),
+        clock: SYNCHRONIZED_CLOCK,
       },
     })
 
@@ -239,6 +247,7 @@ test.describe('the landing page', () => {
         failedBackups: loaded(5),
         bannedAddresses: loaded(9),
         failedTasks: UNAVAILABLE,
+        clock: SYNCHRONIZED_CLOCK,
       },
     })
 
@@ -252,5 +261,43 @@ test.describe('the landing page', () => {
 
     await expect(page.getByText('The audit journal could not be read.')).toBeVisible()
     await expect(page.getByText('Nothing has been recorded yet.')).toHaveCount(0)
+  })
+
+  test('a clock that is not synchronised needs attention, and is not an all-clear', async ({ page }) => {
+    // #150: every count holds zero and only the clock is wrong. Left out of the notice, this screen
+    // would say "Nothing needs attention." while two-factor codes fail.
+    await openLandingPage(page, {
+      ...FRESHLY_INSTALLED,
+      attention: {
+        certificatesExpiringSoon: loaded(0),
+        failedBackups: loaded(0),
+        bannedAddresses: loaded(0),
+        failedTasks: loaded(0),
+        clock: loaded({ state: 'syncServiceDisabled', description: 'No time synchronisation service is enabled.' }),
+      },
+    })
+
+    await expect(page.getByRole('link', { name: 'Server clock not synchronised' })).toHaveAttribute(
+      'href',
+      '/monitoring',
+    )
+    await expect(page.getByText('Nothing needs attention.')).toHaveCount(0)
+  })
+
+  test('a clock the panel could not read is named as unchecked, never as synchronised', async ({ page }) => {
+    await openLandingPage(page, {
+      ...FRESHLY_INSTALLED,
+      attention: {
+        certificatesExpiringSoon: loaded(0),
+        failedBackups: loaded(0),
+        bannedAddresses: loaded(0),
+        failedTasks: loaded(0),
+        clock: UNAVAILABLE,
+      },
+    })
+
+    await expect(page.getByRole('link', { name: 'The clock could not be checked' })).toBeVisible()
+    await expect(page.getByText('Server clock not synchronised')).toHaveCount(0)
+    await expect(page.getByText('Nothing needs attention.')).toHaveCount(0)
   })
 })

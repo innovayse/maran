@@ -71,6 +71,10 @@ public sealed class MonitoringModule : IPanelModule
         // AlertEvaluator itself, which it composes with and does nothing beyond routing into.
         services.AddScoped<ICodeIntegrityReportSink, CodeIntegrityReportHandler>();
 
+        // The Sdk window Identity reads when it rejects a two-factor code (issue #150). Scoped, like
+        // the context it reads the clock's alert row through.
+        services.AddScoped<IClockSyncStatus, ClockSyncStatus>();
+
         // Scoped, like the Tasks and Backups name resolvers it mirrors: the localizer it holds
         // resolves the CURRENT request's culture, which is per-request state.
         services.AddScoped<ServiceDisplayNames>();

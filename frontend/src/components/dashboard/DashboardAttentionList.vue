@@ -23,6 +23,11 @@
  * into one would announce "nothing needs attention" about something nobody checked. So the notice is
  * amber whenever a source is unread, with a sentence per source ("Backups could not be checked")
  * linking to the screen where the operator can look for themselves.
+ *
+ * **The host clock is the one source that is not a count** (issue #150). A clock that is not
+ * synchronised is a row of its own, worded without a number, linking to the monitoring screen where
+ * the backend's own explanation is shown; a clock the panel could not read is unchecked like any
+ * other source.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -33,6 +38,14 @@ import type { DashboardAttention, DashboardSection } from '../../types/dashboard
 
 /** Which attention source a row is about; the list key and the i18n leaf it is worded by. */
 type AttentionKey = 'certificates' | 'backups' | 'tasks' | 'bans'
+
+/** A source the panel could not read: a counted one, or the clock. */
+interface UncheckedSource {
+  /** Which source; worded under `app.status.attention.unchecked`. */
+  key: AttentionKey | 'clock'
+  /** The route the row links to. */
+  to: string
+}
 
 /** One source as the panel answered it: what it is, its count section, and where to look. */
 interface AttentionSource {
@@ -59,6 +72,9 @@ const props = defineProps<{
   attention: DashboardAttention
 }>()
 
+/** Where the clock's own explanation is shown. */
+const CLOCK_ROUTE = '/monitoring'
+
 const { t } = useI18n()
 
 /** Every source the panel reported, read or not, in the order they are judged below. */
@@ -80,16 +96,26 @@ const rows: ComputedRef<AttentionRow[]> = computed(() => {
   })
 })
 
+/** Whether the clock was read and found anything but synchronised. */
+const clockNeedsAttention: ComputedRef<boolean> = computed(() => {
+  return props.attention.clock.state === 'loaded' && props.attention.clock.data.state !== 'synchronized'
+})
+
 /** The sources the panel could not read, each of which is named rather than counted as zero. */
-const unchecked: ComputedRef<AttentionSource[]> = computed(() => {
-  return sources.value.filter((source) => {
-    return source.section.state === 'unavailable'
-  })
+const unchecked: ComputedRef<UncheckedSource[]> = computed(() => {
+  const counted = sources.value
+    .filter((source) => {
+      return source.section.state === 'unavailable'
+    })
+    .map((source): UncheckedSource => {
+      return { key: source.key, to: source.to }
+    })
+  return props.attention.clock.state === 'unavailable' ? [...counted, { key: 'clock', to: CLOCK_ROUTE }] : counted
 })
 
 /** Whether everything was read and nothing needs attention — the only case the all-clear is true. */
 const allClear: ComputedRef<boolean> = computed(() => {
-  return rows.value.length === 0 && unchecked.value.length === 0
+  return rows.value.length === 0 && unchecked.value.length === 0 && !clockNeedsAttention.value
 })
 </script>
 
@@ -101,10 +127,23 @@ const allClear: ComputedRef<boolean> = computed(() => {
       <li v-for="row in rows" :key="row.key">
         <RouterLink
           :to="row.to"
-          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
         >
           <span class="font-mono font-semibold text-text-primary tabular-nums">{{ row.value }}</span>
           <span>{{ t(`app.status.attention.${row.key}`, row.value) }}</span>
+          <UiIcon name="arrowRight" size="sm" />
+        </RouterLink>
+      </li>
+    </ul>
+
+    <!-- The clock is not a count, so its row carries no number (issue #150). -->
+    <ul v-if="clockNeedsAttention" class="mt-1.5 flex flex-wrap gap-x-6 gap-y-1">
+      <li>
+        <RouterLink
+          :to="CLOCK_ROUTE"
+          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+        >
+          <span>{{ t('app.status.attention.clock') }}</span>
           <UiIcon name="arrowRight" size="sm" />
         </RouterLink>
       </li>
@@ -115,7 +154,7 @@ const allClear: ComputedRef<boolean> = computed(() => {
       <li v-for="source in unchecked" :key="source.key">
         <RouterLink
           :to="source.to"
-          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
         >
           <span>{{ t(`app.status.attention.unchecked.${source.key}`) }}</span>
           <UiIcon name="arrowRight" size="sm" />

@@ -37,10 +37,17 @@ public static class MonitoringTestContext
     /// </remarks>
     public static ServiceDisplayNames ServiceNames()
     {
+        return new ServiceDisplayNames(DisplayNamesText());
+    }
+
+    /// <summary>Builds a localizer over this module's REAL <c>Resources/DisplayNames*.resx</c>.</summary>
+    /// <returns>The localizer, resolving in the current UI culture as it does in the panel.</returns>
+    public static IStringLocalizer<DisplayNames> DisplayNamesText()
+    {
         var factory = new ResourceManagerStringLocalizerFactory(
             new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
             NullLoggerFactory.Instance);
 
-        return new ServiceDisplayNames(new StringLocalizer<DisplayNames>(factory));
+        return new StringLocalizer<DisplayNames>(factory);
     }
 }

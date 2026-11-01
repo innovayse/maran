@@ -35,6 +35,9 @@ public sealed class VerifyTwoFactorCommandHandlerTests : IDisposable
     private readonly RecordingAuditWriter _audit = new();
     private readonly FakeClock _clock = new(Now);
 
+    /// <summary>What the latest monitoring round said about the clock; synchronised by default.</summary>
+    private readonly StubClockSyncStatus _clockStatus = new();
+
     /// <summary>Releases what the fixture allocated.</summary>
     public void Dispose()
     {
@@ -79,7 +82,8 @@ public sealed class VerifyTwoFactorCommandHandlerTests : IDisposable
                 new SessionService(_context, _clock, options),
                 _clock),
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
-            NewDetector());
+            NewDetector(),
+            new TwoFactorCodeRejection(_clockStatus));
     }
 
     private BruteForceDetector NewDetector()
@@ -157,5 +161,22 @@ public sealed class VerifyTwoFactorCommandHandlerTests : IDisposable
         var result = await NewHandler().HandleAsync(Attempt("000000"), CancellationToken.None);
 
         Assert.Equal("InvalidTwoFactorCodeUnauthorized", result.Error!.Code);
+    }
+
+    /// <summary>
+    /// A wrong code on a server whose clock was found not synchronised says the clock may be why,
+    /// and is still refused (issue #150).
+    /// </summary>
+    [Fact]
+    public async Task A_wrong_code_with_the_clock_not_synchronised_says_so_and_is_still_refused()
+    {
+        await SeedTotpUserAsync();
+        _clockStatus.Unsynchronized = true;
+
+        var result = await NewHandler().HandleAsync(Attempt("000000"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("InvalidTwoFactorCodeClockUnsynchronizedUnauthorized", result.Error!.Code);
+        Assert.Empty(await _context.Sessions.ToListAsync());
     }
 }

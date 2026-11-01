@@ -64,6 +64,12 @@
       "label": "Log level",
       "apply": "Apply level",
       "saved": "The log level has been changed."
+    },
+    "clock": {
+      "title": "Clock",
+      "synchronized": "Synchronised",
+      "notSynchronized": "Not synchronised",
+      "syncServiceDisabled": "No time synchronisation"
     }
   }
 }

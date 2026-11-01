@@ -30,7 +30,8 @@ pub fn to_agent_error(error: &MonitorError) -> AgentError {
         | MonitorError::FilesystemUnavailable
         | MonitorError::ServiceManagerUnavailable { .. }
         | MonitorError::AccountsUnavailable
-        | MonitorError::SshdConfigUnavailable => ErrorCode::SystemFailure,
+        | MonitorError::SshdConfigUnavailable
+        | MonitorError::ClockStateUnavailable => ErrorCode::SystemFailure,
         // A deadline or an output cap ended the program and its process group was
         // killed. This is a fault of the host, never a verdict on the request: the
         // work may or may not have finished, and `tool_output` stays empty because

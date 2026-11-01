@@ -12,19 +12,20 @@ use tonic::{Request, Response, Status};
 use crate::proto::monitor_service_server::MonitorService;
 use crate::proto::{
     AccountDiskUsage, GetAccountsDiskUsageOk, GetAccountsDiskUsageRequest,
-    GetAccountsDiskUsageResponse, GetHostMetricsRequest, GetHostMetricsResponse,
-    GetQuotaEnforceabilityOk, GetQuotaEnforceabilityRequest, GetQuotaEnforceabilityResponse,
-    GetServerFingerprintInputsOk, GetServerFingerprintInputsRequest,
-    GetServerFingerprintInputsResponse, GetServiceStatusesOk, GetServiceStatusesRequest,
-    GetServiceStatusesResponse, GetSftpJailStatusOk, GetSftpJailStatusRequest,
-    GetSftpJailStatusResponse, HostMetrics, MachineIdStatus, PrimaryInterfaceStatus,
-    QuotaEnforceability, QuotaEnforceabilityReason, ServiceStatus, SftpJailState,
-    get_accounts_disk_usage_response, get_host_metrics_response, get_quota_enforceability_response,
-    get_server_fingerprint_inputs_response, get_service_statuses_response,
-    get_sftp_jail_status_response,
+    GetAccountsDiskUsageResponse, GetClockSyncRequest, GetClockSyncResponse, GetHostMetricsRequest,
+    GetHostMetricsResponse, GetQuotaEnforceabilityOk, GetQuotaEnforceabilityRequest,
+    GetQuotaEnforceabilityResponse, GetServerFingerprintInputsOk,
+    GetServerFingerprintInputsRequest, GetServerFingerprintInputsResponse, GetServiceStatusesOk,
+    GetServiceStatusesRequest, GetServiceStatusesResponse, GetSftpJailStatusOk,
+    GetSftpJailStatusRequest, GetSftpJailStatusResponse, HostMetrics, MachineIdStatus,
+    PrimaryInterfaceStatus, QuotaEnforceability, QuotaEnforceabilityReason, ServiceStatus,
+    SftpJailState, get_accounts_disk_usage_response, get_host_metrics_response,
+    get_quota_enforceability_response, get_server_fingerprint_inputs_response,
+    get_service_statuses_response, get_sftp_jail_status_response,
 };
 use crate::services::monitor::managed_service::managed_service;
 use crate::services::monitor::monitor_status::to_agent_error;
+use crate::services::monitor::reported_clock_sync::reported_clock_sync;
 use crate::services::monitor::reported_state::reported_state;
 use crate::services::monitor::validated_account_selection::validated_account_selection;
 use crate::services::wire::run_blocking::run_blocking;
@@ -310,6 +311,24 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
 
         Ok(Response::new(GetServerFingerprintInputsResponse {
             result: Some(result),
+        }))
+    }
+
+    /// Reports whether the host's clock is kept in step with a time source
+    /// (issue #150). Reads only; sets nothing.
+    async fn get_clock_sync(
+        &self,
+        _request: Request<GetClockSyncRequest>,
+    ) -> Result<Response<GetClockSyncResponse>, Status> {
+        let host = Arc::clone(&self.host);
+        let distro = self.distro;
+        let result = run_blocking("monitoring reading", to_agent_error, move || {
+            monitor::get_clock_sync(host.as_ref(), distro)
+        })
+        .await;
+
+        Ok(Response::new(GetClockSyncResponse {
+            result: Some(reported_clock_sync(result)),
         }))
     }
 }

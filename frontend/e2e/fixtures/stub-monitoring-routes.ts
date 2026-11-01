@@ -1,13 +1,23 @@
 import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { LogLevel } from '../../src/types/logLevel'
-import type { AccountDiskUsage, ChartRange, HostMetrics, MetricBucket, ServiceStatus } from '../../src/types/monitoring'
+import type {
+  AccountDiskUsage,
+  ChartRange,
+  ClockSync,
+  HostMetrics,
+  MetricBucket,
+  ServiceStatus,
+} from '../../src/types/monitoring'
 
 /** The chart endpoint. The query part is optional in the pattern so a missing `range` still matches. */
 const CHART_PATTERN = /\/api\/v1\/monitoring\/chart(\?.*)?$/
 
 /** The host's live resource reading. */
 const METRICS_PATTERN = /\/api\/v1\/monitoring\/metrics$/
+
+/** The host clock's synchronisation. */
+const CLOCK_PATTERN = /\/api\/v1\/monitoring\/clock$/
 
 /** The watched services' states. */
 const SERVICES_PATTERN = /\/api\/v1\/monitoring\/services$/
@@ -89,6 +99,15 @@ const BASE_AT = Date.UTC(2026, 8, 1, 0, 0, 0)
 const FIVE_MINUTES_MS = 5 * 60 * 1000
 
 /**
+ * The clock reading a stubbed monitoring screen shows unless a spec passes its own: synchronised,
+ * with the sentence the panel's English resources carry for it.
+ */
+export const STUBBED_CLOCK_SYNC: ClockSync = {
+  state: 'synchronized',
+  description: 'The clock is synchronised with a time source.',
+}
+
+/**
  * Every chart request the stub answered, in order, as the raw `range` value each carried.
  *
  * Recorded rather than asserted through a `waitForRequest`: the proposition is that switching the
@@ -142,6 +161,7 @@ export const stubbedBucket = (index: number, cpuPercent: number): MetricBucket =
  * @param accounts Every per-account disk row the stub knows; it answers them a page at a time,
  * honouring `page`, `pageSize`, `search` and `sort` as the panel does.
  * @param metrics The live host reading reported; {@link STUBBED_HOST_METRICS} by default.
+ * @param clock The clock reading reported; {@link STUBBED_CLOCK_SYNC} by default.
  * @param logLevel The log level reported first; {@link STUBBED_LOG_LEVEL} by default. A change the
  * stub accepts becomes the level it reports afterwards, as the panel's read-back does.
  * @returns Resolves once the routes are installed.
@@ -152,6 +172,7 @@ export const stubMonitoring = async (
   services: ServiceStatus[],
   accounts: AccountDiskUsage[],
   metrics: HostMetrics = STUBBED_HOST_METRICS,
+  clock: ClockSync = STUBBED_CLOCK_SYNC,
   logLevel: LogLevel = STUBBED_LOG_LEVEL,
 ): Promise<void> => {
   let current = logLevel.level
@@ -206,6 +227,10 @@ export const stubMonitoring = async (
 
   await page.route(METRICS_PATTERN, async (route: Route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(metrics) })
+  })
+
+  await page.route(CLOCK_PATTERN, async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(clock) })
   })
 
   await page.route(SERVICES_PATTERN, async (route: Route) => {

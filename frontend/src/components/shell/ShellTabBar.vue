@@ -122,7 +122,7 @@ const openNavigation = (): void => {
       v-for="tab in tabs"
       :key="tab.entry.key"
       :to="tab.entry.target"
-      class="m-0.5 flex min-w-0 flex-col items-center justify-center gap-1 rounded-control px-0 text-center text-xs leading-tight font-semibold text-text-secondary transition-colors focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none [&.router-link-active]:bg-accent-soft [&.router-link-active]:text-accent-text"
+      class="m-0.5 flex min-w-0 flex-col items-center justify-center gap-1 rounded-control px-0 text-center text-xs leading-tight font-semibold text-text-secondary transition-colors focus-visible:shadow-focus focus-visible:outline-none [&.router-link-active]:bg-accent-soft [&.router-link-active]:text-accent-text"
     >
       <UiIcon :name="tab.entry.icon" size="lg" />
       <span class="max-w-full">{{ tab.label }}</span>

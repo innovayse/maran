@@ -21,6 +21,9 @@
   <data name="InvalidTwoFactorCodeUnauthorized">
     <value>Կոդը սխալ է։ Ստուգեք վավերացնող հավելվածը և կրկին փորձեք։</value>
   </data>
+  <data name="InvalidTwoFactorCodeClockUnsynchronizedUnauthorized">
+    <value>Կոդը սխալ է։ Սերվերի ժամացույցը համաժամեցված չէ, ինչի պատճառով ճիշտ կոդերը կարող են չընդունվել․ խնդրեք սերվերի ադմինիստրատորին ստուգել ժամանակի համաժամեցումը։</value>
+  </data>
   <data name="RefreshTokenInvalidUnauthorized">
     <value>Աշխատաշրջանն ավարտվել է։ Խնդրում ենք նորից մուտք գործել։</value>
   </data>

@@ -119,7 +119,7 @@ onUpdated(readText)
     :to="to"
     :active-class="nested || active !== undefined ? 'nav-ancestor' : undefined"
     :exact-active-class="nested ? 'router-link-active' : active !== undefined ? 'nav-exact' : undefined"
-    class="flex items-center gap-2.5 rounded-control text-sm font-medium text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none [&.router-link-active]:bg-accent-fill [&.router-link-active]:text-white [&.router-link-active]:shadow-glow [&.router-link-active]:hover:bg-accent-hover [&.router-link-active]:hover:text-white [&.router-link-active]:focus-visible:shadow-focus"
+    class="flex items-center gap-2.5 rounded-control text-sm font-medium text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none [&.router-link-active]:bg-accent-fill [&.router-link-active]:text-white [&.router-link-active]:shadow-glow [&.router-link-active]:hover:bg-accent-hover [&.router-link-active]:hover:text-white [&.router-link-active]:focus-visible:shadow-focus"
     :class="[
       compact
         ? 'mx-auto size-9 justify-center'

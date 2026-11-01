@@ -48,6 +48,13 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
         Result<AgentQuotaEnforceability>.Ok(
             new AgentQuotaEnforceability(true, Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified));
 
+    /// <summary>How many times the clock's synchronisation was asked for.</summary>
+    public int ClockSyncCalls { get; private set; }
+
+    /// <summary>What <see cref="GetClockSyncAsync"/> answers; synchronised unless a test says otherwise.</summary>
+    public Result<AgentClockSyncState> ClockSync { get; set; } =
+        Result<AgentClockSyncState>.Ok(AgentClockSyncState.Synchronized);
+
     /// <summary>How many times <see cref="GetServerFingerprintAsync"/> was called.</summary>
     public int ServerFingerprintCalls { get; private set; }
 
@@ -95,6 +102,13 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     {
         QuotaEnforceabilityCalls++;
         return Task.FromResult(QuotaEnforceability);
+    }
+
+    /// <inheritdoc />
+    public Task<Result<AgentClockSyncState>> GetClockSyncAsync(CancellationToken cancellationToken)
+    {
+        ClockSyncCalls++;
+        return Task.FromResult(ClockSync);
     }
 
     /// <inheritdoc />

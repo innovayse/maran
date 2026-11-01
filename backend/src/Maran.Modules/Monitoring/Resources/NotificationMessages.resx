@@ -89,4 +89,16 @@
   <data name="AlertFreeSpaceFloorApproachingResolvedBody">
     <value>The filesystem {0} has {1} GiB left, at least twice the free-space floor.</value>
   </data>
+  <data name="AlertClockUnsynchronizedRaisedSubject">
+    <value>The server's clock is not synchronised</value>
+  </data>
+  <data name="AlertClockUnsynchronizedRaisedBody">
+    <value>The server's clock is not synchronised with a time source ({1}), and has stayed that way for ten consecutive checks. Two-factor codes, sign-in sessions, certificates and the licence check all depend on the right time, and fail in confusing ways when the clock drifts. Enable a time synchronisation service on this host (systemd-timesyncd or chrony) and make sure it can reach a time server.</value>
+  </data>
+  <data name="AlertClockUnsynchronizedResolvedSubject">
+    <value>The server's clock is synchronised again</value>
+  </data>
+  <data name="AlertClockUnsynchronizedResolvedBody">
+    <value>The server's clock is synchronised with a time source again.</value>
+  </data>
 </root>
