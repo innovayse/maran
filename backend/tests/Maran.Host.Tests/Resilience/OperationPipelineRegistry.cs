@@ -11,7 +11,8 @@ namespace Maran.Host.Tests.Resilience;
 /// enough to assert against.
 /// </summary>
 /// <remarks>
-/// The pipeline is configured through <see cref="AgentOperationPipeline.Configure"/>, not hand-rolled
+/// The pipeline is configured through
+/// <see cref="AgentOperationPipeline.Configure(ResiliencePipelineBuilder, AgentOptions)"/>, not hand-rolled
 /// in the test: a decorator that is wired to a pipeline the production code never builds proves
 /// nothing about production.
 /// </remarks>

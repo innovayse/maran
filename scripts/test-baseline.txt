@@ -7,6 +7,7 @@
 # Maran.Host.Tests.dll 406+8 = 414 (#132 only). Maran.Host.IntegrationTests.dll keeps dev's #289 split (814 + 19):
 # #132 added no integration test, so its 833 equals dev's total. CI re-measures every row.
 # RE-MEASURED 2026-11-01 (issue #132, the panel's own certificate): edited by hand. maran_agent [unittests src/lib.rs] 436->442; maran_agent_core [unittests src/lib.rs] 515->523; maran_ops [unittests src/lib.rs] 1770->1780; Maran.Agent.Client.Tests.dll 380->384; Maran.Modules.Ssl.Tests.dll 235->250; Maran.Sdk.Tests.dll 268->271; Maran.Host.Tests.dll 406->414; new spa row admin/panel-certificate.spec.ts 3.
+# RE-MEASURED 2026-11-02 (issue #158, cron run now): edited by hand. new spa row cron/run-now.spec.ts 2 (maran test spa: 167 targets, 1120 passed / 0 failed / 2 ignored).
 # RE-MEASURED 2026-11-01 (merge of dev's #292 and #294 into #133): edited by hand. Neither changed a baseline row since the last merge,
 # so every row keeps its value; #133's deltas stand as recorded below.
 # RE-MEASURED 2026-11-01 (merge of dev's #134 and #286 into #133): edited by hand. The rows do not overlap, so each keeps its own
@@ -595,6 +596,7 @@ spa	cron/entries.spec.ts	7	0	0
 spa	cron/environment.spec.ts	5	0	0
 spa	cron/loading.spec.ts	3	0	0
 spa	cron/raw-refusal.spec.ts	4	0	0
+spa	cron/run-now.spec.ts	2	0	0
 spa	cron/schedule.spec.ts	2	0	0
 spa	customer-area.spec.ts	2	0	0
 spa	customer/console-clean.spec.ts	1	0	0
