@@ -195,6 +195,30 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<bool>> SetResourceLimitsAsync(
+        string username,
+        AccountSliceLimitsDto limits,
+        CancellationToken cancellationToken)
+    {
+        var request = new SetAccountResourceLimitsRequest
+        {
+            Username = username,
+            CpuQuotaPercent = ToWire(limits.CpuQuotaPercent),
+            MemoryMaxMib = ToWire(limits.MemoryMaxMib),
+            TasksMax = ToWire(limits.TasksMax),
+        };
+        var response = await _invoker.SetAccountResourceLimitsAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            SetAccountResourceLimitsResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
+            SetAccountResourceLimitsResponse.ResultOneofCase.Error => Result<bool>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetResourceLimitsAsync))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<AccountUsageDto>> GetUsageAsync(string username, CancellationToken cancellationToken)
     {
         var response = await _invoker.GetAccountUsageAsync(
@@ -276,5 +300,18 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
     private static RefusedHomeDto ToRefused(RefusedHome home)
     {
         return new RefusedHomeDto(home.AccountUsername, home.Home, home.Reason.ToString());
+    }
+
+    /// <summary>States one slice ceiling in the wire's two-case shape.</summary>
+    /// <param name="ceiling">The ceiling to send.</param>
+    /// <returns>The wire ceiling, with exactly one of its cases set.</returns>
+    private static ResourceCeiling ToWire(SliceCeiling ceiling)
+    {
+        return ceiling.Kind switch
+        {
+            SliceCeilingKind.Limited => new ResourceCeiling { Maximum = ceiling.Maximum },
+            SliceCeilingKind.Unlimited => new ResourceCeiling { Unlimited = new ResourceCeilingUnlimited() },
+            _ => throw new ArgumentOutOfRangeException(nameof(ceiling), ceiling.Kind, "Unknown slice ceiling kind."),
+        };
     }
 }

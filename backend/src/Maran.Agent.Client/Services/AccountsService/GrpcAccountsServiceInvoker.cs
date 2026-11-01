@@ -65,6 +65,14 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
     }
 
     /// <inheritdoc/>
+    public async Task<SetAccountResourceLimitsResponse> SetAccountResourceLimitsAsync(
+        SetAccountResourceLimitsRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.SetAccountResourceLimitsAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<GetAccountUsageResponse> GetAccountUsageAsync(
         GetAccountUsageRequest request,
         CancellationToken cancellationToken)

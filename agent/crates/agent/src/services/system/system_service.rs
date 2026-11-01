@@ -38,7 +38,9 @@ use crate::proto::{
 /// the root filesystem into used, reserved and available
 /// (`HostMetrics.disk_reserved_bytes`, `disk_available_bytes`) and makes
 /// `disk_used_bytes` `df`'s `Used` instead of total minus available (issue #77).
-const PROTO_VERSION: u32 = 6;
+/// 7 adds `AccountsService.SetAccountResourceLimits`, the CPU, memory and
+/// process ceilings of an account's systemd slice (issue #133).
+const PROTO_VERSION: u32 = 7;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

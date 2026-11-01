@@ -3,9 +3,9 @@ using Maran.Agent.V1;
 
 namespace Maran.Agent.Client.Tests.Services.AccountsService;
 
-/// <summary>Stub of <c>IAccountsServiceInvoker</c> answering the one rpc these tests read.</summary>
+/// <summary>Stub of <c>IAccountsServiceInvoker</c> answering the two rpcs these tests read.</summary>
 /// <remarks>
-/// Only the suspension state is answered; every other member throws, because a stub that shrugged at
+/// Only the suspension state and the runtime ceilings are answered; every other member throws, because a stub that shrugged at
 /// an unexpected call would let a client reaching for the wrong rpc pass. What is under test here is
 /// the mapping of that one answer onto this project's own DTOs, which is where four numbers and two
 /// lists sit side by side and a swap compiles.
@@ -17,6 +17,12 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
 
     /// <summary>The last suspension-state request the stub received.</summary>
     public GetAccountSuspensionStateRequest? LastSuspensionStateRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="SetAccountResourceLimitsAsync"/>.</summary>
+    public SetAccountResourceLimitsResponse ResourceLimitsResponse { get; set; } = new();
+
+    /// <summary>The last runtime-ceiling request the stub received.</summary>
+    public SetAccountResourceLimitsRequest? LastResourceLimitsRequest { get; private set; }
 
     /// <inheritdoc/>
     public Task<GetAccountSuspensionStateResponse> GetAccountSuspensionStateAsync(
@@ -65,6 +71,15 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
         CancellationToken cancellationToken)
     {
         throw new NotSupportedException("no test in this file sets a quota");
+    }
+
+    /// <inheritdoc/>
+    public Task<SetAccountResourceLimitsResponse> SetAccountResourceLimitsAsync(
+        SetAccountResourceLimitsRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastResourceLimitsRequest = request;
+        return Task.FromResult(ResourceLimitsResponse);
     }
 
     /// <inheritdoc/>

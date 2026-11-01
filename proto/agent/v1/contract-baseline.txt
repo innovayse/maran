@@ -554,6 +554,8 @@ field maran.agent.v1.RepairedGrant 2 db_username TYPE_STRING LABEL_OPTIONAL type
 field maran.agent.v1.RepairedGrant 3 also_matched_databases TYPE_STRING LABEL_REPEATED type_name=- oneof=-
 field maran.agent.v1.RepairedHome 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RepairedHome 2 home TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.ResourceCeiling 1 unlimited TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ResourceCeilingUnlimited oneof=ceiling
+field maran.agent.v1.ResourceCeiling 2 maximum TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=ceiling
 field maran.agent.v1.RestoreBackupOk 1 files_restored TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RestoreBackupOk 2 databases_restored TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RestoreBackupOk 3 databases_total TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
@@ -584,6 +586,12 @@ field maran.agent.v1.SetAccountQuotaRequest 1 username TYPE_STRING LABEL_OPTIONA
 field maran.agent.v1.SetAccountQuotaRequest 2 quota_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetAccountQuotaResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SetAccountQuotaOk oneof=result
 field maran.agent.v1.SetAccountQuotaResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.SetAccountResourceLimitsRequest 1 username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.SetAccountResourceLimitsRequest 2 cpu_quota_percent TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ResourceCeiling oneof=-
+field maran.agent.v1.SetAccountResourceLimitsRequest 3 memory_max_mib TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ResourceCeiling oneof=-
+field maran.agent.v1.SetAccountResourceLimitsRequest 4 tasks_max TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ResourceCeiling oneof=-
+field maran.agent.v1.SetAccountResourceLimitsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SetAccountResourceLimitsOk oneof=result
+field maran.agent.v1.SetAccountResourceLimitsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.SetCronEntryEnabledRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetCronEntryEnabledRequest 2 entry_id TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetCronEntryEnabledRequest 3 enabled TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
@@ -856,6 +864,8 @@ message maran.agent.v1.RepairDatabaseGrantsRequest
 message maran.agent.v1.RepairDatabaseGrantsResponse
 message maran.agent.v1.RepairedGrant
 message maran.agent.v1.RepairedHome
+message maran.agent.v1.ResourceCeiling
+message maran.agent.v1.ResourceCeilingUnlimited
 message maran.agent.v1.RestoreBackupOk
 message maran.agent.v1.RestoreBackupRequest
 message maran.agent.v1.RestoreBackupResponse
@@ -869,6 +879,9 @@ message maran.agent.v1.SetAccountLoginsLockedResponse
 message maran.agent.v1.SetAccountQuotaOk
 message maran.agent.v1.SetAccountQuotaRequest
 message maran.agent.v1.SetAccountQuotaResponse
+message maran.agent.v1.SetAccountResourceLimitsOk
+message maran.agent.v1.SetAccountResourceLimitsRequest
+message maran.agent.v1.SetAccountResourceLimitsResponse
 message maran.agent.v1.SetCronEntryEnabledOk
 message maran.agent.v1.SetCronEntryEnabledRequest
 message maran.agent.v1.SetCronEntryEnabledResponse
@@ -924,6 +937,7 @@ rpc maran.agent.v1.AccountsService GetAccountSuspensionState in=.maran.agent.v1.
 rpc maran.agent.v1.AccountsService GetAccountUsage in=.maran.agent.v1.GetAccountUsageRequest out=.maran.agent.v1.GetAccountUsageResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService RepairAccountHomeGroups in=.maran.agent.v1.RepairAccountHomeGroupsRequest out=.maran.agent.v1.RepairAccountHomeGroupsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService SetAccountQuota in=.maran.agent.v1.SetAccountQuotaRequest out=.maran.agent.v1.SetAccountQuotaResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.AccountsService SetAccountResourceLimits in=.maran.agent.v1.SetAccountResourceLimitsRequest out=.maran.agent.v1.SetAccountResourceLimitsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService SuspendAccount in=.maran.agent.v1.SuspendAccountRequest out=.maran.agent.v1.SuspendAccountResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService UnsuspendAccount in=.maran.agent.v1.UnsuspendAccountRequest out=.maran.agent.v1.UnsuspendAccountResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.BackupService CreateBackup in=.maran.agent.v1.CreateBackupRequest out=.maran.agent.v1.CreateBackupResponse client_streaming=false server_streaming=true

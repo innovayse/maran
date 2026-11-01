@@ -125,6 +125,28 @@ service AccountsService {
   // same quota twice is a no-op success.
   rpc SetAccountQuota(SetAccountQuotaRequest) returns (SetAccountQuotaResponse);
 
+  // Added 2026-11-01 (issue #133). Holds the account's systemd slice
+  // (`user-<uid>.slice`) to the CPU, memory and process ceilings of its plan,
+  // replacing whatever ceilings it held before — all three at once, so a
+  // slice never carries one plan's CPU quota beside another plan's memory
+  // ceiling, and a recycled uid never inherits a property a previous owner
+  // left behind.
+  //
+  // What it reaches: every process systemd places under the slice, which is
+  // every login session pam_systemd registers (SSH, SFTP). The php-fpm workers
+  // of the account's pools run in the php-fpm master's own service cgroup and
+  // are NOT inside the slice, and neither are cron jobs on a host whose cron
+  // PAM stack registers no session; this rpc says so rather than claiming them.
+  //
+  // Refuses a user that is not a hosting account (ERROR_CODE_INVALID_INPUT), an
+  // absent account (ERROR_CODE_NOT_FOUND), and a request missing any of the
+  // three ceilings (ERROR_CODE_INVALID_INPUT): an absent ceiling is never read
+  // as "unlimited", which is a value of its own.
+  //
+  // Idempotent: the same request converges to the same slice.
+  rpc SetAccountResourceLimits(SetAccountResourceLimitsRequest)
+      returns (SetAccountResourceLimitsResponse);
+
   // Reads current disk usage and quota for an account.
   rpc GetAccountUsage(GetAccountUsageRequest) returns (GetAccountUsageResponse);
 
@@ -237,6 +259,47 @@ message SetAccountQuotaResponse {
 }
 
 message SetAccountQuotaOk {}
+
+message SetAccountResourceLimitsRequest {
+  // System username of the account.
+  string username = 1;
+  // The share of CPU time the slice may use, in percent of ONE CPU (50 is half
+  // a core, 200 is two whole cores); 1..=102400 when limited. Required.
+  ResourceCeiling cpu_quota_percent = 2;
+  // The most memory the slice may hold, in MiB; 1..=1073741824 when limited.
+  // Required.
+  ResourceCeiling memory_max_mib = 3;
+  // The most processes and threads the slice may hold at once; 1..=4194304
+  // when limited. Required.
+  ResourceCeiling tasks_max = 4;
+}
+
+// One ceiling of an account's slice: either none at all, or a figure in the
+// unit its field names. A message rather than a bare number because "no
+// ceiling" is an answer of its own and must never be read off zero, which is
+// what an absent number decodes to. A ceiling with neither case set is refused.
+message ResourceCeiling {
+  oneof ceiling {
+    // The plan states no ceiling for this resource.
+    ResourceCeilingUnlimited unlimited = 1;
+    // The ceiling, in the unit the enclosing field names. Never zero.
+    uint32 maximum = 2;
+  }
+}
+
+// The "no ceiling" case of ResourceCeiling. Carries nothing: its presence is
+// the whole answer.
+message ResourceCeilingUnlimited {}
+
+message SetAccountResourceLimitsResponse {
+  oneof result {
+    SetAccountResourceLimitsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// The slice now holds the requested ceilings.
+message SetAccountResourceLimitsOk {}
 
 message GetAccountUsageRequest {
   // System username of the account.

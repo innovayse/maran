@@ -49,6 +49,9 @@ public static class PlanMapper
             plan.MaxFtpUsers,
             plan.MaxCronEntries,
             plan.MaxPhpWorkersPerPool,
+            RuntimeLimitsMapper.ToDto(plan.RuntimeLimits.CpuQuotaPercent),
+            RuntimeLimitsMapper.ToDto(plan.RuntimeLimits.MemoryMaxMb),
+            RuntimeLimitsMapper.ToDto(plan.RuntimeLimits.MaxProcesses),
             accountCount);
     }
 

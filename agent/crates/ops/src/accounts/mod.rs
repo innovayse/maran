@@ -1,5 +1,6 @@
 //! Hosting accounts at the operating-system level: the system user that backs an
-//! account, its home directory, its suspension state and its disk quota.
+//! account, its home directory, its suspension state, its disk quota and the
+//! CPU, memory and process ceilings of its systemd slice.
 //!
 //! Every operation is idempotent and re-validates its inputs (rules/rust.md
 //! "Validation first"): the API has already checked them, and the agent checks
@@ -21,6 +22,7 @@ mod remove_account_at_jobs;
 mod remove_account_mail_spool;
 mod remove_account_shared_files;
 mod remove_account_sysv_ipc;
+mod set_account_resource_limits;
 mod sweep_directory_by_owner;
 mod system_host;
 
@@ -28,6 +30,7 @@ pub use account_error::AccountError;
 pub(crate) use account_lock::take_account_lock;
 pub use account_operations::AccountOperations;
 pub use maran_agent_core::command_outcome::CommandOutcome;
+pub use model::account_resource_limits::AccountResourceLimits;
 pub use model::account_suspension_state::AccountSuspensionState;
 pub use model::account_usage::AccountUsage;
 pub use model::created_account::CreatedAccount;
@@ -38,8 +41,10 @@ pub use model::quota_state_kind::QuotaStateKind;
 pub use model::quota_unenforceable_reason::QuotaUnenforceableReason;
 pub use model::refused_home::RefusedHome;
 pub use model::repaired_home::RepairedHome;
+pub use model::resource_ceiling::ResourceCeiling;
 pub use model::stored_password::StoredPassword;
 pub use process_system_host::ProcessSystemHost;
 pub(crate) use quota_enforceability::classify as classify_quota_enforceability;
 pub(crate) use read_managed_account::read_managed_account;
+pub use set_account_resource_limits::set_account_resource_limits;
 pub use system_host::SystemHost;

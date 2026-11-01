@@ -1,6 +1,9 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Accounts.Commands.CreatePlan;
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
+using Maran.Modules.Accounts.Tests.TestSupport;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreatePlan;
 
@@ -18,7 +21,7 @@ public sealed class CreatePlanCommandValidatorTests
     /// <summary>Builds a command that satisfies every rule, so a single field can be broken per test.</summary>
     private static CreatePlanCommand ValidCommand()
     {
-        return new("Agency", 10_240, 10, 5, 5, 0, 0, 8, IpAddress: "203.0.113.7", UserAgent: "unit-tests");
+        return new("Agency", 10_240, 10, 5, 5, 0, 0, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, IpAddress: "203.0.113.7", UserAgent: "unit-tests");
     }
 
     /// <summary>A fully valid command passes every rule.</summary>
@@ -139,6 +142,54 @@ public sealed class CreatePlanCommandValidatorTests
         var result = await _validator.TestValidateAsync(WithLimit(property, int.MaxValue));
 
         result.ShouldHaveValidationErrorFor(property);
+    }
+
+    /// <summary>A stated runtime ceiling inside the agent's range is accepted.</summary>
+    [Fact]
+    public async Task A_stated_runtime_ceiling_inside_the_agents_range_is_accepted()
+    {
+        var command = ValidCommand() with
+        {
+            CpuQuotaPercent = ResourceCeilingTestValues.Limited(102_400),
+            MemoryMaxMb = ResourceCeilingTestValues.Limited(1),
+            MaxProcesses = ResourceCeilingTestValues.Limited(4_194_304),
+        };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    /// <summary>A limited ceiling of zero, or above the agent's own bound, is refused.</summary>
+    /// <param name="cpu">The CPU figure to state.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(102_401)]
+    public async Task A_limited_ceiling_of_zero_or_above_the_agents_bound_is_refused(int cpu)
+    {
+        var result = await _validator.TestValidateAsync(
+            ValidCommand() with { CpuQuotaPercent = ResourceCeilingTestValues.Limited(cpu) });
+
+        result.ShouldHaveValidationErrorFor("CpuQuotaPercent.Maximum");
+    }
+
+    /// <summary>An unlimited ceiling carrying a figure is refused: one field, one meaning.</summary>
+    [Fact]
+    public async Task An_unlimited_ceiling_carrying_a_figure_is_refused()
+    {
+        var result = await _validator.TestValidateAsync(
+            ValidCommand() with { MemoryMaxMb = new ResourceCeilingDto(ResourceLimitKind.Unlimited, 512) });
+
+        result.ShouldHaveValidationErrorFor("MemoryMaxMb.Maximum");
+    }
+
+    /// <summary>An absent ceiling is refused rather than read as unlimited.</summary>
+    [Fact]
+    public async Task An_absent_ceiling_is_refused_rather_than_read_as_unlimited()
+    {
+        var result = await _validator.TestValidateAsync(ValidCommand() with { MaxProcesses = null! });
+
+        result.ShouldHaveValidationErrorFor(command => command.MaxProcesses);
     }
 
     /// <summary>Builds a valid command with one named limit set to <paramref name="value"/>.</summary>

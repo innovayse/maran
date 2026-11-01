@@ -1,5 +1,6 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
@@ -73,6 +74,12 @@ namespace Maran.Modules.Accounts.Commands.UpdatePlan;
 /// the host when a pool is next rendered.
 /// </para>
 /// <para>
+/// <b>The runtime ceilings (CPU, memory, processes) are pushed, not refused</b> — after the disk quota,
+/// before the row, and only when they changed. Why a lowered ceiling is not refused the way a lowered
+/// quota is: <see cref="AccountRuntimeLimitsEnforcer"/>. A failure part-way leaves the row as it was,
+/// and repeating the edit converges.
+/// </para>
+/// <para>
 /// <b>The name.</b> Sending the name the plan already shows keeps a shipped plan's translated name;
 /// any other text becomes the plan's name in every language. A name another plan already reads as is
 /// refused (<c>PlanNameTaken</c>); a plan may keep its own. Two administrators claiming the same name
@@ -95,6 +102,9 @@ public sealed class UpdatePlanCommandHandler
     /// <summary>Measures and applies disk quotas on the host, shared with an account's plan change.</summary>
     private readonly AccountDiskQuotaEnforcer _quotas;
 
+    /// <summary>Applies runtime ceilings on the host, shared with account creation and a plan change.</summary>
+    private readonly AccountRuntimeLimitsEnforcer _runtimeLimits;
+
     /// <summary>Decides whether the requested name is already some other plan's.</summary>
     private readonly PlanNameDirectory _names;
 
@@ -107,18 +117,21 @@ public sealed class UpdatePlanCommandHandler
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="quotas">Measures and applies disk quotas on the host.</param>
+    /// <param name="runtimeLimits">Applies runtime ceilings on the host.</param>
     /// <param name="names">Decides whether the requested name is already some other plan's.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="displayNames">Resolves display names in the request's culture.</param>
     public UpdatePlanCommandHandler(
         AccountsDbContext dbContext,
         AccountDiskQuotaEnforcer quotas,
+        AccountRuntimeLimitsEnforcer runtimeLimits,
         PlanNameDirectory names,
         AccountAuditJournal journal,
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
         _quotas = quotas;
+        _runtimeLimits = runtimeLimits;
         _names = names;
         _journal = journal;
         _displayNames = displayNames;
@@ -159,10 +172,19 @@ public sealed class UpdatePlanCommandHandler
             return await FailAsync(command, subject, quotaFailure, cancellationToken);
         }
 
+        var runtimeLimits = RuntimeLimitsMapper.ToDomain(command);
+        var runtimeFailure = await ReconcileRuntimeLimitsAsync(plan, runtimeLimits, cancellationToken);
+        if (runtimeFailure is not null)
+        {
+            return await FailAsync(command, subject, runtimeFailure, cancellationToken);
+        }
+
         if (renames)
         {
             plan.Rename(name);
         }
+
+        plan.ChangeRuntimeLimits(runtimeLimits);
 
         plan.ChangeLimits(
             command.DiskQuotaMb,
@@ -239,6 +261,34 @@ public sealed class UpdatePlanCommandHandler
         }
 
         return await _quotas.ApplyAsync(accountNames, newQuotaMb, cancellationToken);
+    }
+
+    /// <summary>
+    /// Holds every account on the plan to <paramref name="runtimeLimits"/> on the host. Does nothing
+    /// when the ceilings are unchanged, so editing a name or a count never needs the agent.
+    /// </summary>
+    /// <param name="plan">The plan being edited, still holding its current ceilings.</param>
+    /// <param name="runtimeLimits">The ceilings the edit asks for.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns><c>null</c> when every account holds the new ceilings (or none needed them); otherwise the failure.</returns>
+    private async Task<Error?> ReconcileRuntimeLimitsAsync(
+        Plan plan,
+        RuntimeLimits runtimeLimits,
+        CancellationToken cancellationToken)
+    {
+        if (runtimeLimits == plan.RuntimeLimits)
+        {
+            return null;
+        }
+
+        var accountNames = await _dbContext.Accounts
+            .AsNoTracking()
+            .Where(a => a.PlanId == plan.Id)
+            .OrderBy(a => a.Name)
+            .Select(a => a.Name)
+            .ToListAsync(cancellationToken);
+
+        return await _runtimeLimits.ApplyAsync(accountNames, runtimeLimits, cancellationToken);
     }
 
     /// <summary>Journals a refused edit and returns it as the typed failure.</summary>

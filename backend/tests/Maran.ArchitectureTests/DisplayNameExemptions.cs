@@ -67,6 +67,13 @@ public static class DisplayNameExemptions
             "Whether the plan caps the resource decides whether a meter or a bare count is drawn; "
             + "the value itself is never printed as a name."),
         new(
+            "Maran.Modules.Accounts.Common.ResourceCeilingDto",
+            "Kind",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/plan.ts",
+            "Whether a plan caps CPU, memory or processes decides whether the form shows a figure or a "
+            + "ticked 'No limit'; the value itself is never printed as a name."),
+        new(
             "Maran.Modules.Backups.Common.BackupDto",
             "Status",
             DisplayNameExemptionKind.SpaOwnedVocabulary,

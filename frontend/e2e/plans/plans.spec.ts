@@ -57,6 +57,10 @@ const fillValidPlan = async (page: Page, name: string): Promise<void> => {
   await page.getByLabel('FTPS logins').fill('0')
   await page.getByLabel('Cron entries').fill('7')
   await page.getByLabel('PHP workers per pool').fill('8')
+  await page.getByLabel('CPU (% of one core)').fill('150')
+  // Memory is left uncapped on purpose: "No limit" is a case of its own, never a zero.
+  await page.getByRole('checkbox', { name: 'No limit' }).nth(1).check({ force: true })
+  await page.getByLabel('Processes', { exact: true }).fill('64')
 }
 
 test('the list shows every plan with its limits as numbers, and "None" where a plan sells none', async ({
@@ -128,8 +132,8 @@ test('submitting the empty form shows the panel own field messages and sends not
   await page.getByRole('button', { name: 'Create plan' }).click()
 
   await expect(page.getByText('Name is required.')).toBeVisible()
-  // Seven limits, seven messages.
-  await expect(page.getByText('Enter a whole number.')).toHaveCount(7)
+  // Seven limits and three runtime ceilings, ten messages.
+  await expect(page.getByText('Enter a whole number.')).toHaveCount(10)
   await expect(page.getByLabel('Plan name')).toHaveAttribute('aria-invalid', 'true')
   expect(requests.created).toEqual([])
 })
@@ -171,6 +175,9 @@ test('a valid plan is posted as typed and shows up in the list', async ({ page }
       maxFtpUsers: 0,
       maxCronEntries: 7,
       maxPhpWorkersPerPool: 8,
+      cpuQuotaPercent: { kind: 'limited', maximum: 150 },
+      memoryMaxMb: { kind: 'unlimited', maximum: 0 },
+      maxProcesses: { kind: 'limited', maximum: 64 },
     },
   ])
   await expect(page.getByRole('row', { name: /Agency/ })).toBeVisible()
@@ -215,6 +222,9 @@ test('editing a plan starts from its figures and puts the whole plan', async ({ 
     maxFtpUsers: 10,
     maxCronEntries: 20,
     maxPhpWorkersPerPool: 10,
+    cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
+    memoryMaxMb: { kind: 'unlimited', maximum: 0 },
+    maxProcesses: { kind: 'unlimited', maximum: 0 },
   })
   await expect(
     page
@@ -369,4 +379,26 @@ test('the Plans screen has no horizontal scroll at 390 px in English and Armenia
     expect(form.main, `${locale}: the form overflows its panel`).toBeLessThanOrEqual(form.mainBox)
     await context.close()
   }
+})
+
+test('a limited runtime ceiling of zero is refused before anything is sent', async ({
+  page,
+}) => {
+  const requests = await open(page, '/plans/new')
+
+  await fillValidPlan(page, 'Agency')
+  await page.getByLabel('CPU (% of one core)').fill('0')
+  await page.getByRole('button', { name: 'Create plan' }).click()
+
+  await expect(page.getByText('Enter a number from 1 to 102400.')).toBeVisible()
+  expect(requests.created).toEqual([])
+})
+
+test('editing a plan with accounts on it starts from its ceilings and says they reach running accounts', async ({
+  page,
+}) => {
+  await open(page, `/plans/${STARTER.id}`)
+
+  await expect(page.getByLabel('Memory (MB)')).toHaveValue('1024')
+  await expect(page.getByText('Changed CPU, memory or process limits are applied')).toBeVisible()
 })
