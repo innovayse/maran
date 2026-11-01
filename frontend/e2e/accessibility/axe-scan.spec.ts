@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { expectNoSeriousViolations, seriousViolations } from '../fixtures/expect-no-serious-violations'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
-import { loaded, stubDashboard } from '../fixtures/stub-dashboard-route'
+import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
@@ -88,6 +88,7 @@ const DASHBOARD: Dashboard = {
     failedBackups: loaded(1),
     bannedAddresses: loaded(3),
     failedTasks: loaded(1),
+    clock: SYNCHRONIZED_CLOCK,
   },
   recentAudit: loaded([
     {

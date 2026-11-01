@@ -57,6 +57,12 @@
       "reserved": "Зарезервировано системой",
       "available": "Доступно",
       "summary": "Диск: занято {used}, зарезервировано системой {reserved}, доступно {available} из {total}"
+    },
+    "clock": {
+      "title": "Часы",
+      "synchronized": "Синхронизированы",
+      "notSynchronized": "Не синхронизированы",
+      "syncServiceDisabled": "Нет синхронизации времени"
     }
   }
 }

@@ -111,7 +111,7 @@ fn the_debian_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 23] = [
+const EXPECTED_BINARIES: [(&str, &str); 24] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
@@ -125,6 +125,7 @@ const EXPECTED_BINARIES: [(&str, &str); 23] = [
     ("setquota", "/usr/sbin/setquota"),
     ("quota", "/usr/bin/quota"),
     ("quotaon", "/usr/sbin/quotaon"),
+    ("timedatectl", "/usr/bin/timedatectl"),
     ("id", "/usr/bin/id"),
     ("chmod", "/usr/bin/chmod"),
     ("chgrp", "/usr/bin/chgrp"),
@@ -138,7 +139,7 @@ const EXPECTED_BINARIES: [(&str, &str); 23] = [
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [String; 23] {
+fn actual_binaries() -> [String; 24] {
     [
         DebianAdapter.useradd_binary().to_string(),
         DebianAdapter.usermod_binary().to_string(),
@@ -153,6 +154,7 @@ fn actual_binaries() -> [String; 23] {
         DebianAdapter.setquota_binary().to_string(),
         DebianAdapter.quota_binary().to_string(),
         DebianAdapter.quotaon_binary().to_string(),
+        DebianAdapter.timedatectl_binary().to_string(),
         DebianAdapter.id_binary().to_string(),
         DebianAdapter.chmod_binary().to_string(),
         DebianAdapter.chgrp_binary().to_string(),
@@ -251,6 +253,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("setquota", DebianAdapter.setquota_binary()),
         ("quota", DebianAdapter.quota_binary()),
         ("quotaon", DebianAdapter.quotaon_binary()),
+        ("timedatectl", DebianAdapter.timedatectl_binary()),
         ("id", DebianAdapter.id_binary()),
         ("chmod", DebianAdapter.chmod_binary()),
         ("chgrp", DebianAdapter.chgrp_binary()),

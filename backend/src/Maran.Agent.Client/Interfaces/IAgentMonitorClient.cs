@@ -91,6 +91,15 @@ public interface IAgentMonitorClient
     /// </remarks>
     Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(CancellationToken cancellationToken);
 
+    /// <summary>Reads whether the host's clock is kept in step with a time source (issue #150).</summary>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The kernel's verdict, or a typed failure when the agent could not read it.</returns>
+    /// <remarks>
+    /// A failure here is NOT evidence that the clock is unsynchronised — it is the absence of any
+    /// evidence, the same discipline <see cref="GetSftpJailStatusAsync"/> follows.
+    /// </remarks>
+    Task<Result<AgentClockSyncState>> GetClockSyncAsync(CancellationToken cancellationToken);
+
     /// <summary>
     /// Reads the two raw values this server's licence fingerprint is derived from: its machine-id
     /// and the interface carrying its IPv4 default route.

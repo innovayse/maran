@@ -620,7 +620,7 @@ spa	customer/own-account-create.spec.ts	5	0	0
 spa	customer/role-guard.spec.ts	20	0	0
 spa	customer/tasks.spec.ts	3	0	0
 spa	dashboard-loading.spec.ts	3	0	0
-spa	dashboard.spec.ts	10	0	0
+spa	dashboard.spec.ts	12	0	0
 spa	databases/account-filter.spec.ts	3	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
@@ -650,6 +650,10 @@ spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist-list.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	8	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
+# ADDED 2026-11-01 (issue #150, clock synchronisation): edited by hand. New row monitoring/clock-sync.spec.ts 2;
+# dashboard.spec.ts 10->12 (a clock not synchronised, a clock unchecked). Full runs: spa 167 targets 1122 passed /
+# 0 failed; rust 35 targets 2945 passed; backend 21 targets 5236 passed / 0 failed. Backend rows only grew.
+spa	monitoring/clock-sync.spec.ts	2	0	0
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
 spa	monitoring/monitoring.spec.ts	14	0	0
 spa	plans/list.spec.ts	6	0	0

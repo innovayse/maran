@@ -62,6 +62,7 @@ public sealed partial class CodeIntegrityReportHandler : ICodeIntegrityReportSin
                 services: [],
                 sftpJailStatus: null,
                 quotaStatus: null,
+                clockSync: null,
                 codeIntegrityReport: report,
                 report.ObservedAt,
                 cancellationToken);

@@ -44,8 +44,10 @@ use crate::proto::{
 /// 8 adds `AccountsService.SetAccountResourceLimits`, the CPU, memory and
 /// process ceilings of an account's systemd slice (issue #133). 9 adds
 /// `InstallPanelCertificate`, `WritePanelChallenge` and `RemovePanelChallenge`,
-/// the panel's own certificate and its HTTP-01 file (issue #132).
-const PROTO_VERSION: u32 = 9;
+/// the panel's own certificate and its HTTP-01 file (issue #132). 10 adds
+/// `MonitorService.GetClockSync`, whether the host's clock is synchronised
+/// (issue #150).
+const PROTO_VERSION: u32 = 10;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

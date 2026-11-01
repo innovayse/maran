@@ -24,11 +24,13 @@
         "backups": "backup failed | backups failed",
         "tasks": "task failed | tasks failed",
         "bans": "address banned | addresses banned",
+        "clock": "Server clock not synchronised",
         "unchecked": {
           "certificates": "Certificates could not be checked",
           "backups": "Backups could not be checked",
           "tasks": "Tasks could not be checked",
-          "bans": "Banned addresses could not be checked"
+          "bans": "Banned addresses could not be checked",
+          "clock": "The clock could not be checked"
         }
       },
       "audit": {

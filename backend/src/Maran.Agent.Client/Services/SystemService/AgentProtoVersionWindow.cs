@@ -46,6 +46,9 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// <c>RemovePanelChallenge</c> (issue #132), and both ends moved to it: an older agent answers
 /// the three rpcs <c>UNIMPLEMENTED</c>, so the panel's own certificate could never be issued or
 /// renewed against it.
+/// Revision 10 adds <c>MonitorService.GetClockSync</c> (issue #150), and both ends moved to it as the
+/// one-revision default: a revision-9 agent answers it <c>UNIMPLEMENTED</c>, so the panel would report
+/// the clock as unchecked on every round and never warn about one that drifted.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -72,10 +75,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 9;
+    public const uint Minimum = 10;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 9;
+    public const uint Maximum = 10;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

@@ -246,6 +246,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/licence-status
   GET /api/v1/monitoring/accounts-disk
   GET /api/v1/monitoring/chart
+  GET /api/v1/monitoring/clock
   GET /api/v1/monitoring/metrics
   GET /api/v1/monitoring/services
   GET /api/v1/notifications/smtp

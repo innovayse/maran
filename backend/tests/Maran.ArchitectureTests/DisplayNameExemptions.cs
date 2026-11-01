@@ -166,6 +166,13 @@ public static class DisplayNameExemptions
             + "must carry text so the tone is never the only thing saying which state it is. The "
             + "service's identity beside it is the opposite case and is named by the backend."),
         new(
+            "Maran.Modules.Monitoring.Common.ClockSyncDto",
+            "State",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "monitoring.clock.{member}",
+            "The clock card's badge, a tone as much as a word, like ServiceStatusDto.State. The "
+            + "sentence saying what the state means is the backend's, in Description (issue #150)."),
+        new(
             "Maran.Modules.Notifications.Common.SmtpSettingsDto",
             "Security",
             DisplayNameExemptionKind.SpaOwnedVocabulary,

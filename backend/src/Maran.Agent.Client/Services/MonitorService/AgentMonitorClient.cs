@@ -143,6 +143,21 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<AgentClockSyncState>> GetClockSyncAsync(CancellationToken cancellationToken)
+    {
+        var response = await _invoker.GetClockSyncAsync(new GetClockSyncRequest(), cancellationToken);
+
+        return response.ResultCase switch
+        {
+            GetClockSyncResponse.ResultOneofCase.Ok => ToClockSyncState(response.Ok.State),
+            GetClockSyncResponse.ResultOneofCase.Error => Result<AgentClockSyncState>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetClockSyncAsync))),
+            _ => Result<AgentClockSyncState>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<AgentServerFingerprint>> GetServerFingerprintAsync(
         CancellationToken cancellationToken)
     {
@@ -174,6 +189,27 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
         return new AgentServerFingerprint(
             ok.MachineId is { Present: true } machineId ? machineId.Value : null,
             ok.PrimaryInterface is { Present: true } primaryInterface ? primaryInterface.Value : null);
+    }
+
+    /// <summary>Projects the wire clock state onto the panel's own.</summary>
+    /// <param name="state">The state the agent reported.</param>
+    /// <returns>The panel's state, or <c>AgentInvalidResponse</c> for a value it cannot name.</returns>
+    /// <remarks>
+    /// Written out rather than cast: UNSPECIFIED, or a value from an agent newer than this panel, is
+    /// a reply that says nothing, so it is refused rather than read as either answer — neither
+    /// "synchronised" nor "not synchronised" may be invented for it.
+    /// </remarks>
+    private static Result<AgentClockSyncState> ToClockSyncState(ClockSyncState state)
+    {
+        return state switch
+        {
+            ClockSyncState.Synchronized => Result<AgentClockSyncState>.Ok(AgentClockSyncState.Synchronized),
+            ClockSyncState.NotSynchronized => Result<AgentClockSyncState>.Ok(AgentClockSyncState.NotSynchronized),
+            ClockSyncState.SyncServiceDisabled => Result<AgentClockSyncState>.Ok(
+                AgentClockSyncState.SyncServiceDisabled),
+            _ => Result<AgentClockSyncState>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
     }
 
     /// <summary>Projects the wire finding onto the panel's own.</summary>

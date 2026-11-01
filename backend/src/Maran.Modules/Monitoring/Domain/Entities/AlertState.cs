@@ -145,4 +145,14 @@ public sealed class AlertState
         RaisedAt = observedAt;
         return AlertTransition.Raised;
     }
+
+    /// <summary>Whether the most recent observation found the condition unhealthy.</summary>
+    /// <returns>
+    /// <c>true</c> from the first breaching observation on, before an episode is raised: a reset
+    /// returns the counter to zero, so a count above zero means the latest observation breached.
+    /// </returns>
+    public bool LastObservationBreached()
+    {
+        return ConsecutiveBreaches > 0;
+    }
 }

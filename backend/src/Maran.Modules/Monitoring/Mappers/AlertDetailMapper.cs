@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Services.AccountsService;
+using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Services;
 using Maran.Sdk.Contracts;
 
@@ -123,6 +124,21 @@ public static class AlertDetailMapper
         {
             QuotaUnenforceableReason.MountedWithoutQuotaAccounting => "not mounted with quota accounting",
             QuotaUnenforceableReason.AccountingNotEnabled => "quota accounting is off",
+            _ => "unknown",
+        };
+    }
+
+    /// <summary>Describes the host clock's synchronisation for the alert mail's body.</summary>
+    /// <param name="state">What the agent reported.</param>
+    /// <returns>A short, invariant phrase, as <see cref="FormatReason"/> returns.</returns>
+    public static string FormatClockState(AgentClockSyncState state)
+    {
+        return state switch
+        {
+            AgentClockSyncState.Synchronized => "synchronised",
+            AgentClockSyncState.NotSynchronized =>
+                "a synchronisation service is enabled but has not synchronised the clock",
+            AgentClockSyncState.SyncServiceDisabled => "no synchronisation service is enabled",
             _ => "unknown",
         };
     }
