@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AlertScheduledRunFailedSubject">
+    <value>{0}-ի պլանային պահուստային պատճենը ձախողվեց</value>
+  </data>
+  <data name="AlertScheduledRunFailedBody">
+    <value>{0} հաշվի պլանային պահուստային պատճենը չավարտվեց՝ {1} (կոդ {2})։ Այս գործարկումից նոր պատճեն չկա, նախորդ պատճենները պահպանված են։</value>
+  </data>
+  <data name="AlertDestinationRefusedSubject">
+    <value>{0}-ի պլանային պահուստային պատճենը չհասավ պահոցին</value>
+  </data>
+  <data name="AlertDestinationRefusedBody">
+    <value>{0} հաշվի պլանային պահուստային պատճենը չսկսվեց, քանի որ պահոցը մերժեց այն՝ {1} (կոդ {2})։ Ստուգեք պահոցը պահուստավորման կարգավորումներում․ հաջորդ գործարկումը սովորական ժամին է։</value>
+  </data>
+  <data name="AlertScheduledRunMissedSubject">
+    <value>Պլանային պահուստային պատճենը ուշացումով գործարկվեց</value>
+  </data>
+  <data name="AlertScheduledRunMissedBody">
+    <value>Պահուստավորման ժամանակացույցը պետք է գործարկվեր {0} UTC-ին, բայց սկսվեց միայն {1} UTC-ին, ուստի նշանակված ժամի գործարկումը բաց է թողնվել։ Ընդգրկում՝ {2}։ Հավանաբար, վահանակը այդ ժամին չէր աշխատում։</value>
+  </data>
+</root>

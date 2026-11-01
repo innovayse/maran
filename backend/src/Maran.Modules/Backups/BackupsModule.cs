@@ -73,6 +73,7 @@ public sealed class BackupsModule : IPanelModule
         services.AddScoped<BackupDestinationResolver>();
         services.AddScoped<DefaultBackupDestinationSeeder>();
         services.AddScoped<BackupRunner>();
+        services.AddScoped<BackupAlertMailer>();
         services.AddScoped<RestoreRunner>();
 
         // The one act this module exposes to another (spec §12). Registered against the Sdk

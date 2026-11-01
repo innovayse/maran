@@ -42,6 +42,15 @@ public sealed class BackupSchedule
     /// <remarks>A week of dailies: enough that a fault noticed on Friday can be undone from Monday.</remarks>
     public const int DefaultRetainCount = 7;
 
+    /// <summary>How late a run may start after its named hour before that hour counts as missed.</summary>
+    /// <remarks>
+    /// Thirty minutes (issue #134). The scheduler ticks every five minutes, so a run that is on time
+    /// starts within five; one that starts half an hour late did not start because the panel was
+    /// not running, or because the sweep before it was still busy — either way the hour the operator
+    /// named was not honoured, and that is what the alert reports.
+    /// </remarks>
+    public static readonly TimeSpan MissedRunTolerance = TimeSpan.FromMinutes(30);
+
     /// <summary>The fewest backups a schedule may be told to keep.</summary>
     /// <remarks>
     /// One, not zero. Zero would mean a schedule whose retention deletes the backup its own run has
@@ -252,6 +261,26 @@ public sealed class BackupSchedule
         var next = NextRunAt();
 
         return next is not null && next.Value <= now;
+    }
+
+    /// <summary>Says whether the occurrence now due was missed, and when it was due.</summary>
+    /// <param name="now">The instant the sweep runs at.</param>
+    /// <param name="dueAt">The named hour now owed; meaningful only when the answer is <c>true</c>.</param>
+    /// <returns>
+    /// <c>true</c> when an occurrence is owed and <paramref name="now"/> is more than
+    /// <see cref="MissedRunTolerance"/> past it; <c>false</c> when nothing is owed or it is on time.
+    /// </returns>
+    /// <remarks>
+    /// Read BEFORE <see cref="MarkRunStarted"/>, which moves the anchor and with it the occurrence.
+    /// After a panel that was down for three nights it names the FIRST of them, because
+    /// <see cref="NextRunAt"/> measures from the last run.
+    /// </remarks>
+    public bool TryGetMissedOccurrence(DateTimeOffset now, out DateTimeOffset dueAt)
+    {
+        var next = NextRunAt();
+        dueAt = next.GetValueOrDefault();
+
+        return next is not null && next.Value + MissedRunTolerance < now;
     }
 
     /// <summary>When this schedule will next run, or <c>null</c> while it is switched off.</summary>
