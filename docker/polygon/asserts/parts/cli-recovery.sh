@@ -15,7 +15,7 @@
 # follow: an assertion that read them out of 66-cli.sh would agree with that file by construction.
 readonly CLI_WRAPPER_INSTALLED="/usr/local/sbin/maran"
 readonly CLI_LIB_INSTALLED_DIR="/usr/local/maran/cli/lib"
-readonly CLI_LIB_NAMES="common.sh status.sh reset.sh diagnostics.sh"
+readonly CLI_LIB_NAMES="common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup.sh panel-restore.sh"
 # The file a hostile argument tries to create. Its absence means something only because the same
 # directory is shown to accept a file (see assert_the_break_glass_command_never_interprets_its_input).
 readonly CLI_INJECTION_WITNESS="/tmp/maran-polygon-cli-injected"
@@ -106,10 +106,10 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
       || fail "${lib} is '$(stat -c '%u %a' -- "$lib")', must be '0 755' (root-owned, writable by root alone)"
     checked=$((checked + 1))
   done
-  # Exactly the four libraries: an extra file in a directory root sources from is a file root runs.
+  # Exactly the seven libraries: an extra file in a directory root sources from is a file root runs.
   libs_found="$(find "$CLI_LIB_INSTALLED_DIR" -mindepth 1 | wc -l)"
-  [ "$libs_found" -eq 4 ] \
-    || fail "${CLI_LIB_INSTALLED_DIR} holds ${libs_found} entries, expected exactly 4 ($CLI_LIB_NAMES)"
+  [ "$libs_found" -eq 7 ] \
+    || fail "${CLI_LIB_INSTALLED_DIR} holds ${libs_found} entries, expected exactly 7 ($CLI_LIB_NAMES)"
   checked=$((checked + 1))
 
   # 2. The step creates nothing else: no setuid or setgid file, no sudoers entry. The check's own
@@ -257,6 +257,34 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
     || fail "admin-reset-password succeeded in an image with no panel installed: ${output}"
   checked=$((checked + 1))
 
+  # 5b. The panel archive verbs refuse before anything is read or written: a restore without the
+  # explicit confirmation, and a passphrase file anybody else could read. The inverse control is a
+  # passphrase file that passes every rule and is then refused for a DIFFERENT reason (no panel is
+  # installed in this image), so the mode refusal is not the verb refusing every file.
+  status=0
+  output="$("$CLI_WRAPPER_INSTALLED" panel-restore --passphrase-file /root/none /root/none.tar.gpg 2>&1)" || status=$?
+  [ "$status" -eq 1 ] && case "$output" in *"--replace-this-panel"*) true ;; *) false ;; esac \
+    || fail "panel-restore without --replace-this-panel got exit ${status} and '${output}', expected the confirmation refusal"
+  checked=$((checked + 1))
+  copy="$(mktemp -d)"
+  printf '%s\n' 'a-passphrase-long-enough-for-the-floor' > "${copy}/passphrase"
+  chmod 0644 "${copy}/passphrase"
+  status=0
+  output="$("$CLI_WRAPPER_INSTALLED" panel-backup --passphrase-file "${copy}/passphrase" --out /root 2>&1)" || status=$?
+  [ "$status" -eq 1 ] && case "$output" in *"mode 0600 or 0400"*) true ;; *) false ;; esac \
+    || fail "panel-backup with a world-readable passphrase file got exit ${status} and '${output}', expected the mode refusal"
+  chmod 0600 "${copy}/passphrase"
+  status=0
+  output="$("$CLI_WRAPPER_INSTALLED" panel-backup --passphrase-file "${copy}/passphrase" --out /root 2>&1)" || status=$?
+  case "$output" in
+    *"mode 0600 or 0400"*|*"at least"*) fail "panel-backup refused a 0600 passphrase file of the right length, so the refusal above may be it refusing every file: ${output}" ;;
+  esac
+  [ "$status" -ne 0 ] || fail "panel-backup succeeded in an image with no panel installed: ${output}"
+  ls /root/maran-panel-backup-* >/dev/null 2>&1 \
+    && fail "panel-backup left an archive behind in an image with no panel installed"
+  rm -rf -- "$copy"
+  checked=$((checked + 1))
+
   # 6. Fixed argv: nothing in the wrapper or its libraries turns data into code. TEXT, not
   # behaviour. The control first: the same search finds each of the four shapes in a planted file
   # and none of three look-alikes (a variable that merely contains the letters, a comment, a word).
@@ -275,8 +303,8 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
   hits="$(cli_code_hits $code_files)"
   [ -z "$hits" ] \
     || fail "the break-glass command builds code from data in ${hits} (rules/security.md item 3: no shell strings, argv arrays only)"
-  [ "$(printf '%s\n' $code_files | wc -l)" -eq 5 ] \
-    || fail "the fixed-argv search covered $(printf '%s\n' $code_files | wc -l) files, expected the wrapper and its 4 libraries"
+  [ "$(printf '%s\n' $code_files | wc -l)" -eq 8 ] \
+    || fail "the fixed-argv search covered $(printf '%s\n' $code_files | wc -l) files, expected the wrapper and its 7 libraries"
   checked=$((checked + 1))
 
   # The one place the panel's binary is started is a fixed argv ending in the typed words, and the
@@ -284,8 +312,13 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
   # of either cannot leave this passing over nothing.
   [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/common.sh" | grep -cE '^[[:space:]]*exec runuser -u "\$MARAN_CLI_SERVICE_USER" -- "\$MARAN_CLI_BINARY" --cli "\$@"$')" -eq 1 ] \
     || fail "common.sh no longer starts the panel with exactly 'exec runuser -u \"\$MARAN_CLI_SERVICE_USER\" -- \"\$MARAN_CLI_BINARY\" --cli \"\$@\"'"
-  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -c 'runuser')" -eq 1 ] \
-    || fail "the break-glass command mentions runuser on more than the one line that starts the panel's binary"
+  # runuser appears on exactly four lines, each a fixed argv as the service account: the panel's
+  # --cli mode, its --migrate mode (panel-restore), pg_dump (panel-backup) and pg_restore
+  # (panel-restore). A fifth is something new that runs as somebody, and is read before it passes.
+  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -c 'runuser')" -eq 4 ] \
+    || fail "the break-glass command mentions runuser on a line other than the four known ones (--cli, --migrate, pg_dump, pg_restore)"
+  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" -- (pg_dump|pg_restore|"\$MARAN_PANEL_MIGRATE_BINARY" --migrate|"\$MARAN_CLI_BINARY" --cli)')" -eq 4 ] \
+    || fail "a runuser line no longer runs one of the four fixed commands as the service account"
   grep -qxF 'PATH=/usr/sbin:/usr/bin:/sbin:/bin' "$CLI_WRAPPER_INSTALLED" \
     || fail "the wrapper no longer pins PATH=/usr/sbin:/usr/bin:/sbin:/bin on a line of its own"
   checked=$((checked + 1))
@@ -293,7 +326,7 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
   remove_the_installed_break_glass_command
   [ ! -e "$CLI_WRAPPER_INSTALLED" ] || fail "${CLI_WRAPPER_INSTALLED} is still present after this assertion removed it"
 
-  echo "The break-glass command: ${CLI_WRAPPER_INSTALLED} is 0700 root:root and its 4 libraries 0644 root:root under root-only 0755 directories, step 66 created no setuid file and no sudoers entry, a non-root caller gets exit 77 (and the same copy run as root is accepted), an unknown verb gets 64, hostile verbs and identifiers create nothing (witness file shown creatable), a hostile PATH cannot supply the euid check, and no line of the wrapper or its libraries evals or starts 'sh -c' (the search shown to find all four planted shapes and none of the look-alikes). ${checked} checks made."
+  echo "The break-glass command: ${CLI_WRAPPER_INSTALLED} is 0700 root:root and its 7 libraries 0644 root:root under root-only 0755 directories, step 66 created no setuid file and no sudoers entry, a non-root caller gets exit 77 (and the same copy run as root is accepted), an unknown verb gets 64, hostile verbs and identifiers create nothing (witness file shown creatable), panel-restore refuses without its confirmation and panel-backup refuses a passphrase file others can read (and accepts a 0600 one as far as the absent panel), a hostile PATH cannot supply the euid check, and no line of the wrapper or its libraries evals or starts 'sh -c' (the search shown to find all four planted shapes and none of the look-alikes). ${checked} checks made."
   echo "UNOBSERVED HERE: the fixed-argv check reads TEXT. It sees 'eval' and a shell started with -c; it does not see an unquoted expansion of operator input, a here-document that is later sourced, or a command built across lines. The shell quoting itself was reviewed by reading and by the hostile inputs above, not by a formal analysis."
-  echo "UNOBSERVED HERE: this image boots no systemd and holds no panel, so status, admin-reset-password and collect-diagnostics are run only as far as their argument handling. Their behaviour against a live panel is scored by scripts/lib/install-polygon.sh (lockout-recovery and diagnostics stages). SELinux contexts on the wrapper and /usr/local/maran/cli are not exercised by a container build."
+  echo "UNOBSERVED HERE: this image boots no systemd and holds no panel, so status, admin-reset-password, collect-diagnostics, panel-backup and panel-restore are run only as far as their argument handling. Their behaviour against a live panel is scored by scripts/lib/install-polygon.sh (lockout-recovery and diagnostics stages). SELinux contexts on the wrapper and /usr/local/maran/cli are not exercised by a container build."
 }

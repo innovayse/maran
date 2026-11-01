@@ -35,7 +35,7 @@ step_cli() {
     echo "NOTE: /usr/local/sbin is group-writable (mode ${sbin_mode}); members of that group could replace /usr/local/sbin/maran."
   fi
   install -d -m 0755 -o root -g root /usr/local/maran/cli "$MARAN_CLI_LIB_INSTALL_DIR"
-  for lib in common.sh status.sh reset.sh diagnostics.sh; do
+  for lib in common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup.sh panel-restore.sh; do
     install -m 0644 -o root -g root "${MARAN_CLI_SOURCE_DIR}/lib/${lib}" "${MARAN_CLI_LIB_INSTALL_DIR}/${lib}"
   done
   install -m 0700 -o root -g root "${MARAN_CLI_SOURCE_DIR}/maran" "$MARAN_CLI_WRAPPER_PATH"
