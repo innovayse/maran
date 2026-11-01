@@ -87,6 +87,7 @@ public sealed class CreatePlanCommandHandler
             command.MaxFtpUsers,
             command.MaxCronEntries,
             command.MaxPhpWorkersPerPool);
+        plan.ChangeRuntimeLimits(RuntimeLimitsMapper.ToDomain(command));
 
         _dbContext.Plans.Add(plan);
         try

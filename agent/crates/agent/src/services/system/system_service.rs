@@ -41,7 +41,9 @@ use crate::proto::{
 /// 7 adds `ERROR_CODE_BELOW_FREE_SPACE_FLOOR` and
 /// `HostMetrics.free_space_floor_bytes`, the agent's refusal to start a write
 /// below its free-space floor and the floor it refuses at (issue #148).
-const PROTO_VERSION: u32 = 7;
+/// 8 adds `AccountsService.SetAccountResourceLimits`, the CPU, memory and
+/// process ceilings of an account's systemd slice (issue #133).
+const PROTO_VERSION: u32 = 8;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

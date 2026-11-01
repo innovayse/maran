@@ -1,3 +1,5 @@
+using Maran.Modules.Accounts.Common;
+
 namespace Maran.Modules.Accounts.Interfaces;
 
 /// <summary>
@@ -34,4 +36,13 @@ public interface IPlanDefinition
 
     /// <summary>The maximum number of php-fpm workers one of the account's pools may run.</summary>
     int MaxPhpWorkersPerPool { get; }
+
+    /// <summary>The share of CPU time the account may use, in percent of ONE CPU, or no ceiling.</summary>
+    ResourceCeilingDto CpuQuotaPercent { get; }
+
+    /// <summary>The most memory the account's processes may hold together, in megabytes, or no ceiling.</summary>
+    ResourceCeilingDto MemoryMaxMb { get; }
+
+    /// <summary>The most processes and threads the account may run at once, or no ceiling.</summary>
+    ResourceCeilingDto MaxProcesses { get; }
 }

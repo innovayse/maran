@@ -34,7 +34,9 @@ namespace Maran.Modules.Accounts.Commands.ChangeAccountPlan;
 /// <b>Agent first, row second</b>, the order every handler in this module uses. A quota pushed and a
 /// save that then fails leaves the host holding a figure the account fits under — harmless — and
 /// repeating the change converges, the agent's quota call being a replacement. Nothing is pushed
-/// when both plans sell the same disk.
+/// when both plans sell the same disk. The new plan's runtime ceilings (CPU, memory, processes) are
+/// pushed after the quota and before the row, when they differ from the current plan's, and are not
+/// refused for the reason <see cref="AccountRuntimeLimitsEnforcer"/> gives.
 /// </para>
 /// <para>
 /// <b>The target plan can be deleted between the check and the save.</b> <c>Accounts.PlanId</c> is a
@@ -55,6 +57,9 @@ public sealed class ChangeAccountPlanCommandHandler
     /// <summary>Measures and applies the disk quota on the host.</summary>
     private readonly AccountDiskQuotaEnforcer _quotas;
 
+    /// <summary>Applies the runtime ceilings on the host.</summary>
+    private readonly AccountRuntimeLimitsEnforcer _runtimeLimits;
+
     /// <summary>This module's audit journal.</summary>
     private readonly AccountAuditJournal _journal;
 
@@ -64,16 +69,19 @@ public sealed class ChangeAccountPlanCommandHandler
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="quotas">Measures and applies the disk quota on the host.</param>
+    /// <param name="runtimeLimits">Applies the runtime ceilings on the host.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="displayNames">Resolves a shipped plan's name in the request's culture.</param>
     public ChangeAccountPlanCommandHandler(
         AccountsDbContext dbContext,
         AccountDiskQuotaEnforcer quotas,
+        AccountRuntimeLimitsEnforcer runtimeLimits,
         AccountAuditJournal journal,
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
         _quotas = quotas;
+        _runtimeLimits = runtimeLimits;
         _journal = journal;
         _displayNames = displayNames;
     }
@@ -125,6 +133,16 @@ public sealed class ChangeAccountPlanCommandHandler
         if (quotaFailure is not null)
         {
             return await FailAsync(command, subject, quotaFailure, cancellationToken);
+        }
+
+        // Pushed only when the two plans differ: the slice already holds the current plan's ceilings.
+        if (target.RuntimeLimits != current.RuntimeLimits)
+        {
+            var runtimeFailure = await _runtimeLimits.ApplyAsync([account.Name], target.RuntimeLimits, cancellationToken);
+            if (runtimeFailure is not null)
+            {
+                return await FailAsync(command, subject, runtimeFailure, cancellationToken);
+            }
         }
 
         account.ChangePlan(target.Id);

@@ -94,7 +94,8 @@ agent/
     │   │   ├── peercred/      peer_policy.rs (who may connect) · peer_guard.rs (the check)
     │   │   └── services/      one FOLDER per proto service:
     │   │       ├── system/    system_service.rs
-    │   │       ├── accounts/  accounts_service.rs · account_status.rs
+    │   │       ├── accounts/  accounts_service.rs · account_status.rs ·
+    │   │       │              validated_resource_limits.rs (the three slice ceilings)
     │   │       ├── sites/     sites_service.rs · site_status.rs ·
     │   │       │              validated_{site,identity,overrides}.rs — proto → validated
     │   │       │              input, one bundle per request shape, so the service file
@@ -182,7 +183,9 @@ agent/
     │       │   ├── system/    name · sftp_user_name · ftps_user_name ·
     │       │   │              cron_schedule · cron_command · cron_entry_id ·
     │       │   │              env_var_name · env_var_value · backup_id ·
-    │       │   │              local_backup_root — values that become OS objects.
+    │       │   │              local_backup_root · cpu_quota_percent · memory_max_mib ·
+    │       │   │              tasks_max (the three ceilings of an account's systemd
+    │       │   │              slice, issue #133) — values that become OS objects.
     │       │   │              ftps_user_name is a SECOND prefixed login name and
     │       │   │              not a reuse of sftp_user_name: the two names are
     │       │   │              different system users on one host and each is

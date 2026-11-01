@@ -140,6 +140,9 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     maxFtpUsers: 0,
     maxCronEntries: 0,
     maxPhpWorkersPerPool: 5,
+    cpuQuotaPercent: { kind: 'limited', maximum: 100 },
+    memoryMaxMb: { kind: 'limited', maximum: 1024 },
+    maxProcesses: { kind: 'limited', maximum: 50 },
     accountCount: 3,
   },
   {
@@ -152,6 +155,9 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     maxFtpUsers: 10,
     maxCronEntries: 20,
     maxPhpWorkersPerPool: 10,
+    cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
+    memoryMaxMb: { kind: 'unlimited', maximum: 0 },
+    maxProcesses: { kind: 'unlimited', maximum: 0 },
     accountCount: 0,
   },
   {
@@ -164,6 +170,9 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     maxFtpUsers: 100,
     maxCronEntries: 200,
     maxPhpWorkersPerPool: 20,
+    cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
+    memoryMaxMb: { kind: 'unlimited', maximum: 0 },
+    maxProcesses: { kind: 'unlimited', maximum: 0 },
     accountCount: 1,
   },
 ]
@@ -243,6 +252,9 @@ export const stubManagedPlans = async (
         maxFtpUsers: body.maxFtpUsers,
         maxCronEntries: body.maxCronEntries,
         maxPhpWorkersPerPool: body.maxPhpWorkersPerPool,
+        cpuQuotaPercent: body.cpuQuotaPercent,
+        memoryMaxMb: body.memoryMaxMb,
+        maxProcesses: body.maxProcesses,
         accountCount: 0,
       }
       plans.push(created)

@@ -1,4 +1,17 @@
+import type { AccountResourceLimitKind } from './accountResourceSummary'
 import type { ListRequest, Paged } from './list'
+
+/**
+ * One runtime ceiling of a plan, mirroring the backend's `ResourceCeilingDto`: CPU, memory or
+ * processes an account may use at once (issue #133). "No ceiling" is its own case and never a zero;
+ * `maximum` is meaningful only when `kind` is `limited`, and is 0 otherwise.
+ */
+export interface PlanCeiling {
+  /** Whether the plan caps this resource at all. */
+  kind: AccountResourceLimitKind
+  /** The cap, in the unit the field it sits in names; 0 when `kind` is `unlimited`. */
+  maximum: number
+}
 
 /**
  * A plan as the administrator's plans screen sees it, mirroring the backend's `PlanDto`
@@ -28,6 +41,12 @@ export interface ManagedPlan {
   maxCronEntries: number
   /** How many php-fpm workers one of an account's pools may run. */
   maxPhpWorkersPerPool: number
+  /** The share of CPU time an account may use, in percent of one CPU (200 is two whole cores). */
+  cpuQuotaPercent: PlanCeiling
+  /** The most memory an account's processes may hold together, in megabytes. */
+  memoryMaxMb: PlanCeiling
+  /** The most processes and threads an account may run at once. */
+  maxProcesses: PlanCeiling
   /**
    * How many accounts are on this plan right now. The server counts them so the screen never has
    * to fetch every account to learn it: it is what tells an administrator that an edit reaches
@@ -60,6 +79,12 @@ export interface PlanRequest {
   maxCronEntries: number
   /** php-fpm workers per pool. */
   maxPhpWorkersPerPool: number
+  /** The share of CPU time an account may use, in percent of one CPU (200 is two whole cores). */
+  cpuQuotaPercent: PlanCeiling
+  /** The most memory an account's processes may hold together, in megabytes. */
+  memoryMaxMb: PlanCeiling
+  /** The most processes and threads an account may run at once. */
+  maxProcesses: PlanCeiling
 }
 
 /**

@@ -12,7 +12,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 37 endpoints, 115 members
+covered: 37 endpoints, 133 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -133,6 +133,15 @@ POST /api/v1/plans  ->  CreatePlanCommand
   maxFtpUsers: number
   maxCronEntries: number
   maxPhpWorkersPerPool: number
+  cpuQuotaPercent: object
+  cpuQuotaPercent.kind: enum(limited|unlimited)
+  cpuQuotaPercent.maximum: number
+  memoryMaxMb: object
+  memoryMaxMb.kind: enum(limited|unlimited)
+  memoryMaxMb.maximum: number
+  maxProcesses: object
+  maxProcesses.kind: enum(limited|unlimited)
+  maxProcesses.maximum: number
 PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   name: string
   diskQuotaMb: number
@@ -142,6 +151,15 @@ PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   maxFtpUsers: number
   maxCronEntries: number
   maxPhpWorkersPerPool: number
+  cpuQuotaPercent: object
+  cpuQuotaPercent.kind: enum(limited|unlimited)
+  cpuQuotaPercent.maximum: number
+  memoryMaxMb: object
+  memoryMaxMb.kind: enum(limited|unlimited)
+  memoryMaxMb.maximum: number
+  maxProcesses: object
+  maxProcesses.kind: enum(limited|unlimited)
+  maxProcesses.maximum: number
 PUT /api/v1/security-policy  ->  SaveSecurityPolicyCommand
   minimumPasswordLength: number
   forceTwoFactorForAdmins: boolean

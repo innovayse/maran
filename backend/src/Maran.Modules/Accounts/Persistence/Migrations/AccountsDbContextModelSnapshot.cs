@@ -126,6 +126,103 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .IsRequired()
                         .HasConstraintName("FK_Accounts_Plans_PlanId");
                 });
+
+            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Plan", b =>
+                {
+                    b.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.RuntimeLimits", "RuntimeLimits", b1 =>
+                        {
+                            b1.Property<Guid>("PlanId")
+                                .HasColumnType("uuid");
+
+                            b1.HasKey("PlanId");
+
+                            b1.ToTable("Plans", "accounts");
+
+                            b1.WithOwner()
+                                .HasForeignKey("PlanId");
+
+                            b1.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.ResourceLimit", "CpuQuotaPercent", b2 =>
+                                {
+                                    b2.Property<Guid>("RuntimeLimitsPlanId")
+                                        .HasColumnType("uuid");
+
+                                    b2.Property<string>("Kind")
+                                        .IsRequired()
+                                        .HasMaxLength(16)
+                                        .HasColumnType("character varying(16)")
+                                        .HasColumnName("CpuLimitKind");
+
+                                    b2.Property<int>("Maximum")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("CpuQuotaPercent");
+
+                                    b2.HasKey("RuntimeLimitsPlanId");
+
+                                    b2.ToTable("Plans", "accounts");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RuntimeLimitsPlanId");
+                                });
+
+                            b1.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.ResourceLimit", "MaxProcesses", b2 =>
+                                {
+                                    b2.Property<Guid>("RuntimeLimitsPlanId")
+                                        .HasColumnType("uuid");
+
+                                    b2.Property<string>("Kind")
+                                        .IsRequired()
+                                        .HasMaxLength(16)
+                                        .HasColumnType("character varying(16)")
+                                        .HasColumnName("ProcessLimitKind");
+
+                                    b2.Property<int>("Maximum")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("MaxProcesses");
+
+                                    b2.HasKey("RuntimeLimitsPlanId");
+
+                                    b2.ToTable("Plans", "accounts");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RuntimeLimitsPlanId");
+                                });
+
+                            b1.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.ResourceLimit", "MemoryMaxMb", b2 =>
+                                {
+                                    b2.Property<Guid>("RuntimeLimitsPlanId")
+                                        .HasColumnType("uuid");
+
+                                    b2.Property<string>("Kind")
+                                        .IsRequired()
+                                        .HasMaxLength(16)
+                                        .HasColumnType("character varying(16)")
+                                        .HasColumnName("MemoryLimitKind");
+
+                                    b2.Property<int>("Maximum")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("MemoryMaxMb");
+
+                                    b2.HasKey("RuntimeLimitsPlanId");
+
+                                    b2.ToTable("Plans", "accounts");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RuntimeLimitsPlanId");
+                                });
+
+                            b1.Navigation("CpuQuotaPercent")
+                                .IsRequired();
+
+                            b1.Navigation("MaxProcesses")
+                                .IsRequired();
+
+                            b1.Navigation("MemoryMaxMb")
+                                .IsRequired();
+                        });
+
+                    b.Navigation("RuntimeLimits")
+                        .IsRequired();
+                });
 #pragma warning restore 612, 618
         }
     }

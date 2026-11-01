@@ -64,6 +64,9 @@ public sealed class PlansEndpointTests : IAsyncLifetime
             MaxFtpUsers = 2,
             MaxCronEntries = 3,
             MaxPhpWorkersPerPool = 8,
+            CpuQuotaPercent = new { Kind = "limited", Maximum = 150 },
+            MemoryMaxMb = new { Kind = "unlimited", Maximum = 0 },
+            MaxProcesses = new { Kind = "limited", Maximum = 64 },
         };
     }
 
@@ -152,6 +155,10 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         Assert.Equal(2, listedPlan.GetProperty("maxFtpUsers").GetInt32());
         Assert.Equal(3, listedPlan.GetProperty("maxCronEntries").GetInt32());
         Assert.Equal(8, listedPlan.GetProperty("maxPhpWorkersPerPool").GetInt32());
+        Assert.Equal("limited", listedPlan.GetProperty("cpuQuotaPercent").GetProperty("kind").GetString());
+        Assert.Equal(150, listedPlan.GetProperty("cpuQuotaPercent").GetProperty("maximum").GetInt32());
+        Assert.Equal("unlimited", listedPlan.GetProperty("memoryMaxMb").GetProperty("kind").GetString());
+        Assert.Equal(64, listedPlan.GetProperty("maxProcesses").GetProperty("maximum").GetInt32());
 
         var edited = await admin.PutAsJsonAsync($"/api/v1/plans/{id}", Body("Studio", diskQuotaMb: 20_480));
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);

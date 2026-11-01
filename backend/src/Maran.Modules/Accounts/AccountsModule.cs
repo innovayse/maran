@@ -61,6 +61,7 @@ public sealed class AccountsModule : IPanelModule
         // Holds no state of its own; scoped like the handlers that take it. Shared by a plan's quota
         // edit and an account's plan change, so both measure and refuse the same way.
         services.AddScoped<AccountDiskQuotaEnforcer>();
+        services.AddScoped<AccountRuntimeLimitsEnforcer>();
 
         // The one window other modules have onto this module's data (rules/architecture.md
         // "Cross-module needs go through Wolverine messages or Sdk abstractions"). Scoped, because
