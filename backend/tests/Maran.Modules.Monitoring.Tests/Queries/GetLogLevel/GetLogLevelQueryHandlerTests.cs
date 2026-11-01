@@ -67,7 +67,7 @@ public sealed class GetLogLevelQueryHandlerTests
 
     /// <summary>Builds the resx-backed localizer the module uses in production.</summary>
     /// <returns>The display-name localizer.</returns>
-    private static IStringLocalizer<DisplayNames> Localizer()
+    private static StringLocalizer<DisplayNames> Localizer()
     {
         var factory = new ResourceManagerStringLocalizerFactory(
             new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),

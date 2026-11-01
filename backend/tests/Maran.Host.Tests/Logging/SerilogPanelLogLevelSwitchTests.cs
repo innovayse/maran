@@ -1,3 +1,4 @@
+using System.Globalization;
 using Maran.Host.Logging;
 using Maran.Sdk.Contracts;
 using Serilog;
@@ -64,7 +65,7 @@ public sealed class SerilogPanelLogLevelSwitchTests
         /// <inheritdoc />
         public void Emit(LogEvent logEvent)
         {
-            Messages.Add(logEvent.RenderMessage());
+            Messages.Add(logEvent.RenderMessage(CultureInfo.InvariantCulture));
         }
     }
 }
