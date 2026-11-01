@@ -14,9 +14,20 @@ on:
       - 'scripts/**'
       - '.github/workflows/backend.yml'
 
+# One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
+# dev and main are never cancelled, and never even queued behind each other — their group carries
+# the run id, so each push is alone in its own group (a shared group would let GitHub drop a
+# PENDING push run when a newer one queues, even with cancel-in-progress false).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # Measured basis: successful dev runs 41293966787, 41279955125, 41242417610 took 31.3, 34.5 and
+    # 34.6 min (the test verdict step alone ~24 min). 60 is that slowest run plus ~75% headroom.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
@@ -427,6 +438,9 @@ jobs:
   # silently ignored image variable cannot turn this job into a second PostgreSQL 16 run.
   ci-pg13:
     runs-on: ubuntu-latest
+    # Measured basis: successful dev runs 41293966787, 41279955125, 41242417610 took 21.8, 29.6 and
+    # 24.0 min. 50 is that slowest run plus ~70% headroom.
+    timeout-minutes: 50
     env:
       MARAN_TEST_PG_IMAGE: postgres:13-alpine
       MARAN_TEST_PG_MAJOR: '13'

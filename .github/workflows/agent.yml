@@ -33,11 +33,22 @@ on:
       - 'scripts/**'
       - '.github/workflows/agent.yml'
 
+# One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
+# dev and main are never cancelled, and never even queued behind each other — their group carries
+# the run id, so each push is alone in its own group (a shared group would let GitHub drop a
+# PENDING push run when a newer one queues, even with cancel-in-progress false).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ci:
     # Pinned rather than `ubuntu-latest`, which moves between major versions with
     # no diff in this file.
     runs-on: ubuntu-24.04
+    # Measured basis: successful dev runs 41285233177, 41279955164, 41242417691 took 1.8, 1.6 and
+    # 1.2 min on a warm rust-cache. 20 leaves room for a cold cache, which rebuilds every crate.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: agent
@@ -180,6 +191,9 @@ jobs:
     # polygon images, but "latest" moves under a suite whose whole claim is that
     # it ran on a named platform.
     runs-on: ubuntu-24.04
+    # Measured basis: the same three dev runs took 15.0/14.7/15.6 min (ubuntu24) and 19.0/17.6/18.7
+    # min (alma9), image build included. 40 is the slowest leg roughly doubled.
+    timeout-minutes: 40
     strategy:
       # Both families are reported, always. Cancelling the second the moment the
       # first fails is how a family-specific break gets attributed to the family
