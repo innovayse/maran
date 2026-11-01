@@ -34,7 +34,7 @@ defineProps<{
       <li v-for="action in actions" :key="action.key">
         <RouterLink
           :to="action.to"
-          class="group flex items-center gap-3.5 rounded-control border border-border-subtle bg-surface-2 py-2.5 pr-3.5 pl-2.5 text-sm font-medium text-text-secondary transition-colors hover:border-accent/45 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+          class="group flex items-center gap-3.5 rounded-control border border-border-subtle bg-surface-2 py-2.5 pr-3.5 pl-2.5 text-sm font-medium text-text-secondary transition-colors hover:border-accent/45 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
         >
           <span class="grid size-8 shrink-0 place-items-center rounded-control bg-surface-3 text-text-secondary transition-colors group-hover:bg-accent-soft group-hover:text-accent-text">
             <UiIcon :name="action.icon" />

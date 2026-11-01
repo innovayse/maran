@@ -101,7 +101,7 @@ const allClear: ComputedRef<boolean> = computed(() => {
       <li v-for="row in rows" :key="row.key">
         <RouterLink
           :to="row.to"
-          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
         >
           <span class="font-mono font-semibold text-text-primary tabular-nums">{{ row.value }}</span>
           <span>{{ t(`app.status.attention.${row.key}`, row.value) }}</span>
@@ -115,7 +115,7 @@ const allClear: ComputedRef<boolean> = computed(() => {
       <li v-for="source in unchecked" :key="source.key">
         <RouterLink
           :to="source.to"
-          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
         >
           <span>{{ t(`app.status.attention.unchecked.${source.key}`) }}</span>
           <UiIcon name="arrowRight" size="sm" />

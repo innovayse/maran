@@ -38,7 +38,7 @@ const drawn: ComputedRef<boolean> = computed(() => {
       <template v-if="linksToMonitoring" #action>
         <RouterLink
           to="/monitoring"
-          class="rounded-control text-accent-text hover:underline focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+          class="rounded-control text-accent-text hover:underline focus-visible:shadow-focus focus-visible:outline-none"
         >{{ t('monitoring.heading') }}</RouterLink>
       </template>
     </UiSectionHeading>

@@ -34,13 +34,13 @@ withDefaults(
 <template>
   <tr
     v-if="card"
-    class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 rounded-panel border border-border-subtle p-3 transition-colors motion-reduce:transition-none hover:bg-surface-2"
+    class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 rounded-panel border border-border-subtle p-3 transition-colors hover:bg-surface-2"
   >
     <slot />
   </tr>
   <tr
     v-else
-    class="border-b border-border-subtle transition-colors motion-reduce:transition-none [tbody_&]:last:border-b-0 [tbody_&]:hover:bg-surface-2"
+    class="border-b border-border-subtle transition-colors [tbody_&]:last:border-b-0 [tbody_&]:hover:bg-surface-2"
   >
     <slot />
   </tr>
