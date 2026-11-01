@@ -40,7 +40,7 @@ namespace Maran.Modules.Backups.Services;
 /// keep.
 /// </para>
 /// </remarks>
-public sealed class BackupAuditJournal
+public sealed class BackupAuditJournal : ISystemAuditJournal
 {
     /// <summary>
     /// This module's short name, from which its system actor name is built.
@@ -126,7 +126,7 @@ public sealed class BackupAuditJournal
     /// thing that did it — and the account it did it to.
     /// </para>
     /// </remarks>
-    public async Task RecordScheduledAsync(
+    public async Task RecordSystemAsync(
         string action,
         string subject,
         bool succeeded,

@@ -23,7 +23,7 @@ namespace Maran.Modules.Monitoring.Services;
 /// The journal is append-only and never deleted (rules/security.md item 8).
 /// </para>
 /// </remarks>
-public sealed class MonitoringAuditJournal
+public sealed class MonitoringAuditJournal : ISystemAuditJournal
 {
     /// <summary>
     /// This module's short name, from which its system actor name is built.

@@ -7,6 +7,7 @@ using Maran.Host.Dashboard;
 using Maran.Host.Extensions;
 using Maran.Host.HealthChecks;
 using Maran.Host.Modules;
+using Maran.Sdk;
 using Maran.SharedKernel;
 
 namespace Maran.Host;
@@ -52,6 +53,7 @@ public sealed class Program
         builder.Services.AddPanelConfiguration(builder.Configuration);
         builder.Services.AddPanelLocalization();
         builder.Services.AddSharedKernel();
+        builder.Services.AddSdk();
         builder.Services.AddPanelSecurity();
         builder.Services.AddPanelAuthentication(builder.Configuration);
         builder.Services.AddAgentClient(ResolveAgentSocketPath(builder.Configuration));
