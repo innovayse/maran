@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
+using Maran.Host.IntegrationTests.Traits;
 using Xunit.Abstractions;
 
 namespace Maran.Host.IntegrationTests;
@@ -34,7 +35,12 @@ namespace Maran.Host.IntegrationTests;
 /// The 95th percentile of thirty runs discards the single slowest one and nothing else, after
 /// <see cref="WarmupRuns"/> unmeasured runs have compiled the query and warmed PostgreSQL's cache.
 /// </para>
+/// <para>
+/// <b>Where it runs.</b> <see cref="PerformanceBudgetAttribute"/> keeps it off the pull request path: it
+/// runs on the push to <c>dev</c> and nightly, against its own baseline row (issue #289).
+/// </para>
 /// </remarks>
+[PerformanceBudget]
 [Collection(SharedDatabase.Name)]
 public sealed class ListPerformanceBudgetTests : IClassFixture<ScaleDatasetFixture>
 {
