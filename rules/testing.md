@@ -383,12 +383,24 @@ Each row names the workflow that runs it, so this list can be checked against
   unnamed by this list for as long as it has existed, which is the drift this section's
   own first sentence exists to prevent.
 - C# on PostgreSQL 13 and 16: the integration tests are the only ones that open a database, and the
-  supported systems span both (rules/architecture.md). `backend.yml` runs the same whole-suite
-  `maran test backend` verdict twice — job `ci` on the fixture's default (`postgres:16-alpine`) and
-  job `ci-pg13` with `MARAN_TEST_PG_IMAGE=postgres:13-alpine` and `MARAN_TEST_PG_MAJOR=13`, which
-  makes the fixture fail when the server it got is another major. Both score against the one
-  baseline row per test dll, the whole suite and not a subset (`--filter` is refused), and the 13
-  leg keeps its own artifact (`backend-test-verdict-pg13`).
+  supported systems span both (rules/architecture.md). `backend.yml` has three lanes (issue #289):
+  - **pull request**: four `shard` jobs run `maran test backend --shard i/4` on PostgreSQL 16, and
+    `verdict` runs `maran test backend --combine` over their results. A shard is a deterministic
+    slice of the integration assembly's test classes, packed by listed test count; shard 1 also runs
+    every other test assembly. The combine step proves the partition — every shard present, one
+    enumeration, class lists disjoint, their union the enumeration, and the integration assembly's
+    summed total no larger than the listing allows — then sums the rows and compares every main-part
+    baseline row. A shard prints no verdict; only the combine does.
+  - **push to dev or main, and nightly**: `suite` runs the whole unsharded `maran test backend` on
+    PostgreSQL 16, and `ci-pg13` the same with `MARAN_TEST_PG_IMAGE=postgres:13-alpine` and
+    `MARAN_TEST_PG_MAJOR=13` (the fixture fails when the server it got is another major). A
+    regression on 13 is caught on dev, before main, and not on every pull request.
+  - **the backend suite has two parts** (`SUITE_BACKEND_PARTS` in `scripts/lib/suite.sh`): `main`,
+    and `PerformanceBudget` — tests marked with the typed `[PerformanceBudget]` trait
+    (`backend/tests/Maran.Host.IntegrationTests/Traits/`), selected by the VSTest filter
+    `Category=PerformanceBudget`, never by name. The unsharded run runs both and keys the second
+    part's rows `<dll> [PerformanceBudget]` in the baseline, so the budgets leave the pull request
+    path without leaving the census.
   Both verdict steps print a `[memory …]` line into the job log every 30 seconds while the suite
   runs — used, available, swap, and the three largest `dotnet` processes — and the highest sample
   when it ends. That line is in the step's own output on purpose: a runner that runs out of memory is
@@ -453,7 +465,9 @@ Each row names the workflow that runs it, so this list can be checked against
 
 - `maran test` — **the verdict on the backend and the agent suites** (`backend.yml`, `agent.yml`).
   It runs the whole solution and the whole workspace — neither command can express a subset, because
-  `--filter` and `-p` are refused by the command itself. The backend lane runs
+  `--filter` and `-p` are refused by the command itself. The one exception is `--shard i/N`, and it
+  is not a subset: a shard prints no verdict, and only `--combine`, which proves the shards cover
+  every class exactly once, compares against the baseline. The backend lane runs
   `dotnet test Maran.sln -m:1 -nodeReuse:false`: one MSBuild node, so one project is built and tested at a
   time, which keeps a small runner from hosting every test project at once without narrowing what is
   measured; the dotnet output is copied to the job log (stderr) while the identical bytes go to the log
