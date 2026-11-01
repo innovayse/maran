@@ -144,9 +144,18 @@ public sealed class RunCronEntryCommandHandlerTests
 
         var kept = world.Database.CronRuns.Where(run => run.EntryId == EntryId).ToList();
         Assert.Equal(CronRunRetention.RunsPerEntry, kept.Count);
-        Assert.DoesNotContain(kept, run => run.StartedAt == world.Clock.UtcNow.AddMinutes(-60));
-        Assert.Contains(kept, run => run.StartedAt == world.Clock.UtcNow);
-        Assert.Single(world.Database.CronRuns, run => run.EntryId == OtherEntry);
+        Assert.DoesNotContain(kept, run =>
+        {
+            return run.StartedAt == world.Clock.UtcNow.AddMinutes(-60);
+        });
+        Assert.Contains(kept, run =>
+        {
+            return run.StartedAt == world.Clock.UtcNow;
+        });
+        Assert.Single(world.Database.CronRuns, run =>
+        {
+            return run.EntryId == OtherEntry;
+        });
     }
 
     /// <summary>A recorded run of <paramref name="entryId"/> at <paramref name="startedAt"/>.</summary>

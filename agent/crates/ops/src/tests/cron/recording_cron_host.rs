@@ -69,6 +69,10 @@ pub(crate) const THIRD_ID: &str = "33333333-3333-4333-8333-333333333333";
 /// An id no test ever creates, for asking about an entry that is not there.
 pub(crate) const ABSENT_ID: &str = "99999999-9999-4999-8999-999999999999";
 
+/// One run started by hand, as the fake records it: the entry id and its
+/// environment as name and value pairs.
+pub(crate) type RecordedRun = (String, Vec<(String, String)>);
+
 /// The ids the fake hands out, in order, before it runs out.
 const DEFAULT_IDS: [&str; 2] = [FIRST_ID, SECOND_ID];
 
@@ -187,7 +191,7 @@ pub(crate) struct RecordingCronHost {
     /// How many times the crontab was read.
     reads: Mutex<usize>,
     /// Every run started by hand: the entry id and the environment it was given.
-    runs: Mutex<Vec<(String, Vec<(String, String)>)>>,
+    runs: Mutex<Vec<RecordedRun>>,
     /// Whether starting a run refuses.
     run_refuses: Mutex<bool>,
 }
@@ -384,7 +388,7 @@ impl RecordingCronHost {
     }
 
     /// Every run started by hand, in order: its entry id and its environment.
-    pub(crate) fn runs(&self) -> Vec<(String, Vec<(String, String)>)> {
+    pub(crate) fn runs(&self) -> Vec<RecordedRun> {
         self.runs.lock().unwrap().clone()
     }
 
@@ -569,7 +573,12 @@ impl CronHost for RecordingCronHost {
             entry.as_str().to_owned(),
             environment
                 .iter()
-                .map(|pair| (pair.name.as_str().to_owned(), pair.value.as_str().to_owned()))
+                .map(|pair| {
+                    (
+                        pair.name.as_str().to_owned(),
+                        pair.value.as_str().to_owned(),
+                    )
+                })
                 .collect(),
         ));
 

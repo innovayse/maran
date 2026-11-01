@@ -79,10 +79,12 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
             ("PUT", "/api/v1/cron-entries/{entryId}"),
             ("POST", "/api/v1/cron-entries/{entryId}/enabled"),
             ("GET", "/api/v1/cron-entries/{entryId}/output"),
-            ("DELETE", "/api/v1/cron-entries/{entryId}"),
             ("POST", "/api/v1/cron-entries/{entryId}/runs"),
             ("GET", "/api/v1/cron-entries/{entryId}/runs"),
             ("GET", "/api/v1/cron-entries/{entryId}/runs/{runId}"),
+
+            // Last: removing the entry removes its runs, so a run route after it would find none.
+            ("DELETE", "/api/v1/cron-entries/{entryId}"),
             ("GET", "/api/v1/cron-environment"),
             ("PUT", "/api/v1/cron-environment"),
         ];

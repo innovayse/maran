@@ -8,14 +8,8 @@ const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
   outcome: 'outcome',
 }
 
-/**
- * Builds the address of one entry's runs.
- * @param entryId The entry.
- * @returns The path, without a query string.
- */
-const runsPath = (entryId: string): string => {
-  return `/api/v1/cron-entries/${encodeURIComponent(entryId)}/runs`
-}
+/** The endpoint an entry's runs hang under: `${CRON_ENTRIES_PATH}/{entryId}/runs`. */
+const CRON_ENTRIES_PATH = '/api/v1/cron-entries'
 
 /**
  * Builds the run-now and run-history API on top of the shared low-level client (issue #158).
@@ -35,7 +29,7 @@ export const useCronRunsApi = (): CronRunsApi => {
    * @returns The recorded run.
    */
   const run = (entryId: string, accountId: string, signal?: AbortSignal): Promise<CronRun> => {
-    return api.post<CronRun>(runsPath(entryId), { accountId }, signal)
+    return api.post<CronRun>(`${CRON_ENTRIES_PATH}/${encodeURIComponent(entryId)}/runs`, { accountId }, signal)
   }
 
   /**
@@ -53,7 +47,7 @@ export const useCronRunsApi = (): CronRunsApi => {
     signal?: AbortSignal,
   ): Promise<Paged<CronRunSummary>> => {
     const query = `${listQuery(request, LIST_FILTER_PARAMS)}&${new URLSearchParams({ accountId }).toString()}`
-    return api.get<Paged<CronRunSummary>>(`${runsPath(entryId)}${query}`, signal)
+    return api.get<Paged<CronRunSummary>>(`${CRON_ENTRIES_PATH}/${encodeURIComponent(entryId)}/runs${query}`, signal)
   }
 
   /**
@@ -66,7 +60,7 @@ export const useCronRunsApi = (): CronRunsApi => {
    */
   const get = (entryId: string, accountId: string, runId: string, signal?: AbortSignal): Promise<CronRun> => {
     const query = new URLSearchParams({ accountId }).toString()
-    return api.get<CronRun>(`${runsPath(entryId)}/${encodeURIComponent(runId)}?${query}`, signal)
+    return api.get<CronRun>(`${CRON_ENTRIES_PATH}/${encodeURIComponent(entryId)}/runs/${encodeURIComponent(runId)}?${query}`, signal)
   }
 
   return { run, list, get }

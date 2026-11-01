@@ -24,6 +24,34 @@ public static class DisplayNameExemptions
     public static readonly IReadOnlyList<DisplayNameExemption> Declared =
     [
         new(
+            "Maran.Modules.Cron.Common.CronRunDto",
+            "Outcome",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "cron.runs.outcome.{member}",
+            "A run started by hand succeeded, failed or was stopped: a closed set the history draws as a "
+            + "badge and offers as its one filter (issue #158)."),
+        new(
+            "Maran.Modules.Cron.Common.CronRunDto",
+            "Limit",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "cron.runs.limit.{member}",
+            "The agent's two ceilings, runtime and output: a closed set the result dialog explains in one "
+            + "sentence each (issue #158)."),
+        new(
+            "Maran.Modules.Cron.Common.CronRunSummaryDto",
+            "Outcome",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "cron.runs.outcome.{member}",
+            "A run started by hand succeeded, failed or was stopped: a closed set the history draws as a "
+            + "badge and offers as its one filter (issue #158)."),
+        new(
+            "Maran.Modules.Cron.Common.CronRunSummaryDto",
+            "Limit",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "cron.runs.limit.{member}",
+            "The agent's two ceilings, runtime and output: a closed set the result dialog explains in one "
+            + "sentence each (issue #158)."),
+        new(
             "Maran.Modules.Accounts.Common.AccountDto",
             "Status",
             DisplayNameExemptionKind.SpaOwnedVocabulary,

@@ -46,7 +46,10 @@ public sealed class ListCronRunsQueryHandlerTests
         var result = await handler.HandleAsync(new ListCronRunsQuery(AccountId, EntryId: EntryId), default);
 
         Assert.Equal(2, result.Value.Total);
-        Assert.Equal([Noon, Noon.AddMinutes(-2)], result.Value.Items.Select(run => run.StartedAt));
+        Assert.Equal([Noon, Noon.AddMinutes(-2)], result.Value.Items.Select(run =>
+        {
+            return run.StartedAt;
+        }));
     }
 
     /// <summary>The outcome filter keeps only runs that ended that way.</summary>

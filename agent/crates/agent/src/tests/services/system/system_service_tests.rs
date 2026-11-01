@@ -90,7 +90,7 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 9);
+    assert_eq!(info.proto_version, 10);
 }
 
 #[tokio::test]

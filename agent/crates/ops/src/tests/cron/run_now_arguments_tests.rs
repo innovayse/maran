@@ -54,7 +54,10 @@ fn each_assignment_is_one_setenv_argument_before_the_end_of_options() {
 
     let arguments = run_now_arguments(&managed(), &entry_id(FIRST_ID), &environment, "/bin/sh");
 
-    let end = arguments.iter().position(|argument| argument == "--").unwrap();
+    let end = arguments
+        .iter()
+        .position(|argument| argument == "--")
+        .unwrap();
     let first = arguments
         .iter()
         .position(|argument| argument == "--setenv=APP_ENV=-production")
