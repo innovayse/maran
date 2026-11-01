@@ -109,7 +109,7 @@ const nameError: ComputedRef<string | null> = computed(() => {
 /** The owner-language choices: every language the panel ships, each named in itself. */
 const languageOptions: ComputedRef<SelectOption[]> = computed(() => {
   return SUPPORTED_LOCALES.map((code): { value: string; label: string } => {
-    return { value: code, label: t(`shell.locale.names.${code}`) }
+    return { value: code, label: t(`app.locale.names.${code}`) }
   })
 })
 
