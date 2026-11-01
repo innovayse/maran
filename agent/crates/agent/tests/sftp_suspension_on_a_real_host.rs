@@ -40,7 +40,7 @@ use maran_ops::sftp::{ProcessSftpHost, set_sftp_password};
 use maran_ops::sites::ProcessSiteHost;
 
 use polygon_account::PolygonAccount;
-use polygon_sftp_login::*;
+use polygon_sftp_login::PolygonSftpLogin;
 use polygon_sshd::PolygonSshd;
 use sftp_control_session::SftpControlSession;
 
@@ -59,22 +59,22 @@ fn suspending_the_account_refuses_the_sftp_login_that_worked_before_it() {
     // does.
     let sshd = PolygonSshd::start();
     let account = PolygonAccount::create("polysftpsusp");
-    plant_file(&account);
+    PolygonSftpLogin::plant_file(&account);
     let login = PolygonSftpLogin::create(&account);
     let operations = AccountOperations::new(
-        ProcessSystemHost::new(polygon_distro()),
-        polygon_distro(),
+        ProcessSystemHost::new(PolygonSftpLogin::distro()),
+        PolygonSftpLogin::distro(),
         maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
     );
 
     // The inverse control, and it is not optional here: an assertion that a
     // login is refused is satisfied by a login that never worked — a wrong
     // password, a jail that was never mounted, an sshd that is not listening.
-    let before = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\n");
+    let before = sshd.sftp(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD, "pwd\n");
     assert!(
         before.status.success(),
         "the login must work BEFORE the suspension, or the refusal below proves nothing:\n{}",
-        said(&before)
+        PolygonSftpLogin::said(&before)
     );
 
     // The two halves of a suspension, in the order the panel drives them: the
@@ -86,25 +86,29 @@ fn suspending_the_account_refuses_the_sftp_login_that_worked_before_it() {
         .unwrap_or_else(|error| panic!("suspending the account must succeed: {error}"));
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         true,
     )
     .unwrap_or_else(|error| panic!("locking the account's logins must succeed: {error}"));
 
-    let after = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\n");
+    let after = sshd.sftp(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD, "pwd\n");
     assert!(
         !after.status.success(),
         "a suspended account's SFTP login must be refused, and it is a live write \
          credential into the customer's home for as long as it is not:\n{}",
-        said(&after)
+        PolygonSftpLogin::said(&after)
     );
 
     // The agent's own answer about the same login, checked against what the
     // daemon just did rather than against the code that wrote it. This is the
     // observation the panel refuses a suspension on.
-    let observed = account_logins(&ProcessLoginsHost::new(), polygon_distro(), account.name())
-        .expect("the password database must be readable");
+    let observed = account_logins(
+        &ProcessLoginsHost::new(),
+        PolygonSftpLogin::distro(),
+        account.name(),
+    )
+    .expect("the password database must be readable");
     assert_eq!(
         observed.logins.len(),
         1,
@@ -140,17 +144,17 @@ fn suspending_the_account_refuses_the_sftp_login_that_worked_before_it() {
         .unwrap_or_else(|error| panic!("reactivating the account must succeed: {error}"));
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         false,
     )
     .unwrap_or_else(|error| panic!("unlocking the account's logins must succeed: {error}"));
 
-    let resumed = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\n");
+    let resumed = sshd.sftp(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD, "pwd\n");
     assert!(
         resumed.status.success(),
         "resuming must give the login back:\n{}",
-        said(&resumed)
+        PolygonSftpLogin::said(&resumed)
     );
 
     drop(login);
@@ -176,23 +180,23 @@ fn changing_an_sftp_password_while_suspended_does_not_hand_the_login_back() {
     // because a locked hash is not the only thing that decides an authentication.
     let sshd = PolygonSshd::start();
     let account = PolygonAccount::create("polysftppwsus");
-    plant_file(&account);
+    PolygonSftpLogin::plant_file(&account);
     let login = PolygonSftpLogin::create(&account);
     let user = SftpUserName::for_account(account.name(), "web").expect("a valid login name");
     let operations = AccountOperations::new(
-        ProcessSystemHost::new(polygon_distro()),
-        polygon_distro(),
+        ProcessSystemHost::new(PolygonSftpLogin::distro()),
+        PolygonSftpLogin::distro(),
         maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
     );
 
     // The inverse control. Everything below is about a credential being taken
     // away and kept away, and every one of those assertions is satisfied by a
     // login that never worked at all.
-    let working = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\n");
+    let working = sshd.sftp(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD, "pwd\n");
     assert!(
         working.status.success(),
         "the login must work BEFORE the suspension, or nothing below proves anything:\n{}",
-        said(&working)
+        PolygonSftpLogin::said(&working)
     );
     let credited = shadow_password_field(login.name());
     assert!(
@@ -206,7 +210,7 @@ fn changing_an_sftp_password_while_suspended_does_not_hand_the_login_back() {
         .unwrap_or_else(|error| panic!("suspending the account must succeed: {error}"));
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         true,
     )
@@ -223,10 +227,10 @@ fn changing_an_sftp_password_while_suspended_does_not_hand_the_login_back() {
     // the operation the panel offers them.
     set_sftp_password(
         &ProcessSftpHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         &user,
-        &Password::parse(SECOND_PASSWORD).expect("a valid password"),
+        &Password::parse(PolygonSftpLogin::SECOND_PASSWORD).expect("a valid password"),
     )
     .unwrap_or_else(|error| panic!("changing the password must still succeed: {error}"));
 
@@ -250,19 +254,19 @@ fn changing_an_sftp_password_while_suspended_does_not_hand_the_login_back() {
 
     // The daemon's own answer about the same login, for both credentials: the
     // one that was replaced and the one that just replaced it.
-    let with_the_old = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\n");
+    let with_the_old = sshd.sftp(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD, "pwd\n");
     assert!(
         !with_the_old.status.success(),
         "the replaced password must not authenticate a suspended login:\n{}",
-        said(&with_the_old)
+        PolygonSftpLogin::said(&with_the_old)
     );
-    let with_the_new = sshd.sftp(login.name(), SECOND_PASSWORD, "pwd\n");
+    let with_the_new = sshd.sftp(login.name(), PolygonSftpLogin::SECOND_PASSWORD, "pwd\n");
     assert!(
         !with_the_new.status.success(),
         "a suspended account's SFTP login must stay refused after its own password \
          change, and it is a live write credential into the customer's home for as long \
          as it is not:\n{}",
-        said(&with_the_new)
+        PolygonSftpLogin::said(&with_the_new)
     );
 
     // And the resume gives back the password that was set while suspended,
@@ -273,17 +277,17 @@ fn changing_an_sftp_password_while_suspended_does_not_hand_the_login_back() {
         .unwrap_or_else(|error| panic!("reactivating the account must succeed: {error}"));
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         false,
     )
     .unwrap_or_else(|error| panic!("unlocking the account's logins must succeed: {error}"));
 
-    let resumed = sshd.sftp(login.name(), SECOND_PASSWORD, "pwd\n");
+    let resumed = sshd.sftp(login.name(), PolygonSftpLogin::SECOND_PASSWORD, "pwd\n");
     assert!(
         resumed.status.success(),
         "the resume must hand back the password the customer set while suspended:\n{}",
-        said(&resumed)
+        PolygonSftpLogin::said(&resumed)
     );
 
     drop(login);
@@ -313,8 +317,8 @@ fn reactivating_an_account_leaves_a_hand_set_password_working_and_a_passwordless
     // consults, read by a separate `getent` process rather than through the code
     // under test.
     let operations = AccountOperations::new(
-        ProcessSystemHost::new(polygon_distro()),
-        polygon_distro(),
+        ProcessSystemHost::new(PolygonSftpLogin::distro()),
+        PolygonSftpLogin::distro(),
         maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
     );
 
@@ -341,7 +345,10 @@ fn reactivating_an_account_leaves_a_hand_set_password_working_and_a_passwordless
     );
 
     let credited = PolygonAccount::create("polyunlockcred");
-    set_account_password(credited.name().as_str(), CUSTOMER_PASSWORD);
+    set_account_password(
+        credited.name().as_str(),
+        PolygonSftpLogin::CUSTOMER_PASSWORD,
+    );
     let credited_before = shadow_password_field(credited.name().as_str());
     assert!(
         !credited_before.starts_with('!'),
@@ -388,12 +395,12 @@ fn the_attestation_separates_a_hosting_login_from_one_locked_over_a_password() {
     // stop doing so together, this test is no longer observing the collapse it
     // exists for and says so in its own message.
     let operations = AccountOperations::new(
-        ProcessSystemHost::new(polygon_distro()),
-        polygon_distro(),
+        ProcessSystemHost::new(PolygonSftpLogin::distro()),
+        PolygonSftpLogin::distro(),
         maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
     );
     let sites = ProcessSiteHost::new();
-    let cron = ProcessCronHost::new(polygon_distro());
+    let cron = ProcessCronHost::new(PolygonSftpLogin::distro());
     let logins = ProcessLoginsHost::new();
 
     let plain = PolygonAccount::create("polyattestplain");
@@ -405,7 +412,10 @@ fn the_attestation_separates_a_hosting_login_from_one_locked_over_a_password() {
         .unwrap_or_else(|error| panic!("the state must be readable: {error}"));
 
     let credited = PolygonAccount::create("polyattestcred");
-    set_account_password(credited.name().as_str(), CUSTOMER_PASSWORD);
+    set_account_password(
+        credited.name().as_str(),
+        PolygonSftpLogin::CUSTOMER_PASSWORD,
+    );
     operations
         .suspend(credited.name())
         .unwrap_or_else(|error| panic!("suspending the credited account: {error}"));
@@ -436,7 +446,7 @@ fn the_attestation_separates_a_hosting_login_from_one_locked_over_a_password() {
 /// did NOT create the credential, and a test that set it through the code under
 /// test would be asking that code to agree with itself.
 fn set_account_password(username: &str, password: &str) {
-    let mut child = Command::new(polygon_distro().chpasswd_binary())
+    let mut child = Command::new(PolygonSftpLogin::distro().chpasswd_binary())
         .stdin(std::process::Stdio::piped())
         .spawn()
         .expect("chpasswd must run in the polygon");
@@ -460,7 +470,7 @@ fn set_account_password(username: &str, password: &str) {
 /// This is the byte string PAM consults, so an assertion on it is an assertion
 /// about whether a password can authenticate — not a proxy for one.
 fn shadow_password_field(username: &str) -> String {
-    let entry = Command::new(polygon_distro().getent_binary())
+    let entry = Command::new(PolygonSftpLogin::distro().getent_binary())
         .arg("shadow")
         .arg(username)
         .output()
@@ -508,25 +518,26 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
     //   not the harness's.
     let sshd = PolygonSshd::start();
     let account = PolygonAccount::create("polysftplive");
-    plant_file(&account);
+    PolygonSftpLogin::plant_file(&account);
     let login = PolygonSftpLogin::create(&account);
     let neighbour = PolygonAccount::create("polysftpnear");
-    plant_file(&neighbour);
+    PolygonSftpLogin::plant_file(&neighbour);
     let neighbour_login = PolygonSftpLogin::create(&neighbour);
     let operations = AccountOperations::new(
-        ProcessSystemHost::new(polygon_distro()),
-        polygon_distro(),
+        ProcessSystemHost::new(PolygonSftpLogin::distro()),
+        PolygonSftpLogin::distro(),
         maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
     );
 
-    let (mut session, greeting) = SftpControlSession::login(login.name(), CUSTOMER_PASSWORD);
+    let (mut session, greeting) =
+        SftpControlSession::login(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD);
     assert!(
         greeting.contains("Remote working directory:"),
         "the session must be authenticated BEFORE the suspension, or nothing below \
          is about a session that outlived one: {greeting}"
     );
     let (mut neighbour_session, neighbour_greeting) =
-        SftpControlSession::login(neighbour_login.name(), CUSTOMER_PASSWORD);
+        SftpControlSession::login(neighbour_login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD);
     assert!(
         neighbour_greeting.contains("Remote working directory:"),
         "the neighbour's session must be authenticated too, or it cannot survive \
@@ -537,7 +548,8 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
     // transfer through this session while the account is in good standing.
     let before = fetch_through(&mut session, "before");
     assert_eq!(
-        before, CUSTOMER_CONTENT,
+        before,
+        PolygonSftpLogin::CUSTOMER_CONTENT,
         "the open session must be able to transfer before the suspension, or a \
          failure afterwards would be about this client and not about the suspension"
     );
@@ -550,7 +562,7 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
         .unwrap_or_else(|error| panic!("suspending the account must succeed: {error}"));
     let culled = set_account_logins_locked(
         &ProcessLoginsHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         true,
     )
@@ -576,12 +588,12 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
         "the suspension must have marked the shadow field before this test can \
          claim anything about the session behind it"
     );
-    let new_session = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\n");
+    let new_session = sshd.sftp(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD, "pwd\n");
     assert!(
         !new_session.status.success(),
         "a NEW session with the same credential must be refused while the account \
          is suspended, or the suspension is not in force at all:\n{}",
-        said(&new_session)
+        PolygonSftpLogin::said(&new_session)
     );
 
     // THE FINDING. The daemon no longer serves the session that was open: the
@@ -608,7 +620,8 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
     // bytes, at the same moment, through the same daemon.
     let neighbour_after = fetch_through(&mut neighbour_session, "neighbour-after");
     assert_eq!(
-        neighbour_after, CUSTOMER_CONTENT,
+        neighbour_after,
+        PolygonSftpLogin::CUSTOMER_CONTENT,
         "a cull that reached another account's uid would be a cross-tenant \
          denial of service, and a daemon that had stopped serving every session \
          would make the assertion above vacuous"
@@ -617,7 +630,7 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
     // And the reversal, so the account is not left suspended for a later test.
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         false,
     )
@@ -672,7 +685,8 @@ fn fetch_attempt(session: &mut SftpControlSession, tag: &str) -> (String, Option
     let _ = std::fs::remove_file(&landing);
 
     let said = session.probe_command(&format!(
-        "get /home/{CUSTOMER_FILE} {}",
+        "get /home/{} {}",
+        PolygonSftpLogin::CUSTOMER_FILE,
         landing.to_str().expect("a utf-8 path")
     ));
 

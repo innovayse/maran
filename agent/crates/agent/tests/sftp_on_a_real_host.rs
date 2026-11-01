@@ -60,7 +60,7 @@ use maran_ops::sftp::{
 };
 
 use polygon_account::PolygonAccount;
-use polygon_sftp_login::*;
+use polygon_sftp_login::PolygonSftpLogin;
 use polygon_sshd::PolygonSshd;
 
 #[test]
@@ -77,7 +77,7 @@ fn the_mount_units_name_is_the_one_systemd_derives_from_its_own_mount_point() {
     // implementation of the rule. Deriving it any other way would let a bug in
     // the agent's escaping agree with a bug in the test.
     let account = AccountName::parse("polysftpescape").expect("a valid account name");
-    let jail = jail_of(&account);
+    let jail = PolygonSftpLogin::jail_of(&account);
 
     let escaped = Command::new("systemd-escape")
         .args(["--path", "--suffix=mount", jail.mount_point()])
@@ -98,9 +98,9 @@ fn the_mount_units_name_is_the_one_systemd_derives_from_its_own_mount_point() {
 fn creating_a_login_builds_a_jail_useradd_did_not_touch_and_mounts_the_home_into_it() {
     PolygonSshd::require_polygon();
     let account = PolygonAccount::create("polysftpone");
-    let planted = plant_file(&account);
+    let planted = PolygonSftpLogin::plant_file(&account);
     let login = PolygonSftpLogin::create(&account);
-    let jail = jail_of(account.name());
+    let jail = PolygonSftpLogin::jail_of(account.name());
 
     // `--no-create-home` obeyed by the real tool. `useradd`'s default for a
     // missing home is to create it AND chown it to the new login; against a
@@ -130,10 +130,10 @@ fn creating_a_login_builds_a_jail_useradd_did_not_touch_and_mounts_the_home_into
         "the bind-mount unit must be installed at {}",
         jail.unit_path()
     );
-    let inside = Path::new(jail.mount_point()).join(CUSTOMER_FILE);
+    let inside = Path::new(jail.mount_point()).join(PolygonSftpLogin::CUSTOMER_FILE);
     assert_eq!(
         std::fs::read_to_string(&inside).unwrap_or_default(),
-        CUSTOMER_CONTENT,
+        PolygonSftpLogin::CUSTOMER_CONTENT,
         "the account's real home must appear inside its jail at {}",
         inside.display()
     );
@@ -162,26 +162,30 @@ fn an_sftp_user_logs_in_and_is_jailed_in_its_own_home_and_cannot_reach_another_a
     let sshd = PolygonSshd::start();
     let mine = PolygonAccount::create("polysftptwo");
     let neighbour = PolygonAccount::create("polysftpthree");
-    plant_file(&mine);
-    let stolen_from = plant_file(&neighbour);
+    PolygonSftpLogin::plant_file(&mine);
+    let stolen_from = PolygonSftpLogin::plant_file(&neighbour);
     let login = PolygonSftpLogin::create(&mine);
 
     // 1. The login works, with the password the agent set, and lands in the
     //    jail rather than anywhere on the host's filesystem. `/` in the session
     //    IS the chroot: what it lists is what a customer can see at all.
-    let session = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\nls\ncd home\nls\n");
+    let session = sshd.sftp(
+        login.name(),
+        PolygonSftpLogin::CUSTOMER_PASSWORD,
+        "pwd\nls\ncd home\nls\n",
+    );
     assert!(
         session.status.success(),
         "the login must work with the password the agent set:\n{}",
-        said(&session)
+        PolygonSftpLogin::said(&session)
     );
-    let transcript = said(&session);
+    let transcript = PolygonSftpLogin::said(&session);
     assert!(
         transcript.contains("Remote working directory: /"),
         "the session must start at the root of its chroot:\n{transcript}"
     );
     assert!(
-        transcript.contains(CUSTOMER_FILE),
+        transcript.contains(PolygonSftpLogin::CUSTOMER_FILE),
         "the account's own file must be visible through the bind mount:\n{transcript}"
     );
 
@@ -192,20 +196,24 @@ fn an_sftp_user_logs_in_and_is_jailed_in_its_own_home_and_cannot_reach_another_a
     assert!(
         !wrong.status.success(),
         "the daemon must refuse a password that is not the one that was set:\n{}",
-        said(&wrong)
+        PolygonSftpLogin::said(&wrong)
     );
 
     // 2. The chroot, asserted as a refusal in a real session. `/etc` exists on
     //    this host and is world-readable; inside the chroot there is no such
     //    path at all, which is what "chrooted" means and what a `ChrootDirectory`
     //    line in the wrong block would not achieve.
-    let escape = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "cd /etc\n");
+    let escape = sshd.sftp(
+        login.name(),
+        PolygonSftpLogin::CUSTOMER_PASSWORD,
+        "cd /etc\n",
+    );
     assert!(
         !escape.status.success(),
         "an SFTP login must not be able to leave its jail:\n{}",
-        said(&escape)
+        PolygonSftpLogin::said(&escape)
     );
-    let refusal = said(&escape);
+    let refusal = PolygonSftpLogin::said(&escape);
     assert!(
         refusal.contains("No such file") || refusal.contains("not found"),
         "the refusal must be the path not existing inside the chroot, not some \
@@ -215,18 +223,22 @@ fn an_sftp_user_logs_in_and_is_jailed_in_its_own_home_and_cannot_reach_another_a
     // 3. The neighbour's file, by absolute path. It is readable to root on this
     //    host and belongs to a different account; from inside the chroot the
     //    path does not resolve, and nothing is fetched.
-    let neighbour_path = format!("/home/{}/{CUSTOMER_FILE}", neighbour.name().as_str());
+    let neighbour_path = format!(
+        "/home/{}/{}",
+        neighbour.name().as_str(),
+        PolygonSftpLogin::CUSTOMER_FILE
+    );
     let landing = std::env::temp_dir().join("maran-polygon-stolen.txt");
     let _ = std::fs::remove_file(&landing);
     let theft = sshd.sftp(
         login.name(),
-        CUSTOMER_PASSWORD,
+        PolygonSftpLogin::CUSTOMER_PASSWORD,
         &format!("get {neighbour_path} {}\n", landing.display()),
     );
     assert!(
         !theft.status.success(),
         "an SFTP login must not reach another account's files:\n{}",
-        said(&theft)
+        PolygonSftpLogin::said(&theft)
     );
     assert!(
         !landing.exists(),
@@ -236,7 +248,7 @@ fn an_sftp_user_logs_in_and_is_jailed_in_its_own_home_and_cannot_reach_another_a
     // the refusal above is a refusal and not a test that asked for nothing.
     assert_eq!(
         std::fs::read_to_string(&stolen_from).unwrap_or_default(),
-        CUSTOMER_CONTENT
+        PolygonSftpLogin::CUSTOMER_CONTENT
     );
 
     drop(login);
@@ -250,17 +262,17 @@ fn an_sftp_user_can_write_through_the_bind_mount_and_the_file_belongs_to_the_acc
     let login = PolygonSftpLogin::create(&account);
 
     let source = std::env::temp_dir().join("maran-polygon-upload.txt");
-    std::fs::write(&source, CUSTOMER_CONTENT).expect("a local file to upload");
+    std::fs::write(&source, PolygonSftpLogin::CUSTOMER_CONTENT).expect("a local file to upload");
 
     let session = sshd.sftp(
         login.name(),
-        CUSTOMER_PASSWORD,
+        PolygonSftpLogin::CUSTOMER_PASSWORD,
         &format!("cd home\nput {} uploaded.txt\n", source.display()),
     );
     assert!(
         session.status.success(),
         "a customer must be able to upload into its own home:\n{}",
-        said(&session)
+        PolygonSftpLogin::said(&session)
     );
 
     // The file arrived in the REAL home, through the bind mount, and it belongs
@@ -270,7 +282,7 @@ fn an_sftp_user_can_write_through_the_bind_mount_and_the_file_belongs_to_the_acc
     let uploaded = account.home().join("uploaded.txt");
     assert_eq!(
         std::fs::read_to_string(&uploaded).unwrap_or_default(),
-        CUSTOMER_CONTENT,
+        PolygonSftpLogin::CUSTOMER_CONTENT,
         "the upload must land in the account's real home at {}",
         uploaded.display()
     );
@@ -296,11 +308,11 @@ fn an_sftp_user_gets_no_shell_even_over_ssh_exec() {
     // what happened, not on a directive being present somewhere in a file: a
     // `ForceCommand` outside the Match block reads identically and would leave
     // this login with a shell on the host.
-    let attempt = sshd.exec(login.name(), CUSTOMER_PASSWORD, "whoami");
+    let attempt = sshd.exec(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD, "whoami");
     assert!(
         !attempt.status.success(),
         "an SFTP login must not be able to execute a command:\n{}",
-        said(&attempt)
+        PolygonSftpLogin::said(&attempt)
     );
     let printed = String::from_utf8_lossy(&attempt.stdout);
     assert!(
@@ -313,7 +325,7 @@ fn an_sftp_user_gets_no_shell_even_over_ssh_exec() {
     // shape of vacuous test rules/testing.md warns about. So the refusal is
     // required to be the SESSION being refused rather than the credential: the
     // login got in, and then was told this service moves files and nothing else.
-    let refusal = said(&attempt);
+    let refusal = PolygonSftpLogin::said(&attempt);
     assert!(
         !refusal.contains("Permission denied"),
         "the login must have AUTHENTICATED and then been refused a command; a \
@@ -340,10 +352,14 @@ fn a_login_for_an_account_this_host_does_not_have_is_refused_and_builds_nothing(
     let request = SftpUserRequest {
         account: account.clone(),
         user,
-        password: Password::parse(CUSTOMER_PASSWORD).expect("a valid password"),
+        password: Password::parse(PolygonSftpLogin::CUSTOMER_PASSWORD).expect("a valid password"),
     };
 
-    let refused = create_sftp_user(&ProcessSftpHost::new(), polygon_distro(), &request);
+    let refused = create_sftp_user(
+        &ProcessSftpHost::new(),
+        PolygonSftpLogin::distro(),
+        &request,
+    );
     assert!(
         matches!(refused, Err(SftpError::AccountMissing)),
         "a login for an account that does not exist must be refused, got {refused:?}"
@@ -352,7 +368,7 @@ fn a_login_for_an_account_this_host_does_not_have_is_refused_and_builds_nothing(
     // And nothing was built on the way to that refusal. A jail left behind for a
     // non-existent account is a root-owned directory nothing will ever mount
     // into, and a login created against it could read nothing at all.
-    let jail = jail_of(&account);
+    let jail = PolygonSftpLogin::jail_of(&account);
     assert!(
         !Path::new(jail.directory()).exists(),
         "no jail may be left behind at {}",
@@ -379,11 +395,11 @@ fn repeating_every_sftp_operation_converges_and_only_a_reset_changes_the_credent
     //    operation the host had already completed.
     let repeated = create_sftp_user(
         &ProcessSftpHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         &SftpUserRequest {
             account: account.name().clone(),
             user: user.clone(),
-            password: Password::parse(SECOND_PASSWORD).expect("a valid password"),
+            password: Password::parse(PolygonSftpLogin::SECOND_PASSWORD).expect("a valid password"),
         },
     );
     assert!(
@@ -395,17 +411,17 @@ fn repeating_every_sftp_operation_converges_and_only_a_reset_changes_the_credent
     // because that is the only thing that knows which credential is live: a
     // retry that reset the password would silently invalidate the value the
     // customer was shown once and cannot recover.
-    let original = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\n");
+    let original = sshd.sftp(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD, "pwd\n");
     assert!(
         original.status.success(),
         "the first password must still work after a repeated create:\n{}",
-        said(&original)
+        PolygonSftpLogin::said(&original)
     );
-    let unused = sshd.sftp(login.name(), SECOND_PASSWORD, "pwd\n");
+    let unused = sshd.sftp(login.name(), PolygonSftpLogin::SECOND_PASSWORD, "pwd\n");
     assert!(
         !unused.status.success(),
         "the repeat's password must never have been set:\n{}",
-        said(&unused)
+        PolygonSftpLogin::said(&unused)
     );
 
     // 2. A reset DOES change it, and the old value stops working. This is the
@@ -413,40 +429,40 @@ fn repeating_every_sftp_operation_converges_and_only_a_reset_changes_the_credent
     //    a reset that merely added one would look identical from the panel.
     set_sftp_password(
         &ProcessSftpHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         &user,
-        &Password::parse(SECOND_PASSWORD).expect("a valid password"),
+        &Password::parse(PolygonSftpLogin::SECOND_PASSWORD).expect("a valid password"),
     )
     .unwrap_or_else(|error| panic!("resetting the password must succeed: {error}"));
 
-    let renewed = sshd.sftp(login.name(), SECOND_PASSWORD, "pwd\n");
+    let renewed = sshd.sftp(login.name(), PolygonSftpLogin::SECOND_PASSWORD, "pwd\n");
     assert!(
         renewed.status.success(),
         "the login must work with the reset password:\n{}",
-        said(&renewed)
+        PolygonSftpLogin::said(&renewed)
     );
-    let stale = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\n");
+    let stale = sshd.sftp(login.name(), PolygonSftpLogin::CUSTOMER_PASSWORD, "pwd\n");
     assert!(
         !stale.status.success(),
         "the replaced password must no longer authenticate:\n{}",
-        said(&stale)
+        PolygonSftpLogin::said(&stale)
     );
 
     // 3. Repeating the reset succeeds and leaves the same value working.
     set_sftp_password(
         &ProcessSftpHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         &user,
-        &Password::parse(SECOND_PASSWORD).expect("a valid password"),
+        &Password::parse(PolygonSftpLogin::SECOND_PASSWORD).expect("a valid password"),
     )
     .unwrap_or_else(|error| panic!("a repeated reset must succeed: {error}"));
-    let after = sshd.sftp(login.name(), SECOND_PASSWORD, "pwd\n");
+    let after = sshd.sftp(login.name(), PolygonSftpLogin::SECOND_PASSWORD, "pwd\n");
     assert!(
         after.status.success(),
         "a repeated reset must leave the same password working:\n{}",
-        said(&after)
+        PolygonSftpLogin::said(&after)
     );
 
     // 4. The deletion, then the deletion again. The fixture's teardown performs
@@ -456,7 +472,7 @@ fn repeating_every_sftp_operation_converges_and_only_a_reset_changes_the_credent
 
     let again = delete_sftp_user(
         &ProcessSftpHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         &user,
     );
@@ -642,7 +658,11 @@ fn polygon_key_pair(directory: &Path) -> (PathBuf, AuthorizedKeySet) {
         .arg(&identity)
         .output()
         .expect("the polygon image ships ssh-keygen");
-    assert!(made.status.success(), "ssh-keygen: {}", said(&made));
+    assert!(
+        made.status.success(),
+        "ssh-keygen: {}",
+        PolygonSftpLogin::said(&made)
+    );
 
     let public = std::fs::read_to_string(identity.with_extension("pub")).expect("a public key");
     let key = SshPublicKey::parse(public.trim()).expect("ssh-keygen writes an accepted key");
@@ -654,7 +674,7 @@ fn polygon_key_pair(directory: &Path) -> (PathBuf, AuthorizedKeySet) {
 fn set_keys(login: &PolygonSftpLogin, keys: &AuthorizedKeySet) {
     set_sftp_authorized_keys(
         &ProcessSftpHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         &login.account,
         &login.user,
         keys,
@@ -681,7 +701,7 @@ fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
     assert!(
         !unset.status.success(),
         "no key is set yet:\n{}",
-        said(&unset)
+        PolygonSftpLogin::said(&unset)
     );
 
     set_keys(&login, &keys);
@@ -689,7 +709,7 @@ fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
     assert!(
         with_key.status.success(),
         "the login must authenticate with its key:\n{}",
-        said(&with_key)
+        PolygonSftpLogin::said(&with_key)
     );
 
     set_keys(
@@ -700,13 +720,13 @@ fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
     assert!(
         !revoked.status.success(),
         "a revoked key must be refused:\n{}",
-        said(&revoked)
+        PolygonSftpLogin::said(&revoked)
     );
 
     set_keys(&login, &keys);
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         true,
     )
@@ -715,12 +735,12 @@ fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
     assert!(
         !suspended.status.success(),
         "a suspended login's key must be refused:\n{}",
-        said(&suspended)
+        PolygonSftpLogin::said(&suspended)
     );
 
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
-        polygon_distro(),
+        PolygonSftpLogin::distro(),
         account.name(),
         false,
     )
@@ -729,7 +749,7 @@ fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
     assert!(
         resumed.status.success(),
         "resuming must give the key back:\n{}",
-        said(&resumed)
+        PolygonSftpLogin::said(&resumed)
     );
 
     drop(login);
