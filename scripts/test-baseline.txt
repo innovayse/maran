@@ -1,6 +1,8 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-11-01 (merge of dev's #134 and #286 into #133): edited by hand. The rows do not overlap, so each keeps its own
+# delta: Backups.Tests 237->247 (#134) beside #133's Accounts.Tests 514->529 and Agent.Client.Tests 380->383. Run recorded in PR #285.
 # RE-MEASURED 2026-11-01 (issue #133, account runtime limits, merged on top of dev's #148): edited by hand, #133's deltas added to #148's rows.
 # rust: maran_agent 436->440 (+4), maran_agent_core 515->527 (+12), maran_ops 1770->1777 (+7); backend: Agent.Client.Tests 380->383,
 # Modules.Accounts.Tests 514->529; spa: plans/plans.spec.ts 15->17. Pre-merge #133 runs: rust 2883 passed / 0 failed / 155 ignored;
@@ -138,6 +140,9 @@
 # Host.IntegrationTests ran filtered to CustomCertificateMaterialEndpointTests, CertificatesAuthorizationTests and
 # ReservedHostNameEndpointTests (69/0); its row is left to CI. spa: sites/ssl-tab.spec.ts 9->11.
 # Full suite at E2E_PORT=5199: 683 passed / 0 failed / 3 skipped.
+# RE-MEASURED 2026-11-01 (issue #134, backup alerts: failed, refused and missed scheduled runs mail the
+# administrator): edited by hand. Modules.Backups.Tests 237->247 (6 alert tests, 4 missed-occurrence tests);
+# maran test backend printed 20 targets: 5157 passed / 0 failed.
 # RE-MEASURED 2026-10-30 (issue #211, an empty schedule scope is a 200, not a 404): edited by hand. Modules.Backups.Tests
 # 209->210, Sdk.Tests 215->214 (the retired BackupScheduleNotFound census row), 0 failed; ArchitectureTests 91 unchanged.
 # Host.IntegrationTests ran filtered to BackupScheduleTests, BackupDestinationTests and BackupsAuthorizationTests (34/0);
@@ -521,7 +526,7 @@ backend	Maran.Modules.Notifications.Tests.dll	53	0	0
 backend	Maran.Modules.Tasks.Tests.dll	109	0	0
 backend	Maran.Modules.Ftp.Tests.dll	169	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	95	0	0
-backend	Maran.Modules.Backups.Tests.dll	237	0	0
+backend	Maran.Modules.Backups.Tests.dll	247	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	286	0	0
 backend	Maran.Modules.Cron.Tests.dll	190	0	0

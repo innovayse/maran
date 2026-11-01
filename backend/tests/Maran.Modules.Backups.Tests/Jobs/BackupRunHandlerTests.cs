@@ -1,13 +1,10 @@
 using Maran.Agent.Client.Services.BackupService;
-using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Jobs;
-using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
 using Maran.Modules.Backups.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Backups.Tests.Jobs;
 
@@ -18,16 +15,16 @@ namespace Maran.Modules.Backups.Tests.Jobs;
 public sealed class BackupRunHandlerTests
 {
     /// <summary>The system user name the directory reports for the account.</summary>
-    private const string Username = "cust01";
+    private const string Username = BackupSweepWorld.Username;
 
     /// <summary>The instant the schedule was switched on: a Thursday at 04:00 UTC.</summary>
-    private static readonly DateTimeOffset EnabledAt = new(2026, 1, 1, 4, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset EnabledAt = BackupSweepWorld.EnabledAt;
 
     /// <summary>The schedule's first named hour after it was switched on: the next day at 03:00.</summary>
-    private static readonly DateTimeOffset NamedHour = new(2026, 1, 2, 3, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset NamedHour = BackupSweepWorld.NamedHour;
 
-    /// <summary>The following day, past the schedule's 03:00 hour.</summary>
-    private static readonly DateTimeOffset FirstTick = EnabledAt.AddDays(1).AddMinutes(1);
+    /// <summary>The first five-minute tick past the schedule's 03:00 hour — on time, so nothing was missed.</summary>
+    private static readonly DateTimeOffset FirstTick = NamedHour.AddMinutes(1);
 
     /// <summary>A terminal event describing a finished archive.</summary>
     private static readonly BackupCreateEvent Created =
@@ -46,7 +43,7 @@ public sealed class BackupRunHandlerTests
     public async Task A_due_host_wide_schedule_backs_up_every_account_as_a_scheduled_backup()
     {
         var accountId = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(accountId, null, FirstTick, [Created]);
+        var world = await BackupSweepWorld.WithScheduleAsync(accountId, null, FirstTick, [Created]);
 
         var started = await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
 
@@ -71,7 +68,7 @@ public sealed class BackupRunHandlerTests
     public async Task A_due_schedule_fires_once_and_only_once_across_two_ticks()
     {
         var accountId = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(accountId, null, FirstTick, [Created]);
+        var world = await BackupSweepWorld.WithScheduleAsync(accountId, null, FirstTick, [Created]);
 
         await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
         await world.At(FirstTick.AddMinutes(5)).HandleAsync(new BackupRunRequested(), CancellationToken.None);
@@ -90,7 +87,7 @@ public sealed class BackupRunHandlerTests
     public async Task A_tick_just_after_the_save_starts_nothing()
     {
         var accountId = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(accountId, null, EnabledAt.AddMinutes(5), [Created]);
+        var world = await BackupSweepWorld.WithScheduleAsync(accountId, null, EnabledAt.AddMinutes(5), [Created]);
 
         var started = await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
 
@@ -109,7 +106,7 @@ public sealed class BackupRunHandlerTests
     public async Task Ticks_from_the_save_through_the_named_hour_start_exactly_one_run()
     {
         var accountId = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(accountId, null, EnabledAt.AddMinutes(5), [Created]);
+        var world = await BackupSweepWorld.WithScheduleAsync(accountId, null, EnabledAt.AddMinutes(5), [Created]);
 
         var beforeTheHour = await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
         var lastTickBeforeTheHour = await world.At(NamedHour.AddMinutes(-5))
@@ -134,7 +131,7 @@ public sealed class BackupRunHandlerTests
     public async Task The_run_stamp_is_written_before_the_agent_is_asked()
     {
         var accountId = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(accountId, null, FirstTick, [Created]);
+        var world = await BackupSweepWorld.WithScheduleAsync(accountId, null, FirstTick, [Created]);
 
         DateTimeOffset? stampWhenTheAgentWasCalled = null;
         world.Agent.OnCreate = () =>
@@ -155,7 +152,7 @@ public sealed class BackupRunHandlerTests
     public async Task A_disabled_schedule_never_fires()
     {
         var accountId = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(accountId, null, FirstTick, [Created], enabled: false);
+        var world = await BackupSweepWorld.WithScheduleAsync(accountId, null, FirstTick, [Created], enabled: false);
 
         var started = await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
 
@@ -168,13 +165,13 @@ public sealed class BackupRunHandlerTests
     public async Task A_completed_run_asks_for_retention()
     {
         var accountId = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(accountId, null, FirstTick, [Created]);
+        var world = await BackupSweepWorld.WithScheduleAsync(accountId, null, FirstTick, [Created]);
 
         await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
 
         var request = Assert.IsType<RetentionRequested>(Assert.Single(world.Bus.Published));
         Assert.Equal(accountId, request.AccountId);
-        Assert.Equal(World.RetainCount, request.RetainCount);
+        Assert.Equal(BackupSweepWorld.RetainCount, request.RetainCount);
     }
 
     /// <summary>A failed run prunes nothing.</summary>
@@ -187,16 +184,17 @@ public sealed class BackupRunHandlerTests
     public async Task A_failed_run_prunes_nothing()
     {
         var accountId = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(accountId, null, FirstTick, [Dropped]);
+        var world = await BackupSweepWorld.WithScheduleAsync(accountId, null, FirstTick, [Dropped]);
 
         await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
 
-        Assert.Empty(world.Bus.Published);
+        Assert.DoesNotContain(world.Bus.Published, message => { return message is RetentionRequested; });
 
         var row = Assert.Single(await world.Read().Backups.IgnoreQueryFilters().ToListAsync());
         Assert.Equal(BackupStatus.Failed, row.Status);
 
-        var entry = Assert.Single(world.Audit.Entries);
+        var entry = Assert.Single(
+            world.Audit.Entries, entry => { return entry.Action == AuditActions.BackupCreated; });
         Assert.Equal(AuditActions.BackupCreated, entry.Action);
         Assert.False(entry.Succeeded);
     }
@@ -210,7 +208,7 @@ public sealed class BackupRunHandlerTests
     public async Task An_unattended_run_is_journalled_as_the_panel()
     {
         var accountId = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(accountId, null, FirstTick, [Created]);
+        var world = await BackupSweepWorld.WithScheduleAsync(accountId, null, FirstTick, [Created]);
 
         await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
 
@@ -231,127 +229,12 @@ public sealed class BackupRunHandlerTests
     {
         var chosen = Guid.NewGuid();
         var other = Guid.NewGuid();
-        var world = await World.WithScheduleAsync(chosen, chosen, FirstTick, [Created], secondAccountId: other);
+        var world = await BackupSweepWorld.WithScheduleAsync(
+            chosen, chosen, FirstTick, [Created], secondAccountId: other);
 
         await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
 
         var row = Assert.Single(await world.Read().Backups.IgnoreQueryFilters().ToListAsync());
         Assert.Equal(chosen, row.AccountId);
-    }
-
-    /// <summary>The doubles, the database and the handler, assembled once per test.</summary>
-    private sealed class World
-    {
-        /// <summary>How many backups the seeded schedule keeps.</summary>
-        public const int RetainCount = 3;
-
-        /// <summary>The in-memory database the handler and the reader share.</summary>
-        private readonly string _database;
-
-        /// <summary>The principal both contexts are bound to; an administrator sees every row.</summary>
-        private readonly FakeCurrentUser _currentUser;
-
-        /// <summary>The accounts the directory knows.</summary>
-        private readonly StubAccountDirectory _accounts;
-
-        /// <summary>The handler under test, at the sweep's own instant.</summary>
-        public BackupRunHandler Handler { get; private set; } = null!;
-
-        /// <summary>
-        /// The agent double, holding what it was asked for. Built ONCE and shared by every tick, so
-        /// a test asking "how many archives did two ticks produce" reads one list rather than two.
-        /// </summary>
-        public StubAgentBackupClient Agent { get; }
-
-        /// <summary>The audit double, holding what was journalled.</summary>
-        public RecordingAuditWriter Audit { get; } = new();
-
-        /// <summary>The bus double, holding the retention requests the sweep published.</summary>
-        public RecordingMessageBus Bus { get; } = new();
-
-        /// <summary>Assembles the world.</summary>
-        /// <param name="accountId">The account the directory knows and the schedule may name.</param>
-        /// <param name="secondAccountId">A second account the directory knows, or <c>null</c>.</param>
-        /// <param name="events">The create stream the agent replays.</param>
-        private World(Guid accountId, Guid? secondAccountId, IReadOnlyList<BackupCreateEvent> events)
-        {
-            _database = Guid.NewGuid().ToString();
-            _currentUser = FakeCurrentUser.Admin();
-            Agent = new StubAgentBackupClient(events);
-
-            var snapshots = new List<AccountSnapshot>
-            {
-                new(accountId, Username, 1, 1, 1, 1, 1, 1024, AccountState.Active),
-            };
-
-            if (secondAccountId is not null)
-            {
-                snapshots.Add(new AccountSnapshot(secondAccountId.Value, "cust02", 1, 1, 1, 1, 1, 1024, AccountState.Active));
-            }
-
-            _accounts = new StubAccountDirectory([.. snapshots]);
-        }
-
-        /// <summary>Seeds a schedule and assembles the handler at <paramref name="now"/>.</summary>
-        /// <param name="accountId">The account the directory knows.</param>
-        /// <param name="scheduleAccountId">The account the schedule names, or <c>null</c> for host-wide.</param>
-        /// <param name="now">The instant the sweep runs at.</param>
-        /// <param name="events">The create stream the agent replays.</param>
-        /// <param name="enabled">Whether the schedule is switched on.</param>
-        /// <param name="secondAccountId">A second account the directory knows, or <c>null</c>.</param>
-        /// <returns>The assembled world.</returns>
-        public static async Task<World> WithScheduleAsync(
-            Guid accountId,
-            Guid? scheduleAccountId,
-            DateTimeOffset now,
-            IReadOnlyList<BackupCreateEvent> events,
-            bool enabled = true,
-            Guid? secondAccountId = null)
-        {
-            var world = new World(accountId, secondAccountId, events);
-
-            var schedule = new BackupSchedule(
-                Guid.NewGuid(), scheduleAccountId, null, BackupFrequency.Daily, 3, null, RetainCount);
-            schedule.Reconfigure(null, BackupFrequency.Daily, 3, null, RetainCount, enabled, EnabledAt);
-
-            await using var seed = BackupsTestContext.Create(world._currentUser, world._database);
-            seed.BackupSchedules.Add(schedule);
-            await seed.SaveChangesAsync();
-
-            world.At(now);
-
-            return world;
-        }
-
-        /// <summary>Rebuilds the handler at a later instant — which is what a later tick is.</summary>
-        /// <param name="now">The instant the next sweep runs at.</param>
-        /// <returns>The handler bound to that instant and the same database.</returns>
-        public BackupRunHandler At(DateTimeOffset now)
-        {
-            var tasks = new RecordingTaskRecorder();
-
-            var dbContext = BackupsTestContext.CreateSeeded(_currentUser, _database);
-
-            Handler = new BackupRunHandler(
-                dbContext,
-                _accounts,
-                new BackupRunner(Agent, tasks),
-                new BackupDestinationResolver(dbContext),
-                new BackupAuditJournal(Audit, _currentUser),
-                new FakeClock(now),
-                tasks,
-                new StubCorrelationIdAccessor("corr-sweep"),
-                Bus,
-                NullLogger<BackupRunHandler>.Instance);
-
-            return Handler;
-        }
-
-        /// <summary>Opens a context over the same database, to read what the sweep wrote.</summary>
-        /// <returns>A context bound to the same principal and database.</returns>
-        public BackupsDbContext Read()
-        {
-            return BackupsTestContext.Create(_currentUser, _database);
-        }
     }
 }

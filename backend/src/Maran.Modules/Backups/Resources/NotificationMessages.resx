@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AlertScheduledRunFailedSubject">
+    <value>The scheduled backup of {0} failed</value>
+  </data>
+  <data name="AlertScheduledRunFailedBody">
+    <value>The scheduled backup of the account {0} did not complete: {1} (code {2}). The account has no new copy from this run; the previous copies are kept.</value>
+  </data>
+  <data name="AlertDestinationRefusedSubject">
+    <value>The scheduled backup of {0} could not reach its destination</value>
+  </data>
+  <data name="AlertDestinationRefusedBody">
+    <value>The scheduled backup of the account {0} was not started because its destination refused it: {1} (code {2}). Check the destination in the backup settings; the next run is due at its usual time.</value>
+  </data>
+  <data name="AlertScheduledRunMissedSubject">
+    <value>A scheduled backup ran late</value>
+  </data>
+  <data name="AlertScheduledRunMissedBody">
+    <value>A backup schedule was due at {0} UTC and did not start until {1} UTC, so the run at its named hour was missed. It covers: {2}. The panel was probably not running at that hour.</value>
+  </data>
+</root>
