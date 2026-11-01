@@ -1,7 +1,16 @@
 name: backend
 
+# THE LANES (issue #289). A pull request used to run the whole backend suite twice — PostgreSQL 16
+# and 13 — unsharded, about 30 minutes each, with no timeout: one cycle measured over two hours.
+#
+#   pull_request   `ci` (the gates), four `shard`s of the main part on PostgreSQL 16 in parallel,
+#                  and `verdict`, which combines them against the committed baseline.
+#   push to dev    `suite` (the whole suite, PerformanceBudget part included, PostgreSQL 16) and
+#   push to main   `ci-pg13` (the same on PostgreSQL 13), plus the gates. A regression on 13 or a
+#   nightly        blown budget is therefore caught on dev, before main, instead of on every PR.
 on:
   push:
+    branches: [dev, main]
     paths:
       - 'backend/**'
       - 'proto/**'
@@ -13,6 +22,11 @@ on:
       - 'proto/**'
       - 'scripts/**'
       - '.github/workflows/backend.yml'
+  schedule:
+    # Nightly, on the default branch: the PostgreSQL 13 lane and the performance budgets are not on
+    # the pull request path, so this is what keeps them measured when nothing is pushed.
+    - cron: '23 2 * * *'
+
 
 # One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
 # dev and main are never cancelled, and never even queued behind each other — their group carries
@@ -25,9 +39,9 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    # Measured basis: successful dev runs 41293966787, 41279955125, 41242417610 took 31.3, 34.5 and
-    # 34.6 min (the test verdict step alone ~24 min). 60 is that slowest run plus ~75% headroom.
-    timeout-minutes: 60
+    # Measured basis: the gates only since issue #289 moved the suite to `shard`/`suite` — 5.2 min on
+    # PR run 41298256624. 20 is that run plus generous headroom for a cold apt mirror.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -185,44 +199,6 @@ jobs:
             exit 1
           fi
 
-      # RESOURCE TELEMETRY, started before the build so it covers the whole heavy part of the job.
-      # WHY IT EXISTS. A run of this lane was ended by the runner shutting down in the middle of
-      # `maran test backend`, with the test output going only to a log file, so the job log said
-      # nothing about which project was running or whether the machine was out of memory or out of
-      # disk. Without a measurement the cause is a guess, and the fix would be one too. This sampler
-      # records the facts that tell the two apart: memory, both filesystems the build writes to, the
-      # largest processes, and any kernel out-of-memory kill.
-      #
-      # It is detached (`setsid`, all descriptors redirected) because a step's children are reaped
-      # when the step ends; a sampler left attached would stop before the build began. It is
-      # observation only and never fails the job: every command inside it tolerates its own failure.
-      #
-      # WHAT IT CANNOT SEE, stated rather than implied: a shutdown that gives the machine no time to
-      # write another sample leaves the log ending up to ten seconds before the event, and the
-      # runner's own agent being killed at the hosting layer leaves no kernel message at all.
-      - name: Start resource telemetry
-        run: |
-          telemetry="$RUNNER_TEMP/telemetry.log"
-          : > "$telemetry"
-          setsid nohup bash -c '
-            log="$1"; temp="$2"
-            while true; do
-              {
-                echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-                free -m
-                df -h /
-                df -h "$temp"
-                echo "--- top 8 by RSS (KiB) ---"
-                ps -eo rss,comm --sort=-rss | head -9
-                echo "--- kernel out-of-memory lines ---"
-                sudo dmesg 2>&1 | grep -iE "out of memory|oom-kill|killed process" | tail -5
-                echo
-              } >> "$log" 2>&1
-              sleep 10
-            done
-          ' telemetry "$telemetry" "$RUNNER_TEMP" > /dev/null 2>&1 < /dev/null &
-          echo "sampler started (pid $!), writing to $telemetry"
-
       # Warnings are errors, unused usings are errors, banned APIs are errors — the build
       # itself is the first quality gate (backend/Directory.Build.props).
       - name: Build
@@ -282,6 +258,201 @@ jobs:
       # and that promise is only keepable while the old code runs against the new schema.
       - name: Migrations are additive
         run: bash scripts/maran migrate guard
+
+  # THE MAIN PART OF THE SUITE IN FOUR SHARDS. Measured on dev before this change: the whole suite
+  # 28 minutes, of which Maran.Host.IntegrationTests 25 m 8 s, Identity 1 m 3 s and the other 18
+  # projects about a minute together. Four shards bring the integration assembly to about six and a
+  # half minutes each, under the seven the issue aims for. `maran test backend --shard i/4`
+  # (scripts/lib/test-shards.sh) packs the integration classes deterministically by listed test
+  # count; shard 1 also runs every other assembly. A shard prints no verdict — only `verdict` below,
+  # which proves the partition and compares every row, does.
+  shard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # Measured basis: PR run 41298256624, shards 1-4 took 10.5, 7.2, 9.1 and 7.3 min (build ~1 min, tests
+    # 5-9 min; shard 1 also runs every other assembly). 25 is the slowest plus ~140% headroom.
+    timeout-minutes: 25
+    strategy:
+      # Every shard reports, always: a verdict missing a shard is a verdict over part of the suite.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+
+      # Same exact patch as the `ci` job: the baseline is a count taken on it.
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.317'
+
+      - name: The SDK is the one this repository is built and baselined against
+        run: |
+          want=9.0.317
+          if ! version_output="$(dotnet --version 2>&1)"; then
+            echo "::error::'dotnet --version' itself failed, so no SDK is usable on this runner."
+            printf '%s\n' "$version_output"
+            exit 1
+          fi
+          have="$(printf '%s\n' "$version_output" | head -1)"
+          echo "dotnet --version -> $have"
+          dotnet --list-sdks
+          if [ "$have" != "$want" ] || ! dotnet --list-sdks | grep -q "^$want "; then
+            echo "::error::dotnet SDK is '$have', and this repository baselines on $want."
+            exit 1
+          fi
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # Same sampler as the `ci` job, same reason; observation only, never fails the job.
+      - name: Start resource telemetry
+        run: |
+          telemetry="$RUNNER_TEMP/telemetry.log"
+          : > "$telemetry"
+          setsid nohup bash -c '
+            log="$1"; temp="$2"
+            while true; do
+              {
+                echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+                free -m
+                df -h /
+                df -h "$temp"
+                echo "--- top 8 by RSS (KiB) ---"
+                ps -eo rss,comm --sort=-rss | head -9
+                echo "--- kernel out-of-memory lines ---"
+                sudo dmesg 2>&1 | grep -iE "out of memory|oom-kill|killed process" | tail -5
+                echo
+              } >> "$log" 2>&1
+              sleep 10
+            done
+          ' telemetry "$telemetry" "$RUNNER_TEMP" > /dev/null 2>&1 < /dev/null &
+          echo "sampler started (pid $!), writing to $telemetry"
+
+      - name: Shard ${{ matrix.shard }} of 4 — the main part on PostgreSQL 16
+        run: |
+          set -o pipefail
+          status=0
+          bash scripts/maran test backend --shard ${{ matrix.shard }}/4 --out "$RUNNER_TEMP/shards" 2>&1 |
+            tee "$RUNNER_TEMP/shard.log" || status=$?
+          echo "harness exit status: $status"
+          # A shard passes on its printed line, never on a status; the census is the verdict job's.
+          grep -q '^SHARD ${{ matrix.shard }}/4: ran' "$RUNNER_TEMP/shard.log" || exit 1
+
+      - name: Keep the shard's result
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-shard-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/shards/
+            ${{ runner.temp }}/telemetry.log
+          if-no-files-found: error
+
+      - name: Show the end of the resource telemetry
+        if: always()
+        run: tail -60 "$RUNNER_TEMP/telemetry.log" || echo "(the telemetry log is empty or absent)"
+
+      # What the suite may leave running: the telemetry sampler is detached on purpose, and a test
+      # host that aborted can outlive `dotnet test`. Left alone, the runner's own orphan-process
+      # cleanup was measured idling an hour on one of them after the verdict was already printed.
+      - name: Stop what the suite left running
+        if: always()
+        run: |
+          pkill -f 'telemetry.log' || true
+          dotnet build-server shutdown || true
+          pkill -f testhost || true
+          pkill -x dotnet || true
+
+  # THE VERDICT OF THE PULL REQUEST LANE. It runs whatever the shards did — a red or missing shard is
+  # exactly what it must name — and passes on the printed `TEST VERDICT: OK` line only.
+  verdict:
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: shard
+    runs-on: ubuntu-latest
+    # Downloads four artifacts and parses them; no build, no database.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: backend-shard-*
+          path: ${{ runner.temp }}/artifacts
+
+      - name: Test verdict — the shards combined against the committed baseline
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/shards"
+          find "$RUNNER_TEMP/artifacts" -path '*/shards/shard-*' -exec cp {} "$RUNNER_TEMP/shards/" \;
+          status=0
+          bash scripts/maran test backend --combine "$RUNNER_TEMP/shards" 2>&1 |
+            tee "$RUNNER_TEMP/verdict.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line above, not this)"
+          if ! grep -q '^TEST VERDICT: OK' "$RUNNER_TEMP/verdict.log"; then
+            echo "::error::the combined backend suite did not print 'TEST VERDICT: OK'."
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the combine printed 'TEST VERDICT: OK' and then exited $status."
+            exit 1
+          fi
+
+  # THE WHOLE SUITE, UNSHARDED, PERFORMANCE BUDGETS INCLUDED, on dev, main and nightly.
+  suite:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Measured basis (#292, then on `ci`, which ran this suite): dev runs 41293966787, 41279955125,
+    # 41242417610 took 31.3, 34.5 and 34.6 min. 60 is that slowest run plus ~75% headroom.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.317'
+
+      - name: The SDK is the one this repository is built and baselined against
+        run: |
+          want=9.0.317
+          if ! version_output="$(dotnet --version 2>&1)"; then
+            echo "::error::'dotnet --version' itself failed, so no SDK is usable on this runner."
+            printf '%s\n' "$version_output"
+            exit 1
+          fi
+          have="$(printf '%s\n' "$version_output" | head -1)"
+          echo "dotnet --version -> $have"
+          dotnet --list-sdks
+          if [ "$have" != "$want" ] || ! dotnet --list-sdks | grep -q "^$want "; then
+            echo "::error::dotnet SDK is '$have', and this repository baselines on $want."
+            exit 1
+          fi
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # Same sampler as the `ci` job, same reason; observation only, never fails the job.
+      - name: Start resource telemetry
+        run: |
+          telemetry="$RUNNER_TEMP/telemetry.log"
+          : > "$telemetry"
+          setsid nohup bash -c '
+            log="$1"; temp="$2"
+            while true; do
+              {
+                echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+                free -m
+                df -h /
+                df -h "$temp"
+                echo "--- top 8 by RSS (KiB) ---"
+                ps -eo rss,comm --sort=-rss | head -9
+                echo "--- kernel out-of-memory lines ---"
+                sudo dmesg 2>&1 | grep -iE "out of memory|oom-kill|killed process" | tail -5
+                echo
+              } >> "$log" 2>&1
+              sleep 10
+            done
+          ' telemetry "$telemetry" "$RUNNER_TEMP" > /dev/null 2>&1 < /dev/null &
+          echo "sampler started (pid $!), writing to $telemetry"
 
       # THE VERDICT, and it is not `dotnet test`. It used to be, and that is the gap
       # rules/testing.md named in its own text: "`maran test` is not wired into CI ... so on those
@@ -415,6 +586,16 @@ jobs:
             ${{ runner.temp }}/verdict/backend.log
             ${{ runner.temp }}/telemetry.log
           if-no-files-found: error
+      # What the suite may leave running: the telemetry sampler is detached on purpose, and a test
+      # host that aborted can outlive `dotnet test`. Left alone, the runner's own orphan-process
+      # cleanup was measured idling an hour on one of them after the verdict was already printed.
+      - name: Stop what the suite left running
+        if: always()
+        run: |
+          pkill -f 'telemetry.log' || true
+          dotnet build-server shutdown || true
+          pkill -f testhost || true
+          pkill -x dotnet || true
 
   # THE SAME WHOLE-SUITE VERDICT, AGAINST POSTGRESQL 13. The `ci` job above is PostgreSQL 16 (the
   # Testcontainers default). The supported-systems table in rules/architecture.md has AlmaLinux 9
@@ -436,7 +617,10 @@ jobs:
   #
   # `MARAN_TEST_PG_MAJOR` makes the fixture FAIL if the server it got is not that major, so a
   # silently ignored image variable cannot turn this job into a second PostgreSQL 16 run.
+  #
+  # Off the pull request path since issue #289: dev, main and nightly only.
   ci-pg13:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     # Measured basis: successful dev runs 41293966787, 41279955125, 41242417610 took 21.8, 29.6 and
     # 24.0 min. 50 is that slowest run plus ~70% headroom.
@@ -571,3 +755,13 @@ jobs:
             ${{ runner.temp }}/verdict/backend-pg13.log
             ${{ runner.temp }}/telemetry.log
           if-no-files-found: error
+      # What the suite may leave running: the telemetry sampler is detached on purpose, and a test
+      # host that aborted can outlive `dotnet test`. Left alone, the runner's own orphan-process
+      # cleanup was measured idling an hour on one of them after the verdict was already printed.
+      - name: Stop what the suite left running
+        if: always()
+        run: |
+          pkill -f 'telemetry.log' || true
+          dotnet build-server shutdown || true
+          pkill -f testhost || true
+          pkill -x dotnet || true
