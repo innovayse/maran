@@ -96,7 +96,7 @@ developer never ran.
   QUESTION can contradict it.* So write the doc from the question, and when a fix changes the
   mechanism, say which test holds up each half — and, if an earlier version credited the wrong
   mechanism, say that too.
-- Files stay small and single-purpose; target < 300 lines, hard review trigger at 400.
+- Files stay small and single-purpose. Production code: target < 300 lines, hard review trigger at 400, because a file near that size almost always holds more than one unit. Test files: target < 600 lines, hard review trigger at 800, because one unit has many cases and splitting them only to meet the production limit scatters them across files.
 - DRY and YAGNI: no speculative abstractions, no "for later" flags. Fleet mode exists only as the transport abstraction already in the design.
 - Truth lives in PostgreSQL; anything on disk is derivable and rebuildable from it.
 - Additive evolution: proto files and the Provisioning API only gain fields/endpoints inside a major version; renaming or renumbering is forbidden.

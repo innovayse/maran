@@ -535,7 +535,7 @@ pub mod name;
 pub mod name_error;
 ```
 
-Files stay small and single-purpose; target < 300 lines, hard review trigger at 400. A file approaching the trigger is almost always holding more than one unit.
+Files stay small and single-purpose. Production code: target < 300 lines, hard review trigger at 400. A file approaching the trigger is almost always holding more than one unit. Test files (`tests/`, `*_tests.rs`, `#[cfg(test)]` modules in their own file): target < 600 lines, hard review trigger at 800, because one unit has many cases and splitting them only to meet the production limit scatters them across files.
 
 **The rule of two.** The SECOND copy of a block is the moment it moves to a named
 home — a shared module named after what it does, never a `util.rs`. A third copy
