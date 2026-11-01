@@ -100,15 +100,19 @@ fn polygon_distro() -> &'static dyn DistroAdapter {
 ///
 /// Panics when the deletion refuses, quoting what refused.
 fn delete_the_account(name: &AccountName) {
-    AccountOperations::new(ProcessSystemHost::new(polygon_distro()), polygon_distro())
-        .delete(
-            &ProcessPhpHost::new(),
-            &ProcessDbHost::new(polygon_distro()),
-            &ProcessSftpHost::new(),
-            &ProcessFtpsHost::new(),
-            name,
-        )
-        .unwrap_or_else(|error| panic!("the account deletion must succeed: {error}"));
+    AccountOperations::new(
+        ProcessSystemHost::new(polygon_distro()),
+        polygon_distro(),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    )
+    .delete(
+        &ProcessPhpHost::new(),
+        &ProcessDbHost::new(polygon_distro()),
+        &ProcessSftpHost::new(),
+        &ProcessFtpsHost::new(),
+        name,
+    )
+    .unwrap_or_else(|error| panic!("the account deletion must succeed: {error}"));
 }
 
 /// Bind mounts of the host's shared directories at the paths the agent's unit sees them at,

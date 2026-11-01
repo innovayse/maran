@@ -3,6 +3,7 @@
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::Path;
 
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_distro::DistroAdapter;
 use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
 use maran_ops::backup::ProcessBackupHost;
@@ -67,11 +68,20 @@ const DIRECTORY_MODE: u32 = 0o750;
 
 /// Binds `socket_path` and serves the contract until the process is stopped.
 ///
+/// `floor` is the free-space floor the four writing operations refuse below
+/// (issue #148): account creation, backup creation, restore and upload. It is
+/// handed to each of their services here and to the monitor service, which
+/// reports it so the panel can warn before the refusals begin.
+///
 /// # Errors
 ///
 /// Returns [`StartupError`] when the socket cannot be prepared, the host is
 /// unsupported, or the server terminates abnormally.
-pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), StartupError> {
+pub async fn serve(
+    socket_path: &Path,
+    policy: PeerPolicy,
+    floor: FreeSpaceFloor,
+) -> Result<(), StartupError> {
     // Detection first: refusing an unsupported host before the socket exists
     // means the panel sees "agent absent" rather than an agent that accepts
     // connections and then fails every operation.
@@ -209,7 +219,7 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
         // that can open the socket, whatever the others require.
         .add_service(AccountsServiceServer::with_interceptor(
             AccountsServiceImpl::new(
-                AccountOperations::new(ProcessSystemHost::new(adapter), adapter),
+                AccountOperations::new(ProcessSystemHost::new(adapter), adapter, floor),
                 ProcessPhpHost::new(),
                 ProcessDbHost::new(adapter),
                 ProcessSftpHost::new(),
@@ -251,7 +261,7 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
         // asked a question of would suggest there is a platform difference
         // here, and there is not.
         .add_service(FilesServiceServer::with_interceptor(
-            FilesServiceImpl::new(ProcessFilesHost::new()),
+            FilesServiceImpl::new(ProcessFilesHost::new(), floor),
             PeerGuard::new(policy),
         ))
         // No distro adapter either, and for the same kind of reason: the one
@@ -295,7 +305,7 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
         // password database lives, and what this family calls each of the
         // units the panel watches.
         .add_service(MonitorServiceServer::with_interceptor(
-            MonitorServiceImpl::new(ProcessMonitorHost::new(), adapter),
+            MonitorServiceImpl::new(ProcessMonitorHost::new(), adapter, floor),
             PeerGuard::new(policy),
         ))
         // Two hosts and the adapter: an archive is `tar` and a compressor,
@@ -310,6 +320,7 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
                 ProcessBackupHost::new(adapter),
                 ProcessDbHost::new(adapter),
                 adapter,
+                floor,
             ),
             PeerGuard::new(policy),
         ))

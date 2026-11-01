@@ -2,6 +2,8 @@ using Maran.Agent.Client.Services.AccountsService;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Domain.Entities;
 using Maran.Modules.Monitoring.Domain.Enums;
+using Maran.Modules.Monitoring.Domain.Policies;
+using Maran.Modules.Monitoring.Models;
 using Maran.Modules.Monitoring.Persistence;
 using Maran.Modules.Monitoring.Resources;
 using Maran.Sdk.Contracts;
@@ -157,6 +159,11 @@ public sealed class AlertEvaluator
     /// no percentage can be computed. A null is not a healthy observation: it advances nothing and
     /// resets nothing, because the panel did not find out.
     /// </param>
+    /// <param name="freeSpaceFloor">
+    /// The root filesystem's available space beside the agent's free-space floor, or <c>null</c> when
+    /// this round did not read it. A <c>null</c> advances nothing and resets nothing, for the reason
+    /// a <c>null</c> <paramref name="diskUsedPercent"/> does.
+    /// </param>
     /// <param name="services">The service statuses the agent reported, which may be an empty list.</param>
     /// <param name="sftpJailStatus">
     /// What the agent found when it checked the live sshd configuration for the installer's `Match
@@ -183,6 +190,7 @@ public sealed class AlertEvaluator
     /// <param name="cancellationToken">Cancels the evaluation.</param>
     public async Task EvaluateAsync(
         double? diskUsedPercent,
+        FreeSpaceFloorReading? freeSpaceFloor,
         IReadOnlyList<AgentServiceStatus> services,
         AgentSftpJailStatus? sftpJailStatus,
         AgentQuotaEnforceability? quotaStatus,
@@ -202,6 +210,23 @@ public sealed class AlertEvaluator
                 cancellationToken);
 
             pending.Add((AlertKind.DiskUsage, RootFilesystemSubject, RootFilesystemSubject, transition, FormatPercent(diskUsedPercent.Value)));
+        }
+
+        if (freeSpaceFloor is not null)
+        {
+            var transition = await ObserveAsync(
+                AlertKind.FreeSpaceFloorApproaching,
+                RootFilesystemSubject,
+                FreeSpaceFloorMargin.IsApproaching(freeSpaceFloor),
+                observedAt,
+                cancellationToken);
+
+            pending.Add((
+                AlertKind.FreeSpaceFloorApproaching,
+                RootFilesystemSubject,
+                RootFilesystemSubject,
+                transition,
+                FormatGibibytes(freeSpaceFloor.AvailableBytes)));
         }
 
         foreach (var service in services)
@@ -398,6 +423,14 @@ public sealed class AlertEvaluator
     private static string FormatPercent(double percent)
     {
         return percent.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Renders a byte count as gibibytes with one decimal, for an alert mail's body.</summary>
+    /// <param name="bytes">The figure the agent reported.</param>
+    /// <returns>The figure in GiB, formatted invariantly, as <see cref="FormatPercent"/> is.</returns>
+    private static string FormatGibibytes(ulong bytes)
+    {
+        return (bytes / (1024.0 * 1024.0 * 1024.0)).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>Renders what the agent found missing, for the body of a jail-drift alert mail.</summary>

@@ -117,6 +117,15 @@ pub(crate) struct RecordingBackupHost {
     identities: Mutex<Vec<Option<AccountIdentity>>>,
     /// Every call to `account_identity`, counted.
     identity_calls: Mutex<usize>,
+    /// When set, the archiver writes HALF its bytes into the artifact and then
+    /// exits with this status — what `tar` does when the disk fills under it
+    /// (`tar: …: Cannot write: No space left on device`, exit 2).
+    archive_runs_out_of_space: Mutex<Option<i32>>,
+    /// What `available_bytes` answers, for every directory. `u64::MAX` — a
+    /// roomy disk — unless a test says otherwise.
+    available: Mutex<u64>,
+    /// Every directory `available_bytes` was asked about, in order.
+    measured: Mutex<Vec<PathBuf>>,
 }
 
 impl RecordingBackupHost {
@@ -153,7 +162,26 @@ impl RecordingBackupHost {
             // in its `Placement`.
             identities: Mutex::new(vec![None]),
             identity_calls: Mutex::new(0),
+            archive_runs_out_of_space: Mutex::new(None),
+            available: Mutex::new(u64::MAX),
+            measured: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Makes the archiver write part of the artifact and then fail as `tar`
+    /// does on `ENOSPC`.
+    pub(crate) fn run_archive_out_of_space(&self, status: i32) {
+        *self.archive_runs_out_of_space.lock().unwrap() = Some(status);
+    }
+
+    /// Makes every filesystem answer `bytes` available.
+    pub(crate) fn has_available(&self, bytes: u64) {
+        *self.available.lock().unwrap() = bytes;
+    }
+
+    /// Every directory the operation measured, in order.
+    pub(crate) fn measured(&self) -> Vec<PathBuf> {
+        self.measured.lock().unwrap().clone()
     }
 
     /// Makes `account_identity` answer these in order, the last one repeating.
@@ -260,6 +288,11 @@ impl BackupHost for RecordingBackupHost {
         FIXED_NOW
     }
 
+    fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error> {
+        self.measured.lock().unwrap().push(directory.to_path_buf());
+        Ok(*self.available.lock().unwrap())
+    }
+
     fn account_identity(&self, _account: &AccountName) -> Result<AccountIdentity, BackupError> {
         let mut calls = self.identity_calls.lock().unwrap();
         let answers = self.identities.lock().unwrap();
@@ -306,6 +339,10 @@ impl BackupHost for RecordingBackupHost {
         }
 
         let contents = self.archive_contents.lock().unwrap().clone();
+        if let Some(status) = *self.archive_runs_out_of_space.lock().unwrap() {
+            write_file(&spec.artifact, &contents[..contents.len() / 2]);
+            return Err(BackupError::ArchiveFailed { status });
+        }
         write_file(&spec.artifact, &contents);
         if let Some(mode) = *self.artifact_mode.lock().unwrap() {
             set_permissions(&spec.artifact, Permissions::from_mode(mode)).unwrap();

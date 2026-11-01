@@ -2,6 +2,7 @@
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_agent_core::utils::spawn_error::SpawnError;
 use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 use maran_agent_core::validation::system::name_error::NameError;
@@ -80,6 +81,13 @@ pub enum AccountError {
         /// The name both resolutions looked up.
         username: String,
     },
+
+    /// The account was not created: the filesystem holding the account
+    /// homes is below the free-space floor, or could not be measured (issue
+    /// #148). Decided after the existence check and before `useradd`, so
+    /// nothing ran.
+    #[error(transparent)]
+    FreeSpace(#[from] FloorRefusal),
 
     /// Another operation for this account is already running on this host.
     ///

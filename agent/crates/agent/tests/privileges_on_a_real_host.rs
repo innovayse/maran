@@ -533,6 +533,8 @@ fn an_acme_challenge_is_written_into_a_real_home_as_the_account_and_removed_agai
                 contents: b"token123.key-authorization".to_vec(),
                 mode: FileMode::parse(0o644).expect("a plain permission mode"),
             },
+            &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
         )
     });
     assert_eq!(written, Ok(26));
@@ -629,6 +631,8 @@ fn a_challenge_directory_owned_by_another_real_account_is_refused() {
                 contents: b"token".to_vec(),
                 mode: FileMode::parse(0o644).expect("a plain permission mode"),
             },
+            &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
         )
     });
 

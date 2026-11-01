@@ -234,7 +234,8 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
             metrics.NetworkTxBytes,
             metrics.LoadAverage1M,
             metrics.LoadAverage5M,
-            metrics.LoadAverage15M);
+            metrics.LoadAverage15M,
+            metrics.FreeSpaceFloorBytes);
     }
 
     /// <summary>Projects the wire statuses onto the panel's DTOs.</summary>

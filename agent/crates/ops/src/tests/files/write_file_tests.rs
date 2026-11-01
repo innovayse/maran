@@ -13,6 +13,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::fs::file_mode::FileMode;
 use maran_agent_core::validation::fs::relative_path::RelativePath;
 use maran_agent_core::validation::system::name::AccountName;
@@ -40,11 +42,16 @@ fn input(contents: &[u8], mode: u32) -> WriteFileInput {
     }
 }
 
+/// A one-mebibyte floor.
+fn floor() -> FreeSpaceFloor {
+    FreeSpaceFloor::from_mebibytes(1).unwrap()
+}
+
 #[test]
 fn the_directories_are_created_before_the_content_is_written_and_nothing_else_happens() {
     let host = FakeFilesHost::new();
 
-    let written = write_file(&host, &input(b"token.key", 0o644)).unwrap();
+    let written = write_file(&host, &input(b"token.key", 0o644), &floor()).unwrap();
 
     assert_eq!(written, 9);
     // The exact sequence, not a subset: an operation that grew a third step
@@ -63,7 +70,7 @@ fn the_directories_are_created_before_the_content_is_written_and_nothing_else_ha
 fn the_write_asks_the_host_to_resolve_nothing_at_all() {
     let host = FakeFilesHost::new();
 
-    write_file(&host, &input(b"token.key", 0o644)).unwrap();
+    write_file(&host, &input(b"token.key", 0o644), &floor()).unwrap();
 
     // Stated as its own test rather than left implicit in the sequence above,
     // because it is a decision and not an accident. A containment call on this
@@ -83,7 +90,7 @@ fn the_write_asks_the_host_to_resolve_nothing_at_all() {
 fn a_directory_chain_that_cannot_be_created_is_refused_before_anything_is_written() {
     let host = FakeFilesHost::failing_create_parents(FilesOpError::DirectoryUnusable);
 
-    let refused = write_file(&host, &input(b"token.key", 0o644)).unwrap_err();
+    let refused = write_file(&host, &input(b"token.key", 0o644), &floor()).unwrap_err();
 
     assert_eq!(refused, FilesOpError::DirectoryUnusable);
     assert_eq!(
@@ -96,7 +103,7 @@ fn a_directory_chain_that_cannot_be_created_is_refused_before_anything_is_writte
 fn a_plain_permission_mode_is_passed_through_to_the_write_untouched() {
     let host = FakeFilesHost::new();
 
-    write_file(&host, &input(b"token.key", 0o600)).unwrap();
+    write_file(&host, &input(b"token.key", 0o600), &floor()).unwrap();
 
     assert!(
         host.calls().contains(&Call::Write(
@@ -112,7 +119,7 @@ fn a_plain_permission_mode_is_passed_through_to_the_write_untouched() {
 fn a_failed_write_is_reported_rather_than_counted_as_bytes_written() {
     let host = FakeFilesHost::failing_write(FilesOpError::WriteFailed);
 
-    let refused = write_file(&host, &input(b"token.key", 0o644)).unwrap_err();
+    let refused = write_file(&host, &input(b"token.key", 0o644), &floor()).unwrap_err();
 
     assert_eq!(refused, FilesOpError::WriteFailed);
 }
@@ -121,7 +128,32 @@ fn a_failed_write_is_reported_rather_than_counted_as_bytes_written() {
 fn the_byte_count_reported_is_the_length_of_the_content_the_caller_sent() {
     let host = FakeFilesHost::new();
 
-    let written = write_file(&host, &input(&[0_u8; 4096], 0o644)).unwrap();
+    let written = write_file(&host, &input(&[0_u8; 4096], 0o644), &floor()).unwrap();
 
     assert_eq!(written, 4096);
+}
+
+#[test]
+fn an_upload_below_the_free_space_floor_is_refused_before_anything_is_created() {
+    let host = FakeFilesHost::with_available(1024 * 1024 - 1);
+
+    let refused = write_file(&host, &input(b"token.key", 0o644), &floor()).unwrap_err();
+
+    assert_eq!(
+        refused,
+        FilesOpError::FreeSpace(FloorRefusal::BelowFloor {
+            available: 1024 * 1024 - 1,
+            floor: 1024 * 1024,
+        })
+    );
+    assert!(host.calls().is_empty());
+}
+
+#[test]
+fn an_upload_with_exactly_the_floor_left_is_written() {
+    let host = FakeFilesHost::with_available(1024 * 1024);
+
+    let written = write_file(&host, &input(b"token.key", 0o644), &floor()).unwrap();
+
+    assert_eq!(written, 9);
 }

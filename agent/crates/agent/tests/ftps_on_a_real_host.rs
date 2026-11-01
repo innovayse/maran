@@ -998,6 +998,7 @@ fn suspending_the_account_refuses_its_ftps_login_and_resuming_gives_it_back() {
     let operations = AccountOperations::new(
         ProcessSystemHost::new(PolygonVsftpd::distro()),
         PolygonVsftpd::distro(),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
     );
     let state = operations
         .suspension_state(

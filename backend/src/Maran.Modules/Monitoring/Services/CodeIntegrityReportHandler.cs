@@ -58,6 +58,7 @@ public sealed partial class CodeIntegrityReportHandler : ICodeIntegrityReportSin
         {
             await _evaluator.EvaluateAsync(
                 diskUsedPercent: null,
+                freeSpaceFloor: null,
                 services: [],
                 sftpJailStatus: null,
                 quotaStatus: null,

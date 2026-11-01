@@ -26,7 +26,7 @@ public sealed class GetHostMetricsQueryHandlerTests
         var agent = new StubAgentMonitorClient
         {
             Metrics = Result<AgentHostMetrics>.Ok(
-                new AgentHostMetrics(1, 2, 3, used, reserved, available, total, 4, 5, 0, 0, 0)),
+                new AgentHostMetrics(1, 2, 3, used, reserved, available, total, 4, 5, 0, 0, 0, 1)),
         };
 
         var result = await new GetHostMetricsQueryHandler(agent).HandleAsync(
@@ -49,7 +49,7 @@ public sealed class GetHostMetricsQueryHandlerTests
     {
         var agent = new StubAgentMonitorClient
         {
-            Metrics = Result<AgentHostMetrics>.Ok(new AgentHostMetrics(1, 2, 3, 300, 0, 700, 1_000, 4, 5, 0, 0, 0)),
+            Metrics = Result<AgentHostMetrics>.Ok(new AgentHostMetrics(1, 2, 3, 300, 0, 700, 1_000, 4, 5, 0, 0, 0, 1)),
         };
 
         var result = await new GetHostMetricsQueryHandler(agent).HandleAsync(
@@ -67,7 +67,7 @@ public sealed class GetHostMetricsQueryHandlerTests
         var agent = new StubAgentMonitorClient
         {
             Metrics = Result<AgentHostMetrics>.Ok(
-                new AgentHostMetrics(1, 2, 3, 1, 1, ulong.MaxValue, ulong.MaxValue, 4, 5, 0, 0, 0)),
+                new AgentHostMetrics(1, 2, 3, 1, 1, ulong.MaxValue, ulong.MaxValue, 4, 5, 0, 0, 0, 1)),
         };
 
         var result = await new GetHostMetricsQueryHandler(agent).HandleAsync(

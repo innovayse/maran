@@ -78,4 +78,16 @@
   <data name="AlertCodeIntegrityDriftedResolvedBody">
     <value>Վահանակի սեփական ստուգումը այլևս տարբերություն չի հայտնաբերում տեղադրված ֆայլերի և ստորագրված թողարկման միջև (կամ ինքը ստուգումը կրկին աշխատում է). {1}։</value>
   </data>
+  <data name="AlertFreeSpaceFloorApproachingRaisedSubject">
+    <value>Սերվերը շուտով կմերժի նոր աշխատանքը {0}-ում․ ազատ տեղը մոտ է նվազագույն սահմանին</value>
+  </data>
+  <data name="AlertFreeSpaceFloorApproachingRaisedBody">
+    <value>{0} ֆայլային համակարգում մնացել է {1} ԳիԲ՝ ազատ տեղի նվազագույն սահմանի կրկնակիից պակաս, և այդպես է տասը հաջորդական ստուգումների ընթացքում։ Սահմանից ցածր սերվերը հրաժարվում է ստեղծել հաշիվներ, ստեղծել և վերականգնել պահուստային պատճեններ և ընդունել վերբեռնումներ։ Ազատեք տեղ հիմա։</value>
+  </data>
+  <data name="AlertFreeSpaceFloorApproachingResolvedSubject">
+    <value>{0}-ում ազատ տեղը կրկին նվազագույն սահմանից բարձր է</value>
+  </data>
+  <data name="AlertFreeSpaceFloorApproachingResolvedBody">
+    <value>{0} ֆայլային համակարգում մնացել է {1} ԳիԲ՝ ազատ տեղի նվազագույն սահմանի առնվազն կրկնակին։</value>
+  </data>
 </root>

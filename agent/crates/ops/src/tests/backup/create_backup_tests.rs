@@ -8,6 +8,7 @@ use std::fs::{
 use std::os::unix::fs::{PermissionsExt as _, symlink};
 
 use maran_agent_core::utils::current_uid::current_uid;
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use tempfile::TempDir;
 
@@ -148,6 +149,7 @@ impl Fixture {
             dump_ceiling: 1024,
             member_ceiling: 1024,
             archive_ceiling: 1024,
+            floor: FreeSpaceFloor::from_mebibytes(1).expect("a one-mebibyte floor"),
         }
     }
 }
@@ -423,6 +425,73 @@ fn an_archive_failure_publishes_no_artifact() {
     assert!(!fixture.scratch().exists());
 }
 
+/// The issue #148 criterion: the disk fills while the archiver is writing.
+/// `tar` has put part of the archive on disk and exits 2; what is left behind
+/// is nothing at all — no `.partial`, no artifact, no sidecar, no scratch — and
+/// the account's backup directory is as empty as it was before the run.
+#[test]
+fn an_archiver_that_runs_out_of_space_mid_write_leaves_no_partial_artefact() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+    host.run_archive_out_of_space(2);
+
+    let refusal = run(&fixture, &host, 2, &mut sink());
+
+    assert!(matches!(
+        refusal,
+        Err(BackupError::ArchiveFailed { status: 2 })
+    ));
+    // The positive control: the archiver really was reached and really wrote,
+    // so the emptiness below is the cleanup's work and not a run that stopped
+    // before anything existed.
+    assert_eq!(host.calls_to(ARCHIVE_PROGRAM).len(), 1);
+    let mut partial = fixture.artifact().into_os_string();
+    partial.push(".partial");
+    assert!(!PathBuf::from(partial).exists());
+    assert!(!fixture.artifact().exists());
+    assert!(!fixture.sidecar().exists());
+    assert!(!fixture.scratch().exists());
+    let left: Vec<_> = std::fs::read_dir(fixture.directory())
+        .expect("the backup directory is readable")
+        .collect();
+    assert!(left.is_empty(), "left behind: {left:?}");
+}
+
+/// Below the free-space floor nothing starts: no dump, no archiver, no scratch,
+/// and the filesystem asked is the backup directory's own (issue #148).
+#[test]
+fn a_backup_below_the_free_space_floor_is_refused_before_anything_is_written() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+    host.has_available(1024 * 1024 - 1);
+
+    let refusal = run(&fixture, &host, 2, &mut sink());
+
+    assert!(matches!(
+        refusal,
+        Err(BackupError::FreeSpace(FloorRefusal::BelowFloor {
+            available,
+            floor: 1_048_576,
+        })) if available == 1_048_575
+    ));
+    assert_eq!(host.measured(), vec![fixture.directory()]);
+    assert!(host.calls().is_empty(), "work was done below the floor");
+    assert!(!fixture.scratch().exists());
+    assert!(!fixture.artifact().exists());
+}
+
+/// The inverse control: exactly the floor left is enough.
+#[test]
+fn a_backup_with_exactly_the_floor_left_is_taken() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+    host.has_available(1024 * 1024);
+
+    run(&fixture, &host, 1, &mut sink()).expect("the backup succeeds");
+
+    assert!(fixture.artifact().exists());
+}
+
 /// A catalog that cannot answer stops the backup rather than producing one
 /// whose manifest claims the account has no databases.
 #[test]
@@ -480,6 +549,7 @@ fn a_second_backup_of_the_same_account_reports_already_running() {
         &account,
         &backup_id(),
         &LocalBackupRoot::default(),
+        &FreeSpaceFloor::default_floor(),
         &mut sink(),
     );
 

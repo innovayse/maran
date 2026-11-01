@@ -1,5 +1,6 @@
 //! The one mapping from backup failures onto the wire error.
 
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_ops::backup::BackupError;
 
 use crate::proto::{AgentError, ErrorCode};
@@ -63,6 +64,10 @@ pub fn to_agent_error(error: &BackupError) -> AgentError {
         // forward. Named ahead of the wildcard so a missing arm cannot compile
         // silently (threat note, plan item 11).
         BackupError::Bound(_) => ErrorCode::SystemFailure,
+        // A filesystem the operation writes into is within the floor of full,
+        // and nothing was written (issue #148). An unmeasurable filesystem
+        // falls to the system failure below.
+        BackupError::FreeSpace(FloorRefusal::BelowFloor { .. }) => ErrorCode::BelowFreeSpaceFloor,
         // Everything else is this machine failing at something it was asked to
         // do — including the two rollback variants, which are the most serious
         // answers this area produces and are system failures with a message

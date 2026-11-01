@@ -3,6 +3,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_ops::files::{self, FilesHost};
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status, Streaming};
@@ -53,6 +54,8 @@ const NOT_BUILT: &str = "this agent implements FilesService.WriteFile and FilesS
 /// status, because they are answers the panel acts on — a challenge file that is
 /// already gone is information, not a transport error (rules/proto.md).
 pub struct FilesServiceImpl<H> {
+    /// The free-space floor an upload is refused below (issue #148).
+    floor: FreeSpaceFloor,
     /// The machine the file operations run against.
     host: Arc<H>,
 }
@@ -60,8 +63,9 @@ pub struct FilesServiceImpl<H> {
 impl<H: FilesHost + 'static> FilesServiceImpl<H> {
     /// Creates the service around the host it runs operations against.
     #[must_use]
-    pub fn new(host: H) -> Self {
+    pub fn new(host: H, floor: FreeSpaceFloor) -> Self {
         Self {
+            floor,
             host: Arc::new(host),
         }
     }
@@ -89,8 +93,9 @@ impl<H: FilesHost + 'static> FilesService for FilesServiceImpl<H> {
         let result = match validated_write(request.into_inner()).await {
             Ok(input) => {
                 let host = Arc::clone(&self.host);
+                let floor = self.floor;
                 run_blocking("file operation", to_agent_error, move || {
-                    files::write_file(host.as_ref(), &input)
+                    files::write_file(host.as_ref(), &input, &floor)
                 })
                 .await
             }

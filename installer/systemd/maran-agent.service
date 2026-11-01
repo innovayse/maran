@@ -89,7 +89,7 @@ EnvironmentFile=/etc/maran/agent.env
 # The same call also finishes a restore that was killed between the two renames that
 # swap an account's home, which is the other half of F-2. Threat note:
 # docs/superpowers/notes/2026-09-09-restore-interruption-recovery-threat-note.md.
-ExecStart=/usr/local/maran/agent/maran-agent --allow-uid ${MARAN_AGENT_ALLOW_UID}
+ExecStart=/usr/local/maran/agent/maran-agent --allow-uid ${MARAN_AGENT_ALLOW_UID} --free-space-floor-mib ${MARAN_AGENT_FREE_SPACE_FLOOR_MIB}
 # The daemon's own search path, emptied deliberately, and AFTER EnvironmentFile= so
 # that a PATH= line added to /etc/maran/agent.env cannot win. systemd's compiled-in
 # default begins /usr/local/sbin:/usr/local/bin — the directories this product itself

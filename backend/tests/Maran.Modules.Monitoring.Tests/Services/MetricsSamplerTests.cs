@@ -17,7 +17,7 @@ public sealed class MetricsSamplerTests
         var agent = new StubAgentMonitorClient
         {
             Metrics = Result<AgentHostMetrics>.Ok(
-                new AgentHostMetrics(42.5, 3_000, 8_000, 50, 5, 45, 100, 111, 222, 1.5, 1.2, 1.1)),
+                new AgentHostMetrics(42.5, 3_000, 8_000, 50, 5, 45, 100, 111, 222, 1.5, 1.2, 1.1, 1)),
         };
         var clock = new FakeClock();
         using var scopes = new TestScopeFactory(dbContext, agent, new StubAlertRecipientDirectory(), new RecordingAuditWriter());
@@ -102,7 +102,7 @@ public sealed class MetricsSamplerTests
         var agent = new StubAgentMonitorClient
         {
             Metrics = Result<AgentHostMetrics>.Ok(
-                new AgentHostMetrics(1, ulong.MaxValue, ulong.MaxValue, 1, 0, 1, 2, 3, 4, 0, 0, 0)),
+                new AgentHostMetrics(1, ulong.MaxValue, ulong.MaxValue, 1, 0, 1, 2, 3, 4, 0, 0, 0, 1)),
         };
         using var scopes = new TestScopeFactory(dbContext, agent, new StubAlertRecipientDirectory(), new RecordingAuditWriter());
         var sampler = Sampler(scopes, new FakeClock());
@@ -132,7 +132,7 @@ public sealed class MetricsSamplerTests
         var agent = new StubAgentMonitorClient
         {
             Metrics = Result<AgentHostMetrics>.Ok(
-                new AgentHostMetrics(1, 10, 100, 860, 50, 90, 1_000, 0, 0, 0, 0, 0)),
+                new AgentHostMetrics(1, 10, 100, 860, 50, 90, 1_000, 0, 0, 0, 0, 0, 1)),
         };
         var clock = new FakeClock();
         var audit = new RecordingAuditWriter();

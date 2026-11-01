@@ -19,6 +19,9 @@ service BackupService {
   // if a backup with the same backup_id already completed successfully,
   // immediately emits a single terminal AlreadyExists response instead of
   // redoing the work.
+  // Refused with ERROR_CODE_BELOW_FREE_SPACE_FLOOR, before anything is
+  // written, when the account's backup directory has less than the agent's free-space floor available
+  // (issue #148).
   rpc CreateBackup(CreateBackupRequest) returns (stream CreateBackupResponse);
 
   // Restores an account from a previously created backup, overwriting its
@@ -27,6 +30,9 @@ service BackupService {
   // "restoring_databases"), ending with the terminal ok/error message.
   // Idempotent: restoring the same backup_id twice converges to the same
   // end state.
+  // Refused with ERROR_CODE_BELOW_FREE_SPACE_FLOOR, before anything is
+  // written, when the filesystem holding the account homes has less than the agent's free-space floor available
+  // (issue #148).
   rpc RestoreBackup(RestoreBackupRequest) returns (stream RestoreBackupResponse);
 
   // Lists backups known to the agent for an account.

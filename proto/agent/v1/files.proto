@@ -60,6 +60,10 @@ service FilesService {
   // is what a path that resolves outside the home gets, and what a level of the
   // account's own tree that is not a directory it owns gets — those are answers
   // the agent can only give after looking.
+  //
+  // Refused with ERROR_CODE_BELOW_FREE_SPACE_FLOOR, before anything is
+  // written, when the filesystem holding the account homes has less than the agent's free-space floor available
+  // (issue #148).
   rpc WriteFile(stream WriteFileRequest) returns (WriteFileResponse);
 
   // Deletes a file or, when recursive is set, a directory and its

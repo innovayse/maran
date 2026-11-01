@@ -85,7 +85,11 @@ impl PolygonAccount {
                 .expect("a polygon image is a supported host")
                 .family,
         );
-        let operations = AccountOperations::new(ProcessSystemHost::new(distro), distro);
+        let operations = AccountOperations::new(
+            ProcessSystemHost::new(distro),
+            distro,
+            maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+        );
 
         // Idempotent by removal, not by reuse: see the doc comment above.
         remove_account(distro, &name);

@@ -15,6 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 use maran_ops::accounts::AccountError;
 
@@ -76,6 +77,11 @@ fn every_variant() -> Vec<AccountError> {
         AccountError::IdentityChanged {
             username: "acme".to_owned(),
         },
+        AccountError::FreeSpace(FloorRefusal::BelowFloor {
+            available: 1,
+            floor: 2,
+        }),
+        AccountError::FreeSpace(FloorRefusal::Unmeasurable),
     ]
 }
 
@@ -455,5 +461,24 @@ fn surviving_processes_are_a_system_failure_whose_message_names_only_the_account
     assert_eq!(
         error.to_string(),
         "processes of account 'acme' are still running after being killed"
+    );
+}
+
+#[test]
+fn a_creation_below_the_free_space_floor_is_its_own_code() {
+    assert_eq!(
+        code_of(&AccountError::FreeSpace(FloorRefusal::BelowFloor {
+            available: 1,
+            floor: 2,
+        })),
+        ErrorCode::BelowFreeSpaceFloor as i32
+    );
+}
+
+#[test]
+fn a_home_filesystem_that_cannot_be_measured_is_a_system_failure() {
+    assert_eq!(
+        code_of(&AccountError::FreeSpace(FloorRefusal::Unmeasurable)),
+        ErrorCode::SystemFailure as i32
     );
 }

@@ -37,6 +37,7 @@ enum-value maran.agent.v1.ErrorCode 1 ERROR_CODE_INVALID_INPUT
 enum-value maran.agent.v1.ErrorCode 10 ERROR_CODE_LIMIT_REACHED
 enum-value maran.agent.v1.ErrorCode 11 ERROR_CODE_PACKAGE_SOURCE_REFUSED
 enum-value maran.agent.v1.ErrorCode 12 ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE
+enum-value maran.agent.v1.ErrorCode 13 ERROR_CODE_BELOW_FREE_SPACE_FLOOR
 enum-value maran.agent.v1.ErrorCode 2 ERROR_CODE_ALREADY_EXISTS
 enum-value maran.agent.v1.ErrorCode 3 ERROR_CODE_NOT_FOUND
 enum-value maran.agent.v1.ErrorCode 4 ERROR_CODE_VALIDATION_FAILED
@@ -424,6 +425,7 @@ field maran.agent.v1.HostMetrics 1 cpu_percent TYPE_DOUBLE LABEL_OPTIONAL type_n
 field maran.agent.v1.HostMetrics 10 load_average_15m TYPE_DOUBLE LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 11 disk_reserved_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 12 disk_available_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.HostMetrics 13 free_space_floor_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 2 memory_used_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 3 memory_total_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 4 disk_used_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-

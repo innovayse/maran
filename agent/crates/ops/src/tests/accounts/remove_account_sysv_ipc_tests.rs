@@ -106,6 +106,10 @@ impl SystemHost for IpcHost {
     fn pause(&self, _interval: Duration) {
         unreachable!("the IPC removal never waits")
     }
+
+    fn available_bytes(&self, _directory: &std::path::Path) -> Result<u64, std::io::Error> {
+        Ok(u64::MAX)
+    }
 }
 
 /// The distribution the program is resolved against.

@@ -1,5 +1,6 @@
 //! The seam between account operations and the machine they run on.
 
+use std::path::Path;
 use std::time::Duration;
 
 use maran_agent_core::utils::call_class::CallClass;
@@ -129,4 +130,16 @@ pub trait SystemHost: Send + Sync {
     /// Called from inside the blocking section of an rpc, never from an async
     /// worker.
     fn pause(&self, interval: Duration);
+
+    /// Bytes an unprivileged writer could still add to the filesystem
+    /// `directory` lives on — `f_bavail`, asked of the directory itself.
+    ///
+    /// The free-space floor (issue #148) is decided on this answer before an
+    /// account is created.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying error when the filesystem cannot be measured;
+    /// the caller refuses the creation rather than assuming room.
+    fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error>;
 }
