@@ -1,10 +1,9 @@
 using System.Globalization;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Resources;
+using Maran.Sdk.Alerts;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Localization;
-using Wolverine;
 
 namespace Maran.Modules.Backups.Services;
 
@@ -14,18 +13,13 @@ namespace Maran.Modules.Backups.Services;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>It asks for the mail; it does not send it.</b> The words are this module's — only the
-/// publisher knows what the mail is about — and the sending is the Notifications module's: this
-/// class reads where an operator alert goes through <see cref="IAlertRecipientDirectory"/> and
-/// publishes <see cref="SendMailRequested"/>, the same two calls the Monitoring module's alert
-/// evaluator makes. It holds no mailer and no SMTP settings.
-/// </para>
-/// <para>
-/// <b>The journal entry comes first and is written whatever happens to the mail.</b> "Last night's
-/// backup of cust01 failed" is a fact about the server; whether a mail about it was delivered is a
-/// fact about somebody else's mail server. With no recipient configured the alert is journalled
-/// again as <see cref="AuditActions.MailSkippedNoSmtp"/>, succeeded — nobody to tell is not a
-/// failure of this class (the reasoning issue #71 recorded for the evaluator).
+/// <b>It owns the words; the path is shared.</b> Only this module knows what the mail is about, so
+/// the subject and body are composed here. Journalling the alert, finding where operator alerts go,
+/// publishing <see cref="SendMailRequested"/> and journalling
+/// <see cref="AuditActions.MailSkippedNoSmtp"/> when there is nobody to tell are
+/// <see cref="OperatorAlertMailer"/>'s, the one implementation the Monitoring module's alert
+/// evaluator calls too (issue #290). The entries are written through this module's own journal, so
+/// they carry its actor. It holds no mailer and no SMTP settings.
 /// </para>
 /// <para>
 /// <b>No deduplication, on purpose.</b> Every alert here is one event — one run, one refusal, one
@@ -56,11 +50,8 @@ public sealed class BackupAlertMailer
     /// <summary>How an instant is written into a mail: ISO 8601 to the minute, always UTC.</summary>
     private const string InstantFormat = "yyyy-MM-dd HH:mm";
 
-    /// <summary>Where an operator alert is addressed, read from the module that owns mail settings.</summary>
-    private readonly IAlertRecipientDirectory _recipients;
-
-    /// <summary>The bus the request to send is published on.</summary>
-    private readonly IMessageBus _bus;
+    /// <summary>The panel's one path for an operator alert: journal, recipient, mail.</summary>
+    private readonly OperatorAlertMailer _operatorAlerts;
 
     /// <summary>This module's audit journal.</summary>
     private readonly BackupAuditJournal _journal;
@@ -72,20 +63,17 @@ public sealed class BackupAlertMailer
     private readonly BackupFailureDisplayNames _failures;
 
     /// <summary>Creates the mailer.</summary>
-    /// <param name="recipients">Where an operator alert is addressed.</param>
-    /// <param name="bus">The bus the request to send is published on.</param>
+    /// <param name="operatorAlerts">The panel's one path for an operator alert.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="text">The localized subjects and bodies of the alert mail.</param>
     /// <param name="failures">Names a failure code as an operator reads it.</param>
     public BackupAlertMailer(
-        IAlertRecipientDirectory recipients,
-        IMessageBus bus,
+        OperatorAlertMailer operatorAlerts,
         BackupAuditJournal journal,
         IStringLocalizer<NotificationMessages> text,
         BackupFailureDisplayNames failures)
     {
-        _recipients = recipients;
-        _bus = bus;
+        _operatorAlerts = operatorAlerts;
         _journal = journal;
         _text = text;
         _failures = failures;
@@ -172,25 +160,14 @@ public sealed class BackupAlertMailer
     /// <param name="mailBody">The localized body.</param>
     /// <param name="cancellationToken">Cancels the journal writes.</param>
     /// <returns>A task that completes once the alert is journalled and the mail requested.</returns>
-    private async Task AlertAsync(
+    private Task AlertAsync(
         BackupAlertKind kind,
         string subject,
         string mailSubject,
         string mailBody,
         CancellationToken cancellationToken)
     {
-        var auditSubject = $"{kind}:{subject}";
-        await _journal.RecordScheduledAsync(
-            AuditActions.AlertRaised, auditSubject, succeeded: true, cancellationToken);
-
-        var recipient = await _recipients.GetAlertRecipientAsync(cancellationToken);
-        if (recipient is null)
-        {
-            await _journal.RecordScheduledAsync(
-                AuditActions.MailSkippedNoSmtp, auditSubject, succeeded: true, cancellationToken);
-            return;
-        }
-
-        await _bus.PublishAsync(new SendMailRequested(recipient, mailSubject, mailBody));
+        return _operatorAlerts.AlertAsync(
+            _journal, AuditActions.AlertRaised, $"{kind}:{subject}", mailSubject, mailBody, cancellationToken);
     }
 }

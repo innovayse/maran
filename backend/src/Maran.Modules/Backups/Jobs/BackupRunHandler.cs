@@ -291,7 +291,7 @@ public sealed class BackupRunHandler
 
             // The account, not the backup id — the same subject the task above records, and the one
             // AuditEntry asks for: what the operation acts on, as an operator would search for it.
-            await _journal.RecordScheduledAsync(
+            await _journal.RecordSystemAsync(
                 AuditActions.BackupCreated, account.Username, outcome.Succeeded, cancellationToken);
 
             if (!outcome.Succeeded)
@@ -367,7 +367,7 @@ public sealed class BackupRunHandler
             await _dbContext.SaveChangesAsync(cancellationToken);
             await _tasks.FailAsync(taskId, nameof(ErrorMessages.BackupScheduledRunAborted), cancellationToken);
 
-            await _journal.RecordScheduledAsync(
+            await _journal.RecordSystemAsync(
                 AuditActions.BackupCreated, accountUsername, succeeded: false, cancellationToken);
             await _alerts.ScheduledRunFailedAsync(
                 accountUsername, nameof(ErrorMessages.BackupScheduledRunAborted), cancellationToken);
