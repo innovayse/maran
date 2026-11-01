@@ -102,4 +102,24 @@ public sealed class PanelHostDirectoryTests
     {
         Assert.False(Build("panel.example.net").IsPanelHostName(string.Empty));
     }
+
+    /// <summary>The configured name is handed out normalised by the panel-name window.</summary>
+    [Fact]
+    public void The_configured_name_is_handed_out_normalised_by_the_panel_name_window()
+    {
+        Assert.True(Build(" Panel.Example.NET. ").TryGet(out var hostName));
+        Assert.Equal("Panel.Example.NET", hostName);
+    }
+
+    /// <summary>An unusable configured value hands out no name at all.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("_")]
+    [InlineData("localhost")]
+    [InlineData("not a host")]
+    public void An_unusable_configured_value_hands_out_no_name(string? configured)
+    {
+        Assert.False(Build(configured).TryGet(out _));
+    }
 }

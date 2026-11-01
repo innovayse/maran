@@ -112,6 +112,23 @@ namespace Maran.Modules.Ssl.Persistence.Migrations
 
                     b.ToTable("Certificates", "ssl");
                 });
+
+            modelBuilder.Entity("Maran.Modules.Ssl.Domain.Entities.PanelCertificate", b =>
+                {
+                    b.Property<string>("HostName")
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("HostName");
+
+                    b.ToTable("PanelCertificates", "ssl");
+                });
 #pragma warning restore 612, 618
         }
     }

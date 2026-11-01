@@ -18,6 +18,7 @@ public sealed class SslControllerPolicyTests
     /// <param name="policy">The policy the controller must name.</param>
     [Theory]
     [InlineData(typeof(CertificatesController), AuthorizationPolicies.AnyAuthenticated)]
+    [InlineData(typeof(PanelCertificateController), AuthorizationPolicies.AdminOnly)]
     public void A_controller_names_its_policy_on_the_class(Type controller, string policy)
     {
         var policies = controller
@@ -84,6 +85,7 @@ public sealed class SslControllerPolicyTests
         var expected = new[]
         {
             nameof(CertificatesController),
+            nameof(PanelCertificateController),
         };
         Assert.Equal(expected.Order(StringComparer.Ordinal), names);
     }

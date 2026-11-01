@@ -42,6 +42,27 @@ service SslService {
   // key with no warning. A caller that means to replace calls
   // InstallCertificate.
   rpc GenerateSelfSigned(GenerateSelfSignedRequest) returns (GenerateSelfSignedResponse);
+
+  // Added 2026-11-01 (issue #132). Replaces the panel's OWN certificate and
+  // key — the pair the panel's nginx vhost names, /etc/maran/tls/panel.crt and
+  // panel.key — validates with nginx -t and reloads, restoring the previous
+  // pair on any refusal. The key is checked against the certificate before
+  // anything is written. No vhost is rewritten: the installer rendered the
+  // panel vhost against these two fixed names. Idempotent: byte-identical
+  // material already in place is a no-op success.
+  rpc InstallPanelCertificate(InstallPanelCertificateRequest) returns (InstallPanelCertificateResponse);
+
+  // Added 2026-11-01 (issue #132). Writes the HTTP-01 challenge file for the
+  // panel's own host name into the agent-owned directory the panel's port-80
+  // block serves /.well-known/acme-challenge/ from. Refused below the agent's
+  // free-space floor with ERROR_CODE_BELOW_FREE_SPACE_FLOOR before anything is
+  // written, as WriteFile refuses a customer's challenge. Idempotent: writing
+  // the same token again replaces the file.
+  rpc WritePanelChallenge(WritePanelChallengeRequest) returns (WritePanelChallengeResponse);
+
+  // Added 2026-11-01 (issue #132). Removes the panel's challenge file for a
+  // token. Idempotent: a token with no file answers NotFound.
+  rpc RemovePanelChallenge(RemovePanelChallengeRequest) returns (RemovePanelChallengeResponse);
 }
 
 message InstallCertificateRequest {
@@ -144,3 +165,65 @@ message GenerateSelfSignedOk {
   // Certificate expiry as Unix seconds (UTC).
   int64 expires_at_unix = 1;
 }
+
+// Added 2026-11-01 (issue #132). The panel's own certificate material.
+message InstallPanelCertificateRequest {
+  // PEM-encoded leaf certificate, optionally followed by the chain.
+  string certificate_pem = 1;
+  // PEM-encoded private key, matching certificate_pem. Never logged or
+  // echoed back in error output.
+  string private_key_pem = 2;
+}
+
+message InstallPanelCertificateResponse {
+  oneof result {
+    InstallPanelCertificateOk ok = 1;
+    // Every failure that is not a verdict on the material itself.
+    AgentError error = 2;
+    // The material was read and refused, and nothing was written — the same
+    // three answers InstallCertificate gives.
+    InstallCertificateRefused refused = 3;
+  }
+}
+
+message InstallPanelCertificateOk {
+  // Certificate expiry as Unix seconds (UTC), parsed from the installed
+  // certificate, for the panel to schedule renewal from.
+  int64 expires_at_unix = 1;
+}
+
+// Added 2026-11-01 (issue #132). One challenge file for the panel's host name.
+message WritePanelChallengeRequest {
+  // The challenge token from the certificate authority, which is also the
+  // file's name. base64url, 1 to 128 characters; anything else is refused
+  // with ERROR_CODE_INVALID_INPUT.
+  string token = 1;
+  // The file's content: the token, one dot, and the base64url thumbprint of
+  // the panel's ACME account key (RFC 8555 §8.1), at most 256 characters.
+  string key_authorization = 2;
+}
+
+message WritePanelChallengeResponse {
+  oneof result {
+    WritePanelChallengeOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message WritePanelChallengeOk {}
+
+// Added 2026-11-01 (issue #132). The token whose challenge file is removed.
+message RemovePanelChallengeRequest {
+  // The challenge token, held to the same grammar as in
+  // WritePanelChallengeRequest.
+  string token = 1;
+}
+
+message RemovePanelChallengeResponse {
+  oneof result {
+    RemovePanelChallengeOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message RemovePanelChallengeOk {}

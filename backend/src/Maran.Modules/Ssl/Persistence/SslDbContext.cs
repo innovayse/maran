@@ -64,6 +64,18 @@ public sealed class SslDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// The panel's own trusted certificates, one per host name (issue #132). Server-wide, never
+    /// tenant-scoped: the panel's TLS belongs to the operator.
+    /// </summary>
+    public DbSet<PanelCertificate> PanelCertificates
+    {
+        get
+        {
+            return Set<PanelCertificate>();
+        }
+    }
+
     /// <summary>Applies the schema, the entity configurations, and the tenant query filter.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -71,6 +83,7 @@ public sealed class SslDbContext : DbContext
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfiguration(new CertificateConfiguration());
         modelBuilder.ApplyConfiguration(new AcmeAccountConfiguration(_encryptionService));
+        modelBuilder.ApplyConfiguration(new PanelCertificateConfiguration());
 
         modelBuilder.Entity<Certificate>().HasQueryFilter(certificate =>
             _currentUser.IsAdmin || certificate.AccountId == _currentUser.AccountId);

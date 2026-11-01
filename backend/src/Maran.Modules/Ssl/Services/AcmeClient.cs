@@ -230,7 +230,7 @@ public sealed class AcmeClient : IAcmeClient
     /// <summary>Runs the order from creation to issued material.</summary>
     /// <param name="session">The signed conversation with the authority.</param>
     /// <param name="directory">The authority's directory document.</param>
-    /// <param name="request">The domain and the account whose document root answers.</param>
+    /// <param name="request">The domain and where its challenge file is placed.</param>
     /// <param name="cancellationToken">Cancellation for the whole order.</param>
     /// <returns>The issued material, or a typed failure.</returns>
     private async Task<Result<IssuedCertificate>> PlaceOrderAsync(
@@ -303,7 +303,7 @@ public sealed class AcmeClient : IAcmeClient
     /// <summary>Answers the HTTP-01 challenge and waits, bounded, for the authority to accept it.</summary>
     /// <param name="session">The signed conversation with the authority.</param>
     /// <param name="authorizationUrl">The authorization to satisfy.</param>
-    /// <param name="request">The domain and the account whose document root answers.</param>
+    /// <param name="request">The domain and where its challenge file is placed.</param>
     /// <param name="cancellationToken">Cancellation for the wait.</param>
     /// <returns>Success once the authorization is valid, or a typed failure.</returns>
     /// <remarks>
@@ -338,14 +338,14 @@ public sealed class AcmeClient : IAcmeClient
         }
 
         var written = await _challengeWriter.WriteAsync(
-            request.AccountUsername,
+            request.Challenge,
             request.Domain,
             token,
             KeyAuthorization(token, session.Thumbprint),
             cancellationToken);
         if (!written.IsSuccess)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeWriteFailed), ErrorType.Failure));
+            return Result<bool>.Fail(written.Error!); // the writer already worded it (floor kept as itself)
         }
 
         try
@@ -363,7 +363,7 @@ public sealed class AcmeClient : IAcmeClient
         {
             // Deliberately unchecked: see the remarks above. The agent logs its own failure.
             await _challengeWriter.RemoveAsync(
-                request.AccountUsername, request.Domain, token, CancellationToken.None);
+                request.Challenge, request.Domain, token, CancellationToken.None);
         }
     }
 

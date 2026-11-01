@@ -1,5 +1,6 @@
 //! The one mapping from certificate operation failures onto the wire error.
 
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_ops::ssl::SslOpError;
 
 use crate::proto::{AgentError, ErrorCode};
@@ -57,6 +58,18 @@ pub fn to_agent_error(error: &SslOpError) -> AgentError {
         // forward. Named ahead of the wildcard so a missing arm cannot compile
         // silently (threat note, plan item 11).
         SslOpError::Bound(_) => (ErrorCode::SystemFailure, String::new()),
+        // Removing the panel's challenge file twice is the ordinary outcome of
+        // a retried cleanup; `ssl.proto` answers it NotFound.
+        SslOpError::ChallengeNotFound => (ErrorCode::NotFound, String::new()),
+        // The panel's challenge write refused at the free-space floor (#148):
+        // the same code `WriteFile` answers a customer's challenge with, so
+        // the panel names the floor rather than a fault.
+        SslOpError::FreeSpace(FloorRefusal::BelowFloor { .. }) => {
+            (ErrorCode::BelowFreeSpaceFloor, String::new())
+        }
+        SslOpError::ChallengeWrite { .. } | SslOpError::FreeSpace(_) => {
+            (ErrorCode::SystemFailure, String::new())
+        }
         // SslOpError is #[non_exhaustive] (rules/rust.md), so a variant added
         // in the ops crate lands here rather than failing this build. It maps
         // to a system failure: the panel then reports a fault instead of

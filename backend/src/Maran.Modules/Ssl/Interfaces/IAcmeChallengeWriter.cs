@@ -1,3 +1,5 @@
+using Maran.Modules.Ssl.Models;
+
 namespace Maran.Modules.Ssl.Interfaces;
 
 /// <summary>
@@ -11,22 +13,29 @@ namespace Maran.Modules.Ssl.Interfaces;
 /// </remarks>
 public interface IAcmeChallengeWriter
 {
-    /// <summary>Writes one challenge token into the account's document root, as that account.</summary>
-    /// <param name="accountUsername">System username of the account whose document root answers.</param>
-    /// <param name="domain">The domain being validated; its document root is where the file goes.</param>
+    /// <summary>
+    /// Writes one challenge token where <paramref name="target"/> says: a site's document root, as the
+    /// owning account, or the panel's own challenge directory.
+    /// </summary>
+    /// <param name="target">Where the file is placed.</param>
+    /// <param name="domain">The domain being validated; for a site, its document root is where the file goes.</param>
     /// <param name="token">The challenge token, which is also the file's name.</param>
     /// <param name="keyAuthorization">The file's content: the token joined to the account key's thumbprint.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
-    /// <returns>Success, or the agent's own typed failure.</returns>
+    /// <returns>
+    /// Success; the agent's free-space floor refusal as itself (#148), since a disk nearly full is
+    /// not a fault to re-word; or <c>AcmeChallengeWriteFailed</c> (a site) / <c>PanelChallengeWriteFailed</c> (the
+    /// panel) for every other failure.
+    /// </returns>
     Task<Result<bool>> WriteAsync(
-        string accountUsername,
+        AcmeChallengeTarget target,
         string domain,
         string token,
         string keyAuthorization,
         CancellationToken cancellationToken);
 
     /// <summary>Removes a challenge token once the authority has read it, or once the order failed.</summary>
-    /// <param name="accountUsername">System username of the account whose document root holds the file.</param>
+    /// <param name="target">Where the file was placed.</param>
     /// <param name="domain">The domain that was being validated.</param>
     /// <param name="token">The challenge token, which is also the file's name.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
@@ -38,7 +47,7 @@ public interface IAcmeChallengeWriter
     /// certificate over a failed unlink would be a real loss.
     /// </remarks>
     Task<Result<bool>> RemoveAsync(
-        string accountUsername,
+        AcmeChallengeTarget target,
         string domain,
         string token,
         CancellationToken cancellationToken);

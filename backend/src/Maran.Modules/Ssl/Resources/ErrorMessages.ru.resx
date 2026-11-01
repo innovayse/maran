@@ -78,4 +78,13 @@
   <data name="CertificateStatusUnknown">
     <value>Это не статус сертификата.</value>
   </data>
+  <data name="PanelHostNameNotConfigured">
+    <value>Для панели не задано имя хоста, поэтому сертификат для неё заказать нельзя. Укажите Panel__HostName в /etc/maran/panel.env и перезапустите панель.</value>
+  </data>
+  <data name="PanelCertificateNotIssued">
+    <value>Для панели не выпущен доверенный сертификат; она работает с самоподписанным сертификатом.</value>
+  </data>
+  <data name="PanelChallengeWriteFailed">
+    <value>Не удалось разместить на сервере проверочный файл для имени хоста панели.</value>
+  </data>
 </root>

@@ -160,14 +160,14 @@ public sealed class PebbleAcmeIssuanceTests
             var client = new AcmeClient(
                 factory,
                 options,
-                new AcmeChallengeWriter(files),
+                new AcmeChallengeWriter(files, new RecordingAgentSslClient()),
                 new AcmeAccountStore(dbContext, clock, NullLogger<AcmeAccountStore>.Instance),
                 clock,
                 NullLogger<AcmeClient>.Instance);
 
             Log($"[order] requesting domain={Domain} contact={ContactEmail} directory={DirectoryUrl}");
             var result = await client.OrderAsync(
-                new AcmeOrderRequest(Domain, "acme-test-account"),
+                new AcmeOrderRequest(Domain, new SiteDocumentRootChallenge("acme-test-account")),
                 CancellationToken.None);
 
             if (!result.IsSuccess)

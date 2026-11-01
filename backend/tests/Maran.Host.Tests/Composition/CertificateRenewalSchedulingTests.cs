@@ -109,4 +109,18 @@ public sealed class CertificateRenewalSchedulingTests : IClassFixture<PanelTestF
 
         Assert.Equal(Timeout.InfiniteTimeSpan, client.Timeout);
     }
+
+    /// <summary>The panel's own renewal trigger is routed to a handler and that handler resolves (issue #132).</summary>
+    [Fact]
+    public void The_panel_certificate_renewal_trigger_is_routed_to_a_handler_that_resolves()
+    {
+        var handlers = _factory.Services.GetRequiredService<HandlerGraph>();
+        using var scope = _factory.Services.CreateScope();
+
+        Assert.True(
+            handlers.CanHandle(typeof(PanelCertificateRenewalRequested)),
+            "the running panel has no handler for PanelCertificateRenewalRequested, so the panel's own "
+                + "certificate is never renewed");
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<PanelCertificateRenewalHandler>());
+    }
 }

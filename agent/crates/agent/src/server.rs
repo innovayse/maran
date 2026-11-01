@@ -19,7 +19,7 @@ use maran_ops::php::{
 };
 use maran_ops::sftp::ProcessSftpHost;
 use maran_ops::sites::{ProcessSiteHost, SiteMaintenanceHost, SitesOpError, reload_web_server};
-use maran_ops::ssl::ProcessSslHost;
+use maran_ops::ssl::{ProcessPanelChallengeHost, ProcessSslHost};
 use tokio::net::UnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
@@ -68,10 +68,11 @@ const DIRECTORY_MODE: u32 = 0o750;
 
 /// Binds `socket_path` and serves the contract until the process is stopped.
 ///
-/// `floor` is the free-space floor the four writing operations refuse below
-/// (issue #148): account creation, backup creation, restore and upload. It is
-/// handed to each of their services here and to the monitor service, which
-/// reports it so the panel can warn before the refusals begin.
+/// `floor` is the free-space floor the writing operations refuse below
+/// (issue #148): account creation, backup creation, restore, upload, and the
+/// panel's own ACME challenge file (issue #132). It is handed to each of their
+/// services here and to the monitor service, which reports it so the panel can
+/// warn before the refusals begin.
 ///
 /// # Errors
 ///
@@ -248,7 +249,12 @@ pub async fn serve(
             PeerGuard::new(policy),
         ))
         .add_service(SslServiceServer::with_interceptor(
-            SslServiceImpl::new(ProcessSslHost::new(), adapter),
+            SslServiceImpl::new(
+                ProcessSslHost::new(),
+                ProcessPanelChallengeHost::new(),
+                floor,
+                adapter,
+            ),
             PeerGuard::new(policy),
         ))
         .add_service(PhpServiceServer::with_interceptor(

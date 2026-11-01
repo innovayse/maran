@@ -149,25 +149,35 @@ so the one authority for the panel's public port is gone and this check cannot h
       ;;
   esac
 
-  # Every listen directive, as a port: `listen 8443 ssl;` and `listen [::]:8443 ssl;` are
-  # the same number written two ways, and the port is what follows the last colon.
-  local listen_ports checked=0 port
-  listen_ports="$(awk '$1 == "listen" { spec = $2; sub(/;$/, "", spec); n = split(spec, parts, ":"); print parts[n] }' \
+  # Every listen directive, as "<port> <tls|plain>": `listen 8443 ssl;` and
+  # `listen [::]:8443 ssl;` are the same number written two ways, and the port is what follows
+  # the last colon. The TLS listens are the panel and must equal the authority. The plain ones
+  # belong to the ACME HTTP-01 block (issue #132) and must be 80: RFC 8555 fixes the challenge
+  # to port 80, so that number is the protocol's and not a second panel port.
+  local listen_ports tls_checked=0 port kind
+  listen_ports="$(awk '$1 == "listen" { spec = $2; sub(/;$/, "", spec); n = split(spec, parts, ":");
+      kind = "plain"; for (i = 3; i <= NF; i++) if ($i ~ /^ssl;?$/) kind = "tls"; print parts[n], kind }' \
     "$PANEL_VHOST")"
-  if [ -z "$listen_ports" ]; then
-    fail "no listen directive was found in ${PANEL_VHOST}; a check that reads nothing agrees with everything"
-  fi
 
-  while read -r port; do
+  while read -r port kind; do
     case "$port" in
       ''|*[!0-9]*)
         fail "a listen directive in ${PANEL_VHOST} does not end in a port this check can read: '${port}'"
         ;;
     esac
-    [ "$port" = "$authority" ] \
-      || fail "the vhost listens on ${port} while install.sh sets MARAN_PANEL_PORT=${authority}; they are one number"
-    checked=$((checked + 1))
+    if [ "$kind" = tls ]; then
+      [ "$port" = "$authority" ] \
+        || fail "the vhost listens on ${port} while install.sh sets MARAN_PANEL_PORT=${authority}; they are one number"
+      tls_checked=$((tls_checked + 1))
+    else
+      [ "$port" = 80 ] \
+        || fail "the vhost has a plain-HTTP listen on ${port}; the only plain block is the ACME challenge, which is port 80"
+    fi
   done <<< "$listen_ports"
+  # The vacuity guard is on the TLS axis: a vhost whose TLS listens vanished would otherwise
+  # pass on its challenge block alone.
+  [ "$tls_checked" -gt 0 ] \
+    || fail "no TLS listen directive was found in ${PANEL_VHOST}; a check that reads nothing agrees with everything"
 
   # 60-config.sh must WRITE the panel port derived, never as a number of its own.
   grep -q 'Firewall__PanelPort=\${MARAN_PANEL_PORT}' "$CONFIG_STEP" \
@@ -235,7 +245,7 @@ following MARAN_API_SOCKET_PATH and can disagree with the socket the api actuall
   # the installer's own code and this family's real systemd-tmpfiles and then stats it.
   socket_dir="${socket_authority%/*}"
 
-  echo "All ${checked} listen directives, panel.env.example, 60-config.sh and 10-preflight.sh follow"
+  echo "All ${tls_checked} TLS listen directives (and the port-80 ACME challenge block), panel.env.example, 60-config.sh and 10-preflight.sh follow"
   echo "MARAN_PANEL_PORT=${authority}; the api listens on ${socket_authority} and on no TCP port at all."
   echo "The directory ${socket_dir} is checked by building it, further down, not by reading the unit."
 }

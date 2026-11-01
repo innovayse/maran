@@ -368,6 +368,30 @@ impl AgentPaths {
     /// directly.
     pub const CERTIFICATE_DIRECTORY: &'static str = "/etc/maran/certificates";
 
+    /// Directory holding the panel's OWN certificate and key, the pair the
+    /// panel's nginx vhost names (`installer/nginx/maran.conf`).
+    ///
+    /// Separate from [`Self::CERTIFICATE_DIRECTORY`] because the installer
+    /// creates it and its self-signed pair before the agent ever runs, and the
+    /// vhost was rendered against these names; a certificate issued for the
+    /// panel host name replaces the pair in place (issue #132).
+    pub const PANEL_TLS_DIRECTORY: &'static str = "/etc/maran/tls";
+
+    /// File name of the panel's certificate inside [`Self::PANEL_TLS_DIRECTORY`].
+    pub const PANEL_CERTIFICATE_FILE: &'static str = "panel.crt";
+
+    /// File name of the panel's private key inside [`Self::PANEL_TLS_DIRECTORY`].
+    pub const PANEL_KEY_FILE: &'static str = "panel.key";
+
+    /// Directory the panel's port-80 block serves `/.well-known/acme-challenge/`
+    /// from, holding one file per challenge token for the panel's own host name.
+    ///
+    /// Root-owned `0755` and created by the installer, outside every home and
+    /// every document root: the panel's challenge is the panel's, and no
+    /// customer may write a file the certificate authority would read as proof
+    /// of control over the panel's name (issue #132).
+    pub const PANEL_ACME_CHALLENGE_DIRECTORY: &'static str = "/var/lib/maran-acme";
+
     /// Root directory holding every account's local backup artifacts.
     ///
     /// Outside every home and every document root, `root:root 0700`. The

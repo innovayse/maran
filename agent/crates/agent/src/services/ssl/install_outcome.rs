@@ -3,10 +3,8 @@
 
 use maran_ops::ssl::SslOpError;
 
-use crate::proto::{
-    CertificateMaterialRefusal, InstallCertificateOk, InstallCertificateRefused,
-    install_certificate_response,
-};
+use crate::proto::{InstallCertificateOk, InstallCertificateRefused, install_certificate_response};
+use crate::services::ssl::material_refusal::material_refusal;
 use crate::services::ssl::ssl_status::to_agent_error;
 
 /// Turns what `ops::ssl::install_certificate` returned into the response's
@@ -29,13 +27,9 @@ pub fn install_outcome(outcome: Result<i64, SslOpError>) -> install_certificate_
         Err(error) => error,
     };
 
-    let reason = match error {
-        SslOpError::MalformedCertificate { .. } => CertificateMaterialRefusal::MalformedCertificate,
-        SslOpError::MalformedPrivateKey => CertificateMaterialRefusal::MalformedPrivateKey,
-        SslOpError::KeyDoesNotMatchCertificate => {
-            CertificateMaterialRefusal::KeyDoesNotMatchCertificate
-        }
-        other => return install_certificate_response::Result::Error(to_agent_error(&other)),
+    let reason = match material_refusal(error) {
+        Ok(reason) => reason,
+        Err(other) => return install_certificate_response::Result::Error(to_agent_error(&other)),
     };
 
     install_certificate_response::Result::Refused(InstallCertificateRefused {

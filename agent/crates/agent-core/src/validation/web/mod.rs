@@ -2,6 +2,10 @@
 //! PHP versions bound to a site — and the network endpoints the firewall
 //! matches on, which are the same kind of value reaching a different file.
 
+pub mod acme_key_authorization;
+pub mod acme_key_authorization_error;
+pub mod acme_token;
+pub mod acme_token_error;
 pub mod ban_address;
 pub mod ban_address_error;
 pub mod domain;

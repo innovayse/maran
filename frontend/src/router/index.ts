@@ -39,6 +39,7 @@ import SessionsPage from '../pages/settings/SessionsPage.vue'
 import TwoFactorSettingsPage from '../pages/settings/TwoFactorSettingsPage.vue'
 import SecurityPolicyPage from '../pages/settings/SecurityPolicyPage.vue'
 import PhpVersionsPage from '../pages/settings/PhpVersionsPage.vue'
+import PanelCertificatePage from '../pages/settings/PanelCertificatePage.vue'
 import SmtpSettingsPage from '../pages/settings/SmtpSettingsPage.vue'
 import { createAuthGuard } from './authGuard'
 import { createModuleAccessGuard } from './moduleAccessGuard'
@@ -333,6 +334,14 @@ export const createAppRouter = (): Router => {
           // ability to send a reset link.
           { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage, meta: { title: 'app.securityPolicy.heading', adminOnly: true } },
           { path: 'smtp', name: 'smtp-settings', component: SmtpSettingsPage, meta: { title: 'app.smtp.heading', adminOnly: true } },
+          // The panel's own certificate (issue #132), reached from the security policy and placed
+          // under it in the breadcrumb.
+          {
+            path: 'panel-certificate',
+            name: 'panel-certificate',
+            component: PanelCertificatePage,
+            meta: { title: 'panelCertificate.heading', adminOnly: true, navigationParent: 'security-policy' },
+          },
           // PHP runtimes are server-wide and installing one is administrators' work, so this sits
           // with the other administrator screens and carries no `meta.module`: a host with no PHP
           // version installed is a host where no PHP site can be created at all, which is not a

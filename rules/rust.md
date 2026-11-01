@@ -107,7 +107,10 @@ agent/
     │   │       │              the only clock production reads. They live beside the sink
     │   │       │              and not in a shared `wire/` because one sink observes them
     │   │       │              (rules/testing.md: no sleeps — inject `Clock`).
-    │   │       ├── ssl/       ssl_service.rs · ssl_status.rs
+    │   │       ├── ssl/       ssl_service.rs · ssl_status.rs · install_outcome.rs ·
+    │   │       │              panel_install_outcome.rs · material_refusal.rs (the verdict on
+    │   │       │              material both install rpcs share) · validated_panel_challenge.rs ·
+    │   │       │              validated_panel_token.rs — the panel's own certificate (issue #132)
     │   │       ├── php/       php_service.rs · php_status.rs
     │   │       ├── db/        db_service.rs · db_status.rs ·
     │   │       │              validated_creation.rs · validated_database.rs ·
@@ -147,7 +150,8 @@ agent/
     │       ├── agent_paths.rs AgentPaths — locations the agent owns and that are the SAME
     │       │                  on every family (nginx include dir, certificate dir, account
     │       │                  home root, php-fpm socket dir, SFTP jail root, FTPS jail
-    │       │                  root, site log root, backup root, bulk scratch root, and the three
+    │       │                  root, site log root, backup root, bulk scratch root, the panel's
+    │       │                  own TLS directory and ACME challenge directory (issue #132), and the three
     │       │                  host-temp mount points /run/maran-host/{tmp,var-tmp,dev-shm}:
     │       │                  HOST_TMP_DIRECTORY and its siblings, listed together as
     │       │                  SHARED_TEMP_ROOTS — where the unit's BindPaths= shows the agent
@@ -193,7 +197,9 @@ agent/
     │       │   │              login keeps a value from being accepted where the
     │       │   │              other protocol's jail is what it addresses.
     │       │   ├── db/        database_name · db_user_name — values that reach MySQL
-    │       │   ├── web/       domain · upstream · php_version · port · source_cidr ·
+    │       │   ├── web/       acme_token · acme_key_authorization (the panel's own HTTP-01
+    │       │   │              file name and content, issue #132) ·
+    │       │   │              domain · upstream · php_version · port · source_cidr ·
     │       │   │              ban_address · ipv4_disguise (shared predicate, no
     │       │   │              _error) · passive_address · s3_bucket · s3_region ·
     │       │   │              s3_object_prefix — values written into web-server

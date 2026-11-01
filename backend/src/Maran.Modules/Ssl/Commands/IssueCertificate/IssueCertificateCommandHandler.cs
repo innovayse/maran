@@ -163,7 +163,7 @@ public sealed class IssueCertificateCommandHandler
         await _tasks.ReportAsync(taskId, 20, "ordering the certificate from the authority", cancellationToken);
 
         var issued = await _acme.OrderAsync(
-            new AcmeOrderRequest(command.Domain, account.Username), cancellationToken);
+            new AcmeOrderRequest(command.Domain, new SiteDocumentRootChallenge(account.Username)), cancellationToken);
         if (!issued.IsSuccess)
         {
             return await FailAsync(command, issued.Error!, taskId, cancellationToken);

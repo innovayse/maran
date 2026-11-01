@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Maran.Host.Configuration;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Utilities.Network;
@@ -6,8 +7,9 @@ using Microsoft.Extensions.Options;
 namespace Maran.Host.Modules;
 
 /// <summary>
-/// The panel's <see cref="IReservedHostDirectory"/>: answers whether a host name is the one the
-/// panel is configured to be reached by, or its <c>www.</c> form.
+/// The panel's <see cref="IReservedHostDirectory"/> and <see cref="IPanelHostName"/>: answers whether
+/// a host name is the one the panel is configured to be reached by, or its <c>www.</c> form, and hands
+/// the name itself to the panel's own certificate issuance (issue #132).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,7 +31,7 @@ namespace Maran.Host.Modules;
 /// value takes effect on restart, like every other setting from <c>panel.env</c>.
 /// </para>
 /// </remarks>
-public sealed class PanelHostDirectory : IReservedHostDirectory
+public sealed class PanelHostDirectory : IReservedHostDirectory, IPanelHostName
 {
     /// <summary>The prefix of the alternative spelling every public name is also reached by.</summary>
     private const string WwwPrefix = "www.";
@@ -58,6 +60,13 @@ public sealed class PanelHostDirectory : IReservedHostDirectory
         var name = DropTrailingDot(candidate);
         return name.Equals(_panelName, StringComparison.OrdinalIgnoreCase)
             || name.Equals(WwwPrefix + _panelName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <inheritdoc />
+    public bool TryGet([NotNullWhen(true)] out string? hostName)
+    {
+        hostName = _panelName;
+        return hostName is not null;
     }
 
     /// <summary>Reduces a configured value to the one spelling it is compared in.</summary>

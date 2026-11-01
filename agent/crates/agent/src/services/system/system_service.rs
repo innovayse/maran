@@ -42,8 +42,10 @@ use crate::proto::{
 /// `HostMetrics.free_space_floor_bytes`, the agent's refusal to start a write
 /// below its free-space floor and the floor it refuses at (issue #148).
 /// 8 adds `AccountsService.SetAccountResourceLimits`, the CPU, memory and
-/// process ceilings of an account's systemd slice (issue #133).
-const PROTO_VERSION: u32 = 8;
+/// process ceilings of an account's systemd slice (issue #133). 9 adds
+/// `InstallPanelCertificate`, `WritePanelChallenge` and `RemovePanelChallenge`,
+/// the panel's own certificate and its HTTP-01 file (issue #132).
+const PROTO_VERSION: u32 = 9;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

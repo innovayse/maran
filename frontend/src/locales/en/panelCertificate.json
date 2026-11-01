@@ -1,0 +1,17 @@
+{
+  "panelCertificate": {
+    "heading": "Panel certificate",
+    "subtitle": "The certificate this panel's own interface is served with.",
+    "currentTitle": "Current certificate",
+    "hostNameLabel": "Host name",
+    "issuedAtLabel": "Issued",
+    "expiresAtLabel": "Expires",
+    "selfSigned": "The panel is served with its self-signed certificate, so browsers warn before opening it.",
+    "issueHint": "The panel validates its host name over HTTP on port 80 and installs the result. The host name must point at this server; if issuance fails, the current certificate stays in place. A trusted certificate renews by itself.",
+    "issue": "Request a trusted certificate",
+    "renew": "Renew now",
+    "working": "Requesting…",
+    "issued": "The trusted certificate is installed. Reload the page to use it.",
+    "link": "Panel certificate"
+  }
+}

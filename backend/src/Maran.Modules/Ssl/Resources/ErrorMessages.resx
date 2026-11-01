@@ -78,4 +78,13 @@
   <data name="CertificateStatusUnknown">
     <value>That is not a certificate status.</value>
   </data>
+  <data name="PanelHostNameNotConfigured">
+    <value>The panel has no host name configured, so no certificate can be ordered for it. Set Panel__HostName in /etc/maran/panel.env and restart the panel.</value>
+  </data>
+  <data name="PanelCertificateNotIssued">
+    <value>No trusted certificate has been issued for the panel; it is served with its self-signed certificate.</value>
+  </data>
+  <data name="PanelChallengeWriteFailed">
+    <value>The verification file for the panel's host name could not be placed on the server.</value>
+  </data>
 </root>
