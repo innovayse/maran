@@ -556,6 +556,13 @@ backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	414	0	0
 backend	Maran.Host.IntegrationTests.dll	817	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
+# RAISED 2026-11-01 (issue #149, accessibility): edited by hand. Three new spa rows from e2e/accessibility/:
+# axe-scan 11 (5 screens x 2 themes + the planted-violation control), document-language 2, reduced-motion 2.
+# Measured by `maran test spa` (169 targets: 1132 passed / 1 failed / 2 ignored; the one failure,
+# shell/command-palette-a11y:98, passed 3/3 re-run alone at one load and its row is unchanged).
+spa	accessibility/axe-scan.spec.ts	11	0	0
+spa	accessibility/document-language.spec.ts	2	0	0
+spa	accessibility/reduced-motion.spec.ts	2	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0

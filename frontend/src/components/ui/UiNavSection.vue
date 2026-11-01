@@ -71,7 +71,7 @@ const toggle = (): void => {
     </UiNavLink>
     <button
       type="button"
-      class="absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center rounded-inset transition-colors focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+      class="absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center rounded-inset transition-colors focus-visible:shadow-focus focus-visible:outline-none"
       :class="
         current
           ? 'text-white hover:bg-accent-hover'
@@ -85,7 +85,7 @@ const toggle = (): void => {
       <UiIcon
         name="chevronDown"
         size="sm"
-        class="transition-transform motion-reduce:transition-none"
+        class="transition-transform"
         :class="open ? 'rotate-180' : ''"
       />
     </button>

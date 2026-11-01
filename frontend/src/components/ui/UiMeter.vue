@@ -157,7 +157,7 @@ const visibleText: ComputedRef<string> = computed(() => {
       :aria-valuetext="valueText"
     >
       <div
-        class="h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none"
+        class="h-full rounded-full transition-[width] duration-300"
         :class="fillClasses"
         :style="{ width: fillWidth }"
       />

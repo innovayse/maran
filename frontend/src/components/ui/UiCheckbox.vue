@@ -123,7 +123,7 @@ const onChange = (event: Event): void => {
           <UiIcon
             name="check"
             size="sm"
-            class="transition-opacity duration-200 ease-out motion-reduce:transition-none"
+            class="transition-opacity duration-200 ease-out"
             :class="modelValue ? 'opacity-100' : 'opacity-0'"
           />
         </span>
