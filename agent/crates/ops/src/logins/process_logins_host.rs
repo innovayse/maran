@@ -1,6 +1,8 @@
 //! The [`LoginsHost`] that actually touches this machine.
 
 use std::fs;
+use std::io;
+use std::path::Path;
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::call_class::CallClass;
@@ -85,6 +87,15 @@ impl LoginsHost for ProcessLoginsHost {
         class: CallClass,
     ) -> Result<CommandOutcome, LoginsError> {
         Ok(spawn_argv(program.as_path(), arguments, class)?)
+    }
+
+    /// `rename(2)` in one directory: atomic, and a missing source is success.
+    fn rename_if_present(&self, from: &Path, to: &Path) -> Result<(), LoginsError> {
+        match fs::rename(from, to) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(_) => Err(LoginsError::KeyFileFailed),
+        }
     }
 }
 

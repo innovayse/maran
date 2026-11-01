@@ -383,6 +383,14 @@ pub fn chpasswd_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/sbin/chpasswd")
 }
 
+/// Absolute path of `ssh-keygen`, for the process-execution allow-list.
+///
+/// Shipped by `openssh-client`, which the `openssh-server` package installer step 86
+/// installs depends on.
+pub fn ssh_keygen_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/ssh-keygen")
+}
+
 /// Directory a systemd unit file must be written to for `systemctl` to see it.
 ///
 /// The administrator's own unit directory, which outranks anything a package

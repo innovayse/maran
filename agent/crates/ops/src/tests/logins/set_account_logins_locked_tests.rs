@@ -686,3 +686,45 @@ fn passwd_status_is_asked_without_an_end_of_options_marker() {
         assert!(!argv.iter().any(|argument| argument == "--"), "{argv:?}");
     }
 }
+
+/// Where `alice_web`'s keys are read by sshd.
+const WEB_KEYS: &str = "/etc/ssh/maran-sftp-keys/alice_web";
+
+/// Where `alice_web`'s keys wait out a suspension.
+const WEB_KEYS_SUSPENDED: &str = "/etc/ssh/maran-sftp-keys/alice_web.suspended";
+
+#[test]
+fn suspending_parks_an_sftp_logins_key_file_where_sshd_never_reads_it() {
+    // A locked password does not refuse a public key under `UsePAM yes`, so a
+    // key file left in place is a suspended customer still logging in.
+    let host = one_of_each().with_key_file(WEB_KEYS);
+
+    set_account_logins_locked_under_lock(&host, distro(), &account(), true).expect("locked");
+
+    assert_eq!(host.key_files(), vec![WEB_KEYS_SUSPENDED]);
+}
+
+#[test]
+fn resuming_puts_the_key_file_back_where_sshd_reads_it() {
+    let host = one_of_each()
+        .with_key_file(WEB_KEYS_SUSPENDED)
+        .with_locked("alice_web");
+
+    set_account_logins_locked_under_lock(&host, distro(), &account(), false).expect("unlocked");
+
+    assert_eq!(host.key_files(), vec![WEB_KEYS]);
+}
+
+#[test]
+fn a_login_that_stays_locked_after_a_resume_does_not_get_its_keys_back() {
+    // A passwordless login cannot be unlocked; its keys must not become the
+    // way in that its password is not.
+    let host = one_of_each()
+        .with_key_file(WEB_KEYS_SUSPENDED)
+        .with_locked("alice_web")
+        .with_passwordless("alice_web");
+
+    set_account_logins_locked_under_lock(&host, distro(), &account(), false).expect("resumed");
+
+    assert_eq!(host.key_files(), vec![WEB_KEYS_SUSPENDED]);
+}

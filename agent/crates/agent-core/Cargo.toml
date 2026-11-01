@@ -17,6 +17,9 @@ libc.workspace = true
 # in utils/available_bytes. Safe wrappers on purpose: the crate's unsafe budget is
 # spent in src/privs/ and nowhere else (rules/rust.md "unsafe").
 rustix.workspace = true
+# base64: decoding an SSH public key in validation/system/ssh_public_key.rs, so a
+# key is proven to be a key before root writes it (issue #135).
+base64.workspace = true
 
 [dev-dependencies]
 # tempfile: path containment is only meaningfully tested against a real filesystem.

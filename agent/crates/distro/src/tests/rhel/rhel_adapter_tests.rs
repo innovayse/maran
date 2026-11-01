@@ -111,7 +111,7 @@ fn the_rhel_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 23] = [
+const EXPECTED_BINARIES: [(&str, &str); 24] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
@@ -122,6 +122,7 @@ const EXPECTED_BINARIES: [(&str, &str); 23] = [
     ("ipcrm", "/usr/bin/ipcrm"),
     ("userdel", "/usr/sbin/userdel"),
     ("chpasswd", "/usr/sbin/chpasswd"),
+    ("ssh-keygen", "/usr/bin/ssh-keygen"),
     ("setquota", "/usr/sbin/setquota"),
     ("quota", "/usr/bin/quota"),
     ("quotaon", "/usr/sbin/quotaon"),
@@ -138,7 +139,7 @@ const EXPECTED_BINARIES: [(&str, &str); 23] = [
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [String; 23] {
+fn actual_binaries() -> [String; 24] {
     [
         RhelAdapter.useradd_binary().to_string(),
         RhelAdapter.usermod_binary().to_string(),
@@ -150,6 +151,7 @@ fn actual_binaries() -> [String; 23] {
         RhelAdapter.ipcrm_binary().to_string(),
         RhelAdapter.userdel_binary().to_string(),
         RhelAdapter.chpasswd_binary().to_string(),
+        RhelAdapter.ssh_keygen_binary().to_string(),
         RhelAdapter.setquota_binary().to_string(),
         RhelAdapter.quota_binary().to_string(),
         RhelAdapter.quotaon_binary().to_string(),
@@ -255,6 +257,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("chmod", RhelAdapter.chmod_binary()),
         ("chgrp", RhelAdapter.chgrp_binary()),
         ("chpasswd", RhelAdapter.chpasswd_binary()),
+        ("ssh-keygen", RhelAdapter.ssh_keygen_binary()),
         ("crontab", RhelAdapter.crontab_binary()),
         ("nft", RhelAdapter.nft_binary()),
     ]

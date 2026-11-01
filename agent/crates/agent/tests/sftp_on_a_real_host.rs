@@ -50,13 +50,14 @@ use std::process::Command;
 use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
+use maran_agent_core::validation::system::ssh_public_key::SshPublicKey;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::accounts::{AccountOperations, ProcessSystemHost, StoredPassword};
 use maran_ops::cron::ProcessCronHost;
 use maran_ops::logins::{ProcessLoginsHost, account_logins, set_account_logins_locked};
 use maran_ops::sftp::{
-    AccountJail, ProcessSftpHost, SftpError, SftpUserRequest, create_sftp_user, delete_sftp_user,
-    set_sftp_password,
+    AccountJail, AuthorizedKeySet, ProcessSftpHost, SftpError, SftpUserRequest, create_sftp_user,
+    delete_sftp_user, set_sftp_authorized_keys, set_sftp_password,
 };
 use maran_ops::sites::ProcessSiteHost;
 
@@ -1411,6 +1412,108 @@ fn the_sshd_configuration_this_product_writes_puts_no_idle_bound_on_an_sftp_sess
     assert!(
         with_a_bound.contains("forcecommand internal-sftp"),
         "and the inverse control must still be reading the product's own block"
+    );
+
+    drop(login);
+}
+
+/// A fresh Ed25519 key pair in a temporary directory: the private half's path,
+/// and the public half as `set_sftp_authorized_keys` takes it.
+fn polygon_key_pair(directory: &Path) -> (PathBuf, AuthorizedKeySet) {
+    let identity = directory.join("id_ed25519");
+    let made = Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "polygon@test", "-f"])
+        .arg(&identity)
+        .output()
+        .expect("the polygon image ships ssh-keygen");
+    assert!(made.status.success(), "ssh-keygen: {}", said(&made));
+
+    let public = std::fs::read_to_string(identity.with_extension("pub")).expect("a public key");
+    let key = SshPublicKey::parse(public.trim()).expect("ssh-keygen writes an accepted key");
+
+    (identity, AuthorizedKeySet::new(vec![key]).expect("one key"))
+}
+
+/// Replaces `login`'s key set, panicking with the agent's answer on refusal.
+fn set_keys(login: &PolygonSftpLogin, keys: &AuthorizedKeySet) {
+    set_sftp_authorized_keys(
+        &ProcessSftpHost::new(),
+        polygon_distro(),
+        &login.account,
+        &login.user,
+        keys,
+    )
+    .unwrap_or_else(|error| panic!("setting the login's keys must succeed: {error}"));
+}
+
+#[test]
+#[ignore = "authenticates with a real key against a real sshd: polygon only"]
+fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
+    // Issue #135's closing criterion: a real login with a key, and a real
+    // refusal after the key is revoked. The suspension half is the hole the
+    // design exists to close: with `UsePAM yes`, sshd does not consult a locked
+    // password for a key.
+    let sshd = PolygonSshd::start();
+    let account = PolygonAccount::create("polysftpkeys");
+    let login = PolygonSftpLogin::create(&account);
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let (identity, keys) = polygon_key_pair(scratch.path());
+
+    // Inverse control: before any key is set, the key must NOT work, or the
+    // success below would prove nothing about the file this code wrote.
+    let unset = sshd.sftp_with_key(login.name(), &identity, "pwd\n");
+    assert!(
+        !unset.status.success(),
+        "no key is set yet:\n{}",
+        said(&unset)
+    );
+
+    set_keys(&login, &keys);
+    let with_key = sshd.sftp_with_key(login.name(), &identity, "pwd\n");
+    assert!(
+        with_key.status.success(),
+        "the login must authenticate with its key:\n{}",
+        said(&with_key)
+    );
+
+    set_keys(
+        &login,
+        &AuthorizedKeySet::new(Vec::new()).expect("an empty set"),
+    );
+    let revoked = sshd.sftp_with_key(login.name(), &identity, "pwd\n");
+    assert!(
+        !revoked.status.success(),
+        "a revoked key must be refused:\n{}",
+        said(&revoked)
+    );
+
+    set_keys(&login, &keys);
+    set_account_logins_locked(
+        &ProcessLoginsHost::new(),
+        polygon_distro(),
+        account.name(),
+        true,
+    )
+    .unwrap_or_else(|error| panic!("locking the account's logins must succeed: {error}"));
+    let suspended = sshd.sftp_with_key(login.name(), &identity, "pwd\n");
+    assert!(
+        !suspended.status.success(),
+        "a suspended login's key must be refused:\n{}",
+        said(&suspended)
+    );
+
+    set_account_logins_locked(
+        &ProcessLoginsHost::new(),
+        polygon_distro(),
+        account.name(),
+        false,
+    )
+    .unwrap_or_else(|error| panic!("unlocking the account's logins must succeed: {error}"));
+    let resumed = sshd.sftp_with_key(login.name(), &identity, "pwd\n");
+    assert!(
+        resumed.status.success(),
+        "resuming must give the key back:\n{}",
+        said(&resumed)
     );
 
     drop(login);

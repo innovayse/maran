@@ -27,6 +27,8 @@ fn every_variant() -> Vec<SftpError> {
         SftpError::JailFailed,
         SftpError::AccountBusy,
         SftpError::AccountNotManaged,
+        SftpError::TooManyKeys { count: 33 },
+        SftpError::KeyFileFailed,
     ]
 }
 
@@ -255,4 +257,16 @@ fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
     // Positive control: the scan does find the wildcard it is measured against.
     let wildcard = wildcard.expect("the mapping ends in a wildcard arm");
     assert!(bound.expect("the bound variant has its own arm") < wildcard);
+}
+
+#[test]
+fn too_many_keys_is_the_requests_fault_and_a_failed_key_file_the_hosts() {
+    assert_eq!(
+        code_of(&SftpError::TooManyKeys { count: 33 }),
+        ErrorCode::InvalidInput as i32
+    );
+    assert_eq!(
+        code_of(&SftpError::KeyFileFailed),
+        ErrorCode::SystemFailure as i32
+    );
 }

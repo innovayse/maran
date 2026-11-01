@@ -525,6 +525,13 @@ pub trait DistroAdapter: Send + Sync {
     /// beside the code that must keep it true.
     fn chpasswd_binary(&self) -> AdapterBinary;
 
+    /// Absolute path of `ssh-keygen`, for the process-execution allow-list.
+    ///
+    /// Used only as the VALIDATOR of an SFTP login's key file (`ops::sftp`'s
+    /// `set_sftp_authorized_keys`): `ssh-keygen -l -f <file>` is OpenSSH's own
+    /// parser reading the file sshd will read, and it writes nothing.
+    fn ssh_keygen_binary(&self) -> AdapterBinary;
+
     /// Directory a unit file must be written to for the service manager to
     /// read it.
     ///

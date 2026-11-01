@@ -3,6 +3,7 @@
 pub mod logins_status;
 pub mod sftp_service;
 pub mod sftp_status;
+pub mod validated_authorized_keys;
 pub mod validated_creation;
 pub mod validated_credential;
 pub mod validated_password_change;

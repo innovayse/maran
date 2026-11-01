@@ -124,7 +124,9 @@ agent/
     │   │       │              validated_delete.rs
     │   │       ├── sftp/      sftp_service.rs · sftp_status.rs ·
     │   │       │              validated_creation.rs · validated_credential.rs ·
-    │   │       │              validated_password_change.rs · validated_sftp_user.rs.
+    │   │       │              validated_password_change.rs · validated_sftp_user.rs ·
+    │   │       │              validated_authorized_keys.rs (the key set, count
+    │   │       │              refused before any key is parsed — issue #135).
     │   │       │              It answers `ftp.proto`, which describes SFTP and
     │   │       │              nothing else — the folder is named after what the
     │   │       │              service IS, matching `ops/src/sftp/`. `ftps/` sits
@@ -150,7 +152,8 @@ agent/
     │       ├── agent_paths.rs AgentPaths — locations the agent owns and that are the SAME
     │       │                  on every family (nginx include dir, certificate dir, account
     │       │                  home root, php-fpm socket dir, SFTP jail root, FTPS jail
-    │       │                  root, site log root, backup root, bulk scratch root, the panel's
+    │       │                  root, the SFTP logins' public-key directory (issue #135),
+    │       │                  site log root, backup root, bulk scratch root, the panel's
     │       │                  own TLS directory and ACME challenge directory (issue #132), and the three
     │       │                  host-temp mount points /run/maran-host/{tmp,var-tmp,dev-shm}:
     │       │                  HOST_TMP_DIRECTORY and its siblings, listed together as
@@ -189,7 +192,10 @@ agent/
     │       │   │              env_var_name · env_var_value · backup_id ·
     │       │   │              local_backup_root · cpu_quota_percent · memory_max_mib ·
     │       │   │              tasks_max (the three ceilings of an account's systemd
-    │       │   │              slice, issue #133) — values that become OS objects.
+    │       │   │              slice, issue #133) · ssh_public_key (an SFTP login's
+    │       │   │              key: allow-listed algorithm, decoded and parsed as the
+    │       │   │              SSH wire format, no option, no comment, no control
+    │       │   │              character — issue #135) — values that become OS objects.
     │       │   │              ftps_user_name is a SECOND prefixed login name and
     │       │   │              not a reuse of sftp_user_name: the two names are
     │       │   │              different system users on one host and each is
@@ -334,6 +340,16 @@ agent/
     │       │                  systemd mount unit's escaped NAME are derived from one
     │       │                  AccountName, because systemd refuses a mount unit whose
     │       │                  file name is not the escaping of its own mount point.
+    │       │                  model/login_key_file.rs derives the two names of a
+    │       │                  login's public-key file under
+    │       │                  AgentPaths::SFTP_AUTHORIZED_KEYS_DIRECTORY — the one sshd
+    │       │                  reads and the `.suspended` one it never reads — and
+    │       │                  model/authorized_key_set.rs bounds and de-duplicates the
+    │       │                  keys; set_sftp_authorized_keys.rs writes them through
+    │       │                  safe_write and remove_key_file.rs takes one name away
+    │       │                  (issue #135). logins/ moves the file between the two
+    │       │                  names when it locks and unlocks, because a locked
+    │       │                  password does not refuse a key under `UsePAM yes`.
     │       │                  model/account_ownership.rs carries the uid and gid the
     │       │                  login is created WITH: an SFTP login shares its
     │       │                  account's identity, because an account home of
@@ -404,6 +420,9 @@ agent/
     │       │                  lock deadlocks on them) ·
     │       │                  config_host.rs (the injectable filesystem/reload seam) ·
     │       │                  write_config_set.rs (several files as one all-or-nothing set) ·
+    │       │                  write_unreloaded_config.rs (one file, same protocol, no
+    │       │                  reload: for a file its reader re-opens on every use, an
+    │       │                  SFTP login's key file — issue #135) ·
     │       │                  create_config.rs (the creation half of the protocol: the
     │       │                  target must not exist, and a warning the caller names in the
     │       │                  validator's stderr refuses the write) ·
@@ -451,7 +470,9 @@ agent/
         │                      leaving the one identical key as a literal is the trap, and a
         │                      golden cannot see it — the test that can renders sentinel
         │                      spellings and requires each to appear. ·
-        │                      systemd/unit.rs ·
+        │                      systemd/unit.rs · sshd/authorized_keys.rs (an SFTP
+        │                      login's key file; `restrict` is written by the template,
+        │                      never by a caller — issue #135) ·
         │                      nftables/{nftables_ruleset,nftables_bans_table,
         │                      nftables_allow,nftables_ssh_port,nftables_protocol}.rs —
         │                      the firewall's applied policy is a rendered file like any
@@ -460,7 +481,7 @@ agent/
         │                      vs `inet maran_bans`) because the ruleset is replaced
         │                      wholesale on every apply and a ban table folded into it
         │                      would lose every live ban on the next re-render · render_error.rs
-        ├── templates/{nginx,php-fpm,vsftpd,systemd,nftables}/
+        ├── templates/{nginx,php-fpm,vsftpd,systemd,nftables,sshd}/
         └── tests/golden/      byte-exact expected config renders — the four
                                `golden/nftables/` files are what pins the replace idiom
                                (create-if-absent, delete, redeclare) and the two ssh-port

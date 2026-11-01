@@ -78,6 +78,11 @@ hyper-util = { version = "0.1.20", features = ["tokio"] }
 libc = "0.2.189"
 thiserror = "2.0.21"
 tempfile = "3.27"
+# base64: an SSH public key is base64 text, and the agent DECODES it to prove it is a
+# well-formed key of the algorithm it names before root writes it into an
+# authorized_keys file (issue #135). Already in the lockfile beneath tonic, so no new
+# code enters the tree; a hand-written decoder in a root process would be worse.
+base64 = "0.22.1"
 # "signal" and "time" are both load-bearing for the stop path and are named here
 # rather than inherited from a transitive enable: "signal" registers the SIGTERM
 # and SIGINT handlers without which the kernel's default action ends this root

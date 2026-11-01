@@ -191,6 +191,10 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::chpasswd_binary()
     }
 
+    fn ssh_keygen_binary(&self) -> AdapterBinary {
+        rhel_services::ssh_keygen_binary()
+    }
+
     fn systemd_unit_directory(&self) -> &'static str {
         rhel_services::systemd_unit_directory()
     }

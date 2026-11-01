@@ -105,6 +105,12 @@ pub enum LoginsError {
     /// [`Self::SessionCullFailed`], which state what a tool answered.
     #[error(transparent)]
     Bound(#[from] BoundExceeded),
+
+    /// An SFTP login's key file could not be moved between the name sshd reads
+    /// and the one it never reads. On the locking direction this is raised
+    /// before any password is locked, so the account is as it was found.
+    #[error("an sftp login's key file could not be moved")]
+    KeyFileFailed,
 }
 
 impl From<SpawnError> for LoginsError {

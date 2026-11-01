@@ -80,6 +80,9 @@ object_store = { workspace = true }
 workspace = true
 
 [dev-dependencies]
+# Builds distinct, well-formed SSH public keys for the SFTP key-set tests
+# (issue #135); production code reaches base64 only through agent-core.
+base64.workspace = true
 # The backup area's S3 transport bridges an async client on a runtime handle, so
 # its tests need a real runtime to hand it — and the local HTTP stub they drive
 # it against needs the IO driver turned while `Handle::block_on` waits, which is
