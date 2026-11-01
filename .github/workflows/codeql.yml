@@ -17,9 +17,21 @@ permissions:
   contents: read
   security-events: write
 
+# One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
+# dev and main are never cancelled, and never even queued behind each other — their group carries
+# the run id, so each push is alone in its own group (a shared group would let GitHub drop a
+# PENDING push run when a newer one queues, even with cancel-in-progress false).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    # Measured basis: successful dev runs 41293966837, 41285233247, 41279955436 took 5.5-9.5 min
+    # (csharp) and 1.2-1.6 min (javascript-typescript). 25 is the slowest leg plus ~150% headroom,
+    # because the query pack changes under it with no change of ours.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:

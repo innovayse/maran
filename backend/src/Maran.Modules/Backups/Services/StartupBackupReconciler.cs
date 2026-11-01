@@ -269,7 +269,7 @@ public sealed class StartupBackupReconciler : BackgroundService
                 backup.Failed(nameof(ErrorMessages.BackupOutcomeUnobserved), _clock.UtcNow);
             }
 
-            await journal.RecordScheduledAsync(
+            await journal.RecordSystemAsync(
                 AuditActions.BackupCreated,
                 SubjectOf(backup, snapshots),
                 succeeded: false,

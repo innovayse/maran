@@ -1,6 +1,8 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-11-01 (merge of dev's #292 and #294 into #133): edited by hand. Neither changed a baseline row since the last merge,
+# so every row keeps its value; #133's deltas stand as recorded below.
 # RE-MEASURED 2026-11-01 (merge of dev's #134 and #286 into #133): edited by hand. The rows do not overlap, so each keeps its own
 # delta: Backups.Tests 237->247 (#134) beside #133's Accounts.Tests 514->529 and Agent.Client.Tests 380->383. Run recorded in PR #285.
 # RE-MEASURED 2026-11-01 (issue #133, account runtime limits, merged on top of dev's #148): edited by hand, #133's deltas added to #148's rows.
