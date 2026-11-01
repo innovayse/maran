@@ -122,7 +122,8 @@ const isNarrowed: ComputedRef<boolean> = computed(() => {
 
 /** Where "Back" leads: the cron screen, on the same account. */
 const backLink: ComputedRef<{ name: string; query: Record<string, string> }> = computed(() => {
-  return { name: 'cron', query: fixedAccountId.value === null ? { account: accountId.value } : {} }
+  const query: Record<string, string> = fixedAccountId.value === null ? { account: accountId.value } : {}
+  return { name: 'cron', query }
 })
 
 /**
