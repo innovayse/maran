@@ -29,7 +29,7 @@ export const usePanelCertificateApi = (): PanelCertificateApi => {
    * @returns The certificate now served.
    */
   const issue = (signal?: AbortSignal): Promise<PanelCertificate> => {
-    return api.post<PanelCertificate>(PANEL_CERTIFICATE_PATH, {}, signal)
+    return api.post<PanelCertificate>(PANEL_CERTIFICATE_PATH, undefined, signal)
   }
 
   return { get, issue }
