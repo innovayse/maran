@@ -6,6 +6,7 @@ use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _, OpenOptionsExt as 
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
@@ -107,6 +108,10 @@ struct Placement {
     member_ceiling: u64,
     /// The finished-artifact ceiling, in bytes.
     archive_ceiling: u64,
+    /// The free-space floor the backup directory's filesystem must still have
+    /// before anything is written (issue #148). The scratch is bounded on its
+    /// own, per dump, by [`scratch_dump_ceiling`].
+    floor: FreeSpaceFloor,
 }
 
 /// Creates one backup of `account` under `root` and answers what it produced.
@@ -136,7 +141,9 @@ struct Placement {
 ///    (`backup_root`), and create the account's directory under it.
 /// 3. Refuse [`BackupError::AlreadyExists`] if an artifact with this id is
 ///    already published — BEFORE any dump. A retry of a creation whose response
-///    was lost must cost a `stat`, not an hour.
+///    was lost must cost a `stat`, not an hour. Then refuse
+///    [`BackupError::FreeSpace`] when the backup directory's filesystem is
+///    below the free-space floor (issue #148).
 /// 4. Measure the home with one directory walk and refuse
 ///    [`BackupError::ArchiveFailed`] (`LISTING_REFUSED`) when it holds more
 ///    members than a restore would accept — BEFORE the scratch or any dump
@@ -165,6 +172,7 @@ pub fn create_backup(
     account: &AccountName,
     backup_id: &BackupId,
     root: &LocalBackupRoot,
+    floor: &FreeSpaceFloor,
     sink: &mut dyn ProgressSink,
 ) -> Result<BackupSummary, BackupError> {
     let guard = take_account_lock(account).ok_or(BackupError::AlreadyRunning)?;
@@ -179,6 +187,7 @@ pub fn create_backup(
         dump_ceiling: MAXIMUM_DUMP_BYTES,
         member_ceiling: MAXIMUM_MEMBERS as u64,
         archive_ceiling: MAXIMUM_ARCHIVE_BYTES,
+        floor: *floor,
     };
 
     let outcome = create_in(
@@ -218,6 +227,11 @@ fn create_in(
         return Err(BackupError::AlreadyExists);
     }
 
+    // Then the floor, still before the scratch or any dump exists: an archive
+    // that fills the disk part-way is removed again, but by then it has
+    // already starved every other writer on that filesystem.
+    placement.floor.admit(host.available_bytes(directory))?;
+
     let mut partial = artifact.clone().into_os_string();
     partial.push(PARTIAL_SUFFIX);
     let partial = PathBuf::from(partial);
@@ -238,7 +252,7 @@ fn create_in(
     };
 
     publish(&partial, &artifact, placement.owner)?;
-    write_sidecar(&sidecar, &summary, placement.owner)?;
+    write_sidecar(&sidecar, &artifact, &summary, placement.owner)?;
 
     Ok(summary)
 }
@@ -552,11 +566,25 @@ fn publish(partial: &Path, artifact: &Path, owner: u32) -> Result<(), BackupErro
 /// That is the state `list_backups` reports as `unreadable` and
 /// `delete_backup` prunes — visible litter with a name, not a silent one.
 ///
+/// **A write that fails part-way is the other case, and it leaves nothing.**
+/// Once `create_new` has succeeded the sidecar is this call's own file, and
+/// `artifact` is the archive this same call published a moment ago under an id
+/// no other backup is minted with. When filling or syncing the sidecar fails —
+/// a disk that filled between the rename and here, `ENOSPC` (issue #148) — both
+/// are removed: a half-written description beside a published archive is the
+/// half-written artefact the operation promises never to leave, and the backup
+/// is reported failed as a whole.
+///
 /// # Errors
 ///
 /// [`BackupError::ArtifactUnpublishable`], because a published artifact
 /// nothing can describe is not a backup the panel may report.
-fn write_sidecar(sidecar: &Path, summary: &BackupSummary, owner: u32) -> Result<(), BackupError> {
+fn write_sidecar(
+    sidecar: &Path,
+    artifact: &Path,
+    summary: &BackupSummary,
+    owner: u32,
+) -> Result<(), BackupError> {
     let rendered =
         serde_json::to_vec_pretty(summary).map_err(|_| BackupError::ArtifactUnpublishable)?;
 
@@ -566,10 +594,13 @@ fn write_sidecar(sidecar: &Path, summary: &BackupSummary, owner: u32) -> Result<
         .mode(ARTIFACT_MODE)
         .open(sidecar)
         .map_err(|_| BackupError::ArtifactUnpublishable)?;
-    file.write_all(&rendered)
-        .map_err(|_| BackupError::ArtifactUnpublishable)?;
-    file.sync_all()
-        .map_err(|_| BackupError::ArtifactUnpublishable)?;
+    let filled = file.write_all(&rendered).and_then(|()| file.sync_all());
+    drop(file);
+    if filled.is_err() {
+        let _ = remove_file(sidecar);
+        let _ = remove_file(artifact);
+        return Err(BackupError::ArtifactUnpublishable);
+    }
 
     verify_sidecar_inode(sidecar, owner)
 }

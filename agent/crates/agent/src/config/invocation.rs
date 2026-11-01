@@ -1,9 +1,12 @@
 //! What the command line asked this process to do.
 
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::web::port::Port;
 use maran_ops::firewall::RulesetPorts;
 
-use super::agent_options::{ALLOW_UID_FLAG, AgentOptions, DEFAULT_SOCKET, SOCKET_FLAG};
+use super::agent_options::{
+    ALLOW_UID_FLAG, AgentOptions, DEFAULT_SOCKET, FREE_SPACE_FLOOR_FLAG, SOCKET_FLAG,
+};
 use super::options_error::OptionsError;
 
 /// Flags asking for the usage text instead of a running daemon.
@@ -30,7 +33,7 @@ const PANEL_PORT_FLAG: &str = "--panel-port";
 pub const USAGE: &str = concat!(
     "maran-agent — the Maran root daemon\n",
     "\n",
-    "Usage: maran-agent [--socket <path>] [--allow-uid <uid>]\n",
+    "Usage: maran-agent [--socket <path>] [--allow-uid <uid>] [--free-space-floor-mib <n>]\n",
     "       maran-agent render-firewall-ruleset --ssh-port <port> [--ssh-port <port>]…\n",
     "                                          --panel-port <port>\n",
     "       maran-agent render-firewall-bans\n",
@@ -38,6 +41,10 @@ pub const USAGE: &str = concat!(
     "  --socket <path>     Unix socket to bind (default: /run/maran/agent.sock)\n",
     "  --allow-uid <uid>   The single uid permitted to use the agent\n",
     "                      (default: the uid this process runs as)\n",
+    "  --free-space-floor-mib <n>\n",
+    "                      Refuse new accounts, backups, restores and uploads\n",
+    "                      while less than <n> MiB is available on the\n",
+    "                      filesystem they would write to (default: 1024)\n",
     "  -h, --help          Print this text and exit\n",
     "\n",
     "Render subcommands print one file to standard output and exit. They start\n",
@@ -128,8 +135,10 @@ impl Invocation {
     /// for a flag left dangling or a required flag never given,
     /// [`OptionsError::InvalidUid`] when `--allow-uid` is not a number,
     /// [`OptionsError::InvalidPort`] when a render subcommand's port flag is
-    /// not a number between 1 and 65535, and [`OptionsError::RepeatedFlag`]
-    /// when `--panel-port` is given twice.
+    /// not a number between 1 and 65535, [`OptionsError::InvalidFreeSpaceFloor`]
+    /// when `--free-space-floor-mib` is not a whole number from 1 whose byte
+    /// count fits, and [`OptionsError::RepeatedFlag`] when `--panel-port` is
+    /// given twice.
     pub fn parse(arguments: &[String], default_uid: u32) -> Result<Self, OptionsError> {
         // Swept across the WHOLE command line before anything is validated, so
         // `--help` still answers when it stands beside the very flag the person
@@ -159,6 +168,7 @@ impl Invocation {
         let mut options = AgentOptions {
             socket_path: std::path::PathBuf::from(DEFAULT_SOCKET),
             allow_uid: default_uid,
+            free_space_floor: FreeSpaceFloor::default_floor(),
         };
 
         let mut remaining = arguments.iter();
@@ -177,6 +187,12 @@ impl Invocation {
                     options.allow_uid = value.parse().map_err(|_| OptionsError::InvalidUid {
                         value: value.clone(),
                     })?;
+                }
+                FREE_SPACE_FLOOR_FLAG => {
+                    let value = remaining.next().ok_or(OptionsError::MissingValue {
+                        flag: FREE_SPACE_FLOOR_FLAG,
+                    })?;
+                    options.free_space_floor = parse_free_space_floor(value)?;
                 }
                 unknown => {
                     return Err(OptionsError::UnknownFlag {
@@ -307,6 +323,26 @@ fn parse_port(flag: &'static str, value: &str) -> Result<Port, OptionsError> {
         .and_then(|number| Port::parse(number).ok())
         .ok_or_else(|| OptionsError::InvalidPort {
             flag,
+            value: value.to_owned(),
+        })
+}
+
+/// Parses the value of `--free-space-floor-mib`.
+///
+/// The bounds are not checked here: [`FreeSpaceFloor::from_mebibytes`] is the
+/// one place that decides what a floor is, for the reason [`parse_port`] leaves
+/// ports to [`Port::parse`].
+///
+/// # Errors
+///
+/// Returns [`OptionsError::InvalidFreeSpaceFloor`] when the value is not a
+/// whole number, is zero, or names more bytes than fit in 64 bits.
+fn parse_free_space_floor(value: &str) -> Result<FreeSpaceFloor, OptionsError> {
+    value
+        .parse::<u64>()
+        .ok()
+        .and_then(|mebibytes| FreeSpaceFloor::from_mebibytes(mebibytes).ok())
+        .ok_or_else(|| OptionsError::InvalidFreeSpaceFloor {
             value: value.to_owned(),
         })
 }

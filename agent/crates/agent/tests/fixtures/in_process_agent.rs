@@ -18,6 +18,7 @@ use tower::service_fn;
 
 use maran_agent::error::StartupError;
 use maran_agent::peercred::PeerPolicy;
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 
 /// How long the server is given to bind its socket.
 const BIND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -58,8 +59,9 @@ impl InProcessAgent {
             .expect("the uid of this process is readable");
         let policy = PeerPolicy::new(uid);
         let server_path = socket_path.clone();
-        let server =
-            tokio::spawn(async move { maran_agent::server::serve(&server_path, policy).await });
+        let server = tokio::spawn(async move {
+            maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        });
 
         wait_until_listening(&socket_path, &server).await;
         let channel = connect(&socket_path).await;

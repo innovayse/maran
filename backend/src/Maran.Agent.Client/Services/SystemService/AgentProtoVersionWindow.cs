@@ -35,9 +35,13 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// sends a used figure with the reserve folded in — so a panel driving one would report a full disk
 /// as having nothing left reserved and nothing available, and a field read under the wrong revision
 /// would mean two things.
-/// Revision 7 adds <c>AccountsService.SetAccountResourceLimits</c> (issue #133), and both ends moved
+/// Revision 7 adds <c>ERROR_CODE_BELOW_FREE_SPACE_FLOOR</c> and
+/// <c>HostMetrics.free_space_floor_bytes</c> (issue #148), and both ends moved to it as the
+/// one-revision default: a revision-6 agent never refuses at a floor and sends no floor, which
+/// protobuf reads as zero, so the panel's "approaching the floor" alert could never fire against it.
+/// Revision 8 adds <c>AccountsService.SetAccountResourceLimits</c> (issue #133), and both ends moved
 /// to it: the panel calls that rpc whenever an account is created or its plan's ceilings change, and
-/// a revision-6 agent answers it <c>UNIMPLEMENTED</c>, so every account creation would fail.
+/// a revision-7 agent answers it <c>UNIMPLEMENTED</c>, so every account creation would fail.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -64,10 +68,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 7;
+    public const uint Minimum = 8;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 7;
+    public const uint Maximum = 8;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

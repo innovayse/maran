@@ -643,8 +643,11 @@ fn suspending_the_account_refuses_the_sftp_login_that_worked_before_it() {
     let account = PolygonAccount::create("polysftpsusp");
     plant_file(&account);
     let login = PolygonSftpLogin::create(&account);
-    let operations =
-        AccountOperations::new(ProcessSystemHost::new(polygon_distro()), polygon_distro());
+    let operations = AccountOperations::new(
+        ProcessSystemHost::new(polygon_distro()),
+        polygon_distro(),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    );
 
     // The inverse control, and it is not optional here: an assertion that a
     // login is refused is satisfied by a login that never worked — a wrong
@@ -758,8 +761,11 @@ fn changing_an_sftp_password_while_suspended_does_not_hand_the_login_back() {
     plant_file(&account);
     let login = PolygonSftpLogin::create(&account);
     let user = SftpUserName::for_account(account.name(), "web").expect("a valid login name");
-    let operations =
-        AccountOperations::new(ProcessSystemHost::new(polygon_distro()), polygon_distro());
+    let operations = AccountOperations::new(
+        ProcessSystemHost::new(polygon_distro()),
+        polygon_distro(),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    );
 
     // The inverse control. Everything below is about a credential being taken
     // away and kept away, and every one of those assertions is satisfied by a
@@ -888,8 +894,11 @@ fn reactivating_an_account_leaves_a_hand_set_password_working_and_a_passwordless
     // The assertions are on the raw shadow field, which is the byte string PAM
     // consults, read by a separate `getent` process rather than through the code
     // under test.
-    let operations =
-        AccountOperations::new(ProcessSystemHost::new(polygon_distro()), polygon_distro());
+    let operations = AccountOperations::new(
+        ProcessSystemHost::new(polygon_distro()),
+        polygon_distro(),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    );
 
     let plain = PolygonAccount::create("polyunlockplain");
     let plain_before = shadow_password_field(plain.name().as_str());
@@ -960,8 +969,11 @@ fn the_attestation_separates_a_hosting_login_from_one_locked_over_a_password() {
     // So both accounts must report `login_locked == true` here. If they ever
     // stop doing so together, this test is no longer observing the collapse it
     // exists for and says so in its own message.
-    let operations =
-        AccountOperations::new(ProcessSystemHost::new(polygon_distro()), polygon_distro());
+    let operations = AccountOperations::new(
+        ProcessSystemHost::new(polygon_distro()),
+        polygon_distro(),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    );
     let sites = ProcessSiteHost::new();
     let cron = ProcessCronHost::new(polygon_distro());
     let logins = ProcessLoginsHost::new();
@@ -1083,8 +1095,11 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
     let neighbour = PolygonAccount::create("polysftpnear");
     plant_file(&neighbour);
     let neighbour_login = PolygonSftpLogin::create(&neighbour);
-    let operations =
-        AccountOperations::new(ProcessSystemHost::new(polygon_distro()), polygon_distro());
+    let operations = AccountOperations::new(
+        ProcessSystemHost::new(polygon_distro()),
+        polygon_distro(),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    );
 
     let (mut session, greeting) = SftpControlSession::login(login.name(), CUSTOMER_PASSWORD);
     assert!(

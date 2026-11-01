@@ -134,6 +134,18 @@ pub trait BackupHost: Send + Sync {
     /// deadline.
     fn create_archive(&self, spec: &ArchiveSpec) -> Result<u64, BackupError>;
 
+    /// Bytes an unprivileged writer could still add to the filesystem
+    /// `directory` lives on — `f_bavail`, asked of the directory itself.
+    ///
+    /// The free-space floor (issue #148) is decided on this answer before a
+    /// backup or a restore writes anything.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying error when the filesystem cannot be measured;
+    /// the caller refuses rather than assuming room.
+    fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error>;
+
     /// Lists every member name in `artifact`, writing nothing anywhere.
     ///
     /// This is the read a restore's pre-scan is built on, and it is a separate

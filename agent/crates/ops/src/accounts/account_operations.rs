@@ -1,7 +1,10 @@
 //! The account operations themselves, over whatever [`SystemHost`] they are given.
 
+use std::path::Path;
+
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::utils::system_accounts::system_accounts;
 use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
@@ -136,6 +139,9 @@ pub struct AccountOperations<H: SystemHost> {
     /// [`SystemHost`] cannot express. Production always holds
     /// [`remove_account_mail_spool`] bound to the distro adapter.
     mail_spool_step: SharedFilesStep,
+
+    /// The free-space floor a creation is refused below (issue #148).
+    floor: FreeSpaceFloor,
 }
 
 /// The shape of the shared-temp-files step: the account in, a leftover or an
@@ -143,12 +149,14 @@ pub struct AccountOperations<H: SystemHost> {
 type SharedFilesStep = Box<dyn Fn(&ManagedAccount) -> Result<(), AccountError> + Send + Sync>;
 
 impl<H: SystemHost> AccountOperations<H> {
-    /// Creates the operations bound to `host` and the host's distribution adapter.
+    /// Creates the operations bound to `host`, the host's distribution adapter
+    /// and the free-space floor account creation is refused below.
     #[must_use]
-    pub fn new(host: H, distro: &'static dyn DistroAdapter) -> Self {
+    pub fn new(host: H, distro: &'static dyn DistroAdapter, floor: FreeSpaceFloor) -> Self {
         Self {
             host,
             distro,
+            floor,
             shared_files_step: Box::new(remove_account_shared_files),
             mail_spool_step: Box::new(move |account| remove_account_mail_spool(distro, account)),
         }
@@ -238,6 +246,10 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   agent could manage afterwards (the host's id floor moved, say), in which
     ///   case the creation is rolled back.
     /// - [`AccountError::AlreadyExists`] when the user is already present.
+    /// - [`AccountError::FreeSpace`] when the filesystem holding the account
+    ///   homes has less than the free-space floor available, or cannot be
+    ///   measured. Asked after the existence check, so a retried creation
+    ///   still answers `AlreadyExists`, and before `useradd`, so nothing ran.
     /// - [`AccountError::CommandFailed`] when `useradd`, the step that gives the
     ///   home directory to the web server's group, or `setquota` refuses.
     /// - [`AccountError::Bound`] when a program it ran outlived its deadline or its output ceiling and
@@ -272,6 +284,11 @@ impl<H: SystemHost> AccountOperations<H> {
                 username: username.to_owned(),
             });
         }
+
+        self.floor.admit(
+            self.host
+                .available_bytes(Path::new(AgentPaths::ACCOUNT_HOME_ROOT)),
+        )?;
 
         let home = Self::home_directory(name);
 

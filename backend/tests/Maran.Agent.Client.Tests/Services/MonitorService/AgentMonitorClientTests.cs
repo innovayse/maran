@@ -8,14 +8,14 @@ namespace Maran.Agent.Client.Tests.Services.MonitorService;
 /// <summary>Mapping contract of AgentMonitorClient, and the tri-state reading it must not collapse.</summary>
 public sealed class AgentMonitorClientTests
 {
-    /// <summary>The metrics ok payload maps all twelve figures unaltered, each disk figure to its own member.</summary>
+    /// <summary>The metrics ok payload maps all thirteen figures unaltered, each disk figure to its own member.</summary>
     /// <remarks>
     /// The four disk figures are given four DIFFERENT values that still partition the total, so a
     /// mapping that swapped two of them — reserved for available, say — fails here instead of passing
     /// on a pair of equal numbers.
     /// </remarks>
     [Fact]
-    public async Task The_metrics_ok_payload_maps_all_twelve_figures_unaltered()
+    public async Task The_metrics_ok_payload_maps_all_thirteen_figures_unaltered()
     {
         var stub = new StubMonitorService
         {
@@ -30,6 +30,7 @@ public sealed class AgentMonitorClientTests
                     DiskReservedBytes = 5_000_000_000,
                     DiskAvailableBytes = 65_000_000_000,
                     DiskTotalBytes = 100_000_000_000,
+                    FreeSpaceFloorBytes = 1_073_741_824,
                     NetworkRxBytes = 5_500,
                     NetworkTxBytes = 900,
                     LoadAverage1M = 0.42,
@@ -55,7 +56,8 @@ public sealed class AgentMonitorClientTests
                 900,
                 0.42,
                 0.31,
-                0.20),
+                0.20,
+                1_073_741_824),
             result.Value);
         Assert.NotNull(stub.LastMetricsRequest);
     }

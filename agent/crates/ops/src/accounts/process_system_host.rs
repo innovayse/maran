@@ -5,6 +5,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::time::Duration;
 
+use maran_agent_core::utils::available_bytes::available_bytes;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::directory::directory_size;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
@@ -162,6 +163,15 @@ impl SystemHost for ProcessSystemHost {
     /// a blocking-pool thread and never a runtime worker.
     fn pause(&self, interval: Duration) {
         std::thread::sleep(interval);
+    }
+
+    /// Asks `statvfs` of `directory` itself.
+    ///
+    /// # Errors
+    ///
+    /// As [`available_bytes`].
+    fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error> {
+        available_bytes(directory)
     }
 }
 

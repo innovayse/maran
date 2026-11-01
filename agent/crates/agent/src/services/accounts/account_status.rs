@@ -1,5 +1,6 @@
 //! The one mapping from account operation failures onto the wire error.
 
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_ops::accounts::AccountError;
 
 use crate::proto::{AgentError, ErrorCode};
@@ -86,6 +87,10 @@ pub fn to_agent_error(error: &AccountError) -> AgentError {
         // forward. Named ahead of the wildcard so a missing arm cannot compile
         // silently (threat note, plan item 11).
         AccountError::Bound(_) => ErrorCode::SystemFailure,
+        // The home filesystem is within the floor of full and nothing was
+        // created (issue #148). An unmeasurable filesystem falls through to
+        // the system failure below: the host, not the disk's fill, is at fault.
+        AccountError::FreeSpace(FloorRefusal::BelowFloor { .. }) => ErrorCode::BelowFreeSpaceFloor,
         // AccountError is #[non_exhaustive] (rules/rust.md), so a variant added in the
         // ops crate lands here rather than failing this build. It maps to a system
         // failure: the panel then reports a fault instead of silently treating an

@@ -90,8 +90,12 @@ async fn main() {
         }
     };
 
-    if let Err(error) =
-        server::serve(options.socket_path(), PeerPolicy::new(options.allow_uid)).await
+    if let Err(error) = server::serve(
+        options.socket_path(),
+        PeerPolicy::new(options.allow_uid),
+        options.free_space_floor,
+    )
+    .await
     {
         tracing::error!(%error, "agent failed");
         std::process::exit(FAILURE_EXIT_CODE);

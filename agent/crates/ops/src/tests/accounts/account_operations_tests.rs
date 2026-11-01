@@ -161,6 +161,9 @@ struct RecordingHost {
     /// semaphore tables are always empty. Defaults to an empty table: no IPC
     /// object is owned by anyone on this fake host.
     shm_table: Mutex<String>,
+    /// What `available_bytes` answers for the home filesystem. Defaults to
+    /// `u64::MAX`: a roomy disk, so only the floor's own tests meet it.
+    available: Mutex<u64>,
 }
 
 impl RecordingHost {
@@ -191,7 +194,17 @@ impl RecordingHost {
             pauses: Mutex::new(Vec::new()),
             events: Arc::new(Mutex::new(Vec::new())),
             shm_table: Mutex::new(String::new()),
+            available: Mutex::new(u64::MAX),
         }
+    }
+
+    /// Makes the home filesystem answer `bytes` available.
+    fn with_available(self, bytes: u64) -> Self {
+        *self
+            .available
+            .lock()
+            .expect("the fixture lock is never poisoned") = bytes;
+        self
     }
 
     /// A handle on the shared timeline, for a step that is not a host call.
@@ -598,6 +611,13 @@ impl SystemHost for RecordingHost {
             .expect("the fixture lock is never poisoned")
             .push(interval);
     }
+
+    fn available_bytes(&self, _directory: &std::path::Path) -> Result<u64, std::io::Error> {
+        Ok(*self
+            .available
+            .lock()
+            .expect("the fixture lock is never poisoned"))
+    }
 }
 
 /// One line of a password database.
@@ -614,9 +634,13 @@ fn passwd_row(name: &str, uid: u32, gid: u32, home: &str) -> String {
 /// temporary directory, and its place in the deletion by the tests that replace
 /// it below.
 fn debian(host: RecordingHost) -> AccountOperations<RecordingHost> {
-    AccountOperations::new(host, adapter_for(DistroFamily::Debian))
-        .with_shared_files_step(Box::new(|_| Ok(())))
-        .with_mail_spool_step(Box::new(|_| Ok(())))
+    AccountOperations::new(
+        host,
+        adapter_for(DistroFamily::Debian),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    )
+    .with_shared_files_step(Box::new(|_| Ok(())))
+    .with_mail_spool_step(Box::new(|_| Ok(())))
 }
 
 fn name() -> AccountName {
@@ -708,6 +732,49 @@ fn creating_an_account_that_already_exists_is_refused_and_touches_nothing() {
     // Nothing was run: a home directory this agent did not create may hold somebody
     // else's data, and re-owning it is the one mistake that cannot be undone.
     assert!(operations_calls(&operations, "useradd").is_empty());
+}
+
+#[test]
+fn creating_an_account_below_the_free_space_floor_is_refused_before_useradd() {
+    let floor = maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor();
+    let operations = debian(RecordingHost::new().with_available(floor.bytes() - 1));
+
+    let error = operations
+        .create(&name(), 0)
+        .expect_err("a creation below the floor is refused");
+
+    let expected = maran_agent_core::utils::floor_refusal::FloorRefusal::BelowFloor {
+        available: floor.bytes() - 1,
+        floor: floor.bytes(),
+    };
+    assert!(
+        matches!(&error, AccountError::FreeSpace(refusal) if *refusal == expected),
+        "{error:?}"
+    );
+    assert!(operations_calls(&operations, "useradd").is_empty());
+}
+
+#[test]
+fn creating_an_account_with_exactly_the_floor_left_runs_useradd() {
+    let floor = maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor();
+    let operations = debian(RecordingHost::new().with_available(floor.bytes()));
+
+    operations.create(&name(), 0).expect("creation succeeds");
+
+    assert_eq!(operations_calls(&operations, "useradd").len(), 1);
+}
+
+#[test]
+fn an_existing_account_still_answers_already_exists_below_the_floor() {
+    // A retried creation whose first answer was lost must read as done, not as
+    // a full disk: the existence check comes first.
+    let operations = debian(RecordingHost::new().with_user("acme").with_available(0));
+
+    let error = operations
+        .create(&name(), 0)
+        .expect_err("an existing account is refused");
+
+    assert!(matches!(error, AccountError::AlreadyExists { .. }));
 }
 
 #[test]
@@ -956,6 +1023,7 @@ fn on_the_rhel_family_the_double_marker_login_is_unsuspended_without_an_unlock()
             .with_user("acme")
             .with_stdout(&shadow_entry("!!")),
         adapter_for(DistroFamily::Rhel),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
     );
 
     operations
@@ -1559,7 +1627,11 @@ fn the_nologin_shell_comes_from_the_distribution_and_not_from_a_literal() {
     // the operation would create every RHEL account with a shell path this agent invented
     // (rules/rust.md "Distro adapter": ops never hard-codes a platform path).
     let on_debian = debian(RecordingHost::new());
-    let on_rhel = AccountOperations::new(RecordingHost::new(), adapter_for(DistroFamily::Rhel));
+    let on_rhel = AccountOperations::new(
+        RecordingHost::new(),
+        adapter_for(DistroFamily::Rhel),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    );
 
     on_debian.create(&name(), 0).expect("creation succeeds");
     on_rhel.create(&name(), 0).expect("creation succeeds");
@@ -1627,7 +1699,11 @@ fn the_web_server_group_is_the_familys_own_never_a_literal() {
     // The RHEL family's web server is `nginx`, not `www-data`. An account created on
     // AlmaLinux with a Debian group name is created successfully — `chgrp` is the only
     // thing that would refuse — and the customer finds out when their site 403s.
-    let on_rhel = AccountOperations::new(RecordingHost::new(), adapter_for(DistroFamily::Rhel));
+    let on_rhel = AccountOperations::new(
+        RecordingHost::new(),
+        adapter_for(DistroFamily::Rhel),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    );
 
     on_rhel.create(&name(), 0).expect("creation succeeds");
 

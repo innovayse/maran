@@ -46,4 +46,12 @@ public enum AlertKind
     /// to tell them a difference exists, never to claim their license was violated.
     /// </summary>
     CodeIntegrityDrifted = 5,
+
+    /// <summary>
+    /// The root filesystem has less than twice the agent's free-space floor available, so the agent
+    /// is about to refuse new accounts, backups, restores and uploads (issue #148). Its own kind and
+    /// not a second reading of <see cref="DiskUsage"/>: that one is a percentage of the disk, this one
+    /// is an absolute room the operator configured, and on a large disk the two fire days apart.
+    /// </summary>
+    FreeSpaceFloorApproaching = 6,
 }

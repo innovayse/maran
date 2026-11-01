@@ -287,6 +287,8 @@ fn take_the_backup(server: &PolygonMariadb, account: &PolygonAccount) -> (Databa
         account.name(),
         &fixture_id(),
         &root(),
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut QuietSink,
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -358,6 +360,8 @@ fn restored_as_the_child() -> bool {
         std::slice::from_ref(&database),
         &digest,
         group,
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut SuicideSink { at },
     );
 
@@ -568,6 +572,8 @@ fn a_completed_restore_is_not_recovered_by_the_next_start() {
         std::slice::from_ref(&database),
         &digest,
         group,
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut QuietSink,
     )
     .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));
@@ -629,6 +635,8 @@ fn a_normal_restore_still_puts_the_home_and_the_database_back() {
         std::slice::from_ref(&database),
         &digest,
         group,
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
         &mut QuietSink,
     )
     .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));

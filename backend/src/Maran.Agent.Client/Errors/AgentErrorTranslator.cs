@@ -111,6 +111,7 @@ internal static class AgentErrorTranslator
             ErrorCode.LimitReached => ErrorType.Conflict,
             ErrorCode.PackageSourceRefused => ErrorType.UpstreamRefused,
             ErrorCode.PackageSourceUnreachable => ErrorType.Unavailable,
+            ErrorCode.BelowFreeSpaceFloor => ErrorType.Unavailable,
             _ => ErrorType.Failure,
         };
     }
@@ -152,6 +153,14 @@ internal static class AgentErrorTranslator
     /// <see cref="ErrorType.Unavailable"/> (503): nothing answered, and a later attempt may succeed
     /// unchanged. Neither is a 500, which would send the operator looking for a fault on a machine
     /// that has none.
+    ///
+    /// <see cref="ErrorCode.BelowFreeSpaceFloor"/> is the agent refusing to start a write because the
+    /// filesystem it would write into is within its free-space floor of full (issue #148). Its kind is
+    /// <see cref="ErrorType.Unavailable"/> (503): the request is sound and nothing broke — the server
+    /// cannot take on more data until space is freed, and nothing was changed. It is not a 409,
+    /// because the caller's own state is not what refuses, and not a 500, because no fault occurred.
+    /// It travels as its own code, <c>AgentBelowFreeSpaceFloor</c>, so a failed backup task reads
+    /// "the server is nearly out of disk space" rather than a generic failure.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -167,6 +176,7 @@ internal static class AgentErrorTranslator
             ErrorCode.LimitReached => nameof(ErrorMessages.AgentLimitReached),
             ErrorCode.PackageSourceRefused => nameof(ErrorMessages.AgentPackageSourceRefused),
             ErrorCode.PackageSourceUnreachable => nameof(ErrorMessages.AgentPackageSourceUnreachable),
+            ErrorCode.BelowFreeSpaceFloor => nameof(ErrorMessages.AgentBelowFreeSpaceFloor),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

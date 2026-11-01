@@ -53,6 +53,8 @@ pub(crate) struct FakeFilesHost {
     write_fails: Option<FilesOpError>,
     /// What `remove_as_account` answers, if not success.
     remove_fails: Option<FilesOpError>,
+    /// What `available_bytes` answers; `None` reads as a roomy filesystem.
+    available: Option<u64>,
 }
 
 impl FakeFilesHost {
@@ -89,6 +91,14 @@ impl FakeFilesHost {
     pub(crate) fn failing_remove(error: FilesOpError) -> Self {
         Self {
             remove_fails: Some(error),
+            ..Self::default()
+        }
+    }
+
+    /// A host whose home filesystem has exactly `available` bytes left.
+    pub(crate) fn with_available(available: u64) -> Self {
+        Self {
+            available: Some(available),
             ..Self::default()
         }
     }
@@ -163,6 +173,10 @@ impl FilesHost for FakeFilesHost {
             Some(error) => Err(clone_error(error)),
             None => Ok(PathBuf::from("/home").join(account.as_str()).join(relative)),
         }
+    }
+
+    fn available_bytes(&self, _directory: &Path) -> Result<u64, std::io::Error> {
+        Ok(self.available.unwrap_or(u64::MAX))
     }
 }
 

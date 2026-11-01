@@ -1,6 +1,7 @@
 //! Why a backup could not be created.
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 
 /// The `status` reported when a program could not be started at all.
 ///
@@ -178,6 +179,12 @@ pub enum BackupError {
         /// What the operation is about to write into it.
         required: u64,
     },
+
+    /// The backup or restore was refused at the free-space floor before it
+    /// wrote anything (issue #148): a filesystem it writes into has less than
+    /// the floor available, or could not be measured.
+    #[error(transparent)]
+    FreeSpace(#[from] FloorRefusal),
 
     /// The catalog could not say which databases this account owns.
     ///

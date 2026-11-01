@@ -1,9 +1,11 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
-# RE-MEASURED 2026-11-01 (issue #133, account runtime limits): edited by hand. rust: maran_agent 428->432, maran_agent_core 508->520,
-# maran_ops 1761->1768; backend: Agent.Client.Tests 380->383, Modules.Accounts.Tests 514->529; spa: plans/plans.spec.ts 15->17.
-# Full runs: rust 35 targets 2883 passed / 0 failed / 155 ignored; backend 20 targets 5156 passed / 0 failed; spa 165 targets 1115 passed / 0 failed / 2 ignored.
+# RE-MEASURED 2026-11-01 (issue #133, account runtime limits, merged on top of dev's #148): edited by hand, #133's deltas added to #148's rows.
+# rust: maran_agent 436->440 (+4), maran_agent_core 515->527 (+12), maran_ops 1770->1777 (+7); backend: Agent.Client.Tests 380->383,
+# Modules.Accounts.Tests 514->529; spa: plans/plans.spec.ts 15->17. Pre-merge #133 runs: rust 2883 passed / 0 failed / 155 ignored;
+# backend 20 targets 5156 passed / 0 failed; spa 165 targets 1115 passed / 0 failed / 2 ignored. Post-merge run below in the PR.
+# RE-MEASURED 2026-11-01 (issue #148, free-space floor): edited by hand. maran_agent [unittests src/lib.rs] 428->436; maran_agent_core [unittests src/lib.rs] 508->515; maran_ops [unittests src/lib.rs] 1761->1770; Maran.Modules.Monitoring.Tests.dll 87->95; Maran.Sdk.Tests.dll 267->268. Full runs: `maran test rust` 35 targets: 2884 passed / 0 failed / 155 ignored; `maran test backend` 20 targets: 5147 passed / 0 failed / 0 ignored; both TEST VERDICT: OK.
 # RE-MEASURED 2026-10-31 (issue #275, merged with dev's #274: Host.IntegrationTests 824+7 = 831;, a site carries at most 99 aliases): edited by hand.
 # backend: Host.IntegrationTests 820->827 (SiteAliasLimitEndpointTests 5, SitesAuthorizationTests +2 for GET /api/v1/sites/limits),
 # Modules.Sites.Tests 270->275 (validator 3, entity 2), Sdk.Tests 266->267 (SiteAliasLimitExceeded in the status census).
@@ -475,7 +477,7 @@
 # `164 targets: 1110 passed / 0 failed / 2 ignored`. Two spa rows raised: accounts/form 9->11
 # (the plan control's name and message in en and hy), ui-kit/unfilled-select-prompt 3->4 (the
 # Armenian account pickers). Backend rows unchanged.
-rust	maran_agent [unittests src/lib.rs]	432	0	0
+rust	maran_agent [unittests src/lib.rs]	440	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -496,9 +498,9 @@ rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	
 rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	13
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
-rust	maran_agent_core [unittests src/lib.rs]	520	0	0
+rust	maran_agent_core [unittests src/lib.rs]	527	0	0
 rust	maran_distro [unittests src/lib.rs]	79	0	0
-rust	maran_ops [unittests src/lib.rs]	1768	0	1
+rust	maran_ops [unittests src/lib.rs]	1777	0	1
 rust	maran_templates [unittests src/lib.rs]	13	0	0
 rust	golden_test [tests/golden_test.rs]	22	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
@@ -517,7 +519,7 @@ backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
 backend	Maran.Modules.Tasks.Tests.dll	109	0	0
 backend	Maran.Modules.Ftp.Tests.dll	169	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	87	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	95	0	0
 backend	Maran.Modules.Backups.Tests.dll	237	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	286	0	0
@@ -525,7 +527,7 @@ backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	529	0	0
 backend	Maran.Modules.Databases.Tests.dll	129	0	0
 backend	Maran.Modules.Ssl.Tests.dll	235	0	0
-backend	Maran.Sdk.Tests.dll	267	0	0
+backend	Maran.Sdk.Tests.dll	268	0	0
 backend	Maran.Modules.Sites.Tests.dll	275	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	406	0	0

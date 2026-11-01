@@ -77,4 +77,16 @@
   <data name="AlertCodeIntegrityDriftedResolvedBody">
     <value>The panel's own comparison of its installed files against the signed release it believes it is running no longer finds a difference (or the comparison itself is working again): {1}.</value>
   </data>
+  <data name="AlertFreeSpaceFloorApproachingRaisedSubject">
+    <value>The server will soon refuse new work on {0}: free space is near the floor</value>
+  </data>
+  <data name="AlertFreeSpaceFloorApproachingRaisedBody">
+    <value>The filesystem {0} has {1} GiB left, less than twice the free-space floor, and has stayed there for ten consecutive checks. Below the floor the server refuses to create accounts, take or restore backups and accept uploads. Free some space now.</value>
+  </data>
+  <data name="AlertFreeSpaceFloorApproachingResolvedSubject">
+    <value>Free space on {0} is clear of the floor again</value>
+  </data>
+  <data name="AlertFreeSpaceFloorApproachingResolvedBody">
+    <value>The filesystem {0} has {1} GiB left, at least twice the free-space floor.</value>
+  </data>
 </root>

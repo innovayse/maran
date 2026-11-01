@@ -1,6 +1,7 @@
 //! Why a file operation inside a customer's home could not be done.
 
 use maran_agent_core::privs::priv_error::PrivError;
+use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_agent_core::validation::fs::path_error::PathError;
 
 /// Failures of the customer-file operations.
@@ -57,6 +58,10 @@ pub enum FilesOpError {
     /// right kind of thing.
     #[error("the entry could not be removed")]
     RemoveFailed,
+    /// The write was refused at the free-space floor before anything was
+    /// created (issue #148).
+    #[error(transparent)]
+    FreeSpace(#[from] FloorRefusal),
 }
 
 impl From<PathError> for FilesOpError {

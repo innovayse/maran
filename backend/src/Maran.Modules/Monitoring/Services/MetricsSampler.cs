@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Domain.Entities;
+using Maran.Modules.Monitoring.Models;
 using Maran.Modules.Monitoring.Persistence;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -146,6 +147,7 @@ public sealed class MetricsSampler : BackgroundService
         // for a round that was never asked the question.
         await evaluator.EvaluateAsync(
             DiskUsedPercent(metrics.Value),
+            new FreeSpaceFloorReading(metrics.Value.DiskAvailableBytes, metrics.Value.FreeSpaceFloorBytes),
             services,
             sftpJailStatus,
             quotaStatus,

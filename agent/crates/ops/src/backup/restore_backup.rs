@@ -5,6 +5,7 @@ use std::os::unix::fs::{DirBuilderExt as _, PermissionsExt as _, chown};
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
@@ -117,6 +118,9 @@ struct Placement {
     /// The gid the restored home root must end up owned by — the web server's
     /// group, resolved one layer up from the distro adapter.
     group: u32,
+    /// The free-space floor the home filesystem must still have before
+    /// anything is extracted into it (issue #148).
+    floor: FreeSpaceFloor,
 }
 
 /// Restores `account` from the artifact `backup_id` names, replacing its home
@@ -212,8 +216,9 @@ struct Placement {
 /// customer are [`BackupError::RolledBack`] (the databases are as they were),
 /// [`BackupError::RolledBackPartially`] (some are neither state, and it names
 /// them) and [`BackupError::HomeParkedAt`] (the home exists, at the path in the
-/// message).
-// Eight parameters, and each one is a different authority. Folding them into a
+/// message). [`BackupError::FreeSpace`] is the refusal at the free-space floor
+/// (issue #148), decided on the home filesystem before anything is staged.
+// Nine parameters, and each one is a different authority. Folding them into a
 // request struct was considered and rejected: the struct would be built by the
 // service layer, one field at a time, and a field left at its default there is
 // exactly the kind of omission this operation must not have — an empty
@@ -229,6 +234,7 @@ pub fn restore_backup(
     allowed_databases: &[DatabaseName],
     expected_sha256: &str,
     home_group: u32,
+    floor: &FreeSpaceFloor,
     sink: &mut dyn RestoreSink,
 ) -> Result<RestoreOutcome, BackupError> {
     let guard = take_account_lock(account).ok_or(BackupError::AlreadyRunning)?;
@@ -252,6 +258,7 @@ pub fn restore_backup(
             owner: ids.uid,
             account_group: ids.gid,
             group: home_group,
+            floor: *floor,
         };
 
         restore_in(
@@ -291,6 +298,13 @@ fn restore_in(
     expected_sha256: &str,
     sink: &mut dyn RestoreSink,
 ) -> Result<RestoreOutcome, BackupError> {
+    // Before anything is staged or extracted: the home filesystem must still
+    // have the floor left, or the extraction would fill it part-way and leave
+    // the account's home on a disk nothing else can write to either.
+    placement
+        .floor
+        .admit(host.available_bytes(&placement.home_root))?;
+
     let artifact = directory.join(artifact_file_name(backup_id));
     let sidecar = directory.join(sidecar_file_name(backup_id));
 

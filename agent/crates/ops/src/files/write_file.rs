@@ -1,5 +1,10 @@
 //! WriteFile: one file into a customer's home, as the customer.
 
+use std::path::Path;
+
+use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
+
 use crate::files::model::write_file_input::WriteFileInput;
 use crate::files::{FilesHost, FilesOpError};
 
@@ -11,7 +16,14 @@ use crate::files::{FilesHost, FilesOpError};
 /// home, so it is written by a process that has dropped to that account —
 /// never by the root daemon (rules/security.md item 3).
 ///
-/// Two steps, both as the account:
+/// First, as root and before anything is created, the free-space floor: the
+/// filesystem holding the account homes must still have `floor` available to
+/// an unprivileged writer (issue #148). A full disk would otherwise fail this
+/// write part-way; the write is all-or-nothing either way (a temporary name,
+/// then a rename), and the floor keeps the disk from being driven to the point
+/// where every other writer on it fails too.
+///
+/// Then two steps, both as the account:
 ///
 /// 1. **Create the directories.** `.well-known/acme-challenge/` does not exist
 ///    until the first issuance asks for it, and the panel has no other way to
@@ -60,12 +72,20 @@ use crate::files::{FilesHost, FilesOpError};
 ///
 /// # Errors
 ///
-/// Returns [`FilesOpError::Privilege`] when the account cannot be resolved or
+/// Returns [`FilesOpError::FreeSpace`] when the home filesystem is below the
+/// floor or cannot be measured, before anything is created;
+/// [`FilesOpError::Privilege`] when the account cannot be resolved or
 /// the privilege drop fails; [`FilesOpError::HomeUnusable`] when the account's
 /// home is not a directory it owns; [`FilesOpError::DirectoryUnusable`] when a
 /// level cannot be created, is a symlink, or is not a directory the account
 /// owns; and [`FilesOpError::WriteFailed`] when the content cannot be placed.
-pub fn write_file(host: &dyn FilesHost, input: &WriteFileInput) -> Result<u64, FilesOpError> {
+pub fn write_file(
+    host: &dyn FilesHost,
+    input: &WriteFileInput,
+    floor: &FreeSpaceFloor,
+) -> Result<u64, FilesOpError> {
+    floor.admit(host.available_bytes(Path::new(AgentPaths::ACCOUNT_HOME_ROOT)))?;
+
     host.create_parents_as_account(&input.account, &input.path)?;
 
     host.write_as_account(&input.account, &input.path, &input.contents, input.mode)?;
