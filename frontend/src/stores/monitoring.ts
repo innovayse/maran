@@ -7,6 +7,7 @@ import type { LoadingState } from '../types/loading'
 import type {
   AccountDiskUsage,
   ChartRange,
+  ClockSync,
   HostMetrics,
   MetricBucket,
   MetricsChart,
@@ -63,6 +64,15 @@ export const useMonitoringStore = defineStore('monitoring', () => {
 
   /** Backend-localized message from a failed live host reading, or `null`. */
   const hostMetricsError: Ref<string | null> = ref(null)
+
+  /** The host clock's synchronisation, or `null` before one has been answered. */
+  const clockSync: Ref<ClockSync | null> = ref(null)
+
+  /** Where the clock reading stands, independently of {@link loadState}. */
+  const clockSyncState: Ref<LoadingState> = ref('loading')
+
+  /** Backend-localized message from a failed clock reading, or `null`. */
+  const clockSyncError: Ref<string | null> = ref(null)
 
   /** True while a chart re-read is in flight, which is what a range change starts. */
   const chartLoading: Ref<boolean> = ref(false)
@@ -153,6 +163,25 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   }
 
   /**
+   * Reads whether the host's clock is synchronised, for the clock card (issue #150).
+   *
+   * Its own request with its own state, like {@link loadHostMetrics}: it is asked of the agent, so
+   * it can fail on its own, and a failure is "could not find out" — never "not synchronised".
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadClockSync = async (): Promise<void> => {
+    clockSyncState.value = 'loading'
+    try {
+      clockSync.value = await api.getClockSync()
+      clockSyncError.value = null
+      clockSyncState.value = 'loaded'
+    } catch (error) {
+      clockSyncError.value = error instanceof ApiError ? error.message : null
+      clockSyncState.value = 'error'
+    }
+  }
+
+  /**
    * Loads one page of the accounts' disk use into {@link accountDiskUsage} and reports how the read
    * ended, for the disk table's `useServerTable`.
    *
@@ -198,11 +227,15 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     hostMetrics,
     hostMetricsState,
     hostMetricsError,
+    clockSync,
+    clockSyncState,
+    clockSyncError,
     chartLoading,
     errorMessage,
     buckets,
     load,
     loadHostMetrics,
+    loadClockSync,
     listAccountDiskUsage,
     selectRange,
   }

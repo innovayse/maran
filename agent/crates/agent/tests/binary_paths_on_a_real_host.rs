@@ -135,6 +135,7 @@ fn declared_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, S
         ("setquota_binary", distro.setquota_binary().to_string()),
         ("quota_binary", distro.quota_binary().to_string()),
         ("quotaon_binary", distro.quotaon_binary().to_string()),
+        ("timedatectl_binary", distro.timedatectl_binary().to_string()),
         ("id_binary", distro.id_binary().to_string()),
         ("chmod_binary", distro.chmod_binary().to_string()),
         ("chgrp_binary", distro.chgrp_binary().to_string()),

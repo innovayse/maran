@@ -505,6 +505,13 @@ pub trait DistroAdapter: Send + Sync {
     /// call site rather than here, so it is read where the risk is).
     fn quotaon_binary(&self) -> AdapterBinary;
 
+    /// Absolute path of `timedatectl`, for the process-execution allow-list.
+    ///
+    /// Only `timedatectl show` is ever run against it, to read whether the
+    /// kernel clock is synchronised (issue #150). Nothing in this crate sets
+    /// the time, the time zone or the synchronisation service.
+    fn timedatectl_binary(&self) -> AdapterBinary;
+
     /// Absolute path of `id`, for the process-execution allow-list.
     ///
     /// The accounts area asks it for a name's numeric uid, so the answer covers

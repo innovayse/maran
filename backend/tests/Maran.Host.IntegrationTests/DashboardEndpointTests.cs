@@ -203,6 +203,9 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
 
         // Unavailable, not an empty list: "no services watched" is a different, real answer.
         AssertUnavailable(root.GetProperty("services"));
+
+        // The clock is the agent's to read too (issue #150): unchecked, never reported synchronised.
+        AssertUnavailable(root.GetProperty("attention").GetProperty("clock"));
         AssertLoaded(root.GetProperty("counts").GetProperty("accounts"), 1);
     }
 

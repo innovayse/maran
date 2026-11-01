@@ -90,6 +90,19 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<AgentClockSyncState>> GetClockSyncAsync(CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.GetClockSyncAsync(token);
+            },
+            _inner,
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(
         CancellationToken cancellationToken)
     {

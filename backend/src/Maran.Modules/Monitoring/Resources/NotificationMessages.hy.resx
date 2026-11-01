@@ -90,4 +90,16 @@
   <data name="AlertFreeSpaceFloorApproachingResolvedBody">
     <value>{0} ֆայլային համակարգում մնացել է {1} ԳիԲ՝ ազատ տեղի նվազագույն սահմանի առնվազն կրկնակին։</value>
   </data>
+  <data name="AlertClockUnsynchronizedRaisedSubject">
+    <value>Սերվերի ժամացույցը համաժամեցված չէ</value>
+  </data>
+  <data name="AlertClockUnsynchronizedRaisedBody">
+    <value>Սերվերի ժամացույցը համաժամեցված չէ ժամանակի աղբյուրի հետ ({1}), և այդպես է տասը հաջորդական ստուգումների ընթացքում։ Երկգործոն կոդերը, մուտքի նիստերը, վկայագրերը և լիցենզիայի ստուգումը կախված են ճիշտ ժամանակից և ժամացույցի շեղման դեպքում ձախողվում են անհասկանալի ձևով։ Միացրեք ժամանակի համաժամեցման ծառայություն այս սերվերում (systemd-timesyncd կամ chrony) և համոզվեք, որ այն կարող է կապվել ժամանակի սերվերի հետ։</value>
+  </data>
+  <data name="AlertClockUnsynchronizedResolvedSubject">
+    <value>Սերվերի ժամացույցը կրկին համաժամեցված է</value>
+  </data>
+  <data name="AlertClockUnsynchronizedResolvedBody">
+    <value>Սերվերի ժամացույցը կրկին համաժամեցված է ժամանակի աղբյուրի հետ։</value>
+  </data>
 </root>

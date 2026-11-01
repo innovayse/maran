@@ -6,7 +6,7 @@ import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { certificateFor, CERTIFICATE_SITE_ID, stubCertificates } from '../fixtures/stub-certificates-routes'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
-import { loaded, stubDashboard } from '../fixtures/stub-dashboard-route'
+import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubDatabaseGrants } from '../fixtures/stub-database-grant-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -160,7 +160,7 @@ const DASHBOARD: Dashboard = {
     sites: loaded(27),
     databases: loaded(14),
   },
-  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6) },
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([
     {
       id: '11111111-1111-1111-1111-111111111111',

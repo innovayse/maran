@@ -6,6 +6,7 @@ using Maran.Modules.Firewall.Queries.CountBans;
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Queries.ListRecentAuditEvents;
 using Maran.Modules.Monitoring.Common;
+using Maran.Modules.Monitoring.Queries.GetClockSync;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 using Maran.Modules.Sites.Queries.CountSites;
@@ -138,7 +139,7 @@ public static class DashboardEndpoint
                 RecentAudit: null);
         }
 
-        // Together rather than one after another: they are one screen, and nine sequential
+        // Together rather than one after another: they are one screen, and eleven sequential
         // round-trips would make the first paint the sum of them. Each task already carries its own
         // failure, so WhenAll cannot throw on behalf of one of them, and every await below it reads a
         // task that has already finished.
@@ -156,6 +157,7 @@ public static class DashboardEndpoint
         var failedBackups = ReadAsync<int>(bus, logger, new CountFailedBackupsQuery(), cancellationToken);
         var bans = ReadAsync<int>(bus, logger, new CountBansQuery(), cancellationToken);
         var failedTasks = ReadAsync<int>(bus, logger, new CountFailedTasksQuery(), cancellationToken);
+        var clockSync = ReadAsync<ClockSyncDto>(bus, logger, new GetClockSyncQuery(), cancellationToken);
         var audit = ReadAsync<IReadOnlyList<AuditEventDto>>(
             bus, logger, new ListRecentAuditEventsQuery(RecentAuditEntries), cancellationToken);
 
@@ -169,6 +171,7 @@ public static class DashboardEndpoint
             failedBackups,
             bans,
             failedTasks,
+            clockSync,
             audit);
 
         return new DashboardDto(
@@ -192,7 +195,8 @@ public static class DashboardEndpoint
                 FailedBackups: await failedBackups,
 
                 BannedAddresses: await bans,
-                FailedTasks: await failedTasks),
+                FailedTasks: await failedTasks,
+                Clock: await clockSync),
 
             RecentAudit: await audit);
     }
