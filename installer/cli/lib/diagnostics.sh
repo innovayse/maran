@@ -14,7 +14,6 @@
 # Redaction is best-effort by nature, so the command ends by telling the operator to read the
 # bundle before sending it.
 
-readonly MARAN_DIAG_STAGING_BASE="/var/lib/maran-cli-staging"
 readonly MARAN_DIAG_DEFAULT_OUT="/root"
 readonly MARAN_DIAG_JOURNAL_LINES=20000
 readonly MARAN_DIAG_LOG_TAIL_LINES=5000
@@ -97,7 +96,7 @@ cli_diag_collect() {
 #   $1 = archive path.
 cli_diag_scan() {
   local archive="$1" scan name value piece found=0
-  scan="$(mktemp -d "${MARAN_DIAG_STAGING_BASE}/scan.XXXXXX")"
+  scan="$(mktemp -d "${MARAN_CLI_STAGING_BASE}/scan.XXXXXX")"
   # Recorded for the EXIT trap: a scan directory holds the extracted bundle, and a kill mid-scan
   # must not leave it behind.
   CLI_DIAG_SCAN="$scan"
@@ -163,26 +162,9 @@ cli_diagnostics() {
     shift
   done
 
-  # An absolute path of plain characters, with no `..` component: the directory is checked, not
-  # interpreted.
-  [[ "$out" =~ ^/[A-Za-z0-9._/-]*$ ]] && [[ "$out" != *..* ]] \
-    || cli_fail "--out must be an absolute path of letters, digits, '.', '_', '-' and '/'"
-  [ -d "$out" ] && [ ! -L "$out" ] || cli_fail "--out is not a plain directory"
-  local mode owner
-  mode="$(stat -c '%a' -- "$out")"
-  owner="$(stat -c '%u' -- "$out")"
-  [ "$owner" = "0" ] || cli_fail "--out must be owned by root"
-  # The last two permission digits are group and other; any write bit (2, 3, 6, 7) refuses.
-  [[ "${mode: -2}" =~ ^[0145]{2}$ ]] || cli_fail "--out must not be writable by group or others"
-
-  install -d -m 0700 -o root -g root "$MARAN_DIAG_STAGING_BASE"
-  # The same gate 50-artifacts.sh applies to its staging directory: `install -d` accepts an existing
-  # path, so what it left is checked rather than hoped for.
-  if [ -L "$MARAN_DIAG_STAGING_BASE" ] || [ ! -d "$MARAN_DIAG_STAGING_BASE" ] \
-     || [ "$(stat -c '%u %a' -- "$MARAN_DIAG_STAGING_BASE")" != "0 700" ]; then
-    cli_fail "${MARAN_DIAG_STAGING_BASE} is not a root-owned 0700 directory; refusing to stage there"
-  fi
-  CLI_DIAG_STAGE="$(mktemp -d "${MARAN_DIAG_STAGING_BASE}/stage.XXXXXX")"
+  cli_require_private_out_dir "$out"
+  cli_prepare_staging_base
+  CLI_DIAG_STAGE="$(mktemp -d "${MARAN_CLI_STAGING_BASE}/stage.XXXXXX")"
   # Globals, not locals: the EXIT trap runs after this function has returned.
   CLI_DIAG_TARGET=""
   CLI_DIAG_CREATED=0

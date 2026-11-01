@@ -238,7 +238,7 @@ REST `/api/provisioning/v1/…`; auth — скоупированные API-кл�
 
 **Обновления:** каналы stable/beta; манифесты подписаны; один клик из UI или `maran update`. Порядок: скачать+проверить всё → автоматический `pg_dump` → blue/green-каталоги + переключение симлинка → рестарт → агент последним (handshake + аддитивный proto покрывают окно). `maran rollback` — откат симлинка + дамп как страховка. Автообновление только security-патчей (по умолчанию вкл, отключаемо).
 
-**CLI `maran`** (root-only): `status`, `update`, `rollback`, `admin-reset-password`, `collect-diagnostics` — аварийный доступ при недоступном вебе.
+**CLI `maran`** (root-only): `status`, `update`, `rollback`, `admin-reset-password`, `collect-diagnostics`, `panel-backup`, `panel-restore` (disaster recovery of the panel itself: database, keys, licence, configuration — docs/operations/panel-disaster-recovery.md) — аварийный доступ при недоступном вебе.
 
 ## 15. Наблюдаемость и ошибки
 
