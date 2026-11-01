@@ -56,7 +56,7 @@ public sealed class InvitationLinkBuilderTests
             new Maran.Modules.Identity.Tests.TestSupport.StubEmailTemplates(),
             new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = "https://panel.example.com" }));
 
-        var mail = composer.Compose("owner@example.com", "tok en");
+        var mail = composer.Compose("owner@example.com", "tok en", "en");
 
         Assert.Contains(NewBuilder("https://panel.example.com").Build("tok en"), mail.Body, StringComparison.Ordinal);
     }

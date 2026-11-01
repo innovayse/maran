@@ -160,7 +160,14 @@ public sealed class CreateAccountCommandHandler
             return await FailAsync(command, ceilingFailure, cancellationToken);
         }
 
-        var account = new Account(Guid.NewGuid(), command.Name, command.PrimaryDomain, command.PlanId, _clock.UtcNow, command.OwnerEmail);
+        var account = new Account(
+            Guid.NewGuid(),
+            command.Name,
+            command.PrimaryDomain,
+            command.PlanId,
+            _clock.UtcNow,
+            command.OwnerEmail,
+            command.OwnerLanguage);
 
         _dbContext.Accounts.Add(account);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -177,7 +184,9 @@ public sealed class CreateAccountCommandHandler
         // and retrying creation would only hit AccountNameTaken above, not fix anything.
         try
         {
-            await _bus.InvokeAsync(new AccountCreated(account.Id, account.Name, command.OwnerEmail), cancellationToken);
+            await _bus.InvokeAsync(
+                new AccountCreated(account.Id, account.Name, command.OwnerEmail, account.OwnerLanguage),
+                cancellationToken);
         }
         catch (Exception exception)
         {

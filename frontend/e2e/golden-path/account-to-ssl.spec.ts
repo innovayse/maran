@@ -220,7 +220,7 @@ test.describe('the golden path: install, account, site, certificate', () => {
 
     // --- the account -------------------------------------------------------------------------
     await page.goto('/accounts/new')
-    await page.getByRole('textbox', { name: 'Name' }).fill(ACCOUNT_NAME)
+    await page.getByRole('textbox', { name: 'Username' }).fill(ACCOUNT_NAME)
     await page.getByRole('textbox', { name: 'Primary domain' }).fill(SITE_DOMAIN)
     // The plans are read from the panel, so an empty list here means nothing seeded them — which
     // is worth failing on explicitly, because a fresh installation with no plan cannot create any

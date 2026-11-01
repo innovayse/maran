@@ -4,6 +4,7 @@ using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Maran.Sdk.Events;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -199,5 +200,27 @@ public sealed class CreateAccountCommandHandlerTests
         dbContext.Plans.Add(plan);
         await dbContext.SaveChangesAsync();
         return plan.Id;
+    }
+
+    /// <summary>The owner's language is stored on the account and carried to the login's invitation.</summary>
+    [Fact]
+    public async Task The_owners_language_is_stored_on_the_account_and_carried_to_the_logins_invitation()
+    {
+        await using var dbContext = CreateDbContext();
+        var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var agent = new RecordingAgentAccountsClient();
+        var bus = new StubMessageBus();
+        var handler = new CreateAccountCommandHandler(
+            dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), bus, NullLogger<CreateAccountCommandHandler>.Instance);
+        var planId = await SeedPlanAsync(dbContext);
+
+        var result = await handler.HandleAsync(
+            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", "hy", Ip, Client),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("hy", (await dbContext.Accounts.SingleAsync()).OwnerLanguage);
+        var created = Assert.IsType<AccountCreated>(Assert.Single(bus.Invoked));
+        Assert.Equal("hy", created.OwnerLanguage);
     }
 }
