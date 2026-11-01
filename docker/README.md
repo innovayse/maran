@@ -304,11 +304,11 @@ docker run --rm \
 
 ## Running the Polygon Suites
 
-Sixteen test files are `#[ignore]`d by default and run only inside a polygon:
+Seventeen test files are `#[ignore]`d by default and run only inside a polygon:
 `sites_on_a_real_host.rs`, `php_pools_on_a_real_host.rs`,
 `privileges_on_a_real_host.rs`, `databases_on_a_real_host.rs`,
 `monitor_on_a_real_host.rs`, `binary_paths_on_a_real_host.rs`,
-`sftp_on_a_real_host.rs`, `account_deletion_on_a_real_host.rs`,
+`sftp_on_a_real_host.rs`, `sftp_suspension_on_a_real_host.rs`, `account_deletion_on_a_real_host.rs`,
 `firewall_on_a_real_host.rs`, `cron_on_a_real_host.rs`,
 `backup_on_a_real_host.rs`, `restore_recovery_on_a_real_host.rs`,
 `ftps_on_a_real_host.rs`, `account_identity_on_a_real_host.rs`,
