@@ -1,8 +1,6 @@
 //! CreateBackup: one archive of an account's home and databases.
 
-use std::fs::{DirBuilder, File, remove_dir_all, remove_file, rename};
-use std::io::Write as _;
-use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _, OpenOptionsExt as _};
+use std::fs::{remove_dir_all, remove_file};
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
@@ -19,6 +17,7 @@ use crate::backup::archive::measure_home::measure_home_bytes;
 use crate::backup::backup_error::BackupError;
 use crate::backup::backup_host::BackupHost;
 use crate::backup::backup_root::prepare_account_directory;
+use crate::backup::create_partial::create_partial;
 use crate::backup::database_catalog::DatabaseCatalog;
 use crate::backup::list_archive_members::{LISTING_REFUSED, MAXIMUM_MEMBERS};
 use crate::backup::model::archive_spec::ArchiveSpec;
@@ -28,8 +27,10 @@ use crate::backup::model::backup_summary::BackupSummary;
 use crate::backup::model::manifest_database::ManifestDatabase;
 use crate::backup::model::progress_sink::ProgressSink;
 use crate::backup::object_key::{artifact_file_name, sidecar_file_name};
-use crate::backup::root_only_chain::{MissingLevels, SCRATCH_MODE, require_root_only_chain};
+use crate::backup::open_backup_scratch::open_backup_scratch;
+use crate::backup::publish_artifact::publish_artifact;
 use crate::backup::scratch_dump_ceiling::scratch_dump_ceiling;
+use crate::backup::write_sidecar::write_sidecar;
 
 /// The largest dump this agent will archive, per database.
 ///
@@ -53,24 +54,6 @@ const MAXIMUM_ARCHIVE_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 /// therefore never sees a half-written archive, and a run killed at any point
 /// leaves a file whose extension says exactly what it is.
 const PARTIAL_SUFFIX: &str = ".partial";
-
-/// The scratch's directory of dumps — the archive's `databases/` member.
-const DATABASES_DIRECTORY: &str = "databases";
-
-/// The mode the artifact and its sidecar are created with, and the only one
-/// they may carry when they are published.
-///
-/// `0600`, root's alone, and it is a rules/security.md item 8 decision rather
-/// than a convenience. The artifact holds every file in the customer's home and
-/// a full dump of every database they own — which is to say every credential,
-/// token and personal record their application stores. The directory above it
-/// is already root-only, so this is the second of two locks, not the first; it
-/// is here because a directory's mode is one `chmod` away from being wrong and
-/// the artifact is the thing that must not be readable when that happens. The
-/// owner is root for the same reason it is not the account: an account that
-/// could read its own artifact could replace it, and a restore reads it as
-/// root.
-const ARTIFACT_MODE: u32 = 0o600;
 
 /// The uid the artifact must belong to on a real host — and the uid every
 /// directory of the scratch chain must belong to, for the same reason.
@@ -251,7 +234,7 @@ fn create_in(
         }
     };
 
-    publish(&partial, &artifact, placement.owner)?;
+    publish_artifact(&partial, &artifact, placement.owner)?;
     write_sidecar(&sidecar, &artifact, &summary, placement.owner)?;
 
     Ok(summary)
@@ -294,7 +277,7 @@ fn assemble(
         });
     }
 
-    let databases_directory = open_scratch(
+    let databases_directory = open_backup_scratch(
         &placement.scratch_base,
         &placement.scratch_root,
         &placement.scratch,
@@ -364,272 +347,6 @@ fn assemble(
         artifact_bytes,
         artifact_sha256,
     ))
-}
-
-/// Creates the root-only scratch and its `databases/` directory, and answers
-/// the latter — after proving, against the inodes, that the place it is about
-/// to create them in is root's alone all the way up.
-///
-/// Anything left by a crashed earlier run under this id is removed first: the
-/// id is this agent's own and unique to the operation, so what is there can
-/// only be its own litter — and a stale dump left in place would be archived as
-/// if it belonged to this backup.
-///
-/// # Why the chain is checked and not just the leaf
-///
-/// The modes this creates are `0700 root:root` at every level, and they were
-/// measured to hold on a chain this code built end to end. They are still not a
-/// boundary while somebody else owns an ancestor: the owner of a directory can
-/// rename an entry inside it aside and put a symlink in its place *without ever
-/// having permission to enter it*, and the next write from root then follows
-/// the link. That was measured both ways round — a customer's plaintext dump
-/// delivered into an attacker-readable file, and a root-owned `0600` file
-/// truncated and overwritten — in
-/// `docs/superpowers/notes/2026-09-05-backups-threat-note.md` §1, back when
-/// [`AgentPaths::BULK_SCRATCH_ROOT`] lived inside `/var/lib/maran`, which the
-/// panel's unprivileged service account owns (`maran:maran 0750` today; the
-/// account was called `panel` when that was measured, and naming it by its old
-/// spelling here would send a reader looking for an account no installed host
-/// has).
-///
-/// Moving the root out of that tree is the primary fix and this check is the
-/// second one, for the same reason
-/// [`prepare_account_directory`](crate::backup::backup_root) states a mode it
-/// just created: a location nobody can reach today is out of reach only for as
-/// long as an installer, an operator or a later version keeps it that way, and
-/// a mode that is assumed reports nothing when it stops being true. The check
-/// runs against the path the dumps are actually written into, not against the
-/// constant they were derived from.
-///
-/// # Errors
-///
-/// [`BackupError::ScratchUnusable`] — for a chain that could not be created,
-/// and for one this agent refuses to write into. The two are one variant
-/// because the answer to both is the same: nothing was staged, and the
-/// operation stops before a single dump exists.
-///
-/// # Why the base, the root and the owner are parameters
-///
-/// For the reason `backup_root.rs` splits its own checks: a test does not run
-/// as uid 0 and cannot create a directory owned by root, so a gate that
-/// hard-coded root could only ever be exercised on its refusing path — and a
-/// gate that has only ever been handed input it must reject passes just as
-/// well once it has been mutated into rejecting everything (rules/testing.md,
-/// "a refusing gate needs an inverse control"). Injected, a test can hand it a
-/// chain it must ACCEPT and a chain it must refuse, and the refusal it
-/// observes is the code the daemon runs. [`create_backup`] fills all three
-/// from [`AgentPaths`] and [`ROOT_UID`]; nothing in them comes from a request.
-fn open_scratch(
-    base: &Path,
-    root: &Path,
-    scratch: &Path,
-    owner: u32,
-) -> Result<PathBuf, BackupError> {
-    // Before anything is created: what already exists on the way down must
-    // already be root's. A level that does not exist yet is passed over here
-    // and stated again below, once this call has made it.
-    require_root_only_chain(base, root, scratch, owner, MissingLevels::Tolerated)?;
-
-    let _ = remove_dir_all(scratch);
-
-    let databases = scratch.join(DATABASES_DIRECTORY);
-    DirBuilder::new()
-        .recursive(true)
-        .mode(SCRATCH_MODE)
-        .create(&databases)
-        .map_err(|_| BackupError::ScratchUnusable)?;
-
-    // And again on the finished chain, including the directory the dumps go in:
-    // the same TOCTOU re-assertion `restore_backup::open_scratch` makes, for the
-    // same reason and with the same blind spot, and worded the same way so the
-    // twins cannot drift apart.
-    //
-    // It is not, as this comment used to claim, a check on a directory this call
-    // did not create: such a directory is already refused by the arm above, and
-    // `databases` here was made by the `DirBuilder` two lines up with
-    // `SCRATCH_MODE`, which a umask can only tighten. What is left is the window
-    // between the check above and that `create` — a level renamed aside and
-    // replaced inside it.
-    //
-    // That window is a race, so NO TEST OBSERVES THIS ARM (ledger S7: the
-    // mutation removing it survives the whole suite). Kept, not deleted:
-    // rules/testing.md deletes a defensive call that CANNOT FAIL, and this one
-    // can — what cannot happen is the test.
-    require_root_only_chain(base, root, &databases, owner, MissingLevels::Refused)?;
-
-    Ok(databases)
-}
-
-/// Creates the `.partial` the archiver writes, mode `0600`, and refuses a name
-/// that is already taken.
-///
-/// `create_new`, so the file is made by this call or not at all: the archiver
-/// is handed a descriptor-backed name this operation created with the mode it
-/// chose, rather than opening whatever is at that path. A `.partial` left by a
-/// crashed run is removed by the operation's own cleanup, and one that is still
-/// there at this moment means something else is writing it — which the account
-/// lock says cannot be another backup.
-///
-/// # Errors
-///
-/// [`BackupError::ArtifactUnpublishable`].
-fn create_partial(partial: &Path) -> Result<(), BackupError> {
-    let _ = remove_file(partial);
-
-    File::options()
-        .write(true)
-        .create_new(true)
-        .mode(ARTIFACT_MODE)
-        .open(partial)
-        .map(drop)
-        .map_err(|_| BackupError::ArtifactUnpublishable)
-}
-
-/// Checks the finished artifact's own inode and publishes it by rename.
-///
-/// The mode and owner are checked HERE, on the file the archiver actually
-/// wrote, and not assumed from the mode it was created with: `tar` was handed a
-/// path, and what a path meant when the file was created is not what it means
-/// now. An artifact that is not root's alone is not published at all — the
-/// rename would make a readable copy of a customer's database the panel then
-/// advertises as a backup.
-///
-/// `nlink` is checked for the same reason the file operations area checks it: a
-/// second hard link to the artifact is a second name for the same bytes, and
-/// the mode on this name says nothing about who can open the other one.
-///
-/// # Errors
-///
-/// [`BackupError::ArtifactUnpublishable`].
-fn publish(partial: &Path, artifact: &Path, owner: u32) -> Result<(), BackupError> {
-    let metadata = partial
-        .symlink_metadata()
-        .map_err(|_| BackupError::ArtifactUnpublishable)?;
-    let safe = metadata.is_file()
-        && metadata.uid() == owner
-        && metadata.mode() & 0o7777 == ARTIFACT_MODE
-        && metadata.nlink() == 1;
-    if !safe {
-        return Err(BackupError::ArtifactUnpublishable);
-    }
-
-    rename(partial, artifact).map_err(|_| BackupError::ArtifactUnpublishable)
-}
-
-/// Writes the sidecar beside the published artifact, mode `0600`, on an inode
-/// this call created and then re-stated.
-///
-/// The sidecar is the same document the archive carries at its root, plus the
-/// artifact's own digest and size. Two copies on purpose: a listing reads the
-/// sidecar without decompressing gigabytes, and a restore reads the copy INSIDE
-/// the archive and refuses when the two disagree — which is what makes editing
-/// the cheap copy useless to anybody who tries it.
-///
-/// # Why the artifact's discipline, not a lighter one
-///
-/// Written forward from the question — *what does a reader of this file
-/// decide?* — and the answer is: everything. `list_backups` reads it to say
-/// what backups exist and which of them are readable, and `restore_backup`
-/// reads it for the size and digest it checks the artifact against. A sidecar
-/// somebody else placed is therefore not a wrong label on a right backup; it
-/// is a backup an attacker gets to describe, which is the same class of
-/// authority the artifact itself carries. So it gets the same two guarantees
-/// the artifact gets, for the same reasons and not by analogy:
-///
-/// - **`create_new`**, so the inode is made by this call or the write does not
-///   happen. `create` opens whatever is at the path — a symlink is FOLLOWED,
-///   and `mode` applies only to a file that is created, so a pre-placed link
-///   or a pre-placed `0644` file would be written through with the customer's
-///   database inventory and keep its own mode. `create_new` cannot follow a
-///   symlink: `O_EXCL` makes the open fail on any existing name, link
-///   included.
-/// - **A re-`stat` of the result** (`is_file`, uid, exact mode, `nlink == 1`),
-///   for the reason [`publish`] states: what a path meant when the file was
-///   created is not what it means now, and `nlink > 1` means a second name for
-///   these bytes whose mode this one says nothing about.
-///
-/// **Why not the `.partial`-and-rename this file's artifact uses.** The
-/// artifact renames because `tar` writes for minutes or hours and a reader
-/// must never see a half-written archive. The sidecar is one small buffered
-/// write, and a rename would actively DESTROY the property being bought here:
-/// `rename` does not follow a symlink at its destination — it replaces it,
-/// silently, so a pre-placed link would be quietly discarded rather than
-/// refused, and the operator would never learn somebody had been in the
-/// directory. Refusing is worth more here than atomicity is.
-///
-/// An unlink-then-create (which [`create_partial`] does) is refused for the
-/// same reason: at this point the artifact has just been published under an id
-/// no other backup will ever be minted with, so anything already wearing this
-/// name is not our own litter and removing it is destroying evidence.
-///
-/// A refusal after publication leaves a published artifact with no sidecar.
-/// That is the state `list_backups` reports as `unreadable` and
-/// `delete_backup` prunes — visible litter with a name, not a silent one.
-///
-/// **A write that fails part-way is the other case, and it leaves nothing.**
-/// Once `create_new` has succeeded the sidecar is this call's own file, and
-/// `artifact` is the archive this same call published a moment ago under an id
-/// no other backup is minted with. When filling or syncing the sidecar fails —
-/// a disk that filled between the rename and here, `ENOSPC` (issue #148) — both
-/// are removed: a half-written description beside a published archive is the
-/// half-written artefact the operation promises never to leave, and the backup
-/// is reported failed as a whole.
-///
-/// # Errors
-///
-/// [`BackupError::ArtifactUnpublishable`], because a published artifact
-/// nothing can describe is not a backup the panel may report.
-fn write_sidecar(
-    sidecar: &Path,
-    artifact: &Path,
-    summary: &BackupSummary,
-    owner: u32,
-) -> Result<(), BackupError> {
-    let rendered =
-        serde_json::to_vec_pretty(summary).map_err(|_| BackupError::ArtifactUnpublishable)?;
-
-    let mut file = File::options()
-        .write(true)
-        .create_new(true)
-        .mode(ARTIFACT_MODE)
-        .open(sidecar)
-        .map_err(|_| BackupError::ArtifactUnpublishable)?;
-    let filled = file.write_all(&rendered).and_then(|()| file.sync_all());
-    drop(file);
-    if filled.is_err() {
-        let _ = remove_file(sidecar);
-        let _ = remove_file(artifact);
-        return Err(BackupError::ArtifactUnpublishable);
-    }
-
-    verify_sidecar_inode(sidecar, owner)
-}
-
-/// Asks the inode what the sidecar this call just wrote actually is, and
-/// removes it rather than leaving it when the answer is wrong.
-///
-/// Split from [`write_sidecar`] so the descriptor is closed before the path is
-/// stated — the same question [`publish`] asks, asked of a file that has no
-/// rename to gate it, so the removal takes the rename's place as the thing
-/// that stops a wrong inode being advertised as this backup's description.
-///
-/// # Errors
-///
-/// [`BackupError::ArtifactUnpublishable`].
-fn verify_sidecar_inode(sidecar: &Path, owner: u32) -> Result<(), BackupError> {
-    let metadata = sidecar
-        .symlink_metadata()
-        .map_err(|_| BackupError::ArtifactUnpublishable)?;
-    let safe = metadata.is_file()
-        && metadata.uid() == owner
-        && metadata.mode() & 0o7777 == ARTIFACT_MODE
-        && metadata.nlink() == 1;
-    if !safe {
-        let _ = remove_file(sidecar);
-        return Err(BackupError::ArtifactUnpublishable);
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

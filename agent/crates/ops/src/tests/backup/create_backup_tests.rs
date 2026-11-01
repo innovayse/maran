@@ -5,7 +5,7 @@
 use std::fs::{
     DirBuilder, File, Permissions, create_dir_all, read_to_string, set_permissions, write,
 };
-use std::os::unix::fs::{PermissionsExt as _, symlink};
+use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _, PermissionsExt as _, symlink};
 
 use maran_agent_core::utils::current_uid::current_uid;
 use maran_agent_core::utils::floor_refusal::FloorRefusal;
@@ -93,7 +93,7 @@ impl Fixture {
         symlink("../alice/public", home.join("inside")).expect("the planted link");
 
         let scratch_root = TempDir::new().expect("a temporary directory");
-        // The chain check open_scratch runs holds the scratch root to 0700, and
+        // The chain check open_backup_scratch runs holds the scratch root to 0700, and
         // a TempDir is created with the umask's mode — 0775 under the umask
         // this workspace's tests run with. Set it here so the fixture presents
         // the same chain a real host presents, rather than weakening the check
@@ -838,7 +838,7 @@ fn an_ordinary_run_still_writes_its_sidecar() {
 }
 
 /// A chain the scratch may be staged in, built by the test and handed to
-/// [`open_scratch`] exactly as `create_backup` hands it the real one.
+/// [`open_backup_scratch`] exactly as `create_backup` hands it the real one.
 ///
 /// The uid is the test's own rather than root's: no test can create a
 /// root-owned directory, and a gate exercised only on input it must reject
@@ -873,7 +873,7 @@ impl Chain {
 
     /// Runs the gate over `root`, staging `<root>/backup/an-id`.
     fn open(&self, root: &Path) -> Result<PathBuf, BackupError> {
-        open_scratch(
+        open_backup_scratch(
             self.base.path(),
             root,
             &root.join("backup").join("an-id"),
@@ -978,7 +978,7 @@ fn a_scratch_outside_the_base_the_walk_starts_from_is_refused() {
     let chain = Chain::new();
     let outside = TempDir::new().expect("a temporary directory");
 
-    let refusal = open_scratch(
+    let refusal = open_backup_scratch(
         chain.base.path(),
         outside.path(),
         &outside.path().join("backup").join("an-id"),
@@ -1024,7 +1024,7 @@ fn a_scratch_chain_owned_by_somebody_other_than_the_expected_uid_is_refused() {
     let root = chain.make("maran-scratch", 0o700);
     let owner = current_uid().expect("the current uid is readable");
 
-    let refusal = open_scratch(
+    let refusal = open_backup_scratch(
         chain.base.path(),
         &root,
         &root.join("backup").join("an-id"),

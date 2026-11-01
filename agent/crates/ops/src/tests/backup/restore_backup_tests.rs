@@ -3,7 +3,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::fs::{DirBuilder, Permissions, create_dir_all, read_to_string, set_permissions, write};
-use std::os::unix::fs::{MetadataExt as _, symlink};
+use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _, PermissionsExt as _, symlink};
+use std::path::PathBuf;
 
 use maran_agent_core::utils::current_uid::current_uid;
 use maran_agent_core::utils::floor_refusal::FloorRefusal;
@@ -12,8 +13,12 @@ use tempfile::TempDir;
 
 use crate::backup::MANIFEST_VERSION;
 use crate::backup::model::account_identity::AccountIdentity;
+use crate::backup::model::backup_manifest::BackupManifest;
 use crate::backup::model::backup_summary::BackupSummary;
 use crate::backup::model::extract_identity::ExtractIdentity;
+use crate::backup::model::manifest_database::ManifestDatabase;
+use crate::backup::model::restore_stage::RestoreStage;
+use crate::backup::open_restore_scratch::open_restore_scratch;
 use crate::backup::recording_backup_host::{
     ARCHIVE_PROGRAM, FIXED_NOW, LIST_PROGRAM, RecordingBackupHost,
 };
@@ -130,7 +135,7 @@ impl Fixture {
             backup_root: TempDir::new().unwrap(),
         };
 
-        // The chain check open_scratch runs holds the scratch root to 0700, and
+        // The chain check open_restore_scratch runs holds the scratch root to 0700, and
         // a TempDir is created with the umask's mode. Set it here so the
         // fixture presents the same chain a real host presents, rather than
         // weakening the check to suit the fixture.
@@ -220,8 +225,8 @@ impl Fixture {
     }
 
     /// The placement one run uses, owned by ids a test can really apply.
-    fn placement(&self) -> Placement {
-        Placement {
+    fn placement(&self) -> RestorePlacement {
+        RestorePlacement {
             home_root: self.homes.path().to_path_buf(),
             scratch_base: self.scratch_root.path().to_path_buf(),
             scratch_root: self.scratch_root.path().to_path_buf(),
@@ -709,7 +714,7 @@ fn every_step_that_is_recoverable_by_doing_nothing_is_reported_as_verifying() {
 }
 
 /// A chain a restore may stage in, built by the test and handed to
-/// [`open_scratch`] exactly as [`restore_backup`] hands it the real one.
+/// [`open_restore_scratch`] exactly as [`restore_backup`] hands it the real one.
 ///
 /// The uid is the test's own rather than root's: no test can create a
 /// root-owned directory, and a gate exercised only on input it must reject
@@ -747,7 +752,7 @@ impl RestoreChain {
 
     /// Runs the gate over `root`, staging `<root>/backup/an-id`.
     fn open(&self, root: &Path) -> Result<PathBuf, BackupError> {
-        open_scratch(
+        open_restore_scratch(
             self.base.path(),
             root,
             &root.join("backup").join("an-id"),
@@ -819,7 +824,7 @@ fn a_restore_scratch_chain_owned_by_somebody_else_is_refused() {
     let root = chain.make("maran-scratch", 0o700);
     let owner = current_uid().unwrap();
 
-    let refusal = open_scratch(
+    let refusal = open_restore_scratch(
         chain.base.path(),
         &root,
         &root.join("backup").join("an-id"),
@@ -834,7 +839,7 @@ fn a_restore_scratch_chain_owned_by_somebody_else_is_refused() {
 #[test]
 fn a_restore_whose_account_uid_moved_refuses_before_it_touches_the_home() {
     // C-4. `AccountIds` used to be resolved once, at the top, and carried in
-    // `Placement` for the whole operation — hours, for a large account. A
+    // `RestorePlacement` for the whole operation — hours, for a large account. A
     // `DeleteAccount` landing between the two renames made `userdel --remove`
     // succeed and the second rename CREATE the home, chowned to that
     // remembered uid — which `useradd` gives to the next account made on the
@@ -906,7 +911,7 @@ fn the_accounts_identity_is_asked_again_before_the_home_is_swapped() {
     //
     // UNOBSERVED HERE: the entry point's own first read. These tests drive
     // `restore_in`, and `restore_backup` — which resolves the ids, builds the
-    // `Placement` and takes the account lock — is one statement above it. What
+    // `RestorePlacement` and takes the account lock — is one statement above it. What
     // this file can see is that the second read happens and that a disagreement
     // between the two refuses.
     let fixture = Fixture::new(1);

@@ -62,6 +62,7 @@ public sealed class TestScopeFactory : IDisposable
         services.AddSingleton<IMessageBus>(Bus);
 
         services.AddScoped<MonitoringAuditJournal>();
+        services.AddScoped<AlertObserver>();
         services.AddScoped<AlertEvaluator>();
 
         _provider = services.BuildServiceProvider();

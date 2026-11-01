@@ -60,6 +60,7 @@ public sealed class MonitoringModule : IPanelModule
         // records the panel itself as the actor when there is no request, which is most of the time
         // in this module.
         services.AddScoped<MonitoringAuditJournal>();
+        services.AddScoped<AlertObserver>();
         services.AddScoped<AlertEvaluator>();
 
         // The Sdk-facing seam the closed PluginLoader calls into

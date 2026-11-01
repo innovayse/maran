@@ -375,6 +375,18 @@ agent/
     │       │                  (the destination seam; the remote half is DECLARED and
     │       │                  unwired — see
     │       │                  docs/superpowers/notes/2026-09-07-backup-object-store-seam.md).
+    │       │                  The two bulk rpcs are split into their steps, one
+    │       │                  crate-private unit per file (issue #291): creation's
+    │       │                  open_backup_scratch.rs · create_partial.rs ·
+    │       │                  publish_artifact.rs · write_sidecar.rs, and restore's
+    │       │                  restore_placement.rs · restore_plan.rs (the carriers
+    │       │                  between its halves) · prepare_restore.rs (steps 1–5) ·
+    │       │                  require_sidecar_agrees.rs · resolve_databases.rs ·
+    │       │                  open_restore_scratch.rs · replace_databases.rs (step 6
+    │       │                  and its rollback) · swap_home.rs (step 7) ·
+    │       │                  finalise_restore.rs (step 8). create_backup.rs and
+    │       │                  restore_backup.rs keep the entry point, the outer body
+    │       │                  that cleans up on every path, and the ordering.
     │       ├── safe_write/    render_validate_swap.rs · remove_config.rs ·
     │       │                  rollback_guard.rs · safe_write_error.rs ·
     │       │                  config_tree_lock.rs (the host-wide write lock —
