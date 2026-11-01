@@ -22,7 +22,8 @@ namespace Maran.Modules.Monitoring.Services;
 /// </para>
 /// <para>
 /// <b>No row means no choice</b>, and the configured level stays in force. <b>An unreadable table
-/// is not a reason to refuse to start</b>: a database that is not migrated yet or not reachable is
+/// is not a reason to refuse to start</b>: a database that is not migrated, not reachable or not
+/// configured is
 /// reported by the health endpoint, and the panel running at its configured level is the right
 /// outcome for a log setting. That failure is logged at Warning and the start continues.
 /// </para>
@@ -81,10 +82,13 @@ public sealed class StartupLogLevelRestorer : IHostedService
                 .Select(row => (PanelLogLevel?)row.Level)
                 .FirstOrDefaultAsync(cancellationToken);
         }
-        catch (DbException exception)
+        catch (Exception exception) when (exception is DbException or InvalidOperationException)
         {
             // Handled, not swallowed: the outcome — the configured level stays — is the documented
-            // answer to an unreadable table, and the line says so.
+            // answer to an unreadable table, and the line says so. DbException is a database that
+            // answered with a refusal (no table yet, no server); InvalidOperationException is the
+            // provider refusing before it asks, which is what a host with no connection string
+            // configured gets (the Host's own unit tests boot exactly that host).
             LogUnreadable(_logger, exception);
             return;
         }
