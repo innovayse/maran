@@ -28,6 +28,7 @@
     "states": {
       "active": "Ակտիվ",
       "invited": "Հրավիրված",
+      "invitedAccountSuspended": "Հրավիրված, հաշիվը կասեցված է",
       "suspended": "Կասեցված"
     },
     "features": {

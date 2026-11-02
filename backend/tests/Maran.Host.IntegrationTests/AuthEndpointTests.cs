@@ -92,7 +92,7 @@ public sealed class AuthEndpointTests : IAsyncLifetime
 
     /// <summary>
     /// Creates a customer login holding a VALID hash of <see cref="Password"/>, then moves it out of
-    /// <see cref="UserState.Active"/> the only way the domain allows: <see cref="User.Suspend"/>,
+    /// <see cref="UserLifecycle.Active"/> the only way the domain allows: <see cref="User.Suspend"/>,
     /// which deliberately keeps the password hash rather than clearing it (its own remarks). An
     /// invited login's empty hash would fail password verification on its own and prove nothing
     /// about the state check that runs after verification; a suspended login is the one state whose

@@ -67,7 +67,7 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
 
         Assert.True(result.IsSuccess);
         var user = Assert.Single(await _context.Users.Where(candidate => candidate.AccountId == AccountId).ToListAsync());
-        Assert.Equal(UserState.Invited, user.State);
+        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
         Assert.Single(await _context.InvitationTokens.ToListAsync());
         Assert.Single(_bus.Published);
     }

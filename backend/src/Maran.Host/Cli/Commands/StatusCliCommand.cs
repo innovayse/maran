@@ -192,7 +192,7 @@ public sealed class StatusCliCommand : ICliCommand
         var count = await identity.Users
             .AsNoTracking()
             .CountAsync(
-                user => user.Role == UserRole.Admin && user.State == UserState.Active,
+                user => user.Role == UserRole.Admin && user.Lifecycle == UserLifecycle.Active,
                 cancellationToken);
         return (count > 0, string.Create(CultureInfo.InvariantCulture, $"{count} active"));
     }

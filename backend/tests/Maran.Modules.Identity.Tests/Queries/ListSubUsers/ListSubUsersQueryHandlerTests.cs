@@ -36,7 +36,7 @@ public sealed class ListSubUsersQueryHandlerTests : IDisposable
 
         var row = Assert.Single(result.Value.Items);
         Assert.Equal("deploy", row.Username);
-        Assert.Equal(UserState.Active, row.State);
+        Assert.Equal(UserLifecycle.Active, row.State);
         Assert.Equal([AccountFeature.Databases, AccountFeature.Backups], row.Features);
         Assert.Equal(1, result.Value.Total);
     }

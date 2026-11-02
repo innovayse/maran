@@ -145,7 +145,7 @@ public sealed class AdminRecoveryIssuer
                 Error.Of(nameof(ErrorMessages.AdminRecoveryNotAdministrator), ErrorType.Conflict));
         }
 
-        if (user.State != UserState.Active)
+        if (!user.MayAuthenticate)
         {
             await _journal.RecordConsoleRecoveryAsync(user.Id.ToString(), claim, succeeded: false, cancellationToken);
             return Result<AdminRecoveryOutcome>.Fail(

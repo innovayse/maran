@@ -28,6 +28,7 @@
     "states": {
       "active": "Активен",
       "invited": "Приглашён",
+      "invitedAccountSuspended": "Приглашён, аккаунт приостановлен",
       "suspended": "Приостановлен"
     },
     "features": {

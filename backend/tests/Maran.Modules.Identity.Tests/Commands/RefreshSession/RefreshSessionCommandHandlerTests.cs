@@ -92,7 +92,7 @@ public sealed class RefreshSessionCommandHandlerTests
     /// token for it. The session is issued BEFORE the state changes, which is the real sequence: the
     /// session was legitimate when it was created.
     /// </summary>
-    private async Task<string> SeedLoginHoldingALiveSessionAsync(UserState state)
+    private async Task<string> SeedLoginHoldingALiveSessionAsync(UserLifecycle state)
     {
         var user = new User(Guid.NewGuid(), "owner-one", "owner@example.com", "hash", UserRole.Customer, Now);
         _context.Users.Add(user);
@@ -103,7 +103,7 @@ public sealed class RefreshSessionCommandHandlerTests
         // The suspension's first half only. Its second half — RevokeAllAsync — is deliberately not
         // run: this is the state the panel is left in when anything stops it, and it is the state the
         // handler used to accept.
-        if (state == UserState.Suspended)
+        if (state == UserLifecycle.Suspended)
         {
             user.Suspend();
         }
@@ -119,7 +119,7 @@ public sealed class RefreshSessionCommandHandlerTests
     [Fact]
     public async Task A_suspended_login_holding_a_live_session_cannot_refresh()
     {
-        var token = await SeedLoginHoldingALiveSessionAsync(UserState.Suspended);
+        var token = await SeedLoginHoldingALiveSessionAsync(UserLifecycle.Suspended);
 
         var result = await NewHandler(NewSessions()).HandleAsync(
             new RefreshSessionCommand(token, "203.0.113.7", "agent"),
@@ -137,7 +137,7 @@ public sealed class RefreshSessionCommandHandlerTests
     [Fact]
     public async Task An_active_login_still_refreshes_and_is_issued_a_token()
     {
-        var token = await SeedLoginHoldingALiveSessionAsync(UserState.Active);
+        var token = await SeedLoginHoldingALiveSessionAsync(UserLifecycle.Active);
 
         var result = await NewHandler(NewSessions()).HandleAsync(
             new RefreshSessionCommand(token, "203.0.113.7", "agent"),

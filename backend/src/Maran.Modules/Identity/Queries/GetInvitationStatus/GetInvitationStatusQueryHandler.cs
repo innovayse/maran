@@ -69,7 +69,7 @@ public sealed class GetInvitationStatusQueryHandler
             return Result<InvitationStatusDto>.Ok(new NoInvitationStatusDto(NameOf(InvitationState.None)));
         }
 
-        if (user.State != UserState.Invited)
+        if (!user.HasPendingInvitation)
         {
             return Result<InvitationStatusDto>.Ok(new AcceptedInvitationStatusDto(NameOf(InvitationState.Accepted)));
         }

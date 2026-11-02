@@ -55,7 +55,7 @@ public sealed class AccountCreatedHandlerTests : IDisposable
         await NewHandler().HandleAsync(Created(), CancellationToken.None);
 
         var user = Assert.Single(await _context.Users.Where(candidate => candidate.AccountId == AccountId).ToListAsync());
-        Assert.Equal(UserState.Invited, user.State);
+        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
         var token = Assert.Single(await _context.InvitationTokens.Where(candidate => candidate.UserId == user.Id).ToListAsync());
         Assert.True(token.IsUsable(Now));
         Assert.Single(_bus.Published);

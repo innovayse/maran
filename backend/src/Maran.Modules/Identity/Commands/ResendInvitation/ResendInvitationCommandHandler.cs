@@ -20,7 +20,7 @@ namespace Maran.Modules.Identity.Commands.ResendInvitation;
 /// already committed, the account is left with no login at all
 /// (<see cref="Maran.Sdk.Events.AccountCreated"/>'s own remarks name this and name this command as
 /// the recovery). The finding of the login, its recreation from <c>Account.OwnerEmail</c>, the
-/// refusal of any login that is not <see cref="UserState.Invited"/>, the retirement of the old
+/// refusal of any login that is not <see cref="UserLifecycle.Invited"/>, the retirement of the old
 /// tokens and the minting of the new one are all <see cref="InvitationIssuer"/>'s — shared with the
 /// administrator's "create a link" action, which needs exactly the same work and differs only in
 /// where the plaintext goes. This handler's own part is what happens to it: it is mailed.

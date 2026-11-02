@@ -53,7 +53,7 @@ public sealed class InviteSubUserCommandHandlerTests : IDisposable
             Command(features: [AccountFeature.Databases, AccountFeature.Cron]), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(UserState.Invited, result.Value.State);
+        Assert.Equal(UserLifecycle.Invited, result.Value.State);
         Assert.Equal([AccountFeature.Databases, AccountFeature.Cron], result.Value.Features);
         var user = await _world.Context.Users.SingleAsync(candidate => candidate.Username == "deploy");
         Assert.Null(user.AccountId);

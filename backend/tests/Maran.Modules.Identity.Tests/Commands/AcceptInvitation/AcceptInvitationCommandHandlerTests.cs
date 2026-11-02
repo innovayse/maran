@@ -67,7 +67,7 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
 
         Assert.True(result.IsSuccess);
         var user = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        Assert.Equal(UserState.Active, user.State);
+        Assert.Equal(UserLifecycle.Active, user.Lifecycle);
         Assert.True(_hasher.Verify(NewPassword, user.PasswordHash));
     }
 
@@ -170,12 +170,12 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
     /// <summary>
     /// Accepting an invitation while the hosting account is suspended stores the chosen password but
     /// does NOT produce a usable login: the account created, invited, then suspended before the
-    /// owner opened the link must not become <see cref="UserState.Active"/> just because the token is
+    /// owner opened the link must not become <see cref="UserLifecycle.Active"/> just because the token is
     /// still live.
     /// </summary>
     /// <remarks>
     /// Closes the hole a final review found: <c>User.Suspend()</c> deliberately leaves an
-    /// <see cref="UserState.Invited"/> login in <c>Invited</c> rather than consuming the invitation,
+    /// <see cref="UserLifecycle.Invited"/> login in <c>Invited</c> rather than consuming the invitation,
     /// but nothing previously stopped <c>Activate</c> from later making it fully usable regardless.
     /// </remarks>
     [Fact]
@@ -190,8 +190,8 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
 
         Assert.True(result.IsSuccess);
         var stored = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        Assert.Equal(UserState.Suspended, stored.State);
-        Assert.NotEqual(UserState.Active, stored.State);
+        Assert.Equal(UserLifecycle.Suspended, stored.Lifecycle);
+        Assert.NotEqual(UserLifecycle.Active, stored.Lifecycle);
         // The password was still stored: once the account is resumed the owner may sign in with the
         // password they already chose, rather than needing a second invitation.
         Assert.True(_hasher.Verify(NewPassword, stored.PasswordHash));
@@ -216,7 +216,7 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
         await _context.SaveChangesAsync();
 
         var resumed = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        Assert.Equal(UserState.Active, resumed.State);
+        Assert.Equal(UserLifecycle.Active, resumed.Lifecycle);
         Assert.True(_hasher.Verify(NewPassword, resumed.PasswordHash));
     }
 }

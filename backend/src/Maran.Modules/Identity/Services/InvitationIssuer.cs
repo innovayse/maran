@@ -22,7 +22,7 @@ namespace Maran.Modules.Identity.Services;
 /// exactly this work and differ only in where the plaintext goes afterwards: resending the
 /// invitation mails it (<c>ResendInvitationCommandHandler</c>), and creating a link hands it back to
 /// the administrator (<c>IssueInvitationLinkCommandHandler</c>). The refusals — no such account, a
-/// login that is not <see cref="UserState.Invited"/> — are the security-relevant part, and two copies
+/// login that is not <see cref="UserLifecycle.Invited"/> — are the security-relevant part, and two copies
 /// of them is a way to fix one and forget the other.
 /// </para>
 /// <para>
@@ -34,18 +34,17 @@ namespace Maran.Modules.Identity.Services;
 /// what keeps "two live invitations to one account" from ever existing.
 /// </para>
 /// <para>
-/// <b>A login that is not <see cref="UserState.Invited"/> is refused, not only an active one.</b> A
+/// <b>A login that is not <see cref="UserLifecycle.Invited"/> is refused, not only an active one.</b> A
 /// fresh token for a live account is a password reset in disguise that bypasses
-/// <c>reset-password</c>'s own rate limit, and a <see cref="UserState.Suspended"/> login was active
+/// <c>reset-password</c>'s own rate limit, and a <see cref="UserLifecycle.Suspended"/> login was active
 /// before it was suspended, so it already has a real password: <see cref="User.Activate"/> would
 /// overwrite it and silently lift the suspension.
 /// </para>
 /// <para>
 /// <b>An invited login whose account is suspended is refused too</b>
-/// (<c>InvitationAccountSuspended</c>). Suspension keeps an invited login
-/// <see cref="UserState.Invited"/> and records the suspension in
-/// <see cref="User.IsAccountSuspended"/> instead (<see cref="User.Suspend"/>), so the state test above
-/// does not see it. Accepting such an invitation would still leave the login suspended
+/// (<c>InvitationAccountSuspended</c>). Suspension moves an invited login to
+/// <see cref="UserLifecycle.InvitedAccountSuspended"/> rather than <see cref="UserLifecycle.Suspended"/>
+/// (<see cref="User.Suspend"/>), so the lifecycle test above does not mistake it for a pending one. Accepting such an invitation would still leave the login suspended
 /// (<see cref="User.Activate"/>), but handing a suspended account's owner a fresh credential —
 /// mailed, or as a link the administrator passes on — is an offer the suspension exists to withdraw.
 /// An account with no login at all is refused the same way: its directory entry carries the
@@ -154,7 +153,7 @@ public sealed class InvitationIssuer
     /// place a token is minted, whoever the login is for.
     /// </summary>
     /// <param name="user">
-    /// The login to invite. The caller has already established that it is <see cref="UserState.Invited"/>
+    /// The login to invite. The caller has already established that it is <see cref="UserLifecycle.Invited"/>
     /// and that the person asking may invite it: this method trusts both and decides neither.
     /// </param>
     /// <param name="now">The current instant, taken from <see cref="IClock"/> by the caller.</param>

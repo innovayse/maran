@@ -1,12 +1,10 @@
 namespace Maran.Modules.Identity.Domain.Enums;
 
-/// <summary>Whether a panel login may be used, and why not when it may not.</summary>
-/// <remarks>
-/// <see cref="Active"/> is declared first so it is the enum's zero value: the existing
-/// <c>User</c> constructor (used by <c>CompleteSetup</c> for the administrator) never sets
-/// <c>State</c> explicitly, so an administrator's login must default to usable rather than to
-/// the invited state a hosting account's owner starts in.
-/// </remarks>
+/// <summary>
+/// The previous release's three-valued login state, kept only as the type of the legacy
+/// <c>Users."State"</c> column. <b>Not read by this release</b>: the lifecycle is
+/// <see cref="UserLifecycle"/>. Deleted with the column in the contract release.
+/// </summary>
 public enum UserState
 {
     /// <summary>Usable.</summary>

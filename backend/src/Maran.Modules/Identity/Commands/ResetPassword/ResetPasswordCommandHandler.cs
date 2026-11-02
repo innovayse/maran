@@ -41,14 +41,14 @@ namespace Maran.Modules.Identity.Commands.ResetPassword;
 /// </para>
 /// <para>
 /// <b>A token presented for a login that has never been claimed COMPLETES the invitation, rather
-/// than refusing.</b> <see cref="Maran.Modules.Identity.Domain.Enums.UserState.Invited"/> means the
+/// than refusing.</b> <see cref="Maran.Modules.Identity.Domain.Enums.UserLifecycle.Invited"/> means the
 /// account's owner set no password yet — their invitation mail may be lost, spam-filtered, or simply
 /// unread — and <c>RequestPasswordResetCommandHandler</c> issues a reset token for such a login
 /// exactly as it does for any other, by design (it must not let the response distinguish one kind of
 /// account from another; see that type's remarks). Presenting a VALID, unexpired, unused reset token
 /// proves control of the same mailbox an invitation token proves control of, so this handler treats
 /// it the same way <c>AcceptInvitationCommandHandler</c> does: <see cref="User.Activate"/> instead of
-/// <see cref="User.ChangePassword"/>, which also clears <see cref="UserState.Invited"/> into a login
+/// <see cref="User.ChangePassword"/>, which also clears <see cref="UserLifecycle.Invited"/> into a login
 /// that can actually sign in. The alternative — refusing the reset for an unclaimed login — would
 /// leave that customer with no path back into the account at all whenever the original invitation
 /// mail is unrecoverable, which is the dead end this handler exists to close.
@@ -150,7 +150,7 @@ public sealed class ResetPasswordCommandHandler
         }
 
         // Read before Activate mutates it, so the journal below can still say which path this was.
-        var completesInvitation = user.State == UserState.Invited;
+        var completesInvitation = user.HasPendingInvitation;
 
         var newPasswordHash = _passwordHasher.Hash(command.NewPassword);
         if (completesInvitation)

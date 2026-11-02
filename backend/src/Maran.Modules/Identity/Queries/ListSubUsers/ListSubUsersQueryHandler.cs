@@ -56,7 +56,7 @@ public sealed class ListSubUsersQueryHandler
                        user.Id,
                        user.Username,
                        user.Email,
-                       user.State,
+                       user.Lifecycle,
                        membership.Grants,
                        user.CreatedAt,
                        user.LastLoginAt);

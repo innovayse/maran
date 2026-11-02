@@ -28,6 +28,7 @@
     "states": {
       "active": "Active",
       "invited": "Invited",
+      "invitedAccountSuspended": "Invited, account suspended",
       "suspended": "Suspended"
     },
     "features": {

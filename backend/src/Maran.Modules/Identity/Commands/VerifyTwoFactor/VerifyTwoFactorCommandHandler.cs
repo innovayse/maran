@@ -99,13 +99,13 @@ public sealed class VerifyTwoFactorCommandHandler
         // fresh session through this endpoint after AccountSuspendingHandler had revoked every other
         // one. AuthenticationCompleter enforces it again below; the two calls answer the identical
         // question so neither can silently stop asking it.
-        if (user.State != UserState.Active)
+        if (!user.MayAuthenticate)
         {
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
         }
 
-        if (user.EnrolledTotpSecret is not { } totpSecret)
+        if (user.TotpSecret is not { } totpSecret)
         {
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
         }

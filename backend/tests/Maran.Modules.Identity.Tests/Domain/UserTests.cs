@@ -229,17 +229,65 @@ public sealed class UserTests
         Assert.Equal(UserLifecycle.Suspended, user.Lifecycle);
     }
 
-    /// <summary>The enrolled secret is the secret once enrolled and nothing before or after.</summary>
+    /// <summary>Two-factor reads as enabled exactly while a secret is stored.</summary>
     [Fact]
-    public void The_enrolled_secret_is_the_secret_once_enrolled_and_nothing_before_or_after()
+    public void Two_factor_reads_as_enabled_exactly_while_a_secret_is_stored()
     {
         var user = NewUser();
-        Assert.Null(user.EnrolledTotpSecret);
+        Assert.False(user.IsTotpEnabled);
+        Assert.Null(user.TotpSecret);
 
         user.EnableTotp("SECRET");
-        Assert.Equal("SECRET", user.EnrolledTotpSecret);
+        Assert.True(user.IsTotpEnabled);
+        Assert.Equal("SECRET", user.TotpSecret);
 
         user.DisableTotp();
-        Assert.Null(user.EnrolledTotpSecret);
+        Assert.False(user.IsTotpEnabled);
+        Assert.Null(user.TotpSecret);
+    }
+
+    /// <summary>The legacy enrolment flag follows enabling and disabling two-factor.</summary>
+    [Fact]
+    public void The_legacy_enrolment_flag_follows_enabling_and_disabling_two_factor()
+    {
+        var user = NewUser();
+        Assert.False(user.LegacyTotpEnabled);
+
+        user.EnableTotp("SECRET");
+        Assert.True(user.LegacyTotpEnabled);
+
+        user.DisableTotp();
+        Assert.False(user.LegacyTotpEnabled);
+    }
+
+    /// <summary>The legacy state pair is restated from the lifecycle at every step the previous release could read.</summary>
+    [Fact]
+    public void The_legacy_state_pair_is_restated_from_the_lifecycle_at_every_step()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Guid.NewGuid(), Now);
+        Assert.Equal((UserState.Invited, false), (user.LegacyState, user.LegacyAccountSuspended));
+
+        user.Suspend();
+        Assert.Equal((UserState.Invited, true), (user.LegacyState, user.LegacyAccountSuspended));
+
+        user.Activate("hash");
+        Assert.Equal((UserState.Suspended, true), (user.LegacyState, user.LegacyAccountSuspended));
+
+        user.Resume();
+        Assert.Equal((UserState.Active, false), (user.LegacyState, user.LegacyAccountSuspended));
+    }
+
+    /// <summary>A pending invitation is reported for both invited lifecycles and for no other.</summary>
+    [Fact]
+    public void A_pending_invitation_is_reported_for_both_invited_lifecycles_and_no_other()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Guid.NewGuid(), Now);
+        Assert.True(user.HasPendingInvitation);
+
+        user.Suspend();
+        Assert.True(user.HasPendingInvitation);
+
+        user.Activate("hash");
+        Assert.False(user.HasPendingInvitation);
     }
 }

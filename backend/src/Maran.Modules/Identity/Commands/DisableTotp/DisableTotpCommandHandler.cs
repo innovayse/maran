@@ -60,7 +60,7 @@ public sealed class DisableTotpCommandHandler
             return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound), ErrorType.NotFound));
         }
 
-        if (user.EnrolledTotpSecret is not { } totpSecret)
+        if (user.TotpSecret is not { } totpSecret)
         {
             return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
         }

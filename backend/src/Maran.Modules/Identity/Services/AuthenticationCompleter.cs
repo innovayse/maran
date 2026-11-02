@@ -15,7 +15,7 @@ namespace Maran.Modules.Identity.Services;
 /// <b>Why this exists rather than a repeated <c>if</c>.</b> <c>LoginCommandHandler</c> and
 /// <c>VerifyTwoFactorCommandHandler</c> are two independent paths to the same outcome — a signed-in
 /// session — and each once carried its own copy of "the state must be
-/// <see cref="UserState.Active"/>". A copy is a place the next one can be missing: the two-factor
+/// <see cref="UserLifecycle.Active"/>". A copy is a place the next one can be missing: the two-factor
 /// endpoint's copy was, until it was found in review, which let a suspended login with two-factor
 /// enrolled sign in through it after its sessions had been revoked. Both sign-in handlers now route
 /// every session they issue through this single method.
@@ -83,7 +83,7 @@ public sealed class AuthenticationCompleter
     }
 
     /// <summary>
-    /// Refuses a login whose state is not <see cref="UserState.Active"/>; otherwise issues a session
+    /// Refuses a login whose state is not <see cref="UserLifecycle.Active"/>; otherwise issues a session
     /// and an access token and records the login on <paramref name="user"/>.
     /// </summary>
     /// <param name="user">The user whose credentials — password, and second factor where owed — have

@@ -240,7 +240,7 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
 
         Assert.True(result.IsSuccess);
         var user = await _context.Users.SingleAsync(candidate => candidate.AccountId == AccountId);
-        Assert.Equal(UserState.Invited, user.State);
+        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
         Assert.Single(await _context.InvitationTokens.Where(token => token.UserId == user.Id).ToListAsync());
     }
 

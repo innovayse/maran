@@ -149,7 +149,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.Equal("AdminRecoveryLoginNotActive", result.Error!.Code);
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
-        Assert.Equal(UserState.Suspended, (await _context.Users.SingleAsync()).State);
+        Assert.Equal(UserLifecycle.Suspended, (await _context.Users.SingleAsync()).Lifecycle);
         Assert.Empty(await _context.PasswordResetTokens.ToListAsync());
     }
 
@@ -220,7 +220,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
 
         Assert.All(await _context.Sessions.ToListAsync(), session =>
         {
-            Assert.NotNull(session.RevokedAt);
+            Assert.NotNull(session.Revocation);
         });
     }
 

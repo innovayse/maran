@@ -3,9 +3,10 @@ import type { ListRequest, Paged } from './list'
 
 /**
  * Whether a sub-user can sign in yet, as the panel names it. `invited` until they accept the mailed
- * invitation and choose their own password. Mirrors the backend's `UserState`, camel-cased.
+ * invitation and choose their own password. Mirrors the backend's `UserLifecycle`, camel-cased;
+ * `invitedAccountSuspended` is an invitation not yet accepted while the owner's account is suspended.
  */
-export type SubUserState = 'active' | 'invited' | 'suspended'
+export type SubUserState = 'active' | 'invited' | 'invitedAccountSuspended' | 'suspended'
 
 /**
  * One person the account's owner added to the account, mirroring the backend's `SubUserDto`

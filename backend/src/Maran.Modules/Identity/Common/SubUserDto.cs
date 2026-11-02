@@ -11,8 +11,9 @@ namespace Maran.Modules.Identity.Common;
 /// <param name="Username">The name they sign in with.</param>
 /// <param name="Email">The address their invitation went to and their password resets will go to.</param>
 /// <param name="State">
-/// <see cref="UserState.Invited"/> until they accept the invitation and choose a password, then
-/// <see cref="UserState.Active"/>.
+/// <see cref="UserLifecycle.Invited"/> until they accept the invitation and choose a password, then
+/// <see cref="UserLifecycle.Active"/>; <see cref="UserLifecycle.InvitedAccountSuspended"/> and
+/// <see cref="UserLifecycle.Suspended"/> while the owner's account is suspended.
 /// </param>
 /// <param name="Features">The single features they may use, one value per feature (never the bits).</param>
 /// <param name="CreatedAt">When the owner added them.</param>
@@ -21,7 +22,7 @@ public sealed record SubUserDto(
     Guid Id,
     string Username,
     string Email,
-    UserState State,
+    UserLifecycle State,
     IReadOnlyList<AccountFeature> Features,
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastLoginAt);
