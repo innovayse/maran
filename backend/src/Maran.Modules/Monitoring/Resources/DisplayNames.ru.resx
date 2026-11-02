@@ -66,4 +66,7 @@
   <data name="ClockSyncSyncServiceDisabled">
     <value>Служба синхронизации времени не включена, поэтому при уходе часов их никто не исправит. Включите на этом сервере systemd-timesyncd или chrony.</value>
   </data>
+  <data name="ServerKindLocal">
+    <value>Этот сервер (локальный)</value>
+  </data>
 </root>

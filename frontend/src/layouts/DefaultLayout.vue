@@ -55,6 +55,7 @@ import { useNavigation } from '../composables/useNavigation'
 import { useNavigationRole } from '../composables/useNavigationRole'
 import { useLocaleStore } from '../stores/locale'
 import { useModulesStore } from '../stores/modules'
+import { useNavigationBadgesStore } from '../stores/navigationBadges'
 import { useTasksStore } from '../stores/tasks'
 import { FALLBACK_GROUP } from '../router/navigationTree'
 import { locateNavigation } from '../utils/locateNavigation'
@@ -79,6 +80,7 @@ const navigationRole = useNavigationRole()
 const entries = useNavigation()
 const modulesStore = useModulesStore()
 const tasksStore = useTasksStore()
+const badgesStore = useNavigationBadgesStore()
 const localeStore = useLocaleStore()
 
 /** Live match for {@link WIDE_QUERY}; kept so its listener can be removed. */
@@ -235,6 +237,15 @@ onMounted(ensureCatalogueLoaded)
 // screen re-reads it itself, and a failure leaves no badge rather than a wrong one.
 onMounted(tasksStore.loadFailures)
 
+// The needs-attention figure is server-wide, so only an administrator is shown it (the endpoint
+// refuses everyone else). It is re-read on an interval while the shell is mounted; the mail queue and
+// available-updates badges have no source yet and are never requested (issue #320).
+onMounted((): void => {
+  if (navigationRole.value === 'admin') {
+    badgesStore.start()
+  }
+})
+
 // The module names in the navigation and the breadcrumb are the panel's own, localized for the
 // language the catalogue was READ in (issue #221). Switching the language live re-reads it, so the
 // sidebar never keeps the previous language's names until the next sign-in. The previous catalogue
@@ -253,6 +264,7 @@ watch(
 )
 
 onBeforeUnmount((): void => {
+  badgesStore.stop()
   window.removeEventListener('keydown', onShortcut)
   wideQuery.removeEventListener('change', applyCompact)
 })

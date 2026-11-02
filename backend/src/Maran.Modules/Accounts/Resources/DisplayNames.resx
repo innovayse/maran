@@ -66,4 +66,22 @@
   <data name="HomeGroupRepairAdviceUnspecified">
     <value>The agent refused this account for a reason this version of the panel does not recognise, which usually means the agent is newer than the panel. Nothing was changed. Update the panel, then run the report again.</value>
   </data>
+  <data name="AccountFeatureMail">
+    <value>Mail</value>
+  </data>
+  <data name="AccountFeatureDns">
+    <value>DNS</value>
+  </data>
+  <data name="AccountFeatureDatabases">
+    <value>Databases</value>
+  </data>
+  <data name="AccountFeatureCron">
+    <value>Scheduled tasks</value>
+  </data>
+  <data name="AccountFeatureFileTransfer">
+    <value>File transfer (SFTP and FTPS)</value>
+  </data>
+  <data name="AccountFeatureBackups">
+    <value>Backups</value>
+  </data>
 </root>

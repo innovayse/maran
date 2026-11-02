@@ -49,6 +49,7 @@ import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiButton from '../../components/ui/UiButton.vue'
 import UiLink from '../../components/ui/UiLink.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
@@ -63,7 +64,9 @@ import AccountOwnerEmailDialog from '../../components/accounts/AccountOwnerEmail
 import AccountPlanDialog from '../../components/accounts/AccountPlanDialog.vue'
 import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
 import { useAccountsStore } from '../../stores/accounts'
+import { useAuthStore } from '../../stores/auth'
 import { useLocaleStore } from '../../stores/locale'
+import { useViewAsStore } from '../../stores/viewAs'
 import { takeFlashNotice } from '../../utils/flashNotice'
 
 /** Props accepted by this page, bound from the route. */
@@ -82,6 +85,8 @@ const { t } = useI18n()
 const router = useRouter()
 const accountsStore = useAccountsStore()
 const localeStore = useLocaleStore()
+const authStore = useAuthStore()
+const viewAsStore = useViewAsStore()
 
 /** Which action the operator has started and is being asked to confirm. */
 const pending: Ref<PendingAction> = ref(null)
@@ -229,6 +234,23 @@ const editSaved = (): void => {
 }
 
 /**
+ * Starts viewing the panel as this account's login (issue #317): the panel issues a view-as token,
+ * the auth store holds it in place of the operator's, and the operator lands on the account's
+ * dashboard with the "viewing as" banner above it. A refusal stays on this page, in the alert below
+ * the heading. Whether the operator may do this at all is the panel's decision, not this page's.
+ * @returns Resolves once the operator is viewing, or once the refusal is shown.
+ */
+const viewAs = async (): Promise<void> => {
+  const session = await viewAsStore.start(props.id)
+  if (session === null) {
+    return
+  }
+
+  authStore.adoptViewAs(session)
+  await router.push({ name: 'system-status' })
+}
+
+/**
  * Hides the success toast.
  * @returns Nothing.
  */
@@ -269,6 +291,9 @@ onMounted(async () => {
         >
           <template #actions>
             <UiLink :to="{ name: 'accounts' }" icon="chevronLeft">{{ t('accounts.detail.backToList') }}</UiLink>
+            <UiButton variant="secondary" :disabled="isLoading || viewAsStore.acting" @click="viewAs">
+              {{ viewAsStore.acting ? t('viewAs.starting') : t('viewAs.action') }}
+            </UiButton>
           </template>
         </UiPageHeading>
 
@@ -277,6 +302,11 @@ onMounted(async () => {
              actions card and is NOT repeated here, so the page has one button with that name. -->
         <UiAlert v-if="!isLoading && accountsStore.errorMessage !== null" variant="error">
           {{ accountsStore.errorMessage }}
+        </UiAlert>
+
+        <!-- A refused "View as", in the panel's own words. -->
+        <UiAlert v-if="viewAsStore.errorMessage !== null" variant="error">
+          {{ viewAsStore.errorMessage }}
         </UiAlert>
 
         <UiAlert v-if="!isLoading && accountsStore.selected?.status === 'suspended'" variant="warning">

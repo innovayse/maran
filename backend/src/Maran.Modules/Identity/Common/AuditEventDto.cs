@@ -17,6 +17,10 @@ namespace Maran.Modules.Identity.Common;
 /// <param name="Subject">What it was attempted on.</param>
 /// <param name="IpAddress">Where it came from.</param>
 /// <param name="Succeeded">Whether it worked.</param>
+/// <param name="ImpersonatorUsername">
+/// The operator who was viewing the panel as the actor when it happened; null when the actor acted
+/// as themselves (issue #317).
+/// </param>
 public sealed record AuditEventDto(
     Guid Id,
     DateTimeOffset OccurredAt,
@@ -25,4 +29,5 @@ public sealed record AuditEventDto(
     string ActionName,
     string Subject,
     string IpAddress,
-    bool Succeeded);
+    bool Succeeded,
+    string? ImpersonatorUsername);

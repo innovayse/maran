@@ -53,7 +53,7 @@ public sealed class RevokeSessionCommandHandlerTests : IAsyncLifetime
     [Fact]
     public async Task Revoking_ones_own_session_ends_it_and_is_audited()
     {
-        var issued = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", null, CancellationToken.None);
 
         var result = await NewHandler().HandleAsync(
             new RevokeSessionCommand(issued.SessionId, _owner, "203.0.113.7", "agent"), CancellationToken.None);
@@ -69,7 +69,7 @@ public sealed class RevokeSessionCommandHandlerTests : IAsyncLifetime
     {
         // 403 would confirm the id exists, which is all an attacker needs to enumerate other
         // people's devices (rules/testing.md: the IDOR answer is 404).
-        var theirs = await NewSessionService().IssueAsync(_stranger, "198.51.100.4", "other", CancellationToken.None);
+        var theirs = await NewSessionService().IssueAsync(_stranger, "198.51.100.4", "other", null, CancellationToken.None);
 
         var result = await NewHandler().HandleAsync(
             new RevokeSessionCommand(theirs.SessionId, _owner, "203.0.113.7", "agent"), CancellationToken.None);
@@ -82,7 +82,7 @@ public sealed class RevokeSessionCommandHandlerTests : IAsyncLifetime
     [Fact]
     public async Task Revoking_another_users_session_leaves_it_running()
     {
-        var theirs = await NewSessionService().IssueAsync(_stranger, "198.51.100.4", "other", CancellationToken.None);
+        var theirs = await NewSessionService().IssueAsync(_stranger, "198.51.100.4", "other", null, CancellationToken.None);
 
         await NewHandler().HandleAsync(
             new RevokeSessionCommand(theirs.SessionId, _owner, "203.0.113.7", "agent"), CancellationToken.None);
@@ -109,7 +109,7 @@ public sealed class RevokeSessionCommandHandlerTests : IAsyncLifetime
     [Fact]
     public async Task A_revocation_names_the_signed_in_owner_rather_than_leaving_the_actor_column_blank()
     {
-        var issued = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", null, CancellationToken.None);
 
         await NewHandler().HandleAsync(
             new RevokeSessionCommand(issued.SessionId, _owner, "203.0.113.7", "agent"), CancellationToken.None);

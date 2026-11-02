@@ -6,6 +6,7 @@ using Maran.Modules.Databases.Queries.GetDatabase;
 using Maran.Modules.Databases.Queries.ListDatabases;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -28,6 +29,7 @@ namespace Maran.Modules.Databases.Controllers;
 [Tags("Databases")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RequiresAccountFeature(AccountFeature.Databases)]
 public sealed class DatabasesController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>

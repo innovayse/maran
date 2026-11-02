@@ -8,6 +8,7 @@ using Maran.Modules.Cron.Queries.ListCronEntries;
 using Maran.Modules.Cron.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -40,6 +41,7 @@ namespace Maran.Modules.Cron.Controllers;
 [Tags("Cron")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RequiresAccountFeature(AccountFeature.Cron)]
 public sealed class CronEntriesController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>

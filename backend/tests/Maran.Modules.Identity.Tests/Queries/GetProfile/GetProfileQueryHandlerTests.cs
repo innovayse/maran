@@ -64,10 +64,10 @@ public sealed class GetProfileQueryHandlerTests : IDisposable
         var user = await AddUserAsync("alice", UserRole.Customer);
         var stranger = await AddUserAsync("bob", UserRole.Customer);
         var sessions = NewSessionService();
-        await sessions.IssueAsync(user.Id, "203.0.113.7", "laptop", CancellationToken.None);
-        var revoked = await sessions.IssueAsync(user.Id, "203.0.113.8", "phone", CancellationToken.None);
+        await sessions.IssueAsync(user.Id, "203.0.113.7", "laptop", null, CancellationToken.None);
+        var revoked = await sessions.IssueAsync(user.Id, "203.0.113.8", "phone", null, CancellationToken.None);
         await sessions.RevokeAsync(revoked.SessionId, SessionRevocationReason.Logout, CancellationToken.None);
-        await sessions.IssueAsync(stranger.Id, "198.51.100.4", "other", CancellationToken.None);
+        await sessions.IssueAsync(stranger.Id, "198.51.100.4", "other", null, CancellationToken.None);
 
         var result = await NewHandler().HandleAsync(new GetProfileQuery(user.Id), CancellationToken.None);
 
@@ -79,7 +79,7 @@ public sealed class GetProfileQueryHandlerTests : IDisposable
     public async Task An_expired_session_is_not_counted()
     {
         var user = await AddUserAsync("alice", UserRole.Customer);
-        await NewSessionService().IssueAsync(user.Id, "203.0.113.7", "laptop", CancellationToken.None);
+        await NewSessionService().IssueAsync(user.Id, "203.0.113.7", "laptop", null, CancellationToken.None);
         _clock.Advance(TimeSpan.FromDays(15));
 
         var result = await NewHandler().HandleAsync(new GetProfileQuery(user.Id), CancellationToken.None);

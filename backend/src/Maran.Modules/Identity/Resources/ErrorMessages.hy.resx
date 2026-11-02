@@ -33,6 +33,9 @@
   <data name="SessionNotFound">
     <value>Աշխատաշրջանը չի գտնվել։</value>
   </data>
+  <data name="AccountMembershipNotFound">
+    <value>Հաշիվը չի գտնվել։</value>
+  </data>
   <data name="CurrentPasswordIncorrect">
     <value>Ընթացիկ գաղտնաբառը սխալ է։</value>
   </data>
@@ -107,5 +110,41 @@
   </data>
   <data name="AuditDateRangeInverted">
     <value>Ժամանակահատվածի սկիզբը չի կարող լինել դրա ավարտից ուշ։</value>
+  </data>
+  <data name="PinnedPageKeyInvalid">
+    <value>Այս էջը հնարավոր չէ ամրացնել։</value>
+  </data>
+  <data name="PinnedPageAlreadyPinned">
+    <value>Այս էջն արդեն ամրացված է։</value>
+  </data>
+  <data name="PinnedPageLimitReached">
+    <value>Դուք ամրացրել եք թույլատրելի առավելագույն թվով էջեր։ Նախ ապամրացրեք դրանցից մեկը։</value>
+  </data>
+  <data name="PinnedPageNotFound">
+    <value>Այս էջն ամրացված չէ։</value>
+  </data>
+  <data name="SubUsersOwnerOnly">
+    <value>Հաշվի օգտատերերին կարող է կառավարել միայն հաշվի սեփականատերը։</value>
+  </data>
+  <data name="SubUserNotFound">
+    <value>Այդպիսի օգտատեր չկա։</value>
+  </data>
+  <data name="SubUserLoginTaken">
+    <value>Մուտքի այդ անունն արդեն զբաղված է։ Ընտրեք մեկ ուրիշը։</value>
+  </data>
+  <data name="SubUserEmailTaken">
+    <value>Այդ էլ. փոստի հասցեով օգտատեր արդեն կա։ Նշեք այլ հասցե։</value>
+  </data>
+  <data name="SubUserFeatureInvalid">
+    <value>Ընտրեք հնարավորությունները վահանակի առաջարկած ցանկից։</value>
+  </data>
+  <data name="ViewAsAccountNotFound">
+    <value>Հաշիվը չի գտնվել, կամ այն չունի մուտք, որի անունից կարելի է դիտել։</value>
+  </data>
+  <data name="ViewAsLoginUnavailable">
+    <value>Այս հաշվի մուտքը կասեցված կամ արգելափակված է, ուստի վահանակը նրա անունից դիտել հնարավոր չէ։</value>
+  </data>
+  <data name="ViewAsNotViewing">
+    <value>Դուք վահանակը որևէ հաշվի անունից չեք դիտում։</value>
   </data>
 </root>

@@ -38,4 +38,23 @@ public static class PanelClaimTypes
     /// wrongly and no way for an absent claim to be mistaken for a permissive one.
     /// </remarks>
     public const string TwoFactorSetupRequired = "tfa_setup";
+
+    /// <summary>
+    /// The kind of session the token was issued for. Present, with the value <c>ViewAs</c>, only on a
+    /// token an operator holds while viewing the panel as another login (issue #317); an own sign-in
+    /// carries no such claim, for the same reason <see cref="TwoFactorSetupRequired"/> has no "false".
+    /// </summary>
+    public const string SessionKind = "sk";
+
+    /// <summary>
+    /// The party actually acting, in the shape RFC 8693 §4.1 defines: a JSON object holding that
+    /// party's <see cref="UserId"/>, <see cref="Username"/> and <see cref="SessionId"/>. Present only
+    /// on a view-as token; the token's own <c>sub</c> is then the login being viewed as.
+    /// </summary>
+    /// <remarks>
+    /// A reader treats the presence of this claim OR of <see cref="SessionKind"/> as "this is a
+    /// view-as token": either one alone is enough to restrict, so a token can never be read as an own
+    /// sign-in because one of the two was missing.
+    /// </remarks>
+    public const string Actor = "act";
 }

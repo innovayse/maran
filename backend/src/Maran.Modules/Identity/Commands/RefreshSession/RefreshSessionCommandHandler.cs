@@ -19,6 +19,9 @@ public sealed class RefreshSessionCommandHandler
     /// <summary>Signs the replacement access token.</summary>
     private readonly IAccessTokenIssuer _accessTokenIssuer;
 
+    /// <summary>Re-checks the account the session speaks for against the login's memberships.</summary>
+    private readonly ActiveAccountResolver _activeAccountResolver;
+
     /// <summary>Records a detected token reuse; an ordinary refresh is not journal-worthy.</summary>
     private readonly IdentityAuditJournal _journal;
 
@@ -26,16 +29,19 @@ public sealed class RefreshSessionCommandHandler
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="sessionService">Performs the rotation.</param>
     /// <param name="accessTokenIssuer">Signs the replacement access token.</param>
+    /// <param name="activeAccountResolver">Re-checks the account the session speaks for.</param>
     /// <param name="journal">Records a detected token reuse.</param>
     public RefreshSessionCommandHandler(
         IdentityDbContext dbContext,
         ISessionService sessionService,
         IAccessTokenIssuer accessTokenIssuer,
+        ActiveAccountResolver activeAccountResolver,
         IdentityAuditJournal journal)
     {
         _dbContext = dbContext;
         _sessionService = sessionService;
         _accessTokenIssuer = accessTokenIssuer;
+        _activeAccountResolver = activeAccountResolver;
         _journal = journal;
     }
 
@@ -74,7 +80,6 @@ public sealed class RefreshSessionCommandHandler
         }
 
         var session = await _dbContext.Sessions
-            .AsNoTracking()
             .SingleAsync(s => s.Id == rotated.Value.SessionId, cancellationToken);
 
         var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Id == session.UserId, cancellationToken);
@@ -110,8 +115,22 @@ public sealed class RefreshSessionCommandHandler
         // forced-two-factor policy: an administrator who has just finished enrolling stops being
         // steered on their next refresh, and one whose operator has just turned the policy on starts
         // being steered on theirs.
-        var accessToken = await _accessTokenIssuer.IssueAsync(user, rotated.Value.SessionId, cancellationToken);
+        //
+        // The account is re-resolved for the same reason: the rotation carried the session's choice
+        // forward, but the login may have lost its membership of that account since (it was removed,
+        // or the account was deleted), and a refresh must not keep acting for an account the login
+        // no longer holds. The corrected choice is stored, so the next refresh starts from it.
+        var activeAccountId = await _activeAccountResolver.ResolveAsync(user, session.ActiveAccountId, cancellationToken);
+        if (activeAccountId != session.ActiveAccountId)
+        {
+            session.SwitchAccount(activeAccountId);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
 
-        return Result<AuthenticatedOutcome>.Ok(new AuthenticatedOutcome(accessToken, user, rotated.Value));
+        var accessToken = await _accessTokenIssuer.IssueAsync(
+            user, rotated.Value.SessionId, activeAccountId, cancellationToken);
+
+        return Result<AuthenticatedOutcome>.Ok(
+            new AuthenticatedOutcome(accessToken, user, rotated.Value with { ActiveAccountId = activeAccountId }));
     }
 }

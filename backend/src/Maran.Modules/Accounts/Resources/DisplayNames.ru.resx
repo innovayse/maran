@@ -66,4 +66,22 @@
   <data name="HomeGroupRepairAdviceUnspecified">
     <value>Агент отклонил этот аккаунт по причине, которую эта версия панели не распознаёт; обычно это значит, что агент новее панели. Ничего не изменено. Обновите панель и запустите отчёт снова.</value>
   </data>
+  <data name="AccountFeatureMail">
+    <value>Почта</value>
+  </data>
+  <data name="AccountFeatureDns">
+    <value>DNS</value>
+  </data>
+  <data name="AccountFeatureDatabases">
+    <value>Базы данных</value>
+  </data>
+  <data name="AccountFeatureCron">
+    <value>Планировщик задач</value>
+  </data>
+  <data name="AccountFeatureFileTransfer">
+    <value>Передача файлов (SFTP и FTPS)</value>
+  </data>
+  <data name="AccountFeatureBackups">
+    <value>Резервные копии</value>
+  </data>
 </root>

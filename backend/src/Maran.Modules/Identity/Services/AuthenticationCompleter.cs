@@ -59,17 +59,26 @@ public sealed class AuthenticationCompleter
     /// <summary>Issues the refresh-token session.</summary>
     private readonly ISessionService _sessionService;
 
+    /// <summary>Chooses the account the new session starts out speaking for.</summary>
+    private readonly ActiveAccountResolver _activeAccountResolver;
+
     /// <summary>The panel's clock; the ambient one is a banned API (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
     /// <summary>Creates the completer.</summary>
     /// <param name="accessTokenIssuer">Signs the access token.</param>
     /// <param name="sessionService">Issues the refresh-token session.</param>
+    /// <param name="activeAccountResolver">Chooses the account the new session starts out speaking for.</param>
     /// <param name="clock">The panel's clock.</param>
-    public AuthenticationCompleter(IAccessTokenIssuer accessTokenIssuer, ISessionService sessionService, IClock clock)
+    public AuthenticationCompleter(
+        IAccessTokenIssuer accessTokenIssuer,
+        ISessionService sessionService,
+        ActiveAccountResolver activeAccountResolver,
+        IClock clock)
     {
         _accessTokenIssuer = accessTokenIssuer;
         _sessionService = sessionService;
+        _activeAccountResolver = activeAccountResolver;
         _clock = clock;
     }
 
@@ -101,8 +110,12 @@ public sealed class AuthenticationCompleter
                 Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
         }
 
-        var session = await _sessionService.IssueAsync(user.Id, ipAddress, userAgent, cancellationToken);
-        var accessToken = await _accessTokenIssuer.IssueAsync(user, session.SessionId, cancellationToken);
+        // A new sign-in has no remembered choice: it starts inside the login's own (oldest owned)
+        // account, and the person switches from there. Both the session and the token are issued
+        // from this one answer, so the stored choice and the claim cannot disagree.
+        var activeAccountId = await _activeAccountResolver.ResolveAsync(user, null, cancellationToken);
+        var session = await _sessionService.IssueAsync(user.Id, ipAddress, userAgent, activeAccountId, cancellationToken);
+        var accessToken = await _accessTokenIssuer.IssueAsync(user, session.SessionId, activeAccountId, cancellationToken);
 
         user.RecordLogin(_clock.UtcNow);
 

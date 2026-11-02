@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.RevokeSession;
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Queries.ListSessions;
@@ -19,6 +20,7 @@ namespace Maran.Modules.Identity.Controllers;
 [Produces("application/json")]
 [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RefusedWhileViewingAs]
 public sealed class SessionsController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>

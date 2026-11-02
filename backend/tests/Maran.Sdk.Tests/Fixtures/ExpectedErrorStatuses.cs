@@ -206,6 +206,10 @@ public static class ExpectedErrorStatuses
             ["MailDeliveryFailed"] = ErrorType.UpstreamRefused,
             ["MailRecipientInvalid"] = ErrorType.Validation,
             ["MailServerUnreachable"] = ErrorType.Unavailable,
+            // Plan features (#316). Forbidden, not NotFound: the caller asks about their own plan and
+            // the answer names no other tenant (RequiresAccountFeatureFilter explains the choice).
+            ["PlanFeatureNotIncluded"] = ErrorType.Forbidden,
+            ["PlanFeatureUnknown"] = ErrorType.Validation,
             ["PasswordResetEmailInvalid"] = ErrorType.Validation,
             ["PasswordResetTokenInvalid"] = ErrorType.Validation,
             // Change password (#232): 400, not 401 — a 401 makes the SPA renew the token and
@@ -251,8 +255,25 @@ public static class ExpectedErrorStatuses
             ["RulePortRangeInvalid"] = ErrorType.Validation,
             ["RuleProtocolInvalid"] = ErrorType.Validation,
             ["RuleSourceCidrInvalid"] = ErrorType.Validation,
+            ["PinnedPageAlreadyPinned"] = ErrorType.Conflict,
+            ["PinnedPageKeyInvalid"] = ErrorType.Validation,
+            ["PinnedPageLimitReached"] = ErrorType.Conflict,
+            ["PinnedPageNotFound"] = ErrorType.NotFound,
             ["SecurityPolicyInvalid"] = ErrorType.Validation,
             ["SessionNotFound"] = ErrorType.NotFound,
+            // Sub-users (#315). The member refusals are Forbidden for the same reason a plan refusal is:
+            // the caller asks about their own standing, and the answer names no other tenant. Another
+            // account's sub-user is the same NotFound as an unknown id.
+            ["AccountFeatureNotGranted"] = ErrorType.Forbidden,
+            ["SubUsersOwnerOnly"] = ErrorType.Forbidden,
+            ["SubUserNotFound"] = ErrorType.NotFound,
+            ["SubUserLoginTaken"] = ErrorType.Conflict,
+            ["SubUserEmailTaken"] = ErrorType.Conflict,
+            ["SubUserFeatureInvalid"] = ErrorType.Validation,
+            ["ViewAsAccountNotFound"] = ErrorType.NotFound,
+            ["ViewAsLoginUnavailable"] = ErrorType.Conflict,
+            ["ViewAsNotViewing"] = ErrorType.Conflict,
+            ["AccountMembershipNotFound"] = ErrorType.NotFound,
             ["SetupAlreadyCompletedForbidden"] = ErrorType.Forbidden,
             ["SetupTokenExpiredUnauthorized"] = ErrorType.Unauthorized,
             ["SetupTokenInvalidUnauthorized"] = ErrorType.Unauthorized,

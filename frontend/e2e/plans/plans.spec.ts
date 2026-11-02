@@ -178,6 +178,8 @@ test('a valid plan is posted as typed and shows up in the list', async ({ page }
       cpuQuotaPercent: { kind: 'limited', maximum: 150 },
       memoryMaxMb: { kind: 'unlimited', maximum: 0 },
       maxProcesses: { kind: 'limited', maximum: 64 },
+      // A new plan starts with every feature the panel lists ticked, in the panel's order.
+      features: ['mail', 'dns', 'databases', 'cron', 'fileTransfer', 'backups'],
     },
   ])
   await expect(page.getByRole('row', { name: /Agency/ })).toBeVisible()
@@ -225,6 +227,7 @@ test('editing a plan starts from its figures and puts the whole plan', async ({ 
     cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
     memoryMaxMb: { kind: 'unlimited', maximum: 0 },
     maxProcesses: { kind: 'unlimited', maximum: 0 },
+    features: ['mail', 'dns', 'databases', 'cron', 'fileTransfer', 'backups'],
   })
   await expect(
     page

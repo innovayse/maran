@@ -46,6 +46,10 @@
       "runtimeSection": "Runtime limits for each account",
       "runtimeHint": "What an account may use at once. CPU is a share of one core: 50 is half a core, 200 is two cores. Tick no limit to leave a resource uncapped.",
       "noLimit": "No limit",
+      "featuresSection": "Features",
+      "featuresHint": "Untick a feature to leave it out of this plan. Customers on the plan lose its menu item and the panel refuses their requests for it. Administrators are not affected.",
+      "featuresLoading": "Loading the features…",
+      "featuresUnavailable": "The list of features could not be loaded, so a new plan cannot be saved yet. Reload the page to try again.",
       "fields": {
         "name": "Plan name",
         "diskQuotaMb": "Disk quota (MB)",

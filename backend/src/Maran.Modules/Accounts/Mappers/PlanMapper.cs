@@ -1,6 +1,7 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Extensions;
 using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Accounts.Mappers;
@@ -52,6 +53,7 @@ public static class PlanMapper
             RuntimeLimitsMapper.ToDto(plan.RuntimeLimits.CpuQuotaPercent),
             RuntimeLimitsMapper.ToDto(plan.RuntimeLimits.MemoryMaxMb),
             RuntimeLimitsMapper.ToDto(plan.RuntimeLimits.MaxProcesses),
+            plan.Features.Members(),
             accountCount);
     }
 

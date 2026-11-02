@@ -75,4 +75,7 @@
   <data name="AccountStatusUnknown">
     <value>Неизвестный статус аккаунта. Используйте active или suspended.</value>
   </data>
+  <data name="PlanFeatureUnknown">
+    <value>Возможность тарифного плана должна быть одной из перечисленных в панели.</value>
+  </data>
 </root>

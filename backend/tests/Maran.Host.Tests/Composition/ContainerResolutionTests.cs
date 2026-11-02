@@ -63,6 +63,7 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
     [InlineData(typeof(IRecoveryCodeService))]
     [InlineData(typeof(IAgentAccountsClient))]
     [InlineData(typeof(IAccountDirectory))]
+    [InlineData(typeof(IAccountNameDirectory))]
     // Registered by the Tasks module and injected into handlers in OTHER modules (account deletion,
     // certificate issuance and renewal), which is precisely the shape this suite exists for: an
     // unregistered ITaskRecorder is invisible until Wolverine tries to build one of those handlers,

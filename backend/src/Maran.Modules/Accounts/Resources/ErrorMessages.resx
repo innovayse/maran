@@ -75,4 +75,7 @@
   <data name="AccountStatusUnknown">
     <value>This account status is not one the panel knows. Use active or suspended.</value>
   </data>
+  <data name="PlanFeatureUnknown">
+    <value>A plan feature must be one of the features the panel lists.</value>
+  </data>
 </root>

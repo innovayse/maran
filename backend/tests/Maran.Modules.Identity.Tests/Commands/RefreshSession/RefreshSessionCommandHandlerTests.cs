@@ -40,15 +40,35 @@ public sealed class RefreshSessionCommandHandlerTests
         /// <summary>How many times a token was asked for.</summary>
         public int Issued { get; private set; }
 
+        /// <summary>The account the most recent token was issued for, or null when it spoke for none.</summary>
+        public Guid? LastAccountId { get; private set; }
+
         /// <summary>Counts the call and returns a token whose value is never inspected.</summary>
         /// <param name="user">Ignored.</param>
         /// <param name="sessionId">Ignored.</param>
+        /// <param name="accountId">Remembered, so a test can assert which account the token spoke for.</param>
         /// <param name="cancellationToken">Ignored.</param>
         /// <returns>A token that exists only so the handler can continue.</returns>
-        public Task<AccessToken> IssueAsync(User user, Guid sessionId, CancellationToken cancellationToken)
+        public Task<AccessToken> IssueAsync(
+            User user,
+            Guid sessionId,
+            Guid? accountId,
+            CancellationToken cancellationToken)
         {
             Issued++;
+            LastAccountId = accountId;
             return Task.FromResult(new AccessToken("signed", Now.AddMinutes(15), false));
+        }
+
+        /// <summary>Counts the call; a refresh must never reach it.</summary>
+        /// <param name="viewedUser">Ignored.</param>
+        /// <param name="session">Ignored.</param>
+        /// <param name="actor">Ignored.</param>
+        /// <returns>A token that exists only so a caller could continue.</returns>
+        public AccessToken IssueViewAs(User viewedUser, Session session, User actor)
+        {
+            Issued++;
+            return new AccessToken("signed", Now.AddMinutes(15), false);
         }
     }
 
@@ -63,6 +83,7 @@ public sealed class RefreshSessionCommandHandlerTests
             _context,
             sessions,
             _issuer,
+            new ActiveAccountResolver(_context),
             new IdentityAuditJournal(_audit, new StubCurrentUser()));
     }
 
@@ -77,7 +98,7 @@ public sealed class RefreshSessionCommandHandlerTests
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "agent", null, CancellationToken.None);
 
         // The suspension's first half only. Its second half — RevokeAllAsync — is deliberately not
         // run: this is the state the panel is left in when anything stops it, and it is the state the
@@ -124,5 +145,59 @@ public sealed class RefreshSessionCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, _issuer.Issued);
+    }
+
+    /// <summary>A refresh keeps acting for the account the session was switched to, not the first one.</summary>
+    [Fact]
+    public async Task A_refresh_keeps_the_account_the_session_was_switched_to()
+    {
+        var (user, first, second) = await SeedLoginOwningTwoAccountsAsync();
+        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "agent", second, CancellationToken.None);
+
+        var result = await NewHandler(NewSessions()).HandleAsync(
+            new RefreshSessionCommand(issued.RefreshToken, "203.0.113.7", "agent"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(second, _issuer.LastAccountId);
+        Assert.Equal(second, result.Value.Session.ActiveAccountId);
+        Assert.NotEqual(first, _issuer.LastAccountId);
+    }
+
+    /// <summary>
+    /// A refresh stops acting for an account whose membership has gone and falls back to the oldest
+    /// one the login still holds, storing the correction on the session.
+    /// </summary>
+    [Fact]
+    public async Task A_refresh_stops_acting_for_an_account_the_login_no_longer_holds()
+    {
+        var (user, first, second) = await SeedLoginOwningTwoAccountsAsync();
+        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "agent", second, CancellationToken.None);
+        _context.AccountMemberships.RemoveRange(_context.AccountMemberships.Where(m => m.AccountId == second));
+        await _context.SaveChangesAsync();
+
+        var result = await NewHandler(NewSessions()).HandleAsync(
+            new RefreshSessionCommand(issued.RefreshToken, "203.0.113.7", "agent"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(first, _issuer.LastAccountId);
+        var stored = _context.Sessions.Single(candidate => candidate.Id == result.Value.Session.SessionId);
+        Assert.Equal(first, stored.ActiveAccountId);
+    }
+
+    /// <summary>Seeds an active customer who owns two accounts, the first created a day before the second.</summary>
+    /// <returns>The login and the ids of its older and newer accounts.</returns>
+    private async Task<(User User, Guid First, Guid Second)> SeedLoginOwningTwoAccountsAsync()
+    {
+        var user = new User(Guid.NewGuid(), "owner-one", "owner@example.com", "hash", UserRole.Customer, Now);
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        _context.Users.Add(user);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, first, Now.AddDays(-1)));
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, second, Now));
+        await _context.SaveChangesAsync();
+
+        return (user, first, second);
     }
 }

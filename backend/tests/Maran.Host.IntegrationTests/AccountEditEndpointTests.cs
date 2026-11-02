@@ -290,6 +290,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
         var login = User.Invite(Guid.NewGuid(), username, email, accountId, now);
         context.Users.Add(login);
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), login.Id, accountId, now));
         await context.SaveChangesAsync();
         return login.Id;
     }

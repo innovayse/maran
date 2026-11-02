@@ -65,9 +65,17 @@ public sealed class User
     }
 
     /// <summary>
-    /// The hosting account this user owns, for a <see cref="UserRole.Customer"/>; null for an
-    /// administrator, who owns none and reaches all of them.
+    /// The hosting account this user was created for, for a <see cref="UserRole.Customer"/>; null for
+    /// an administrator, who owns none and reaches all of them.
     /// </summary>
+    /// <remarks>
+    /// <b>No longer the truth about which accounts a login may act for.</b> That is the login's
+    /// <see cref="AccountMembership"/> rows, which can name several accounts. This column is kept for
+    /// one release because the previous release reads it (rules/architecture.md, expand then
+    /// contract); it is written when a customer login is created and cleared when its account is
+    /// deleted, and nothing in this release decides access from it. Its unique index constrains only
+    /// this column, so a second membership never violates it. The next release drops both.
+    /// </remarks>
     public Guid? AccountId { get; private set; }
 
     /// <summary>The TOTP shared secret, base32-encoded and encrypted at rest; null when 2FA is off.</summary>
@@ -155,6 +163,23 @@ public sealed class User
     }
 
     /// <summary>
+    /// Creates the login of a person an account's owner added to the account, before they have set a
+    /// password. It owns no account: what it may reach is stated by its <c>AccountMembership</c> rows.
+    /// </summary>
+    /// <param name="id">The login's identity.</param>
+    /// <param name="username">The login name the owner chose.</param>
+    /// <param name="email">The address the invitation is sent to.</param>
+    /// <param name="createdAt">The instant of creation, taken from <see cref="IClock"/>.</param>
+    /// <returns>A login in <see cref="UserState.Invited"/>, which cannot sign in.</returns>
+    public static User InviteMember(Guid id, string username, string email, DateTimeOffset createdAt)
+    {
+        return new User(id, username, email, string.Empty, UserRole.Customer, createdAt)
+        {
+            State = UserState.Invited,
+        };
+    }
+
+    /// <summary>
     /// Accepts an invitation: stores the first password and makes the login usable — unless the
     /// account was suspended while the invitation was outstanding, in which case the password is
     /// stored but the login comes out <see cref="UserState.Suspended"/> rather than usable.
@@ -210,6 +235,23 @@ public sealed class User
     public void AssignAccount(Guid accountId)
     {
         AccountId = accountId;
+    }
+
+    /// <summary>
+    /// Forgets the older single-account pointer when it names <paramref name="accountId"/>, which is
+    /// being deleted. A no-op for any other value.
+    /// </summary>
+    /// <param name="accountId">The account that is going away.</param>
+    /// <remarks>
+    /// Only the pointer is cleared: which accounts the login may act for is its memberships
+    /// (<see cref="AccountMembership"/>), and those are removed by the deletion handler itself.
+    /// </remarks>
+    public void UnassignAccount(Guid accountId)
+    {
+        if (AccountId == accountId)
+        {
+            AccountId = null;
+        }
     }
 
     /// <summary>

@@ -56,10 +56,19 @@ export type NavigationAvailability =
   /** The page is not built yet; `issue` is the GitHub issue that builds it, when one is filed. */
   | { state: 'planned'; issue: number | null }
 
-/** A live count the shell can draw beside an item. Only counts the shell already holds are listed. */
+/**
+ * A live count the shell can draw beside an item. A kind is listed when a page carries it in the
+ * tree; whether the shell can feed it yet is a separate matter (see {@link NavigationContext.badges}).
+ */
 export type NavigationBadgeKind =
   /** Background tasks that failed, as the panel counts them (`GET /api/v1/tasks/failed-count`). */
-  'failedTasks'
+  | 'failedTasks'
+  /** Things on the server asking to be looked at (`GET /api/v1/dashboard/attention-count`). */
+  | 'needsAttention'
+  /** Messages waiting in the mail queue. Not fed yet: the mail module (issue #177) does not exist. */
+  | 'mailQueue'
+  /** Package updates waiting to be installed. Not fed yet: no data source exists (issue #320). */
+  | 'availableUpdates'
 
 /** Who may see an item, and what the panel must have for it to be usable. */
 export interface NavigationGate {
@@ -157,8 +166,15 @@ export interface NavigationContext {
    * item, since hiding is advice and errs permissive.
    */
   planFeatures: ReadonlySet<string> | null
-  /** The live counts the shell holds, per badge kind. */
-  badges: Readonly<Record<NavigationBadgeKind, number>>
+  /**
+   * The live counts the shell holds, per badge kind. A partial map and not a total one: a kind is
+   * present exactly when the panel answered with a real count, and absent when it was not asked,
+   * has not answered yet, could not be read, or has no source at all. That keeps "no figure" a
+   * different thing from a figure, without a number standing in for it (not `0`, which is a real
+   * answer, and not `-1`). A per-kind union of loaded, loading and failed would add cases the
+   * navigation treats identically — draw no badge — and nothing else reads them.
+   */
+  badges: Readonly<Partial<Record<NavigationBadgeKind, number>>>
   /**
    * Whether this bundle registers a route.
    * @param name The route name.

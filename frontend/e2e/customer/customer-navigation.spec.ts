@@ -95,9 +95,10 @@ test('a customer reaches their tasks under Activity, and the breadcrumb says so'
 test('a customer reaches their own signed-in devices from My account', async ({ page }) => {
   await signIn(page)
   await openSection(page, 'My account')
-  await expect(mainNavigation(page).getByRole('link', { name: 'Sub-users Coming soon' })).toHaveAttribute(
-    'aria-disabled',
-    'true',
+  // Sub-users is built (issue #315): an ordinary link now, no longer the disabled "Coming soon" entry.
+  await expect(mainNavigation(page).getByRole('link', { name: 'Sub-users', exact: true })).toHaveAttribute(
+    'href',
+    '/my-account/sub-users',
   )
   await mainNavigation(page).getByRole('link', { name: 'Signed-in devices', exact: true }).click()
   await expect(page).toHaveURL('/settings/sessions')

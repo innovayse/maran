@@ -33,6 +33,9 @@
   <data name="AuditActionRefreshTokenReuseDetected">
     <value>Обнаружено повторное использование токена обновления</value>
   </data>
+  <data name="AuditActionActiveAccountSwitched">
+    <value>Переключение активного аккаунта</value>
+  </data>
   <data name="AuditActionTwoFactorEnabled">
     <value>Двухфакторная проверка включена</value>
   </data>
@@ -282,5 +285,44 @@
   </data>
   <data name="AuditActionConsoleRecovery">
     <value>Доступ администратора восстановлен с консоли сервера</value>
+  </data>
+  <data name="AuditActionPagePinned">
+    <value>Страница закреплена в верхней панели</value>
+  </data>
+  <data name="AuditActionPageUnpinned">
+    <value>Страница откреплена от верхней панели</value>
+  </data>
+  <data name="AuditActionSubUserInvited">
+    <value>Пользователь приглашён</value>
+  </data>
+  <data name="AuditActionSubUserGrantsChanged">
+    <value>Возможности пользователя изменены</value>
+  </data>
+  <data name="AuditActionSubUserRemoved">
+    <value>Пользователь удалён</value>
+  </data>
+  <data name="AccountFeatureMail">
+    <value>Почта</value>
+  </data>
+  <data name="AccountFeatureDns">
+    <value>DNS</value>
+  </data>
+  <data name="AccountFeatureDatabases">
+    <value>Базы данных</value>
+  </data>
+  <data name="AccountFeatureCron">
+    <value>Задания cron</value>
+  </data>
+  <data name="AccountFeatureFileTransfer">
+    <value>Передача файлов (SFTP и FTPS)</value>
+  </data>
+  <data name="AccountFeatureBackups">
+    <value>Резервные копии</value>
+  </data>
+  <data name="AuditActionViewAsStarted">
+    <value>Начат просмотр от имени аккаунта</value>
+  </data>
+  <data name="AuditActionViewAsEnded">
+    <value>Завершён просмотр от имени аккаунта</value>
   </data>
 </root>

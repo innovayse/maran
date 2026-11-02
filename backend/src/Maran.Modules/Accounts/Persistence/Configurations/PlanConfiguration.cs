@@ -52,6 +52,13 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         builder.Property(p => p.MaxPhpWorkersPerPool)
             .IsRequired();
 
+        // The feature set is one bigint of bits (see AccountFeature). No HasDefaultValue on purpose:
+        // for a non-nullable property EF reads the CLR default (None, the empty set) as "not set" and
+        // would write the database default instead, so a plan that sells nothing could not be saved.
+        // Rows that existed before the column are given every feature by the migration's own default.
+        builder.Property(p => p.Features)
+            .IsRequired();
+
         // Owned rather than a complex type: the module's tests run on the in-memory provider, which
         // does not materialise complex types, and an owned value is split into this same table either
         // way. Every column is named here, because the provider's default (RuntimeLimits_Cpu..._Kind)

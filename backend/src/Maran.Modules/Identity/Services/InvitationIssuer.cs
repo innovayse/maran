@@ -139,6 +139,26 @@ public sealed class InvitationIssuer
                 Error.Of(nameof(ErrorMessages.InvitationAccountSuspended), ErrorType.Conflict));
         }
 
+        var minted = await MintAsync(user, now, cancellationToken);
+
+        return Result<IssuedInvitation?>.Ok(
+            new IssuedInvitation(
+                user.Username, user.Email, minted.Token, minted.ExpiresAt, account.OwnerLanguage));
+    }
+
+    /// <summary>
+    /// Retires every outstanding token of an invited login, issues a new one and saves — the one
+    /// place a token is minted, whoever the login is for.
+    /// </summary>
+    /// <param name="user">
+    /// The login to invite. The caller has already established that it is <see cref="UserState.Invited"/>
+    /// and that the person asking may invite it: this method trusts both and decides neither.
+    /// </param>
+    /// <param name="now">The current instant, taken from <see cref="IClock"/> by the caller.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The plaintext token, once, and when it expires.</returns>
+    public async Task<MintedInvitationToken> MintAsync(User user, DateTimeOffset now, CancellationToken cancellationToken)
+    {
         foreach (var outstanding in await _dbContext.InvitationTokens
             .Where(existing => existing.UserId == user.Id && existing.UsedAt == null)
             .ToListAsync(cancellationToken))
@@ -152,9 +172,7 @@ public sealed class InvitationIssuer
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return Result<IssuedInvitation?>.Ok(
-            new IssuedInvitation(
-                user.Username, user.Email, new SensitiveString(token), issued.ExpiresAt, account.OwnerLanguage));
+        return new MintedInvitationToken(new SensitiveString(token), issued.ExpiresAt);
     }
 
     /// <summary>
@@ -195,7 +213,9 @@ public sealed class InvitationIssuer
                 "Account.OwnerEmail and cannot be recovered by resending an invitation.");
 
         var user = User.Invite(Guid.NewGuid(), account.Username, ownerEmail, accountId, now);
+        var membership = AccountMembership.Own(Guid.NewGuid(), user.Id, accountId, now);
         _dbContext.Users.Add(user);
+        _dbContext.AccountMemberships.Add(membership);
 
         try
         {
@@ -210,6 +230,7 @@ public sealed class InvitationIssuer
             // entity is detached rather than left tracked as a still-pending add on a context the
             // rest of the caller keeps using.
             _dbContext.Entry(user).State = EntityState.Detached;
+            _dbContext.Entry(membership).State = EntityState.Detached;
             return Result<User?>.Ok(null);
         }
 

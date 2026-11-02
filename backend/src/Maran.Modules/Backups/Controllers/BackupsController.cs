@@ -7,6 +7,7 @@ using Maran.Modules.Backups.Queries.GetBackupAttention;
 using Maran.Modules.Backups.Queries.ListBackups;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -34,6 +35,7 @@ namespace Maran.Modules.Backups.Controllers;
 [Tags("Backups")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RequiresAccountFeature(AccountFeature.Backups)]
 public sealed class BackupsController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>

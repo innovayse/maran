@@ -94,8 +94,8 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
     [Fact]
     public async Task A_completed_reset_revokes_every_session_the_account_had()
     {
-        await NewSessions().IssueAsync(_userId, "198.51.100.4", "thief", CancellationToken.None);
-        await NewSessions().IssueAsync(_userId, "203.0.113.7", "owner", CancellationToken.None);
+        await NewSessions().IssueAsync(_userId, "198.51.100.4", "thief", null, CancellationToken.None);
+        await NewSessions().IssueAsync(_userId, "203.0.113.7", "owner", null, CancellationToken.None);
         var token = await IssueTokenAsync();
 
         await NewHandler().HandleAsync(Command(token), CancellationToken.None);

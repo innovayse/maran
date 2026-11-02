@@ -61,6 +61,31 @@ public sealed class AccountCreatedHandlerTests : IDisposable
         Assert.Single(_bus.Published);
     }
 
+    /// <summary>A created account gives its owner an owner membership, written with the login.</summary>
+    [Fact]
+    public async Task A_created_account_gives_its_owner_an_owner_membership()
+    {
+        await NewHandler().HandleAsync(Created(), CancellationToken.None);
+
+        var user = await _context.Users.SingleAsync();
+        var membership = Assert.Single(await _context.AccountMemberships.ToListAsync());
+        Assert.Equal(user.Id, membership.UserId);
+        Assert.Equal(AccountId, membership.AccountId);
+        Assert.Equal(MembershipRole.Owner, membership.Role);
+    }
+
+    /// <summary>Invoked twice, the handler leaves one membership, not two.</summary>
+    [Fact]
+    public async Task Invoked_twice_the_handler_leaves_one_membership()
+    {
+        var handler = NewHandler();
+        await handler.HandleAsync(Created(), CancellationToken.None);
+
+        await handler.HandleAsync(Created(), CancellationToken.None);
+
+        Assert.Equal(1, await _context.AccountMemberships.CountAsync());
+    }
+
     /// <summary>The handler is idempotent: invoked twice, one login and one live token survive.</summary>
     /// <remarks>
     /// This pins the check, not the constraint that actually stops a duplicate — the in-memory

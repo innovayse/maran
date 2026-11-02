@@ -17,6 +17,20 @@ export interface Profile {
   isTwoFactorEnabled: boolean
   /** How many devices are signed in right now, this one included. */
   activeSessionCount: number
+  /**
+   * How the person stands towards the account the sign-in is acting for, or `null` when it acts for
+   * none (an administrator). Absent from an older panel. Advice for the screen only: a screen that
+   * cannot read it must offer everything, because the endpoints decide.
+   */
+  accountAccess?: AccountAccess | null
+}
+
+/** How a person stands towards an account: whether they own it or were added, and what they may use. */
+export interface AccountAccess {
+  /** `owner` is not restricted by grants; `member` may use only {@link AccountAccess.features}. */
+  role: 'owner' | 'member'
+  /** The single feature ids the person may use there; for an owner, every feature. */
+  features: string[]
 }
 
 /** Public surface of the profile API composable. */

@@ -69,7 +69,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
     /// <param name="planId">The plan to edit; <see cref="_plan"/> unless a test aims elsewhere.</param>
     private UpdatePlanCommand Same(Guid? planId = null)
     {
-        return new("Agency", 10_240, 10, 5, 4, 2, 3, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, planId ?? _plan.Id, "203.0.113.7", "unit-tests");
+        return new("Agency", 10_240, 10, 5, 4, 2, 3, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, null, planId ?? _plan.Id, "203.0.113.7", "unit-tests");
     }
 
     /// <summary>Puts an account on <see cref="_plan"/> and returns its name.</summary>

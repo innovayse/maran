@@ -58,6 +58,13 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// there is nothing here to ignore and no <c>IgnoreQueryFilters</c> to justify.
 /// </para>
 /// <para>
+/// <b>A login that owns several accounts outlives any one of them.</b> A login is deleted with the
+/// account its older <c>AccountId</c> column names only when it holds no membership of another
+/// account; otherwise it loses this account's membership, has the column cleared, and keeps the
+/// rest. This is the expand-phase price of keeping that column: until it is dropped, the handler has
+/// to treat it as "the account this login was created for" and not as the login's only account.
+/// </para>
+/// <para>
 /// <b>The failure is not swallowed.</b> Anything thrown here propagates to the Accounts handler,
 /// which abandons the deletion with the account intact — the recoverable half. The order inside is
 /// dependents before principals, so a save that fails part-way cannot leave a token row pointing at
@@ -82,23 +89,51 @@ public sealed class AccountDeletingHandler
         _dbContext = dbContext;
     }
 
-    /// <summary>Deletes every login of the account being removed, and everything hanging off it.</summary>
+    /// <summary>
+    /// Removes every membership of the account being removed, and deletes the logins that existed for
+    /// it alone together with everything hanging off them.
+    /// </summary>
     /// <param name="message">The account about to be deleted.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>Resolves once the logins and their credentials are gone.</returns>
+    /// <returns>Resolves once the memberships, the logins and their credentials are gone.</returns>
     public async Task HandleAsync(AccountDeleting message, CancellationToken cancellationToken)
     {
+        var memberships = await _dbContext.AccountMemberships
+            .Where(membership => membership.AccountId == message.AccountId)
+            .ToListAsync(cancellationToken);
         var users = await _dbContext.Users
             .Where(user => user.AccountId == message.AccountId)
             .ToListAsync(cancellationToken);
-        if (users.Count == 0)
+        if (users.Count == 0 && memberships.Count == 0)
         {
             // The ordinary case in a panel whose only login is the administrator, whose AccountId is
             // null. Returning early keeps the cascade from issuing four empty deletes per deletion.
             return;
         }
 
+        // Every membership of the account goes: it is a permission to act for something that is
+        // about to stop existing. A session still speaking for the account is not touched here; its
+        // next refresh re-resolves the account against the memberships left (ActiveAccountResolver).
+        _dbContext.AccountMemberships.RemoveRange(memberships);
+
+        // A login whose older single-account column names this account but which still holds a
+        // membership of ANOTHER account is a person who owns more than one: deleting the login would
+        // delete the other account's way in. It survives, and the column that named the deleted
+        // account is cleared, because the residue audit refuses a deletion while any row still names it.
         var userIds = users.Select(user => { return user.Id; }).ToList();
+        var keptIds = await _dbContext.AccountMemberships
+            .Where(membership => userIds.Contains(membership.UserId) && membership.AccountId != message.AccountId)
+            .Select(membership => membership.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        foreach (var kept in users.Where(user => { return keptIds.Contains(user.Id); }))
+        {
+            kept.UnassignAccount(message.AccountId);
+        }
+
+        users = users.Where(user => { return !keptIds.Contains(user.Id); }).ToList();
+        userIds = users.Select(user => { return user.Id; }).ToList();
 
         // Sessions first, because a refresh token is the credential that works without the password:
         // it is the one piece of this that an attacker could already be holding.

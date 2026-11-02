@@ -111,6 +111,7 @@ public sealed class Program
         app.MapPanelHealth();
         app.MapModuleCatalogue();
         app.MapDashboard();
+        app.MapAttentionCount();
         app.MapControllers();
 
         app.Run();

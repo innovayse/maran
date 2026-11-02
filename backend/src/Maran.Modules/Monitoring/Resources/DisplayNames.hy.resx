@@ -66,4 +66,7 @@
   <data name="ClockSyncSyncServiceDisabled">
     <value>Ժամանակի համաժամեցման ծառայություն միացված չէ, ուստի ժամացույցի շեղման դեպքում այն ոչ ոք չի ուղղի։ Միացրեք systemd-timesyncd կամ chrony այս սերվերում։</value>
   </data>
+  <data name="ServerKindLocal">
+    <value>Այս սերվերը (տեղային)</value>
+  </data>
 </root>

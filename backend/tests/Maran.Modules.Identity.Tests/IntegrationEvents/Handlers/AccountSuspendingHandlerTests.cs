@@ -71,7 +71,7 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
     public async Task Suspension_revokes_the_live_sessions_of_an_already_signed_in_owner()
     {
         var user = await SeedActiveUserAsync();
-        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "browser", CancellationToken.None);
+        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "browser", null, CancellationToken.None);
 
         await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
 

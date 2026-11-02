@@ -96,4 +96,11 @@ export interface DashboardApi {
    * @returns What this caller is allowed to be shown.
    */
   get: (signal?: AbortSignal) => Promise<Dashboard>
+  /**
+   * Reads how many things on the server ask to be looked at: the dashboard's attention block added
+   * up, without the rest of the dashboard. Administrators only; anyone else is refused.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The count, or that it could not be taken; never a zero standing in for a failed read.
+   */
+  attentionCount: (signal?: AbortSignal) => Promise<DashboardSection<number>>
 }

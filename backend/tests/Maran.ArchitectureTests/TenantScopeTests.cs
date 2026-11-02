@@ -56,7 +56,7 @@ public sealed class TenantScopeTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// All five are Identity's, and they are one decision rather than five. A filter closes over the
+    /// The first five are Identity's, and they are one decision rather than five. A filter closes over the
     /// authenticated principal, and every query here runs when there is NO principal yet: sign-in
     /// looks a user up by e-mail and then a session up by token hash, a password reset is consumed by
     /// a caller holding nothing but the token, an invitation is consumed the same way by a caller
@@ -65,6 +65,19 @@ public sealed class TenantScopeTests
     /// panel. <c>User.AccountId</c> is nullable precisely because an administrator has none; the
     /// other four reach a tenant only THROUGH that user, which is why they appear here only now that
     /// the census follows relationships.
+    /// </para>
+    /// <para>
+    /// <c>PinnedPage</c> is the sixth and a different case: a signed-in person's own list, reached only
+    /// through the user id the controller stamps from their token, with no endpoint that takes a pin
+    /// id. It belongs to a user, not to an account, and a user may be an administrator with no account.
+    /// </para>
+    /// <para>
+    /// <c>AccountMembership</c> carries an <c>AccountId</c> and is exempt on purpose: it is the table
+    /// that DECIDES which account a session may act for, so it is read by user id across every account
+    /// a login holds, at sign-in (before a principal exists) and when the person switches account.
+    /// Filtered by the account claim, it would show only the account already active and make a switch
+    /// impossible. The endpoints that read it stamp the user id from the token; none takes a
+    /// membership id.
     /// </para>
     /// <para>
     /// <c>InvitationToken</c> qualifies for the identical reason <c>PasswordResetToken</c> does: it
@@ -93,6 +106,10 @@ public sealed class TenantScopeTests
                 "consumed by an unauthenticated caller holding the token; there is no principal to scope to",
             ["Maran.Modules.Identity.Domain.Entities.RecoveryCode"] =
                 "consumed part-way through two-factor, before the session that would carry a principal exists",
+            ["Maran.Modules.Identity.Domain.Entities.AccountMembership"] =
+                "read by the login's own user id across ALL its accounts, to decide which one a session may act for; a tenant filter would hide every account but the active one",
+            ["Maran.Modules.Identity.Domain.Entities.PinnedPage"] =
+                "keyed by the signed-in user's own id, which the controller stamps from the token; no endpoint takes a pin id",
         };
 
     /// <summary>Every entity that belongs to a tenant is scoped by a global query filter.</summary>

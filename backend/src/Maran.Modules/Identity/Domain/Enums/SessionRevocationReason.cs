@@ -30,4 +30,14 @@ public enum SessionRevocationReason
     /// working normally until their access token expires.
     /// </summary>
     AccountSuspended,
+
+    /// <summary>The operator viewing as this user pressed Back, ending the view-as session.</summary>
+    ViewAsEnded,
+
+    /// <summary>
+    /// The account's owner removed the login's access to the account the session was speaking for. The
+    /// session ends with the access, so a removed team member does not keep a refresh token that
+    /// renews a token for an account they no longer belong to.
+    /// </summary>
+    MembershipRemoved,
 }

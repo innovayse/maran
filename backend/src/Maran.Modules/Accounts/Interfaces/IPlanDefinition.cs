@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Common;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Accounts.Interfaces;
 
@@ -45,4 +46,11 @@ public interface IPlanDefinition
 
     /// <summary>The most processes and threads the account may run at once, or no ceiling.</summary>
     ResourceCeilingDto MaxProcesses { get; }
+
+    /// <summary>
+    /// The features the plan sells, or <c>null</c> when the request does not state them. Not stated
+    /// means "leave it as it is": every feature for a plan being created, the plan's current set for
+    /// one being edited. A client that predates the feature set keeps working unchanged.
+    /// </summary>
+    IReadOnlyList<AccountFeature>? Features { get; }
 }

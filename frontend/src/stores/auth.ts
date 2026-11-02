@@ -3,6 +3,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useAuthApi } from '../composables/apis/useAuthApi'
 import { ApiError } from '../composables/useApi'
 import type { AuthenticatedSession, AuthenticatedUser, LoginRequest } from '../types/auth'
+import type { ViewAsSession } from '../types/viewAs'
 
 /**
  * Owns who is signed in: the access token, the user it belongs to, and the actions that obtain,
@@ -78,6 +79,25 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = session?.accessToken ?? null
     user.value = session?.user ?? null
     requiresTwoFactorSetup.value = session?.requiresTwoFactorSetup ?? false
+  }
+
+  /**
+   * Holds a view-as token in place of the operator's own (issue #317).
+   *
+   * Only the in-memory token and user change. The operator's refresh cookie is untouched — the
+   * panel never sets one for a view-as session — so the next renewal, whether from Back, from the
+   * view-as token expiring, or from its revocation, brings the operator's own session back. The
+   * page that started viewing calls this with what the view-as store received.
+   * @param session The view-as session the panel issued.
+   * @returns Nothing; state is updated synchronously.
+   */
+  const adoptViewAs = (session: ViewAsSession): void => {
+    accept({
+      accessToken: session.accessToken,
+      expiresAt: session.expiresAt,
+      user: session.user,
+      requiresTwoFactorSetup: false,
+    })
   }
 
   /**
@@ -265,5 +285,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     dismissError,
     logoutEverywhere,
+    adoptViewAs,
   }
 })

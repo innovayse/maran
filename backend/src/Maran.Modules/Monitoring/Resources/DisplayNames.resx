@@ -66,4 +66,7 @@
   <data name="ClockSyncSyncServiceDisabled">
     <value>No time synchronisation service is enabled, so nothing corrects the clock if it drifts. Enable systemd-timesyncd or chrony on this server.</value>
   </data>
+  <data name="ServerKindLocal">
+    <value>This server (local)</value>
+  </data>
 </root>

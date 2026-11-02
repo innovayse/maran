@@ -141,8 +141,8 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
     [Fact]
     public async Task Every_other_session_is_revoked_and_the_callers_own_is_kept()
     {
-        var thief = await NewSessions().IssueAsync(_userId, "198.51.100.4", "thief", CancellationToken.None);
-        var owner = await NewSessions().IssueAsync(_userId, "203.0.113.7", "owner", CancellationToken.None);
+        var thief = await NewSessions().IssueAsync(_userId, "198.51.100.4", "thief", null, CancellationToken.None);
+        var owner = await NewSessions().IssueAsync(_userId, "203.0.113.7", "owner", null, CancellationToken.None);
 
         await NewHandler().HandleAsync(Command(OldPassword, owner.SessionId), CancellationToken.None);
 
@@ -163,7 +163,7 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
     [Fact]
     public async Task The_callers_whole_rotation_family_is_kept_so_a_refresh_in_another_tab_survives()
     {
-        var owner = await NewSessions().IssueAsync(_userId, "203.0.113.7", "owner", CancellationToken.None);
+        var owner = await NewSessions().IssueAsync(_userId, "203.0.113.7", "owner", null, CancellationToken.None);
         var rotated = await NewSessions().RotateAsync(owner.RefreshToken, "203.0.113.7", "owner", CancellationToken.None);
 
         await NewHandler().HandleAsync(Command(OldPassword, owner.SessionId), CancellationToken.None);
@@ -176,7 +176,7 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
     [Fact]
     public async Task A_refused_change_revokes_no_session()
     {
-        await NewSessions().IssueAsync(_userId, "198.51.100.4", "other", CancellationToken.None);
+        await NewSessions().IssueAsync(_userId, "198.51.100.4", "other", null, CancellationToken.None);
 
         await NewHandler().HandleAsync(Command("not the password"), CancellationToken.None);
 

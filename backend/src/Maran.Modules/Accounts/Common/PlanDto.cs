@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Accounts.Common;
 
@@ -15,6 +16,11 @@ namespace Maran.Modules.Accounts.Common;
 /// <param name="CpuQuotaPercent">The share of CPU time the account may use, in percent of ONE CPU, or no ceiling.</param>
 /// <param name="MemoryMaxMb">The most memory the account's processes may hold together, in megabytes, or no ceiling.</param>
 /// <param name="MaxProcesses">The most processes and threads the account may run at once, or no ceiling.</param>
+/// <param name="Features">
+/// The features the plan sells, as the names of the set's members (<c>mail</c>, <c>dns</c>,
+/// <c>databases</c>, <c>cron</c>, <c>fileTransfer</c>, <c>backups</c> on the wire), so a client never
+/// decodes bits. An empty list is a plan that sells none of them.
+/// </param>
 /// <param name="AccountCount">
 /// How many accounts are on this plan right now. It is what an administrator needs to see before
 /// editing a plan (an edit reaches every one of them) or deleting it (a plan with accounts cannot be
@@ -33,4 +39,5 @@ public sealed record PlanDto(
     ResourceCeilingDto CpuQuotaPercent,
     ResourceCeilingDto MemoryMaxMb,
     ResourceCeilingDto MaxProcesses,
+    IReadOnlyList<AccountFeature> Features,
     int AccountCount);

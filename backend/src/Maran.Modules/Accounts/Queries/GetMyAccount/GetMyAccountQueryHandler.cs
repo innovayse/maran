@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Extensions;
 using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Accounts.Queries.GetMyAccount;
@@ -78,7 +79,8 @@ public sealed class GetMyAccountQueryHandler
             row.plan.MaxDatabases,
             row.plan.MaxSftpUsers,
             row.plan.MaxFtpUsers,
-            row.plan.MaxCronEntries);
+            row.plan.MaxCronEntries,
+            row.plan.Features.Members());
 
         return Result<MyAccountDto>.Ok(
             new MyAccountDto(row.account.Id, row.account.Name, row.account.PrimaryDomain, row.account.Status, planDto));

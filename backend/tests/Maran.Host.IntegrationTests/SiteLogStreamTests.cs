@@ -653,6 +653,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
         customer.AssignAccount(own.Id);
+        identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, own.Id, now));
         identity.Users.Add(customer);
 
         // A customer on the OTHER account, so a test can ask the opposite question: that two
@@ -660,6 +661,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         var neighbour = new User(
             Guid.NewGuid(), "neighbour", "neighbour@example.com", hasher.Hash(Password), UserRole.Customer, now);
         neighbour.AssignAccount(stranger.Id);
+        identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), neighbour.Id, stranger.Id, now));
         identity.Users.Add(neighbour);
         await identity.SaveChangesAsync();
 

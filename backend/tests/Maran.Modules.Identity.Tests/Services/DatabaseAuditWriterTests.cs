@@ -23,7 +23,11 @@ public sealed class DatabaseAuditWriterTests : IDisposable
 
     private DatabaseAuditWriter NewWriter()
     {
-        return new DatabaseAuditWriter(_context, new FakeClock(Now), new FakeCorrelationIdAccessor("correlation-1"));
+        return new DatabaseAuditWriter(
+            _context,
+            new FakeClock(Now),
+            new FakeCorrelationIdAccessor("correlation-1"),
+            new StubCurrentUser());
     }
 
     /// <summary>A written entry is stamped with the clock and the correlation id.</summary>
@@ -57,7 +61,11 @@ public sealed class DatabaseAuditWriterTests : IDisposable
     [Fact]
     public async Task An_entry_written_outside_a_request_carries_no_correlation_id_rather_than_failing()
     {
-        var writer = new DatabaseAuditWriter(_context, new FakeClock(Now), new FakeCorrelationIdAccessor(null));
+        var writer = new DatabaseAuditWriter(
+            _context,
+            new FakeClock(Now),
+            new FakeCorrelationIdAccessor(null),
+            new StubCurrentUser());
 
         await writer.WriteAsync(
             new AuditEntry(null, "system", AuditActions.LoginFailed, "system", "203.0.113.7", "agent", Succeeded: false),

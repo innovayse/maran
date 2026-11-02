@@ -76,7 +76,10 @@
         "account": "My account"
       },
       "badges": {
-        "failedTasks": "failed"
+        "failedTasks": "failed",
+        "needsAttention": "need attention",
+        "mailQueue": "in the mail queue",
+        "availableUpdates": "updates available"
       }
     },
     "shell": {

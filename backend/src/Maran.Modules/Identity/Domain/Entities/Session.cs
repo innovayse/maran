@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
 namespace Maran.Modules.Identity.Domain.Entities;
 
 /// <summary>
@@ -38,6 +39,33 @@ public sealed class Session
     /// <summary>The user agent the session was created from.</summary>
     public string UserAgent { get; private set; }
 
+    /// <summary>
+    /// The hosting account this sign-in currently speaks for: the account the access token's account
+    /// claim is issued from, and the one every tenant query follows. Null for an administrator, who
+    /// owns none, and for a customer with no membership. Always one the user holds a membership of
+    /// (<see cref="AccountMembership"/>); a rotation carries it forward unchanged.
+    /// </summary>
+    public Guid? ActiveAccountId { get; private set; }
+
+    /// <summary>
+    /// Whose sign-in this is: the user's own (every session the constructor creates), or an operator
+    /// viewing the panel as this user (<see cref="StartViewAs"/>).
+    /// </summary>
+    public SessionKind Kind { get; private set; }
+
+    /// <summary>
+    /// The operator viewing as <see cref="UserId"/>, for a <see cref="SessionKind.ViewAs"/> session;
+    /// null for an own session, which has no actor but its user.
+    /// </summary>
+    public Guid? ActorUserId { get; private set; }
+
+    /// <summary>
+    /// The operator's own session the view-as session was started from, for a
+    /// <see cref="SessionKind.ViewAs"/> session; null for an own session. Its rotation family must
+    /// stay live for the view-as session to be accepted, so signing the operator out ends it too.
+    /// </summary>
+    public Guid? ActorSessionId { get; private set; }
+
     /// <summary>Creates an active session.</summary>
     /// <param name="id">The session's identity; also the <c>sid</c> claim of the access token issued beside it.</param>
     /// <param name="userId">The user this session signs in.</param>
@@ -50,6 +78,7 @@ public sealed class Session
     /// <param name="expiresAt">The instant the refresh token stops being accepted.</param>
     /// <param name="ipAddress">The address the session was created from, for the sessions screen.</param>
     /// <param name="userAgent">The user agent the session was created from, for the sessions screen.</param>
+    /// <param name="activeAccountId">The account the sign-in starts out speaking for; null when it has none.</param>
     public Session(
         Guid id,
         Guid userId,
@@ -58,7 +87,8 @@ public sealed class Session
         DateTimeOffset issuedAt,
         DateTimeOffset expiresAt,
         string ipAddress,
-        string userAgent)
+        string userAgent,
+        Guid? activeAccountId = null)
     {
         Id = id;
         UserId = userId;
@@ -68,6 +98,7 @@ public sealed class Session
         ExpiresAt = expiresAt;
         IpAddress = ipAddress;
         UserAgent = userAgent;
+        ActiveAccountId = activeAccountId;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>
@@ -78,12 +109,68 @@ public sealed class Session
         UserAgent = string.Empty;
     }
 
+    /// <summary>Starts a session in which an operator views the panel as another user.</summary>
+    /// <param name="id">The session's identity; also the <c>sid</c> claim of the view-as access token.</param>
+    /// <param name="viewedUserId">The login being viewed as.</param>
+    /// <param name="viewedAccountId">The account the session speaks for: the one the operator chose.</param>
+    /// <param name="actorUserId">The operator viewing.</param>
+    /// <param name="actorSessionId">The operator's own session, from their access token's <c>sid</c>.</param>
+    /// <param name="tokenHash">
+    /// SHA-256 of a refresh token that is generated and discarded: the column is required and unique,
+    /// and the plaintext never leaves the server, so this session can never be rotated.
+    /// </param>
+    /// <param name="issuedAt">The instant the session was created.</param>
+    /// <param name="ipAddress">The operator's address.</param>
+    /// <param name="userAgent">The operator's user agent.</param>
+    /// <returns>A live view-as session expiring <see cref="ViewAsLifetime.Duration"/> after <paramref name="issuedAt"/>.</returns>
+    public static Session StartViewAs(
+        Guid id,
+        Guid viewedUserId,
+        Guid viewedAccountId,
+        Guid actorUserId,
+        Guid actorSessionId,
+        string tokenHash,
+        DateTimeOffset issuedAt,
+        string ipAddress,
+        string userAgent)
+    {
+        // A family of its own: a view-as session is never a link in anybody's rotation chain, so
+        // reuse detection on the viewed user's own family can never reach it and vice versa.
+        var session = new Session(
+            id,
+            viewedUserId,
+            Guid.NewGuid(),
+            tokenHash,
+            issuedAt,
+            issuedAt.Add(ViewAsLifetime.Duration),
+            ipAddress,
+            userAgent,
+            viewedAccountId)
+        {
+            Kind = SessionKind.ViewAs,
+            ActorUserId = actorUserId,
+            ActorSessionId = actorSessionId,
+        };
+
+        return session;
+    }
+
     /// <summary>Reports whether the session may still be used.</summary>
     /// <param name="now">The current instant, taken from <see cref="IClock"/>.</param>
     /// <returns>True when the session is neither revoked nor expired.</returns>
     public bool IsActive(DateTimeOffset now)
     {
         return RevokedAt is null && ExpiresAt > now;
+    }
+
+    /// <summary>Makes the sign-in speak for another account the login holds a membership of.</summary>
+    /// <param name="accountId">
+    /// The account to act for, or null when the login no longer holds any. The caller has already
+    /// established the membership; this entity does not know the memberships and cannot check it.
+    /// </param>
+    public void SwitchAccount(Guid? accountId)
+    {
+        ActiveAccountId = accountId;
     }
 
     /// <summary>

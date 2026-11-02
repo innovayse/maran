@@ -41,7 +41,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
     public async Task Rotating_a_refresh_token_revokes_the_old_session_and_issues_a_new_one()
     {
         var service = NewService();
-        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
 
         var rotated = await service.RotateAsync(issued.RefreshToken, "203.0.113.7", "agent", CancellationToken.None);
 
@@ -56,7 +56,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
     public async Task A_rotated_session_keeps_the_family_of_the_one_it_replaces()
     {
         var service = NewService();
-        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
 
         var rotated = await service.RotateAsync(issued.RefreshToken, "203.0.113.7", "agent", CancellationToken.None);
 
@@ -65,12 +65,27 @@ public sealed class SessionServiceTests : IAsyncLifetime
         Assert.Equal(first.FamilyId, second.FamilyId);
     }
 
+    /// <summary>A rotation keeps the account the session speaks for.</summary>
+    [Fact]
+    public async Task A_rotation_keeps_the_account_the_session_speaks_for()
+    {
+        var service = NewService();
+        var accountId = Guid.NewGuid();
+        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", accountId, CancellationToken.None);
+
+        var rotated = await service.RotateAsync(issued.RefreshToken, "203.0.113.7", "agent", CancellationToken.None);
+
+        Assert.Equal(accountId, rotated.Value.ActiveAccountId);
+        var stored = await _context.Sessions.SingleAsync(s => s.Id == rotated.Value.SessionId);
+        Assert.Equal(accountId, stored.ActiveAccountId);
+    }
+
     /// <summary>Presenting an already rotated refresh token revokes the whole family.</summary>
     [Fact]
     public async Task Presenting_an_already_rotated_refresh_token_revokes_the_whole_family()
     {
         var service = NewService();
-        var first = await service.IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
+        var first = await service.IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
         var second = await service.RotateAsync(first.RefreshToken, "203.0.113.7", "agent", CancellationToken.None);
 
         var replay = await service.RotateAsync(first.RefreshToken, "198.51.100.4", "thief", CancellationToken.None);
@@ -86,7 +101,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
     public async Task An_unknown_refresh_token_is_rejected_without_revoking_anything()
     {
         var service = NewService();
-        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
 
         var result = await service.RotateAsync("a-token-nobody-issued", "203.0.113.7", "agent", CancellationToken.None);
 
@@ -100,7 +115,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
     public async Task An_expired_refresh_token_is_rejected()
     {
         var service = NewService();
-        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
         _clock.Advance(TimeSpan.FromDays(15));
 
         var result = await service.RotateAsync(issued.RefreshToken, "203.0.113.7", "agent", CancellationToken.None);
@@ -115,7 +130,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
     {
         var service = NewService();
 
-        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await service.IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
 
         var stored = await _context.Sessions.SingleAsync(s => s.Id == issued.SessionId);
         Assert.NotEqual(issued.RefreshToken, stored.TokenHash);
@@ -128,8 +143,8 @@ public sealed class SessionServiceTests : IAsyncLifetime
     {
         var service = NewService();
 
-        var first = await service.IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
-        var second = await service.IssueAsync(_userId, "198.51.100.4", "other", CancellationToken.None);
+        var first = await service.IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
+        var second = await service.IssueAsync(_userId, "198.51.100.4", "other", null, CancellationToken.None);
 
         Assert.NotEqual(first.RefreshToken, second.RefreshToken);
         Assert.NotEqual(first.SessionId, second.SessionId);
@@ -140,8 +155,8 @@ public sealed class SessionServiceTests : IAsyncLifetime
     public async Task Revoking_one_session_leaves_the_users_other_sessions_alone()
     {
         var service = NewService();
-        var first = await service.IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
-        var second = await service.IssueAsync(_userId, "198.51.100.4", "other", CancellationToken.None);
+        var first = await service.IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
+        var second = await service.IssueAsync(_userId, "198.51.100.4", "other", null, CancellationToken.None);
 
         await service.RevokeAsync(first.SessionId, SessionRevocationReason.Logout, CancellationToken.None);
 
@@ -154,8 +169,8 @@ public sealed class SessionServiceTests : IAsyncLifetime
     public async Task Revoking_all_sessions_leaves_no_active_session_for_the_user()
     {
         var service = NewService();
-        await service.IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
-        await service.IssueAsync(_userId, "198.51.100.4", "other", CancellationToken.None);
+        await service.IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
+        await service.IssueAsync(_userId, "198.51.100.4", "other", null, CancellationToken.None);
 
         await service.RevokeAllAsync(_userId, SessionRevocationReason.LogoutAll, CancellationToken.None);
 
@@ -166,7 +181,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
     [Fact]
     public async Task A_session_issued_today_expires_after_the_configured_refresh_lifetime()
     {
-        var issued = await NewService().IssueAsync(_userId, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await NewService().IssueAsync(_userId, "203.0.113.7", "agent", null, CancellationToken.None);
 
         Assert.Equal(Now.AddDays(14), issued.ExpiresAt);
     }

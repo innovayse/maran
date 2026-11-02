@@ -4,6 +4,7 @@ using Maran.Modules.Accounts.Commands.UpdatePlan;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Queries.GetPlan;
 using Maran.Modules.Accounts.Queries.ListPlanChoices;
+using Maran.Modules.Accounts.Queries.ListPlanFeatures;
 using Maran.Modules.Accounts.Queries.ListPlans;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -57,6 +58,20 @@ public sealed class PlansController : BaseApiController
     public async Task<IActionResult> GetAllAsync([FromQuery] ListPlansQuery query, CancellationToken cancellationToken)
     {
         var result = await _bus.InvokeAsync<Result<PagedResult<PlanDto>>>(query, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Lists every feature a plan can sell, with its name in the caller's language, so the plan form
+    /// offers exactly the set the panel understands and holds no list of its own.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("features")]
+    [ProducesResponseType(typeof(IReadOnlyList<PlanFeatureDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetFeaturesAsync(CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<IReadOnlyList<PlanFeatureDto>>>(
+            new ListPlanFeaturesQuery(), cancellationToken);
         return ToActionResult(result);
     }
 

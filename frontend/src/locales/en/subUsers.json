@@ -1,0 +1,68 @@
+{
+  "subUsers": {
+    "heading": "Sub-users",
+    "subtitle": "People you give access to this account, each signing in with their own password and reaching only the features you choose.",
+    "emptyTitle": "No sub-users yet",
+    "emptyDescription": "Invite the first person above. They receive an e-mail and choose their own password.",
+    "noResultsTitle": "No sub-users match",
+    "noResultsDescription": "Change the search, or clear it to see everyone.",
+    "tableCaption": "Sub-users",
+    "searchLabel": "Search sub-users",
+    "searchPlaceholder": "Search by login or e-mail…",
+    "searchClear": "Clear the search",
+    "noFeatures": "None",
+    "neverSignedIn": "Never",
+    "working": "Working…",
+    "rowActions": "Actions for {name}",
+    "changeFeatures": "Change features",
+    "invited": "Invitation sent to {name}.",
+    "featuresChanged": "Features of {name} saved.",
+    "removed": "{name} removed.",
+    "columns": {
+      "username": "Login",
+      "email": "E-mail",
+      "state": "Status",
+      "features": "Features",
+      "lastLogin": "Last sign-in"
+    },
+    "states": {
+      "active": "Active",
+      "invited": "Invited",
+      "suspended": "Suspended"
+    },
+    "features": {
+      "groupLabel": "Features this person may use"
+    },
+    "form": {
+      "heading": "Invite a person",
+      "fields": {
+        "username": "Login name",
+        "email": "E-mail address",
+        "features": "Features"
+      },
+      "placeholders": {
+        "username": "deploy",
+        "email": "name@example.com"
+      },
+      "hint": "They get an e-mail with a one-time link to choose their own password. You never see it.",
+      "submit": "Send invitation",
+      "errors": {
+        "usernameRequired": "Login name is required.",
+        "usernameInvalid": "Use letters, digits, dots, underscores and dashes, up to 64 characters.",
+        "emailRequired": "E-mail address is required.",
+        "emailInvalid": "Enter a valid e-mail address."
+      }
+    },
+    "featuresDialog": {
+      "title": "Features of {name}",
+      "description": "The person can use exactly the ticked features, and only those the account's plan includes. A change applies from their next request.",
+      "save": "Save features"
+    },
+    "remove": {
+      "action": "Remove",
+      "title": "Remove {name}",
+      "question": "Remove this person? Their access ends immediately and their login is deleted if it was made only for this account.",
+      "confirm": "Remove sub-user"
+    }
+  }
+}

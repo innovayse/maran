@@ -179,6 +179,7 @@ public sealed class AuthController : BaseApiController
     /// </remarks>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("logout-all")]
+    [RefusedWhileViewingAs]
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -231,6 +232,7 @@ public sealed class AuthController : BaseApiController
     /// <summary>Starts a two-factor enrolment: returns a secret, enables nothing.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/enrol")]
+    [RefusedWhileViewingAs]
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [AllowDuringTwoFactorEnrolment]
     [ProducesResponseType(typeof(TotpEnrolmentDto), StatusCodes.Status200OK)]
@@ -246,6 +248,7 @@ public sealed class AuthController : BaseApiController
     /// agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/confirm")]
+    [RefusedWhileViewingAs]
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [AllowDuringTwoFactorEnrolment]
     [ProducesResponseType(typeof(RecoveryCodesDto), StatusCodes.Status200OK)]
@@ -269,6 +272,7 @@ public sealed class AuthController : BaseApiController
     /// are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/disable")]
+    [RefusedWhileViewingAs]
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -301,6 +305,7 @@ public sealed class AuthController : BaseApiController
     /// stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("change-password")]
+    [RefusedWhileViewingAs]
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [EnableRateLimiting(RateLimitPolicies.Login)]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]

@@ -46,7 +46,7 @@ public sealed class JwtAccessTokenIssuerTests
     [Fact]
     public async Task An_issued_token_expires_fifteen_minutes_after_it_was_issued()
     {
-        var token = await NewIssuer().IssueAsync(NewAdmin(), Guid.NewGuid(), CancellationToken.None);
+        var token = await NewIssuer().IssueAsync(NewAdmin(), Guid.NewGuid(), null, CancellationToken.None);
 
         Assert.Equal(Now.AddMinutes(15), token.ExpiresAt);
     }
@@ -58,7 +58,7 @@ public sealed class JwtAccessTokenIssuerTests
         var user = NewAdmin();
         var sessionId = Guid.NewGuid();
 
-        var token = await NewIssuer().IssueAsync(user, sessionId, CancellationToken.None);
+        var token = await NewIssuer().IssueAsync(user, sessionId, null, CancellationToken.None);
 
         var claims = Read(token.Value);
         Assert.Equal(user.Id.ToString(), claims.GetClaim(PanelClaimTypes.UserId).Value);
@@ -71,20 +71,21 @@ public sealed class JwtAccessTokenIssuerTests
     [Fact]
     public async Task An_administrator_token_carries_no_account_claim_at_all()
     {
-        var token = await NewIssuer().IssueAsync(NewAdmin(), Guid.NewGuid(), CancellationToken.None);
+        var token = await NewIssuer().IssueAsync(NewAdmin(), Guid.NewGuid(), null, CancellationToken.None);
 
         Assert.False(Read(token.Value).TryGetClaim(PanelClaimTypes.AccountId, out _));
     }
 
-    /// <summary>A customer token carries the account it owns.</summary>
+    /// <summary>A customer token carries the account the session is acting for.</summary>
     [Fact]
-    public async Task A_customer_token_carries_the_account_it_owns()
+    public async Task A_customer_token_carries_the_account_the_session_is_acting_for()
     {
         var accountId = Guid.NewGuid();
         var customer = new User(Guid.NewGuid(), "customer", "c@example.com", "hash", UserRole.Customer, Now);
-        customer.AssignAccount(accountId);
+        // The older single-account column names a different account: the claim must follow the session.
+        customer.AssignAccount(Guid.NewGuid());
 
-        var token = await NewIssuer().IssueAsync(customer, Guid.NewGuid(), CancellationToken.None);
+        var token = await NewIssuer().IssueAsync(customer, Guid.NewGuid(), accountId, CancellationToken.None);
 
         Assert.Equal(accountId.ToString(), Read(token.Value).GetClaim(PanelClaimTypes.AccountId).Value);
     }
@@ -95,7 +96,7 @@ public sealed class JwtAccessTokenIssuerTests
     {
         var user = new User(Guid.NewGuid(), "admin", "admin@example.com", "a-very-secret-hash", UserRole.Admin, Now);
 
-        var token = await NewIssuer().IssueAsync(user, Guid.NewGuid(), CancellationToken.None);
+        var token = await NewIssuer().IssueAsync(user, Guid.NewGuid(), null, CancellationToken.None);
 
         Assert.DoesNotContain("a-very-secret-hash", token.Value, StringComparison.Ordinal);
     }
@@ -104,7 +105,7 @@ public sealed class JwtAccessTokenIssuerTests
     [Fact]
     public async Task An_issued_token_names_the_configured_issuer_and_audience()
     {
-        var claims = Read((await NewIssuer().IssueAsync(NewAdmin(), Guid.NewGuid(), CancellationToken.None)).Value);
+        var claims = Read((await NewIssuer().IssueAsync(NewAdmin(), Guid.NewGuid(), null, CancellationToken.None)).Value);
 
         Assert.Equal("maran", claims.Issuer);
         Assert.Contains("maran-panel", claims.Audiences);

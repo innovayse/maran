@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.SharedKernel.Utilities.Network;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -44,6 +45,19 @@ public sealed class SessionConfiguration : IEntityTypeConfiguration<Session>
         builder.Property(s => s.UserAgent)
             .IsRequired()
             .HasMaxLength(UserAgentText.MaxLength);
+
+        // Stored as its name, like the revocation reason. Every row written before this column
+        // existed was a user's own sign-in, which is what the default says; the migration is
+        // additive (rules/architecture.md "expand, then contract").
+        builder.Property(s => s.Kind)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .HasDefaultValue(SessionKind.Own);
+
+        builder.Property(s => s.ActorUserId);
+
+        builder.Property(s => s.ActorSessionId);
 
         // Every refresh looks a session up by this hash, so the index is the hot path; unique
         // because two sessions sharing a token hash would make rotation ambiguous.

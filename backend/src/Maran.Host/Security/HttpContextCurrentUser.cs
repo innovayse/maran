@@ -63,6 +63,31 @@ public sealed class HttpContextCurrentUser : ICurrentUser
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Read from the token's <c>act</c> claim. A view-as token whose actor is unreadable never gets
+    /// this far — the bearer handler refuses it (<see cref="ViewAsSessionValidation"/>) — so null
+    /// here means an own sign-in, not a damaged one.
+    /// </remarks>
+    public Guid? ActorUserId
+    {
+        get
+        {
+            var user = _httpContextAccessor.HttpContext?.User;
+            return user is not null && ActorClaimReader.TryRead(user, out var actor) ? actor.UserId : null;
+        }
+    }
+
+    /// <inheritdoc />
+    public string ActorUsername
+    {
+        get
+        {
+            var user = _httpContextAccessor.HttpContext?.User;
+            return user is not null && ActorClaimReader.TryRead(user, out var actor) ? actor.Username : string.Empty;
+        }
+    }
+
     /// <summary>Reads one claim of the current request's principal.</summary>
     /// <param name="type">The claim name, from <see cref="PanelClaimTypes"/>.</param>
     /// <returns>The claim's value, or null outside a request and for an unauthenticated one.</returns>

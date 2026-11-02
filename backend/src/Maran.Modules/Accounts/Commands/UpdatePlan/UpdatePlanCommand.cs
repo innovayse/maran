@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Interfaces;
+using Maran.Sdk.Contracts;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Maran.Modules.Accounts.Commands.UpdatePlan;
@@ -30,6 +31,10 @@ namespace Maran.Modules.Accounts.Commands.UpdatePlan;
 /// <param name="CpuQuotaPercent">The share of CPU time the account may use, in percent of ONE CPU, or no ceiling.</param>
 /// <param name="MemoryMaxMb">The most memory the account's processes may hold together, in megabytes, or no ceiling.</param>
 /// <param name="MaxProcesses">The most processes and threads the account may run at once, or no ceiling.</param>
+/// <param name="Features">
+/// The features the plan sells, by name. Left out, the plan keeps the set it has; an empty list
+/// removes every feature.
+/// </param>
 /// <param name="PlanId">
 /// The plan being edited, established by the server from the route and stamped by the action. Never
 /// bound from the request body — a body id could disagree with the path id, and one request would
@@ -49,6 +54,7 @@ public sealed record UpdatePlanCommand(
     ResourceCeilingDto CpuQuotaPercent,
     ResourceCeilingDto MemoryMaxMb,
     ResourceCeilingDto MaxProcesses,
+    IReadOnlyList<AccountFeature>? Features = null,
     [property: JsonIgnore][property: BindNever][BindNever] Guid PlanId = default,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "") : IPlanDefinition;

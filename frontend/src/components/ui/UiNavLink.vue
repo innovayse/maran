@@ -82,7 +82,8 @@ const props = withDefaults(
     /**
      * Leaves room at the row's end for a control drawn over it: the section toggle of
      * `UiNavSection`, which cannot sit inside the link (a button inside a link is invalid markup)
-     * yet must sit inside the row's pill, so a section row is as wide as every other row.
+     * yet must sit inside the row's pill, so a section row is as wide as every other row. A page
+     * row takes the same room, nested or not, for the favourites star (issue #318).
      */
     trailing?: boolean
   }>(),
@@ -124,7 +125,9 @@ onUpdated(readText)
       compact
         ? 'mx-auto size-9 justify-center'
         : nested
-          ? 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1 max-lg:py-3'
+          ? trailing
+            ? 'w-full flex-wrap justify-between gap-y-1 py-1 pr-9 pl-2.5 max-lg:py-3'
+            : 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1 max-lg:py-3'
           : trailing
             ? 'w-full flex-wrap justify-between gap-y-1 py-1.5 pr-9 pl-2.5 max-lg:py-3'
             : 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1.5 max-lg:py-3',

@@ -401,6 +401,7 @@ public sealed class AccountsMeAndInvitationsAuthorizationTests : IAsyncLifetime
         var customer = new User(
             Guid.NewGuid(), username, $"{username}@example.com", hasher.Hash(Password), UserRole.Customer, now);
         customer.AssignAccount(accountId);
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, accountId, now));
         context.Users.Add(customer);
         await context.SaveChangesAsync();
     }
@@ -415,6 +416,7 @@ public sealed class AccountsMeAndInvitationsAuthorizationTests : IAsyncLifetime
 
         var invited = User.Invite(Guid.NewGuid(), "invited-owner", "invited-owner@example.com", accountId, now);
         context.Users.Add(invited);
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), invited.Id, accountId, now));
         await context.SaveChangesAsync();
 
         return invited.Id;

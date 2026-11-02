@@ -29,6 +29,12 @@
  * and an unlimited ceiling carrying a figure. A new plan starts with neither, so the administrator
  * decides; a changed ceiling is written to every account on the plan at once.
  *
+ * **Features** (issue #316) are one checkbox per feature the panel lists (`PlanFeaturesField`); an
+ * unticked box is a feature the plan leaves out, which hides it from its customers' menu and makes
+ * the panel refuse their requests for it. The list is the panel's, so a new plan cannot be sent
+ * until it has arrived (`usePlanFeatures`), while an edit whose list failed still saves the set the
+ * plan already has.
+ *
  * **Numbers are typed as text.** The kit's input is a text field, and `type="number"` would bring
  * the browser's own spinner and its own validation bubble (rules/vue.md: "the browser never
  * validates"). The `numeric` keyboard is requested instead, and the text is parsed here.
@@ -42,12 +48,15 @@ import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import PlanCeilingField from './PlanCeilingField.vue'
+import PlanFeaturesField from './PlanFeaturesField.vue'
 import { formatMegabytes } from '../../utils/formatBytes'
 import { usePlanCeilings, type PlanCeilingKey } from '../../composables/usePlanCeilings'
-import type { ManagedPlan, PlanRequest } from '../../types/plan'
+import { usePlanFeatures } from '../../composables/usePlanFeatures'
+import type { LoadingState } from '../../types/loading'
+import type { ManagedPlan, PlanFeatureChoice, PlanRequest } from '../../types/plan'
 
 /** The count and disk limits a plan states, by the name the request and the locale file both use. */
-type LimitKey = Exclude<keyof PlanRequest, 'name' | PlanCeilingKey>
+type LimitKey = Exclude<keyof PlanRequest, 'name' | 'features' | PlanCeilingKey>
 
 /** One limit's bounds, as the server's validator states them. */
 interface LimitField {
@@ -93,6 +102,13 @@ const props = defineProps<{
    * values once, on creation.
    */
   loading?: boolean
+  /**
+   * The features the panel offers a plan, or `null` before they arrived and after the read failed.
+   * An edit still saves the set the plan has when they are `null`; a new plan waits for them.
+   */
+  featureChoices: PlanFeatureChoice[] | null
+  /** Where the read of {@link featureChoices} stands. */
+  featuresState: LoadingState
 }>()
 
 /** Events emitted by {@link PlanForm}. */
@@ -129,6 +145,11 @@ const submitted: Ref<boolean> = ref(false)
 /** The runtime ceilings: their fields, state and the client's mirror of the server's rules. */
 const runtime = usePlanCeilings(props.plan, submitted)
 
+/** The features sold: what is ticked, and whether the set can be sent yet. */
+const features = usePlanFeatures(props.plan, () => {
+  return props.featureChoices
+})
+
 /** Whether this form edits an existing plan. */
 const isEditing: ComputedRef<boolean> = computed(() => {
   return props.plan !== null
@@ -156,7 +177,8 @@ const isValid: ComputedRef<boolean> = computed(() => {
     LIMIT_FIELDS.every((field) => {
       return limitError(field) === null
     }) &&
-    runtime.isValid.value
+    runtime.isValid.value &&
+    features.isReady.value
   )
 })
 
@@ -235,6 +257,7 @@ const submit = (): void => {
     maxCronEntries: figureOf('maxCronEntries'),
     maxPhpWorkersPerPool: figureOf('maxPhpWorkersPerPool'),
     ...runtime.toRequest(),
+    features: features.selected.value,
   })
 }
 
@@ -322,6 +345,24 @@ const cancel = (): void => {
             :error="runtime.errorOf(field)"
           />
         </div>
+
+        <UiSectionHeading
+          class="mt-6 mb-4"
+          :title="t('plans.form.featuresSection')"
+          :subtitle="t('plans.form.featuresHint')"
+        />
+        <PlanFeaturesField
+          :label="t('plans.form.featuresSection')"
+          :choices="featureChoices"
+          :state="featuresState"
+          :selected="features.selected.value"
+          :loading-text="t('plans.form.featuresLoading')"
+          :unavailable-text="t('plans.form.featuresUnavailable')"
+          @toggle="features.toggle"
+        />
+        <UiAlert v-if="submitted && !features.isReady.value" class="mt-4" variant="error">
+          {{ t('plans.form.featuresUnavailable') }}
+        </UiAlert>
 
         <div class="mt-5 flex flex-wrap justify-end gap-2 border-t border-border-subtle pt-4">
           <UiButton variant="secondary" type="button" @click="cancel">{{ t('common.cancel') }}</UiButton>

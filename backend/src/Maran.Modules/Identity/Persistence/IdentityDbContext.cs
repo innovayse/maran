@@ -34,6 +34,18 @@ public sealed class IdentityDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// Which hosting accounts each login may act for, and in what capacity. The truth about account
+    /// access; <see cref="User.AccountId"/> is the older column the previous release still reads.
+    /// </summary>
+    public DbSet<AccountMembership> AccountMemberships
+    {
+        get
+        {
+            return Set<AccountMembership>();
+        }
+    }
+
     /// <summary>The refresh-token sessions of those users.</summary>
     public DbSet<Session> Sessions
     {
@@ -126,6 +138,15 @@ public sealed class IdentityDbContext : DbContext
         }
     }
 
+    /// <summary>The pages each user pinned to the app bar: navigation keys, kept per user.</summary>
+    public DbSet<PinnedPage> PinnedPages
+    {
+        get
+        {
+            return Set<PinnedPage>();
+        }
+    }
+
     /// <summary>Applies the schema and every entity configuration for this module.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -133,6 +154,7 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfiguration(new UserConfiguration(_encryptionService));
         modelBuilder.ApplyConfiguration(new SessionConfiguration());
+        modelBuilder.ApplyConfiguration(new AccountMembershipConfiguration());
         modelBuilder.ApplyConfiguration(new RecoveryCodeConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEventConfiguration());
         modelBuilder.ApplyConfiguration(new FailedLoginByIpConfiguration());
@@ -140,6 +162,7 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PasswordResetTokenConfiguration());
         modelBuilder.ApplyConfiguration(new InvitationTokenConfiguration());
         modelBuilder.ApplyConfiguration(new SetupTokenWindowConfiguration());
+        modelBuilder.ApplyConfiguration(new PinnedPageConfiguration());
         base.OnModelCreating(modelBuilder);
     }
 }

@@ -161,6 +161,14 @@ export interface MyAccountPlan {
   maxFtpUsers: number
   /** How many cron entries the plan allows in the account's crontab. */
   maxCronEntries: number
+  /**
+   * The features the plan includes, by name (`mail`, `databases`, `fileTransfer`, ...). The menu
+   * hides what is missing; the endpoints refuse it regardless, so this is advice for the screen.
+   * The panel always sends it. It is optional in the type only so that an answer without it (a
+   * stubbed one in a spec, a panel older than this bundle) reads as "not reported" and the menu
+   * offers every item, the permissive default of the navigation (`NavigationContext.planFeatures`).
+   */
+  features?: string[]
 }
 
 /**

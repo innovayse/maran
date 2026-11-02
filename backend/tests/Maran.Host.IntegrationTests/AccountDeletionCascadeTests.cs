@@ -508,6 +508,7 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         var user = new User(
             Guid.NewGuid(), AccountName, $"{AccountName}@example.com", "hash", UserRole.Customer, now);
         user.AssignAccount(accountId);
+        identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, accountId, now));
         identity.Users.Add(user);
 
         identity.Sessions.Add(new Session(

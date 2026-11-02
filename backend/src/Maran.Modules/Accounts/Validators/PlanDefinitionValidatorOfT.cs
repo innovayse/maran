@@ -3,6 +3,8 @@ using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Interfaces;
+using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Extensions;
 
 namespace Maran.Modules.Accounts.Validators;
 
@@ -82,6 +84,20 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
         RuleFor(command => command.MaxFtpUsers).InclusiveBetween(0, MaxCount);
         RuleFor(command => command.MaxCronEntries).InclusiveBetween(0, MaxCount);
         RuleFor(command => command.MaxPhpWorkersPerPool).InclusiveBetween(1, MaxWorkers);
+
+        // Each stated feature must name exactly one feature: the JSON converter also accepts a number
+        // or a comma-joined name, which can arrive as a set, as None or as a value nothing defines.
+        // A list left out is not an error; the handler reads it as "not stated".
+        RuleForEach(command => command.Features)
+            .Must(feature =>
+            {
+                return feature.IsFeature();
+            })
+            .WithMessage(nameof(ErrorMessages.PlanFeatureUnknown))
+            .When(command =>
+            {
+                return command.Features is not null;
+            });
 
         // A ceiling the caller left out binds to null; NotNull answers that before the child rules
         // read it, so an absent ceiling is refused rather than read as "unlimited".

@@ -28,6 +28,27 @@ public sealed class SessionTests
         Assert.True(NewSession().IsActive(Now));
     }
 
+    /// <summary>A new session speaks for no account unless it is given one.</summary>
+    [Fact]
+    public void A_new_session_speaks_for_no_account_unless_given_one()
+    {
+        Assert.Null(NewSession().ActiveAccountId);
+    }
+
+    /// <summary>Switching changes the account the session speaks for, and clearing it leaves none.</summary>
+    [Fact]
+    public void Switching_changes_the_account_and_clearing_leaves_none()
+    {
+        var session = NewSession();
+        var accountId = Guid.NewGuid();
+
+        session.SwitchAccount(accountId);
+        Assert.Equal(accountId, session.ActiveAccountId);
+
+        session.SwitchAccount(null);
+        Assert.Null(session.ActiveAccountId);
+    }
+
     /// <summary>A revoked session is not active.</summary>
     [Fact]
     public void A_revoked_session_is_not_active()

@@ -1,6 +1,8 @@
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 
 namespace Maran.Modules.Identity.Queries.GetProfile;
 
@@ -49,11 +51,35 @@ public sealed class GetProfileQueryHandler
                 session => session.UserId == user.Id && session.RevokedAt == null && session.ExpiresAt > now,
                 cancellationToken);
 
+        // How the person stands towards the account they are acting for. Read through the entity's own
+        // rule (Allows), so what the screen is told is what the endpoints will decide.
+        AccountAccessDto? access = null;
+        if (query.AccountId is { } accountId)
+        {
+            var membership = await _dbContext.AccountMemberships
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    candidate => candidate.UserId == user.Id && candidate.AccountId == accountId,
+                    cancellationToken);
+            if (membership is not null)
+            {
+                access = new AccountAccessDto(
+                    membership.Role,
+                    AccountFeature.All.Members()
+                        .Where(feature =>
+                        {
+                            return membership.Allows(feature);
+                        })
+                        .ToList());
+            }
+        }
+
         return Result<ProfileDto>.Ok(new ProfileDto(
             user.Username,
             user.Email,
             user.Role,
             user.IsTotpEnabled,
-            activeSessions));
+            activeSessions,
+            access));
     }
 }

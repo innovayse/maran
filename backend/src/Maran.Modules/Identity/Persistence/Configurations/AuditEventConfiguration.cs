@@ -43,6 +43,12 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         builder.Property(e => e.CorrelationId)
             .HasMaxLength(AuditEvent.CorrelationIdMaxLength);
 
+        // Who was viewing as the actor (issue #317). Same width as the actor's own name column.
+        builder.Property(e => e.ImpersonatorUserId);
+
+        builder.Property(e => e.ImpersonatorUsername)
+            .HasMaxLength(AuditEvent.ActorUsernameMaxLength);
+
         // The audit screen reads newest-first, and an operator asking "what did this user do"
         // filters by actor; both get an index so the journal stays readable as it grows.
         builder.HasIndex(e => e.OccurredAt).IsDescending().HasDatabaseName("IX_AuditEvents_OccurredAt");

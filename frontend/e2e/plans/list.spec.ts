@@ -36,6 +36,7 @@ const catalogue = (count: number): ManagedPlan[] => {
       cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
       memoryMaxMb: { kind: 'unlimited', maximum: 0 },
       maxProcesses: { kind: 'unlimited', maximum: 0 },
+      features: [],
       accountCount: count - index,
     }
   })

@@ -6,6 +6,7 @@ using Maran.Modules.Ftp.Queries.GetFtpUser;
 using Maran.Modules.Ftp.Queries.ListFtpUsers;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -30,6 +31,7 @@ namespace Maran.Modules.Ftp.Controllers;
 [Tags("FTPS Users")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RequiresAccountFeature(AccountFeature.FileTransfer)]
 public sealed class FtpUsersController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>

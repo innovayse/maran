@@ -22,7 +22,7 @@ namespace Maran.Host.Dashboard;
 /// </para>
 /// </remarks>
 /// <param name="CertificatesExpiringSoon">
-/// Certificates whose expiry is within <c>DashboardEndpoint.CertificateExpiryHorizon</c>.
+/// Certificates whose expiry is within <c>AttentionReader.CertificateExpiryHorizon</c>.
 /// </param>
 /// <param name="FailedBackups">Backups whose last run failed.</param>
 /// <param name="BannedAddresses">Addresses the firewall is currently refusing.</param>

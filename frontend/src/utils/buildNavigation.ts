@@ -85,8 +85,10 @@ const pageEntry = (
   if (state === null) {
     return null
   }
-  const count = page.badge === null ? 0 : context.badges[page.badge]
-  const badge = page.badge !== null && count > 0 ? { kind: page.badge, count } : null
+  // No badge for a kind the shell holds no count of (not asked, failed, or without a source): a
+  // missing count is never drawn as a zero or any other figure.
+  const count = page.badge === null ? undefined : context.badges[page.badge]
+  const badge = page.badge !== null && count !== undefined && count > 0 ? { kind: page.badge, count } : null
   return {
     key: page.key,
     groupKey,

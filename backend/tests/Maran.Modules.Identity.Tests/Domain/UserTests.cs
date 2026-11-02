@@ -156,4 +156,30 @@ public sealed class UserTests
         Assert.Null(user.LockedUntil);
         Assert.False(user.IsLockedOut(Now));
     }
+
+    /// <summary>Unassigning the account the older column names clears it.</summary>
+    [Fact]
+    public void Unassigning_the_account_the_older_column_names_clears_it()
+    {
+        var user = NewUser();
+        var accountId = Guid.NewGuid();
+        user.AssignAccount(accountId);
+
+        user.UnassignAccount(accountId);
+
+        Assert.Null(user.AccountId);
+    }
+
+    /// <summary>Unassigning some other account leaves the older column alone.</summary>
+    [Fact]
+    public void Unassigning_some_other_account_leaves_the_older_column_alone()
+    {
+        var user = NewUser();
+        var accountId = Guid.NewGuid();
+        user.AssignAccount(accountId);
+
+        user.UnassignAccount(Guid.NewGuid());
+
+        Assert.Equal(accountId, user.AccountId);
+    }
 }

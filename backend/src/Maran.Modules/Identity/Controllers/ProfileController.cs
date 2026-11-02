@@ -40,7 +40,7 @@ public sealed class ProfileController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {
-        var query = new GetProfileQuery(CurrentUser.UserId);
+        var query = new GetProfileQuery(CurrentUser.UserId, CurrentUser.AccountId);
         return ToActionResult(await _bus.InvokeAsync<Result<ProfileDto>>(query, cancellationToken));
     }
 }

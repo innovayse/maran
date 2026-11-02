@@ -6,6 +6,7 @@ using Maran.Modules.Sftp.Queries.GetSftpUser;
 using Maran.Modules.Sftp.Queries.ListSftpUsers;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -28,6 +29,7 @@ namespace Maran.Modules.Sftp.Controllers;
 [Tags("SFTP Users")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RequiresAccountFeature(AccountFeature.FileTransfer)]
 public sealed class SftpUsersController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>

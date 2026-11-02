@@ -6,7 +6,8 @@ namespace Maran.Modules.Monitoring.Resources;
 /// are reached through <c>IStringLocalizer&lt;T&gt;</c>"). Carries every user-facing name the
 /// Monitoring module owns: <c>MonitoringModuleDisplayName</c> (resolved via
 /// <see cref="MonitoringManifest"/>'s <c>DisplayNameKey</c>) and one <c>Service&lt;Member&gt;</c>
-/// entry per <see cref="Maran.Agent.Client.Services.MonitorService.AgentManagedService"/> member.
+/// entry per <see cref="Maran.Agent.Client.Services.MonitorService.AgentManagedService"/> member,
+/// and one <c>ServerKind&lt;Member&gt;</c> entry per <see cref="Domain.Enums.ServerKind"/> member.
 /// </summary>
 public sealed class DisplayNames
 {

@@ -1,5 +1,6 @@
 using System.Text;
 using Maran.Host.Authorization;
+using Maran.Host.Security;
 using Maran.Modules.Identity.Options;
 using Maran.Sdk.Contracts;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -46,6 +47,13 @@ public static class AuthenticationExtensions
                     // into a twenty-minute one, and a revoked session would outlive its revocation
                     // by that margin. Both machines run NTP; there is nothing to tolerate.
                     ClockSkew = TimeSpan.Zero,
+                };
+
+                // A view-as token is checked against its session on every request, so Back, a
+                // revocation and the operator signing out end it at once (issue #317).
+                jwt.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = ViewAsSessionValidation.OnTokenValidatedAsync,
                 };
             });
 

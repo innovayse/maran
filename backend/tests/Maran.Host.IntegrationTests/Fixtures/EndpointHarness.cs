@@ -110,6 +110,25 @@ public static class EndpointHarness
             Guid.NewGuid(), username, $"{username}@example.com", hasher.Hash(Password), UserRole.Customer, now);
         customer.AssignAccount(accountId);
         context.Users.Add(customer);
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, accountId, now));
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>Lets an existing login act for one more account it owns.</summary>
+    /// <param name="factory">The booted host.</param>
+    /// <param name="username">The login that gains the account.</param>
+    /// <param name="accountId">The additional account the login owns.</param>
+    public static async Task SeedOwnedAccountAsync(
+        WebApplicationFactory<Program> factory,
+        string username,
+        Guid accountId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
+
+        var user = await context.Users.SingleAsync(candidate => candidate.Username == username);
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, accountId, now));
         await context.SaveChangesAsync();
     }
 

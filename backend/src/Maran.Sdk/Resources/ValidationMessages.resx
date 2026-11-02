@@ -30,4 +30,10 @@
   <data name="RequestParameterInvalid">
     <value>The value given for “{0}” cannot be read.</value>
   </data>
+  <data name="PlanFeatureNotIncluded">
+    <value>This feature is not included in your plan.</value>
+  </data>
+  <data name="AccountFeatureNotGranted">
+    <value>You have not been given access to this feature. Ask the account owner.</value>
+  </data>
 </root>
