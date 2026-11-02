@@ -1,55 +1,72 @@
+using Maran.SharedKernel.Callers;
+
 namespace Maran.SharedKernel.Interfaces;
 
-/// <summary>The authenticated principal of the current request/message.</summary>
+/// <summary>The caller of the current request or message.</summary>
+/// <remarks>
+/// <see cref="Caller"/> is the one fact. The members below it are the old per-field answers, derived
+/// from it with their old meaning (a stand-in for "nobody"), kept as default members only while
+/// consumers move to switching on <see cref="Caller"/>; they are removed once none reads them.
+/// </remarks>
 public interface ICurrentUser
 {
-    /// <summary>Panel user id.</summary>
-    Guid UserId { get; }
-
     /// <summary>
-    /// The panel user's login name, as the audit journal records it.
+    /// Who this request or message runs as: <see cref="AnonymousCaller"/>, <see cref="AdministratorCaller"/>
+    /// or <see cref="CustomerCaller"/>.
     /// </summary>
-    /// <remarks>
-    /// Empty outside a request and for an unauthenticated caller — never null, so a journal entry
-    /// always has a string to carry. The journal names the actor, and an id alone is unreadable in
-    /// the one screen whose whole job is answering "who did what" (spec §10).
-    /// </remarks>
-    string Username { get; }
+    Caller Caller { get; }
 
-    /// <summary>Owning account for Customer contexts; null for Admin.</summary>
-    Guid? AccountId { get; }
+    /// <summary>Panel user id; <see cref="Guid.Empty"/> for an anonymous caller.</summary>
+    Guid UserId
+    {
+        get
+        {
+            return Caller is PrincipalCaller principal ? principal.UserId : Guid.Empty;
+        }
+    }
+
+    /// <summary>The panel user's login name; empty for an anonymous caller, never null.</summary>
+    string Username
+    {
+        get
+        {
+            return Caller is PrincipalCaller principal ? principal.Username : string.Empty;
+        }
+    }
+
+    /// <summary>Owning account of a customer; null for an administrator and for an anonymous caller.</summary>
+    Guid? AccountId
+    {
+        get
+        {
+            return Caller is CustomerCaller customer ? customer.AccountId : null;
+        }
+    }
 
     /// <summary>True for server administrators.</summary>
-    bool IsAdmin { get; }
+    bool IsAdmin
+    {
+        get
+        {
+            return Caller is AdministratorCaller;
+        }
+    }
 
-    /// <summary>
-    /// The operator actually at the keyboard while they view the panel as <see cref="UserId"/>; null
-    /// for every other request, in which the user is acting as themselves.
-    /// </summary>
-    /// <remarks>
-    /// Every answer above describes the login being viewed as, because that is whose authority the
-    /// request runs under — tenant scope, role, everything. This one is what keeps the audit journal
-    /// truthful about who did it (issue #317). A default member, so an implementer that cannot see a
-    /// token — a design-time context, a test double — reports "no actor" without being edited; the
-    /// request-bound implementation overrides it.
-    /// </remarks>
+    /// <summary>The operator viewing as the login, or null when nobody is.</summary>
     Guid? ActorUserId
     {
         get
         {
-            return null;
+            return Caller is PrincipalCaller principal ? principal.ViewedBy?.UserId : null;
         }
     }
 
-    /// <summary>
-    /// The login name of <see cref="ActorUserId"/>; empty whenever that is null, never null itself, as
-    /// <see cref="Username"/> is.
-    /// </summary>
+    /// <summary>The login name of <see cref="ActorUserId"/>; empty whenever that is null, never null itself.</summary>
     string ActorUsername
     {
         get
         {
-            return string.Empty;
+            return Caller is PrincipalCaller principal ? principal.ViewedBy?.Username ?? string.Empty : string.Empty;
         }
     }
 }
