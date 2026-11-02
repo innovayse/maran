@@ -306,9 +306,10 @@ rule:
   **A module with several pages is a collapsible submenu (issue #195):** the parent link navigates to
   the landing page and opens the section, a chevron button (`aria-expanded`, `aria-controls`) only
   toggles, the section holding the current route opens itself, and the open set is remembered per
-  viewer. Arrow keys move between links (Right opens, Left closes or returns to the parent). The
-  submenus are declared in `frontend/src/router/moduleNavigationChildren.ts`; a child whose route is
-  not registered, or an administrator-only child for a customer, is not shown. In the collapsed
+  viewer. Arrow keys move between links (Right opens, Left closes or returns to the parent). Every
+  item, group and submenu is declared once in `frontend/src/router/navigationTree.ts` (issue #311)
+  and filtered by role; a page not built yet is drawn disabled (`UiNavPlanned`: greyed, `aria-disabled`,
+  a "Coming soon" hint) instead of being linked or hidden. In the collapsed
   rail (56 px) hovering or focusing an icon opens a flyout with the title and the children, which
   replaces the bare tooltip; `Escape` closes it.
   **The active item is a solid `--acf` fill with white text and `--glow` under it**; inactive items are
@@ -447,6 +448,7 @@ instead of a class on the tag, an `!` modifier or a selector that reaches into a
 | `UiAuthHeading` | `title`, `subtitle`. | The title of a signed-out page, an `h2`; wraps long Armenian and Russian words (`wrap-anywhere`) instead of widening the panel. |
 | `UiPinnedToast` | `message` (`null` draws nothing), `closeLabel`, `variant` (default `success`); `@dismiss`. | A screen's outcome notice, pinned to the viewport's bottom corner over the page. Every create confirms itself through it, in one place, instead of each screen hand-writing the pinned wrapper (#222). The wrapper lets clicks through; only the toast takes the pointer. |
 | `UiNavSection` | `to`, `current`, `open`, `section`, `controls`, `toggleLabel`; emits `navigate` and `toggle`. `UiNavLink` gains `trailing`, the room at its end the toggle is drawn over. | A section's row is one pill as wide as every other row, with its submenu toggle inside it (issue #221). The toggle cannot sit inside the link (a button inside a link is invalid markup), and its colour follows the row's state: white on a lit row's `--acf`, muted on an unlit one. |
+| `UiNavPlanned` | `hint` (required, translated), `compact`, `nested`. | A menu row for a page not built yet (issue #311): same box as `UiNavLink`, `--t3` text, `role="link"` with `aria-disabled="true"`, on the Tab path, the hint as its tooltip and in its accessible name. It has no destination, so nothing is linked to a page that does not exist. |
 | `UiLink` | `to`; `icon` (decorative leading glyph) or `trailingIcon`. Issue #218. | An in-content way back or onward ("Back to sites") reads as a link: accent text, underlined, the underline dropping on hover. One primitive replaced five hand-typed `RouterLink` class strings. Not `UiButton` with `to`, which draws a button's box. |
 | `UiFieldHint` | Default slot: the translated helper sentence under a field. Issue #218. | Every helper is `text-sm text-text-muted`, the body step; the PHP version picker's had drifted to `text-xs`. |
 | `UiConfirm` | `confirmLabel` is required. Issue #218. | The button names the action ("Delete site", "Lift ban"); there is no generic "Yes, do it" to fall back on, so a new confirmation cannot ship without one. |

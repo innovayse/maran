@@ -11,9 +11,10 @@ import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 
-// The "File transfer" sidebar entry is a section (#195) with one page per module (#196): it lands
-// on the SFTP logins, and its submenu holds exactly the SFTP and the FTPS pages. Every address the
-// single merged screen ever had forwards to the SFTP page rather than turning into a 404.
+// The "Files and access" sidebar section (#195, regrouped by #311) holds one page per module (#196):
+// it lands on the SFTP logins, and with no cron module licensed its submenu holds exactly the SFTP
+// and the FTPS pages. Every address the single merged screen ever had forwards to the SFTP page
+// rather than turning into a 404.
 
 const LICENSED: PanelModule[] = [
   { name: 'sftp', displayName: 'File transfer', tier: 'included', isEnabled: true },
@@ -71,13 +72,13 @@ const signIn = async (page: Page, user?: AuthenticatedUser): Promise<void> => {
   await stubFtpUsers(page, [])
 }
 
-test('the File transfer entry opens the SFTP logins page', async ({ page }) => {
+test('the Files and access entry opens the SFTP logins page', async ({ page }) => {
   await signIn(page)
 
   await page.goto('/')
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('link', { name: 'File transfer', exact: true })
+    .getByRole('link', { name: 'Files and access', exact: true })
     .click()
 
   await expect(page).toHaveURL(/\/file-transfer\/sftp$/)
@@ -90,7 +91,7 @@ test('the submenu holds exactly the SFTP and the FTPS pages, and each leads to i
 
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  const toggle = nav.getByRole('button', { name: 'Show the File transfer pages' })
+  const toggle = nav.getByRole('button', { name: 'Show the Files and access pages' })
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
 
@@ -114,7 +115,7 @@ test('the submenu holds exactly the SFTP and the FTPS pages, and each leads to i
   await expect(page).toHaveTitle('SFTP logins · Maran')
 })
 
-// The FTPS module contributes no top-level entry: its page lives under File transfer. Two entries
+// The FTPS module contributes no top-level entry: its page lives under Files and access. Two entries
 // leading to one subject is the defect this asserts against.
 test('the licensed ftp module adds no top-level sidebar entry of its own', async ({ page }) => {
   await signIn(page)
@@ -123,7 +124,7 @@ test('the licensed ftp module adds no top-level sidebar entry of its own', async
 
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
   // Positive control: the sidebar has rendered the catalogue before an absence is judged.
-  await expect(nav.getByRole('link', { name: 'File transfer', exact: true })).toHaveCount(1)
+  await expect(nav.getByRole('link', { name: 'Files and access', exact: true })).toHaveCount(1)
   await expect(nav.getByRole('link', { name: 'FTPS', exact: true })).toHaveCount(0)
 })
 
@@ -133,7 +134,7 @@ test('a customer sees both pages in the submenu and reaches the FTPS one', async
 
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  await nav.getByRole('button', { name: 'Show the File transfer pages' }).click()
+  await nav.getByRole('button', { name: 'Show the Files and access pages' }).click()
 
   await expect(nav.getByRole('link', { name: 'SFTP logins', exact: true })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'FTPS logins', exact: true })).toBeVisible()
@@ -165,9 +166,10 @@ test('the old address keeps an account filter across the forward', async ({ page
   await expect(page.getByRole('heading', { level: 1, name: 'SFTP logins' })).toBeVisible()
 })
 
-// A child page whose module is not enabled is not offered: with FTPS unlicensed the section is left
-// with one page, so the entry is a plain link again, and it still lands on the SFTP logins.
-test('with the ftp module disabled the entry has no FTPS logins child and still opens the SFTP page', async ({
+// A child page whose module is disabled is locked rather than hidden: the FTPS logins child stays in
+// the submenu and leads to the ftp module's upgrade page, while the entry itself still lands on the
+// SFTP logins.
+test('with the ftp module disabled the FTPS logins child is locked and the entry still opens the SFTP page', async ({
   page,
 }) => {
   await signIn(page)
@@ -179,15 +181,19 @@ test('with the ftp module disabled the entry has no FTPS logins child and still 
 
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
-  const entry = nav.getByRole('link', { name: 'File transfer', exact: true })
+  const entry = nav.getByRole('link', { name: 'Files and access', exact: true })
 
-  // Positive control: the entry is drawn before the absences are judged.
+  // Positive control: the entry is drawn before its submenu is judged.
   await expect(entry).toHaveCount(1)
-  await expect(nav.getByRole('button', { name: 'Show the File transfer pages' })).toHaveCount(0)
-  await expect(nav.getByRole('link', { name: 'FTPS logins', exact: true })).toHaveCount(0)
+  await nav.getByRole('button', { name: 'Show the Files and access pages' }).click()
+  const ftps = nav.getByRole('link', { name: /^FTPS logins/ })
+  await expect(ftps).toHaveCount(1)
+  await expect(ftps).toContainText('Locked')
+  await expect(ftps).toHaveAttribute('href', '/upgrade/ftp')
 
   await entry.click()
   await expect(page).toHaveURL(/\/file-transfer\/sftp$/)
   await expect(page.getByRole('heading', { level: 1, name: 'SFTP logins' })).toBeVisible()
+  // The locked child never opens the FTPS page in its place.
   await expect(nav.getByRole('link', { name: 'FTPS logins', exact: true })).toHaveCount(0)
 })

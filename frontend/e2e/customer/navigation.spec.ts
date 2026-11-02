@@ -59,5 +59,7 @@ test('an administrator sidebar still offers the audit journal', async ({ page })
   await page.goto('/')
 
   const navigation = page.getByRole('navigation', { name: 'Main navigation' })
+  // The journal is a child of Monitoring (issue #311), so its submenu is opened first.
+  await navigation.getByRole('button', { name: 'Show the Monitoring pages' }).click()
   await expect(navigation.getByRole('link', { name: 'Audit journal' })).toBeVisible()
 })

@@ -171,7 +171,7 @@ test('the generated SFTP password is shown once and is gone after a reload', asy
 // purpose: the dialog is modal and correctly intercepts every pointer event behind it.
 test('the generated password is gone after navigating away and back', async ({ page }) => {
   await openScreen(page, [], [], '/')
-  await page.getByRole('navigation').getByRole('link', { name: 'File transfer', exact: true }).click()
+  await page.getByRole('navigation').getByRole('link', { name: 'Files and access', exact: true }).click()
   await expect(page).toHaveURL(/\/file-transfer\/sftp$/)
   await createLogin(page, 'SFTP', 'web')
 

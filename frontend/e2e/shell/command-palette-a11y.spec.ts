@@ -17,7 +17,11 @@ import type { PanelModule } from '../../src/types/module'
  * looking at a screenshot.
  */
 
-/** Many modules, so the palette's result list is longer than its own height and must scroll. */
+/**
+ * Many modules, so the palette's result list is longer than its own height and must scroll. Menu
+ * labels are the SPA's own (#311), so only the modules this bundle does not know keep the panel's
+ * "Module …" name the walk below filters on; the second half of the list is those.
+ */
 const MODULES: PanelModule[] = [
   'accounts',
   'sites',
@@ -35,6 +39,16 @@ const MODULES: PanelModule[] = [
   'reports',
   'security',
   'billing',
+  'webmail',
+  'statistics',
+  'antivirus',
+  'containers',
+  'nodejs',
+  'python',
+  'wordpress',
+  'git',
+  'redis',
+  'memcached',
 ].map((name) => {
   return { name, displayName: `Module ${name}`, tier: 'included', isEnabled: true }
 })

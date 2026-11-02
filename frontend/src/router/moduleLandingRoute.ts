@@ -47,7 +47,7 @@ const LANDING_ROUTES: Readonly<Record<string, string | typeof NO_LANDING_ROUTE>>
   sites: 'sites',
   databases: 'databases',
   // The "File transfer" entry. It lands on the SFTP logins page, the half every panel has, and opens
-  // into a submenu of the two protocol pages (`moduleNavigationChildren.ts`).
+  // into a submenu of the two protocol pages (`navigationTree.ts`).
   sftp: 'file-transfer-sftp',
   // No sidebar entry of its own by design: the FTPS logins page is the second child of the "File
   // transfer" entry the `sftp` key names, so a top-level entry would be a second door to one room.

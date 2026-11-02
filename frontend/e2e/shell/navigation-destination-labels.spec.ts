@@ -4,7 +4,8 @@ import { setPersistedLocale } from '../fixtures/set-locale'
 
 // Issue #209, point 3: every navigation label names the screen it opens. "Notifications" opened
 // "Outgoing mail" and "Users and access" opened "Signed-in devices" (no user management there),
-// while the security policy and the PHP versions had no entry at all.
+// while the security policy and the PHP versions had no entry at all. Since issue #311 every one of
+// them is a submenu page of the section that owns its task.
 
 /** One entry: its label, where it leads, and the section it sits in (when it is a child). */
 interface Destination {
@@ -12,18 +13,18 @@ interface Destination {
   label: string
   /** Where the entry leads. */
   path: string
-  /** The section whose submenu holds it, or `null` for a top-level entry. */
-  section: string | null
+  /** The section whose submenu holds it. */
+  section: string
 }
 
 const DESTINATIONS: Destination[] = [
-  { label: 'Signed-in devices', path: '/settings/sessions', section: null },
-  { label: 'Outgoing mail', path: '/settings/smtp', section: null },
-  { label: 'Security policy', path: '/settings/security-policy', section: null },
-  { label: 'PHP versions', path: '/settings/php', section: 'Sites' },
+  { label: 'Audit journal', path: '/settings/audit', section: 'Monitoring' },
+  { label: 'Outgoing mail', path: '/settings/smtp', section: 'Settings' },
+  { label: 'Security policy', path: '/settings/security-policy', section: 'Security' },
+  { label: 'PHP versions', path: '/settings/php', section: 'Sites and domains' },
   // The firewall's paged lists (#196) are named by their page titles too.
-  { label: 'Bans', path: '/firewall/bans', section: 'Firewall' },
-  { label: 'Never banned', path: '/firewall/whitelist', section: 'Firewall' },
+  { label: 'Bans', path: '/firewall/bans', section: 'Security' },
+  { label: 'Never banned', path: '/firewall/whitelist', section: 'Security' },
 ]
 
 test('no entry is named for a module rather than for its screen', async ({ page }) => {
@@ -36,9 +37,7 @@ test('no entry is named for a module rather than for its screen', async ({ page 
 for (const { label, path, section } of DESTINATIONS) {
   test(`"${label}" opens the screen titled "${label}"`, async ({ page }) => {
     await openFullShell(page)
-    if (section !== null) {
-      await openSection(page, section)
-    }
+    await openSection(page, section)
     await mainNavigation(page).getByRole('link', { name: label, exact: true }).click()
     await expect(page).toHaveURL(path)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(label)
@@ -74,14 +73,16 @@ for (const locale of ['en', 'ru', 'hy'] as const) {
     await openFullShell(page)
     // The landmark's name is translated too, so the sidebar is found by its section rows.
     const nav = page.locator('nav:has([data-nav-section])')
-    // The section toggles are named in the interface language, so the Sites section (whose submenu
-    // holds PHP versions) is opened by the toggle beside its row.
-    await nav.locator('[data-nav-section="sites"]').locator('xpath=..').getByRole('button').click()
-    // The firewall's submenu holds the bans and the whitelist, whose labels are their page titles.
-    await nav.locator('[data-nav-section="firewall"]').locator('xpath=..').getByRole('button').click()
+    // The section toggles are named in the interface language, so each section holding a renamed
+    // page is opened by the toggle beside its row: Sites and domains (PHP versions), Files and
+    // access (scheduled tasks), Security (bans, whitelist, policy), Monitoring (background tasks,
+    // audit journal) and Settings (outgoing mail).
+    for (const section of ['sites', 'files', 'security', 'monitoring', 'settings']) {
+      await nav.locator(`[data-nav-section="${section}"]`).locator('xpath=..').getByRole('button').click()
+    }
 
     const renamed = [
-      '/settings/sessions',
+      '/settings/audit',
       '/settings/smtp',
       '/settings/security-policy',
       '/settings/php',

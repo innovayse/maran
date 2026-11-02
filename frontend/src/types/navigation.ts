@@ -1,115 +1,201 @@
 import type { RouteLocationRaw } from 'vue-router'
+import type { PanelModule } from './module'
 
 /**
- * Glyph a navigation entry is drawn with. Deliberately a closed union of the
- * icons the shell actually draws: the module catalogue reports no icon of its
- * own, so an entry's glyph is a presentation decision this bundle makes, not
- * data the backend sent. Which module gets which is stated in
- * `utils/moduleNavigationIcon.ts`.
+ * Glyph a navigation entry is drawn with. A closed union of the icons the shell draws: the module
+ * catalogue reports no icon, so an entry's glyph is a presentation decision this bundle states in
+ * `router/navigationTree.ts`, not data the backend sent.
  */
 export type NavigationIcon =
-  /** The shell's own always-present entries (system status). */
-  | 'pulse'
-  /** A module the panel reported that this bundle has no glyph for. */
+  /** The dashboard, the panel's home. */
+  | 'house'
+  /** A module the panel reported that the navigation tree does not know. */
   | 'grid'
-  /** The accounts module. */
+  /** Accounts, plans and resellers. */
   | 'users'
-  /** The plans screen, the packages accounts are created on. */
-  | 'package'
-  /** The sites module. */
+  /** Sites and the domains they answer on. */
   | 'earth'
-  /** The databases module. */
+  /** DNS zones. */
+  | 'globe'
+  /** Mailboxes and mail delivery. */
+  | 'mail'
+  /** Databases and their users. */
   | 'database'
-  /** The SFTP module, whose logins open one directory and no other. */
+  /** File transfer logins and scheduled jobs: the ways into an account's files. */
   | 'folderKey'
-  /** The firewall module, whose screen is the host's packet filter. */
-  | 'brickWall'
-  /** The identity module, whose screens are the signed-in person's security ones. */
-  | 'shieldCheck'
-  /** The cron module, whose screen is a list of things that happen at a time. */
-  | 'clock'
-  /** The tasks module, whose screen is the panel's feed of background work. */
-  | 'listChecks'
-  /** The monitoring module, whose screen plots what the server has been doing. */
-  | 'chartLine'
-  /** The backups module, whose screen lists the copies taken of an account. */
+  /** Backups. */
   | 'archive'
-  /** The shell's own audit journal entry — the panel's append-only record of who did what. */
-  | 'scrollText'
-  /** The shell's own security policy entry — the rules every sign-in to the panel is held to. */
-  | 'lock'
+  /** The firewall and the sign-in policy. */
+  | 'shieldCheck'
+  /** The server fleet. */
+  | 'server'
+  /** Metrics, logs, background tasks and the audit journal. */
+  | 'chartLine'
+  /** The panel's own settings. */
+  | 'settings'
 
 /**
- * One entry in the authenticated shell's sidebar navigation, as built by
- * `useNavigation` from the module catalogue.
+ * Who a navigation item is offered to. Mirrors the signed-in user's role; `reseller` is declared
+ * ahead of the role itself (issue #179) so the reseller's view is a filter on this one tree rather
+ * than a second tree. Offering is advice: every endpoint behind a page enforces the role itself.
+ */
+export type NavigationRole = 'admin' | 'reseller' | 'customer'
+
+/**
+ * Whether a page exists in this bundle yet. A planned page is drawn in the menu, disabled, so the
+ * shape of the product is visible before every page is built; when its page lands, flipping this to
+ * `available` with the page's route is the whole change.
+ */
+export type NavigationAvailability =
+  /** The page is built and routed under this route name. */
+  | { state: 'available'; route: string }
+  /** The page is not built yet; `issue` is the GitHub issue that builds it, when one is filed. */
+  | { state: 'planned'; issue: number | null }
+
+/** A live count the shell can draw beside an item. Only counts the shell already holds are listed. */
+export type NavigationBadgeKind =
+  /** Background tasks running now, from the task tray stream the app bar keeps open. */
+  'runningTasks'
+
+/** Who may see an item, and what the panel must have for it to be usable. */
+export interface NavigationGate {
+  /** The roles the item is offered to. */
+  roles: readonly NavigationRole[]
+  /**
+   * The licensed module the page belongs to, or null for the panel's own screens. An item whose
+   * module the catalogue does not report is hidden; one whose module is disabled leads to the
+   * module's upgrade page.
+   */
+  module: string | null
+  /**
+   * The hosting-plan feature the page needs, or null when it needs none. Matched against the
+   * signed-in account's plan features where the panel reports them; while it does not, the item is
+   * offered (advice errs permissive, rules/security.md).
+   */
+  planFeature: string | null
+}
+
+/** One page in the navigation tree. */
+export interface NavigationPageSpec extends NavigationGate {
+  /** Stable key, unique across the whole tree; used for `:key`, DOM ids and stored state. */
+  key: string
+  /** i18n key of the page's menu label; the menu is the SPA's own chrome. */
+  labelKey: string
+  /** Whether the page is built, and where it is routed. */
+  availability: NavigationAvailability
+  /** The live count drawn beside the item, or null. */
+  badge: NavigationBadgeKind | null
+}
+
+/** A top-level item that is a single page: a direct link, never a submenu. */
+export interface NavigationLinkSpec extends NavigationPageSpec {
+  /** Discriminates a link from a section. */
+  kind: 'link'
+  /** Glyph drawn beside the label. */
+  icon: NavigationIcon
+}
+
+/**
+ * A top-level item with two or more pages, drawn as a submenu. It carries no gate of its own: it is
+ * shown while at least one of its pages is offered, so a role's tree is a filter on the pages alone.
+ */
+export interface NavigationSectionSpec {
+  /** Discriminates a section from a link. */
+  kind: 'section'
+  /** Stable key, unique across the whole tree. */
+  key: string
+  /** i18n key of the section's label. */
+  labelKey: string
+  /** Glyph drawn beside the label. */
+  icon: NavigationIcon
+  /** The section's pages, landing page first. */
+  children: readonly NavigationPageSpec[]
+}
+
+/** A top-level item of the navigation tree. */
+export type NavigationNodeSpec = NavigationLinkSpec | NavigationSectionSpec
+
+/** A labelled run of top-level items. */
+export interface NavigationGroupSpec {
+  /** Stable key; the label is `app.nav.groups.<key>`. */
+  key: string
+  /** The group's items, in drawing order. */
+  nodes: readonly NavigationNodeSpec[]
+}
+
+/** Where a built entry leads, or why it leads nowhere. */
+export type NavigationEntryState =
+  /** A usable page. */
+  | { kind: 'open'; target: RouteLocationRaw }
+  /** A page whose module the licence does not permit; the target is the module's upgrade page. */
+  | { kind: 'locked'; target: RouteLocationRaw }
+  /** A page not built yet: drawn disabled, with no destination at all. */
+  | { kind: 'planned'; issue: number | null }
+
+/** What the shell knows about the caller and the panel when it builds the navigation. */
+export interface NavigationContext {
+  /** The signed-in caller's role. */
+  role: NavigationRole
+  /** The module catalogue as the panel reported it, in its order. */
+  catalogue: readonly PanelModule[]
+  /** Module machine name to whether the licence enables it; a module absent here is not installed. */
+  modules: ReadonlyMap<string, boolean>
+  /**
+   * The caller's plan features, or null while the panel does not report them; null offers every
+   * item, since hiding is advice and errs permissive.
+   */
+  planFeatures: ReadonlySet<string> | null
+  /** The live counts the shell holds, per badge kind. */
+  badges: Readonly<Record<NavigationBadgeKind, number>>
+  /**
+   * Whether this bundle registers a route.
+   * @param name The route name.
+   * @returns True when the router knows it.
+   */
+  hasRoute: (name: string) => boolean
+}
+
+/**
+ * One entry in the authenticated shell's navigation, as `utils/buildNavigation.ts` builds it from
+ * the tree for the signed-in role.
  */
 export interface NavigationEntry {
-  /** Stable identifier for `:key` in `v-for`; the module name for module-backed entries. */
+  /** Stable identifier for `:key` in `v-for`; the tree key, or a module name for a catalogue entry. */
   key: string
+  /** The group the entry is drawn under (`app.nav.groups.<groupKey>`). */
+  groupKey: string
+  /** Where the entry leads, or that it leads nowhere yet. */
+  state: NavigationEntryState
   /**
-   * Fully-resolved destination for this entry, including any route params. Built by the navigation
-   * composable, which knows the module — the layout must not reconstruct it, or the two would
-   * disagree (a module whose page is not registered yet needs the upgrade route WITH its param).
-   */
-  target: RouteLocationRaw
-  /**
-   * i18n key for the entry's label — used only by the shell's own entries, whose text this bundle
-   * owns. Null for module entries, which carry a backend-localized {@link label} instead.
+   * i18n key of the label, for every entry of the tree. Null only for a module the tree does not
+   * know, which carries the panel's own localized {@link label} instead.
    */
   labelKey: string | null
-  /**
-   * Ready-to-render label supplied by the panel, already localized in the request's language. Set
-   * for module entries — the SPA cannot own translations for modules it learns about at runtime,
-   * including marketplace modules unknown when this bundle was built. Null for shell entries.
-   */
+  /** Label the panel supplied, already localized; set only when {@link labelKey} is null. */
   label: string | null
-  /** Machine name of the module this entry represents, or `null` for entries not backed by a module (e.g. system status). */
-  moduleName: string | null
-  /**
-   * Glyph the entry is drawn with. Not catalogue data — the panel reports no
-   * icon — so the shell picks one from a closed set (see {@link NavigationIcon}).
-   */
+  /** Glyph the entry is drawn with. */
   icon: NavigationIcon
-  /** Whether the licence does not currently permit this module — rendered as visibly locked, not hidden. */
-  locked: boolean
+  /** The live count to draw beside the entry, or null when there is none to show. */
+  badge: number | null
   /**
-   * The module's own pages, landing page first, drawn as a collapsible submenu (issue #195). One
-   * level deep: a child never has children of its own. Empty for a single-page entry, for a locked
-   * module (its only destination is the upgrade page) and for every child.
+   * The section's pages, drawn as a collapsible submenu. One level deep. Empty for a link, for a
+   * section left with one page (drawn as that page's link), and for every child.
    */
   children: NavigationEntry[]
 }
 
-/** One page inside a module's submenu. */
-export interface NavigationChildSpec {
-  /** Stable key, unique across the whole sidebar (used for `:key` and DOM ids). */
-  key: string
-  /** Route name the child leads to. */
-  route: string
-  /** i18n key of the child's label; the SPA owns these, they name its own screens. */
-  labelKey: string
-  /**
-   * Offered only to a role above customer. Advice, not a gate: the endpoint refuses a customer
-   * whatever the sidebar shows, and an unknown role errs permissive (rules/architecture.md).
-   */
-  adminOnly: boolean
-}
-
-/** The navigation entries the shell owns itself rather than reads from the module catalogue. */
-export type ShellEntryKey = 'system-status' | 'audit-journal' | 'security-policy'
-
 /**
- * Where a screen sits in the navigation, as `utils/locateNavigation.ts` derives it from the same
- * sources the sidebar is drawn from: the group, the entry, the submenu child, and whether the
- * screen is a level below them (a record, a form) that the navigation does not list itself.
+ * Where a screen sits in the navigation, as `utils/locateNavigation.ts` derives it from the tree:
+ * the group, the top-level item, the submenu page, and whether the screen is a level below them (a
+ * record, a form) that the navigation does not list itself.
  */
 export interface NavigationLocation {
-  /** Key of the group the entry is drawn under (`app.nav.groups.<key>`). */
+  /** Key of the group the item is drawn under (`app.nav.groups.<key>`). */
   groupKey: string
-  /** Key of the top-level entry: a module machine name, or a {@link ShellEntryKey}. */
+  /** Key of the top-level item. */
   entryKey: string
-  /** Route name of the submenu child the screen is, or sits beneath; null for the entry's own landing page. */
-  childRoute: string | null
+  /** The submenu page the screen is, or sits beneath; null for a single-page item. */
+  child: NavigationPageSpec | null
   /** Whether the screen is below the destination the navigation lists (`meta.navigationParent`). */
   leaf: boolean
 }

@@ -16,11 +16,10 @@ import type { PanelModule } from '../../src/types/module'
 const LICENSED: PanelModule[] = [
   { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
   { name: 'sftp', displayName: 'File transfer', tier: 'included', isEnabled: true },
-  // A module this bundle has no glyph for, so a spec can tell a chosen icon from the neutral one.
-  // It was `backups` until the backups screen landed and gave that module a glyph of its own — a
-  // control has to be a module this bundle really does not draw, or the comparison compares two
-  // chosen glyphs and passes for the wrong reason.
-  { name: 'notifications', displayName: 'Notifications', tier: 'included', isEnabled: true },
+  // A module the navigation tree does not name, so the sidebar draws it in the fallback group with
+  // the neutral glyph. A control has to be a module this bundle really does not draw, or the
+  // comparison compares two chosen glyphs and passes for the wrong reason.
+  { name: 'reports', displayName: 'Reports', tier: 'included', isEnabled: true },
 ]
 
 const ALICE: Account = {
@@ -168,8 +167,8 @@ test('the sidebar links to the databases screen when the panel licenses the modu
 })
 
 // Three identical glyphs in a column of three rows tell the reader nothing the labels do not.
-// `notifications` is in the catalogue precisely as the neutral case to compare against.
-test('the databases and sftp entries draw their own glyph rather than the neutral one', async ({ page }) => {
+// `reports` is in the catalogue precisely as the neutral case to compare against.
+test('the databases and files entries draw their own glyph rather than the neutral one', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
@@ -179,14 +178,20 @@ test('the databases and sftp entries draw their own glyph rather than the neutra
   await page.goto('/')
 
   const navigation = page.getByRole('navigation')
-  const databasesGlyph = await navigation.getByRole('link', { name: 'Databases' }).locator('svg').innerHTML()
-  const sftpGlyph = await navigation
-    .getByRole('link', { name: 'File transfer', exact: true })
+  const databasesGlyph = await navigation
+    .getByRole('link', { name: 'Databases', exact: true })
     .locator('svg')
+    .first()
+    .innerHTML()
+  const sftpGlyph = await navigation
+    .getByRole('link', { name: 'Files and access', exact: true })
+    .locator('svg')
+    .first()
     .innerHTML()
   const neutralGlyph = await navigation
-    .getByRole('link', { name: 'Outgoing mail' })
+    .getByRole('link', { name: /^Reports/ })
     .locator('svg')
+    .first()
     .innerHTML()
 
   expect(databasesGlyph).not.toEqual(neutralGlyph)

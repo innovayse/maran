@@ -12,8 +12,9 @@ import type { PanelModule } from '../../src/types/module'
 const LICENSED: PanelModule[] = [
   { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
   { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
-  // A module this bundle has no glyph for, so a spec can tell a chosen icon from the neutral one.
-  { name: 'notifications', displayName: 'Notifications', tier: 'included', isEnabled: true },
+  // A module the navigation tree does not name, so the sidebar draws it in the fallback group with
+  // the neutral glyph: the control a chosen icon is told apart from.
+  { name: 'reports', displayName: 'Reports', tier: 'included', isEnabled: true },
 ]
 
 const ALICE: Account = {
@@ -312,7 +313,7 @@ test('the sidebar links to the backups screen and the page opens with one headin
 })
 
 // Three identical glyphs in a column of three rows tell the reader nothing the labels do not.
-// `notifications` is in the catalogue precisely as the neutral case to compare against.
+// `reports` is in the catalogue precisely as the neutral case to compare against.
 test('the backups entry draws its own glyph rather than the neutral one', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
@@ -323,10 +324,11 @@ test('the backups entry draws its own glyph rather than the neutral one', async 
   await page.goto('/')
 
   const navigation = page.getByRole('navigation')
-  const backupsGlyph = await navigation.getByRole('link', { name: 'Backups' }).locator('svg').innerHTML()
+  const backupsGlyph = await navigation.getByRole('link', { name: 'Backups' }).locator('svg').first().innerHTML()
   const neutralGlyph = await navigation
-    .getByRole('link', { name: 'Outgoing mail' })
+    .getByRole('link', { name: /^Reports/ })
     .locator('svg')
+    .first()
     .innerHTML()
 
   expect(backupsGlyph).not.toEqual(neutralGlyph)

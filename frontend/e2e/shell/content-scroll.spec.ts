@@ -26,7 +26,7 @@ test('the Firewall page scrolls in its panel only, and the app bar does not move
   await page.goto('/')
   const before = await page.getByRole('banner').boundingBox()
 
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Firewall' }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Security', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
 
   const documentScrolls = await page.evaluate((): boolean => {

@@ -1,4 +1,4 @@
-import { nextTick, watch, type Ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, watch, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
 import type { NavigationEntry } from '../types/navigation'
 
@@ -12,6 +12,10 @@ import type { NavigationEntry } from '../types/navigation'
  * moves only as far as needed (the nearest edge), and not at all when the row is already
  * visible, so navigating between visible rows never makes it jump.
  *
+ * It also runs when the scroller itself changes height. The identity card below the list fills in
+ * after the first paint, which shortens the scroller AFTER the row was revealed and left a lit
+ * row half under the card on a deep link (issue #311 measured 20px on a 480px window).
+ *
  * The scroller is moved by hand rather than with `scrollIntoView`, which also scrolls every
  * scrollable ancestor, the shell's `overflow: hidden` frame included, and shifted the app bar.
  * @param scroller The element the navigation scrolls in; nothing happens while it is unmounted.
@@ -23,6 +27,9 @@ export const useRevealCurrentRow = (
   entries: () => readonly NavigationEntry[],
 ): void => {
   const route = useRoute()
+
+  /** Watches the scroller's own size; created once it is mounted. */
+  let observer: ResizeObserver | null = null
 
   /**
    * Scrolls the current row to the scroller's nearest edge when it lies outside it.
@@ -55,4 +62,17 @@ export const useRevealCurrentRow = (
     reveal,
     { immediate: true, flush: 'post' },
   )
+
+  onMounted((): void => {
+    observer = new ResizeObserver((): void => {
+      void reveal()
+    })
+    if (scroller.value !== null) {
+      observer.observe(scroller.value)
+    }
+  })
+
+  onBeforeUnmount((): void => {
+    observer?.disconnect()
+  })
 }

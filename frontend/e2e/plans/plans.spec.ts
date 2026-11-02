@@ -104,9 +104,9 @@ test('the sidebar offers Plans inside the Accounts submenu and it leads to the s
 
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
   // Plans is a child of Accounts (issue #195): the section is closed away from its pages.
-  await expect(nav.getByRole('link', { name: 'Plans' })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: 'Plans', exact: true })).toHaveCount(0)
   await nav.getByRole('button', { name: 'Show the Accounts pages' }).click()
-  await nav.getByRole('link', { name: 'Plans' }).click()
+  await nav.getByRole('link', { name: 'Plans', exact: true }).click()
 
   await expect(page).toHaveURL('/plans')
   await expect(page.getByRole('heading', { level: 1, name: 'Plans' })).toBeVisible()
