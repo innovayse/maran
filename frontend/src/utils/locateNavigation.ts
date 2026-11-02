@@ -1,7 +1,7 @@
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import { moduleOfLandingRoute } from '../router/moduleLandingRoute'
 import { FALLBACK_GROUP, NAVIGATION_TREE } from '../router/navigationTree'
-import type { NavigationLocation, NavigationPageSpec } from '../types/navigation'
+import type { NavigationLocation, NavigationPageSpec, NavigationRole } from '../types/navigation'
 
 /**
  * Places a screen in the navigation, from the tree the sidebar is drawn from
@@ -10,13 +10,16 @@ import type { NavigationLocation, NavigationPageSpec } from '../types/navigation
  */
 
 /**
- * Whether a page is built and routed under a route name.
+ * Whether a page is built, offered to the role, and routed under a route name. The role matters
+ * because one route can be listed in two places for two roles (tasks: Monitoring for an operator,
+ * Activity for a customer, issue #312).
  * @param page The page from the tree.
  * @param routeName The route's name.
+ * @param role The caller's navigation role.
  * @returns True when the page is that route.
  */
-const isRoute = (page: NavigationPageSpec, routeName: string): boolean => {
-  return page.availability.state === 'available' && page.availability.route === routeName
+const isRoute = (page: NavigationPageSpec, routeName: string, role: NavigationRole): boolean => {
+  return page.roles.includes(role) && page.availability.state === 'available' && page.availability.route === routeName
 }
 
 /**
@@ -24,23 +27,24 @@ const isRoute = (page: NavigationPageSpec, routeName: string): boolean => {
  * page is the page the section opens on, so it is the item itself rather than a level below it.
  * A catalogue module the tree does not know is found by its landing route, in the fallback group.
  * @param routeName The route's name.
+ * @param role The caller's navigation role.
  * @returns The location without its leaf flag, or `undefined` when the navigation does not list it.
  */
-const destinationOf = (routeName: string): Omit<NavigationLocation, 'leaf'> | undefined => {
+const destinationOf = (routeName: string, role: NavigationRole): Omit<NavigationLocation, 'leaf'> | undefined => {
   for (const group of NAVIGATION_TREE) {
     for (const node of group.nodes) {
       if (node.kind === 'link') {
-        if (isRoute(node, routeName)) {
+        if (isRoute(node, routeName, role)) {
           return { groupKey: group.key, entryKey: node.key, child: null }
         }
         continue
       }
       const child = node.children.find((candidate): boolean => {
-        return isRoute(candidate, routeName)
+        return isRoute(candidate, routeName, role)
       })
       if (child !== undefined) {
         const landing = node.children.find((candidate): boolean => {
-          return candidate.availability.state === 'available'
+          return candidate.availability.state === 'available' && candidate.roles.includes(role)
         })
         return { groupKey: group.key, entryKey: node.key, child: child === landing ? null : child }
       }
@@ -55,12 +59,13 @@ const destinationOf = (routeName: string): Omit<NavigationLocation, 'leaf'> | un
  * not list, such as a record or a form — the destination its `meta.navigationParent` names, one
  * level up.
  * @param route The route to place.
+ * @param role The caller's navigation role, so the screen is placed where that caller's menu lists it.
  * @returns Its location, or `null` for a screen outside the navigation (a 404, the upgrade page).
  */
-export const locateNavigation = (route: RouteLocationNormalizedLoaded): NavigationLocation | null => {
+export const locateNavigation = (route: RouteLocationNormalizedLoaded, role: NavigationRole): NavigationLocation | null => {
   const routeName = typeof route.name === 'string' ? route.name : ''
-  const direct = destinationOf(routeName)
+  const direct = destinationOf(routeName, role)
   const parent = route.meta.navigationParent
-  const destination = direct ?? (parent === undefined ? undefined : destinationOf(parent))
+  const destination = direct ?? (parent === undefined ? undefined : destinationOf(parent, role))
   return destination === undefined ? null : { ...destination, leaf: direct === undefined }
 }

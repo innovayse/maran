@@ -24,8 +24,13 @@ withDefaults(
     nested?: boolean
     /** Leaves room at the row's end for the section toggle `UiNavSection` draws over it. */
     trailing?: boolean
+    /**
+     * Draws the row as a phone tab-bar cell: icon over a short label, in the same box as the bar's
+     * links (issue #312, the customer's Mail tab until mail lands).
+     */
+    tab?: boolean
   }>(),
-  { compact: false, nested: false, trailing: false },
+  { compact: false, nested: false, trailing: false, tab: false },
 )
 </script>
 
@@ -35,20 +40,23 @@ withDefaults(
     aria-disabled="true"
     tabindex="0"
     data-nav-planned
-    class="flex cursor-not-allowed items-center gap-2.5 rounded-control text-sm font-medium text-text-muted focus-visible:shadow-focus focus-visible:outline-none"
+    class="flex cursor-not-allowed items-center rounded-control text-text-muted focus-visible:shadow-focus focus-visible:outline-none"
     :class="
-      compact
-        ? 'mx-auto size-9 justify-center'
-        : nested
-          ? 'w-full px-2.5 py-1 max-lg:py-3'
-          : trailing
-            ? 'w-full py-1.5 pr-9 pl-2.5 max-lg:py-3'
-            : 'w-full px-2.5 py-1.5 max-lg:py-3'
+      tab
+        ? 'm-0.5 min-w-0 justify-center text-center text-xs leading-tight font-semibold'
+        : compact
+          ? 'mx-auto size-9 justify-center text-sm font-medium'
+          : nested
+            ? 'w-full px-2.5 py-1 text-sm font-medium max-lg:py-3'
+            : trailing
+              ? 'w-full py-1.5 pr-9 pl-2.5 text-sm font-medium max-lg:py-3'
+              : 'w-full px-2.5 py-1.5 text-sm font-medium max-lg:py-3'
     "
     :title="hint"
   >
-    <!-- The label cluster takes the row's width; the caller's label span wraps itself. -->
-    <span class="flex items-center gap-2.5" :class="compact ? 'flex-none' : 'min-w-0 flex-1'">
+    <!-- The label cluster takes the row's width; the caller's label span wraps itself. A tab cell
+         stacks its icon over its label instead. -->
+    <span class="flex items-center" :class="tab ? 'flex-col gap-1' : compact ? 'flex-none gap-2.5' : 'min-w-0 flex-1 gap-2.5'">
       <slot />
     </span>
     <span class="sr-only">{{ hint }}</span>

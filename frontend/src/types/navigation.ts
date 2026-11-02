@@ -33,6 +33,10 @@ export type NavigationIcon =
   | 'chartLine'
   /** The panel's own settings. */
   | 'settings'
+  /** A customer's own activity: the background tasks of their account (issue #312). */
+  | 'listChecks'
+  /** A customer's own account: profile, sign-in security and sessions (issue #312). */
+  | 'user'
 
 /**
  * Who a navigation item is offered to. Mirrors the signed-in user's role; `reseller` is declared

@@ -1,0 +1,5 @@
+{
+  "planLimit": {
+    "reached": "{kind}: your plan allows {limit}, and all of them are in use. Delete one, or ask your provider for a larger plan, to add another."
+  }
+}

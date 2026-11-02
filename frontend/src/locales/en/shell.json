@@ -11,7 +11,8 @@
         "hosting": "Hosting",
         "infrastructure": "Infrastructure",
         "system": "System",
-        "panel": "Panel"
+        "panel": "Panel",
+        "account": "Your account"
       },
       "expandSection": "Show the {name} pages",
       "children": {
@@ -45,7 +46,18 @@
         "settingsPanel": "Panel",
         "settingsAdministrators": "Administrators and roles",
         "settingsModules": "Modules and licence",
-        "settingsBranding": "Branding"
+        "settingsBranding": "Branding",
+        "sitePhp": "PHP settings",
+        "mailAutoresponders": "Autoresponders",
+        "mailSpamFilter": "Spam filter",
+        "webmail": "Webmail",
+        "databaseAdminTool": "Database admin tool",
+        "fileManager": "File manager",
+        "backupsRestore": "Restore",
+        "siteLogs": "Site logs",
+        "subUsers": "Sub-users",
+        "sshKeys": "SSH keys",
+        "dnsMyZones": "My zones"
       },
       "plannedHint": "Coming soon",
       "items": {
@@ -59,7 +71,9 @@
         "security": "Security",
         "servers": "Servers",
         "monitoring": "Monitoring",
-        "settings": "Settings"
+        "settings": "Settings",
+        "activity": "Activity",
+        "account": "My account"
       },
       "badges": {
         "failedTasks": "failed"
@@ -99,7 +113,9 @@
         "accounts": "Accounts",
         "sites": "Sites",
         "databases": "Databases",
-        "more": "More"
+        "more": "More",
+        "mail": "Mail",
+        "account": "Account"
       },
       "theme": {
         "label": "Theme: {mode}",

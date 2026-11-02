@@ -17,18 +17,10 @@
  * **Two kinds of nothing.** No sites at all is the empty state, with the way to create the first.
  * A search or filter matching none is the no-results state, with the way back to every site.
  *
- * Lessons this page carries:
- * - The domain is a link, not text. Every action a site has — the PHP version, enable, disable,
- *   delete, its logs, its certificate — lives on the detail page, so a row that cannot be opened
- *   would put all of them out of reach. It is also the ONLY link in a row, and its name is the
- *   bare domain: the end-to-end specs find the way in by that name.
- * - The owner is named by the panel (`ownerName` on each row), never joined from an account list
- *   the SPA happens to hold: a page of sites can belong to any of thousands of accounts. It is
- *   shown to an administrator only; a customer owns every row.
+ * Lessons this page carries (the table's own — the domain as the one link in a row, the owner
+ * named by the panel, an empty PHP version shown as an absence — live in `SitesTable`):
  * - PHP runtimes are a property of this server that only sites consume, so the link to them lives
  *   here, beside the create action.
- * - The backend sends an empty PHP version for a non-PHP site. That is an absence, and it is shown
- *   as one rather than as a blank cell a reader would mistake for missing data.
  * - A server's error is rendered verbatim by the alert, and no table and no empty state is drawn
  *   beside it: "nothing here" and "could not ask" are different statements.
  *
@@ -36,40 +28,33 @@
  * when there is one the list opens with an amber notice saying how many. The count is the panel's,
  * across every page of the account the list is narrowed to, never a count of the rows on screen.
  */
-import { computed, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, toRef, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
 import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
-import UiFilterSheet from '../../components/ui/UiFilterSheet.vue'
 import UiFilterTrigger from '../../components/ui/UiFilterTrigger.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
-import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
-import UiCombobox from '../../components/ui/UiCombobox.vue'
-import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
-import UiTable from '../../components/ui/UiTable.vue'
-import type { UiTableColumn } from '../../types/tableColumn'
-import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
-import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
+import SitesFilterSheet from '../../components/sites/SitesFilterSheet.vue'
+import SitesTable from '../../components/sites/SitesTable.vue'
+import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
-import { useLocaleStore } from '../../stores/locale'
 import { usePhpVersionsStore } from '../../stores/phpVersions'
 import { useSitesStore } from '../../stores/sites'
-import { formatDate } from '../../utils/formatDate'
 import { takeFlashNotice } from '../../utils/flashNotice'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { Site, SiteBackendType, SiteStatus } from '../../types/site'
+import { usePlanLimit } from '../../composables/usePlanLimit'
 
 /** What can serve a site, mirroring the `SiteBackendType` union the panel serializes. */
 const BACKEND_TYPES: readonly SiteBackendType[] = ['static', 'php', 'reverseProxy']
@@ -80,9 +65,10 @@ const SITE_STATUSES: readonly SiteStatus[] = ['enabled', 'disabled']
 const { t } = useI18n()
 const store = useSitesStore()
 const phpVersionsStore = usePhpVersionsStore()
-const localeStore = useLocaleStore()
 const labels = useListLabels()
 const { isAdmin, isCustomer } = useCallerRole()
+/** Whether the plan still allows another site (issue #312); advice, the endpoint enforces. */
+const { reached: planLimitReached, reason: planLimitReason } = usePlanLimit('sites', toRef(store, 'sites'))
 const { picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { spec: accountSpec, name: accountFilterName } = useAccountFilter()
 
@@ -135,65 +121,6 @@ const isNarrowed: ComputedRef<boolean> = computed(() => {
 /** Whether the latest answer arrived and holds no rows at all. */
 const answeredNothing: ComputedRef<boolean> = computed(() => {
   return table.state.value.status === 'loaded' && table.total.value === 0
-})
-
-/**
- * The account filter's picker: the page of accounts matching its search, after an "any account"
- * choice, which is counted into the total so the "more matches" line stays right. Administrators only.
- */
-const accountFilterPicker: ComputedRef<AccountPickerState> = computed(() => {
-  const state = accountPicker.value
-  return {
-    ...state,
-    options: [{ value: '', label: t('common.list.any') }, ...state.options],
-    total: state.total + 1,
-  }
-})
-
-/** The backends the filter offers, after an "any backend" choice. */
-const backendOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: '', label: t('common.list.any') },
-    ...BACKEND_TYPES.map((backend) => {
-      return { value: backend, label: t(`sites.backendType.${backend}`) }
-    }),
-  ]
-})
-
-/** The PHP versions installed on this server, as the panel reports them, after an "any" choice. */
-const phpVersionOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: '', label: t('common.list.any') },
-    ...phpVersionsStore.phpVersions.map((installed) => {
-      return { value: installed.version, label: installed.version }
-    }),
-  ]
-})
-
-/** The serving states the filter offers, after an "any state" choice. */
-const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: '', label: t('common.list.any') },
-    ...SITE_STATUSES.map((status) => {
-      return { value: status, label: t(`sites.status.${status}`) }
-    }),
-  ]
-})
-
-/**
- * The table's columns: its header, its cells and its loading placeholder all read this one list.
- * The owner column is an administrator's; a customer's sites are all their own.
- */
-const columns: ComputedRef<UiTableColumn[]> = computed(() => {
-  const owner: UiTableColumn[] = isAdmin.value ? [{ key: 'owner', label: t('sites.list.columns.owner'), kind: 'mono' }] : []
-  return [
-    { key: 'domain', label: t('sites.list.columns.domain'), kind: 'identity', sortField: 'domain', minWidth: '12rem' },
-    ...owner,
-    { key: 'backendType', label: t('sites.list.columns.backendType'), kind: 'text' },
-    { key: 'phpVersion', label: t('sites.list.columns.phpVersion'), kind: 'mono' },
-    { key: 'status', label: t('sites.list.columns.status'), kind: 'badge', sortField: 'status' },
-    { key: 'createdAt', label: t('sites.list.columns.createdAt'), kind: 'date', align: 'end', sortField: 'createdAt' },
-  ]
 })
 
 /** One removable chip per applied filter. */
@@ -282,9 +209,11 @@ watch(
         <!-- PHP versions are an administrator's server setting; hidden from a customer as
              presentation only, the endpoint refuses them on its own (rules/security.md). -->
         <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'php-versions' }">{{ t('sites.list.phpVersionsLink') }}</UiButton>
-        <UiButton :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
+        <UiButton v-if="!planLimitReached" :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
       </template>
     </UiPageHeading>
+
+    <UiAlert v-if="planLimitReason !== null" variant="info">{{ planLimitReason }}</UiAlert>
 
     <UiAlert v-if="store.disabledCount.state === 'counted' && store.disabledCount.count > 0" variant="warning">
       {{ t('sites.list.disabledNotice', { count: store.disabledCount.count }, store.disabledCount.count) }}
@@ -299,7 +228,7 @@ watch(
       :description="t('sites.list.emptyDescription')"
     >
       <template #icon><UiIcon name="earth" /></template>
-      <UiButton :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
+      <UiButton v-if="!planLimitReached" :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
     </UiEmptyState>
 
     <UiCard v-else>
@@ -345,35 +274,14 @@ watch(
           </UiEmptyState>
 
           <div v-else class="flex flex-col gap-4">
-            <UiTable
-              :caption="t('sites.list.tableCaption')"
-              :columns="columns"
+            <SitesTable
               :rows="store.sites"
-              row-key="id"
               :loading="table.state.value.status === 'loading'"
               :skeleton-rows="table.pageSize.value"
               :sort="table.sort.value"
+              :show-owner="isAdmin"
               @sort="table.toggleSort"
-            >
-              <template #cell-domain="{ row }">
-                <div class="flex items-center gap-3">
-                  <UiIconTile name="earth" />
-                  <!-- The way in: everything that can be done to a site lives on its detail page. -->
-                  <RouterLink
-                    :to="{ name: 'site-detail', params: { id: row.id } }"
-                    class="inline-flex min-h-6 items-center rounded-control font-mono font-semibold text-accent-text hover:underline focus-visible:shadow-focus focus-visible:outline-none"
-                    >{{ row.domain }}</RouterLink
-                  >
-                </div>
-              </template>
-              <template #cell-owner="{ row }">{{ row.ownerName }}</template>
-              <template #cell-backendType="{ row }">{{ t(`sites.backendType.${row.backendType}`) }}</template>
-              <template #cell-phpVersion="{ row }">
-                {{ row.phpVersion.length > 0 ? row.phpVersion : t('common.emptyValue') }}
-              </template>
-              <template #cell-status="{ row }"><SiteStatusBadge :status="row.status" /></template>
-              <template #cell-createdAt="{ row }">{{ formatDate(row.createdAt, localeStore.current) }}</template>
-            </UiTable>
+            />
 
             <UiPagination
               v-if="table.state.value.status === 'loaded'"
@@ -390,32 +298,18 @@ watch(
       </div>
     </UiCard>
 
-    <UiFilterSheet
+    <SitesFilterSheet
       :open="filtersOpen"
-      :model-value="table.filters.value"
-      :title="t('common.list.filters')"
-      :close-label="t('common.close')"
-      :apply-label="t('common.list.apply')"
-      :reset-label="t('common.list.reset')"
-      @update:model-value="table.setFilters"
+      :filters="table.filters.value"
+      :show-account="!isCustomer"
+      :account-picker="accountPicker"
+      :account-name="accountFilterName"
+      :backend-types="BACKEND_TYPES"
+      :statuses="SITE_STATUSES"
+      @apply="table.setFilters"
       @close="closeFilters"
-    >
-      <template #default="{ draft }">
-        <!-- A customer's lists are already their own account's; there is nothing to narrow to. -->
-        <UiCombobox
-          v-if="!isCustomer"
-          v-model="draft.account"
-          v-bind="accountFilterPicker"
-          :label="t('sites.list.filters.account')"
-          :placeholder="t('common.list.any')"
-          :selected-label="accountFilterName"
-          @search="searchAccounts"
-        />
-        <UiSelect v-model="draft.backend" :label="t('sites.list.filters.backend')" :options="backendOptions" />
-        <UiSelect v-model="draft.phpVersion" :label="t('sites.list.filters.phpVersion')" :options="phpVersionOptions" />
-        <UiSelect v-model="draft.status" :label="t('sites.list.filters.status')" :options="statusOptions" />
-      </template>
-    </UiFilterSheet>
+      @search="searchAccounts"
+    />
 
     <UiPinnedToast :message="notice" :close-label="t('common.close')" @dismiss="dismissNotice" />
   </section>

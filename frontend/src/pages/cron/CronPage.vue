@@ -3,9 +3,8 @@
  * Scheduled tasks screen: the account being looked at, the form that installs an entry, the
  * account's crontab preamble, the entries themselves, and what one entry's last run left behind.
  *
- * Renders a `<section>`, not a `<main>` — the single `<main>` landmark lives in the layout this
- * page is nested under. State comes exclusively from the cron store; the page never touches the API
- * layer (rules/vue.md: API composables are called from stores only).
+ * Renders a `<section>`; the single `<main>` landmark lives in the layout. State comes exclusively
+ * from the cron store; the page never touches the API layer (rules/vue.md).
  *
  * **The account is chosen on the screen rather than carried in the route**, because it is what
  * every one of the module's calls names: cron keeps no rows, so an entry id means nothing until it
@@ -30,7 +29,7 @@
  * shows its real header over placeholder rows drawn from its own `columns`, inside a
  * {@link UiLoadingRegion}; a failed read is the region's alert, never a skeleton.
  */
-import { computed, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, toRef, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -55,9 +54,12 @@ import { useCronStore } from '../../stores/cron'
 import { useCronRunsStore } from '../../stores/cronRuns'
 import type { CronEntry, CronSchedule } from '../../types/cronEntry'
 import type { CronEnvironmentVariable } from '../../types/cronEnvironmentVariable'
+import { usePlanLimit } from '../../composables/usePlanLimit'
 
 const { t } = useI18n()
 const store = useCronStore()
+/** Whether the plan still allows another cron entry (issue #312); advice, the endpoint enforces. */
+const { reached: planLimitReached, reason: planLimitReason } = usePlanLimit('cronEntries', toRef(store, 'entries'))
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { filter: accountListFilter } = useAccountFilter()
 const accountsStore = useAccountsStore()
@@ -301,7 +303,8 @@ onMounted(start)
     <UiAlert v-if="store.saveErrorMessage !== null" variant="error">{{ store.saveErrorMessage }}</UiAlert>
     <UiAlert v-if="store.actionErrorMessage !== null" variant="error">{{ store.actionErrorMessage }}</UiAlert>
 
-    <UiCard>
+    <UiAlert v-if="planLimitReason !== null" variant="info">{{ planLimitReason }}</UiAlert>
+    <UiCard v-if="editing !== null || !planLimitReached">
       <UiSectionHeading
         class="mb-4"
         :title="editing === null ? t('cron.form.createHeading') : t('cron.form.editHeading')"

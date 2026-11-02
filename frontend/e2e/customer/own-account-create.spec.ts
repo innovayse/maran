@@ -152,10 +152,10 @@ test('a customer creates a site on their own account without a picker', async ({
   await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
 
   await page.goto('/sites/new')
-  await expect(page.getByLabel('Domain')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Domain' })).toBeVisible()
   await expect(page.getByRole('combobox', { name: 'Account' })).toHaveCount(0)
 
-  await page.getByLabel('Domain').fill('olive-shop.example.com')
+  await page.getByRole('textbox', { name: 'Domain' }).fill('olive-shop.example.com')
   const post = nextPost(page, /\/api\/v1\/sites$/)
   await page.getByRole('button', { name: 'Create site' }).click()
 

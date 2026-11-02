@@ -29,7 +29,7 @@
  * dialog's close, so a navigation ends the one showing; nothing is written to storage, so a reload
  * ends it too.
  */
-import { computed, onBeforeUnmount, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, ref, toRef, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -58,12 +58,15 @@ import { useServerTable } from '../../composables/useServerTable'
 import { useDatabasesStore } from '../../stores/databases'
 import type { CreateDatabaseRequest, Database, DatabaseAction } from '../../types/database'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
+import { usePlanLimit } from '../../composables/usePlanLimit'
 
 const { t } = useI18n()
 const store = useDatabasesStore()
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { spec: accountSpec, name: accountFilterName } = useAccountFilter()
 const { isAdmin, isCustomer } = useCallerRole()
+/** Whether the plan still allows another database (issue #312); advice, the endpoint enforces. */
+const { reached: planLimitReached, reason: planLimitReason } = usePlanLimit('databases', toRef(store, 'databases'))
 const labels = useListLabels()
 
 const table = useServerTable<Database>({
@@ -254,7 +257,9 @@ onBeforeUnmount(dismissCredential)
       {{ store.actionErrorMessage }}
     </UiAlert>
 
+    <UiAlert v-if="planLimitReason !== null" variant="info">{{ planLimitReason }}</UiAlert>
     <DatabaseCreateForm
+      v-if="!planLimitReached"
       ref="form"
       :account-picker="accountPicker"
       :fixed-account-id="fixedAccountId"

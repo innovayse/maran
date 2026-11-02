@@ -11,7 +11,8 @@
         "hosting": "Хостинг",
         "infrastructure": "Инфраструктура",
         "system": "Система",
-        "panel": "Панель"
+        "panel": "Панель",
+        "account": "Ваш аккаунт"
       },
       "expandSection": "Показать разделы «{name}»",
       "children": {
@@ -45,7 +46,18 @@
         "settingsPanel": "Панель",
         "settingsAdministrators": "Администраторы и роли",
         "settingsModules": "Модули и лицензия",
-        "settingsBranding": "Брендинг"
+        "settingsBranding": "Брендинг",
+        "sitePhp": "Настройки PHP",
+        "mailAutoresponders": "Автоответчики",
+        "mailSpamFilter": "Спам-фильтр",
+        "webmail": "Веб-почта",
+        "databaseAdminTool": "Управление базами",
+        "fileManager": "Файловый менеджер",
+        "backupsRestore": "Восстановление",
+        "siteLogs": "Логи сайтов",
+        "subUsers": "Пользователи",
+        "sshKeys": "SSH-ключи",
+        "dnsMyZones": "Мои зоны"
       },
       "plannedHint": "Скоро",
       "items": {
@@ -59,7 +71,9 @@
         "security": "Безопасность",
         "servers": "Серверы",
         "monitoring": "Мониторинг",
-        "settings": "Настройки"
+        "settings": "Настройки",
+        "activity": "Активность",
+        "account": "Мой аккаунт"
       },
       "badges": {
         "failedTasks": "с ошибкой"
@@ -99,7 +113,9 @@
         "accounts": "Аккаунты",
         "sites": "Сайты",
         "databases": "Базы",
-        "more": "Ещё"
+        "more": "Ещё",
+        "mail": "Почта",
+        "account": "Аккаунт"
       },
       "theme": {
         "label": "Тема: {mode}",

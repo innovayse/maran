@@ -624,10 +624,12 @@ spa	cron/run-now.spec.ts	2	0	0
 spa	cron/schedule.spec.ts	2	0	0
 spa	customer-area.spec.ts	2	0	0
 spa	customer/console-clean.spec.ts	1	0	0
+spa	customer/customer-navigation.spec.ts	6	0	0
 spa	customer/invitation.spec.ts	2	0	0
 spa	customer/navigation.spec.ts	3	0	0
 spa	customer/no-admin-links.spec.ts	4	0	0
 spa	customer/own-account-create.spec.ts	5	0	0
+spa	customer/plan-limit.spec.ts	4	0	0
 spa	customer/role-guard.spec.ts	20	0	0
 spa	customer/tasks.spec.ts	3	0	0
 spa	dashboard-loading.spec.ts	3	0	0
@@ -759,3 +761,11 @@ spa	upgrade/tier-name.spec.ts	3	0	0
 # 174 targets: 1153 passed / 2 failed / 2 ignored, the two failures sites/form.spec.ts:75 and :108,
 # a `getByLabel('Domain')` that also matched the new "Sites and domains" submenu label, fixed in the
 # same change (sites/ re-run: 73 passed). Backend untouched, not run.
+# RE-MEASURED 2026-11-02 (issue #312, customer navigation): edited by hand. New spa rows
+# customer/customer-navigation.spec.ts 6 and customer/plan-limit.spec.ts 4 (customer/ measured alone:
+# 48 passed). No other row changed: shell/admin-navigation.spec.ts keeps its 8 (its customer case was
+# narrowed to the server's items in place). Source: `maran test spa` printing 176 targets: 1162
+# passed / 3 failed / 2 ignored, the failures sites/form.spec.ts:75 and :108 (the Domain label clash
+# #311 fixed, merged here) and shell/sidebar-state.spec.ts:197, a viewport-ratio check that passed
+# twice in a row when re-run alone and is the timing-under-load case rules/testing.md discounts.
+# Backend untouched, not run.
