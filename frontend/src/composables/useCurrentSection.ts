@@ -22,7 +22,11 @@ export const useCurrentSection = (): ((entry: NavigationEntry) => boolean) => {
    */
   const holdsCurrentRoute = (entry: NavigationEntry): boolean => {
     return entry.children.some((child): boolean => {
-      const path = router.resolve(child.target).path
+      // A planned page has no path, so the current route cannot lie inside it.
+      if (child.state.kind === 'planned') {
+        return false
+      }
+      const path = router.resolve(child.state.target).path
       return route.path === path || route.path.startsWith(`${path}/`)
     })
   }

@@ -22,6 +22,7 @@ import { useRouter } from 'vue-router'
 import UiModal from '../ui/UiModal.vue'
 import UiSearchInput from '../ui/UiSearchInput.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { NavigationEntry } from '../../types/navigation'
 
 /** Props accepted by {@link ShellCommandPalette}. */
@@ -58,13 +59,19 @@ const searchField: Ref<InstanceType<typeof UiSearchInput> | null> = ref(null)
 
 /**
  * Every destination the palette offers: each entry followed by its submenu children (issue #195),
- * so "Schedule" or "New site" can be jumped to directly. A child whose label repeats its parent's
- * landing page still appears, because its own label is what someone types.
+ * so "Schedule" or "Grant repair" can be jumped to directly. A child whose label repeats its
+ * parent's landing page still appears, because its own label is what someone types. A page that is
+ * not built yet is left out (issue #311): a search result is something to open, and it has nowhere
+ * to go.
  */
 const destinations: ComputedRef<readonly NavigationEntry[]> = computed(() => {
-  return props.entries.flatMap((entry): NavigationEntry[] => {
-    return [entry, ...entry.children]
-  })
+  return props.entries
+    .flatMap((entry): NavigationEntry[] => {
+      return [entry, ...entry.children]
+    })
+    .filter((entry): boolean => {
+      return entry.state.kind !== 'planned'
+    })
 })
 
 /**
@@ -98,7 +105,7 @@ const activeOptionId: ComputedRef<string | undefined> = computed(() => {
  * @returns The label to render and to search against.
  */
 const entryLabel = (entry: NavigationEntry): string => {
-  return entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey)
+  return navigationLabelText(entry.label, t)
 }
 
 /**
@@ -119,7 +126,10 @@ const optionId = (entry: NavigationEntry): string => {
  */
 const choose = async (entry: NavigationEntry): Promise<void> => {
   emit('close')
-  await router.push(entry.target)
+  // Planned pages are filtered out of the list, so every row the user can choose has a target.
+  if (entry.state.kind !== 'planned') {
+    await router.push(entry.state.target)
+  }
 }
 
 /**
@@ -237,17 +247,13 @@ watch(matches, (): void => {
           role="option"
           :aria-selected="index === activeIndex"
           class="flex cursor-pointer items-center gap-3 rounded-control px-3 py-2.5 text-sm font-medium"
-          :class="
-            index === activeIndex
-              ? 'bg-accent-fill text-white'
-              : 'text-text-primary hover:bg-surface-3'
-          "
+          :class="index === activeIndex ? 'bg-accent-fill text-white' : 'text-text-primary hover:bg-surface-3'"
           @click="choose(entry)"
         >
           <UiIcon :name="entry.icon" size="lg" />
           <span class="min-w-0 flex-1 truncate">{{ entryLabel(entry) }}</span>
           <span
-            v-if="entry.locked"
+            v-if="entry.state.kind === 'locked'"
             class="font-display text-xs font-extrabold"
             :class="index === activeIndex ? 'text-white' : 'text-text-muted'"
           >

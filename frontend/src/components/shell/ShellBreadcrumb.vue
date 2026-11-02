@@ -28,10 +28,10 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import UiSkeleton from '../ui/UiSkeleton.vue'
 import { useDelayedFlag } from '../../composables/useDelayedFlag'
-import { moduleNavigationChildren } from '../../router/moduleNavigationChildren'
-import { FALLBACK_GROUP } from '../../utils/groupNavigation'
+import { FALLBACK_GROUP } from '../../router/navigationTree'
 import { locateNavigation } from '../../utils/locateNavigation'
 import { PAGE_HEADING_KEY } from '../../utils/pageHeadingKey'
+import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { NavigationEntry } from '../../types/navigation'
 import type { PageHeading } from '../../types/pageHeading'
 
@@ -86,11 +86,8 @@ const crumbs: ComputedRef<Crumb[]> = computed(() => {
     trail.push({ key: 'entry', text: entryLabel(entry) })
   }
 
-  const child = moduleNavigationChildren(location.entryKey).find((candidate): boolean => {
-    return candidate.route === location.childRoute
-  })
-  if (child !== undefined) {
-    trail.push({ key: 'child', text: t(child.labelKey) })
+  if (location.child !== null) {
+    trail.push({ key: 'child', text: t(location.child.labelKey) })
   }
 
   if (location.leaf) {
@@ -113,7 +110,7 @@ const placeholderShown: Readonly<Ref<boolean>> = useDelayedFlag((): boolean => {
  * @returns Its label.
  */
 const entryLabel = (entry: NavigationEntry): string => {
-  return entry.labelKey === null ? (entry.label ?? entry.key) : t(entry.labelKey)
+  return navigationLabelText(entry.label, t)
 }
 
 /**

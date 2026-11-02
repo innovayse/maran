@@ -34,11 +34,14 @@ test('an administrator reaches the audit journal from the navigation', async ({ 
   // server-wide screen rather than a setting about the person signed in, so it lives in the
   // navigation now — and it already had an entry there, which made the menu a second way to the
   // same screen under a second name. The claim worth keeping is that an administrator can reach
-  // it, so the claim moved rather than the test being deleted.
+  // it, so the claim moved rather than the test being deleted. Since issue #311 it is a page of the
+  // Monitoring section.
   await stubPanel(page, 'admin')
 
   await page.goto('/')
-  await page.getByRole('link', { name: 'Audit journal' }).click()
+  const nav = page.getByRole('navigation', { name: 'Main navigation' })
+  await nav.getByRole('button', { name: 'Show the Monitoring pages' }).click()
+  await nav.getByRole('link', { name: 'Audit journal', exact: true }).click()
 
   await expect(page).toHaveURL('/settings/audit')
 })

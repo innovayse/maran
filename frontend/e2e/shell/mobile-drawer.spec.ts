@@ -136,6 +136,7 @@ for (const { opener, title } of OPENERS) {
       const drawer = await gotoPhoneShell(page)
       await openerOf(page, opener).click()
 
+      await drawer.getByRole('button', { name: 'Show the Monitoring pages' }).click()
       await drawer.getByRole('link', { name: 'Audit journal' }).click()
 
       await expect(page).toHaveURL('/settings/audit')

@@ -1,32 +1,53 @@
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import { moduleOfLandingRoute } from '../router/moduleLandingRoute'
-import { moduleOfNavigationChild } from '../router/moduleNavigationChildren'
-import { shellEntryOfRoute } from '../router/shellEntryRoutes'
-import { navigationGroupOf } from './groupNavigation'
-import type { NavigationLocation } from '../types/navigation'
+import { FALLBACK_GROUP, NAVIGATION_TREE } from '../router/navigationTree'
+import type { NavigationLocation, NavigationPageSpec } from '../types/navigation'
 
 /**
- * Places a screen in the navigation, from the same sources the sidebar is drawn from: where each
- * entry leads (`router/shellEntryRoutes.ts`, `router/moduleLandingRoute.ts`), which pages each
- * submenu lists (`router/moduleNavigationChildren.ts`) and which group each entry is drawn under
- * (`utils/groupNavigation.ts`). The breadcrumb and the page eyebrow both read the answer, so
+ * Places a screen in the navigation, from the tree the sidebar is drawn from
+ * (`router/navigationTree.ts`). The breadcrumb and the page eyebrow both read the answer, so
  * neither keeps a second, hand-written copy that can disagree with the sidebar (issue #209).
  */
 
 /**
- * Answers which entry, and which child of it, a route is the destination of. An entry's landing
- * page is checked before the submenus, so the list page a section opens on is the entry itself,
- * not a level below it.
+ * Whether a page is built and routed under a route name.
+ * @param page The page from the tree.
  * @param routeName The route's name.
- * @returns The entry and child, or `undefined` when the navigation does not list the route.
+ * @returns True when the page is that route.
  */
-const destinationOf = (routeName: string): Omit<NavigationLocation, 'groupKey' | 'leaf'> | undefined => {
-  const entryKey = shellEntryOfRoute(routeName) ?? moduleOfLandingRoute(routeName)
-  if (entryKey !== undefined) {
-    return { entryKey, childRoute: null }
+const isRoute = (page: NavigationPageSpec, routeName: string): boolean => {
+  return page.availability.state === 'available' && page.availability.route === routeName
+}
+
+/**
+ * Answers which item, and which page of it, a route is the destination of. A section's first built
+ * page is the page the section opens on, so it is the item itself rather than a level below it.
+ * A catalogue module the tree does not know is found by its landing route, in the fallback group.
+ * @param routeName The route's name.
+ * @returns The location without its leaf flag, or `undefined` when the navigation does not list it.
+ */
+const destinationOf = (routeName: string): Omit<NavigationLocation, 'leaf'> | undefined => {
+  for (const group of NAVIGATION_TREE) {
+    for (const node of group.nodes) {
+      if (node.kind === 'link') {
+        if (isRoute(node, routeName)) {
+          return { groupKey: group.key, entryKey: node.key, child: null }
+        }
+        continue
+      }
+      const child = node.children.find((candidate): boolean => {
+        return isRoute(candidate, routeName)
+      })
+      if (child !== undefined) {
+        const landing = node.children.find((candidate): boolean => {
+          return candidate.availability.state === 'available'
+        })
+        return { groupKey: group.key, entryKey: node.key, child: child === landing ? null : child }
+      }
+    }
   }
-  const parentKey = moduleOfNavigationChild(routeName)
-  return parentKey === undefined ? undefined : { entryKey: parentKey, childRoute: routeName }
+  const module = moduleOfLandingRoute(routeName)
+  return module === undefined ? undefined : { groupKey: FALLBACK_GROUP, entryKey: module, child: null }
 }
 
 /**
@@ -34,19 +55,12 @@ const destinationOf = (routeName: string): Omit<NavigationLocation, 'groupKey' |
  * not list, such as a record or a form — the destination its `meta.navigationParent` names, one
  * level up.
  * @param route The route to place.
- * @returns Its location, or `null` for a screen outside the navigation (a profile, a 404).
+ * @returns Its location, or `null` for a screen outside the navigation (a 404, the upgrade page).
  */
 export const locateNavigation = (route: RouteLocationNormalizedLoaded): NavigationLocation | null => {
   const routeName = typeof route.name === 'string' ? route.name : ''
   const direct = destinationOf(routeName)
   const parent = route.meta.navigationParent
   const destination = direct ?? (parent === undefined ? undefined : destinationOf(parent))
-  if (destination === undefined) {
-    return null
-  }
-  return {
-    ...destination,
-    groupKey: navigationGroupOf(destination.entryKey),
-    leaf: direct === undefined,
-  }
+  return destination === undefined ? null : { ...destination, leaf: direct === undefined }
 }

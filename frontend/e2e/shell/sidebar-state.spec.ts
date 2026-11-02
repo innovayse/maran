@@ -14,8 +14,15 @@ import type { PanelModule } from '../../src/types/module'
 /** The router's active class as a whole class name, the one the nav row's fill is keyed on. */
 const LIT = /(^|\s)router-link-active(\s|$)/
 
-/** Module names per language, as the panel would localize them. */
-const FIREWALL_NAME: Record<string, string> = { en: 'Firewall', ru: 'Брандмауэр', hy: 'Հրապատ' }
+/**
+ * A catalogue module this bundle has no item for. Menu labels are the SPA's own i18n keys (#311);
+ * the panel's localized module name is drawn only for such a module, in the fallback "Panel" group,
+ * so it is the one sidebar text a language switch must re-read from the server.
+ */
+const UNKNOWN_MODULE = 'webmail'
+
+/** That module's name per language, as the panel would localize it. */
+const UNKNOWN_NAME: Record<string, string> = { en: 'Webmail', ru: 'Веб-почта', hy: 'Վեբփոստ' }
 
 /**
  * Answers the module catalogue in the language the request asks for, like the panel does.
@@ -34,9 +41,10 @@ const stubLocalizedModules = async (page: Page, slowLanguage?: string): Promise<
       await held
     }
     const modules: PanelModule[] = [
+      { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
       {
-        name: 'firewall',
-        displayName: FIREWALL_NAME[language] ?? 'Firewall',
+        name: UNKNOWN_MODULE,
+        displayName: UNKNOWN_NAME[language] ?? 'Webmail',
         tier: 'included',
         isEnabled: true,
       },
@@ -57,7 +65,7 @@ const chooseLanguage = async (page: Page, name: string): Promise<void> => {
   await page.getByRole('menuitemradio', { name, exact: true }).click()
 }
 
-test('switching the language live re-reads the module names in the sidebar and the breadcrumb', async ({
+test('switching the language live re-reads the sidebar and the breadcrumb, server names included', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -71,19 +79,24 @@ test('switching the language live re-reads the module names in the sidebar and t
   // first, and the sidebar's accessible name is itself translated by the switch under test.
   const nav = page.getByRole('complementary').getByRole('navigation')
   const trail = page.getByRole('banner').getByRole('navigation')
-  await nav.getByRole('link', { name: 'Firewall', exact: true }).click()
+  // The breadcrumb names a page by the SPA's own labels; the unknown module's row, which is
+  // locked (this bundle has no screen for it), carries the panel's localized name.
+  await nav.getByRole('link', { name: 'Security', exact: true }).click()
   await expect(page).toHaveURL('/firewall')
-  await expect(trail).toContainText('Firewall')
+  await expect(trail).toContainText('Security')
+  await expect(nav.getByRole('link', { name: /^Webmail/ })).toBeVisible()
 
   await chooseLanguage(page, 'Հայերեն')
-  await expect(nav.getByRole('link', { name: 'Հրապատ' })).toBeVisible()
-  await expect(nav.getByRole('link', { name: 'Firewall', exact: true })).toHaveCount(0)
-  await expect(trail).toContainText('Հրապատ')
-  await expect(trail).not.toContainText('Firewall')
+  await expect(nav.getByRole('link', { name: /^Վեբփոստ/ })).toBeVisible()
+  await expect(nav.getByRole('link', { name: /^Webmail/ })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: 'Անվտանգություն', exact: true })).toBeVisible()
+  await expect(trail).toContainText('Անվտանգություն')
+  await expect(trail).not.toContainText('Security')
 
   await chooseLanguage(page, 'English')
-  await expect(nav.getByRole('link', { name: 'Firewall', exact: true })).toBeVisible()
-  await expect(trail).toContainText('Firewall')
+  await expect(nav.getByRole('link', { name: /^Webmail/ })).toBeVisible()
+  await expect(nav.getByRole('link', { name: 'Security', exact: true })).toBeVisible()
+  await expect(trail).toContainText('Security')
 })
 
 test('after two quick switches the names are the last language chosen, whatever answers last', async ({
@@ -95,7 +108,7 @@ test('after two quick switches the names are the last language chosen, whatever 
   const releaseRussian = await stubLocalizedModules(page, 'ru')
   await page.goto('/')
   const nav = page.getByRole('complementary').getByRole('navigation')
-  await expect(nav.getByRole('link', { name: 'Firewall', exact: true })).toBeVisible()
+  await expect(nav.getByRole('link', { name: /^Webmail/ })).toBeVisible()
 
   const russianAsked = page.waitForRequest((request): boolean => {
     return request.url().endsWith('/api/v1/modules') && request.headers()['accept-language']?.startsWith('ru') === true
@@ -103,7 +116,7 @@ test('after two quick switches the names are the last language chosen, whatever 
   await chooseLanguage(page, 'Русский')
   await russianAsked
   await chooseLanguage(page, 'Հայերեն')
-  await expect(nav.getByRole('link', { name: 'Հրապատ' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: /^Վեբփոստ/ })).toBeVisible()
 
   // The Russian answer lands last; it was asked for a language no longer chosen.
   const russianAnswered = page.waitForResponse((response): boolean => {
@@ -111,8 +124,8 @@ test('after two quick switches the names are the last language chosen, whatever 
   })
   releaseRussian()
   await russianAnswered
-  await expect(nav.getByRole('link', { name: 'Հրապատ' })).toBeVisible()
-  await expect(nav.getByRole('link', { name: 'Брандмауэр' })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: /^Վեբփոստ/ })).toBeVisible()
+  await expect(nav.getByRole('link', { name: /^Веб-почта/ })).toHaveCount(0)
 })
 
 for (const locale of ['en', 'ru', 'hy'] as const) {
@@ -178,7 +191,7 @@ test('the collapsed rail lights the Accounts section on the Plans page too', asy
   const rail = mainNavigation(page)
   await expect(rail.getByRole('link', { name: 'Accounts', exact: true })).toHaveClass(LIT)
   // Inverse control: a section that holds nothing on this page stays dark.
-  await expect(rail.getByRole('link', { name: 'Sites', exact: true })).not.toHaveClass(LIT)
+  await expect(rail.getByRole('link', { name: 'Sites and domains', exact: true })).not.toHaveClass(LIT)
 })
 
 test('the current row is scrolled into view on a short window', async ({ page }) => {
@@ -241,7 +254,7 @@ test('a mouse click on a sidebar row leaves no focus ring', async ({ page }) => 
   await openFullShell(page, '/')
   const nav = mainNavigation(page)
 
-  for (const name of ['Scheduled tasks', 'Firewall']) {
+  for (const name of ['Files and access', 'Security']) {
     const link = nav.getByRole('link', { name, exact: true })
     await link.click()
     await expect(link).toHaveClass(LIT)
@@ -252,7 +265,7 @@ test('a mouse click on a sidebar row leaves no focus ring', async ({ page }) => 
   }
 
   // Positive control: the same row reached by the keyboard does show the ring.
-  const firewall = nav.getByRole('link', { name: 'Firewall', exact: true })
+  const firewall = nav.getByRole('link', { name: 'Security', exact: true })
   await firewall.focus()
   await page.keyboard.press('ArrowUp')
   await page.keyboard.press('ArrowDown')

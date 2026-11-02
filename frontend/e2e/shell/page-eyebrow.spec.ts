@@ -28,8 +28,11 @@ test('every top-level entry opens a page whose eyebrow is the group the sidebar 
   await openFullShell(page)
   const nav = mainNavigation(page)
   const links = nav.locator('a:not([data-nav-parent])')
+  // Twelve top-level items for an administrator (issue #311), three of them planned sections drawn
+  // without a link: nine built ones on the full catalogue, the system status link among them.
+  // Awaited, not read once: the panel's own items are drawn before the catalogue arrives.
+  await expect(links).toHaveCount(9)
   const count = await links.count()
-  expect(count).toBeGreaterThan(10)
 
   for (let index = 0; index < count; index++) {
     const link = links.nth(index)
@@ -45,14 +48,15 @@ test('the four mismatches the issue named now agree with the sidebar', async ({ 
   await openFullShell(page)
   const nav = mainNavigation(page)
 
+  await openSection(page, 'Monitoring')
   await nav.getByRole('link', { name: 'Background tasks', exact: true }).click()
-  await expect(page.locator(EYEBROW)).toHaveText('Overview')
+  await expect(page.locator(EYEBROW)).toHaveText('Infrastructure')
 
   await nav.getByRole('link', { name: 'Audit journal', exact: true }).click()
-  await expect(page.locator(EYEBROW)).toHaveText('System')
+  await expect(page.locator(EYEBROW)).toHaveText('Infrastructure')
 
   await nav.getByRole('link', { name: 'Backups', exact: true }).click()
-  await expect(page.locator(EYEBROW)).toHaveText('Security')
+  await expect(page.locator(EYEBROW)).toHaveText('Hosting')
 
   await nav.getByRole('link', { name: 'Accounts', exact: true }).click()
   await expect(page.locator(EYEBROW)).toHaveText('Hosting')
@@ -64,16 +68,17 @@ test('a submenu page takes its section group, not a word of its own', async ({ p
 
   await openSection(page, 'Backups')
   await nav.getByRole('link', { name: 'Schedule', exact: true }).click()
-  await expect(page.locator(EYEBROW)).toHaveText('Security')
+  await expect(page.locator(EYEBROW)).toHaveText('Hosting')
 
   await openSection(page, 'Databases')
   await nav.getByRole('link', { name: 'Grant repair', exact: true }).click()
   await expect(page.locator(EYEBROW)).toHaveText('Hosting')
 
-  // The firewall's three pages (#196) carry no eyebrow of their own either.
-  await openSection(page, 'Firewall')
+  // The firewall's three pages (#196) carry no eyebrow of their own either: they take the group
+  // the Security section is drawn under.
+  await openSection(page, 'Security')
   for (const child of ['Rules', 'Bans', 'Never banned']) {
     await nav.getByRole('link', { name: child, exact: true }).click()
-    await expect(page.locator(EYEBROW), child).toHaveText('Security')
+    await expect(page.locator(EYEBROW), child).toHaveText('Infrastructure')
   }
 })

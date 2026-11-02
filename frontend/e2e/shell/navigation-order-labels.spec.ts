@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { openSection } from '../fixtures/open-full-shell'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -81,6 +82,9 @@ test('entries are named for the screen they open', async ({ page }) => {
   await expect(nav.getByRole('link', { name: 'Users and access' })).toHaveCount(0)
   await expect(nav.getByRole('link', { name: 'Notifications' })).toHaveCount(0)
 
-  await expect(nav.getByRole('link', { name: 'Signed-in devices' })).toHaveAttribute('href', '/settings/sessions')
-  await expect(nav.getByRole('link', { name: 'Outgoing mail' })).toHaveAttribute('href', '/settings/smtp')
+  // The outgoing-mail screen is named for itself under Settings; the signed-in devices are the
+  // person's own screen, reached from the account menu rather than the sidebar.
+  await expect(nav.getByRole('link', { name: 'Signed-in devices' })).toHaveCount(0)
+  await openSection(page, 'Settings')
+  await expect(nav.getByRole('link', { name: 'Outgoing mail', exact: true })).toHaveAttribute('href', '/settings/smtp')
 })

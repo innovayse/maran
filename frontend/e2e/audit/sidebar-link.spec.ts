@@ -34,14 +34,18 @@ test('an administrator reaches the journal from the sidebar by clicking its link
 
   // A real link, not a programmatic push: an <a> the browser can middle-click and a crawler of
   // clicks can find — asserted by VALUE in the non-English locale the defect was measured in.
-  const link = page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'Журнал аудита' })
+  const navigation = page.getByRole('navigation', { name: 'Основная навигация' })
+  // The journal is a child of Monitoring (issue #311): the person opens that submenu first.
+  await navigation.getByRole('button', { name: 'Показать разделы «Мониторинг»' }).click()
+  const link = navigation.getByRole('link', { name: 'Журнал аудита' })
   await expect(link).toBeVisible()
   await expect(link).toHaveAttribute('href', '/settings/audit')
 
   await link.click()
 
   await expect(page).toHaveURL('/settings/audit')
-  await expect(page.getByText('Журнал аудита').first()).toBeVisible()
+  // The page's own heading, not the first matching text: the sidebar's link carries the same words.
+  await expect(page.getByRole('heading', { level: 1, name: 'Журнал аудита' })).toBeVisible()
 })
 
 test('a customer is not offered the journal link in the sidebar', async ({ page }) => {
