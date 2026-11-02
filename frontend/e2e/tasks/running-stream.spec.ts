@@ -166,7 +166,7 @@ test('signing out closes the running-tasks stream and nothing reconnects it', as
   await page.setViewportSize({ width: 1440, height: 900 })
   const traffic = await stubShell(page)
   await page.route('**/api/v1/auth/logout', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 
   await page.goto('/')

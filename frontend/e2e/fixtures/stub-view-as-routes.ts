@@ -39,7 +39,7 @@ export const stubViewAs = async (page: Page, viewedAs: AuthenticatedUser, viewin
 
     if (method === 'DELETE') {
       calls.ended += 1
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
 

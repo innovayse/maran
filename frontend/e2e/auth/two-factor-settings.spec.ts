@@ -50,7 +50,7 @@ const stubTwoFactorEndpoints = async (page: Page): Promise<void> => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ codes: RECOVERY_CODES }) })
   })
   await page.route('**/api/v1/auth/two-factor/disable', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 }
 

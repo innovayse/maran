@@ -41,10 +41,10 @@ export const useViewAsApi = (): ViewAsApi => {
    * 401 retry renews to the operator's own token and the replay answers 409 ("not viewing"); the
    * store treats both answers as "back", because in both the operator is no longer viewing.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the session has been ended.
+   * @returns Resolves once the session has been ended; the answer is an empty 204.
    */
-  const stop = (signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(VIEW_AS_PATH, signal)
+  const stop = (signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(VIEW_AS_PATH, signal)
   }
 
   return { current, start, stop }

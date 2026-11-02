@@ -78,7 +78,7 @@ test('ending another device asks first, then reads the page again without its ro
   const listRequests = await stubSessions(page, listed)
   await page.route(`**/api/v1/sessions/${OTHER.id}`, async (route) => {
     listed.splice(listed.indexOf(OTHER), 1)
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 
   await page.goto('/settings/sessions')
@@ -111,7 +111,7 @@ test('signing out everywhere returns to the sign-in screen', async ({ page }) =>
   await stubEmptyModules(page)
   await stubSessions(page, [CURRENT, OTHER])
   await page.route('**/api/v1/auth/logout-all', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 
   await page.goto('/settings/sessions')

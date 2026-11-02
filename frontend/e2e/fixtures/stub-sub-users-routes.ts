@@ -116,7 +116,7 @@ export const stubSubUsers = async (
     if (index >= 0) {
       users.splice(index, 1)
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 
   await page.route(SUB_USER_FEATURES_PATTERN, async (route) => {

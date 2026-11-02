@@ -23,7 +23,7 @@ const STEERED_ADMINISTRATOR: AuthenticatedUser = {
  */
 export const stubForgotPasswordAccepted = async (page: Page): Promise<void> => {
   await page.route('**/api/v1/auth/forgot-password', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 }
 

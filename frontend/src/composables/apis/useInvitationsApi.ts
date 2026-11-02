@@ -39,10 +39,10 @@ export const useInvitationsApi = (): InvitationsApi => {
    * Mails the account's owner a fresh invitation.
    * @param accountId The hosting account whose owner is being (re)invited.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once a new invitation was sent.
+   * @returns Resolves once a new invitation was sent; the answer is an empty 204.
    */
-  const resend = (accountId: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${INVITATIONS_PATH}/${accountId}/resend`, undefined, signal)
+  const resend = (accountId: string, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${INVITATIONS_PATH}/${accountId}/resend`, undefined, signal)
   }
 
   return { getStatus, issueLink, resend }

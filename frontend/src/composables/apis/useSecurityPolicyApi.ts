@@ -29,10 +29,10 @@ export const useSecurityPolicyApi = (): SecurityPolicyApi => {
    * Replaces the policy wholesale.
    * @param request The complete policy to store.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once it has been stored.
+   * @returns Resolves once it has been stored; the answer is an empty 204.
    */
-  const save = (request: SaveSecurityPolicyRequest, signal?: AbortSignal): Promise<boolean> => {
-    return api.put<boolean>(SECURITY_POLICY_PATH, request, signal)
+  const save = (request: SaveSecurityPolicyRequest, signal?: AbortSignal): Promise<void> => {
+    return api.put<void>(SECURITY_POLICY_PATH, request, signal)
   }
 
   return { get, save }

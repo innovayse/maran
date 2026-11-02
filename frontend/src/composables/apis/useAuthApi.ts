@@ -95,19 +95,19 @@ export const useAuthApi = (): AuthApi => {
   /**
    * Signs out of this device.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the session has been ended.
+   * @returns Resolves once the session has been ended; the answer is an empty 204.
    */
-  const logout = (signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${AUTH_PATH}/logout`, undefined, signal, false)
+  const logout = (signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${AUTH_PATH}/logout`, undefined, signal, false)
   }
 
   /**
    * Signs out of every device. Requires a valid access token, so it keeps the retry.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once every session has been ended.
+   * @returns Resolves once every session has been ended; the answer is an empty 204.
    */
-  const logoutEverywhere = (signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${AUTH_PATH}/logout-all`, undefined, signal)
+  const logoutEverywhere = (signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${AUTH_PATH}/logout-all`, undefined, signal)
   }
 
   /**
@@ -148,10 +148,10 @@ export const useAuthApi = (): AuthApi => {
    * Ends one of the caller's sessions.
    * @param id The session to end.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once it has been ended.
+   * @returns Resolves once it has been ended; the answer is an empty 204.
    */
-  const revokeSession = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${SESSIONS_PATH}/${encodeURIComponent(id)}`, signal)
+  const revokeSession = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${SESSIONS_PATH}/${encodeURIComponent(id)}`, signal)
   }
 
   /**
@@ -182,10 +182,10 @@ export const useAuthApi = (): AuthApi => {
    * Turns the second factor off, for a caller who can still satisfy it.
    * @param code A current code or one of the recovery codes.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once it has been turned off.
+   * @returns Resolves once it has been turned off; the answer is an empty 204.
    */
-  const disableTwoFactor = (code: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${AUTH_PATH}/two-factor/disable`, { code }, signal)
+  const disableTwoFactor = (code: string, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${AUTH_PATH}/two-factor/disable`, { code }, signal)
   }
 
   /**
@@ -195,10 +195,10 @@ export const useAuthApi = (): AuthApi => {
    * session to renew, and a replay would only spend a refresh.
    * @param email The address to send the link to; it may belong to nobody.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True — the endpoint answers the same way whether or not the address exists.
+   * @returns Resolves with the same empty 204 whether or not the address exists.
    */
-  const requestPasswordReset = (email: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${AUTH_PATH}/forgot-password`, { email }, signal, false)
+  const requestPasswordReset = (email: string, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${AUTH_PATH}/forgot-password`, { email }, signal, false)
   }
 
   /**
@@ -211,10 +211,10 @@ export const useAuthApi = (): AuthApi => {
    * token.
    * @param request The current password and its replacement.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the password has been changed.
+   * @returns Resolves once the password has been changed; the answer is an empty 204.
    */
-  const changePassword = (request: ChangePasswordRequest, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${AUTH_PATH}/change-password`, request, signal)
+  const changePassword = (request: ChangePasswordRequest, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${AUTH_PATH}/change-password`, request, signal)
   }
 
   /**
@@ -224,10 +224,10 @@ export const useAuthApi = (): AuthApi => {
    * the same refusal from the backend, so nothing here may branch on which it was.
    * @param request The token from the mail and the new password.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the password has been changed.
+   * @returns Resolves once the password has been changed; the answer is an empty 204.
    */
-  const resetPassword = (request: ResetPasswordRequest, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${AUTH_PATH}/reset-password`, request, signal, false)
+  const resetPassword = (request: ResetPasswordRequest, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${AUTH_PATH}/reset-password`, request, signal, false)
   }
 
   /**

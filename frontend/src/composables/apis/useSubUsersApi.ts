@@ -73,10 +73,10 @@ export const useSubUsersApi = (): SubUsersApi => {
    * Ends a sub-user's access to the account.
    * @param id The sub-user to remove.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel ended the access.
+   * @returns Resolves once the panel ended the access; the answer is an empty 204.
    */
-  const remove = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${SUB_USERS_PATH}/${id}`, signal)
+  const remove = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${SUB_USERS_PATH}/${id}`, signal)
   }
 
   return { list, features, invite, changeFeatures, remove }
