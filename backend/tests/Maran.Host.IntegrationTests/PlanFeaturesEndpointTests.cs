@@ -3,8 +3,11 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Backups.Persistence;
+using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -47,6 +50,7 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
     {
         await using var factory = EndpointHarness.CreateFactory(_pg);
         await EndpointHarness.MigrateAsync(factory);
+        await MigrateListedModulesAsync(factory);
         await EndpointHarness.SeedAdministratorAsync(factory);
         var plan = Plan.Define(
             Guid.NewGuid(), "NoDb", 5_120, 5, 2, 3, 0, 5, 5, AccountFeature.Cron | AccountFeature.Backups);
@@ -96,6 +100,7 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
     {
         await using var factory = EndpointHarness.CreateFactory(_pg);
         await EndpointHarness.MigrateAsync(factory);
+        await MigrateListedModulesAsync(factory);
         await EndpointHarness.SeedAdministratorAsync(factory);
         var plan = Plan.Define(
             Guid.NewGuid(), "NoDb", 5_120, 5, 2, 3, 0, 5, 5, AccountFeature.Cron | AccountFeature.Backups);
@@ -212,6 +217,18 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
         {
             return feature.GetString();
         }));
+    }
+
+    /// <summary>
+    /// Migrates the two modules whose list endpoints the plan-feature gate is probed through. Their
+    /// lists count rows, so a customer a plan lets through reads a table that has to exist.
+    /// </summary>
+    /// <param name="factory">The booted host.</param>
+    private static async Task MigrateListedModulesAsync(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<BackupsDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<DatabasesDbContext>().Database.MigrateAsync();
     }
 
     /// <summary>A plan body that changes nothing but the features it states.</summary>

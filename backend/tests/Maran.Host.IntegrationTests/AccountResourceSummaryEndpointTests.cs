@@ -83,19 +83,19 @@ public sealed class AccountResourceSummaryEndpointTests : IAsyncLifetime
         Assert.Equal(olive, body.RootElement.GetProperty("accountId").GetGuid());
 
         var sites = Row(body, "sites");
-        Assert.Equal("counted", sites.GetProperty("state").GetString());
-        Assert.Equal(2, sites.GetProperty("used").GetInt32());
-        Assert.Equal("limited", sites.GetProperty("limitKind").GetString());
-        Assert.Equal(5, sites.GetProperty("limit").GetInt32());
+        Assert.Equal("counted", sites.GetProperty("count").GetProperty("state").GetString());
+        Assert.Equal(2, sites.GetProperty("count").GetProperty("used").GetInt32());
+        Assert.Equal("limited", sites.GetProperty("limit").GetProperty("kind").GetString());
+        Assert.Equal(5, sites.GetProperty("limit").GetProperty("maximum").GetInt32());
 
         // The stub agent lists one entry for every account it is asked about.
         var cron = Row(body, "cronEntries");
-        Assert.Equal("counted", cron.GetProperty("state").GetString());
-        Assert.Equal(1, cron.GetProperty("used").GetInt32());
+        Assert.Equal("counted", cron.GetProperty("count").GetProperty("state").GetString());
+        Assert.Equal(1, cron.GetProperty("count").GetProperty("used").GetInt32());
 
         var backups = Row(body, "backups");
-        Assert.Equal(0, backups.GetProperty("used").GetInt32());
-        Assert.Equal("unlimited", backups.GetProperty("limitKind").GetString());
+        Assert.Equal(0, backups.GetProperty("count").GetProperty("used").GetInt32());
+        Assert.Equal("unlimited", backups.GetProperty("limit").GetProperty("kind").GetString());
     }
 
     /// <summary>An administrator asking about an unknown account gets 404.</summary>
@@ -148,7 +148,7 @@ public sealed class AccountResourceSummaryEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal(olive, body.RootElement.GetProperty("accountId").GetGuid());
-        Assert.Equal(1, Row(body, "sites").GetProperty("used").GetInt32());
+        Assert.Equal(1, Row(body, "sites").GetProperty("count").GetProperty("used").GetInt32());
     }
 
     /// <summary>An administrator owns no account and gets 404 from the customer route.</summary>
