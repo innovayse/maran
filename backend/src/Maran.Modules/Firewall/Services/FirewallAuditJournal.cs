@@ -134,9 +134,11 @@ public sealed class FirewallAuditJournal
     {
         return _currentUser.Caller switch
         {
-            PrincipalCaller principal => (principal.UserId, principal.Username),
+            AdministratorCaller administrator => (administrator.UserId, administrator.Username),
+            CustomerCaller customer => (customer.UserId, customer.Username),
+            AccountlessCustomerCaller accountless => (accountless.UserId, accountless.Username),
             AnonymousCaller => (Guid.Empty, string.Empty),
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: a principal or nobody."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
         };
     }
 
