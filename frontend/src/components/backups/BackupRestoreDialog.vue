@@ -53,7 +53,6 @@ import UiSpinner from '../ui/UiSpinner.vue'
 import { useBackupsStore } from '../../stores/backups'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
-import { restoreChangedTheAccount } from '../../utils/restoreChangedTheAccount'
 import { restoreConfirmationWasRefused } from '../../utils/restoreConfirmationWasRefused'
 import type { Backup } from '../../types/backup'
 
@@ -84,9 +83,9 @@ const localeStore = useLocaleStore()
 /** What the operator has typed into the confirmation field. Never prefilled. */
 const typed: Ref<string> = ref('')
 
-/** Whether the restore that has just been attempted left the account changed. */
-const changed: ComputedRef<boolean> = computed(() => {
-  return store.restoreErrorMessage !== null && restoreChangedTheAccount(store.restoreErrorCode)
+/** Whether a restore is in flight, which holds the dialog open and the form out of reach. */
+const running: ComputedRef<boolean> = computed(() => {
+  return store.restoreRun.state === 'running'
 })
 
 /**
@@ -96,17 +95,16 @@ const changed: ComputedRef<boolean> = computed(() => {
  * not, and the sentence under the server's message says so instead of asking for a retype.
  */
 const confirmationRefused: ComputedRef<boolean> = computed(() => {
-  return restoreConfirmationWasRefused(store.restoreErrorCode)
+  return store.restoreRun.state === 'untouched' && restoreConfirmationWasRefused(store.restoreRun.code)
 })
 
-/** Whether the dialog is reporting a restore that replaced the whole account. */
-const succeeded: ComputedRef<boolean> = computed(() => {
-  return store.restoreOutcome !== null
-})
-
-/** Whether the confirmation form is still the thing the dialog is showing. */
+/**
+ * Whether the confirmation form is still the thing the dialog is showing: before an attempt, and
+ * after any ending that left the account as it was or told the browser nothing.
+ */
 const asking: ComputedRef<boolean> = computed(() => {
-  return !succeeded.value && !changed.value && !store.restoring
+  const state = store.restoreRun.state
+  return state === 'idle' || state === 'unanswered' || state === 'untouched'
 })
 
 /**
@@ -145,7 +143,7 @@ const subject: ComputedRef<string> = computed(() => {
  * @returns Resolves once the request has settled.
  */
 const submit = async (): Promise<void> => {
-  if (!confirmed.value || store.restoring) {
+  if (!confirmed.value || running.value) {
     return
   }
   await store.restore(props.backup.id, { confirmAccountUsername: typed.value })
@@ -160,7 +158,7 @@ const submit = async (): Promise<void> => {
  * @returns Nothing.
  */
 const close = (): void => {
-  if (store.restoring) {
+  if (running.value) {
     return
   }
   emit('close')
@@ -193,16 +191,16 @@ watch(
     :open="open"
     :title="t('backups.restore.title', { account: subject })"
     :close-label="t('common.close')"
-    :dismissible="!store.restoring"
+    :dismissible="!running"
     @close="close"
   >
-    <UiSpinner v-if="store.restoring" :label="t('backups.restore.working', { account: subject })" />
+    <UiSpinner v-if="running" :label="t('backups.restore.working', { account: subject })" />
 
     <!-- The changed arm: the account HAS been altered. The server's own message first, then what
          that means, then the one instruction that matters — in an amber notice, because it is the
          thing the operator must not skip past. -->
-    <div v-else-if="changed" class="flex flex-col gap-4">
-      <UiAlert variant="error">{{ store.restoreErrorMessage }}</UiAlert>
+    <div v-else-if="store.restoreRun.state === 'changed'" class="flex flex-col gap-4">
+      <UiAlert variant="error">{{ store.restoreRun.message }}</UiAlert>
       <UiSectionHeading :title="t('backups.restore.changedTitle')" />
       <p>{{ t('backups.restore.changedBody') }}</p>
       <!-- The counts, only when the server measured them. Absent on a truncated stream and from an
@@ -211,27 +209,27 @@ watch(
            now consistent. A restore with no databases in scope shows no databases line rather than
            an empty "0 of 0". -->
       <div
-        v-if="store.restorePartial !== null"
+        v-if="store.restoreRun.partial !== null"
         class="flex flex-col gap-3 rounded-control border border-border-subtle bg-surface-2 p-4"
       >
         <p>{{ t('backups.restore.changedCountsIntro') }}</p>
         <UiDescriptionList>
           <UiDescriptionItem :term="t('backups.restore.changedFiles')">
             {{
-              store.restorePartial.filesRestored
+              store.restoreRun.partial.filesRestored
                 ? t('backups.restore.changedFilesReplaced')
                 : t('backups.restore.changedFilesNotReplaced')
             }}
           </UiDescriptionItem>
           <UiDescriptionItem
-            v-if="store.restorePartial.databasesTotal > 0"
+            v-if="store.restoreRun.partial.databasesTotal > 0"
             :term="t('backups.restore.changedDatabases')"
             mono
           >
             {{
               t('backups.restore.changedDatabasesValue', {
-                restored: store.restorePartial.databasesRestored,
-                total: store.restorePartial.databasesTotal,
+                restored: store.restoreRun.partial.databasesRestored,
+                total: store.restoreRun.partial.databasesTotal,
               })
             }}
           </UiDescriptionItem>
@@ -243,24 +241,18 @@ watch(
       <p class="text-text-muted">{{ t('backups.restore.changedNoList') }}</p>
     </div>
 
-    <div v-else-if="succeeded && store.restoreOutcome !== null" class="flex flex-col gap-4">
+    <!-- The restored arm exists only for a restore that replaced the whole account, so the home
+         directory is stated as replaced without a flag to read, and the databases line is the one
+         figure that varies. -->
+    <div v-else-if="store.restoreRun.state === 'restored'" class="flex flex-col gap-4">
       <UiSectionHeading :title="t('backups.restore.doneTitle', { account: subject })" />
       <div class="rounded-control border border-border-subtle bg-surface-2 p-4">
         <UiDescriptionList>
           <UiDescriptionItem :term="t('backups.restore.doneFiles')">
-            {{
-              store.restoreOutcome.filesRestored
-                ? t('backups.restore.doneFilesReplaced')
-                : t('backups.restore.doneFilesUntouched')
-            }}
+            {{ t('backups.restore.doneFilesReplaced') }}
           </UiDescriptionItem>
           <UiDescriptionItem :term="t('backups.restore.doneDatabases')" mono>
-            {{
-              t('backups.restore.doneDatabasesValue', {
-                restored: store.restoreOutcome.databasesRestored,
-                total: store.restoreOutcome.databasesTotal,
-              })
-            }}
+            {{ t('backups.restore.doneDatabasesValue', { count: store.restoreRun.outcome.databasesRestored }) }}
           </UiDescriptionItem>
         </UiDescriptionList>
       </div>
@@ -268,14 +260,14 @@ watch(
     </div>
 
     <div v-else class="flex flex-col gap-4">
-      <UiAlert v-if="store.restoreErrorMessage !== null" variant="error">
-        {{ store.restoreErrorMessage }}
+      <UiAlert v-if="store.restoreRun.state === 'untouched'" variant="error">
+        {{ store.restoreRun.message }}
       </UiAlert>
       <!-- Two sentences, because the two failures behind them need opposite instructions. A
            refused confirmation is corrected by typing again; a copy the server could not use is
            not, and telling an operator mid-recovery to "correct the confirmation" over a corrupt
            artifact sends them down a dead end no amount of retyping leaves. -->
-      <template v-if="store.restoreErrorMessage !== null">
+      <template v-if="store.restoreRun.state === 'untouched'">
         <p v-if="confirmationRefused">
           {{ t('backups.restore.untouchedConfirmation') }}
         </p>
@@ -353,7 +345,7 @@ watch(
         </UiButton>
       </template>
       <!-- The changed arm offers exactly one control, and it is not a retry. -->
-      <UiButton v-else-if="!store.restoring" variant="secondary" @click="close">
+      <UiButton v-else-if="!running" variant="secondary" @click="close">
         {{ t('common.close') }}
       </UiButton>
     </template>

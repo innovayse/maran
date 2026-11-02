@@ -127,10 +127,11 @@ export interface RestoreBackupRequest {
 /**
  * What a restore did, mirroring the backend's `RestoreOutcomeDto` field for field.
  *
- * The panel answers 200 with this shape **only** when `whole` is true; a partial restore is a
- * failure response carrying a code, not a body. So every value here describes a restore that
- * replaced everything it set out to, and the counts are here to be SHOWN rather than re-judged —
- * the verdict is the server's, and recomputing it in the SPA would be a second statement of the
+ * The panel answers 200 with this shape **only** for a restore that replaced everything it set out
+ * to; a partial restore is a failure response carrying a code, not a body. So the shape holds
+ * nothing a success makes constant — no verdict, no files flag, no failure code, no total that
+ * equals the restored count — and the one figure that varies is the number of databases replaced.
+ * The verdict is the server's, and recomputing it in the SPA would be a second statement of the
  * rule in a place the backend cannot test.
  *
  * There is deliberately no list of rolled-back databases, because the wire carries none: the
@@ -142,17 +143,55 @@ export interface RestoreOutcome {
   backupId: string
   /** The account that was replaced. */
   accountId: string
-  /** Whether the account was fully replaced. `true` on every body the SPA can receive. */
-  whole: boolean
-  /** Whether the account's home is now the archive's home. */
-  filesRestored: boolean
   /** How many databases were dropped, re-created and loaded. */
   databasesRestored: number
-  /** How many the restore set out to replace. */
-  databasesTotal: number
-  /** The machine-stable code naming what went wrong, empty whenever `whole`. */
-  failureCode: string
 }
+
+/**
+ * Where the one restore the backups dialog reports on stands: not started, running, replaced the
+ * whole account, refused before anything was touched, or stopped after the account was changed.
+ *
+ * A union rather than a flag, a nullable outcome, a nullable message and a code held in separate
+ * refs, so the dialog never has to re-derive which of five situations it is in, and cannot show a
+ * "restored" panel over a leftover error. `unanswered` is its own arm because "no answer reached
+ * the browser" says nothing about the account, and the dialog must neither claim the account was
+ * left alone nor that it was changed.
+ */
+export type RestoreRun =
+  | {
+      /** No restore has been attempted since the dialog opened. */
+      state: 'idle'
+    }
+  | {
+      /** The request is in flight; the panel answers only once the account has been replaced. */
+      state: 'running'
+    }
+  | {
+      /** The account was wholly replaced. */
+      state: 'restored'
+      /** What the panel reported replacing. */
+      outcome: RestoreOutcome
+    }
+  | {
+      /** The browser got no answer at all: the panel was unreachable. */
+      state: 'unanswered'
+    }
+  | {
+      /** The panel refused, and the account is exactly as it was. */
+      state: 'untouched'
+      /** The backend's own localized message, rendered verbatim. */
+      message: string
+      /** The machine-stable problem code, kept for behaviour (which hint to show), never for text. */
+      code: string
+    }
+  | {
+      /** The restore stopped after the account had been changed: it must not be restored over blindly. */
+      state: 'changed'
+      /** The backend's own localized message, rendered verbatim. */
+      message: string
+      /** What the server had already replaced when it stopped, or `null` when it stated none. */
+      partial: RestorePartial | null
+    }
 
 /**
  * What a restore that stopped partway had already replaced, mirroring the backend's

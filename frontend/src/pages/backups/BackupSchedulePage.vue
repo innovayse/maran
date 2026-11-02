@@ -32,7 +32,7 @@
  * holding the summary and the four retention caveats. Under 1024px that column stacks under the
  * form. The retention caveats stay visible text, one per row, because a spec asserts each of them.
  */
-import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref, type WritableComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
@@ -55,25 +55,21 @@ import { useBackupSchedulesStore } from '../../stores/backupSchedules'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import { weekdayName } from '../../utils/weekdayName'
-import type {
-  BackupFrequency,
-  BackupSchedule,
-  BackupScheduleDay,
+import {
+  BACKUP_FREQUENCIES,
+  BACKUP_SCHEDULE_DAYS,
+  type BackupFrequency,
+  type BackupSchedule,
+  type BackupScheduleDay,
+  type BackupScheduleScope,
 } from '../../types/backupSchedule'
 
-/** The scope value standing for the host-wide policy, which is a `null` account on the wire. */
-const HOST_WIDE = ''
-
-/** The weekdays, in the order a week is read, as the backend names them on the wire. */
-const WEEKDAYS: readonly BackupScheduleDay[] = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-]
+/**
+ * The key of the host-wide entry in the scope picker. The picker's options are keyed by string, and
+ * an account is keyed by its identity, so this is the one key that is not an account; it exists
+ * only inside the adapter below, and the page's own state is a {@link BackupScheduleScope}.
+ */
+const HOST_WIDE_OPTION = 'host-wide'
 
 /** One caveat about what retention does not cover, with the glyph that marks its row. */
 interface RetentionPoint {
@@ -98,17 +94,17 @@ const store = useBackupSchedulesStore()
 const { picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const localeStore = useLocaleStore()
 
-/** The scope being edited: {@link HOST_WIDE}, or an account's identity. */
-const scope: Ref<string> = ref(HOST_WIDE)
+/** The schedule being edited: the host-wide policy, or one account's override. */
+const scope: Ref<BackupScheduleScope> = ref({ kind: 'hostWide' })
 
-/** How often a backup is taken, as the select binds it; empty while nothing is scheduled. */
-const frequency: Ref<string> = ref('')
+/** How often a backup is taken; `null` while nothing is scheduled or none has been chosen. */
+const frequency: Ref<BackupFrequency | null> = ref(null)
 
 /** The hour of the day in UTC, as typed. Text, because the form is `novalidate` and the server bounds it. */
 const hourUtc: Ref<string> = ref('')
 
-/** The weekday a weekly schedule fires on, as the select binds it. */
-const dayOfWeekUtc: Ref<string> = ref('')
+/** The weekday a weekly schedule fires on; `null` until one is chosen. */
+const dayOfWeekUtc: Ref<BackupScheduleDay | null> = ref(null)
 
 /** How many successful backups to keep, as typed. */
 const retainCount: Ref<string> = ref('')
@@ -121,7 +117,37 @@ const localError: Ref<string | null> = ref(null)
 
 /** The account the scope names, or `null` for the host-wide policy. */
 const scopeAccountId: ComputedRef<string | null> = computed(() => {
-  return scope.value === HOST_WIDE ? null : scope.value
+  return scope.value.kind === 'account' ? scope.value.accountId : null
+})
+
+/** The scope as the picker binds it: the host-wide key, or the account's identity. */
+const scopeOption: WritableComputedRef<string> = computed({
+  get: (): string => {
+    return scope.value.kind === 'account' ? scope.value.accountId : HOST_WIDE_OPTION
+  },
+  set: (key: string): void => {
+    scope.value = key === HOST_WIDE_OPTION || key === '' ? { kind: 'hostWide' } : { kind: 'account', accountId: key }
+  },
+})
+
+/** The cadence as its select binds it: the wire value, or the empty string while none is chosen. */
+const frequencyOption: WritableComputedRef<string> = computed({
+  get: (): string => {
+    return frequency.value ?? ''
+  },
+  set: (value: string): void => {
+    frequency.value = BACKUP_FREQUENCIES.find((candidate) => candidate === value) ?? null
+  },
+})
+
+/** The weekday as its select binds it: the wire value, or the empty string while none is chosen. */
+const dayOption: WritableComputedRef<string> = computed({
+  get: (): string => {
+    return dayOfWeekUtc.value ?? ''
+  },
+  set: (value: string): void => {
+    dayOfWeekUtc.value = BACKUP_SCHEDULE_DAYS.find((candidate) => candidate === value) ?? null
+  },
 })
 
 /**
@@ -133,7 +159,7 @@ const scopePicker: ComputedRef<AccountPickerState> = computed(() => {
   const state = accountPicker.value
   return {
     ...state,
-    options: [{ value: HOST_WIDE, label: t('backups.schedule.scope.hostWide') }, ...state.options],
+    options: [{ value: HOST_WIDE_OPTION, label: t('backups.schedule.scope.hostWide') }, ...state.options],
     total: state.total + 1,
   }
 })
@@ -148,7 +174,7 @@ const frequencyOptions: ComputedRef<readonly SelectOption[]> = computed(() => {
 
 /** The weekdays, named in the interface language by the date library rather than by this panel. */
 const dayOptions: ComputedRef<readonly SelectOption[]> = computed(() => {
-  return WEEKDAYS.map((day) => {
+  return BACKUP_SCHEDULE_DAYS.map((day) => {
     return { value: day, label: weekdayName(day, localeStore.current) }
   })
 })
@@ -223,9 +249,9 @@ const fieldError = (field: string): string | null => {
 const fill = (value: BackupSchedule | null): void => {
   localError.value = null
   if (value === null) {
-    frequency.value = ''
+    frequency.value = null
     hourUtc.value = ''
-    dayOfWeekUtc.value = ''
+    dayOfWeekUtc.value = null
     retainCount.value = ''
     enabled.value = false
     return
@@ -233,7 +259,7 @@ const fill = (value: BackupSchedule | null): void => {
 
   frequency.value = value.frequency
   hourUtc.value = String(value.hourUtc)
-  dayOfWeekUtc.value = value.dayOfWeekUtc ?? ''
+  dayOfWeekUtc.value = value.dayOfWeekUtc
   retainCount.value = String(value.retainCount)
   enabled.value = value.enabled
 }
@@ -248,7 +274,7 @@ const fill = (value: BackupSchedule | null): void => {
  * @returns The translated complaint, or `null` when there is nothing to complain about.
  */
 const missingField = (): string | null => {
-  if (frequency.value === '') {
+  if (frequency.value === null) {
     return t('backups.schedule.errors.frequencyRequired')
   }
   if (hourUtc.value.trim() === '') {
@@ -257,7 +283,7 @@ const missingField = (): string | null => {
   if (retainCount.value.trim() === '') {
     return t('backups.schedule.errors.retainRequired')
   }
-  if (isWeekly.value && dayOfWeekUtc.value === '') {
+  if (isWeekly.value && dayOfWeekUtc.value === null) {
     return t('backups.schedule.errors.dayRequired')
   }
   return null
@@ -269,7 +295,8 @@ const missingField = (): string | null => {
  */
 const submit = async (): Promise<void> => {
   localError.value = missingField()
-  if (localError.value !== null) {
+  const chosenFrequency = frequency.value
+  if (localError.value !== null || chosenFrequency === null) {
     return
   }
 
@@ -278,13 +305,11 @@ const submit = async (): Promise<void> => {
     // Always the server's default destination. The panel records no other, and the endpoint that
     // would record one refuses every request today, so there is nothing here to choose from.
     destinationId: null,
-    // The two selects bind plain strings by contract; their options are exactly the wire values,
-    // so these narrow rather than guess.
-    frequency: frequency.value as BackupFrequency,
+    frequency: chosenFrequency,
     hourUtc: Number(hourUtc.value),
     // A daily schedule must send no weekday at all — the server refuses one with
     // `BackupScheduleDayNotAllowed` — so the picker's last value is dropped rather than kept.
-    dayOfWeekUtc: isWeekly.value ? (dayOfWeekUtc.value as BackupScheduleDay) : null,
+    dayOfWeekUtc: isWeekly.value ? dayOfWeekUtc.value : null,
     retainCount: Number(retainCount.value),
     enabled: enabled.value,
   })
@@ -347,7 +372,7 @@ watch(
           }}
         </p>
         <UiCombobox
-          v-model="scope"
+          v-model="scopeOption"
           v-bind="scopePicker"
           class="w-full min-w-0 @2xl:w-80 @2xl:shrink-0"
           :label="t('backups.schedule.scope.label')"
@@ -379,7 +404,7 @@ watch(
             <div class="flex flex-col gap-4">
               <div class="grid gap-4 @lg:grid-cols-2">
                 <UiSelect
-                  v-model="frequency"
+                  v-model="frequencyOption"
                   class="min-w-0"
                   :label="t('backups.schedule.form.frequencyLabel')"
                   :placeholder="t('backups.schedule.form.frequencyPlaceholder')"
@@ -389,7 +414,7 @@ watch(
 
                 <UiSelect
                   v-if="isWeekly"
-                  v-model="dayOfWeekUtc"
+                  v-model="dayOption"
                   class="min-w-0"
                   :label="t('backups.schedule.form.dayLabel')"
                   :placeholder="t('backups.schedule.form.dayPlaceholder')"

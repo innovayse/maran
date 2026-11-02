@@ -9,6 +9,9 @@
  */
 export type BackupFrequency = 'daily' | 'weekly'
 
+/** Every {@link BackupFrequency}, in the order a picker offers them. */
+export const BACKUP_FREQUENCIES: readonly BackupFrequency[] = ['daily', 'weekly']
+
 /**
  * The weekday a weekly schedule fires on, mirroring the backend's `DayOfWeek?` and likewise a
  * camelCase name on the wire.
@@ -25,6 +28,36 @@ export type BackupScheduleDay =
   | 'thursday'
   | 'friday'
   | 'saturday'
+
+/** Every {@link BackupScheduleDay}, in the order a week is read. */
+export const BACKUP_SCHEDULE_DAYS: readonly BackupScheduleDay[] = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+]
+
+/**
+ * Which schedule the schedule screen is editing: the host-wide policy, or one account's override.
+ *
+ * A union rather than a nullable account id or an empty string, because "no account chosen" and
+ * "the policy for every account" are different statements and the screen must never confuse them.
+ * It maps to the wire's `accountId: null` for `hostWide` and to the account's identity otherwise.
+ */
+export type BackupScheduleScope =
+  | {
+      /** The policy every account without an override is backed up by. */
+      kind: 'hostWide'
+    }
+  | {
+      /** One account's override of the host-wide policy. */
+      kind: 'account'
+      /** The account the override belongs to. */
+      accountId: string
+    }
 
 /**
  * Outward view of one backup schedule, mirroring the backend's `BackupScheduleDto` field for field.
