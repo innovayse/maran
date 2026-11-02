@@ -85,7 +85,7 @@ public sealed class ChangeAccountOwnerEmailCommandHandler
                 cancellationToken);
         }
 
-        var login = await _bus.InvokeAsync<Result<bool>>(
+        var login = await _bus.InvokeAsync<Result>(
             new AccountLoginEmailChangeRequested(account.Id, command.OwnerEmail), cancellationToken);
         if (!login.IsSuccess)
         {

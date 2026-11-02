@@ -60,7 +60,7 @@ public sealed class DeletePlanCommandHandler
     /// <param name="command">The plan to delete.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
     /// <returns>Success, <c>PlanNotFound</c>, or <c>PlanInUse</c> while any account references the plan.</returns>
-    public async Task<Result<bool>> HandleAsync(DeletePlanCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(DeletePlanCommand command, CancellationToken cancellationToken)
     {
         var plan = await _dbContext.Plans.SingleOrDefaultAsync(p => p.Id == command.PlanId, cancellationToken);
         if (plan is null)
@@ -96,7 +96,7 @@ public sealed class DeletePlanCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.PlanDeleted, plan.DisplayNameKey, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Journals a refused deletion and returns it as the typed failure.</summary>
@@ -105,7 +105,7 @@ public sealed class DeletePlanCommandHandler
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         DeletePlanCommand command,
         string subject,
         Error error,
@@ -114,6 +114,6 @@ public sealed class DeletePlanCommandHandler
         await _journal.RecordFailureAsync(
             AuditActions.PlanDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }

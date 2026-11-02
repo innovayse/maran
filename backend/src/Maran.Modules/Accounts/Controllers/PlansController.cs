@@ -154,13 +154,13 @@ public sealed class PlansController : BaseApiController
     /// <param name="id">The plan to delete.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeletePlanCommand(id, ClientIpAddress, CallerUserAgent);
-        var result = await _bus.InvokeAsync<Result<bool>>(command, cancellationToken);
+        var result = await _bus.InvokeAsync<Result>(command, cancellationToken);
         return ToActionResult(result);
     }
 }
