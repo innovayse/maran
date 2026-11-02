@@ -97,7 +97,7 @@ public sealed class PanelLogLevelEndpointTests : IAsyncLifetime
 
         var response = await client.PutAsJsonAsync(Path, new { Level = "warning" });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(PanelLogLevel.Warning, factory.Services.GetRequiredService<IPanelLogLevelSwitch>().Current);
 
         using var body = JsonDocument.Parse(await client.GetStringAsync(Path));
@@ -141,7 +141,7 @@ public sealed class PanelLogLevelEndpointTests : IAsyncLifetime
             await MigrateAsync(first);
             await SeedUsersAsync(first);
             using var client = await SignInAsync(first, "admin");
-            Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(Path, new { Level = "error" })).StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync(Path, new { Level = "error" })).StatusCode);
         }
 
         // Reading Services starts the host, which runs every hosted service's StartAsync first.

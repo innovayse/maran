@@ -181,7 +181,7 @@ export const stubMonitoring = async (
       const requested = (route.request().postDataJSON() as { level: LogLevel['level'] }).level
       logLevelChanges.push(requested)
       current = requested
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
 

@@ -11,7 +11,7 @@ namespace Maran.Modules.Monitoring.Controllers;
 
 /// <summary>
 /// HTTP surface for the panel's runtime log level (issue #131). Thin by design: binds the request,
-/// dispatches through Wolverine, translates the <see cref="Result{T}"/>.
+/// dispatches through Wolverine, translates the <see cref="Result"/> or <see cref="Result{T}"/>.
 /// </summary>
 /// <remarks>
 /// Administrators only. The level decides how much of what every tenant does reaches the panel's
@@ -57,7 +57,7 @@ public sealed class PanelLogLevelController : BaseApiController
     /// <param name="command">The level to apply. The caller's address and user agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -67,6 +67,6 @@ public sealed class PanelLogLevelController : BaseApiController
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }
