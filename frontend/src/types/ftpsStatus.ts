@@ -24,6 +24,16 @@ export type FtpsDesiredState = 'neverConfigured' | 'on' | 'off'
 export type FtpsCertificate = 'absent' | 'selfSigned' | 'provided'
 
 /**
+ * Whether the live configuration forces TLS on both the control and the data channel, mirroring the
+ * backend's `FtpsTlsEnforcement`: three outcomes, because "TLS is optional" and "the configuration
+ * could not be read" are different things to tell an administrator.
+ * - `enforced` — the configuration was read and forces TLS on both channels;
+ * - `notEnforced` — the configuration was read and TLS is optional: passwords may travel in the clear;
+ * - `notObserved` — the agent could not read the configuration, so nothing is known either way.
+ */
+export type FtpsTlsEnforcement = 'enforced' | 'notEnforced' | 'notObserved'
+
+/**
  * Whether the panel's intention and the agent's observation agree, and if not in which direction,
  * mirroring the backend's `FtpsAgreement`. Decided on the server; the SPA explains it and never
  * re-derives it.
@@ -99,12 +109,12 @@ export interface FtpsStatus {
    */
   controlPortAnswered: boolean
   /**
-   * The live configuration still forces TLS on both the control and the data channel.
+   * Whether the live configuration forces TLS on both the control and the data channel.
    *
-   * `false` whenever the agent could not say otherwise, because an unknown must never read as
-   * "encryption is enforced".
+   * `notObserved` is its own state: an unknown must never read as "encryption is enforced", and
+   * must not be claimed as "encryption is off" either.
    */
-  forcedTls: boolean
+  tlsEnforcement: FtpsTlsEnforcement
   /**
    * What the agent found for {@link hostname}: no material, the agent's own self-signed placeholder
    * (every client will warn), or a certificate somebody installed. With no hostname the agent was

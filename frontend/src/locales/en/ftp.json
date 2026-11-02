@@ -74,7 +74,7 @@
         "hostname": "Host name",
         "controlPort": "Control port",
         "passiveRange": "Passive ports",
-        "forcedTls": "Encryption",
+        "tlsEnforcement": "Encryption",
         "certificate": "Certificate file"
       },
       "desiredStates": {
@@ -85,8 +85,9 @@
       "states": {
         "running": "Running",
         "stopped": "Stopped",
-        "tlsForced": "TLS required for logins and transfers",
-        "tlsUnknown": "Not confirmed as required",
+        "tlsEnforced": "TLS required for logins and transfers",
+        "tlsNotEnforced": "TLS is optional: logins and transfers can travel unencrypted",
+        "tlsNotObserved": "Not observed: the configuration could not be read",
         "notAnswering": "Not answering"
       },
       "ipv4Only": "This host has no IPv6 address, so the daemon is bound to IPv4 only.",
