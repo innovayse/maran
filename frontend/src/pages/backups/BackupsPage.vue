@@ -57,6 +57,21 @@ import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { Backup, CreateBackupRequest } from '../../types/backup'
 
+/** The dialog open over the history: a deletion awaiting its answer, or a restore. */
+type BackupDialog =
+  | {
+      /** The backup is about to be deleted. */
+      kind: 'remove'
+      /** The backup the confirmation is for; its row supplies the wording. */
+      backupId: string
+    }
+  | {
+      /** The backup is about to be restored. */
+      kind: 'restore'
+      /** The backup, whole, because the dialog states what it holds. */
+      backup: Backup
+    }
+
 const { t } = useI18n()
 const store = useBackupsStore()
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
@@ -79,11 +94,12 @@ const table = useServerTable<Backup>({
   },
 })
 
-/** The backup whose deletion is awaiting confirmation, or the empty string when none is. */
-const pendingId: Ref<string> = ref('')
-
-/** The backup the restore dialog is open for (whole, as the dialog states what it holds), or `null`. */
-const restoreTarget: Ref<Backup | null> = ref(null)
+/**
+ * The dialog open over the list, or `null` when none is. A deletion names the backup by id (the
+ * confirmation reads its row); a restore holds the backup whole, as the dialog states what it holds.
+ * The two are modals, so one value says which.
+ */
+const dialog: Ref<BackupDialog | null> = ref(null)
 
 /** The create form, so an accepted backup can empty the picker it owns. */
 const createForm = useTemplateRef<{ reset: () => void }>('createForm')
@@ -108,8 +124,12 @@ const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
 
 /** The backup the confirmation is open for, or `null` when none is. */
 const pendingBackup: ComputedRef<Backup | null> = computed(() => {
+  const open = dialog.value
+  if (open === null || open.kind !== 'remove') {
+    return null
+  }
   return store.backups.find((backup) => {
-    return backup.id === pendingId.value
+    return backup.id === open.backupId
   }) ?? null
 })
 
@@ -162,7 +182,7 @@ const accountUsername = (backup: Backup): string | null => {
  * @returns Nothing.
  */
 const askRestore = (backup: Backup): void => {
-  restoreTarget.value = backup
+  dialog.value = { kind: 'restore', backup }
 }
 
 /**
@@ -170,7 +190,7 @@ const askRestore = (backup: Backup): void => {
  * @returns Nothing.
  */
 const closeRestore = (): void => {
-  restoreTarget.value = null
+  dialog.value = null
 }
 
 /**
@@ -179,7 +199,7 @@ const closeRestore = (): void => {
  * @returns Nothing.
  */
 const ask = (id: string): void => {
-  pendingId.value = id
+  dialog.value = { kind: 'remove', backupId: id }
 }
 
 /**
@@ -187,7 +207,7 @@ const ask = (id: string): void => {
  * @returns Nothing.
  */
 const cancel = (): void => {
-  pendingId.value = ''
+  dialog.value = null
 }
 
 /**
@@ -195,11 +215,15 @@ const cancel = (): void => {
  * @returns Resolves once the request and the reread have settled.
  */
 const confirm = async (): Promise<void> => {
-  const removed = await store.remove(pendingId.value)
+  const open = dialog.value
+  if (open === null || open.kind !== 'remove') {
+    return
+  }
+  const removed = await store.remove(open.backupId)
 
   // Closed after the request settles rather than before it is sent: the dialog holds the
   // spinner that tells the operator the panel is working.
-  pendingId.value = ''
+  dialog.value = null
   if (removed) {
     await refresh()
   }
@@ -372,7 +396,7 @@ watch(
     <!-- One dialog for the whole table, not wrapped in a `v-if`, so `UiModal`s open-watcher runs and
          its focus trap is live. -->
     <UiConfirm
-      :open="pendingId.length > 0"
+      :open="dialog !== null && dialog.kind === 'remove'"
       :title="confirmationTitle"
       :question="t('backups.list.confirmDelete')"
       :confirm-label="t('backups.list.confirm')"
@@ -386,10 +410,10 @@ watch(
 
     <!-- `v-if` because `backup` is required; `UiModal`s immediate open-watcher handles `open` true. -->
     <BackupRestoreDialog
-      v-if="restoreTarget !== null"
-      :open="restoreTarget !== null"
-      :backup="restoreTarget"
-      :account-username="accountUsername(restoreTarget)"
+      v-if="dialog !== null && dialog.kind === 'restore'"
+      :open="true"
+      :backup="dialog.backup"
+      :account-username="accountUsername(dialog.backup)"
       @close="closeRestore"
     />
   </section>
