@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Ftp.Tests.TestSupport;
@@ -9,32 +10,5 @@ namespace Maran.Modules.Ftp.Tests.TestSupport;
 public sealed class TestCurrentUser : ICurrentUser
 {
     /// <inheritdoc />
-    public Guid UserId { get; } = new("2f7a9f2a-6a1e-4f5a-9c1f-0b6c5a2e7d10");
-
-    /// <inheritdoc />
-    public string Username
-    {
-        get
-        {
-            return "admin";
-        }
-    }
-
-    /// <inheritdoc />
-    public Guid? AccountId
-    {
-        get
-        {
-            return null;
-        }
-    }
-
-    /// <inheritdoc />
-    public bool IsAdmin
-    {
-        get
-        {
-            return true;
-        }
-    }
+    public Caller Caller { get; } = new AdministratorCaller(new Guid("2f7a9f2a-6a1e-4f5a-9c1f-0b6c5a2e7d10"), "admin");
 }

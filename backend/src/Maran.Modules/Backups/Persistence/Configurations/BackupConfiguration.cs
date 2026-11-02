@@ -64,10 +64,32 @@ public sealed class BackupConfiguration : IEntityTypeConfiguration<Backup>
         builder.Property(backup => backup.SizeBytes)
             .IsRequired();
 
+        // Expand phase of replacing three empty-string sentinels with nullable columns. Each fact
+        // below is added as a NEW nullable column the code reads; the previous release's column stays
+        // (mapped as a private Legacy… property, written by the entity in step, read by nothing) until
+        // a later release drops it.
+        //
+        // raw-sql backfill, written into the migration's Up right after the columns are added
+        // (identifiers quoted: PascalCase, rules/csharp.md). No check constraint ties the new columns
+        // to Status on purpose: the previous release completes a row by writing only the old columns,
+        // and a constraint over the new ones would refuse that write after a rollback. Re-running the
+        // backfill is harmless, and it is what makes rows the previous release wrote readable again:
+        //   UPDATE backups."Backups" SET "ArtifactSha256" = NULLIF("Sha256", '')
+        //     WHERE "Status" = 'Completed' AND "ArtifactSha256" IS NULL;
+        //   UPDATE backups."Backups" SET "RunFailureCode" = NULLIF("FailureCode", '')
+        //     WHERE "Status" = 'Failed' AND "RunFailureCode" IS NULL;
+        //   UPDATE backups."Backups" SET "DeletedAccountUsername" = NULLIF("OrphanedAccountUsername", '')
+        //     WHERE "DeletedAccountUsername" IS NULL;
+        // Down needs no data statement: the previous release reads the old columns, which stay written.
+        //
         // Fixed at the digest's own width. A column that could hold more is a column something other
         // than a digest can be written into, and this value is what a restore's integrity check is
         // decided by.
-        builder.Property(backup => backup.Sha256)
+        builder.Property(backup => backup.ArtifactSha256)
+            .HasMaxLength(Sha256HexLength);
+
+        builder.Property<string>("LegacySha256")
+            .HasColumnName("Sha256")
             .IsRequired()
             .HasMaxLength(Sha256HexLength);
 
@@ -82,14 +104,22 @@ public sealed class BackupConfiguration : IEntityTypeConfiguration<Backup>
         // An error CODE, so the column is short by design. Widening it is how the agent's own
         // sentence — which can quote a path or a database name — would end up in this table
         // (rules/security.md item 8).
-        builder.Property(backup => backup.FailureCode)
+        builder.Property(backup => backup.RunFailureCode)
+            .HasMaxLength(FailureCodeMaxLength);
+
+        builder.Property<string>("LegacyFailureCode")
+            .HasColumnName("FailureCode")
             .IsRequired()
             .HasMaxLength(FailureCodeMaxLength);
 
-        // Required-with-an-empty-default rather than nullable, so "no deleted account" has exactly
-        // one representation in the column and a reader never has to decide whether NULL and '' mean
-        // the same thing. The entity says the same in C#: the empty string is the unstamped state.
-        builder.Property(backup => backup.OrphanedAccountUsername)
+        // Null while the account exists; the deleted account's name once it does not. The previous
+        // release's column below was required-with-an-empty-default, which made "no deleted account"
+        // a string of length zero; it is still written (as that empty default) and read by nothing.
+        builder.Property(backup => backup.DeletedAccountUsername)
+            .HasMaxLength(UsernameMaxLength);
+
+        builder.Property<string>("LegacyOrphanedAccountUsername")
+            .HasColumnName("OrphanedAccountUsername")
             .IsRequired()
             .HasMaxLength(UsernameMaxLength)
             .HasDefaultValue(string.Empty);

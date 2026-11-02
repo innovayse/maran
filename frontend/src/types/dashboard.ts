@@ -62,31 +62,44 @@ export interface DashboardAttention {
 }
 
 /**
- * Everything the landing screen shows, mirroring the backend's `DashboardDto`.
- *
- * **A null section means "not for this caller"**, and nothing else. Both audiences receive this one
- * shape, so this SPA has a single contract: an administrator gets every section, everyone else gets
- * every section null. The decision is the server's, and `isAdministrator` says which answer arrived,
- * so the page can state that there is nothing to show rather than drawing a screen of missing panels.
+ * What an administrator's landing screen shows, mirroring the backend's `AdministratorDashboardDto`:
+ * every server-wide section, each with its own read state.
  *
  * Whether a section could be READ is its {@link DashboardSection} state, never an empty list or a
  * null: an empty list is a real answer (no services watched, nothing journalled yet) and a different
  * one from a module that did not answer.
  */
-export interface Dashboard {
-  /** Whether the sections below were filled for this caller. */
-  isAdministrator: boolean
-  /** The host's live resource reading, or `null` when withheld. */
-  resources: DashboardSection<HostMetrics> | null
-  /** The services the agent watches, or `null` when withheld. */
-  services: DashboardSection<ServiceStatus[]> | null
-  /** What this server holds, or `null` when withheld. */
-  counts: DashboardCounts | null
-  /** What needs looking at, or `null` when withheld. */
-  attention: DashboardAttention | null
-  /** The newest audit entries, or `null` when withheld. */
-  recentAudit: DashboardSection<AuditEvent[]> | null
+export interface AdministratorDashboard {
+  /** Discriminant: this answer was filled for an administrator. */
+  audience: 'administrator'
+  /** The host's live resource reading. */
+  resources: DashboardSection<HostMetrics>
+  /** The services the agent watches. */
+  services: DashboardSection<ServiceStatus[]>
+  /** What this server holds. */
+  counts: DashboardCounts
+  /** What needs looking at. */
+  attention: DashboardAttention
+  /** The newest audit entries. */
+  recentAudit: DashboardSection<AuditEvent[]>
 }
+
+/**
+ * What a customer's landing request is answered with, mirroring the backend's `CustomerDashboardDto`:
+ * nothing of the server's state. The shape has no section at all, so there is none to mistake for a
+ * read that failed.
+ */
+export interface CustomerDashboard {
+  /** Discriminant: this answer was filled for a customer. */
+  audience: 'customer'
+}
+
+/**
+ * Everything the landing screen shows, mirroring the backend's `DashboardDto`: exactly one of two
+ * shapes, told apart by `audience`. The decision is the server's; this SPA agreeing with it is advice
+ * and not enforcement (rules/vue.md).
+ */
+export type Dashboard = AdministratorDashboard | CustomerDashboard
 
 /** The dashboard endpoint this SPA calls. */
 export interface DashboardApi {
@@ -96,4 +109,11 @@ export interface DashboardApi {
    * @returns What this caller is allowed to be shown.
    */
   get: (signal?: AbortSignal) => Promise<Dashboard>
+  /**
+   * Reads how many things on the server ask to be looked at: the dashboard's attention block added
+   * up, without the rest of the dashboard. Administrators only; anyone else is refused.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The count, or that it could not be taken; never a zero standing in for a failed read.
+   */
+  attentionCount: (signal?: AbortSignal) => Promise<DashboardSection<number>>
 }

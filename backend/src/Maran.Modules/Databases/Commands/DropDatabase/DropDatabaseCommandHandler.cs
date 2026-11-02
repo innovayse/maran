@@ -66,7 +66,7 @@ public sealed class DropDatabaseCommandHandler
     /// <param name="command">Which database to drop.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or <c>DatabaseNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>
-    public async Task<Result<bool>> HandleAsync(DropDatabaseCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(DropDatabaseCommand command, CancellationToken cancellationToken)
     {
         var database = await _dbContext.Databases
             .SingleOrDefaultAsync(row => row.Id == command.DatabaseId, cancellationToken);
@@ -110,7 +110,7 @@ public sealed class DropDatabaseCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.DatabaseDropped, fullName, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Journals a refused drop and returns it as the typed failure.</summary>
@@ -119,7 +119,7 @@ public sealed class DropDatabaseCommandHandler
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         DropDatabaseCommand command,
         string subject,
         Error error,
@@ -128,6 +128,6 @@ public sealed class DropDatabaseCommandHandler
         await _journal.RecordFailureAsync(
             AuditActions.DatabaseDropped, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }

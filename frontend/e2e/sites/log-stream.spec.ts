@@ -142,8 +142,7 @@ test('site log tail keeps the panel’s own ending rather than reporting a gener
   stream.close()
   await within(tail, 'the log stream to end')
 
-  expect(store.logEndReason).toBe('dropped')
-  expect(store.logStatus).toBe('ended')
+  expect(store.logStream).toMatchObject({ state: 'ended', reason: 'dropped' })
 })
 
 test('site log tail reports a stream that closed without naming an ending as truncated', async () => {
@@ -157,8 +156,8 @@ test('site log tail reports a stream that closed without naming an ending as tru
   stream.close()
   await within(tail, 'the log stream to end')
 
-  expect(store.logEndReason).toBe('truncated')
-  expect(store.logEndReason).not.toBe('completed')
+  expect(store.logStream).toMatchObject({ state: 'ended', reason: 'truncated' })
+  expect(store.logStream).not.toMatchObject({ reason: 'completed' })
 })
 
 test('site log tail reports an ending this panel does not recognise as failed, never as completed', async () => {
@@ -172,7 +171,7 @@ test('site log tail reports an ending this panel does not recognise as failed, n
   stream.close()
   await within(tail, 'the log stream to end')
 
-  expect(store.logEndReason).toBe('failed')
+  expect(store.logStream).toMatchObject({ state: 'ended', reason: 'failed' })
 })
 
 test('stopping a log tail aborts the request, ends as cancelled, and delivers no further lines', async () => {
@@ -190,8 +189,7 @@ test('stopping a log tail aborts the request, ends as cancelled, and delivers no
   await within(tail, 'the cancelled stream to settle')
 
   expect(stream.aborted()).toBe(true)
-  expect(store.logEndReason).toBe('cancelled')
-  expect(store.logStatus).toBe('ended')
+  expect(store.logStream).toMatchObject({ state: 'ended', reason: 'cancelled' })
 
   // Anything sent after the abort must reach nobody: the reader is released, not merely ignored.
   expect(stream.send(line('after the stop'))).toBe(false)
@@ -232,7 +230,7 @@ test('starting a second log tail abandons the first, so two logs never interleav
   expect(first.aborted()).toBe(true)
   expect(lateWriteAccepted).toBe(false)
   expect(store.logLines.map((held) => { return held.line })).toEqual(['error line'])
-  expect(store.logEndReason).toBe('completed')
+  expect(store.logStream).toMatchObject({ state: 'ended', reason: 'completed' })
 })
 
 test('a line already in flight when a second tail starts is dropped, not appended to the new log', async () => {

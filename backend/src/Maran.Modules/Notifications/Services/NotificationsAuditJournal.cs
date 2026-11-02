@@ -1,5 +1,6 @@
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Notifications.Services;
 
@@ -66,10 +67,14 @@ public sealed class NotificationsAuditJournal
         bool succeeded,
         CancellationToken cancellationToken)
     {
+        var (userId, username) = _currentUser.Caller is PrincipalCaller principal
+            ? (principal.UserId, principal.Username)
+            : (Guid.Empty, string.Empty);
+
         await _auditWriter.WriteAsync(
             new AuditEntry(
-                _currentUser.UserId,
-                _currentUser.Username,
+                userId,
+                username,
                 action,
                 subject,
                 ipAddress,

@@ -47,12 +47,12 @@ const CUSTOMER: AuthenticatedUser = {
 
 /** The modules a customer's account reaches in these specs. */
 const MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
-  { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', isEnabled: true },
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', isEnabled: true },
-  { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+  { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' },
+  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
+  { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
 ]
 
 /**
@@ -149,7 +149,7 @@ test('a customer takes a backup of their own account without a picker', async ({
 test('a customer creates a site on their own account without a picker', async ({ page }) => {
   const accountsCalls = await signInCustomer(page)
   await stubSites(page, [])
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 
   await page.goto('/sites/new')
   await expect(page.getByRole('textbox', { name: 'Domain' })).toBeVisible()

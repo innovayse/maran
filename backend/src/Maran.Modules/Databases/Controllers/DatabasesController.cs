@@ -6,6 +6,7 @@ using Maran.Modules.Databases.Queries.GetDatabase;
 using Maran.Modules.Databases.Queries.ListDatabases;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -28,6 +29,7 @@ namespace Maran.Modules.Databases.Controllers;
 [Tags("Databases")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RequiresAccountFeature(AccountFeature.Databases)]
 public sealed class DatabasesController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>
@@ -126,12 +128,12 @@ public sealed class DatabasesController : BaseApiController
     /// <param name="id">The database to drop.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new DropDatabaseCommand(id, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

@@ -104,8 +104,8 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
     /// The catalogue hides administrator-only modules from a caller who is not an administrator.
     /// </summary>
     /// <remarks>
-    /// This client is anonymous, and <see cref="Maran.SharedKernel.Interfaces.ICurrentUser.IsAdmin"/>
-    /// reads false for one — the same answer a signed-in customer gets. Presentation only: an
+    /// This client is anonymous, and <see cref="Maran.SharedKernel.Interfaces.ICurrentUser.Caller"/>
+    /// is an <c>AnonymousCaller</c>, not an administrator — the same answer a signed-in customer gets. Presentation only: an
     /// administrator-only module missing here is not thereby protected, its own endpoints are
     /// (<see cref="ModulesEndpoint"/>).
     /// </remarks>
@@ -159,7 +159,8 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         });
         Assert.Equal("included", module.GetProperty("tier").GetString());
         Assert.Equal("Included", module.GetProperty("tierDisplayName").GetString());
-        Assert.True(module.GetProperty("isEnabled").GetBoolean());
+        Assert.Equal("enabled", module.GetProperty("state").GetString());
+        Assert.False(module.TryGetProperty("isEnabled", out _));
         Assert.False(string.IsNullOrWhiteSpace(module.GetProperty("displayName").GetString()));
     }
 

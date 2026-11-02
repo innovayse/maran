@@ -48,7 +48,7 @@ import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { useSftpStore } from '../../stores/sftp'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
-import type { CreateSftpUserRequest, SftpUser, SftpUserAction } from '../../types/sftpUser'
+import type { CreateSftpUserRequest, SftpUser, SftpUserAction, PendingSftpUserAction } from '../../types/sftpUser'
 import { usePlanLimit } from '../../composables/usePlanLimit'
 
 
@@ -82,11 +82,8 @@ const notice: Ref<string | null> = ref(null)
 /** Whether the filter sheet is open. */
 const filtersOpen: Ref<boolean> = ref(false)
 
-/** The login whose action is awaiting confirmation, or `null` when none is. */
-const pending: Ref<SftpUser | null> = ref(null)
-
-/** Which action that login is waiting on. */
-const pendingAction: Ref<SftpUserAction> = ref('remove')
+/** The login and the action awaiting confirmation, or `null` when none is. */
+const pending: Ref<PendingSftpUserAction | null> = ref(null)
 
 /** Whether the list is narrowed by a search or a filter, so an empty answer means "no match". */
 const isNarrowed: ComputedRef<boolean> = computed(() => {
@@ -135,8 +132,7 @@ const create = async (request: CreateSftpUserRequest): Promise<void> => {
  * @returns Nothing.
  */
 const ask = (login: SftpUser, action: SftpUserAction): void => {
-  pending.value = login
-  pendingAction.value = action
+  pending.value = { login, action }
 }
 
 /**
@@ -152,16 +148,16 @@ const cancel = (): void => {
  * @returns Resolves once the request has settled.
  */
 const confirm = async (): Promise<void> => {
-  const login = pending.value
-  if (login === null) {
+  const awaiting = pending.value
+  if (awaiting === null) {
     return
   }
-  if (pendingAction.value === 'remove') {
-    if (await store.remove(login.id)) {
+  if (awaiting.action === 'remove') {
+    if (await store.remove(awaiting.login.id)) {
       await table.reload()
     }
   } else {
-    await store.resetPassword(login.id)
+    await store.resetPassword(awaiting.login.id)
   }
   // Closed after the request settles rather than before it is sent: the dialog holds the spinner.
   pending.value = null
@@ -328,17 +324,16 @@ onBeforeUnmount(store.dismissCredential)
     </UiFilterSheet>
 
     <SftpUserActionConfirm
-      :login="pending"
-      :action="pendingAction"
+      v-if="pending !== null"
+      :pending="pending"
       :acting="store.acting"
       @close="cancel"
       @confirm="confirm"
     />
 
     <SftpUserCreatedDialog
-      :open="store.revealedCredential !== null"
-      :full-name="store.revealedCredential?.fullName ?? ''"
-      :password="store.revealedCredential?.password ?? ''"
+      v-if="store.revealedCredential !== null"
+      :credential="store.revealedCredential"
       @close="store.dismissCredential"
     />
 

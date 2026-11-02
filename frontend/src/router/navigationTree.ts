@@ -15,6 +15,7 @@
  * Offering an item is advice: every endpoint behind a page enforces the caller's role on its own.
  */
 
+import type { AccountFeatureName } from '../types/accountFeature'
 import type {
   NavigationAvailability,
   NavigationGroupSpec,
@@ -48,7 +49,9 @@ const planned = (issue: number | null): NavigationAvailability => {
  * @param availability Whether the page is built, and its route.
  * @param roles The roles the page is offered to.
  * @param module The licensed module the page belongs to, or null for the panel's own screens.
- * @returns The page, with no plan feature and no badge.
+ * @param planFeature The hosting-plan feature the page needs, spelled as the panel names it
+ *   (`GET /api/v1/accounts/me` lists the same names), or null when it needs none.
+ * @returns The page, with the given plan feature and no badge.
  */
 const page = (
   key: string,
@@ -56,8 +59,9 @@ const page = (
   availability: NavigationAvailability,
   roles: readonly NavigationRole[],
   module: string | null,
+  planFeature: AccountFeatureName | null = null,
 ): NavigationPageSpec => {
-  return { key, labelKey, availability, roles, module, planFeature: null, badge: null }
+  return { key, labelKey, availability, roles, module, planFeature, badge: null }
 }
 
 /** Administrators only: the host and the panel itself. */
@@ -96,6 +100,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         kind: 'link',
         icon: 'house',
         ...page('dashboard', 'app.status.heading', routed('system-status'), EVERYONE, null),
+        badge: 'needsAttention',
       },
     ],
   },
@@ -125,7 +130,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('site-domains', 'app.nav.children.siteDomains', planned(null), EVERYONE, null),
           page('site-certificates', 'app.nav.children.siteCertificates', planned(null), EVERYONE, null),
           page('site-php', 'app.nav.children.sitePhp', planned(null), CUSTOMER, null),
-          page('php-versions', 'php.title', routed('php-versions'), ADMIN, null),
+          page('php-versions', 'app.nav.phpVersions', routed('php-versions'), ADMIN, null),
         ],
       },
       {
@@ -134,10 +139,10 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.dns',
         icon: 'globe',
         children: [
-          page('dns-zones', 'app.nav.children.dnsZones', planned(178), MANAGERS, null),
-          page('dns-my-zones', 'app.nav.children.dnsMyZones', planned(178), CUSTOMER, null),
-          page('dns-templates', 'app.nav.children.dnsTemplates', planned(178), MANAGERS, null),
-          page('dns-nameservers', 'app.nav.children.dnsNameservers', planned(178), MANAGERS, null),
+          page('dns-zones', 'app.nav.children.dnsZones', planned(178), MANAGERS, null, 'dns'),
+          page('dns-my-zones', 'app.nav.children.dnsMyZones', planned(178), CUSTOMER, null, 'dns'),
+          page('dns-templates', 'app.nav.children.dnsTemplates', planned(178), MANAGERS, null, 'dns'),
+          page('dns-nameservers', 'app.nav.children.dnsNameservers', planned(178), MANAGERS, null, 'dns'),
         ],
       },
       {
@@ -146,14 +151,17 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.mail',
         icon: 'mail',
         children: [
-          page('mailboxes', 'app.nav.children.mailboxes', planned(177), EVERYONE, null),
-          page('mail-forwarders', 'app.nav.children.mailForwarders', planned(177), EVERYONE, null),
-          page('mail-autoresponders', 'app.nav.children.mailAutoresponders', planned(177), CUSTOMER, null),
-          page('mail-spam-filter', 'app.nav.children.mailSpamFilter', planned(177), CUSTOMER, null),
-          page('webmail', 'app.nav.children.webmail', planned(177), CUSTOMER, null),
-          page('mail-queue', 'app.nav.children.mailQueue', planned(177), MANAGERS, null),
-          page('mail-authentication', 'app.nav.children.mailAuthentication', planned(177), MANAGERS, null),
-          page('mail-limits', 'app.nav.children.mailLimits', planned(177), MANAGERS, null),
+          page('mailboxes', 'app.nav.children.mailboxes', planned(177), EVERYONE, null, 'mail'),
+          page('mail-forwarders', 'app.nav.children.mailForwarders', planned(177), EVERYONE, null, 'mail'),
+          page('mail-autoresponders', 'app.nav.children.mailAutoresponders', planned(177), CUSTOMER, null, 'mail'),
+          page('mail-spam-filter', 'app.nav.children.mailSpamFilter', planned(177), CUSTOMER, null, 'mail'),
+          page('webmail', 'app.nav.children.webmail', planned(177), CUSTOMER, null, 'mail'),
+          {
+            ...page('mail-queue', 'app.nav.children.mailQueue', planned(177), MANAGERS, null, 'mail'),
+            badge: 'mailQueue',
+          },
+          page('mail-authentication', 'app.nav.children.mailAuthentication', planned(177), MANAGERS, null, 'mail'),
+          page('mail-limits', 'app.nav.children.mailLimits', planned(177), MANAGERS, null, 'mail'),
         ],
       },
       {
@@ -162,15 +170,23 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.databases',
         icon: 'database',
         children: [
-          page('databases-list', 'app.nav.children.databasesList', routed('databases'), EVERYONE, 'databases'),
+          page(
+            'databases-list',
+            'app.nav.children.databasesList',
+            routed('databases'),
+            EVERYONE,
+            'databases',
+            'databases',
+          ),
           page(
             'databases-grant-repair',
             'app.nav.children.databasesGrantRepair',
             routed('database-grant-repair'),
             ADMIN,
             'databases',
+            'databases',
           ),
-          page('database-admin-tool', 'app.nav.children.databaseAdminTool', planned(null), CUSTOMER, null),
+          page('database-admin-tool', 'app.nav.children.databaseAdminTool', planned(null), CUSTOMER, null, 'databases'),
         ],
       },
       {
@@ -179,10 +195,24 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.files',
         icon: 'folderKey',
         children: [
-          page('file-transfer-sftp', 'app.nav.children.sftpLogins', routed('file-transfer-sftp'), EVERYONE, 'sftp'),
-          page('file-transfer-ftps', 'app.nav.children.ftpsLogins', routed('file-transfer-ftps'), EVERYONE, 'ftp'),
-          page('sftp-ssh-keys', 'app.nav.children.sshKeys', planned(135), CUSTOMER, null),
-          page('cron', 'cron.list.heading', routed('cron'), EVERYONE, 'cron'),
+          page(
+            'file-transfer-sftp',
+            'app.nav.children.sftpLogins',
+            routed('file-transfer-sftp'),
+            EVERYONE,
+            'sftp',
+            'fileTransfer',
+          ),
+          page(
+            'file-transfer-ftps',
+            'app.nav.children.ftpsLogins',
+            routed('file-transfer-ftps'),
+            EVERYONE,
+            'ftp',
+            'fileTransfer',
+          ),
+          page('sftp-ssh-keys', 'app.nav.children.sshKeys', planned(135), CUSTOMER, null, 'fileTransfer'),
+          page('cron', 'cron.list.heading', routed('cron'), EVERYONE, 'cron', 'cron'),
           page('file-manager', 'app.nav.children.fileManager', planned(141), CUSTOMER, null),
         ],
       },
@@ -192,16 +222,24 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.backups',
         icon: 'archive',
         children: [
-          page('backups-list', 'app.nav.children.backupsList', routed('backups'), EVERYONE, 'backups'),
-          page('backups-schedule', 'app.nav.children.backupsSchedule', routed('backup-schedule'), ADMIN, 'backups'),
+          page('backups-list', 'app.nav.children.backupsList', routed('backups'), EVERYONE, 'backups', 'backups'),
+          page(
+            'backups-schedule',
+            'app.nav.children.backupsSchedule',
+            routed('backup-schedule'),
+            ADMIN,
+            'backups',
+            'backups',
+          ),
           page(
             'backups-destinations',
             'app.nav.children.backupsDestinations',
             routed('backup-destinations'),
             ADMIN,
             'backups',
+            'backups',
           ),
-          page('backups-restore', 'app.nav.children.backupsRestore', planned(null), CUSTOMER, null),
+          page('backups-restore', 'app.nav.children.backupsRestore', planned(null), CUSTOMER, null, 'backups'),
         ],
       },
     ],
@@ -218,7 +256,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('firewall-rules', 'firewall.rules.heading', routed('firewall'), ADMIN, 'firewall'),
           page('firewall-bans', 'firewall.bans.heading', routed('firewall-bans'), ADMIN, 'firewall'),
           page('firewall-whitelist', 'firewall.whitelist.heading', routed('firewall-whitelist'), ADMIN, 'firewall'),
-          page('security-policy', 'app.securityPolicy.heading', routed('security-policy'), ADMIN, null),
+          page('security-policy', 'app.nav.securityPolicy', routed('security-policy'), ADMIN, null),
         ],
       },
       {
@@ -229,7 +267,10 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         children: [
           page('servers-fleet', 'app.nav.children.serversFleet', planned(180), ADMIN, null),
           page('servers-services', 'app.nav.children.serversServices', planned(null), ADMIN, null),
-          page('servers-updates', 'app.nav.children.serversUpdates', planned(null), ADMIN, null),
+          {
+            ...page('servers-updates', 'app.nav.children.serversUpdates', planned(null), ADMIN, null),
+            badge: 'availableUpdates',
+          },
         ],
       },
       {
@@ -293,7 +334,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('account-overview', 'app.shell.menu.myAccount', routed('my-account'), CUSTOMER, null),
           page('account-two-factor', 'app.twoFactor.heading', routed('two-factor'), CUSTOMER, null),
           page('account-sessions', 'app.sessions.heading', routed('sessions'), CUSTOMER, null),
-          page('account-sub-users', 'app.nav.children.subUsers', planned(315), CUSTOMER, null),
+          page('account-sub-users', 'app.nav.children.subUsers', routed('sub-users'), CUSTOMER, null),
         ],
       },
     ],

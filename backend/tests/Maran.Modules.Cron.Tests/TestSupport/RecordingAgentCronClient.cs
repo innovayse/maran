@@ -62,13 +62,13 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
     public Result<string>? CreateEntryResult { get; set; }
 
     /// <summary>What <see cref="UpdateEntryAsync"/> answers; success by default.</summary>
-    public Result<bool>? UpdateEntryResult { get; set; }
+    public Result? UpdateEntryResult { get; set; }
 
     /// <summary>What <see cref="DeleteEntryAsync"/> answers; success by default.</summary>
-    public Result<bool>? DeleteEntryResult { get; set; }
+    public Result? DeleteEntryResult { get; set; }
 
     /// <summary>What <see cref="SetEntryEnabledAsync"/> answers; success by default.</summary>
-    public Result<bool>? SetEntryEnabledResult { get; set; }
+    public Result? SetEntryEnabledResult { get; set; }
 
     /// <summary>What <see cref="GetEntryOutputAsync"/> answers; "never run" by default.</summary>
     public Result<AgentCronRunOutput?>? GetEntryOutputResult { get; set; }
@@ -80,7 +80,7 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
     public Result<IReadOnlyList<AgentCronEnvVar>>? GetEnvironmentResult { get; set; }
 
     /// <summary>What <see cref="SetEnvironmentAsync"/> answers; success by default.</summary>
-    public Result<bool>? SetEnvironmentResult { get; set; }
+    public Result? SetEnvironmentResult { get; set; }
 
     /// <inheritdoc/>
     public Task<Result<IReadOnlyList<AgentCronEntry>>> ListEntriesAsync(
@@ -107,7 +107,7 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> UpdateEntryAsync(
+    public Task<Result> UpdateEntryAsync(
         string accountUsername,
         string entryId,
         AgentCronSchedule schedule,
@@ -116,39 +116,39 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
     {
         Updates.Add(new AgentUpdateEntryCall(accountUsername, entryId, schedule, command));
 
-        return Task.FromResult(UpdateEntryResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(UpdateEntryResult ?? Result.Ok());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DeleteEntryAsync(
+    public Task<Result> DeleteEntryAsync(
         string accountUsername,
         string entryId,
         CancellationToken cancellationToken)
     {
         Deletes.Add(new AgentEntryCall(accountUsername, entryId));
 
-        return Task.FromResult(DeleteEntryResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(DeleteEntryResult ?? Result.Ok());
     }
 
     /// <summary>Every account-wide suspension the handler asked for, in order.</summary>
     public List<AgentAccountSuspensionCall> AccountSuspensions { get; } = [];
 
     /// <summary>What <see cref="SetAccountSuspendedAsync"/> answers; success by default.</summary>
-    public Result<bool>? SetAccountSuspendedResult { get; set; }
+    public Result? SetAccountSuspendedResult { get; set; }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetAccountSuspendedAsync(
+    public Task<Result> SetAccountSuspendedAsync(
         string accountUsername,
         bool suspended,
         CancellationToken cancellationToken)
     {
         AccountSuspensions.Add(new AgentAccountSuspensionCall(accountUsername, suspended));
 
-        return Task.FromResult(SetAccountSuspendedResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(SetAccountSuspendedResult ?? Result.Ok());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetEntryEnabledAsync(
+    public Task<Result> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,
         bool enabled,
@@ -156,7 +156,7 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
     {
         EnabledChanges.Add(new AgentSetEntryEnabledCall(accountUsername, entryId, enabled));
 
-        return Task.FromResult(SetEntryEnabledResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(SetEntryEnabledResult ?? Result.Ok());
     }
 
     /// <inheritdoc/>
@@ -182,7 +182,7 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
         Runs.Add(new AgentEntryCall(accountUsername, entryId));
 
         return Task.FromResult(
-            RunEntryResult ?? Result<AgentCronRun>.Ok(new AgentCronRun(1200, 0, "done\n", string.Empty, null)));
+            RunEntryResult ?? Result<AgentCronRun>.Ok(new AgentCronRun(1200, new AgentCronRunExited(0), "done\n", string.Empty)));
     }
 
     /// <inheritdoc/>
@@ -197,13 +197,13 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetEnvironmentAsync(
+    public Task<Result> SetEnvironmentAsync(
         string accountUsername,
         IReadOnlyList<AgentCronEnvVar> variables,
         CancellationToken cancellationToken)
     {
         EnvironmentWrites.Add(new AgentSetEnvironmentCall(accountUsername, variables));
 
-        return Task.FromResult(SetEnvironmentResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(SetEnvironmentResult ?? Result.Ok());
     }
 }

@@ -302,10 +302,10 @@ public sealed class AgentSitesClientTests
         var events = await CollectAsync(stub);
 
         Assert.Equal(2, events.Count);
-        Assert.Equal(SiteLogEventKind.Line, events[0].Kind);
-        Assert.Equal("GET /", events[0].Line);
-        Assert.True(events[0].Historical);
-        Assert.Equal(SiteLogEventKind.Completed, events[1].Kind);
+        var line = Assert.IsType<SiteLogLine>(events[0]);
+        Assert.Equal("GET /", line.Line);
+        Assert.True(line.Historical);
+        Assert.Equal(SiteLogEndKind.Completed, Assert.IsType<SiteLogEnded>(events[1]).Kind);
     }
 
     /// <summary>A tail the agent dropped ends with a dropped event and not a completed one.</summary>
@@ -320,7 +320,7 @@ public sealed class AgentSitesClientTests
 
         var events = await CollectAsync(stub);
 
-        Assert.Equal(SiteLogEventKind.Dropped, Assert.Single(events).Kind);
+        Assert.Equal(SiteLogEndKind.Dropped, Assert.IsType<SiteLogEnded>(Assert.Single(events)).Kind);
     }
 
     /// <summary>A tail the agent closed for idleness ends with an idle event.</summary>
@@ -335,7 +335,7 @@ public sealed class AgentSitesClientTests
 
         var events = await CollectAsync(stub);
 
-        Assert.Equal(SiteLogEventKind.Idle, Assert.Single(events).Kind);
+        Assert.Equal(SiteLogEndKind.Idle, Assert.IsType<SiteLogEnded>(Assert.Single(events)).Kind);
     }
 
     /// <summary>A tail that failed ends with a failed event carrying the typed code.</summary>
@@ -350,8 +350,7 @@ public sealed class AgentSitesClientTests
 
         var events = await CollectAsync(stub);
 
-        var last = Assert.Single(events);
-        Assert.Equal(SiteLogEventKind.Failed, last.Kind);
+        var last = Assert.IsType<SiteLogFailed>(Assert.Single(events));
         Assert.Equal("AgentNotFound", last.ErrorCode);
     }
 
@@ -364,9 +363,35 @@ public sealed class AgentSitesClientTests
 
         var events = await CollectAsync(stub);
 
-        var last = Assert.Single(events);
-        Assert.Equal(SiteLogEventKind.Failed, last.Kind);
+        var last = Assert.IsType<SiteLogFailed>(Assert.Single(events));
         Assert.Equal("AgentInvalidResponse", last.ErrorCode);
+    }
+
+    /// <summary>A backend kind this panel cannot name throws and is never sent as unspecified.</summary>
+    [Fact]
+    public void A_backend_kind_this_panel_cannot_name_throws_and_is_never_sent_as_unspecified()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            return SiteDescriptor.ToWireBackend((SiteBackendKind)99);
+        });
+    }
+
+    /// <summary>A log source this panel cannot name throws instead of opening a tail on an unspecified log.</summary>
+    [Fact]
+    public async Task A_log_source_this_panel_cannot_name_throws_instead_of_opening_a_tail()
+    {
+        var stub = new StubSitesService();
+        var client = NewClient(stub);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        {
+            var stream = client.TailLogAsync("acc1", "example.com", (SiteLogSource)99, 10, CancellationToken.None);
+            await foreach (var item in stream)
+            {
+                Assert.Fail($"unexpected event {item}");
+            }
+        });
     }
 
     /// <summary>Create sends every field it was given.</summary>
@@ -566,10 +591,10 @@ public sealed class AgentSitesClientTests
 
         var collected = await DrainAsync().WaitAsync(StreamTimeout);
 
-        Assert.Equal(SiteLogEventKind.Cancelled, collected[^1].Kind);
+        Assert.Equal(SiteLogEndKind.Cancelled, Assert.IsType<SiteLogEnded>(collected[^1]).Kind);
         Assert.DoesNotContain(collected, item =>
         {
-            return item.Kind == SiteLogEventKind.Completed;
+            return item is SiteLogEnded { Kind: SiteLogEndKind.Completed };
         });
         Assert.True(stub.TailYieldedCount < 10, $"kept pulling after cancellation: {stub.TailYieldedCount} messages");
     }
@@ -602,7 +627,7 @@ public sealed class AgentSitesClientTests
     /// <summary>Calls the production php-version path with fixed arguments.</summary>
     /// <param name="stub">The transport stub to drive.</param>
     /// <returns>What the client returned.</returns>
-    private static async Task<SharedKernel.Results.Result<bool>> ChangePhpVersionAsync(StubSitesService stub)
+    private static async Task<SharedKernel.Results.Result> ChangePhpVersionAsync(StubSitesService stub)
     {
         return await NewClient(stub).ChangePhpVersionAsync(
             "acc1",

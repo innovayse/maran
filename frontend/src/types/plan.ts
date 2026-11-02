@@ -1,16 +1,17 @@
-import type { AccountResourceLimitKind } from './accountResourceSummary'
+import type { AccountFeatureName } from './accountFeature'
 import type { ListRequest, Paged } from './list'
+import type { ResourceCeiling } from './resourceCeiling'
 
 /**
- * One runtime ceiling of a plan, mirroring the backend's `ResourceCeilingDto`: CPU, memory or
- * processes an account may use at once (issue #133). "No ceiling" is its own case and never a zero;
- * `maximum` is meaningful only when `kind` is `limited`, and is 0 otherwise.
+ * One feature a plan can sell, as the panel lists them (`GET /api/v1/plans/features`). The SPA
+ * holds no list of features of its own: the plan form draws exactly the choices the panel answers
+ * with, so a feature added server-side appears here without a release of the SPA.
  */
-export interface PlanCeiling {
-  /** Whether the plan caps this resource at all. */
-  kind: AccountResourceLimitKind
-  /** The cap, in the unit the field it sits in names; 0 when `kind` is `unlimited`. */
-  maximum: number
+export interface PlanFeatureChoice {
+  /** The feature's name on the wire (`mail`, `fileTransfer`, ...), as plans and the customer's account list it. */
+  feature: AccountFeatureName
+  /** The feature's name, already in the request's language. */
+  featureDisplayName: string
 }
 
 /**
@@ -42,11 +43,13 @@ export interface ManagedPlan {
   /** How many php-fpm workers one of an account's pools may run. */
   maxPhpWorkersPerPool: number
   /** The share of CPU time an account may use, in percent of one CPU (200 is two whole cores). */
-  cpuQuotaPercent: PlanCeiling
+  cpuQuotaPercent: ResourceCeiling
   /** The most memory an account's processes may hold together, in megabytes. */
-  memoryMaxMb: PlanCeiling
+  memoryMaxMb: ResourceCeiling
   /** The most processes and threads an account may run at once. */
-  maxProcesses: PlanCeiling
+  maxProcesses: ResourceCeiling
+  /** The features the plan sells, by name; an empty list sells none. */
+  features: AccountFeatureName[]
   /**
    * How many accounts are on this plan right now. The server counts them so the screen never has
    * to fetch every account to learn it: it is what tells an administrator that an edit reaches
@@ -80,11 +83,13 @@ export interface PlanRequest {
   /** php-fpm workers per pool. */
   maxPhpWorkersPerPool: number
   /** The share of CPU time an account may use, in percent of one CPU (200 is two whole cores). */
-  cpuQuotaPercent: PlanCeiling
+  cpuQuotaPercent: ResourceCeiling
   /** The most memory an account's processes may hold together, in megabytes. */
-  memoryMaxMb: PlanCeiling
+  memoryMaxMb: ResourceCeiling
   /** The most processes and threads an account may run at once. */
-  maxProcesses: PlanCeiling
+  maxProcesses: ResourceCeiling
+  /** The features the plan sells, by name; an empty list sells none. Always sent: an edit replaces the set. */
+  features: AccountFeatureName[]
 }
 
 /**
@@ -102,6 +107,13 @@ export interface PlansApi {
    * @returns The page, in the order the panel sorted it, with the total across every page.
    */
   list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<ManagedPlan>>
+
+  /**
+   * Lists every feature a plan can sell, with its name in the caller's language.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The features in the panel's order.
+   */
+  features: (signal?: AbortSignal) => Promise<PlanFeatureChoice[]>
 
   /**
    * Reads one plan with its limits and account count.
@@ -132,7 +144,7 @@ export interface PlansApi {
    * Deletes a plan; refused while any account is on it.
    * @param id The plan to delete.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the plan was deleted.
+   * @returns Resolves once the plan was deleted; the panel answers 204 with no body.
    */
-  remove: (id: string, signal?: AbortSignal) => Promise<boolean>
+  remove: (id: string, signal?: AbortSignal) => Promise<void>
 }

@@ -191,39 +191,48 @@ public sealed class CreateBackupCommandHandler
             throw;
         }
 
-        if (outcome.Succeeded)
+        // Row, journal and task are all written from `outcome`, the one answer the run produced —
+        // never from the row being re-read, and never from "nothing threw".
+        switch (outcome)
         {
-            backup.Completed(outcome.SizeBytes, outcome.Sha256, outcome.DatabaseCount, _clock.UtcNow);
-        }
-        else
-        {
-            backup.Failed(outcome.FailureCode, _clock.UtcNow);
-        }
+            case CreatedBackupOutcome created:
+                backup.Completed(created.SizeBytes, created.Sha256, created.DatabaseCount, _clock.UtcNow);
+                await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+                // The account, not the backup id — the same subject the task above records, and the one
+                // AuditEntry asks for: what the operation acts on, as an operator would search for it.
+                await _journal.RecordSuccessAsync(
+                    AuditActions.BackupCreated,
+                    account.Username,
+                    command.IpAddress,
+                    command.UserAgent,
+                    cancellationToken);
+                await _tasks.CompleteAsync(taskId, cancellationToken);
+                break;
 
-        // Both written from `outcome`, the one answer the run produced — never from the row being
-        // re-read, and never from "nothing threw".
-        if (outcome.Succeeded)
-        {
-            // The account, not the backup id — the same subject the task above records, and the one
-            // AuditEntry asks for: what the operation acts on, as an operator would search for it.
-            await _journal.RecordSuccessAsync(
-                AuditActions.BackupCreated, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
-            await _tasks.CompleteAsync(taskId, cancellationToken);
-        }
-        else
-        {
-            await _journal.RecordFailureAsync(
-                AuditActions.BackupCreated, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
-            await _tasks.FailAsync(taskId, outcome.FailureCode, cancellationToken);
+            case FailedBackupOutcome failed:
+                backup.Failed(failed.FailureCode, _clock.UtcNow);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                await _journal.RecordFailureAsync(
+                    AuditActions.BackupCreated,
+                    account.Username,
+                    command.IpAddress,
+                    command.UserAgent,
+                    cancellationToken);
+                await _tasks.FailAsync(taskId, failed.FailureCode, cancellationToken);
+                break;
+
+            default:
+                throw new InvalidOperationException(
+                    $"Unhandled backup outcome {outcome.GetType().Name}; the hierarchy is closed to two cases.");
         }
 
         // Asked of the directory exactly as the reads ask it, so this answer and a later read of the
         // same row cannot label its owner differently.
         var ownerNames = await _accounts.NamesOfAsync([backup.AccountId], cancellationToken);
 
-        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.FailureCode)));
+        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.RunFailureCode)));
     }
 
     /// <summary>Closes out a run whose answer this request will never hear.</summary>
@@ -286,7 +295,7 @@ public sealed class CreateBackupCommandHandler
     /// <para>
     /// <b>Why a lost stream is never COMPLETED from the destination's own listing, on either
     /// path.</b> The listing carries the artifact's size and its SHA-256, so a row could be completed
-    /// from it — and must not be. <see cref="Backup.Sha256"/> is the panel's independently recorded
+    /// from it — and must not be. <see cref="Backup.ArtifactSha256"/> is the panel's independently recorded
     /// digest precisely so that a restore does not trust a digest read from beside the bytes it
     /// describes, and a row completed from the sidecar would be indistinguishable from one the panel
     /// observed. So both paths fail the row; neither invents a provenance.

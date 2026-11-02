@@ -1,5 +1,7 @@
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Domain.Entities;
+using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.ValueObjects;
 using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Resources;
@@ -102,6 +104,12 @@ public sealed class SaveBackupScheduleCommandHandler
             subject = account.Username;
         }
 
+        var cadence = CadenceOf(command);
+        if (cadence.Error is { } refusal)
+        {
+            return Result<BackupScheduleDto>.Fail(refusal);
+        }
+
         var schedule = await _dbContext.BackupSchedules
             .FirstOrDefaultAsync(row => row.AccountId == command.AccountId, cancellationToken);
 
@@ -111,9 +119,7 @@ public sealed class SaveBackupScheduleCommandHandler
                 Guid.NewGuid(),
                 command.AccountId,
                 command.DestinationId,
-                command.Frequency,
-                command.HourUtc,
-                command.DayOfWeekUtc,
+                cadence.Value,
                 command.RetainCount);
 
             _dbContext.BackupSchedules.Add(schedule);
@@ -124,9 +130,7 @@ public sealed class SaveBackupScheduleCommandHandler
         // next named hour rather than the moment the form is saved.
         schedule.Reconfigure(
             command.DestinationId,
-            command.Frequency,
-            command.HourUtc,
-            command.DayOfWeekUtc,
+            cadence.Value,
             command.RetainCount,
             command.Enabled,
             _clock.UtcNow);
@@ -141,5 +145,34 @@ public sealed class SaveBackupScheduleCommandHandler
             cancellationToken);
 
         return Result<BackupScheduleDto>.Ok(BackupScheduleMapper.From(schedule));
+    }
+
+    /// <summary>Reads the command's frequency, weekday and hour as the one cadence they name.</summary>
+    /// <param name="command">The validated command.</param>
+    /// <returns>
+    /// The cadence, or the same refusal the validator raises when a weekly schedule names no weekday or
+    /// a daily one names one. A command dispatched on the bus is validated too, but the cadence cannot
+    /// be built from either pair, so the handler states the refusal rather than guessing a reading.
+    /// </returns>
+    private static Result<BackupCadence> CadenceOf(SaveBackupScheduleCommand command)
+    {
+        if (command.Frequency == BackupFrequency.Weekly)
+        {
+            if (command.DayOfWeekUtc is null)
+            {
+                return Result<BackupCadence>.Fail(
+                    Error.Of(nameof(ErrorMessages.BackupScheduleDayRequired), ErrorType.Validation));
+            }
+
+            return Result<BackupCadence>.Ok(new WeeklyBackupCadence(command.DayOfWeekUtc.Value, command.HourUtc));
+        }
+
+        if (command.DayOfWeekUtc is not null)
+        {
+            return Result<BackupCadence>.Fail(
+                Error.Of(nameof(ErrorMessages.BackupScheduleDayNotAllowed), ErrorType.Validation));
+        }
+
+        return Result<BackupCadence>.Ok(new DailyBackupCadence(command.HourUtc));
     }
 }

@@ -8,7 +8,7 @@ import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', isEnabled: true },
+  { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

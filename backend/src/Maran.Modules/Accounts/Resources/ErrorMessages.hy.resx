@@ -75,4 +75,7 @@
   <data name="AccountStatusUnknown">
     <value>Հաշվի այս կարգավիճակը պանելին հայտնի չէ։ Օգտագործեք active կամ suspended։</value>
   </data>
+  <data name="PlanFeatureUnknown">
+    <value>Սակագնային պլանի հնարավորությունը պետք է լինի վահանակում նշվածներից մեկը։</value>
+  </data>
 </root>

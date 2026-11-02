@@ -93,7 +93,7 @@ public interface IAgentCronClient
     /// on purpose, because an update that also carried enablement would silently switch a disabled
     /// entry back on whenever a caller edited its command without thinking about the flag.
     /// </remarks>
-    Task<Result<bool>> UpdateEntryAsync(
+    Task<Result> UpdateEntryAsync(
         string accountUsername,
         string entryId,
         AgentCronSchedule schedule,
@@ -119,7 +119,7 @@ public interface IAgentCronClient
     /// and keep firing; the suspension state reports how many there are.
     /// </para>
     /// </remarks>
-    Task<Result<bool>> SetAccountSuspendedAsync(
+    Task<Result> SetAccountSuspendedAsync(
         string accountUsername,
         bool suspended,
         CancellationToken cancellationToken);
@@ -129,7 +129,7 @@ public interface IAgentCronClient
     /// <param name="entryId">Identifier of the entry to remove.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure — <c>AgentNotFound</c> for an entry that is not there.</returns>
-    Task<Result<bool>> DeleteEntryAsync(
+    Task<Result> DeleteEntryAsync(
         string accountUsername,
         string entryId,
         CancellationToken cancellationToken);
@@ -141,7 +141,7 @@ public interface IAgentCronClient
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure — <c>AgentNotFound</c> for an entry that is not there.</returns>
     /// <remarks>Disabling keeps the entry in the crontab, so switching one off never loses it.</remarks>
-    Task<Result<bool>> SetEntryEnabledAsync(
+    Task<Result> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,
         bool enabled,
@@ -211,7 +211,7 @@ public interface IAgentCronClient
     /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> SetEnvironmentAsync(
+    Task<Result> SetEnvironmentAsync(
         string accountUsername,
         IReadOnlyList<AgentCronEnvVar> variables,
         CancellationToken cancellationToken);

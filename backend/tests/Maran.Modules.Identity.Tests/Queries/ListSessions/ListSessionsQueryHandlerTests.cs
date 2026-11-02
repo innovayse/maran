@@ -43,8 +43,8 @@ public sealed class ListSessionsQueryHandlerTests : IDisposable
     [Fact]
     public async Task Listing_returns_only_the_callers_own_sessions()
     {
-        var mine = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", CancellationToken.None);
-        await NewSessionService().IssueAsync(_stranger, "198.51.100.4", "other", CancellationToken.None);
+        var mine = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", null, CancellationToken.None);
+        await NewSessionService().IssueAsync(_stranger, "198.51.100.4", "other", null, CancellationToken.None);
 
         var result = await NewHandler().HandleAsync(new ListSessionsQuery(UserId: _owner, CurrentSessionId: mine.SessionId), CancellationToken.None);
 
@@ -59,8 +59,8 @@ public sealed class ListSessionsQueryHandlerTests : IDisposable
     [Fact]
     public async Task The_session_making_the_request_is_marked_as_current()
     {
-        var mine = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", CancellationToken.None);
-        var other = await NewSessionService().IssueAsync(_owner, "198.51.100.4", "phone", CancellationToken.None);
+        var mine = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", null, CancellationToken.None);
+        var other = await NewSessionService().IssueAsync(_owner, "198.51.100.4", "phone", null, CancellationToken.None);
 
         var result = await NewHandler().HandleAsync(new ListSessionsQuery(UserId: _owner, CurrentSessionId: mine.SessionId), CancellationToken.None);
 
@@ -85,8 +85,8 @@ public sealed class ListSessionsQueryHandlerTests : IDisposable
         for (var index = 0; index < 11; index++)
         {
             issued.Add((await NewSessionService().IssueAsync(
-                _owner, "203.0.113.7", $"device{index}", CancellationToken.None)).SessionId);
-            await NewSessionService().IssueAsync(_stranger, "198.51.100.4", "other", CancellationToken.None);
+                _owner, "203.0.113.7", $"device{index}", null, CancellationToken.None)).SessionId);
+            await NewSessionService().IssueAsync(_stranger, "198.51.100.4", "other", null, CancellationToken.None);
             _clock.Advance(TimeSpan.FromMinutes(1));
         }
 
@@ -108,9 +108,9 @@ public sealed class ListSessionsQueryHandlerTests : IDisposable
     [Fact]
     public async Task Sorting_by_expiry_ascending_puts_the_session_that_ends_soonest_first()
     {
-        var older = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "older", CancellationToken.None);
+        var older = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "older", null, CancellationToken.None);
         _clock.Advance(TimeSpan.FromHours(1));
-        var newer = await NewSessionService().IssueAsync(_owner, "203.0.113.8", "newer", CancellationToken.None);
+        var newer = await NewSessionService().IssueAsync(_owner, "203.0.113.8", "newer", null, CancellationToken.None);
 
         var result = await NewHandler().HandleAsync(
             new ListSessionsQuery(Sort: SortRequest.Parse(SessionSortFields.ExpiresAt), UserId: _owner),
@@ -127,7 +127,7 @@ public sealed class ListSessionsQueryHandlerTests : IDisposable
     public async Task A_revoked_session_is_not_listed()
     {
         var service = NewSessionService();
-        var issued = await service.IssueAsync(_owner, "203.0.113.7", "agent", CancellationToken.None);
+        var issued = await service.IssueAsync(_owner, "203.0.113.7", "agent", null, CancellationToken.None);
         await service.RevokeAsync(issued.SessionId, SessionRevocationReason.Logout, CancellationToken.None);
 
         var result = await NewHandler().HandleAsync(new ListSessionsQuery(UserId: _owner), CancellationToken.None);
@@ -139,7 +139,7 @@ public sealed class ListSessionsQueryHandlerTests : IDisposable
     [Fact]
     public async Task An_expired_session_is_not_listed()
     {
-        await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", CancellationToken.None);
+        await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", null, CancellationToken.None);
         _clock.Advance(TimeSpan.FromDays(15));
 
         var result = await NewHandler().HandleAsync(new ListSessionsQuery(UserId: _owner), CancellationToken.None);

@@ -1,5 +1,4 @@
 using Maran.Modules.Identity.Domain.Entities;
-using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
@@ -120,7 +119,7 @@ public sealed class LoginCommandHandler
         // Checked BEFORE the rehash below, and before any other write: a refused sign-in must not
         // touch the database, and a rehash performed here would be exactly that for a suspended
         // account whose correct-but-stale password happens to verify.
-        if (user.State != UserState.Active)
+        if (!user.MayAuthenticate)
         {
             return await RefuseAsync(user, command, cancellationToken);
         }

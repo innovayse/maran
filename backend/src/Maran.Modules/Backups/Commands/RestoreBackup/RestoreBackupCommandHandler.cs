@@ -157,7 +157,7 @@ public sealed class RestoreBackupCommandHandler
         // this moment and a Failed one produced nothing, and the agent refuses an empty expected
         // digest — so this refusal is here rather than left to surface from the agent halfway
         // through the operation that must not be surprising.
-        if (backup.Status != BackupStatus.Completed)
+        if (backup.Status != BackupStatus.Completed || backup.ArtifactSha256 is not { } expectedSha256)
         {
             // The account's name is not established yet on this path, so the trace records the
             // identifier the caller acted on.
@@ -177,7 +177,7 @@ public sealed class RestoreBackupCommandHandler
             // identifier the caller acted on.
             return await RefuseAsync(
                 command,
-                backup.NamesADeletedAccount() ? backup.OrphanedAccountUsername : backup.Id.ToString(),
+                backup.DeletedAccountUsername ?? backup.Id.ToString(),
                 nameof(ErrorMessages.AccountNotFound),
                 ErrorType.NotFound,
                 cancellationToken);
@@ -239,7 +239,7 @@ public sealed class RestoreBackupCommandHandler
             outcome = await _runner.RunAsync(
                 account.Username,
                 backup.Id,
-                backup.Sha256,
+                expectedSha256,
                 allowedDatabases,
                 destination.Value!.Agent,
                 taskId,
@@ -254,53 +254,72 @@ public sealed class RestoreBackupCommandHandler
             throw;
         }
 
-        var dto = new RestoreOutcomeDto(
-            backup.Id,
-            backup.AccountId,
-            outcome.Whole,
-            outcome.FilesRestored,
-            outcome.DatabasesRestored,
-            outcome.DatabasesTotal,
-            outcome.Failure?.Code ?? string.Empty);
-
-        // Task, journal and answer all written from `outcome.Whole` — the one verdict the runner
-        // stated — never from three readings of the counts.
-        if (!outcome.Whole)
+        // Task, journal and answer are all written from the outcome's TYPE — the one verdict the
+        // runner stated — never from three readings of the counts.
+        switch (outcome)
         {
-            // The runner's own error, carried whole. Re-deciding the KIND here is what answered
-            // HTTP 500 over an artifact the agent had refused as unusable: `AgentValidationFailed`
-            // is an ErrorType.Validation the agent client had already decided, and rebuilding the
-            // error from its code alone discarded it (rules/csharp.md "Every failure states its
-            // KIND, and the kind is what an HTTP status is derived from").
-            var failure = outcome.Failure!;
+            case WholeRestoreOutcome whole:
+                await _journal.RecordSuccessAsync(
+                    AuditActions.BackupRestored,
+                    account.Username,
+                    command.IpAddress,
+                    command.UserAgent,
+                    cancellationToken);
+                await _tasks.CompleteAsync(taskId, cancellationToken);
 
-            await _journal.RecordFailureAsync(
-                AuditActions.BackupRestored, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
-            await _tasks.FailAsync(taskId, failure.Code, cancellationToken);
+                return Result<RestoreOutcomeDto>.Ok(
+                    new RestoreOutcomeDto(backup.Id, backup.AccountId, whole.DatabasesRestored));
 
-            // A run the agent stated nothing about has nothing to publish: its zeros mean
-            // "unknown", and an operator reading "0 of 12 replaced" over a refusal that touched
-            // nothing would be reading a measurement nobody made.
-            if (!outcome.Measured)
-            {
-                return Result<RestoreOutcomeDto>.Fail(failure);
-            }
+            case PartialRestoreOutcome partial:
+                await RecordFailureAsync(account.Username, command, taskId, partial.Failure, cancellationToken);
 
-            // The counts the agent DID state ride the failure as the `restore` problem extension —
-            // the one ending where "eleven of twelve databases" is the sentence the operator needs
-            // and the success DTO cannot travel.
-            return Result<RestoreOutcomeDto>.Fail(
-                failure,
-                ProblemExtension.Of(
-                    RestoreExtensionKey,
-                    new RestorePartialDto(outcome.FilesRestored, outcome.DatabasesRestored, outcome.DatabasesTotal)));
+                // The counts the agent DID state ride the failure as the `restore` problem extension —
+                // the one ending where "eleven of twelve databases" is the sentence the operator
+                // needs and the success DTO cannot travel.
+                return Result<RestoreOutcomeDto>.Fail(
+                    partial.Failure,
+                    ProblemExtension.Of(
+                        RestoreExtensionKey,
+                        new RestorePartialDto(
+                            partial.FilesRestored, partial.DatabasesRestored, partial.DatabasesTotal)));
+
+            case UnmeasuredRestoreOutcome unmeasured:
+                await RecordFailureAsync(account.Username, command, taskId, unmeasured.Failure, cancellationToken);
+
+                // A run the agent stated nothing about has nothing to publish: there are no counts to
+                // send, and an operator reading "0 of 12 replaced" over a refusal that touched
+                // nothing would be reading a measurement nobody made.
+                return Result<RestoreOutcomeDto>.Fail(unmeasured.Failure);
+
+            default:
+                throw new InvalidOperationException(
+                    $"Unhandled restore outcome {outcome.GetType().Name}; the hierarchy is closed to three cases.");
         }
+    }
 
-        await _journal.RecordSuccessAsync(
-            AuditActions.BackupRestored, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
-        await _tasks.CompleteAsync(taskId, cancellationToken);
-
-        return Result<RestoreOutcomeDto>.Ok(dto);
+    /// <summary>Records a restore that did not replace the whole account, on the journal and the task.</summary>
+    /// <param name="username">The account the restore was for, which every record here is subject to.</param>
+    /// <param name="command">The command, for the address the attempt came from.</param>
+    /// <param name="taskId">The panel task opened for the run.</param>
+    /// <param name="failure">
+    /// The runner's own error, carried whole. Re-deciding the KIND here is what answered HTTP 500
+    /// over an artifact the agent had refused as unusable: <c>AgentValidationFailed</c> is an
+    /// <see cref="ErrorType.Validation"/> the agent client had already decided, and rebuilding the
+    /// error from its code alone discarded it (rules/csharp.md "Every failure states its KIND, and
+    /// the kind is what an HTTP status is derived from").
+    /// </param>
+    /// <param name="cancellationToken">Cancels the writes.</param>
+    /// <returns>Resolves once the audit entry and the task have been written.</returns>
+    private async Task RecordFailureAsync(
+        string username,
+        RestoreBackupCommand command,
+        Guid taskId,
+        Error failure,
+        CancellationToken cancellationToken)
+    {
+        await _journal.RecordFailureAsync(
+            AuditActions.BackupRestored, username, command.IpAddress, command.UserAgent, cancellationToken);
+        await _tasks.FailAsync(taskId, failure.Code, cancellationToken);
     }
 
     /// <summary>Whether a backup of this account is being written right now.</summary>

@@ -105,8 +105,10 @@ says which contract an agent speaks, and it is only worth reading while it moves
   exit at all, so exiting turns a mismatch into a panel that does not run. The verdict is asked again
   on every health request and never cached, so finishing the upgrade clears it without a restart.
   Operations are NOT re-checked per call: an agent swapped while the panel runs is driven until a
-  health request asks — which is why a module that reads a field an older agent lacks still owes its
-  own reading of an absent value (`UnmanagedLoginPolicy` is the worked example).
+  health request asks — which is why the client that reads a field an older agent lacks still owes its
+  own reading of an absent value, made once at the client boundary so the panel model never carries
+  the wire's zero (`AgentAccountsClient` answering `UnmanagedLoginCount` as measured or unmeasured is
+  the worked example).
 - **What holds it up, and what does not.** `maran handshake` builds the agent and the panel from one
   tree and fails unless `/health` reports the agent `connected` (`cross.yml`), so a revision and a
   window moved apart fail CI. A contract change that moves NEITHER passes that gate, and is caught

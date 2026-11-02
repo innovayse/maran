@@ -58,50 +58,28 @@ public sealed class AccountSuspensionCascadeReport
     /// <summary>Guards the writes, because subscriber order and threading are the bus's business.</summary>
     /// <remarks>
     /// Wolverine runs this cascade's handlers in sequence today, and nothing here relies on that. A
-    /// lock over two fields written together is what makes "reported" and "the number" one fact
-    /// rather than two that can be read half-updated.
+    /// lock around the reading keeps a write and a read from interleaving.
     /// </remarks>
     private readonly object _gate = new();
 
-    /// <summary>Whether any subscriber answered about the session cull at all.</summary>
-    private bool _sessionCullReported;
+    /// <summary>What the answering subscriber reported about the session cull, if any did.</summary>
+    private SessionCullReading _sessionCull = new SessionCullNotReported();
 
-    /// <summary>The count the answering subscriber carried, which may itself be absent.</summary>
-    private uint? _sessionsEnded;
-
-    /// <summary>Whether a subscriber reported on the session cull.</summary>
+    /// <summary>What the cascade knows about the session cull.</summary>
     /// <remarks>
-    /// <c>false</c> is a real and separate fact, not a default to be read as zero: no module that
-    /// ends sessions was composed, or none ran. The publisher may then say only that it asked. This
-    /// is the half <see cref="AccountSuspending"/>'s own remarks are about — a subscriber that does
-    /// not exist cannot throw, so a completed cascade is not evidence that anything happened.
+    /// Three readings that a reader must keep apart (<see cref="SessionCullNotReported"/>,
+    /// <see cref="SessionCullReportedWithoutCount"/>, <see cref="SessionCullEnded"/>, which carries a
+    /// measured zero as itself). Collapsing any pair of them would put a completeness claim on an
+    /// operator's screen over an answer nobody gave. The reading is one value, so "reported" and "the
+    /// number" cannot be read half-updated.
     /// </remarks>
-    public bool SessionCullReported
+    public SessionCullReading SessionCull
     {
         get
         {
             lock (_gate)
             {
-                return _sessionCullReported;
-            }
-        }
-    }
-
-    /// <summary>How many sessions were ended, when a subscriber reported and the host gave a number.</summary>
-    /// <remarks>
-    /// <c>null</c> alongside <see cref="SessionCullReported"/> being <c>true</c> means a subscriber
-    /// ran and the HOST's answer carried no count — an agent predating the wire field. Together the
-    /// two properties carry three facts a reader must keep apart: a number, a measured zero (the cull
-    /// ran and matched no process), and no number at all. Collapsing any pair of them would put a
-    /// completeness claim on an operator's screen over an answer nobody gave.
-    /// </remarks>
-    public uint? SessionsEnded
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _sessionsEnded;
+                return _sessionCull;
             }
         }
     }
@@ -109,22 +87,25 @@ public sealed class AccountSuspensionCascadeReport
     /// <summary>Records what a subscriber's session cull did.</summary>
     /// <param name="sessionsEnded">
     /// How many of the account's processes were signalled, or <c>null</c> when the host's answer
-    /// carried no count. Pass the host's answer through unchanged: substituting zero for an absent
-    /// count is the one thing this type exists to prevent.
+    /// carried no count. This is the host's optional wire field passed through unchanged, and it is
+    /// translated here, once, into <see cref="SessionCullEnded"/> or
+    /// <see cref="SessionCullReportedWithoutCount"/>: substituting zero for an absent count is the one
+    /// thing this type exists to prevent.
     /// </param>
     /// <remarks>
-    /// Last writer wins on the number, and that is deliberate rather than unconsidered: there is one
+    /// Last writer wins on the reading, and that is deliberate rather than unconsidered: there is one
     /// operation that ends an account's sessions, so a second caller here would be a second module
     /// driving the same agent rpc — a duplicate the publisher must not average, sum, or silently
-    /// prefer the first of. <see cref="SessionCullReported"/> stays <c>true</c> either way, so the
-    /// publisher still never claims a silence it did not achieve.
+    /// prefer the first of. The reading is never <see cref="SessionCullNotReported"/> again once a
+    /// subscriber has reported, so the publisher still never claims a silence it did not achieve.
     /// </remarks>
     public void ReportSessionCull(uint? sessionsEnded)
     {
         lock (_gate)
         {
-            _sessionCullReported = true;
-            _sessionsEnded = sessionsEnded;
+            _sessionCull = sessionsEnded is { } count
+                ? new SessionCullEnded(count)
+                : new SessionCullReportedWithoutCount();
         }
     }
 }

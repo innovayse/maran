@@ -1,4 +1,5 @@
 using Maran.Modules.Notifications.Domain.Enums;
+using Maran.Modules.Notifications.Domain.ValueObjects;
 
 namespace Maran.Modules.Notifications.Models;
 
@@ -16,20 +17,19 @@ namespace Maran.Modules.Notifications.Models;
 /// <param name="Host">Host name or address of the mail server.</param>
 /// <param name="Port">TCP port the mail server listens on.</param>
 /// <param name="Security">How the connection is protected.</param>
-/// <param name="Username">The submission user name, or empty when the server takes no credentials.</param>
-/// <param name="Password">
-/// The submission password in plain text, decrypted on load. It is held in memory because sending is
-/// impossible without it; it is never logged, never journalled, and never returned by a query.
+/// <param name="Credentials">
+/// Whether the server takes no credentials or a user name and password. The password is held in
+/// memory in plain text, decrypted on load, because sending is impossible without it; it is never
+/// logged, never journalled, and never returned by a query.
 /// </param>
 /// <param name="FromAddress">The address the panel's mail is sent from.</param>
 /// <param name="FromName">The display name beside the sender address; may be empty.</param>
-/// <param name="AlertRecipient">Where alert mail goes.</param>
+/// <param name="AlertRecipient">Where alert mail goes, or <c>null</c> when no operator address is set.</param>
 public sealed record SmtpProfile(
     string Host,
     int Port,
     SmtpSecurity Security,
-    string Username,
-    string Password,
+    SmtpCredentials Credentials,
     string FromAddress,
     string FromName,
-    string AlertRecipient);
+    string? AlertRecipient);

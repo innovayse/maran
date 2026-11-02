@@ -102,6 +102,13 @@ public abstract class BaseApiController : ControllerBase
         return result.ToActionResult(HttpContext);
     }
 
+    /// <summary>Translates an outcome that produces no value into 204 No Content or a problem response.</summary>
+    /// <param name="result">The outcome to translate.</param>
+    protected IActionResult ToActionResult(Result result)
+    {
+        return result.ToActionResult(HttpContext);
+    }
+
     /// <summary>Translates a create result into 201 Created (with <paramref name="location"/>) or a problem response.</summary>
     /// <param name="result">The outcome to translate.</param>
     /// <param name="location">The URI of the created resource, used as the 201 response's <c>Location</c> header.</param>

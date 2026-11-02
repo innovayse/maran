@@ -27,7 +27,7 @@ public sealed class LogoutEverywhereCommandHandler
     /// <param name="command">Whose sessions to end, with the caller's address and client.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>Always a success; the operation is idempotent.</returns>
-    public async Task<Result<bool>> HandleAsync(LogoutEverywhereCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(LogoutEverywhereCommand command, CancellationToken cancellationToken)
     {
         await _sessionService.RevokeAllAsync(command.UserId, SessionRevocationReason.LogoutAll, cancellationToken);
 
@@ -40,6 +40,6 @@ public sealed class LogoutEverywhereCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

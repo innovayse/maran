@@ -36,14 +36,12 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
 
     /// <summary>What a request for the SFTP jail status is answered with.</summary>
     public Result<AgentSftpJailStatus> SftpJailStatus { get; set; } =
-        Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus(false, []));
+        Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus.Intact());
 
     /// <summary>What a request for quota enforceability is answered with.</summary>
     public Result<AgentQuotaEnforceability> QuotaEnforceability { get; set; } =
         Result<AgentQuotaEnforceability>.Ok(
-            new AgentQuotaEnforceability(
-                true,
-                Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified));
+            new AgentQuotaEnforceability.Enforceable());
 
     /// <summary>What a request for the clock's synchronisation is answered with.</summary>
     public Result<AgentClockSyncState> ClockSync { get; set; } =

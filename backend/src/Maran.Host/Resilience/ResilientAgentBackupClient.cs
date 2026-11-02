@@ -86,7 +86,7 @@ public sealed class ResilientAgentBackupClient : IAgentBackupClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteAsync(
+    public async Task<Result> DeleteAsync(
         string accountUsername,
         string backupId,
         AgentBackupDestination destination,

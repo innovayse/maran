@@ -5,6 +5,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 using Microsoft.Extensions.Localization;
 using Npgsql;
 
@@ -86,7 +87,8 @@ public sealed class CreatePlanCommandHandler
             command.MaxSftpUsers,
             command.MaxFtpUsers,
             command.MaxCronEntries,
-            command.MaxPhpWorkersPerPool);
+            command.MaxPhpWorkersPerPool,
+            command.Features.ToSet());
         plan.ChangeRuntimeLimits(RuntimeLimitsMapper.ToDomain(command));
 
         _dbContext.Plans.Add(plan);

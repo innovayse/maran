@@ -235,7 +235,7 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         // And the task said so honestly. A deletion that reported COMPLETED while the rows above
         // survived is the defect this test was written for, so the claim is asserted beside the
         // facts it claims rather than trusted.
-        // Past the filter: the Tasks module's global filter is `IsAdmin`, and this scope carries no
+        // Past the filter: the Tasks module's global filter admits only an administrator, and this scope carries no
         // principal at all, so a filtered read would answer "no such task" for a task that is there.
         // That is the answer that would make this assertion unfalsifiable.
         var task = await scope.ServiceProvider.GetRequiredService<TasksDbContext>()
@@ -508,6 +508,7 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         var user = new User(
             Guid.NewGuid(), AccountName, $"{AccountName}@example.com", "hash", UserRole.Customer, now);
         user.AssignAccount(accountId);
+        identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, accountId, now));
         identity.Users.Add(user);
 
         identity.Sessions.Add(new Session(

@@ -1,3 +1,5 @@
+using Maran.Modules.Sites.Domain.Enums;
+
 namespace Maran.Modules.Sites.Common;
 
 /// <summary>
@@ -11,9 +13,9 @@ namespace Maran.Modules.Sites.Common;
 /// business on a customer's screen (rules/security.md).
 /// </remarks>
 /// <param name="Version">Two-component version as the packages name it, e.g. <c>8.3</c>.</param>
-/// <param name="IsDefault">
-/// Whether this version is the host's default CLI PHP, or <c>null</c> when the agent did not
-/// establish it. Null and false are different answers and are not conflated here: "not known" must
-/// not be rendered as "not the default".
+/// <param name="DefaultStatus">
+/// Whether this version is the host's default CLI PHP. <see cref="PhpDefaultStatus.Unknown"/> when
+/// the agent did not establish it; that is not the same answer as
+/// <see cref="PhpDefaultStatus.NotDefault"/> and is never rendered as it.
 /// </param>
-public sealed record PhpVersionDto(string Version, bool? IsDefault);
+public sealed record PhpVersionDto(string Version, PhpDefaultStatus DefaultStatus);

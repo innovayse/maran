@@ -3,11 +3,13 @@
  * `AccountResourceUsageDto` (`GET /api/v1/accounts/{id}/resource-summary` for an administrator,
  * `GET /api/v1/accounts/me/resource-summary` for the customer who owns it).
  *
- * Every state is an explicit field, never a `null` standing for one: whether a count could be taken
- * is {@link AccountResourceCountState}, and whether the plan bounds the resource is
- * {@link AccountResourceLimitKind}. Enums arrive as camelCase strings (panel-wide
- * `JsonStringEnumConverter`).
+ * Every state is its own case with no number standing in for it: whether a count could be taken is
+ * {@link ResourceCount} (a figure exists only on a `counted` reading), and whether the plan bounds
+ * the resource is {@link ResourceCeiling} (a figure exists only on a `limited` ceiling). Enums
+ * arrive as camelCase strings (panel-wide `JsonStringEnumConverter`).
  */
+
+import type { ResourceCeiling } from './resourceCeiling'
 
 /**
  * A kind of resource an account holds, mirroring `Maran.Sdk.Contracts.AccountResourceKind`. The
@@ -17,31 +19,33 @@
 export type AccountResourceKind = 'sites' | 'databases' | 'sftpLogins' | 'ftpLogins' | 'cronEntries' | 'backups'
 
 /**
- * Whether a resource could be counted, mirroring `Maran.Sdk.Contracts.AccountResourceCountState`.
- * `unavailable` is a reading the server could not take (cron's crontab lives on the host, and the
- * agent may not answer), which is not the same statement as "none".
+ * How many of a resource an account holds, mirroring `ResourceCountDto`. Exactly one of two shapes
+ * told apart by `state`: `unavailable` is a reading the server could not take (cron's crontab lives
+ * on the host, and the agent may not answer), which is not the same statement as "none" and carries
+ * no number.
  */
-export type AccountResourceCountState = 'counted' | 'unavailable'
-
-/**
- * Whether the account's plan bounds a resource, mirroring
- * `Maran.Modules.Accounts.Domain.Enums.ResourceLimitKind`. `unlimited` is what the plan says
- * (backups carry no plan limit), not a value that failed to arrive.
- */
-export type AccountResourceLimitKind = 'limited' | 'unlimited'
+export type ResourceCount =
+  /** The owning module counted. */
+  | {
+      /** Discriminator: a reading was taken. */
+      state: 'counted'
+      /** How many the account holds; zero is a real count. */
+      used: number
+    }
+  /** The count could not be taken. */
+  | {
+      /** Discriminator: no reading. */
+      state: 'unavailable'
+    }
 
 /** One resource: how many the account holds and what its plan allows. */
 export interface AccountResourceUsage {
   /** Which resource this row counts. */
   kind: AccountResourceKind
-  /** Whether {@link used} is a reading. */
-  state: AccountResourceCountState
-  /** How many the account holds; meaningful only when {@link state} is `counted`. */
-  used: number
-  /** Whether {@link limit} bounds the resource. */
-  limitKind: AccountResourceLimitKind
-  /** The plan's allowance; meaningful only when {@link limitKind} is `limited`. */
-  limit: number
+  /** The reading, or the statement that none could be taken. */
+  count: ResourceCount
+  /** The plan's allowance; `unlimited` is what the plan says (backups carry no plan limit), not a value that failed to arrive. */
+  limit: ResourceCeiling
 }
 
 /** The resources one account holds against its plan. */

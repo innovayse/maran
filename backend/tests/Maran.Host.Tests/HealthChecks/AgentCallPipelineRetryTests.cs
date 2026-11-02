@@ -5,6 +5,7 @@ using Maran.Agent.Client.Services.SystemService;
 using Maran.Agent.Client.Tests.TestSupport;
 using Maran.Host.Configuration;
 using Maran.Host.HealthChecks;
+using Maran.Host.HealthChecks.Enums;
 using Maran.Host.Resilience;
 using Maran.Host.Tests.Fixtures;
 using Maran.SharedKernel.Results;
@@ -43,7 +44,7 @@ public sealed class AgentCallPipelineRetryTests
 
         var answer = await NewProbe(client).ProbeAsync().WaitAsync(TestTimeout);
 
-        Assert.Equal(AgentHealthProbe.Connected, answer);
+        Assert.Equal(AgentHealth.Connected, answer);
         Assert.Equal(3, client.Calls);
     }
 
@@ -55,7 +56,7 @@ public sealed class AgentCallPipelineRetryTests
 
         var answer = await NewProbe(client).ProbeAsync().WaitAsync(TestTimeout);
 
-        Assert.Equal(AgentHealthProbe.Unavailable, answer);
+        Assert.Equal(AgentHealth.Unavailable, answer);
         Assert.Equal(3, client.Calls);
     }
 
@@ -73,7 +74,7 @@ public sealed class AgentCallPipelineRetryTests
 
         var answer = await NewProbe(client).ProbeAsync().WaitAsync(TestTimeout);
 
-        Assert.Equal(AgentHealthProbe.Unavailable, answer);
+        Assert.Equal(AgentHealth.Unavailable, answer);
         Assert.Equal(3, client.Calls);
     }
 
@@ -86,7 +87,7 @@ public sealed class AgentCallPipelineRetryTests
 
         var answer = await NewProbe(client).ProbeAsync().WaitAsync(TestTimeout);
 
-        Assert.Equal(AgentHealthProbe.Incompatible, answer);
+        Assert.Equal(AgentHealth.Incompatible, answer);
         Assert.Equal(1, client.Calls);
     }
 
@@ -100,7 +101,7 @@ public sealed class AgentCallPipelineRetryTests
     /// <see cref="AgentTransportFaults.AfterRequestSent"/>, not a refused connect: it is unreachable
     /// but NOT a connect failure, so a predicate narrowed to <c>IsConnectFailure</c> fails this test
     /// too, and a predicate replaced by <c>false</c> makes one call instead of three. The exception is
-    /// not translated into <see cref="AgentHealthProbe.Unavailable"/>: the probe catches only the
+    /// not translated into <see cref="AgentHealth.Unavailable"/>: the probe catches only the
     /// pipeline's own timeout, so a defect-shaped exception stays loud (the probe's contract).
     /// </remarks>
     [Fact]

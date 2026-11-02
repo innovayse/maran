@@ -7,6 +7,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.ValueObjects;
 using Maran.Modules.Backups.Jobs;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
@@ -233,7 +234,7 @@ public sealed class BackupScheduleTests : IAsyncLifetime
         var backups = scope.ServiceProvider.GetRequiredService<BackupsDbContext>();
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
 
-        // Disabled, and stamped long ago: the only thing keeping it out of the sweep is Enabled.
+        // Disabled, and stamped long ago: the only thing keeping it out of the sweep is EnabledAt.
         var disabled = Schedule(world.AccountId);
         disabled.MarkRunStarted(now.AddYears(-1));
         backups.BackupSchedules.Add(disabled);
@@ -291,7 +292,7 @@ public sealed class BackupScheduleTests : IAsyncLifetime
     /// <returns>The schedule.</returns>
     private static BackupSchedule Schedule(Guid accountId)
     {
-        return new BackupSchedule(Guid.NewGuid(), accountId, null, BackupFrequency.Daily, 3, null, 7);
+        return new BackupSchedule(Guid.NewGuid(), accountId, null, new DailyBackupCadence(3), 7);
     }
 
     /// <summary>Sends a bodyless request of the given method to the given path.</summary>
@@ -349,6 +350,7 @@ public sealed class BackupScheduleTests : IAsyncLifetime
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
         customer.AssignAccount(account.Id);
+        identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, account.Id, now));
         identity.Users.Add(customer);
         await identity.SaveChangesAsync();
 

@@ -15,9 +15,6 @@
   <data name="MonitoringModuleDisplayName">
     <value>Мониторинг</value>
   </data>
-  <data name="ServiceUnspecified">
-    <value>Неизвестная служба</value>
-  </data>
   <data name="ServiceWebServer">
     <value>Веб-сервер</value>
   </data>
@@ -38,6 +35,9 @@
   </data>
   <data name="AccountQuotaNotEnforceableNote">
     <value>Сейчас не применяется — это лимит из тарифа, но этот сервер сейчас не может обеспечить его реальным ограничением на диске, поэтому аккаунт может использовать больше. Чтобы восстановить применение, смонтируйте файловую систему с учётом квот и выполните quotaon; панель не сделает это за вас.</value>
+  </data>
+  <data name="AccountQuotaUnmeasuredNote">
+    <value>Применение не удалось проверить — сервер не сообщил, может ли он обеспечить этот лимит реальным ограничением на диске, поэтому панель не может сказать, соблюдается ли он для этого аккаунта. Повторите попытку позже; если проблема не уходит, проверьте, что агент запущен.</value>
   </data>
   <data name="LogLevelVerbose">
     <value>Подробный — всё</value>
@@ -65,5 +65,8 @@
   </data>
   <data name="ClockSyncSyncServiceDisabled">
     <value>Служба синхронизации времени не включена, поэтому при уходе часов их никто не исправит. Включите на этом сервере systemd-timesyncd или chrony.</value>
+  </data>
+  <data name="ServerKindLocal">
+    <value>Этот сервер (локальный)</value>
   </data>
 </root>

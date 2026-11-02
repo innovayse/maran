@@ -60,6 +60,39 @@ export interface AuthenticatedSession {
 }
 
 /**
+ * Who, if anyone, this browser is signed in as: one value instead of a token, a user and two flags
+ * that must agree. Only the arms that hold a token carry one, so nothing can read a token that a
+ * sign-in still owed a second factor for.
+ */
+export type AuthSession =
+  | {
+      /** Nobody is signed in. */
+      state: 'signedOut'
+    }
+  | {
+      /** The password was right and a second factor is still owed; there is no token yet. */
+      state: 'awaitingSecondFactor'
+      /** The username whose sign-in is waiting. */
+      username: string
+    }
+  | {
+      /** Signed in, but the panel requires a second factor this person has not enrolled: the token reaches only enrolment. */
+      state: 'enrolmentRequired'
+      /** The signed access token. */
+      accessToken: string
+      /** Who is signed in. */
+      user: AuthenticatedUser
+    }
+  | {
+      /** Fully signed in. */
+      state: 'signedIn'
+      /** The signed access token. */
+      accessToken: string
+      /** Who is signed in. */
+      user: AuthenticatedUser
+    }
+
+/**
  * The body of a sign-in or refresh. There is deliberately no refresh token here:
  * it lives in an httpOnly cookie the page's JavaScript cannot read.
  *
@@ -189,9 +222,9 @@ export interface AuthApi {
   /** Exchanges the refresh cookie for a new access token; `null` when the browser holds no cookie. */
   refresh: (signal?: AbortSignal) => Promise<AuthenticatedSession | null>
   /** Signs out of this device. */
-  logout: (signal?: AbortSignal) => Promise<boolean>
+  logout: (signal?: AbortSignal) => Promise<void>
   /** Signs out of every device. */
-  logoutEverywhere: (signal?: AbortSignal) => Promise<boolean>
+  logoutEverywhere: (signal?: AbortSignal) => Promise<void>
   /** Reports whether the panel already has an administrator. */
   setupState: (signal?: AbortSignal) => Promise<SetupState>
   /** Creates the first administrator. */
@@ -199,19 +232,19 @@ export interface AuthApi {
   /** Lists one page of the caller's live sessions. */
   listSessions: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<Session>>
   /** Ends one of the caller's sessions. */
-  revokeSession: (id: string, signal?: AbortSignal) => Promise<boolean>
+  revokeSession: (id: string, signal?: AbortSignal) => Promise<void>
   /** Starts a two-factor enrolment without enabling anything. */
   beginTwoFactorEnrolment: (signal?: AbortSignal) => Promise<TotpEnrolment>
   /** Completes an enrolment and returns the recovery codes, once. */
   confirmTwoFactorEnrolment: (secret: string, code: string, signal?: AbortSignal) => Promise<RecoveryCodes>
   /** Turns the second factor off. */
-  disableTwoFactor: (code: string, signal?: AbortSignal) => Promise<boolean>
+  disableTwoFactor: (code: string, signal?: AbortSignal) => Promise<void>
   /** Asks for a password-reset link, and is answered the same way whatever the address is. */
-  requestPasswordReset: (email: string, signal?: AbortSignal) => Promise<boolean>
+  requestPasswordReset: (email: string, signal?: AbortSignal) => Promise<void>
   /** Changes the signed-in caller's own password, proving the current one. */
-  changePassword: (request: ChangePasswordRequest, signal?: AbortSignal) => Promise<boolean>
+  changePassword: (request: ChangePasswordRequest, signal?: AbortSignal) => Promise<void>
   /** Sets a new password from a reset link. */
-  resetPassword: (request: ResetPasswordRequest, signal?: AbortSignal) => Promise<boolean>
+  resetPassword: (request: ResetPasswordRequest, signal?: AbortSignal) => Promise<void>
   /** Sets the first password for an invited login, from the mailed invitation. */
   acceptInvitation: (request: AcceptInvitationRequest, signal?: AbortSignal) => Promise<AcceptInvitationResult>
 }

@@ -1,5 +1,6 @@
 import type { RouteLocationRaw } from 'vue-router'
-import type { PanelModule } from './module'
+import type { AccountFeatureName } from './accountFeature'
+import type { ModuleState, PanelModule } from './module'
 
 /**
  * Glyph a navigation entry is drawn with. A closed union of the icons the shell draws: the module
@@ -56,10 +57,19 @@ export type NavigationAvailability =
   /** The page is not built yet; `issue` is the GitHub issue that builds it, when one is filed. */
   | { state: 'planned'; issue: number | null }
 
-/** A live count the shell can draw beside an item. Only counts the shell already holds are listed. */
+/**
+ * A live count the shell can draw beside an item. A kind is listed when a page carries it in the
+ * tree; whether the shell can feed it yet is a separate matter (see {@link NavigationContext.badges}).
+ */
 export type NavigationBadgeKind =
   /** Background tasks that failed, as the panel counts them (`GET /api/v1/tasks/failed-count`). */
-  'failedTasks'
+  | 'failedTasks'
+  /** Things on the server asking to be looked at (`GET /api/v1/dashboard/attention-count`). */
+  | 'needsAttention'
+  /** Messages waiting in the mail queue. Not fed yet: the mail module (issue #177) does not exist. */
+  | 'mailQueue'
+  /** Package updates waiting to be installed. Not fed yet: no data source exists (issue #320). */
+  | 'availableUpdates'
 
 /** Who may see an item, and what the panel must have for it to be usable. */
 export interface NavigationGate {
@@ -76,7 +86,7 @@ export interface NavigationGate {
    * signed-in account's plan features where the panel reports them; while it does not, the item is
    * offered (advice errs permissive, rules/security.md).
    */
-  planFeature: string | null
+  planFeature: AccountFeatureName | null
 }
 
 /** One page in the navigation tree. */
@@ -144,21 +154,44 @@ export interface NavigationBadge {
   count: number
 }
 
+/**
+ * What the panel reported about the plan features of the signed-in caller. The unreported arm
+ * carries no set at all, so nothing can mistake "not reported" for "a plan with no features".
+ */
+export type NavigationPlanFeatures =
+  | {
+      /** The panel does not report them (an administrator, a read still on its way or failed). */
+      state: 'unreported'
+    }
+  | {
+      /** The panel reported the features of the caller's plan. */
+      state: 'reported'
+      /** The single feature ids the plan includes. */
+      features: ReadonlySet<AccountFeatureName>
+    }
+
 /** What the shell knows about the caller and the panel when it builds the navigation. */
 export interface NavigationContext {
   /** The signed-in caller's role. */
   role: NavigationRole
   /** The module catalogue as the panel reported it, in its order. */
   catalogue: readonly PanelModule[]
-  /** Module machine name to whether the licence enables it; a module absent here is not installed. */
-  modules: ReadonlyMap<string, boolean>
+  /** Module machine name to how the licence stands; a module absent here is not installed. */
+  modules: ReadonlyMap<string, ModuleState>
   /**
-   * The caller's plan features, or null while the panel does not report them; null offers every
-   * item, since hiding is advice and errs permissive.
+   * The caller's plan features. While the panel does not report them every item is offered, since
+   * hiding is advice and errs permissive.
    */
-  planFeatures: ReadonlySet<string> | null
-  /** The live counts the shell holds, per badge kind. */
-  badges: Readonly<Record<NavigationBadgeKind, number>>
+  planFeatures: NavigationPlanFeatures
+  /**
+   * The live counts the shell holds, per badge kind. A partial map and not a total one: a kind is
+   * present exactly when the panel answered with a real count, and absent when it was not asked,
+   * has not answered yet, could not be read, or has no source at all. That keeps "no figure" a
+   * different thing from a figure, without a number standing in for it (not `0`, which is a real
+   * answer, and not `-1`). A per-kind union of loaded, loading and failed would add cases the
+   * navigation treats identically — draw no badge — and nothing else reads them.
+   */
+  badges: Readonly<Partial<Record<NavigationBadgeKind, number>>>
   /**
    * Whether this bundle registers a route.
    * @param name The route name.

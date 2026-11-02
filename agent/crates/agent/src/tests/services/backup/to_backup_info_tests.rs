@@ -86,7 +86,7 @@ fn an_unreadable_backup_crosses_as_the_unreadable_arm_with_its_reason() {
     for (reason, expected, version) in [
         (UnreadableReason::Corrupt, UnreadableKind::Corrupt, 0),
         (
-            UnreadableReason::UnknownVersion { version: 7 },
+            UnreadableReason::UnknownVersion { version: Some(7) },
             UnreadableKind::UnknownVersion,
             7,
         ),

@@ -6,6 +6,7 @@ using Maran.Modules.Tasks.Mappers;
 using Maran.Modules.Tasks.Models;
 using Maran.Modules.Tasks.Options;
 using Maran.Modules.Tasks.Persistence;
+using Maran.SharedKernel.Callers;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Tasks.Services;
@@ -170,6 +171,6 @@ public sealed class RunningTasksStreamService
     private PanelTaskDto Map(PanelTask task)
     {
         return PanelTaskMapper.From(
-            task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.IsAdmin);
+            task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.Caller is AdministratorCaller);
     }
 }

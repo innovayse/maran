@@ -60,11 +60,12 @@ const password: Ref<string> = ref('')
 /** The same password typed again, so a typo does not become the new password. */
 const confirmation: Ref<string> = ref('')
 
-/** The password field's own message when it is under the default minimum, or `null`. */
-const tooShort: Ref<string | null> = ref(null)
-
-/** The value already flagged as short once; pressing again with it sends it anyway. */
-const flaggedShort: Ref<string | null> = ref(null)
+/**
+ * The short value the form has warned about, and whether that warning is still on the field.
+ * `raised` shows the message beside the password; pressing again with the same value moves it to
+ * `acknowledged`, which hides the message and lets the value through. `null` before any warning.
+ */
+const shortWarning: Ref<{ forValue: string; stage: 'raised' | 'acknowledged' } | null> = ref(null)
 
 /** The panel's own message when the two entries differ, or `null` while they match. */
 const mismatch: Ref<string | null> = ref(null)
@@ -75,6 +76,24 @@ const done: Ref<boolean> = ref(false)
 /** The token from the invitation link, or the empty string when the link carried none. */
 const token: ComputedRef<string> = computed(() => {
   return typeof route.query.token === 'string' ? route.query.token : ''
+})
+
+/** The password field's own message while the short-password warning is raised, or `null`. */
+const tooShort: ComputedRef<string | null> = computed(() => {
+  return shortWarning.value?.stage === 'raised'
+    ? t('app.acceptInvitation.passwordTooShort', { min: DEFAULT_MIN_PASSWORD_LENGTH })
+    : null
+})
+
+/**
+ * Which of the screen's three faces is showing: the password set, a link that carried no token
+ * (which can never succeed, so no form is offered), or the form.
+ */
+const phase: ComputedRef<'done' | 'missingToken' | 'form'> = computed(() => {
+  if (done.value) {
+    return 'done'
+  }
+  return token.value === '' ? 'missingToken' : 'form'
 })
 
 /**
@@ -88,12 +107,13 @@ const token: ComputedRef<string> = computed(() => {
 const submit = async (): Promise<void> => {
   // Advice only, and permissive: flag a short password once, then let the same value through,
   // since an operator may have set a lower minimum this screen cannot see.
-  if (password.value.length < DEFAULT_MIN_PASSWORD_LENGTH && flaggedShort.value !== password.value) {
-    tooShort.value = t('app.acceptInvitation.passwordTooShort', { min: DEFAULT_MIN_PASSWORD_LENGTH })
-    flaggedShort.value = password.value
+  if (password.value.length < DEFAULT_MIN_PASSWORD_LENGTH && shortWarning.value?.forValue !== password.value) {
+    shortWarning.value = { forValue: password.value, stage: 'raised' }
     return
   }
-  tooShort.value = null
+  if (shortWarning.value !== null) {
+    shortWarning.value = { forValue: shortWarning.value.forValue, stage: 'acknowledged' }
+  }
 
   if (password.value !== confirmation.value) {
     mismatch.value = t('app.auth.passwordsDoNotMatch')
@@ -114,7 +134,7 @@ const submit = async (): Promise<void> => {
     />
 
     <!-- Done: the password is set, and the only thing left to do is sign in with it. -->
-    <div v-if="done" class="flex flex-col gap-5">
+    <div v-if="phase === 'done'" class="flex flex-col gap-5">
       <UiAlert variant="success">
         <p>{{ t('app.acceptInvitation.done') }}</p>
         <!-- The login name the invitation created: the person has never signed in and may not
@@ -131,7 +151,7 @@ const submit = async (): Promise<void> => {
 
     <!-- A link that carried no token can never succeed, so the form is not offered: the state is
          stated, with what to do next, instead of a form that is certain to be refused. -->
-    <div v-else-if="token === ''" class="flex flex-col gap-5">
+    <div v-else-if="phase === 'missingToken'" class="flex flex-col gap-5">
       <UiAlert variant="warning">
         <p class="font-semibold">{{ t('app.acceptInvitation.missingTokenTitle') }}</p>
         <p class="mt-1">{{ t('app.acceptInvitation.missingTokenBody') }}</p>

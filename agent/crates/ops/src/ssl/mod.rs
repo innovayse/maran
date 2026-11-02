@@ -82,6 +82,7 @@ pub use delete_site_with_certificate::delete_site_with_certificate;
 pub use generate_self_signed::generate_self_signed;
 pub use install_certificate::install_certificate;
 pub use install_panel_certificate::install_panel_certificate;
+pub use model::certificate_installation::CertificateInstallation;
 pub use model::certificate_material::CertificateMaterial;
 pub use model::certificate_state::CertificateState;
 pub use model::self_signed_request::SelfSignedRequest;

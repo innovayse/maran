@@ -65,8 +65,9 @@ public sealed class PlansEndpointTests : IAsyncLifetime
             MaxCronEntries = 3,
             MaxPhpWorkersPerPool = 8,
             CpuQuotaPercent = new { Kind = "limited", Maximum = 150 },
-            MemoryMaxMb = new { Kind = "unlimited", Maximum = 0 },
+            MemoryMaxMb = new { Kind = "unlimited" },
             MaxProcesses = new { Kind = "limited", Maximum = 64 },
+            Features = new[] { "mail", "dns", "databases", "cron", "fileTransfer", "backups" },
         };
     }
 
@@ -167,7 +168,7 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         Assert.Equal(20_480, editedBody.RootElement.GetProperty("diskQuotaMb").GetInt32());
 
         var deleted = await admin.DeleteAsync($"/api/v1/plans/{id}");
-        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
         Assert.Empty(await ListAsync(admin));
 
         using var scope = factory.Services.CreateScope();

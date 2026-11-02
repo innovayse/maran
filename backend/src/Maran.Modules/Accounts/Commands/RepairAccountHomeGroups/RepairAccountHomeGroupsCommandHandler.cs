@@ -123,7 +123,7 @@ public sealed class RepairAccountHomeGroupsCommandHandler
             cancellationToken);
 
         return Result<HomeGroupRepairReportDto>.Ok(
-            HomeGroupRepairReportMapper.ToDto(repaired.Value, isReportOnly: false, _refusalText));
+            HomeGroupRepairReportMapper.ToApplied(repaired.Value, _refusalText));
     }
 
     /// <summary>Writes the one journal entry this operation produces, in either outcome.</summary>

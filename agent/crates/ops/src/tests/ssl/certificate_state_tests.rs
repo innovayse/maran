@@ -8,6 +8,7 @@ use maran_agent_core::validation::web::domain::Domain;
 use crate::sites::SiteCertificate;
 use crate::ssl::certificate_state::certificate_state;
 use crate::ssl::fake_ssl_host::{FakeSslHost, matching_material};
+use crate::ssl::model::certificate_installation::CertificateInstallation;
 use crate::ssl::self_signed_marker::self_signed_marker;
 use crate::ssl::ssl_op_error::SslOpError;
 
@@ -29,8 +30,10 @@ fn material_with_a_marker_beside_it_is_reported_as_a_placeholder() {
 
     let state = certificate_state(&host, &domain()).unwrap();
 
-    assert!(state.present);
-    assert!(state.is_self_signed_placeholder);
+    assert_eq!(
+        state.installation,
+        CertificateInstallation::SelfSignedPlaceholder
+    );
 }
 
 #[test]
@@ -49,8 +52,7 @@ fn material_without_a_marker_is_never_reported_as_a_placeholder_however_its_subj
 
     let state = certificate_state(&host, &domain()).unwrap();
 
-    assert!(state.present);
-    assert!(!state.is_self_signed_placeholder);
+    assert_eq!(state.installation, CertificateInstallation::Installed);
     // And the subject above was never even fetched: no program was run at all,
     // which is the property that makes the quoting rule above irrelevant rather
     // than merely handled. Asserted as the whole list, so a run that grew an
@@ -64,8 +66,7 @@ fn a_domain_with_no_material_is_absent_rather_than_an_error() {
 
     let state = certificate_state(&host, &domain()).unwrap();
 
-    assert!(!state.present);
-    assert!(!state.is_self_signed_placeholder);
+    assert_eq!(state.installation, CertificateInstallation::Absent);
     // The paths are still returned, and asserted whole rather than by their
     // ending: the caller's refusal names where the material would have to be,
     // and a refusal naming the wrong directory sends an operator to the wrong
@@ -91,8 +92,7 @@ fn a_marker_left_behind_with_no_material_describes_nothing() {
 
     let state = certificate_state(&host, &domain()).unwrap();
 
-    assert!(!state.present);
-    assert!(!state.is_self_signed_placeholder);
+    assert_eq!(state.installation, CertificateInstallation::Absent);
 }
 
 #[test]
@@ -106,8 +106,7 @@ fn a_certificate_whose_private_key_is_missing_is_not_reported_as_present() {
 
     let state = certificate_state(&host, &domain()).unwrap();
 
-    assert!(!state.present);
-    assert!(!state.is_self_signed_placeholder);
+    assert_eq!(state.installation, CertificateInstallation::Absent);
 }
 
 #[test]
@@ -127,8 +126,10 @@ fn a_marker_holding_content_the_agent_never_wrote_is_still_the_agents_own_fact()
 
     let state = certificate_state(&host, &domain()).unwrap();
 
-    assert!(state.present);
-    assert!(state.is_self_signed_placeholder);
+    assert_eq!(
+        state.installation,
+        CertificateInstallation::SelfSignedPlaceholder
+    );
 }
 
 #[test]

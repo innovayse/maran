@@ -1,4 +1,6 @@
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Domain.Policies;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Security;
@@ -115,7 +117,7 @@ public sealed class IssueInvitationLinkCommandHandler
         CancellationToken cancellationToken)
     {
         var issued = await _issuer.IssueAsync(command.AccountId, _clock.UtcNow, cancellationToken);
-        if (issued.IsSuccess && issued.Value is null)
+        if (issued.IsSuccess && issued.Value is InvitationAlreadyBeingIssued)
         {
             // Lost the race to create the login — see the type's remarks. It exists now.
             issued = await _issuer.IssueAsync(command.AccountId, _clock.UtcNow, cancellationToken);
@@ -126,8 +128,10 @@ public sealed class IssueInvitationLinkCommandHandler
             return await RefuseAsync(command, issued.Error!, cancellationToken);
         }
 
-        if (issued.Value is not { } invitation)
+        if (issued.Value is not InvitationIssued { Invitation: var invitation })
         {
+            // Still lost the race on the second ask: the login exists now, so reaching here means the
+            // account vanished between the two asks.
             return await RefuseAsync(
                 command,
                 Error.Of(nameof(Resources.ErrorMessages.InvitationAccountNotFound), ErrorType.NotFound),
@@ -137,7 +141,7 @@ public sealed class IssueInvitationLinkCommandHandler
         // The subject is the customer's login name — what was acted on — and nothing derived from the
         // token: not the link, not the token, not its digest.
         await _journal.RecordIdentifiedAsync(
-            _currentUser.UserId,
+            SignedInCallerPolicy.Require(_currentUser).UserId,
             AuditActions.InvitationLinkIssued,
             invitation.Username,
             command.IpAddress,
@@ -164,7 +168,7 @@ public sealed class IssueInvitationLinkCommandHandler
         // No login was acted on, so the subject is the identifier the caller supplied: a probe for an
         // account that is not there still leaves a trace of what was probed for.
         await _journal.RecordIdentifiedAsync(
-            _currentUser.UserId,
+            SignedInCallerPolicy.Require(_currentUser).UserId,
             AuditActions.InvitationLinkIssued,
             command.AccountId.ToString("D"),
             command.IpAddress,

@@ -43,7 +43,7 @@ public sealed class RecordingAgentSystemClient : IAgentSystemClient
             Result<AgentInfoDto>.Ok(new AgentInfoDto(
                 "1.0.0",
                 "debian",
-                "debian",
+                AgentDistroFamily.Debian,
                 AgentProtoVersionWindow.Maximum,
                 "/var/backups/maran")));
     }

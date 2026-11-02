@@ -156,7 +156,7 @@ public sealed class SecurityPolicyAuthorizationTests : IAsyncLifetime
             lockoutMinutes = 30,
         });
 
-        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
 
         var readBack = await client.GetAsync("/api/v1/security-policy");
         using var body = JsonDocument.Parse(await readBack.Content.ReadAsStringAsync());

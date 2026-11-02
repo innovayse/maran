@@ -1,3 +1,5 @@
+using Maran.Agent.Client.Services.FirewallService;
+
 namespace Maran.Modules.Firewall.Tests.TestSupport;
 
 /// <summary>One <c>BanAddress</c> call the panel made, exactly as the agent would have received it.</summary>
@@ -7,5 +9,5 @@ namespace Maran.Modules.Firewall.Tests.TestSupport;
 /// <c>::ffff:203.0.113.7</c>, and a parsed <c>IPAddress</c> would have thrown that distinction away.
 /// </remarks>
 /// <param name="Address">The address as it was sent.</param>
-/// <param name="Ttl">The duration asked for, or null for a permanent ban.</param>
-public sealed record AgentBanCall(string Address, TimeSpan? Ttl);
+/// <param name="Term">How long the ban was asked to last: permanent, or a fixed duration.</param>
+public sealed record AgentBanCall(string Address, AgentBanTerm Term);

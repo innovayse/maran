@@ -76,7 +76,7 @@ public sealed class AgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DropAsync(
+    public async Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -92,15 +92,15 @@ public sealed class AgentDbClient : IAgentDbClient
 
         return response.ResultCase switch
         {
-            DropDatabaseResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DropDatabaseResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DropDatabaseResponse.ResultOneofCase.Ok => Result.Ok(),
+            DropDatabaseResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DropAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetPasswordAsync(
+    public async Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,
@@ -119,10 +119,10 @@ public sealed class AgentDbClient : IAgentDbClient
 
         return response.ResultCase switch
         {
-            SetDatabasePasswordResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetDatabasePasswordResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetDatabasePasswordResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetDatabasePasswordResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetPasswordAsync), password)),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -190,39 +190,81 @@ public sealed class AgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
-        bool reportOnly,
-        CancellationToken cancellationToken)
+    public async Task<Result<GrantInspectionReportDto>> InspectGrantsAsync(CancellationToken cancellationToken)
     {
-        var request = new RepairDatabaseGrantsRequest { ReportOnly = reportOnly };
+        var request = new RepairDatabaseGrantsRequest { ReportOnly = true };
         var response = await _invoker.RepairDatabaseGrantsAsync(request, cancellationToken);
 
         return response.ResultCase switch
         {
-            RepairDatabaseGrantsResponse.ResultOneofCase.Ok => Result<GrantRepairReportDto>.Ok(
-                ToReport(response.Ok)),
+            RepairDatabaseGrantsResponse.ResultOneofCase.Ok => ToInspection(response.Ok),
+            RepairDatabaseGrantsResponse.ResultOneofCase.Error => Result<GrantInspectionReportDto>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(InspectGrantsAsync))),
+            _ => Result<GrantInspectionReportDto>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<GrantRepairReportDto>> RepairGrantsAsync(CancellationToken cancellationToken)
+    {
+        var request = new RepairDatabaseGrantsRequest { ReportOnly = false };
+        var response = await _invoker.RepairDatabaseGrantsAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            RepairDatabaseGrantsResponse.ResultOneofCase.Ok => ToRepair(response.Ok),
             RepairDatabaseGrantsResponse.ResultOneofCase.Error => Result<GrantRepairReportDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(RepairGrantsAsync))),
             _ => Result<GrantRepairReportDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
-    /// <summary>Projects the wire census onto the panel's DTOs.</summary>
-    /// <param name="ok">The success payload of <c>RepairDatabaseGrants</c>.</param>
+    /// <summary>Projects the wire census of a report-only pass onto the panel's DTO.</summary>
+    /// <param name="ok">The success payload of <c>RepairDatabaseGrants</c> for a report-only request.</param>
     /// <returns>
-    /// The same four buckets and the same two counts, in the order the agent sent them. Nothing is
-    /// merged and nothing is dropped: the four buckets sum to <c>examined_grants</c>, and a mapping
-    /// that folded "would repair" into "repaired" would make a report-only pass indistinguishable
-    /// from one that acted.
+    /// The census, or <c>AgentInvalidResponse</c> when the wire contradicts the request or names a
+    /// refusal this build does not know. Nothing is merged and nothing is dropped: the buckets sum to
+    /// <c>examined_grants</c>, and a reply that claims rows were REPAIRED to a request that asked for
+    /// none would otherwise be shown as an inspection of a host that had in fact been changed.
     /// </returns>
-    private static GrantRepairReportDto ToReport(RepairDatabaseGrantsOk ok)
+    private static Result<GrantInspectionReportDto> ToInspection(RepairDatabaseGrantsOk ok)
     {
-        return new GrantRepairReportDto(
+        var refused = ToRefusals(ok);
+        if (ok.Repaired.Count > 0 || !refused.IsSuccess)
+        {
+            return Result<GrantInspectionReportDto>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
+
+        return Result<GrantInspectionReportDto>.Ok(new GrantInspectionReportDto(
+            ok.ExaminedGrants,
+            ok.AlreadyCorrect,
+            ok.WouldRepair.Select(ToRepaired).ToList(),
+            refused.Value));
+    }
+
+    /// <summary>Projects the wire census of a repairing pass onto the panel's DTO.</summary>
+    /// <param name="ok">The success payload of <c>RepairDatabaseGrants</c> for a repairing request.</param>
+    /// <returns>
+    /// The census, or <c>AgentInvalidResponse</c> when the wire claims rows it only WOULD have
+    /// rewritten or names a refusal this build does not know. Folding "would repair" into "repaired"
+    /// would make a pass that did nothing read as one that acted.
+    /// </returns>
+    private static Result<GrantRepairReportDto> ToRepair(RepairDatabaseGrantsOk ok)
+    {
+        var refused = ToRefusals(ok);
+        if (ok.WouldRepair.Count > 0 || !refused.IsSuccess)
+        {
+            return Result<GrantRepairReportDto>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
+
+        return Result<GrantRepairReportDto>.Ok(new GrantRepairReportDto(
             ok.ExaminedGrants,
             ok.AlreadyCorrect,
             ok.Repaired.Select(ToRepaired).ToList(),
-            ok.WouldRepair.Select(ToRepaired).ToList(),
-            ok.Refused.Select(ToRefused).ToList());
+            refused.Value));
     }
 
     /// <summary>Projects one repaired — or would-be-repaired — row.</summary>
@@ -236,19 +278,47 @@ public sealed class AgentDbClient : IAgentDbClient
             grant.AlsoMatchedDatabases.ToList());
     }
 
-    /// <summary>Projects one refused row, reason included.</summary>
-    /// <param name="grant">The wire row.</param>
+    /// <summary>Projects every refused row of a census, or refuses the census if one reason is unreadable.</summary>
+    /// <param name="ok">The wire census.</param>
     /// <returns>
-    /// The panel's carrier for it. The three names are carried through UNCHANGED — a refused row is
-    /// refused because it is not a value this panel could have produced, so tidying it here would hide
-    /// the very thing an operator has to look at.
+    /// The rows in the order the agent sent them, or a failure when any row's reason is the wire's zero
+    /// value or a value newer than this build: a row with no readable reason cannot be shown to an
+    /// operator honestly, and dropping it would shorten a census that has to account for every row.
     /// </returns>
-    private static RefusedGrantDto ToRefused(RefusedGrant grant)
+    /// <remarks>
+    /// The three names are carried through UNCHANGED — a refused row is refused because it is not a
+    /// value this panel could have produced, so tidying it here would hide the very thing an operator
+    /// has to look at.
+    /// </remarks>
+    private static Result<IReadOnlyList<RefusedGrantDto>> ToRefusals(RepairDatabaseGrantsOk ok)
     {
-        return new RefusedGrantDto(
-            grant.GrantHost,
-            grant.DatabaseName,
-            grant.DbUsername,
-            grant.Reason.ToString());
+        var refusals = new List<RefusedGrantDto>(ok.Refused.Count);
+
+        foreach (var grant in ok.Refused)
+        {
+            AgentGrantRefusal reason;
+            switch (grant.Reason)
+            {
+                case GrantRepairRefusal.HostIsNotLocalhost:
+                    reason = AgentGrantRefusal.HostIsNotLocalhost;
+                    break;
+                case GrantRepairRefusal.NotThePanelsNaming:
+                    reason = AgentGrantRefusal.NotThePanelsNaming;
+                    break;
+                case GrantRepairRefusal.UnrecognisedPrivileges:
+                    reason = AgentGrantRefusal.UnrecognisedPrivileges;
+                    break;
+                case GrantRepairRefusal.PartiallyOrUnfamiliarlyEscaped:
+                    reason = AgentGrantRefusal.PartiallyOrUnfamiliarlyEscaped;
+                    break;
+                default:
+                    return Result<IReadOnlyList<RefusedGrantDto>>.Fail(
+                        Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+            }
+
+            refusals.Add(new RefusedGrantDto(grant.GrantHost, grant.DatabaseName, grant.DbUsername, reason));
+        }
+
+        return Result<IReadOnlyList<RefusedGrantDto>>.Ok(refusals);
     }
 }

@@ -43,7 +43,7 @@ public sealed class AlertEvaluatorFreeSpaceFloorTests
         Assert.Contains("1.5", mail.Body);
         var row = await dbContext.AlertStates.SingleAsync();
         Assert.Equal(AlertKind.FreeSpaceFloorApproaching, row.Kind);
-        Assert.True(row.IsFiring);
+        Assert.Equal(AlertPhase.Firing, row.Phase);
     }
 
     /// <summary>Exactly twice the floor never raises: the inverse control.</summary>
@@ -84,7 +84,7 @@ public sealed class AlertEvaluatorFreeSpaceFloorTests
             null, new FreeSpaceFloorReading(4 * Floor, Floor), [], null, null, null, null, Start.AddMinutes(30), CancellationToken.None);
 
         Assert.Equal(2, scopes.Bus.Published.Count);
-        Assert.False((await dbContext.AlertStates.SingleAsync()).IsFiring);
+        Assert.NotEqual(AlertPhase.Firing, (await dbContext.AlertStates.SingleAsync()).Phase);
     }
 
     /// <summary>A round that did not read the floor observes nothing at all.</summary>

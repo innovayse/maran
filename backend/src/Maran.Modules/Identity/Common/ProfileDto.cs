@@ -12,9 +12,14 @@ namespace Maran.Modules.Identity.Common;
 /// <param name="Role">What the user is allowed to reach.</param>
 /// <param name="IsTwoFactorEnabled">True when a second factor is enrolled and required at sign-in.</param>
 /// <param name="ActiveSessionCount">How many devices are signed in right now, this one included.</param>
+/// <param name="AccountAccess">
+/// How the person stands towards the account the sign-in is acting for, or <c>null</c> when it is
+/// acting for none (an administrator). Advice for the screen only.
+/// </param>
 public sealed record ProfileDto(
     string Username,
     string Email,
     UserRole Role,
     bool IsTwoFactorEnabled,
-    int ActiveSessionCount);
+    int ActiveSessionCount,
+    AccountAccessDto? AccountAccess = null);

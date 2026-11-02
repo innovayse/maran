@@ -1,0 +1,7 @@
+{
+  "servers": {
+    "selector": {
+      "current": "Ընթացիկ սերվեր՝ {name}"
+    }
+  }
+}

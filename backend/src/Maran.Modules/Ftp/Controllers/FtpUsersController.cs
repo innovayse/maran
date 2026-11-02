@@ -6,6 +6,7 @@ using Maran.Modules.Ftp.Queries.GetFtpUser;
 using Maran.Modules.Ftp.Queries.ListFtpUsers;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -30,6 +31,7 @@ namespace Maran.Modules.Ftp.Controllers;
 [Tags("FTPS Users")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RequiresAccountFeature(AccountFeature.FileTransfer)]
 public sealed class FtpUsersController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>
@@ -119,12 +121,12 @@ public sealed class FtpUsersController : BaseApiController
     /// <param name="id">The login to remove.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeleteFtpUserCommand(id, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

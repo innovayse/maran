@@ -30,4 +30,10 @@
   <data name="RequestParameterInvalid">
     <value>«{0}» պարամետրի արժեքը հնարավոր չէ կարդալ։</value>
   </data>
+  <data name="PlanFeatureNotIncluded">
+    <value>Այս հնարավորությունը ներառված չէ ձեր սակագնային պլանում։</value>
+  </data>
+  <data name="AccountFeatureNotGranted">
+    <value>Այս հնարավորությանը ձեզ հասանելիություն չի տրվել։ Դիմեք հաշվի սեփականատիրոջը։</value>
+  </data>
 </root>

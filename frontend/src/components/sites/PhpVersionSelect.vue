@@ -8,10 +8,10 @@
  * picker is replaced by a statement of that fact rather than an empty dropdown that looks
  * broken.
  *
- * `isDefault` is three-valued on purpose — `null` means the agent could not establish which
- * runtime is the host default, which is not the same answer as "no". Only a definite `true`
- * earns the "server default" label; an unknown is left unlabelled rather than shown as a
- * plain version that quietly asserts it is not the default.
+ * `defaultStatus` is three-valued on purpose — `unknown` means the agent could not establish which
+ * runtime is the host default, which is not the same answer as `notDefault`. Only a definite
+ * `default` earns the "server default" label; an unknown is left unlabelled rather than shown as
+ * a plain version that quietly asserts it is not the default.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -53,7 +53,7 @@ const options: ComputedRef<SelectOption[]> = computed(() => {
     return {
       value: version.version,
       label:
-        version.isDefault === true
+        version.defaultStatus === 'default'
           ? t('sites.form.phpVersionDefaultOption', { version: version.version })
           : t('sites.form.phpVersionOption', { version: version.version }),
     }

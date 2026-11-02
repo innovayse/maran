@@ -10,14 +10,13 @@ namespace Maran.Agent.Client.Tests.Services.MonitorService;
 /// </summary>
 public sealed class AgentMonitorClientDiskUsageTests
 {
-    /// <summary>Disk usage carries the used bytes of every account and never the deprecated quota.</summary>
+    /// <summary>Disk usage carries the used bytes of every account.</summary>
     /// <remarks>
-    /// The agent writes <c>quota_bytes</c> as 0 and the panel owns the real figure, so the wire value
-    /// is set here to something that could not be a used size: if it ever reached the panel's row the
-    /// assertion below would be reading it.
+    /// The wire message once carried a <c>quota_bytes</c> the agent wrote as 0; it is reserved now and
+    /// cannot be set, so the panel's own quota is the only figure and nothing here can read another.
     /// </remarks>
     [Fact]
-    public async Task Disk_usage_carries_the_used_bytes_of_every_account_and_never_the_deprecated_quota()
+    public async Task Disk_usage_carries_the_used_bytes_of_every_account()
     {
         var stub = new StubMonitorService
         {
@@ -27,12 +26,7 @@ public sealed class AgentMonitorClientDiskUsageTests
                 {
                     Accounts =
                     {
-                        new AccountDiskUsage
-                        {
-                            AccountUsername = "alice",
-                            UsedBytes = 1_048_576,
-                            QuotaBytes = 999_999_999,
-                        },
+                        new AccountDiskUsage { AccountUsername = "alice", UsedBytes = 1_048_576 },
                         new AccountDiskUsage { AccountUsername = "bob", UsedBytes = 0 },
                     },
                 },

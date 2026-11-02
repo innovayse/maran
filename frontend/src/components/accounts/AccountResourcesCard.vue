@@ -8,10 +8,10 @@
  * — in flight, answered, refused with the server's message, or unanswered. A customer's list pages ignore `?account=`, because the server
  * already scopes every list to the account they own, so the same links serve both screens.
  *
- * **Every reading comes from an explicit field, never from a `null`.** A row whose `state` is
- * `unavailable` says so (cron's crontab is read from the host, which may not answer), because
- * "could not count" and "none" are different statements. A row whose `limitKind` is `unlimited`
- * (backups have no plan limit) shows its count and "no limit" with no bar, because a bar needs an
+ * **Every reading is its own case, never a number standing for a state.** A row whose `count` is
+ * `unavailable` says so (cron's crontab is read from the host, which may not answer) and carries no
+ * figure, because "could not count" and "none" are different statements. A row whose `limit` is
+ * `unlimited` (backups have no plan limit) shows its count and "no limit" with no bar, because a bar needs an
  * allowance to fill. A counted, limited row draws a `UiMeter`, which warns as the allowance fills.
  *
  * The server lists only the kinds whose module is installed, so no row ever leads to a module this
@@ -48,6 +48,8 @@ interface ResourceRow {
   usage: AccountResourceUsage
   /** The figure printed beside the name, already translated. */
   figure: string
+  /** What the meter fills, or `null` where there is no allowance to fill or no reading to fill it with. */
+  meter: { used: number; max: number } | null
   /** The module list narrowed to this account. */
   to: RouteLocationRaw
 }
@@ -97,23 +99,36 @@ const rows: ComputedRef<ResourceRow[]> = computed(() => {
       label: t(`accounts.resources.kinds.${usage.kind}`),
       usage,
       figure: figureOf(usage),
+      meter: meterOf(usage),
       to: { name: ROUTE_OF_KIND[usage.kind], query: { account: summary.accountId } },
     }
   })
 })
 
 /**
- * Spells out one row's reading from its explicit state and limit kind.
+ * Reads what the meter shows for one row: a bar needs both a reading and an allowance.
+ * @param usage The row as the server sent it.
+ * @returns The figures to fill and bound the bar, or `null` when the row draws none.
+ */
+const meterOf = (usage: AccountResourceUsage): { used: number; max: number } | null => {
+  if (usage.count.state === 'counted' && usage.limit.kind === 'limited') {
+    return { used: usage.count.used, max: usage.limit.maximum }
+  }
+  return null
+}
+
+/**
+ * Spells out one row's reading from its count and limit cases.
  * @param usage The row as the server sent it.
  * @returns The translated figure: "unavailable", "3 of 10", or "3 · no limit".
  */
 const figureOf = (usage: AccountResourceUsage): string => {
-  if (usage.state === 'unavailable') {
+  if (usage.count.state === 'unavailable') {
     return t('accounts.resources.unavailable')
   }
-  return usage.limitKind === 'limited'
-    ? t('accounts.resources.usedOfLimit', { used: usage.used, limit: usage.limit })
-    : t('accounts.resources.usedNoLimit', { used: usage.used })
+  return usage.limit.kind === 'limited'
+    ? t('accounts.resources.usedOfLimit', { used: usage.count.used, limit: usage.limit.maximum })
+    : t('accounts.resources.usedNoLimit', { used: usage.count.used })
 }
 </script>
 
@@ -148,9 +163,9 @@ const figureOf = (usage: AccountResourceUsage): string => {
           <!-- A bar only where there is an allowance to fill and a reading to fill it with; the figure
                above already says it, so the meter does not print it twice. -->
           <UiMeter
-            v-if="row.usage.state === 'counted' && row.usage.limitKind === 'limited'"
-            :value="row.usage.used"
-            :max="row.usage.limit"
+            v-if="row.meter !== null"
+            :value="row.meter.used"
+            :max="row.meter.max"
             :label="row.label"
             :value-text="row.figure"
             :show-value="false"

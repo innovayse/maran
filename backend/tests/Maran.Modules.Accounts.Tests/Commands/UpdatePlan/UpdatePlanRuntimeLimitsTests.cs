@@ -1,9 +1,12 @@
 using Maran.Modules.Accounts.Commands.UpdatePlan;
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -62,8 +65,8 @@ public sealed class UpdatePlanRuntimeLimitsTests : IDisposable
         Assert.Equal(ResourceLimitKind.Limited, stored.RuntimeLimits.CpuQuotaPercent.Kind);
         Assert.Equal(2_048, stored.RuntimeLimits.MemoryMaxMb.Maximum);
         Assert.Equal(ResourceLimitKind.Unlimited, stored.RuntimeLimits.MaxProcesses.Kind);
-        Assert.Equal(ResourceLimitKind.Limited, result.Value!.CpuQuotaPercent.Kind);
-        Assert.Equal(200, result.Value.CpuQuotaPercent.Maximum);
+        Assert.Equal(new LimitedResourceCeilingDto(200), result.Value!.CpuQuotaPercent);
+        Assert.Equal(new UnlimitedResourceCeilingDto(), result.Value.MaxProcesses);
     }
 
     /// <summary>Unchanged ceilings are not pushed, so an edit of a name or a count never needs the agent.</summary>
@@ -110,9 +113,9 @@ public sealed class UpdatePlanRuntimeLimitsTests : IDisposable
     /// <param name="cpu">The CPU ceiling.</param>
     /// <param name="memory">The memory ceiling.</param>
     /// <returns>The command.</returns>
-    private UpdatePlanCommand Edit(Common.ResourceCeilingDto cpu, Common.ResourceCeilingDto memory)
+    private UpdatePlanCommand Edit(ResourceCeilingDto cpu, ResourceCeilingDto memory)
     {
         return new UpdatePlanCommand(
-            "Agency", 10_240, 10, 5, 4, 2, 3, 8, cpu, memory, ResourceCeilingTestValues.Unlimited, _plan.Id, "203.0.113.7", "unit-tests");
+            "Agency", 10_240, 10, 5, 4, 2, 3, 8, cpu, memory, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), _plan.Id, "203.0.113.7", "unit-tests");
     }
 }

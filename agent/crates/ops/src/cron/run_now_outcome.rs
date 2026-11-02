@@ -8,6 +8,7 @@ use maran_agent_core::utils::spawn_error::SpawnError;
 
 use crate::cron::cron_error::CronError;
 use crate::cron::model::cron_run::CronRun;
+use crate::cron::model::cron_run_end::CronRunEnd;
 use crate::cron::model::cron_run_limit::CronRunLimit;
 use crate::cron::run_now_arguments::RUN_NOW_RUNTIME_CEILING;
 
@@ -41,17 +42,21 @@ pub(crate) fn run_now_outcome(
     match answer {
         Ok(outcome) if elapsed >= RUN_NOW_RUNTIME_CEILING => Ok(CronRun {
             duration: elapsed,
-            exit_code: None,
+            end: CronRunEnd::Stopped(CronRunLimit::Runtime),
             stdout: outcome.stdout,
             stderr: outcome.stderr,
-            limit: Some(CronRunLimit::Runtime),
         }),
         Ok(outcome) => Ok(CronRun {
             duration: elapsed,
-            exit_code: (outcome.status >= 0).then_some(outcome.status),
+            end: if outcome.status >= 0 {
+                CronRunEnd::Exited {
+                    code: outcome.status,
+                }
+            } else {
+                CronRunEnd::WithoutStatus
+            },
             stdout: outcome.stdout,
             stderr: outcome.stderr,
-            limit: None,
         }),
         Err(SpawnError::Bound(BoundExceeded::OutputTooLarge { .. })) => {
             Ok(stopped(elapsed, CronRunLimit::Output))
@@ -67,10 +72,9 @@ pub(crate) fn run_now_outcome(
 fn stopped(elapsed: Duration, limit: CronRunLimit) -> CronRun {
     CronRun {
         duration: elapsed,
-        exit_code: None,
+        end: CronRunEnd::Stopped(limit),
         stdout: String::new(),
         stderr: String::new(),
-        limit: Some(limit),
     }
 }
 

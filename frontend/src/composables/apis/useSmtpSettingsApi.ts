@@ -28,10 +28,10 @@ export const useSmtpSettingsApi = (): SmtpSettingsApi => {
    * Replaces the mail settings wholesale.
    * @param request The complete settings, with the password omitted to keep the stored one.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once they have been stored.
+   * @returns Resolves once they have been stored; the server answers 204 with no body.
    */
-  const save = (request: SaveSmtpSettingsRequest, signal?: AbortSignal): Promise<boolean> => {
-    return api.put<boolean>(SMTP_PATH, request, signal)
+  const save = (request: SaveSmtpSettingsRequest, signal?: AbortSignal): Promise<void> => {
+    return api.put<void>(SMTP_PATH, request, signal)
   }
 
   /**
@@ -42,10 +42,10 @@ export const useSmtpSettingsApi = (): SmtpSettingsApi => {
    * what an operator needs to fix their configuration.
    * @param recipient Where to send it.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the message has been handed to the mail server.
+   * @returns Resolves once the message has been handed to the mail server; a refusal rejects.
    */
-  const sendTest = (recipient: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${SMTP_PATH}/test`, { recipient }, signal)
+  const sendTest = (recipient: string, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${SMTP_PATH}/test`, { recipient }, signal)
   }
 
   return { get, save, sendTest }

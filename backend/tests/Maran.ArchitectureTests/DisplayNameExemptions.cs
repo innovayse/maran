@@ -31,11 +31,11 @@ public static class DisplayNameExemptions
             "A run started by hand succeeded, failed or was stopped: a closed set the history draws as a "
             + "badge and offers as its one filter (issue #158)."),
         new(
-            "Maran.Modules.Cron.Common.CronRunDto",
+            "Maran.Modules.Cron.Common.CronRunStoppedDto",
             "Limit",
             DisplayNameExemptionKind.SpaOwnedVocabulary,
             "cron.runs.limit.{member}",
-            "The agent's two ceilings, runtime and output: a closed set the result dialog explains in one "
+            "The agent's two ceilings, carried only by a run that one of them stopped, runtime and output: a closed set the result dialog explains in one "
             + "sentence each (issue #158)."),
         new(
             "Maran.Modules.Cron.Common.CronRunSummaryDto",
@@ -44,13 +44,6 @@ public static class DisplayNameExemptions
             "cron.runs.outcome.{member}",
             "A run started by hand succeeded, failed or was stopped: a closed set the history draws as a "
             + "badge and offers as its one filter (issue #158)."),
-        new(
-            "Maran.Modules.Cron.Common.CronRunSummaryDto",
-            "Limit",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "cron.runs.limit.{member}",
-            "The agent's two ceilings, runtime and output: a closed set the result dialog explains in one "
-            + "sentence each (issue #158)."),
         new(
             "Maran.Modules.Accounts.Common.AccountDto",
             "Status",
@@ -80,27 +73,6 @@ public static class DisplayNameExemptions
             "accounts.resources.kinds.{member}",
             "The resource kinds are a closed Sdk enum, one per counting module, and the summary card "
             + "labels each row with the same words the customer's limits screen already uses."),
-        new(
-            "Maran.Modules.Accounts.Common.AccountResourceUsageDto",
-            "State",
-            DisplayNameExemptionKind.NotAnOperatorFacingName,
-            "frontend/src/types/accountResourceSummary.ts",
-            "Whether a count was taken decides how the row is drawn, a meter or the word "
-            + "'unavailable'; the state itself is never printed as a name."),
-        new(
-            "Maran.Modules.Accounts.Common.AccountResourceUsageDto",
-            "LimitKind",
-            DisplayNameExemptionKind.NotAnOperatorFacingName,
-            "frontend/src/types/accountResourceSummary.ts",
-            "Whether the plan caps the resource decides whether a meter or a bare count is drawn; "
-            + "the value itself is never printed as a name."),
-        new(
-            "Maran.Modules.Accounts.Common.ResourceCeilingDto",
-            "Kind",
-            DisplayNameExemptionKind.NotAnOperatorFacingName,
-            "frontend/src/types/plan.ts",
-            "Whether a plan caps CPU, memory or processes decides whether the form shows a figure or a "
-            + "ticked 'No limit'; the value itself is never printed as a name."),
         new(
             "Maran.Modules.Backups.Common.BackupDto",
             "Status",
@@ -140,14 +112,6 @@ public static class DisplayNameExemptions
             + "authored: the picker labels it through Intl in the interface language. A display "
             + "name on the wire would be a second, worse translation of a word every operating "
             + "system already knows."),
-        new(
-            "Maran.Modules.Backups.Common.RestoreOutcomeDto",
-            "FailureCode",
-            DisplayNameExemptionKind.NotAnOperatorFacingName,
-            "frontend/src/types/backup.ts",
-            "This body is answered only for a restore that replaced everything it set out to, and "
-            + "the code is empty on every such response. A restore that failed is a problem "
-            + "document carrying the backend's own localized sentence, not this DTO."),
         new(
             "Maran.Modules.Firewall.Common.BanDto",
             "Reason",
@@ -263,11 +227,48 @@ public static class DisplayNameExemptions
             + "daemon, drawn as the panel-setting badge; the set is closed by the domain."),
         new(
             "Maran.Modules.Ftp.Common.FtpsStatusDto",
+            "TlsEnforcement",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "ftp.server.tlsEnforcement.{member}",
+            "Enforced, not enforced and not observed are three sentences the server panel draws under "
+            + "the encryption line; the set is closed by the agent's own three-valued answer, and "
+            + "not-observed is worded as an admission rather than as off."),
+        new(
+            "Maran.Modules.Ftp.Common.FtpsStatusDto",
+            "Certificate",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/ftp/FtpsServerPanel.vue",
+            "A decision input and never a printed name: the panel only compares it with the self-signed "
+            + "case to show its own warning sentence, and the certificate line prints the file path."),
+        new(
+            "Maran.Modules.Ftp.Common.FtpsStatusDto",
             "Agreement",
             DisplayNameExemptionKind.NotAnOperatorFacingName,
             "frontend/src/components/ftp/FtpsServerPanel.vue",
             "A verdict the server panel turns into an explanatory sentence, or into nothing when "
             + "intention and observation agree; it is never printed as the name of anything."),
+        new(
+            "Maran.Host.Modules.ModuleDto",
+            "State",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/module.ts",
+            "Decides whether a module's entries are drawn open or locked and is never printed as a name: "
+            + "the locked badge's text is the shell's own chrome, and the module's own name travels "
+            + "beside it as DisplayName."),
+        new(
+            "Maran.Modules.Identity.Common.SubUserDto",
+            "State",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "subUsers.states.{member}",
+            "Active, invited, invited while the account is suspended, and suspended: a closed set the "
+            + "team table draws as its status column, worded by the bundle beside the column's header."),
+        new(
+            "Maran.Modules.Sites.Common.PhpVersionDto",
+            "DefaultStatus",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "php.table.defaultStatus.{member}",
+            "Default, not default and not established are the three answers of the versions table's "
+            + "default column, which the page words as yes, no and not established beside the badge tone."),
         new(
             "Maran.Modules.Tasks.Common.PanelTaskDto",
             "Status",

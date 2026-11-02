@@ -121,7 +121,6 @@ public sealed class AgentSftpClientTests
         var result = await SetPasswordAsync(stub, NullLogger<AgentSftpClient>.Instance);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>The password change error payload maps to a failed result with the agent code.</summary>
@@ -198,7 +197,6 @@ public sealed class AgentSftpClientTests
             .DeleteAsync("alice", "web", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>Deletion error payload maps to a failed result with the agent code and no agent text.</summary>
@@ -260,7 +258,7 @@ public sealed class AgentSftpClientTests
     /// <param name="stub">The transport stub to drive.</param>
     /// <param name="logger">The logger the client writes the agent's text to.</param>
     /// <returns>What the client returned.</returns>
-    private static async Task<SharedKernel.Results.Result<bool>> SetPasswordAsync(
+    private static async Task<SharedKernel.Results.Result> SetPasswordAsync(
         StubSftpService stub,
         Microsoft.Extensions.Logging.ILogger<AgentSftpClient> logger)
     {

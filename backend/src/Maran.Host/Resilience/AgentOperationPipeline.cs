@@ -182,4 +182,41 @@ public static class AgentOperationPipeline
             return Result<T>.Fail(AgentTransportFailure.Unavailable());
         }
     }
+
+    /// <summary>
+    /// Runs one agent call that answers success or a typed failure and nothing else through
+    /// <paramref name="pipeline"/>, answering a failure of the transport as a typed failure instead of
+    /// letting it escape.
+    /// </summary>
+    /// <typeparam name="TState">What the call needs, passed through so the lambda captures nothing.</typeparam>
+    /// <param name="pipeline">This pipeline, as resolved by name from the registry.</param>
+    /// <param name="call">The call to make; it receives the state and the pipeline's token.</param>
+    /// <param name="state">What <paramref name="call"/> needs.</param>
+    /// <param name="cancellationToken">The caller's cancellation token.</param>
+    /// <returns>
+    /// What the call returned; or, when the transport gave up, <see cref="AgentTransportFailure.ToError"/>
+    /// of what it raised; or, when this pipeline's timeout did, <see cref="AgentTransportFailure.Unavailable"/>.
+    /// The mapping and its reasons are those of the value-carrying overload, stated once there.
+    /// </returns>
+    public static async Task<Result> ExecuteAsync<TState>(
+        ResiliencePipeline pipeline,
+        Func<TState, CancellationToken, ValueTask<Result>> call,
+        TState state,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(pipeline);
+
+        try
+        {
+            return await pipeline.ExecuteAsync(call, state, cancellationToken);
+        }
+        catch (RpcException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail(AgentTransportFailure.ToError(exception));
+        }
+        catch (TimeoutRejectedException)
+        {
+            return Result.Fail(AgentTransportFailure.Unavailable());
+        }
+    }
 }

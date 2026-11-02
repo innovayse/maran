@@ -19,9 +19,9 @@ import type { Site } from '../../src/types/site'
 // because a contrast failure lives in one theme's tokens and an empty list draws no table at all.
 
 const LICENSED: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {
@@ -63,7 +63,7 @@ const SHOP: Database = {
 }
 
 const DASHBOARD: Dashboard = {
-  isAdministrator: true,
+  audience: 'administrator',
   resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 * 1024 * 1024,

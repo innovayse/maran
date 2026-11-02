@@ -43,7 +43,7 @@ public sealed class AccountLoginEmailChangeRequestedHandler
     /// <param name="message">The account and its new owner address.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>Success, or <c>EmailTaken</c> when another login already holds the address.</returns>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         AccountLoginEmailChangeRequested message,
         CancellationToken cancellationToken)
     {
@@ -51,7 +51,7 @@ public sealed class AccountLoginEmailChangeRequestedHandler
             .SingleOrDefaultAsync(candidate => candidate.AccountId == message.AccountId, cancellationToken);
         if (user is null)
         {
-            return Result<bool>.Ok(true);
+            return Result.Ok();
         }
 
         var taken = await _dbContext.Users
@@ -59,7 +59,7 @@ public sealed class AccountLoginEmailChangeRequestedHandler
             .AnyAsync(other => other.Email == message.Email && other.Id != user.Id, cancellationToken);
         if (taken)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.EmailTaken), ErrorType.Conflict));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.EmailTaken), ErrorType.Conflict));
         }
 
         user.ChangeEmail(message.Email);
@@ -73,9 +73,9 @@ public sealed class AccountLoginEmailChangeRequestedHandler
             // The ONE narrowing: only 23505 means another login claimed the address between the
             // check above and this save. The change is undone so the context is not left dirty.
             _dbContext.Entry(user).State = EntityState.Detached;
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.EmailTaken), ErrorType.Conflict));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.EmailTaken), ErrorType.Conflict));
         }
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

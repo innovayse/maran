@@ -74,7 +74,8 @@ public interface IAgentMonitorClient
     /// <remarks>
     /// A failure here is NOT evidence that the jail is broken — it is the absence of any evidence at
     /// all, because the agent never got to ask the question. A caller must not treat a failed call
-    /// the same way it treats <see cref="AgentSftpJailStatus.IsDrifted"/> being <c>true</c>.
+    /// the same way it treats <see cref="AgentSftpJailStatus.Drifted"/>. A reply whose state the
+    /// panel cannot name is such a failure too.
     /// </remarks>
     Task<Result<AgentSftpJailStatus>> GetSftpJailStatusAsync(CancellationToken cancellationToken);
 
@@ -87,7 +88,8 @@ public interface IAgentMonitorClient
     /// <remarks>
     /// A failure here is NOT evidence that the filesystem cannot enforce a quota — it is the
     /// absence of any evidence at all, the same discipline
-    /// <see cref="GetSftpJailStatusAsync"/> follows for its own file read.
+    /// <see cref="GetSftpJailStatusAsync"/> follows for its own file read. A reply whose
+    /// enforceability or reason the panel cannot name is such a failure too.
     /// </remarks>
     Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(CancellationToken cancellationToken);
 

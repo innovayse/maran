@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Firewall.Tests.TestSupport;
@@ -9,34 +10,12 @@ namespace Maran.Modules.Firewall.Tests.TestSupport;
 public sealed class FakeCurrentUser : ICurrentUser
 {
     /// <inheritdoc />
-    public Guid UserId { get; }
-
-    /// <inheritdoc />
-    public string Username { get; }
-
-    /// <inheritdoc />
-    public Guid? AccountId
-    {
-        get
-        {
-            return null;
-        }
-    }
-
-    /// <inheritdoc />
-    public bool IsAdmin
-    {
-        get
-        {
-            return true;
-        }
-    }
+    public Caller Caller { get; }
 
     /// <summary>Creates an administrator principal.</summary>
     /// <param name="username">The login name the audit journal records.</param>
     public FakeCurrentUser(string username = "admin")
     {
-        UserId = Guid.NewGuid();
-        Username = username;
+        Caller = new AdministratorCaller(Guid.NewGuid(), username);
     }
 }

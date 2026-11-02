@@ -15,9 +15,9 @@ import type { SiteDetail } from '../../src/types/site'
 // text. Each check compares the element against a sibling of the same kind on the same screen, so
 // it fails on a drift between them rather than on a design value somebody may later change.
 
-const SITES_MODULE: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true }]
+const SITES_MODULE: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }]
 const ACCOUNTS_MODULE: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
 ]
 
 const SITE: SiteDetail = {
@@ -71,7 +71,7 @@ const stubSiteScreens = async (page: Page): Promise<void> => {
   await stubAccounts(page, [ACCOUNT])
   await stubSites(page, [])
   await stubSiteDetail(page, SITE)
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 }
 
 for (const width of [1440, 390]) {

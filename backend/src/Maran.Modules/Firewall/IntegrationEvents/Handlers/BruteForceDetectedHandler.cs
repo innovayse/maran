@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.FirewallService;
 using Maran.Modules.Firewall.Domain.Entities;
 using Maran.Modules.Firewall.Domain.Enums;
 using Maran.Modules.Firewall.Domain.Policies;
@@ -206,9 +207,9 @@ public sealed class BruteForceDetectedHandler
             return episode.IsInForce(now);
         }).ToList();
 
-        var ttl = LongerOf(ladderTtl, inForce, now);
+        var term = LongerOf(ladderTtl, inForce, now);
 
-        var banned = await _agent.BanAsync(subject, ttl, cancellationToken);
+        var banned = await _agent.BanAsync(subject, term, cancellationToken);
         if (!banned.IsSuccess)
         {
             LogBanRefused(_logger, banned.Error!.Code, null);
@@ -218,7 +219,7 @@ public sealed class BruteForceDetectedHandler
             return;
         }
 
-        var expiresAt = ttl is null ? (DateTimeOffset?)null : now + ttl.Value;
+        var expiresAt = term is AgentBanTerm.ExpiresAfter timed ? now + timed.Duration : (DateTimeOffset?)null;
 
         _dbContext.BanEpisodes.Add(new BanEpisode(
             Guid.NewGuid(),
@@ -256,7 +257,9 @@ public sealed class BruteForceDetectedHandler
     /// <param name="ladderTtl">What the escalation ladder alone would ask for.</param>
     /// <param name="inForce">Every episode for this address that is still in force at <paramref name="now"/>.</param>
     /// <param name="now">The current instant, from <see cref="IClock"/>.</param>
-    /// <returns>The duration to ban for, or <c>null</c> for a ban that lasts until somebody lifts it.</returns>
+    /// <returns>
+    /// The term to ban for: permanent when a standing episode has no end, otherwise the longer duration.
+    /// </returns>
     /// <remarks>
     /// <para>
     /// <b>An automatic ban must never shorten one that is already standing.</b> The host's ban set
@@ -288,7 +291,7 @@ public sealed class BruteForceDetectedHandler
     /// permanent ban an administrator had deliberately ended.
     /// </para>
     /// </remarks>
-    private static TimeSpan? LongerOf(TimeSpan ladderTtl, IReadOnlyCollection<BanEpisode> inForce, DateTimeOffset now)
+    private static AgentBanTerm LongerOf(TimeSpan ladderTtl, IReadOnlyCollection<BanEpisode> inForce, DateTimeOffset now)
     {
         var longest = ladderTtl;
 
@@ -298,7 +301,7 @@ public sealed class BruteForceDetectedHandler
             if (remaining is null)
             {
                 // Nothing is longer than a ban with no end, so the answer is settled.
-                return null;
+                return new AgentBanTerm.Permanent();
             }
 
             if (remaining.Value > longest)
@@ -307,6 +310,6 @@ public sealed class BruteForceDetectedHandler
             }
         }
 
-        return longest;
+        return new AgentBanTerm.ExpiresAfter(longest);
     }
 }

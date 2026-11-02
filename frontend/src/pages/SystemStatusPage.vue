@@ -49,13 +49,18 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiIcon from '../components/ui/UiIcon.vue'
 import UiLoadingRegion from '../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../components/ui/UiPageHeading.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import { useCallerRole } from '../composables/useCallerRole'
 import { useAuthStore } from '../stores/auth'
 import { useDashboardStore } from '../stores/dashboard'
 import { useModulesStore } from '../stores/modules'
 import { useSystemStore } from '../stores/system'
+import type { AdministratorDashboard } from '../types/dashboard'
 import type { QuickAction } from '../types/quickAction'
 import type { LoadingState } from '../types/loading'
+
+/** Which audience the dashboard is drawn for; see {@link view}. */
+type DashboardView = 'pending' | 'pendingServer' | 'server' | 'customer' | 'failed'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -74,39 +79,29 @@ const headingState: ComputedRef<LoadingState> = computed(() => {
   return system.healthState === 'loading' ? 'loading' : 'loaded'
 })
 
-/**
- * Whether the dashboard sections should be drawn.
- *
- * Both halves are required. A loaded read alone would draw zeros nobody measured on the first paint,
- * and `isAdministrator` alone would draw empty panels at a customer. The panel decided the second
- * one; this is the SPA agreeing with it, which is advice and not enforcement (rules/vue.md).
- */
-const showsServerDetail: ComputedRef<boolean> = computed(() => {
-  return dashboard.loadState === 'loaded' && dashboard.isAdministrator
+/** The administrator's sections once the read has arrived, or `null` for a customer's answer or a read still on its way. */
+const server: ComputedRef<AdministratorDashboard | null> = computed(() => {
+  return dashboard.loadState === 'loaded' ? dashboard.administrator : null
 })
 
 /**
- * Whether the customer's card of shortcuts should be drawn: the panel answered, and answered that
- * the caller is not an administrator. The mirror of {@link showsServerDetail}, so exactly one of the
- * two is ever true and a caller is never shown both or neither once the read has settled.
+ * Which audience the dashboard is drawn for, from the read's state and who the panel says the caller is.
+ * - `pendingServer`: the read is in flight for a session that says it administers the server, so the
+ *   figure cards are held with placeholders. A customer, who will not be shown the server, gets no
+ *   placeholders (`pending`).
+ * - `server` / `customer`: the panel answered and decided which sections the caller sees. That
+ *   decision is the panel's, carried by the answer's `audience`; this is the SPA agreeing with it,
+ *   which is advice and not enforcement (rules/vue.md). A loaded read alone would draw zeros nobody
+ *   measured, and a stale administrator answer alone would draw empty panels at a customer.
+ * - `failed`: the read ended in an error, drawn by the region's own error slot.
  */
-const showsCustomerArea: ComputedRef<boolean> = computed(() => {
-  return dashboard.loadState === 'loaded' && !dashboard.isAdministrator
-})
-
-/**
- * Whether the figure cards are held with placeholders while the dashboard is read. Only for a
- * caller whose session says they administer the server: the panel's own answer decides what is
- * drawn once it is in, and a customer, who will not be shown the server, is not shown its
- * placeholders either.
- */
-const holdsServerDetail: ComputedRef<boolean> = computed(() => {
-  return dashboard.loadState === 'loading' && isAdmin.value
+const view: ComputedRef<DashboardView> = computed(() => {
+  return viewOf(dashboard.loadState)
 })
 
 /** Whether the header's pill is offered: only to somebody shown the server, and only if Accounts is licensed. */
 const offersNewAccount: ComputedRef<boolean> = computed(() => {
-  return showsServerDetail.value && modules.isEnabled('accounts')
+  return view.value === 'server' && modules.isEnabled('accounts')
 })
 
 /** Whether the services card links on to the monitoring screen. */
@@ -158,6 +153,25 @@ const permitted = (candidates: QuickAction[]): QuickAction[] => {
 }
 
 /**
+ * Names the audience a read in the given state is drawn for.
+ *
+ * A function rather than a switch inside the computed so a state added to `LoadingState` is a
+ * compile error here (the return type is not satisfied) and not a silent `undefined`.
+ * @param state The dashboard read's state.
+ * @returns The view to draw.
+ */
+const viewOf = (state: LoadingState): DashboardView => {
+  switch (state) {
+    case 'loading':
+      return isAdmin.value ? 'pendingServer' : 'pending'
+    case 'error':
+      return 'failed'
+    case 'loaded':
+      return server.value === null ? 'customer' : 'server'
+  }
+}
+
+/**
  * Reads both the health verdict and, for whoever may see it, the server's own state.
  *
  * Together rather than one after the other: they answer to different parts of the screen and
@@ -174,10 +188,9 @@ onMounted(refresh)
 <template>
   <section class="flex w-full flex-col gap-6">
     <!-- Healthy: the backend answered at all, and the heading's subtitle says exactly that. It does
-         not interpolate the answer's `status` field: that is an English machine token, which would
-         sit inside a translated sentence, and on success it can only ever be the literal `ok`
-         (`/health` constructs its report with it). A degraded state, if the panel ever reports one,
-         needs a branch of its own with its own translated sentence, not a raw field shown to a
+         not interpolate any word of the answer: `agent` and `database` are English machine tokens,
+         which would sit inside a translated sentence. A degraded state, if the panel ever reports
+         one, needs a branch of its own with its own translated sentence, not a raw field shown to a
          customer. While the check is on its way the subtitle holds a placeholder line. -->
     <UiLoadingRegion :state="headingState">
       <div class="flex flex-col gap-6">
@@ -214,36 +227,38 @@ onMounted(refresh)
       <div class="flex flex-col gap-6">
         <!-- While the read is in flight, the figure cards are drawn with their real labels and a
              placeholder for every figure, so the answer lands without moving anything. -->
-        <template v-if="holdsServerDetail">
-          <DashboardCountGrid loading />
-          <DashboardResourceCard loading />
+        <template v-if="view === 'pendingServer'">
+          <!-- The notice is the first thing the answer draws (one line when nothing needs attention),
+               so its slot is held by a notice of the same box with a placeholder line for its text, in a row
+               as tall as one line of that text (`text-sm` at `leading-normal`).
+               Without it every figure below drops by the notice's height at the moment the answer
+               lands. -->
+          <UiAlert variant="info">
+            <div class="flex h-5.25 items-center"><UiSkeleton /></div>
+          </UiAlert>
+          <DashboardCountGrid :counts="null" />
+          <DashboardResourceCard :resources="null" />
         </template>
 
         <!-- Below the verdict, and only for a caller the panel filled the sections for. -->
-        <template v-else-if="showsServerDetail">
+        <template v-else-if="server !== null">
           <!-- Each section says whether the panel could read it. One the agent or a module could not
                answer is drawn as "could not be read" in its own place, never as an empty list or a
                zero (issue #248), and the panel isolates it on its own side — so the rest of the screen
                stays up instead of going dark together. The attention notice is first: the one thing
                that needs looking at goes above everything else. -->
-          <DashboardAttentionList v-if="dashboard.attention !== null" :attention="dashboard.attention" />
+          <DashboardAttentionList :attention="server.attention" />
 
-          <DashboardCountGrid v-if="dashboard.counts !== null" :counts="dashboard.counts" />
+          <DashboardCountGrid :counts="server.counts" />
 
-          <template v-if="dashboard.resources !== null">
-            <DashboardResourceCard v-if="dashboard.resources.state === 'loaded'" :resources="dashboard.resources.data" />
-            <DashboardUnavailableCard
-              v-else
-              :title="t('app.status.resources.title')"
-              :message="t('app.status.resources.unavailable')"
-            />
-          </template>
-
-          <DashboardServicesCard
-            v-if="dashboard.services !== null"
-            :services="dashboard.services"
-            :links-to-monitoring="linksToMonitoring"
+          <DashboardResourceCard v-if="server.resources.state === 'loaded'" :resources="server.resources.data" />
+          <DashboardUnavailableCard
+            v-else
+            :title="t('app.status.resources.title')"
+            :message="t('app.status.resources.unavailable')"
           />
+
+          <DashboardServicesCard :services="server.services" :links-to-monitoring="linksToMonitoring" />
 
           <!-- Two columns only when the CONTENT PANEL is wide enough for two readable cards (`@3xl`,
                48rem of container width), not when the viewport is: under a large system font the
@@ -257,8 +272,7 @@ onMounted(refresh)
               />
 
               <DashboardRecentAudit
-                v-if="dashboard.recentAudit !== null"
-                :entries="dashboard.recentAudit"
+                :entries="server.recentAudit"
                 :class="{ '@3xl:col-span-2': quickActions.length === 0 }"
               />
             </div>
@@ -267,7 +281,7 @@ onMounted(refresh)
 
         <!-- A customer is shown their own shortcuts and nothing of the server. The card is drawn only if
              it has a row: an empty panel under a heading reads as a failed load. -->
-        <div v-else-if="showsCustomerArea && customerActions.length > 0" class="@container">
+        <div v-else-if="view === 'customer' && customerActions.length > 0" class="@container">
           <div class="grid gap-4 @3xl:grid-cols-2">
             <DashboardQuickActions :title="t('app.status.customerArea.title')" :actions="customerActions" />
           </div>

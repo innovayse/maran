@@ -169,7 +169,7 @@ pub fn enable_ftps(
     configuration: &FtpsConfiguration,
 ) -> Result<FtpsState, FtpsError> {
     let certificate = host.certificate_state(&configuration.hostname)?;
-    if !certificate.present {
+    if !certificate.installation.is_present() {
         return Err(FtpsError::CertificateMissing {
             domain: configuration.hostname.as_str().to_owned(),
             expected_path: certificate.certificate_path,

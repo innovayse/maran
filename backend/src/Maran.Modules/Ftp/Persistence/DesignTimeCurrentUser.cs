@@ -1,3 +1,5 @@
+using Maran.SharedKernel.Callers;
+
 namespace Maran.Modules.Ftp.Persistence;
 
 /// <summary>
@@ -14,39 +16,19 @@ namespace Maran.Modules.Ftp.Persistence;
 /// </remarks>
 public sealed class DesignTimeCurrentUser : ICurrentUser
 {
-    /// <inheritdoc />
-    public Guid UserId
-    {
-        get
-        {
-            return Guid.Empty;
-        }
-    }
+    /// <summary>
+    /// The administrator reported to the context: a fixed, recognisable id (never persisted, never
+    /// compared with a stored row), so the principal is a value of its own and not an empty stand-in.
+    /// </summary>
+    private static readonly AdministratorCaller DesignTimeAdministrator =
+        new(new Guid("00000000-0000-4000-8000-00000000de51"), "design-time");
 
     /// <inheritdoc />
-    public string Username
+    public Caller Caller
     {
         get
         {
-            return string.Empty;
-        }
-    }
-
-    /// <inheritdoc />
-    public Guid? AccountId
-    {
-        get
-        {
-            return null;
-        }
-    }
-
-    /// <inheritdoc />
-    public bool IsAdmin
-    {
-        get
-        {
-            return true;
+            return DesignTimeAdministrator;
         }
     }
 }

@@ -190,7 +190,7 @@ public sealed class PasswordResetEndpointTests : IAsyncLifetime
         var known = await ForgotAsync(client, KnownEmail);
         var unknown = await ForgotAsync(client, UnknownEmail);
 
-        Assert.Equal(HttpStatusCode.OK, known.Status);
+        Assert.Equal(HttpStatusCode.NoContent, known.Status);
         Assert.Equal(known.Status, unknown.Status);
         Assert.Equal(WithoutCorrelationId(known.Body), WithoutCorrelationId(unknown.Body));
     }
@@ -266,7 +266,7 @@ public sealed class PasswordResetEndpointTests : IAsyncLifetime
 
         var reset = await client.PostAsJsonAsync(
             "/api/v1/auth/reset-password", new { Token = token, NewPassword });
-        Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
 
         var withOld = await client.PostAsJsonAsync(
             "/api/v1/auth/login", new { Username = "admin", Password = OldPassword });
@@ -280,7 +280,7 @@ public sealed class PasswordResetEndpointTests : IAsyncLifetime
         {
             var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
             var beforeTheReset = await identity.Sessions
-                .Where(session => session.UserId == userId && session.RevokedAt == null)
+                .Where(session => session.UserId == userId && session.Revocation == null)
                 .CountAsync();
 
             // Exactly one live session: the sign-in that used the NEW password, a moment ago. The one

@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { usePanelCertificateApi } from '../composables/apis/usePanelCertificateApi'
 import { ApiError } from '../composables/useApi'
-import type { LoadingState } from '../types/loading'
+import type { LoadingState, Read, Submission } from '../types/loading'
 import type { PanelCertificate, PanelCertificateStatus } from '../types/panelCertificate'
+import { loadingStateOf } from '../utils/loadingStateOf'
 
 /** The code the panel answers with while it serves its self-signed certificate. */
 const NOT_ISSUED_CODE = 'PanelCertificateNotIssued'
@@ -23,20 +24,44 @@ const NO_HOST_NAME_CODE = 'PanelHostNameNotConfigured'
 export const usePanelCertificateStore = defineStore('panelCertificate', () => {
   const api = usePanelCertificateApi()
 
-  /** What the panel is served with, or `null` until the read has settled. */
-  const status: Ref<PanelCertificateStatus | null> = ref(null)
+  /**
+   * The read of what the panel is served with: on its way, arrived, or refused. An order never
+   * moves it to a failure, so a refused order leaves the certificate on screen.
+   */
+  const read: Ref<Read<PanelCertificateStatus>> = ref({ state: 'loading' })
 
-  /** Where the read stands; an order never moves it. */
-  const loadState: Ref<LoadingState> = ref('loading')
+  /** Where the last order stands; `done` lets the screen confirm that a certificate was installed. */
+  const orderSubmission: Ref<Submission> = ref({ state: 'idle' })
+
+  /** What the panel is served with, or `null` until the read has settled. */
+  const status: ComputedRef<PanelCertificateStatus | null> = computed(() => {
+    return read.value.state === 'loaded' ? read.value.value : null
+  })
+
+  /** Where the read stands, in the words the loading region understands. */
+  const loadState: ComputedRef<LoadingState> = computed(() => {
+    return loadingStateOf(read.value)
+  })
+
+  /** The panel's reason the read failed, rendered verbatim; `null` otherwise. */
+  const loadMessage: ComputedRef<string | null> = computed(() => {
+    return read.value.state === 'failed' ? read.value.message : null
+  })
 
   /** True while an order is in flight. */
-  const issuing: Ref<boolean> = ref(false)
+  const issuing: ComputedRef<boolean> = computed(() => {
+    return orderSubmission.value.state === 'sending'
+  })
 
   /** True once the last order installed a certificate, so the screen can confirm it. */
-  const issued: Ref<boolean> = ref(false)
+  const issued: ComputedRef<boolean> = computed(() => {
+    return orderSubmission.value.state === 'done'
+  })
 
-  /** Backend-localized message from the last failure, rendered verbatim. */
-  const errorMessage: Ref<string | null> = ref(null)
+  /** The panel's reason the last order was refused, rendered verbatim; `null` otherwise. */
+  const orderMessage: ComputedRef<string | null> = computed(() => {
+    return orderSubmission.value.state === 'failed' ? orderSubmission.value.message : null
+  })
 
   /**
    * Turns a recorded certificate into the trusted state.
@@ -52,22 +77,17 @@ export const usePanelCertificateStore = defineStore('panelCertificate', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loadState.value = 'loading'
-    errorMessage.value = null
+    read.value = { state: 'loading' }
     try {
-      status.value = trusted(await api.get())
-      loadState.value = 'loaded'
+      read.value = { state: 'loaded', value: trusted(await api.get()) }
     } catch (error) {
       // The two refusals that describe a state are the screen's content, not its failure.
       if (error instanceof ApiError && error.code === NOT_ISSUED_CODE) {
-        status.value = { kind: 'selfSigned' }
-        loadState.value = 'loaded'
+        read.value = { state: 'loaded', value: { kind: 'selfSigned' } }
       } else if (error instanceof ApiError && error.code === NO_HOST_NAME_CODE) {
-        status.value = { kind: 'noHostName', message: error.message }
-        loadState.value = 'loaded'
+        read.value = { state: 'loaded', value: { kind: 'noHostName', message: error.message } }
       } else {
-        errorMessage.value = error instanceof ApiError ? error.message : null
-        loadState.value = 'error'
+        read.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
       }
     }
   }
@@ -79,20 +99,16 @@ export const usePanelCertificateStore = defineStore('panelCertificate', () => {
    * @returns True when a certificate was installed.
    */
   const issue = async (): Promise<boolean> => {
-    issuing.value = true
-    issued.value = false
-    errorMessage.value = null
+    orderSubmission.value = { state: 'sending' }
     try {
-      status.value = trusted(await api.issue())
-      issued.value = true
+      read.value = { state: 'loaded', value: trusted(await api.issue()) }
+      orderSubmission.value = { state: 'done' }
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      orderSubmission.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
       return false
-    } finally {
-      issuing.value = false
     }
   }
 
-  return { status, loadState, issuing, issued, errorMessage, load, issue }
+  return { status, loadState, loadMessage, issuing, issued, orderMessage, load, issue }
 })

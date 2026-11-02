@@ -1,4 +1,6 @@
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Wolverine;
@@ -19,7 +21,7 @@ namespace Maran.Modules.Identity.Commands.ResendInvitation;
 /// already committed, the account is left with no login at all
 /// (<see cref="Maran.Sdk.Events.AccountCreated"/>'s own remarks name this and name this command as
 /// the recovery). The finding of the login, its recreation from <c>Account.OwnerEmail</c>, the
-/// refusal of any login that is not <see cref="UserState.Invited"/>, the retirement of the old
+/// refusal of any login that is not <see cref="UserLifecycle.Invited"/>, the retirement of the old
 /// tokens and the minting of the new one are all <see cref="InvitationIssuer"/>'s — shared with the
 /// administrator's "create a link" action, which needs exactly the same work and differs only in
 /// where the plaintext goes. This handler's own part is what happens to it: it is mailed.
@@ -94,19 +96,19 @@ public sealed class ResendInvitationCommandHandler
     /// Success once the mail is queued — or once a concurrent resend has already queued one, see the
     /// type's remarks — or a typed refusal: no such account, or a login that already has a password.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(ResendInvitationCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(ResendInvitationCommand command, CancellationToken cancellationToken)
     {
         var issued = await _issuer.IssueAsync(command.AccountId, _clock.UtcNow, cancellationToken);
         if (!issued.IsSuccess)
         {
-            return Result<bool>.Fail(issued.Error!);
+            return Result.Fail(issued.Error!);
         }
 
-        if (issued.Value is not { } invitation)
+        if (issued.Value is not InvitationIssued { Invitation: var invitation })
         {
             // Lost the race to create the login — see the type's remarks. The winner's own
             // request issues and mails its own token, so there is nothing left to do here.
-            return Result<bool>.Ok(true);
+            return Result.Ok();
         }
 
         // The actor is the ADMINISTRATOR who asked for the resend, not the invited customer the
@@ -115,7 +117,7 @@ public sealed class ResendInvitationCommandHandler
         // "administrator X resent an invitation to customer Y" rather than naming the customer as
         // having verified themselves, which they never did.
         await _journal.RecordIdentifiedAsync(
-            _currentUser.UserId,
+            SignedInCallerPolicy.Require(_currentUser).UserId,
             AuditActions.CustomerInvited,
             invitation.Username,
             command.IpAddress,
@@ -128,6 +130,6 @@ public sealed class ResendInvitationCommandHandler
         await _bus.PublishAsync(
             _composer.Compose(invitation.OwnerEmail, invitation.Token.Reveal(), invitation.OwnerLanguage));
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

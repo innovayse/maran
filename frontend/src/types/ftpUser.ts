@@ -127,9 +127,8 @@ export interface FtpUsersApi {
    * Removes the login, and only the login: the account's files stay where they are.
    * @param id The login to remove.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed the login.
    */
-  remove: (id: string, signal?: AbortSignal) => Promise<boolean>
+  remove: (id: string, signal?: AbortSignal) => Promise<void>
 }
 
 /**
@@ -151,3 +150,11 @@ export interface RevealedFtpCredential {
 
 /** An action the panel offers on an FTPS login's row, confirmed by the operator before it is sent. */
 export type FtpUserAction = 'resetPassword' | 'remove'
+
+/** A login and the action the operator started on it; the two are only ever known together. */
+export interface PendingFtpUserAction {
+  /** The login the action is aimed at. */
+  login: FtpUser
+  /** Which action that login is waiting on. */
+  action: FtpUserAction
+}

@@ -12,7 +12,7 @@ import type { PanelTask } from '../../src/types/panelTask'
 // number and on the fixed cell alike. This spec reads the CELL'S WHOLE TEXT instead.
 
 const LICENSED: PanelModule[] = [
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', isEnabled: true },
+  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
 ]
 
 /** A finished task, whose percent the module sets to 100 when it closes the row. */

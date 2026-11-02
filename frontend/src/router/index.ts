@@ -8,6 +8,7 @@ import AccountDetailPage from '../pages/accounts/AccountDetailPage.vue'
 import AccountsListPage from '../pages/accounts/AccountsListPage.vue'
 import AccountFormPage from '../pages/accounts/AccountFormPage.vue'
 import MyAccountPage from '../pages/accounts/MyAccountPage.vue'
+import SubUsersPage from '../pages/accounts/SubUsersPage.vue'
 import ProfilePage from '../pages/ProfilePage.vue'
 import PlanFormPage from '../pages/plans/PlanFormPage.vue'
 import PlansListPage from '../pages/plans/PlansListPage.vue'
@@ -314,6 +315,9 @@ export const createAppRouter = (): Router => {
           // either: the endpoint (`GET /api/v1/accounts/me`) answers "the account YOU own" off the
           // caller's own token and 404s for an administrator, who owns none.
           { path: '', name: 'my-account', component: MyAccountPage, meta: { title: 'app.shell.menu.myAccount' } },
+          // The account owner's team (issue #315). Not a licensed module and not `adminOnly`: the
+          // endpoints refuse everyone but the account's owner, and the page renders that refusal.
+          { path: 'sub-users', name: 'sub-users', component: SubUsersPage, meta: { title: 'subUsers.heading' } },
         ],
       },
       {

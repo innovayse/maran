@@ -110,29 +110,29 @@ public sealed class ResilientAgentFirewallClientTests
         var inner = new RecordingAgentFirewallClient { FailuresBeforeSuccess = 1 };
 
         var result = await Decorate(inner)
-            .BanAsync("203.0.113.7", TimeSpan.FromHours(1), default)
+            .BanAsync("203.0.113.7", new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(1)), default)
             .WaitAsync(TestTimeout);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, inner.Calls);
         Assert.Equal("203.0.113.7", inner.LastAddress);
-        Assert.Equal(TimeSpan.FromHours(1), inner.LastTtl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(1)), inner.LastTerm);
     }
 
-    /// <summary>A permanent ban keeps its absent duration across the decorator.</summary>
+    /// <summary>A permanent ban stays permanent across the decorator.</summary>
     /// <remarks>
-    /// Null is how permanent is expressed and 0 is how it is expressed on the wire, so a decorator
-    /// that turned one into the other — or into a default TimeSpan — would change what the call
-    /// means before the client that knows the difference ever sees it.
+    /// Permanent is a case of its own, not a missing duration, so a decorator that turned it into a
+    /// timed ban — or a timed one into it — would change what the call means before the client that
+    /// knows the difference ever sees it.
     /// </remarks>
     [Fact]
-    public async Task A_permanent_ban_keeps_its_absent_duration_across_the_decorator()
+    public async Task A_permanent_ban_stays_permanent_across_the_decorator()
     {
         var inner = new RecordingAgentFirewallClient();
 
-        await Decorate(inner).BanAsync("203.0.113.7", null, default).WaitAsync(TestTimeout);
+        await Decorate(inner).BanAsync("203.0.113.7", new AgentBanTerm.Permanent(), default).WaitAsync(TestTimeout);
 
-        Assert.Null(inner.LastTtl);
+        Assert.Equal(new AgentBanTerm.Permanent(), inner.LastTerm);
     }
 
     /// <summary>Unbanning retries a transport failure and forwards the address.</summary>

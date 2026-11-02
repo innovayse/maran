@@ -206,15 +206,39 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            false,
             AccountLoginPasswordState.Usable,
             true,
-            [new SiteSuspensionFactDto("stubbed.example.com", true),
-             new SiteSuspensionFactDto("serving.example.com", false)],
+            [new SiteSuspensionFactDto("stubbed.example.com", SiteServing.Stub),
+             new SiteSuspensionFactDto("serving.example.com", SiteServing.NotStub)],
             0,
             0,
             0,
-            []);
+            [], new MeasuredUnmanagedLogins(0));
+
+        var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
+
+        Assert.Equal("AccountSuspensionNotObserved", result.Error!.Code);
+        Assert.Equal(AccountStatus.Active, (await _context.Accounts.SingleAsync()).Status);
+    }
+
+    /// <summary>A suspension is refused when the agent could not compare one vhost with the suspended page.</summary>
+    /// <remarks>
+    /// An unobservable vhost is not a site serving its own content, and it is not the stub either: the
+    /// attestation refuses on it exactly as it refuses on a vhost that is plainly serving. Its inverse
+    /// control is <see cref="Suspending_an_active_account_moves_it_into_suspension"/>.
+    /// </remarks>
+    [Fact]
+    public async Task A_suspension_is_refused_when_the_agent_could_not_compare_one_vhost()
+    {
+        var account = await SeedAsync();
+        _agent.SuspensionState = new AccountSuspensionStateDto(
+            AccountLoginPasswordState.Usable,
+            true,
+            [new SiteSuspensionFactDto("blind.example.com", SiteServing.Unobservable)],
+            0,
+            0,
+            0,
+            [], new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -235,7 +259,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, false, [], 0, 0, 0, []);
+            AccountLoginPasswordState.Locked, false, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -269,7 +293,25 @@ public sealed class AccountSuspensionTests : IDisposable
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
         _agent.SuspensionState = _agent.SuspensionState with
         {
-            Sites = [new SiteSuspensionFactDto("still-stubbed.example.com", true)],
+            Sites = [new SiteSuspensionFactDto("still-stubbed.example.com", SiteServing.Stub)],
+        };
+
+        var result = await ReactivateAsync(_agent, new StubMessageBus(), account.Id);
+
+        Assert.Equal("AccountResumptionNotObserved", result.Error!.Code);
+        Assert.Equal(AccountStatus.Suspended, (await _context.Accounts.SingleAsync()).Status);
+    }
+
+    /// <summary>A reactivation is refused when the agent could not compare one vhost with the suspended page.</summary>
+    /// <remarks>A blind answer is never an observation of a restart; the inverse control is the successful reactivation.</remarks>
+    [Fact]
+    public async Task A_reactivation_is_refused_when_the_agent_could_not_compare_one_vhost()
+    {
+        var account = await SeedAsync();
+        await SuspendAsync(_agent, new StubMessageBus(), account.Id);
+        _agent.SuspensionState = _agent.SuspensionState with
+        {
+            Sites = [new SiteSuspensionFactDto("blind.example.com", SiteServing.Unobservable)],
         };
 
         var result = await ReactivateAsync(_agent, new StubMessageBus(), account.Id);
@@ -348,7 +390,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, true, [], 2, 2, 3, []);
+            AccountLoginPasswordState.Locked, true, [], 2, 2, 3, [], new MeasuredUnmanagedLogins(0));
 
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -375,7 +417,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, true, [], 2, 1, 0, []);
+            AccountLoginPasswordState.Locked, true, [], 2, 1, 0, [], new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -394,7 +436,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, true, [], 2, 2, 0, []);
+            AccountLoginPasswordState.Locked, true, [], 2, 2, 0, [], new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -421,15 +463,14 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true,
             AccountLoginPasswordState.Locked,
             true,
             [],
             0,
             0,
             0,
-            [new FileTransferLoginSuspensionFactDto("acme_web", true),
-             new FileTransferLoginSuspensionFactDto("acme_deploy", false)]);
+            [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp),
+             new FileTransferLoginSuspensionFactDto("acme_deploy", false, LoginTransferProtocol.Sftp)], new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -447,8 +488,8 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, true, [], 0, 0, 0,
-            [new FileTransferLoginSuspensionFactDto("acme_web", true)]);
+            AccountLoginPasswordState.Locked, true, [], 0, 0, 0,
+            [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp)], new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -467,7 +508,7 @@ public sealed class AccountSuspensionTests : IDisposable
         var account = await SeedAsync();
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            false, AccountLoginPasswordState.Usable, true, [], 2, 2, 0, []);
+            AccountLoginPasswordState.Usable, true, [], 2, 2, 0, [], new MeasuredUnmanagedLogins(0));
 
         var result = await ReactivateAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -487,8 +528,8 @@ public sealed class AccountSuspensionTests : IDisposable
         var account = await SeedAsync();
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            false, AccountLoginPasswordState.Usable, true, [], 0, 0, 0,
-            [new FileTransferLoginSuspensionFactDto("acme_web", true)]);
+            AccountLoginPasswordState.Usable, true, [], 0, 0, 0,
+            [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp)], new MeasuredUnmanagedLogins(0));
 
         var result = await ReactivateAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -507,8 +548,8 @@ public sealed class AccountSuspensionTests : IDisposable
     /// </para>
     /// <para>
     /// The double is the point of the test: <see cref="RecordingAgentAccountsClient"/> clears
-    /// <c>LoginLocked</c> when unsuspend succeeds, which no real host does for a login with no hash,
-    /// and that is why every existing test here was green over the defect.
+    /// the password state to usable when unsuspend succeeds, which no real host does for a login with
+    /// no hash, and that is why every existing test here was green over the defect.
     /// </para>
     /// </remarks>
     [Fact]
@@ -538,29 +579,7 @@ public sealed class AccountSuspensionTests : IDisposable
         var account = await SeedAsync();
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
         var host = new FixedObservationAgentAccountsClient(new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, true, [], 0, 0, 0, []));
-
-        var result = await ReactivateAsync(host, new StubMessageBus(), account.Id);
-
-        Assert.Equal("AccountResumptionNotObserved", result.Error!.Code);
-        Assert.Equal(AccountStatus.Suspended, (await _context.Accounts.SingleAsync()).Status);
-    }
-
-    /// <summary>An agent that predates the password-state field still refuses on its boolean.</summary>
-    /// <remarks>
-    /// Version skew, and it must fail closed. An agent that sends nothing sends
-    /// <see cref="AccountLoginPasswordState.Unspecified"/>, and both handlers then fall back to
-    /// <c>LoginLocked</c> — the behaviour that existed before the field, which refuses in both
-    /// directions. A skewed pair is no worse off than before and never more permissive; inventing a
-    /// permission from an answer nobody gave is the failure this asserts against.
-    /// </remarks>
-    [Fact]
-    public async Task A_reactivation_is_refused_when_the_agent_reports_no_password_state_and_a_locked_login()
-    {
-        var account = await SeedAsync();
-        await SuspendAsync(_agent, new StubMessageBus(), account.Id);
-        var host = new FixedObservationAgentAccountsClient(new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Unspecified, true, [], 0, 0, 0, []));
+            AccountLoginPasswordState.Locked, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0)));
 
         var result = await ReactivateAsync(host, new StubMessageBus(), account.Id);
 
@@ -581,7 +600,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         var host = new FixedObservationAgentAccountsClient(new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Empty, true, [], 0, 0, 0, []));
+            AccountLoginPasswordState.Empty, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0)));
 
         var result = await SuspendAsync(host, new StubMessageBus(), account.Id);
 
@@ -600,7 +619,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         var host = new FixedObservationAgentAccountsClient(new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Usable, true, [], 0, 0, 0, []));
+            AccountLoginPasswordState.Usable, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0)));
 
         var result = await SuspendAsync(host, new StubMessageBus(), account.Id);
 
@@ -633,7 +652,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, false, [], 0, 0, 0, []);
+            AccountLoginPasswordState.Locked, false, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -662,7 +681,6 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true,
             AccountLoginPasswordState.Locked,
             true,
             [],
@@ -671,7 +689,7 @@ public sealed class AccountSuspensionTests : IDisposable
             0,
             [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp),
              new FileTransferLoginSuspensionFactDto("acme_files", true, LoginTransferProtocol.Ftps)],
-            2);
+            new MeasuredUnmanagedLogins(2));
 
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -708,7 +726,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, true, [], 0, 0, 0, []);
+            AccountLoginPasswordState.Locked, true, [], 0, 0, 0, [], new UnmeasuredUnmanagedLogins());
 
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -754,7 +772,6 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true,
             AccountLoginPasswordState.Locked,
             true,
             [],
@@ -762,7 +779,7 @@ public sealed class AccountSuspensionTests : IDisposable
             0,
             0,
             [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp)],
-            0);
+            new MeasuredUnmanagedLogins(0));
 
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -789,7 +806,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, true, [], 0, 0, 0, []);
+            AccountLoginPasswordState.Locked, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0));
         var bus = new StubMessageBus(message =>
         {
             ((AccountSuspending)message).Report.ReportSessionCull(3);
@@ -821,7 +838,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, true, [], 0, 0, 0, []);
+            AccountLoginPasswordState.Locked, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0));
         var bus = new StubMessageBus(message =>
         {
             ((AccountSuspending)message).Report.ReportSessionCull(null);
@@ -852,7 +869,6 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true,
             AccountLoginPasswordState.Locked,
             true,
             [],
@@ -860,7 +876,7 @@ public sealed class AccountSuspensionTests : IDisposable
             0,
             0,
             [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp)],
-            0);
+            new MeasuredUnmanagedLogins(0));
 
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -881,9 +897,10 @@ public sealed class AccountSuspensionTests : IDisposable
     /// claim this whole attestation exists to stop the panel making.
     /// </para>
     /// <para>
-    /// The only difference between this arrangement and the one above is that the reported login
-    /// carries no protocol, which is how such an agent is recognised. A handler that read the number
-    /// alone would produce the same sentence for both and pass exactly one of the two.
+    /// The only difference between this arrangement and the one above is the count's case: the agent
+    /// client carries a zero as unmeasured when the raw answer cannot prove the agent counted (no
+    /// login named its daemon). A handler that read the number alone would produce the same sentence
+    /// for both and pass exactly one of the two.
     /// </para>
     /// </remarks>
     [Fact]
@@ -891,15 +908,14 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true,
             AccountLoginPasswordState.Locked,
             true,
             [],
             0,
             0,
             0,
-            [new FileTransferLoginSuspensionFactDto("acme_web", true)],
-            0);
+            [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp)],
+            new UnmeasuredUnmanagedLogins());
 
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -925,7 +941,6 @@ public sealed class AccountSuspensionTests : IDisposable
         var account = await SeedAsync();
         var logger = new RecordingLogger<SuspendAccountCommandHandler>();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            true,
             AccountLoginPasswordState.Locked,
             true,
             [],
@@ -934,7 +949,7 @@ public sealed class AccountSuspensionTests : IDisposable
             0,
             [new FileTransferLoginSuspensionFactDto("acme_web", false, LoginTransferProtocol.Ftps),
              new FileTransferLoginSuspensionFactDto("acme_deploy", true, LoginTransferProtocol.Sftp)],
-            0);
+            new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id, logger);
 
@@ -958,7 +973,6 @@ public sealed class AccountSuspensionTests : IDisposable
         var account = await SeedAsync();
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            false,
             AccountLoginPasswordState.Usable,
             true,
             [],
@@ -966,7 +980,7 @@ public sealed class AccountSuspensionTests : IDisposable
             0,
             0,
             [new FileTransferLoginSuspensionFactDto("acme_web", false, LoginTransferProtocol.Sftp),
-             new FileTransferLoginSuspensionFactDto("acme_files", false, LoginTransferProtocol.Ftps)]);
+             new FileTransferLoginSuspensionFactDto("acme_files", false, LoginTransferProtocol.Ftps)], new MeasuredUnmanagedLogins(0));
         _tasks.Tasks.Clear();
 
         await ReactivateAsync(_agent, new StubMessageBus(), account.Id);
@@ -996,7 +1010,6 @@ public sealed class AccountSuspensionTests : IDisposable
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
         var logger = new RecordingLogger<ReactivateAccountCommandHandler>();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            false,
             AccountLoginPasswordState.Usable,
             true,
             [],
@@ -1004,7 +1017,7 @@ public sealed class AccountSuspensionTests : IDisposable
             0,
             0,
             [new FileTransferLoginSuspensionFactDto("acme_files", true, LoginTransferProtocol.Ftps),
-             new FileTransferLoginSuspensionFactDto("acme_web", false, LoginTransferProtocol.Sftp)]);
+             new FileTransferLoginSuspensionFactDto("acme_web", false, LoginTransferProtocol.Sftp)], new MeasuredUnmanagedLogins(0));
 
         var result = await ReactivateAsync(_agent, new StubMessageBus(), account.Id, logger);
 

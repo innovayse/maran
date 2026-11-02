@@ -73,7 +73,7 @@ public sealed class SaveSmtpSettingsCommandHandlerTests
         await handler.HandleAsync(Command() with { Password = null, Port = 2525 }, CancellationToken.None);
 
         var row = Assert.Single(dbContext.SmtpSettings);
-        Assert.Equal("hunter2", row.Password);
+        Assert.Equal("hunter2", row.BasicPassword);
         Assert.Equal(2525, row.Port);
     }
 

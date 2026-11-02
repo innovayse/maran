@@ -43,6 +43,27 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         builder.Property(e => e.CorrelationId)
             .HasMaxLength(AuditEvent.CorrelationIdMaxLength);
 
+        // Who was viewing as the actor (issue #317), one optional value over two columns that are
+        // both null when the actor acted as themselves, so a name can never sit beside a missing
+        // id. The name has the same width as the actor's own name column.
+        //
+        // Migration note: the columns come from the UNRELEASED migration
+        // 20261102104553_AddMembershipsPinsAndViewAs and keep their names and types, so the
+        // migration agent only regenerates the designer and the snapshot. No backfill SQL is
+        // needed: no shipped row has either column, and a development row that has the id also has
+        // the name (the old constructor nulled the name only when the id was null).
+        builder.OwnsOne(e => e.Impersonator, impersonator =>
+        {
+            impersonator.Property(i => i.OperatorId)
+                .HasColumnName("ImpersonatorUserId")
+                .IsRequired();
+
+            impersonator.Property(i => i.Username)
+                .HasColumnName("ImpersonatorUsername")
+                .HasMaxLength(AuditEvent.ActorUsernameMaxLength)
+                .IsRequired();
+        });
+
         // The audit screen reads newest-first, and an operator asking "what did this user do"
         // filters by actor; both get an index so the journal stays readable as it grows.
         builder.HasIndex(e => e.OccurredAt).IsDescending().HasDatabaseName("IX_AuditEvents_OccurredAt");

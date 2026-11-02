@@ -1,23 +1,19 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useDashboardApi } from '../composables/apis/useDashboardApi'
 import { ApiError } from '../composables/useApi'
 import type { LoadingState } from '../types/loading'
-import type { AuditEvent } from '../types/audit'
-import type { DashboardAttention, DashboardCounts, DashboardSection } from '../types/dashboard'
-import type { HostMetrics, ServiceStatus } from '../types/monitoring'
+import type { AdministratorDashboard, Dashboard } from '../types/dashboard'
 
 /**
- * Owns what the landing screen is made of: the host's live resource reading, the services the agent
- * watches, what this server holds, what needs attention, and the newest audit entries. The page
- * reads state from here and calls `load`; it never touches the API layer (rules/vue.md: "API
- * composables are called from Pinia stores ONLY").
+ * Owns what the landing screen is made of: the answer the panel gave for this caller, which is the
+ * administrator's sections or a customer's nothing. The page reads state from here and calls `load`;
+ * it never touches the API layer (rules/vue.md: "API composables are called from Pinia stores ONLY").
  *
- * **The nulls are kept as nulls, and the sections as sections, deliberately.** The panel answers with
- * a null section to mean "not for this caller", and collapsing that into an empty object here would
- * make a withheld section indistinguishable from an empty one. A section the panel could not read
- * arrives as `unavailable` and is stored as that, never unwrapped into an empty list, so the page can
- * say "could not be read" rather than "nothing here" (issue #248).
+ * **The answer is kept as the union the panel sent, and the sections as sections, deliberately.** A
+ * section the panel could not read arrives as `unavailable` and is stored as that, never unwrapped
+ * into an empty list, so the page can say "could not be read" rather than "nothing here"
+ * (issue #248).
  *
  * Error text is never generated here: the panel's already-localized message is stored verbatim
  * (rules/vue.md: "the backend owns their text").
@@ -25,29 +21,23 @@ import type { HostMetrics, ServiceStatus } from '../types/monitoring'
 export const useDashboardStore = defineStore('dashboard', () => {
   const api = useDashboardApi()
 
-  /** Whether the panel filled the administrator sections for this caller. */
-  const isAdministrator: Ref<boolean> = ref(false)
-
-  /** The host's live resource reading, or `null` when withheld or not yet read. */
-  const resources: Ref<DashboardSection<HostMetrics> | null> = ref(null)
-
-  /** The watched services as last reported, or `null` when withheld or not yet read. */
-  const services: Ref<DashboardSection<ServiceStatus[]> | null> = ref(null)
-
-  /** What this server holds, or `null` when withheld or not yet read. */
-  const counts: Ref<DashboardCounts | null> = ref(null)
-
-  /** What needs looking at, or `null` when withheld or not yet read. */
-  const attention: Ref<DashboardAttention | null> = ref(null)
-
-  /** The newest audit entries as last reported, or `null` when withheld or not yet read. */
-  const recentAudit: Ref<DashboardSection<AuditEvent[]> | null> = ref(null)
+  /** The panel's answer as last read, or `null` before the first one. */
+  const contents: Ref<Dashboard | null> = ref(null)
 
   /** Where the read of the screen stands: on its way, arrived, or refused. */
   const loadState: Ref<LoadingState> = ref('loading')
 
   /** Backend-localized message from the most recent failed read, or `null`. */
   const errorMessage: Ref<string | null> = ref(null)
+
+  /**
+   * The administrator's sections, or `null` when the answer was a customer's or has not arrived. A
+   * computed view of {@link contents}, so the sections are non-null wherever it is non-null.
+   */
+  const administrator: ComputedRef<AdministratorDashboard | null> = computed(() => {
+    const answer = contents.value
+    return answer !== null && answer.audience === 'administrator' ? answer : null
+  })
 
   /**
    * Reads the whole screen in one request.
@@ -61,12 +51,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loadState.value = 'loading'
     try {
       const answer = await api.get()
-      isAdministrator.value = answer.isAdministrator
-      resources.value = answer.resources
-      services.value = answer.services
-      counts.value = answer.counts
-      attention.value = answer.attention
-      recentAudit.value = answer.recentAudit
+      contents.value = answer
       errorMessage.value = null
       loadState.value = 'loaded'
     } catch (error) {
@@ -79,12 +64,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   return {
-    isAdministrator,
-    resources,
-    services,
-    counts,
-    attention,
-    recentAudit,
+    contents,
+    administrator,
     loadState,
     errorMessage,
     load,

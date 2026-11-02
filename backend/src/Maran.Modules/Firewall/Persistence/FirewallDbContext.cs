@@ -14,7 +14,7 @@ namespace Maran.Modules.Firewall.Persistence;
 /// context carries one because its rows belong to a customer; these rows belong to the SERVER. A
 /// firewall rule, a ban and a whitelist entry are facts about the machine as a whole, the whole
 /// surface is <c>[Authorize(AdminOnly)]</c>, and an administrator's scope is the server. A filter
-/// closing over <c>ICurrentUser.AccountId</c> would have nothing to compare against and would
+/// closing over the caller's account id would have nothing to compare against and would
 /// silently hide every row from the reconciler, which runs at startup with no request and no
 /// principal at all — bans would then survive a reboot only while somebody happened to be signed in.
 /// </para>

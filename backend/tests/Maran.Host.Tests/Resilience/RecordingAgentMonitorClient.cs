@@ -54,7 +54,7 @@ internal sealed class RecordingAgentMonitorClient : IAgentMonitorClient
     {
         await EnterAsync(cancellationToken);
 
-        return Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus(false, []));
+        return Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus.Intact());
     }
 
     /// <inheritdoc/>
@@ -64,9 +64,7 @@ internal sealed class RecordingAgentMonitorClient : IAgentMonitorClient
         await EnterAsync(cancellationToken);
 
         return Result<AgentQuotaEnforceability>.Ok(
-            new AgentQuotaEnforceability(
-                true,
-                Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified));
+            new AgentQuotaEnforceability.Enforceable());
     }
 
     /// <inheritdoc/>

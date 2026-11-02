@@ -14,7 +14,7 @@ import type { PanelModule } from '../../src/types/module'
 
 /** Catalogue every spec here starts from: the accounts module licensed, which is what owns plans. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
 ]
 
 /** Starter has three accounts on it, so it is the plan whose edits and deletion reach customers. */
@@ -52,7 +52,7 @@ const fillValidPlan = async (page: Page, name: string): Promise<void> => {
   await page.getByLabel('Plan name').fill(name)
   await page.getByLabel('Disk quota (MB)').fill('10240')
   await page.getByLabel('Sites', { exact: true }).fill('10')
-  await page.getByLabel('Databases', { exact: true }).fill('5')
+  await page.getByRole('textbox', { name: 'Databases', exact: true }).fill('5')
   await page.getByLabel('SFTP logins').fill('4')
   await page.getByLabel('FTPS logins').fill('0')
   await page.getByLabel('Cron entries').fill('7')
@@ -176,8 +176,10 @@ test('a valid plan is posted as typed and shows up in the list', async ({ page }
       maxCronEntries: 7,
       maxPhpWorkersPerPool: 8,
       cpuQuotaPercent: { kind: 'limited', maximum: 150 },
-      memoryMaxMb: { kind: 'unlimited', maximum: 0 },
+      memoryMaxMb: { kind: 'unlimited' },
       maxProcesses: { kind: 'limited', maximum: 64 },
+      // A new plan starts with every feature the panel lists ticked, in the panel's order.
+      features: ['mail', 'dns', 'databases', 'cron', 'fileTransfer', 'backups'],
     },
   ])
   await expect(page.getByRole('row', { name: /Agency/ })).toBeVisible()
@@ -222,9 +224,10 @@ test('editing a plan starts from its figures and puts the whole plan', async ({ 
     maxFtpUsers: 10,
     maxCronEntries: 20,
     maxPhpWorkersPerPool: 10,
-    cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
-    memoryMaxMb: { kind: 'unlimited', maximum: 0 },
-    maxProcesses: { kind: 'unlimited', maximum: 0 },
+    cpuQuotaPercent: { kind: 'unlimited' },
+    memoryMaxMb: { kind: 'unlimited' },
+    maxProcesses: { kind: 'unlimited' },
+    features: ['mail', 'dns', 'databases', 'cron', 'fileTransfer', 'backups'],
   })
   await expect(
     page

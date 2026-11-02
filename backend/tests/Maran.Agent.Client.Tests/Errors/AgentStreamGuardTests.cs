@@ -4,7 +4,6 @@ using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Services.BackupService;
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Agent.Client.Tests.TestSupport;
-using Maran.SharedKernel.Security;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Agent.Client.Tests.Errors;
@@ -128,15 +127,7 @@ public sealed class AgentStreamGuardTests
         using var agent = UnixSocketAgentDouble.Missing();
         using var channel = AgentChannel.CreateUnixSocket(agent.SocketPath);
         var client = new AgentBackupClient(channel, NullLogger<AgentBackupClient>.Instance);
-        var destination = new AgentBackupDestination(
-            AgentBackupDestinationKind.Local,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            new SensitiveString(string.Empty),
-            new SensitiveString(string.Empty),
-            false);
+        var destination = new AgentLocalBackupDestination();
         var events = new List<BackupCreateEvent>();
 
         using var timeout = new CancellationTokenSource(TestTimeout);
@@ -166,8 +157,7 @@ public sealed class AgentStreamGuardTests
             events.Add(item);
         }
 
-        var terminal = Assert.Single(events);
-        Assert.Equal(SiteLogEventKind.Failed, terminal.Kind);
+        var terminal = Assert.IsType<SiteLogFailed>(Assert.Single(events));
         Assert.Equal("AgentUnavailable", terminal.ErrorCode);
     }
 

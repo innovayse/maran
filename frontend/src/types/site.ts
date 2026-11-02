@@ -168,9 +168,8 @@ export interface SitesApi {
    * Removes a site's vhost and its row. The customer's files are left alone.
    * @param id The site's identity.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed the site.
    */
-  remove: (id: string, signal?: AbortSignal) => Promise<boolean>
+  remove: (id: string, signal?: AbortSignal) => Promise<void>
 
   /**
    * Lists the PHP versions installed on this server — the reference data the site form selects

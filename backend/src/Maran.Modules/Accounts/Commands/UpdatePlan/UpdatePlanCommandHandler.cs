@@ -6,6 +6,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 using Microsoft.Extensions.Localization;
 using Npgsql;
 
@@ -92,6 +93,13 @@ namespace Maran.Modules.Accounts.Commands.UpdatePlan;
 /// operator's text, or a shipped plan's resource key, never a translation, because the journal is
 /// never deleted and an entry that reads differently per reader's language cannot be searched. A
 /// rename is recorded as <c>old -&gt; new</c>.
+/// </para>
+/// <para>
+/// <b>The feature set</b> (issue #316) is replaced when the request states one and left alone when
+/// it does not, so a client that predates features cannot remove any by omission. It touches no
+/// account row and no agent: the set is read live through the plan on every gated request. A change
+/// is appended to the journal subject as <c>[features: old -&gt; new]</c>, because the journal is the
+/// only place an operator can later learn who took a feature away from a plan.
 /// </para>
 /// </remarks>
 public sealed class UpdatePlanCommandHandler
@@ -186,6 +194,11 @@ public sealed class UpdatePlanCommandHandler
 
         plan.ChangeRuntimeLimits(runtimeLimits);
 
+        // The stated list replaces the set, and a change is journalled beside the rest of the edit
+        // so an operator can see who removed a feature from a plan.
+        var featuresBefore = plan.Features;
+        plan.ChangeFeatures(command.Features.ToSet());
+
         plan.ChangeLimits(
             command.DiskQuotaMb,
             command.MaxSites,
@@ -209,7 +222,7 @@ public sealed class UpdatePlanCommandHandler
 
         await _journal.RecordSuccessAsync(
             AuditActions.PlanUpdated,
-            renames ? $"{subject} -> {name}" : subject,
+            DescribeEdit(subject, renames ? name : null, featuresBefore, plan.Features),
             command.IpAddress,
             command.UserAgent,
             cancellationToken);
@@ -289,6 +302,36 @@ public sealed class UpdatePlanCommandHandler
             .ToListAsync(cancellationToken);
 
         return await _runtimeLimits.ApplyAsync(accountNames, runtimeLimits, cancellationToken);
+    }
+
+    /// <summary>
+    /// The journal subject of a successful edit: the plan's identity before it, followed by what
+    /// changed in the two things an operator searches the trail for — the name and the feature set.
+    /// An edit that changed neither is the plain identity.
+    /// </summary>
+    /// <param name="subject">The plan's stored identity before the edit.</param>
+    /// <param name="newName">The new name, or <c>null</c> when the edit did not rename the plan.</param>
+    /// <param name="before">The feature set before the edit.</param>
+    /// <param name="after">The feature set after it.</param>
+    /// <returns>For example <c>Gold</c>, <c>Gold -&gt; Studio</c> or <c>Gold [features: Mail, Dns -&gt; Mail]</c>.</returns>
+    private static string DescribeEdit(string subject, string? newName, AccountFeature before, AccountFeature after)
+    {
+        var text = newName is null ? subject : $"{subject} -> {newName}";
+        if (before == after)
+        {
+            return text;
+        }
+
+        return $"{text} [features: {FeatureNames(before)} -> {FeatureNames(after)}]";
+    }
+
+    /// <summary>A feature set as its member names in English, the form the never-deleted journal keeps.</summary>
+    /// <param name="set">The set to write out.</param>
+    /// <returns>The names, comma separated, or <c>none</c> for the empty set.</returns>
+    private static string FeatureNames(AccountFeature set)
+    {
+        var members = set.Members();
+        return members.Count == 0 ? "none" : string.Join(", ", members);
     }
 
     /// <summary>Journals a refused edit and returns it as the typed failure.</summary>

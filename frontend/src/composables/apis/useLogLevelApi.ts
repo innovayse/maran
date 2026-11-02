@@ -27,10 +27,10 @@ export const useLogLevelApi = (): LogLevelApi => {
    * Applies a level.
    * @param request The level to apply.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once it has been applied and stored.
+   * @returns Resolves once it has been applied and stored; the answer is an empty 204.
    */
-  const change = (request: ChangeLogLevelRequest, signal?: AbortSignal): Promise<boolean> => {
-    return api.put<boolean>(LOG_LEVEL_PATH, request, signal)
+  const change = (request: ChangeLogLevelRequest, signal?: AbortSignal): Promise<void> => {
+    return api.put<void>(LOG_LEVEL_PATH, request, signal)
   }
 
   return { get, change }

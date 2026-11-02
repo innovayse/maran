@@ -57,7 +57,7 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> AllowPortAsync(
+    public async Task<Result> AllowPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -90,7 +90,7 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DenyPortAsync(
+    public async Task<Result> DenyPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -123,20 +123,20 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> BanAsync(string address, TimeSpan? ttl, CancellationToken cancellationToken)
+    public async Task<Result> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
     {
         return await AgentOperationPipeline.ExecuteAsync(
             _pipeline,
             async (state, token) =>
             {
-                return await state.Client.BanAsync(state.Address, state.Ttl, token);
+                return await state.Client.BanAsync(state.Address, state.Term, token);
             },
-            (Client: _inner, Address: address, Ttl: ttl),
+            (Client: _inner, Address: address, Term: term),
             cancellationToken);
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> UnbanAsync(string address, CancellationToken cancellationToken)
+    public async Task<Result> UnbanAsync(string address, CancellationToken cancellationToken)
     {
         return await AgentOperationPipeline.ExecuteAsync(
             _pipeline,

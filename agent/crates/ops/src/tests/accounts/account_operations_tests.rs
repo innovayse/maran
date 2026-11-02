@@ -52,10 +52,10 @@ use crate::logins::fake_logins_host::FakeLoginsHost;
 use crate::php::write_pool::write_pool_under_lock;
 use crate::sftp::fake_sftp_host::FakeSftpHost;
 use crate::sftp::model::account_jail::AccountJail;
-use crate::sites::disable_site;
 use crate::sites::fake_site_host::{
     FakeSiteHost, create_test_site, distro as site_distro, php_input,
 };
+use crate::sites::{SiteServing, disable_site};
 use crate::test_support::recording_commands::RecordingCommands;
 
 /// A machine that records what it was asked to do instead of doing it.
@@ -1370,9 +1370,9 @@ fn the_suspension_state_carries_the_sites_the_host_actually_serves() {
         )
         .expect("the state is readable");
 
-    assert!(state.sites_directory_readable);
-    assert_eq!(state.sites.len(), 1);
-    assert!(state.sites[0].serving_stub);
+    assert!(state.sites.is_readable());
+    assert_eq!(state.sites.sites().len(), 1);
+    assert_eq!(state.sites.sites()[0].serving, SiteServing::Stub);
     // The ordinary hosting account, and the whole reason the field exists:
     // `passwd -S` says LOCKED while the shadow field says there is no password
     // to unlock. A panel deciding a reactivation from the first refuses every

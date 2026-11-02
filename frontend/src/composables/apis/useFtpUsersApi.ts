@@ -64,10 +64,10 @@ export const useFtpUsersApi = (): FtpUsersApi => {
    * Removes the login. The account's files stay exactly where they are.
    * @param id The login to remove.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed the login.
+   * @returns Resolves once the panel removed the login (an empty 204 answer).
    */
-  const remove = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${FTP_USERS_PATH}/${id}`, signal)
+  const remove = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${FTP_USERS_PATH}/${id}`, signal)
   }
 
   return { list, create, resetPassword, remove }

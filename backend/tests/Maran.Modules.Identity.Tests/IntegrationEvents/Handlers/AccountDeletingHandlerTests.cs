@@ -258,6 +258,46 @@ public sealed class AccountDeletingHandlerTests
         Assert.Equal(RefusingSaveInterceptor.Message, refusal.Message);
     }
 
+    /// <summary>Deleting an account removes every membership of it and no membership of another account.</summary>
+    [Fact]
+    public async Task Deleting_an_account_removes_every_membership_of_it_and_no_other()
+    {
+        using var context = await SeedAsync();
+        var member = new User(Guid.NewGuid(), "member", "member@example.com", "hash", UserRole.Customer, Now);
+        context.Users.Add(member);
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), member.Id, OwnerAccountId, Now));
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), member.Id, StrangerAccountId, Now));
+        await context.SaveChangesAsync();
+
+        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+
+        var remaining = Assert.Single(await context.AccountMemberships.ToListAsync());
+        Assert.Equal(StrangerAccountId, remaining.AccountId);
+        Assert.Contains(member.Id, await context.Users.Select(user => user.Id).ToListAsync());
+    }
+
+    /// <summary>
+    /// A login whose older account column names the deleted account but which also owns another one
+    /// survives, with the column cleared, so deleting one account never deletes the other's way in.
+    /// </summary>
+    [Fact]
+    public async Task A_login_that_owns_another_account_survives_with_the_older_column_cleared()
+    {
+        using var context = await SeedAsync();
+        var both = await context.Users.FirstAsync(user => user.AccountId == OwnerAccountId);
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), both.Id, OwnerAccountId, Now));
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), both.Id, StrangerAccountId, Now));
+        await context.SaveChangesAsync();
+
+        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+
+        var survivor = await context.Users.SingleAsync(user => user.Id == both.Id);
+        Assert.Null(survivor.AccountId);
+        Assert.Equal(StrangerAccountId, (await context.AccountMemberships.SingleAsync()).AccountId);
+        Assert.NotEmpty(await context.Sessions.Where(session => session.UserId == both.Id).ToListAsync());
+        Assert.Empty(await context.Users.Where(user => user.AccountId == OwnerAccountId).ToListAsync());
+    }
+
     /// <summary>The identities of the logins the deleted account owns, read before the handler runs.</summary>
     /// <param name="context">The seeded context.</param>
     /// <returns>The two owned user ids.</returns>

@@ -4,6 +4,7 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -409,15 +410,16 @@ public sealed class CreateSiteCommandHandlerTests
     public async Task The_journal_names_the_caller_who_made_the_change()
     {
         // Both halves: an id nobody can read is not an answer to "who did what", and a blank name
-        // is what every Sites entry carried before ICurrentUser exposed one.
+        // is what every Sites entry carried before the audit journal read the caller's name.
         var account = Guid.NewGuid();
         var world = new World(account);
 
         await world.Handler().HandleAsync(Command(account), CancellationToken.None);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(world.CurrentUser.UserId, entry.ActorUserId);
-        Assert.Equal(world.CurrentUser.Username, entry.ActorUsername);
+        var caller = Assert.IsAssignableFrom<PrincipalCaller>(world.CurrentUser.Caller);
+        Assert.Equal(caller.UserId, entry.ActorUserId);
+        Assert.Equal(caller.Username, entry.ActorUsername);
         Assert.NotEqual(string.Empty, entry.ActorUsername);
     }
 

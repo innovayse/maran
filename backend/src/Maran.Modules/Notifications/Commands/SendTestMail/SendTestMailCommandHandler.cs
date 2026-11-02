@@ -67,7 +67,7 @@ public sealed class SendTestMailCommandHandler
     /// <param name="command">The validated recipient.</param>
     /// <param name="cancellationToken">Cancels the send.</param>
     /// <returns>Success once the mail server has accepted it, or the typed failure the mailer reported.</returns>
-    public async Task<Result<bool>> HandleAsync(SendTestMailCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(SendTestMailCommand command, CancellationToken cancellationToken)
     {
         var subject = _text[TestMailSubjectKey].Value;
         var body = _text[TestMailBodyKey].Value;

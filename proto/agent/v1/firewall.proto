@@ -234,8 +234,10 @@ message DenyPortOk {}
 message BanAddressRequest {
   // IPv4 or IPv6 address to ban.
   string address = 1;
-  // Ban duration in seconds from now; 0 means permanent until explicitly
-  // unbanned.
+  // DEPRECATED since revision 13 — send `term` instead. Ban duration in
+  // seconds from now; 0 means permanent until explicitly unbanned. The agent
+  // still honours it, but ONLY when `term` is unset: a request that carries
+  // `term` is decided by `term` alone and this field is ignored.
   uint32 duration_seconds = 2;
   // DEPRECATED — never read by the agent, and never written into the
   // firewall. The reason is panel metadata: the Firewall module records every
@@ -246,7 +248,23 @@ message BanAddressRequest {
   // breaking change; it goes away at the next major with `reserved`
   // (rules/proto.md).
   string reason = 3;
+  // How long the ban lasts, with "permanent" a statement of its own rather
+  // than the 0 of `duration_seconds`. Added in revision 13 (2026-11-02). When
+  // unset (a request from a panel older than revision 13) the agent falls
+  // back to `duration_seconds`.
+  oneof term {
+    // The ban never expires; it stays until explicitly unbanned.
+    PermanentBan permanent = 4;
+    // Seconds from now until the ban expires. At least 1: a timed ban of zero
+    // seconds is refused with ERROR_CODE_INVALID_INPUT, because the 0 that
+    // used to mean permanent must not be able to mean "expire now" either.
+    uint32 expires_after_seconds = 5;
+  }
 }
+
+// The ban term "never expires". An empty message so that `BanAddressRequest.term`
+// can name it instead of encoding it as a number.
+message PermanentBan {}
 
 message BanAddressResponse {
   oneof result {
@@ -287,16 +305,13 @@ message ListBansOk {
 message BanEntry {
   // Banned IPv4 or IPv6 address, as the kernel holds it.
   string address = 1;
-  // DEPRECATED and always written empty — the agent stores no reason. See
-  // BanAddressRequest.reason; the panel holds the reason it recorded when it
-  // asked for the ban.
-  string reason = 2;
-  // DEPRECATED and always written 0 — the agent does not produce it. What the
-  // kernel holds is a REMAINING timeout, not an instant, and turning one into
-  // an absolute time needs a clock reading this agent deliberately does not
-  // take. A 0 here is "unproduced", never "permanent": read
-  // expires_in_seconds instead, whose absence is what permanent looks like.
-  int64 expires_at_unix = 3;
+  // Fields 2 and 3 were `reason` (always written empty: the agent stores no
+  // reason, the panel holds the one it recorded) and `expires_at_unix` (always
+  // written 0: the kernel reports a REMAINING timeout and the agent takes no
+  // clock reading). Removed in revision 13 (2026-11-02) after the panel's
+  // client was confirmed to read neither; `expires_in_seconds` is the answer.
+  reserved 2, 3;
+  reserved "reason", "expires_at_unix";
   // Seconds still to run on this ban, as the kernel reports its timeout.
   //
   // ABSENT means the ban has no timeout at all — permanent until explicitly

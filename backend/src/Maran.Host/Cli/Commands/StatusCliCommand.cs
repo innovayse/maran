@@ -5,7 +5,9 @@ using Maran.Host.Cli.Enums;
 using Maran.Host.Cli.Interfaces;
 using Maran.Host.Cli.Models;
 using Maran.Host.Cli.Services;
+using Maran.Host.Extensions;
 using Maran.Host.HealthChecks;
+using Maran.Host.HealthChecks.Enums;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
@@ -120,7 +122,7 @@ public sealed class StatusCliCommand : ICliCommand
     private static async Task<(bool Ok, string Detail)> CheckDatabaseAsync(IServiceProvider provider)
     {
         var state = await provider.GetRequiredService<DatabaseHealthProbe>().ProbeAsync();
-        return (state == DatabaseHealthProbe.Reachable, state);
+        return (state == DatabaseHealth.Reachable, state.Word());
     }
 
     /// <summary>Performs the agent handshake and reports its version and contract revision.</summary>
@@ -132,15 +134,15 @@ public sealed class StatusCliCommand : ICliCommand
         CancellationToken cancellationToken)
     {
         var state = await provider.GetRequiredService<AgentHealthProbe>().ProbeAsync(cancellationToken);
-        if (state != AgentHealthProbe.Connected)
+        if (state != AgentHealth.Connected)
         {
-            return (false, state);
+            return (false, state.Word());
         }
 
         var info = await provider.GetRequiredService<IAgentSystemClient>().GetInfoAsync(cancellationToken);
         return info.IsSuccess
-            ? (true, $"{state}, version {info.Value.Version}, proto {info.Value.ProtoVersion}")
-            : (true, state);
+            ? (true, $"{state.Word()}, version {info.Value.Version}, proto {info.Value.ProtoVersion}")
+            : (true, state.Word());
     }
 
     /// <summary>Counts the migrations still to apply across every registered context.</summary>
@@ -190,7 +192,7 @@ public sealed class StatusCliCommand : ICliCommand
         var count = await identity.Users
             .AsNoTracking()
             .CountAsync(
-                user => user.Role == UserRole.Admin && user.State == UserState.Active,
+                user => user.Role == UserRole.Admin && user.Lifecycle == UserLifecycle.Active,
                 cancellationToken);
         return (count > 0, string.Create(CultureInfo.InvariantCulture, $"{count} active"));
     }

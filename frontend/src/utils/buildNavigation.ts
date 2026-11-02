@@ -43,7 +43,9 @@ const stateOf = (page: NavigationPageSpec, context: NavigationContext): Navigati
   // Advice, never a gate: the endpoints refuse a caller whatever the menu offers. An unreported
   // plan-feature list offers the page rather than hiding it.
   const featureOffered =
-    page.planFeature === null || context.planFeatures === null || context.planFeatures.has(page.planFeature)
+    page.planFeature === null ||
+    context.planFeatures.state === 'unreported' ||
+    context.planFeatures.features.has(page.planFeature)
   if (!page.roles.includes(context.role) || !featureOffered) {
     return null
   }
@@ -51,12 +53,12 @@ const stateOf = (page: NavigationPageSpec, context: NavigationContext): Navigati
     return { kind: 'planned', issue: page.availability.issue }
   }
   if (page.module !== null) {
-    const enabled = context.modules.get(page.module)
+    const access = context.modules.get(page.module)
     // A module the catalogue does not report is not installed: nothing of it is offered.
-    if (enabled === undefined) {
+    if (access === undefined) {
       return null
     }
-    if (!enabled) {
+    if (access === 'locked') {
       return { kind: 'locked', target: upgradeOf(page.module) }
     }
   }
@@ -85,8 +87,10 @@ const pageEntry = (
   if (state === null) {
     return null
   }
-  const count = page.badge === null ? 0 : context.badges[page.badge]
-  const badge = page.badge !== null && count > 0 ? { kind: page.badge, count } : null
+  // No badge for a kind the shell holds no count of (not asked, failed, or without a source): a
+  // missing count is never drawn as a zero or any other figure.
+  const count = page.badge === null ? undefined : context.badges[page.badge]
+  const badge = page.badge !== null && count !== undefined && count > 0 ? { kind: page.badge, count } : null
   return {
     key: page.key,
     groupKey,
@@ -169,14 +173,14 @@ const catalogueEntries = (context: NavigationContext): NavigationEntry[] => {
   return context.catalogue.flatMap((module): NavigationEntry[] => {
     // A module without an item of its own still shows while the licence does not permit it: a
     // locked module stays visible and leads to its upgrade page, rather than hiding the product.
-    if (TREE_MODULES.has(module.name) || (module.isEnabled && MODULES_WITHOUT_ITEM.has(module.name))) {
+    if (TREE_MODULES.has(module.name) || (module.state === 'enabled' && MODULES_WITHOUT_ITEM.has(module.name))) {
       return []
     }
     const landing = moduleLandingRoute(module.name)
-    if (module.isEnabled && landing === NO_LANDING_ROUTE) {
+    if (module.state === 'enabled' && landing === NO_LANDING_ROUTE) {
       return []
     }
-    const reachable = module.isEnabled && typeof landing === 'string' && context.hasRoute(landing)
+    const reachable = module.state === 'enabled' && typeof landing === 'string' && context.hasRoute(landing)
     return [
       {
         key: module.name,

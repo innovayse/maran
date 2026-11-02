@@ -659,8 +659,7 @@ impl<H: SystemHost> AccountOperations<H> {
         Ok(AccountSuspensionState {
             login_locked: self.login_locked(username)?,
             login_password: self.stored_password(username)?,
-            sites_directory_readable: sites.directory_readable,
-            sites: sites.sites,
+            sites,
             cron,
             logins,
         })

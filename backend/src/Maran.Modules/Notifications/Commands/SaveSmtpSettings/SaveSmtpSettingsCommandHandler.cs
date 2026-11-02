@@ -60,8 +60,8 @@ public sealed class SaveSmtpSettingsCommandHandler
     /// <summary>Saves the panel's mail settings.</summary>
     /// <param name="command">The validated settings.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns>Success. The settings are the caller's own input; there is nothing to hand back.</returns>
-    public async Task<Result<bool>> HandleAsync(SaveSmtpSettingsCommand command, CancellationToken cancellationToken)
+    /// <returns>Success with no value; the settings are the caller's own input, so there is nothing to hand back.</returns>
+    public async Task<Result> HandleAsync(SaveSmtpSettingsCommand command, CancellationToken cancellationToken)
     {
         var now = _clock.UtcNow;
 
@@ -111,6 +111,6 @@ public sealed class SaveSmtpSettingsCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

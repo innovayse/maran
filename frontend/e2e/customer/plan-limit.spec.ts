@@ -22,14 +22,14 @@ const CUSTOMER: AuthenticatedUser = {
 }
 
 const MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
 ]
 
 const REASON = /your plan allows 2, and all of them are in use/
 
 const row = (kind: AccountResourceUsage['kind'], used: number): AccountResourceUsage => {
-  return { kind, state: 'counted', used, limitKind: 'limited', limit: 2 }
+  return { kind, count: { state: 'counted', used }, limit: { kind: 'limited', maximum: 2 } }
 }
 
 const signIn = async (page: Page, sitesUsed: number, databasesUsed: number): Promise<void> => {

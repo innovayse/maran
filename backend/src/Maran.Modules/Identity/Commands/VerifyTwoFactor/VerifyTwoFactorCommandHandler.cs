@@ -1,4 +1,3 @@
-using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
@@ -99,19 +98,19 @@ public sealed class VerifyTwoFactorCommandHandler
         // fresh session through this endpoint after AccountSuspendingHandler had revoked every other
         // one. AuthenticationCompleter enforces it again below; the two calls answer the identical
         // question so neither can silently stop asking it.
-        if (user.State != UserState.Active)
+        if (!user.MayAuthenticate)
         {
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
         }
 
-        if (!user.IsTotpEnabled || user.TotpSecret is null)
+        if (user.TotpSecret is not { } totpSecret)
         {
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
         }
 
         var usedRecoveryCode = false;
-        if (_totpService.Verify(user.TotpSecret, command.Code, user.LastTotpWindow, out var window))
+        if (_totpService.Verify(totpSecret, command.Code, user.LastTotpWindow, out var window))
         {
             user.RecordTotpWindow(window);
         }

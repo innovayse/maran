@@ -1,5 +1,8 @@
 using Maran.Modules.Databases.Common;
+using Maran.Modules.Databases.Domain.Enums;
 using Maran.Modules.Databases.Services;
+using AgentGrantInspectionReport = Maran.Agent.Client.Services.DbService.GrantInspectionReportDto;
+using AgentGrantRefusal = Maran.Agent.Client.Services.DbService.AgentGrantRefusal;
 using AgentGrantRepairReport = Maran.Agent.Client.Services.DbService.GrantRepairReportDto;
 using AgentRefusedGrant = Maran.Agent.Client.Services.DbService.RefusedGrantDto;
 using AgentRepairedGrant = Maran.Agent.Client.Services.DbService.RepairedGrantDto;
@@ -17,30 +20,40 @@ namespace Maran.Modules.Databases.Mappers;
 /// needs, read from <see cref="GrantRepairRefusalDisplayNames"/> — a lookup, not a judgement.
 /// </para>
 /// <para>
-/// <c>isReportOnly</c> is carried in from the CALLER rather than inferred from the lists, and the
-/// difference matters: a repairing pass over a host with nothing to repair produces exactly the same
-/// two empty lists a report-only pass over the same host does, so inferring it would report an action
-/// as an inspection precisely when both are empty.
+/// Which pass produced the census is the TYPE the agent client hands over, not a flag carried in beside
+/// it: an inspection becomes a preview and a repair becomes an applied report, so a repairing pass over a
+/// host with nothing to repair is never reported as an inspection merely because both lists are empty.
 /// </para>
 /// </remarks>
 public static class GrantRepairReportMapper
 {
-    /// <summary>Projects one census onto the wire.</summary>
-    /// <param name="report">What the agent read and did.</param>
-    /// <param name="isReportOnly">Whether the pass that produced <paramref name="report"/> changed nothing.</param>
+    /// <summary>Projects the census of a report-only pass onto the wire.</summary>
+    /// <param name="report">What the agent read.</param>
     /// <param name="refusalText">Resolver for the two sentences each refusal carries.</param>
-    /// <returns>The report as an administrator's screen reads it.</returns>
+    /// <returns>The report as an administrator's screen reads it, its rows listed as a preview.</returns>
     public static GrantRepairReportDto ToDto(
-        AgentGrantRepairReport report,
-        bool isReportOnly,
+        AgentGrantInspectionReport report,
         GrantRepairRefusalDisplayNames refusalText)
     {
         return new GrantRepairReportDto(
-            isReportOnly,
             report.ExaminedGrants,
             report.AlreadyCorrect,
-            report.Repaired.Select(ToRepaired).ToList(),
-            report.WouldRepair.Select(ToRepaired).ToList(),
+            new GrantRepairPreviewDto(report.WouldRepair.Select(ToRepaired).ToList()),
+            report.Refused.Select(grant => { return ToRefused(grant, refusalText); }).ToList());
+    }
+
+    /// <summary>Projects the census of a repairing pass onto the wire.</summary>
+    /// <param name="report">What the agent read and did.</param>
+    /// <param name="refusalText">Resolver for the two sentences each refusal carries.</param>
+    /// <returns>The report as an administrator's screen reads it, its rows listed as applied.</returns>
+    public static GrantRepairReportDto ToDto(
+        AgentGrantRepairReport report,
+        GrantRepairRefusalDisplayNames refusalText)
+    {
+        return new GrantRepairReportDto(
+            report.ExaminedGrants,
+            report.AlreadyCorrect,
+            new GrantRepairAppliedDto(report.Repaired.Select(ToRepaired).ToList()),
             report.Refused.Select(grant => { return ToRefused(grant, refusalText); }).ToList());
     }
 
@@ -62,12 +75,30 @@ public static class GrantRepairReportMapper
     /// </returns>
     private static RefusedGrantDto ToRefused(AgentRefusedGrant grant, GrantRepairRefusalDisplayNames refusalText)
     {
+        var reason = ReasonOf(grant.Reason);
+
         return new RefusedGrantDto(
             grant.GrantHost,
             grant.DatabaseName,
             grant.DbUsername,
-            grant.Reason,
-            refusalText.NameOf(grant.Reason),
-            refusalText.AdviceOf(grant.Reason));
+            reason,
+            refusalText.NameOf(reason),
+            refusalText.AdviceOf(reason));
+    }
+
+    /// <summary>Restates the agent client's refusal reason as the module's own.</summary>
+    /// <param name="reason">What the agent client reports.</param>
+    /// <returns>The same reason in this module's vocabulary.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A reason this module has no name for.</exception>
+    private static GrantRefusalReason ReasonOf(AgentGrantRefusal reason)
+    {
+        return reason switch
+        {
+            AgentGrantRefusal.HostIsNotLocalhost => GrantRefusalReason.HostIsNotLocalhost,
+            AgentGrantRefusal.NotThePanelsNaming => GrantRefusalReason.NotThePanelsNaming,
+            AgentGrantRefusal.UnrecognisedPrivileges => GrantRefusalReason.UnrecognisedPrivileges,
+            AgentGrantRefusal.PartiallyOrUnfamiliarlyEscaped => GrantRefusalReason.PartiallyOrUnfamiliarlyEscaped,
+            _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "Unknown grant refusal reason."),
+        };
     }
 }

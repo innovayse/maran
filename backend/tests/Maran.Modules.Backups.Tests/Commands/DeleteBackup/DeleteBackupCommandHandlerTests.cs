@@ -36,18 +36,17 @@ public sealed class DeleteBackupCommandHandlerTests
         var result = await world.Handler.HandleAsync(Command(row.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
 
         var call = Assert.Single(world.Agent.Deletes);
         Assert.Equal(Username, call.AccountUsername);
         Assert.Equal(row.Id.ToString(), call.BackupId);
 
         var destination = Assert.Single(world.Agent.Destinations);
-        Assert.Equal(AgentBackupDestinationKind.Local, destination.Kind);
 
-        // Empty, not the configured root: the agent refuses a local destination that carries a path,
-        // so an assertion that this held the root was certifying a call a real agent turns away.
-        Assert.Equal(string.Empty, destination.Path);
+        // The local arm, which has no path to carry: the agent refuses a local destination that
+        // names one, so an assertion that this held the configured root was certifying a call a real
+        // agent turns away.
+        Assert.IsType<AgentLocalBackupDestination>(destination);
 
         Assert.Empty(await world.Read().Backups.IgnoreQueryFilters().ToListAsync());
 
@@ -70,7 +69,7 @@ public sealed class DeleteBackupCommandHandlerTests
             accountId,
             row,
             accountId,
-            Result<bool>.Fail(Error.Of("BackupNotFound", ErrorType.NotFound)));
+            Result.Fail(Error.Of("BackupNotFound", ErrorType.NotFound)));
 
         var result = await world.Handler.HandleAsync(Command(row.Id), CancellationToken.None);
 
@@ -88,7 +87,7 @@ public sealed class DeleteBackupCommandHandlerTests
             accountId,
             row,
             accountId,
-            Result<bool>.Fail(Error.Of("AgentUnavailable", ErrorType.Unavailable)));
+            Result.Fail(Error.Of("AgentUnavailable", ErrorType.Unavailable)));
 
         var result = await world.Handler.HandleAsync(Command(row.Id), CancellationToken.None);
 
@@ -124,7 +123,7 @@ public sealed class DeleteBackupCommandHandlerTests
             accountId,
             row,
             accountId,
-            Result<bool>.Fail(Error.Of("AgentAlreadyExists", ErrorType.Conflict)));
+            Result.Fail(Error.Of("AgentAlreadyExists", ErrorType.Conflict)));
 
         var result = await world.Handler.HandleAsync(Command(row.Id), CancellationToken.None);
 
@@ -254,7 +253,7 @@ public sealed class DeleteBackupCommandHandlerTests
         /// <param name="callerAccountId">The account the caller owns.</param>
         /// <param name="knownAccountId">The account the directory can answer for.</param>
         /// <param name="deleteResult">The answer the agent gives a deletion.</param>
-        private World(Guid callerAccountId, Guid knownAccountId, Result<bool> deleteResult)
+        private World(Guid callerAccountId, Guid knownAccountId, Result deleteResult)
         {
             _database = Guid.NewGuid().ToString();
             _currentUser = FakeCurrentUser.Customer(callerAccountId);
@@ -283,9 +282,9 @@ public sealed class DeleteBackupCommandHandlerTests
             Guid callerAccountId,
             Backup row,
             Guid knownAccountId,
-            Result<bool>? deleteResult = null)
+            Result? deleteResult = null)
         {
-            var world = new World(callerAccountId, knownAccountId, deleteResult ?? Result<bool>.Ok(true));
+            var world = new World(callerAccountId, knownAccountId, deleteResult ?? Result.Ok());
 
             // Seeded as an administrator so the seed itself never depends on the filter under test.
             await using var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), world._database);

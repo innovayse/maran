@@ -88,7 +88,7 @@ const MODULES: PanelModule[] = [
   'monitoring',
   'tasks',
 ].map((name) => {
-  return { name, displayName: name, tier: 'included', isEnabled: true }
+  return { name, displayName: name, tier: 'included', state: 'enabled' }
 })
 
 /** A long name with no break opportunity the layout can rely on, and the domain a customer would type. */
@@ -119,7 +119,7 @@ const BACKUPS: Backup[] = [
     id: '77777777-7777-7777-7777-777777777771',
     accountId: ACCOUNTS[0]?.id ?? '',
     ownerName: ACCOUNTS[0]?.name ?? '',
-    orphanedAccountUsername: '',
+    orphanedAccountUsername: null,
     status: 'completed',
     kind: 'scheduled',
     sizeBytes: 3_221_225_472,
@@ -127,18 +127,18 @@ const BACKUPS: Backup[] = [
     databaseCount: 2,
     startedAt: '2026-09-06T03:00:00Z',
     finishedAt: '2026-09-06T03:04:00Z',
-    failureCode: '',
-    failureDisplayName: '',
+    failureCode: null,
+    failureDisplayName: null,
   },
   {
     id: '77777777-7777-7777-7777-777777777772',
     accountId: ACCOUNTS[0]?.id ?? '',
     ownerName: ACCOUNTS[0]?.name ?? '',
-    orphanedAccountUsername: '',
+    orphanedAccountUsername: null,
     status: 'failed',
     kind: 'manual',
     sizeBytes: 0,
-    sha256: '',
+    sha256: null,
     databaseCount: 0,
     startedAt: '2026-09-07T03:00:00Z',
     finishedAt: '2026-09-07T03:01:00Z',
@@ -157,8 +157,8 @@ const BACKUPS: Backup[] = [
     databaseCount: 1,
     startedAt: '2026-09-05T03:00:00Z',
     finishedAt: '2026-09-05T03:02:00Z',
-    failureCode: '',
-    failureDisplayName: '',
+    failureCode: null,
+    failureDisplayName: null,
   },
 ]
 

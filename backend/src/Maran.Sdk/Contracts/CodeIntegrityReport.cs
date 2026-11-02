@@ -22,6 +22,12 @@ namespace Maran.Sdk.Contracts;
 /// present." A <see cref="CodeIntegrityOutcome.Clean"/> report is not evidence that nothing extra was
 /// planted.
 /// </para>
+/// <para>
+/// <b>Superseded by <see cref="CodeIntegrityVerdict"/>.</b> This flat shape (an outcome beside a
+/// path list and a reason that each mean something for one outcome only) is kept so the closed
+/// PluginLoader, which builds it, keeps compiling against the Sdk. The panel reads only the verdict:
+/// <see cref="Maran.Sdk.Extensions.CodeIntegrityReportExtensions.ToVerdict"/> is the one place a report is converted.
+/// </para>
 /// </remarks>
 /// <param name="Outcome">
 /// What the comparison found. See <see cref="CodeIntegrityOutcome"/> for why this is never a
@@ -45,6 +51,7 @@ namespace Maran.Sdk.Contracts;
 /// operator's log and the mail body, never for a customer-facing accusation.
 /// </param>
 /// <param name="ObservedAt">When the closed PluginLoader performed this comparison, by its own clock.</param>
+[Obsolete("Use CodeIntegrityVerdict; convert a report with CodeIntegrityReportExtensions.ToVerdict.")]
 public sealed record CodeIntegrityReport(
     CodeIntegrityOutcome Outcome,
     string InstalledVersion,

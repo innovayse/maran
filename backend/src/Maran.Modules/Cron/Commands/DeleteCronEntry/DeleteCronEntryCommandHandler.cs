@@ -66,7 +66,7 @@ public sealed class DeleteCronEntryCommandHandler
     /// <returns>
     /// Success — or <c>AccountNotFound</c>, <c>CronEntryNotFound</c>, or <c>CronOperationFailed</c>.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         DeleteCronEntryCommand command,
         CancellationToken cancellationToken)
     {
@@ -102,7 +102,7 @@ public sealed class DeleteCronEntryCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Journals a refused removal and returns it as the typed failure.</summary>
@@ -110,7 +110,7 @@ public sealed class DeleteCronEntryCommandHandler
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         DeleteCronEntryCommand command,
         Error error,
         CancellationToken cancellationToken)
@@ -122,6 +122,6 @@ public sealed class DeleteCronEntryCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }

@@ -1,4 +1,5 @@
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.ValueObjects;
 
 namespace Maran.Modules.Backups.Domain.Entities;
 
@@ -15,9 +16,19 @@ namespace Maran.Modules.Backups.Domain.Entities;
 /// take two backups a night and neither of them would be wrong.
 /// </para>
 /// <para>
-/// <b><see cref="Enabled"/> is false on a new schedule.</b> A schedule the operator did not ask for
-/// that starts writing gigabytes at three in the morning is a surprise, and the honest ship state is
-/// off.
+/// <b>A schedule is enabled exactly when <see cref="EnabledAt"/> holds the instant it was switched
+/// on, and a new schedule is disabled.</b> A schedule the operator did not ask for that starts
+/// writing gigabytes at three in the morning is a surprise, and the honest ship state is off. There
+/// is no separate "enabled" flag to read: the instant is the whole fact.
+/// </para>
+/// <para>
+/// <b>The storage still carries the previous release's <c>Enabled</c> column, and this entity keeps
+/// it in step.</b> Expand-then-contract (rules/architecture.md): the previous release reads that
+/// column, so it is still mapped (as the private <c>LegacyEnabled</c>) and written by
+/// <see cref="Reconfigure"/> from <see cref="EnabledAt"/>, and nothing in this release reads it. It
+/// is dropped in a later release, after the code that read it is gone. The cadence is stored in the
+/// existing <c>Frequency</c>, <c>HourUtc</c> and <c>DayOfWeekUtc</c> columns and is only reachable
+/// through <see cref="Cadence"/>, so a weekly schedule without a weekday cannot be built here.
 /// </para>
 /// <para>
 /// <b>Due-ness is decided here and not in SQL.</b> The pass loads the enabled schedules — there are
@@ -80,36 +91,70 @@ public sealed class BackupSchedule
     /// <summary>The destination this schedule writes to, or <c>null</c> for the default one.</summary>
     public Guid? DestinationId { get; private set; }
 
-    /// <summary>How often a backup is taken.</summary>
-    public BackupFrequency Frequency { get; private set; }
+    /// <summary>When the backup is taken: every day at an hour, or on one weekday at an hour.</summary>
+    /// <remarks>
+    /// Assembled from the stored columns on every read, never stored as a value of its own. The
+    /// database refuses the combinations that have no cadence (a weekly row with no weekday, a daily
+    /// row with one) through <c>CK_BackupSchedules_WeekdayOnlyWhenWeekly</c>, so the failing arm
+    /// below is unreachable for a row the panel or the migration's backfill wrote.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The stored columns name no cadence.</exception>
+    public BackupCadence Cadence
+    {
+        get
+        {
+            if (Frequency == BackupFrequency.Daily && DayOfWeekUtc is null)
+            {
+                return new DailyBackupCadence(HourUtc);
+            }
 
-    /// <summary>The hour of the day, in UTC, at which the backup is taken.</summary>
+            if (Frequency == BackupFrequency.Weekly && DayOfWeekUtc is not null)
+            {
+                return new WeeklyBackupCadence(DayOfWeekUtc.Value, HourUtc);
+            }
+
+            throw new InvalidOperationException(
+                $"Backup schedule {Id} stores frequency {Frequency} with weekday {DayOfWeekUtc}; "
+                + "the weekday belongs to a weekly schedule and to nothing else.");
+        }
+    }
+
+    /// <summary>The stored frequency column; reached only through <see cref="Cadence"/>.</summary>
+    internal BackupFrequency Frequency { get; private set; }
+
+    /// <summary>
+    /// The stored hour column, in UTC; reached only through <see cref="Cadence"/>.
+    /// </summary>
     /// <remarks>
     /// UTC and not the server's local time, because the server's local time is a setting that can be
     /// changed underneath a schedule — and because a schedule read back through the API has to mean
     /// the same thing to a panel, a customer and an operator in three time zones.
     /// </remarks>
-    public int HourUtc { get; private set; }
+    internal int HourUtc { get; private set; }
 
-    /// <summary>
-    /// The day of the week a <see cref="BackupFrequency.Weekly"/> schedule runs on, or <c>null</c>
-    /// for a <see cref="BackupFrequency.Daily"/> one.
-    /// </summary>
+    /// <summary>The stored weekday column, set only for a weekly cadence.</summary>
     /// <remarks>
+    /// Reached only through <see cref="Cadence"/>.
     /// Named <c>DayOfWeekUtc</c> rather than <c>DayOfWeek</c> so that the property does not shadow
     /// the BCL type of the same name for every signature inside this class — the collision is silent
     /// and the first thing it breaks is a member declaration that reads perfectly.
     /// </remarks>
-    public DayOfWeek? DayOfWeekUtc { get; private set; }
+    internal DayOfWeek? DayOfWeekUtc { get; private set; }
 
     /// <summary>How many successful backups of this account are kept before the oldest are pruned.</summary>
     public int RetainCount { get; private set; }
 
-    /// <summary>Whether the schedule actually runs.</summary>
-    public bool Enabled { get; private set; }
+    /// <summary>The previous release's <c>Enabled</c> column, kept equal to <c>EnabledAt != null</c>.</summary>
+    /// <remarks>
+    /// Written by <see cref="Reconfigure"/> and read by nothing in this release; it exists so the
+    /// release before this one, which still reads the column, sees the truth after an update is
+    /// rolled back. Dropped in the contract phase, a release after the code that reads it is gone.
+    /// </remarks>
+    internal bool LegacyEnabled { get; private set; }
 
     /// <summary>
-    /// The instant the schedule was last switched on, or <c>null</c> while it is switched off.
+    /// The instant the schedule was last switched on, or <c>null</c> while it is switched off. The
+    /// schedule is enabled exactly when this holds a value.
     /// </summary>
     /// <remarks>
     /// It exists so that switching a schedule on can be remembered without pretending a backup ran.
@@ -136,9 +181,7 @@ public sealed class BackupSchedule
     /// <param name="id">The schedule's identity.</param>
     /// <param name="accountId">The account it backs up, or <c>null</c> for every account.</param>
     /// <param name="destinationId">The destination it writes to, or <c>null</c> for the default one.</param>
-    /// <param name="frequency">How often it runs.</param>
-    /// <param name="hourUtc">The hour of the day, in UTC, it runs at.</param>
-    /// <param name="dayOfWeekUtc">The day of the week for a weekly schedule; <c>null</c> for daily.</param>
+    /// <param name="cadence">When it runs.</param>
     /// <param name="retainCount">How many successful backups to keep.</param>
     /// <remarks>
     /// Creation cannot enable a schedule. Switching one on is a separate act with a consequence — the
@@ -149,19 +192,17 @@ public sealed class BackupSchedule
         Guid id,
         Guid? accountId,
         Guid? destinationId,
-        BackupFrequency frequency,
-        int hourUtc,
-        DayOfWeek? dayOfWeekUtc,
+        BackupCadence cadence,
         int retainCount)
     {
+        ArgumentNullException.ThrowIfNull(cadence);
+
         Id = id;
         AccountId = accountId;
         DestinationId = destinationId;
-        Frequency = frequency;
-        HourUtc = hourUtc;
-        DayOfWeekUtc = dayOfWeekUtc;
+        StoreCadence(cadence);
         RetainCount = retainCount;
-        Enabled = false;
+        LegacyEnabled = false;
         EnabledAt = null;
         LastRunAt = null;
     }
@@ -173,9 +214,7 @@ public sealed class BackupSchedule
 
     /// <summary>Replaces the schedule's destination, cadence, retention and enabled state in one edit.</summary>
     /// <param name="destinationId">The destination it writes to, or <c>null</c> for the default one.</param>
-    /// <param name="frequency">How often it runs.</param>
-    /// <param name="hourUtc">The hour of the day, in UTC, it runs at.</param>
-    /// <param name="dayOfWeekUtc">The day of the week for a weekly schedule; <c>null</c> for daily.</param>
+    /// <param name="cadence">When it runs.</param>
     /// <param name="retainCount">How many successful backups to keep.</param>
     /// <param name="enabled">Whether the schedule runs at all.</param>
     /// <param name="at">The instant of the edit, taken from <c>IClock</c>.</param>
@@ -198,31 +237,27 @@ public sealed class BackupSchedule
     /// </remarks>
     public void Reconfigure(
         Guid? destinationId,
-        BackupFrequency frequency,
-        int hourUtc,
-        DayOfWeek? dayOfWeekUtc,
+        BackupCadence cadence,
         int retainCount,
         bool enabled,
         DateTimeOffset at)
     {
-        var switchedOn = enabled && !Enabled;
+        ArgumentNullException.ThrowIfNull(cadence);
 
         DestinationId = destinationId;
-        Frequency = frequency;
-        HourUtc = hourUtc;
-        DayOfWeekUtc = dayOfWeekUtc;
+        StoreCadence(cadence);
         RetainCount = retainCount;
-        Enabled = enabled;
-
-        if (switchedOn)
-        {
-            EnabledAt = at;
-        }
 
         if (!enabled)
         {
             EnabledAt = null;
         }
+        else if (EnabledAt is null)
+        {
+            EnabledAt = at;
+        }
+
+        LegacyEnabled = EnabledAt is not null;
     }
 
     /// <summary>Records that a run has been started, so this schedule is not due again for it.</summary>
@@ -299,7 +334,7 @@ public sealed class BackupSchedule
     /// </remarks>
     public DateTimeOffset? NextRunAt()
     {
-        if (!Enabled || EnabledAt is null)
+        if (EnabledAt is null)
         {
             return null;
         }
@@ -310,52 +345,81 @@ public sealed class BackupSchedule
 
         return MostRecentOccurrence(anchor).Add(Period());
     }
+
     /// <summary>The time between two occurrences of this schedule.</summary>
-    /// <returns>A week for a weekly schedule with a weekday; a day otherwise.</returns>
+    /// <returns>A week for a weekly schedule; a day for a daily one.</returns>
     /// <remarks>
-    /// The same reading <see cref="MostRecentOccurrence"/> makes: a weekly schedule with no weekday
-    /// is treated as daily, so the two can never disagree about which occurrence follows which.
+    /// Stated over the same <see cref="Cadence"/> <see cref="MostRecentOccurrence"/> reads, so the
+    /// two can never disagree about which occurrence follows which.
     /// </remarks>
     private TimeSpan Period()
     {
-        if (Frequency == BackupFrequency.Daily || DayOfWeekUtc is null)
+        if (Cadence is WeeklyBackupCadence)
         {
-            return TimeSpan.FromDays(1);
+            return TimeSpan.FromDays(7);
         }
 
-        return TimeSpan.FromDays(7);
+        return TimeSpan.FromDays(1);
     }
 
     /// <summary>The latest instant this schedule was supposed to run, at or before <paramref name="now"/>.</summary>
     /// <param name="now">The instant to measure back from.</param>
     /// <returns>The occurrence, always before or exactly at <paramref name="now"/>.</returns>
     /// <remarks>
-    /// <para>
-    /// Total by construction rather than by a fallback: for a daily schedule the answer is today's
+    /// Total by construction rather than by a fallback: for a daily cadence the answer is today's
     /// hour or yesterday's, and for a weekly one it is the named weekday's hour within the last
-    /// seven days. Neither arm can fail to produce an answer.
-    /// </para>
-    /// <para>
-    /// <b>A weekly schedule with no weekday is read as daily, and that is a real case rather than a
-    /// defensive one.</b> The column is nullable, so the pair is representable in the database even
-    /// though the validator refuses it at the boundary — a row edited in <c>psql</c>, or written by
-    /// a future migration, can hold it. Backing up too often is the safe direction of that mistake;
-    /// throwing would stop the whole nightly pass for every other account on the host.
-    /// </para>
+    /// seven days. Neither arm can fail to produce an answer, and there is no third case to guess at:
+    /// a weekly cadence carries its weekday.
     /// </remarks>
     private DateTimeOffset MostRecentOccurrence(DateTimeOffset now)
     {
         var utc = now.ToUniversalTime();
-        var todayAtHour = new DateTimeOffset(utc.Year, utc.Month, utc.Day, HourUtc, 0, 0, TimeSpan.Zero);
+        var cadence = Cadence;
 
-        if (Frequency == BackupFrequency.Daily || DayOfWeekUtc is null)
+        if (cadence is WeeklyBackupCadence weekly)
         {
+            var weeklyToday = new DateTimeOffset(utc.Year, utc.Month, utc.Day, weekly.HourUtc, 0, 0, TimeSpan.Zero);
+            var daysBack = (((int)weeklyToday.DayOfWeek - (int)weekly.DayOfWeekUtc) + 7) % 7;
+            var candidate = weeklyToday.AddDays(-daysBack);
+
+            return utc >= candidate ? candidate : candidate.AddDays(-7);
+        }
+
+        if (cadence is DailyBackupCadence daily)
+        {
+            var todayAtHour = new DateTimeOffset(utc.Year, utc.Month, utc.Day, daily.HourUtc, 0, 0, TimeSpan.Zero);
+
             return utc >= todayAtHour ? todayAtHour : todayAtHour.AddDays(-1);
         }
 
-        var daysBack = (((int)todayAtHour.DayOfWeek - (int)DayOfWeekUtc.Value) + 7) % 7;
-        var candidate = todayAtHour.AddDays(-daysBack);
+        throw new InvalidOperationException(
+            $"Unhandled backup cadence {cadence.GetType().Name}; the hierarchy is closed to two cases.");
+    }
 
-        return utc >= candidate ? candidate : candidate.AddDays(-7);
+    /// <summary>Writes a cadence into the three storage columns it is made of.</summary>
+    /// <param name="cadence">The cadence to store.</param>
+    /// <remarks>
+    /// The only writer of those columns, so the pair the check constraint refuses is never written.
+    /// </remarks>
+    private void StoreCadence(BackupCadence cadence)
+    {
+        switch (cadence)
+        {
+            case DailyBackupCadence daily:
+                Frequency = BackupFrequency.Daily;
+                HourUtc = daily.HourUtc;
+                DayOfWeekUtc = null;
+                break;
+
+            case WeeklyBackupCadence weekly:
+                Frequency = BackupFrequency.Weekly;
+                HourUtc = weekly.HourUtc;
+                DayOfWeekUtc = weekly.DayOfWeekUtc;
+                break;
+
+            default:
+                throw new InvalidOperationException(
+                    $"Unhandled backup cadence {cadence.GetType().Name}; the hierarchy is closed to two cases.");
+        }
     }
 }

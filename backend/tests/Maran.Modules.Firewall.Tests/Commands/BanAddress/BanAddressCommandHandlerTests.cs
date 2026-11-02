@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.FirewallService;
 using Maran.Modules.Firewall.Commands.BanAddress;
 using Maran.Modules.Firewall.Domain.Entities;
 using Maran.Modules.Firewall.Domain.Enums;
@@ -54,7 +55,7 @@ public sealed class BanAddressCommandHandlerTests
 
         await world.BanAsync("203.0.113.7", durationMinutes: null);
 
-        Assert.Null(Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.Permanent(), Assert.Single(world.Agent.Bans).Term);
         Assert.Null(Assert.Single(await world.EpisodesAsync()).ExpiresAt);
     }
 
@@ -65,7 +66,7 @@ public sealed class BanAddressCommandHandlerTests
         // A row for a ban that never happened would report an address as banned while every packet
         // from it arrives, and the reconciler would re-apply it forever.
         var world = new World();
-        world.Agent.BanResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.BanResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.BanAsync("203.0.113.7", durationMinutes: 60);
 
@@ -230,7 +231,7 @@ public sealed class BanAddressCommandHandlerTests
     public async Task A_refused_ban_is_journalled_as_a_failure_naming_what_was_attempted()
     {
         var world = new World();
-        world.Agent.BanResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.BanResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         await world.BanAsync("203.0.113.7", durationMinutes: 60);
 
@@ -255,7 +256,7 @@ public sealed class BanAddressCommandHandlerTests
         /// <summary>Runs the handler once, on its own context, the way a request does.</summary>
         /// <param name="address">The address the caller asked to ban.</param>
         /// <param name="durationMinutes">How long for, or null for permanent.</param>
-        public async Task<Result<bool>> BanAsync(string address, int? durationMinutes)
+        public async Task<Result> BanAsync(string address, int? durationMinutes)
         {
             using var context = FirewallTestContext.Create(_store);
             var handler = new BanAddressCommandHandler(

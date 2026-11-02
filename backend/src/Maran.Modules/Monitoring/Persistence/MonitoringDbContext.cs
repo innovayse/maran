@@ -15,7 +15,7 @@ namespace Maran.Modules.Monitoring.Persistence;
 /// describes the SERVER: one processor, one root filesystem, one set of managed
 /// services. None of it belongs to a customer and none of it has an
 /// <c>AccountId</c> to scope by, the whole surface is <c>[Authorize(AdminOnly)]</c>, and a filter
-/// closing over <c>ICurrentUser.AccountId</c> would have nothing to compare against — while silently
+/// closing over the account of <c>ICurrentUser.Caller</c> would have nothing to compare against — while silently
 /// hiding every row from the sampler and the retention pass, which run on a timer with no request
 /// and no principal at all. That is the failure mode Firewall's context records for the same reason,
 /// and it is worth stating twice: the charts would go blank whenever nobody was signed in.

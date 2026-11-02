@@ -97,7 +97,7 @@ public sealed class RepairDatabaseGrantsCommandHandler
         RepairDatabaseGrantsCommand command,
         CancellationToken cancellationToken)
     {
-        var planned = await _agent.RepairGrantsAsync(reportOnly: true, cancellationToken);
+        var planned = await _agent.InspectGrantsAsync(cancellationToken);
         if (!planned.IsSuccess)
         {
             return Result<GrantRepairReportDto>.Fail(planned.Error!);
@@ -117,7 +117,7 @@ public sealed class RepairDatabaseGrantsCommandHandler
                 Error.Of(nameof(ErrorMessages.DatabaseGrantRepairPlanChanged), ErrorType.Conflict));
         }
 
-        var repaired = await _agent.RepairGrantsAsync(reportOnly: false, cancellationToken);
+        var repaired = await _agent.RepairGrantsAsync(cancellationToken);
         if (!repaired.IsSuccess)
         {
             await RecordAsync(command, succeeded: false, repaired.Error!.Code, cancellationToken);
@@ -133,7 +133,7 @@ public sealed class RepairDatabaseGrantsCommandHandler
             cancellationToken);
 
         return Result<GrantRepairReportDto>.Ok(
-            GrantRepairReportMapper.ToDto(repaired.Value, isReportOnly: false, _refusalText));
+            GrantRepairReportMapper.ToDto(repaired.Value, _refusalText));
     }
 
     /// <summary>Writes the one journal entry this operation produces, in either outcome.</summary>

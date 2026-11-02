@@ -42,7 +42,7 @@ namespace Maran.Modules.Backups.Services;
 /// <para>
 /// <b>What it does NOT do: complete the row.</b> An artifact is present, its size and its SHA-256
 /// are right there in the listing, and writing them onto the row would produce exactly what the
-/// panel would have recorded — and it is refused. <see cref="Backup.Sha256"/>'s own doc states why:
+/// panel would have recorded — and it is refused. <see cref="Backup.ArtifactSha256"/>'s own doc states why:
 /// <i>"a digest read from beside the bytes it describes proves only that the two were written
 /// together, which is exactly what an attacker who replaced both would arrange."</i> A row completed
 /// from a sidecar would be indistinguishable from one the panel observed, and the restore path's
@@ -251,22 +251,26 @@ public sealed class StartupBackupReconciler : BackgroundService
         {
             var observation = await ObserveAsync(backup, snapshots, destinations, cancellationToken);
 
-            if (observation is null)
+            switch (observation)
             {
-                unobservable++;
-                continue;
-            }
+                case ArtifactObservation.Unobservable:
+                    unobservable++;
+                    continue;
 
-            if (observation.Value)
-            {
-                present++;
-                backup.Failed(nameof(ErrorMessages.BackupArtifactUnvouched), _clock.UtcNow);
-                LogArtifactLeftBehind(_logger, backup.Id, null);
-            }
-            else
-            {
-                absent++;
-                backup.Failed(nameof(ErrorMessages.BackupOutcomeUnobserved), _clock.UtcNow);
+                case ArtifactObservation.Present:
+                    present++;
+                    backup.Failed(nameof(ErrorMessages.BackupArtifactUnvouched), _clock.UtcNow);
+                    LogArtifactLeftBehind(_logger, backup.Id, null);
+                    break;
+
+                case ArtifactObservation.Absent:
+                    absent++;
+                    backup.Failed(nameof(ErrorMessages.BackupOutcomeUnobserved), _clock.UtcNow);
+                    break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"Unhandled artifact observation {observation}; the enum has three members.");
             }
 
             await journal.RecordSystemAsync(
@@ -290,16 +294,16 @@ public sealed class StartupBackupReconciler : BackgroundService
     /// <returns>The account's system user name, or the name the row kept when its account was deleted.</returns>
     /// <remarks>
     /// The row's own stamped name wins for an orphan, because after the account cascade there is
-    /// nowhere else to read it from (<see cref="Backup.NamesADeletedAccount"/>); an account still
+    /// nowhere else to read it from (<see cref="Backup.DeletedAccountUsername"/>); an account still
     /// present answers from the directory, which is the fact's owner. An empty string is the honest
     /// answer for a row whose account is gone and which was never stamped — such a row should not
     /// exist, and inventing a subject for it would put a guess in an append-only journal.
     /// </remarks>
     private static string SubjectOf(Backup backup, IReadOnlyDictionary<Guid, AccountSnapshot> accounts)
     {
-        if (backup.NamesADeletedAccount())
+        if (backup.DeletedAccountUsername is { } deletedAccountUsername)
         {
-            return backup.OrphanedAccountUsername;
+            return deletedAccountUsername;
         }
 
         return accounts.TryGetValue(backup.AccountId, out var account) ? account.Username : string.Empty;
@@ -311,8 +315,9 @@ public sealed class StartupBackupReconciler : BackgroundService
     /// <param name="destinations">Resolves the destination the row named.</param>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>
-    /// True when the destination holds a readable archive under this row's id, false when it holds
-    /// none, and <c>null</c> when the question could not be asked at all.
+    /// <see cref="ArtifactObservation.Present"/> when the destination holds a readable archive under
+    /// this row's id, <see cref="ArtifactObservation.Absent"/> when it holds none, and
+    /// <see cref="ArtifactObservation.Unobservable"/> when the question could not be asked at all.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -323,12 +328,12 @@ public sealed class StartupBackupReconciler : BackgroundService
     /// the row and leaves the file alone for an operator.
     /// </para>
     /// <para>
-    /// The three-valued answer is a <c>bool?</c> rather than two booleans because the caller must not
-    /// be able to read "could not ask" as "not there": that conflation is what would turn this pass
-    /// back into an inference from silence.
+    /// The three-valued answer is its own enum rather than a boolean because the caller must not be
+    /// able to read "could not ask" as "not there": that conflation is what would turn this pass back
+    /// into an inference from silence.
     /// </para>
     /// </remarks>
-    private async Task<bool?> ObserveAsync(
+    private async Task<ArtifactObservation> ObserveAsync(
         Backup backup,
         IReadOnlyDictionary<Guid, AccountSnapshot> accounts,
         BackupDestinationResolver destinations,
@@ -338,30 +343,32 @@ public sealed class StartupBackupReconciler : BackgroundService
         if (username.Length == 0)
         {
             LogUnobservable(_logger, backup.Id, nameof(ErrorMessages.AccountNotFound), null);
-            return null;
+            return ArtifactObservation.Unobservable;
         }
 
         var destination = await destinations.ResolveAsync(backup.DestinationId, cancellationToken);
         if (!destination.IsSuccess)
         {
             LogUnobservable(_logger, backup.Id, destination.Error!.Code, null);
-            return null;
+            return ArtifactObservation.Unobservable;
         }
 
         var listing = await _agent.ListAsync(username, destination.Value!.Agent, cancellationToken);
         if (!listing.IsSuccess)
         {
             LogUnobservable(_logger, backup.Id, listing.Error!.Code, null);
-            return null;
+            return ArtifactObservation.Unobservable;
         }
 
         var identifier = backup.Id.ToString();
 
-        return listing.Value!.Any(entry =>
+        var found = listing.Value!.Any(entry =>
         {
             return entry.Readable is not null
                 && string.Equals(entry.BackupId, identifier, StringComparison.OrdinalIgnoreCase);
         });
+
+        return found ? ArtifactObservation.Present : ArtifactObservation.Absent;
     }
 
     /// <summary>Runs passes until one succeeds or the attempts run out.</summary>

@@ -168,6 +168,7 @@ public sealed class EndpointAuthorizationPolicyTests : IAsyncLifetime
             "GET /health/ready",
             "GET /api/v1/modules",
             "GET /api/v1/dashboard",
+            "GET /api/v1/dashboard/attention-count",
         })
         {
             Assert.Contains(hostRoute, keys);

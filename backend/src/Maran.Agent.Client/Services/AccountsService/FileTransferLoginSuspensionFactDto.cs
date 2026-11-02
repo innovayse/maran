@@ -31,16 +31,11 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// <param name="Protocol">
 /// Which daemon serves this login, as the agent DERIVED it from the jail the login's passwd home
 /// sits under. Never inferred from the name: <c>alice_web</c> is a valid login under either daemon.
-/// <see cref="LoginTransferProtocol.Unspecified"/> means the agent predates the field, and such a
-/// login is read as <see cref="LoginTransferProtocol.Sftp"/> — before FTPS existed every reported
-/// login was an SFTP one by construction.
-///
-/// It carries a default so that this field could be added without editing the Accounts module and
-/// its tests, which construct this record and are not this change's to touch. The default is the
-/// wire's own absent value, so a caller that does not pass one reads exactly what an old agent
-/// would have sent — not a value this record invented.
+/// A login an agent that predates the field reported is read as <see cref="LoginTransferProtocol.Sftp"/>
+/// by <see cref="AgentAccountsClient"/> — before FTPS existed every reported login was an SFTP one
+/// by construction — so a value here is always one the panel can name.
 /// </param>
 public sealed record FileTransferLoginSuspensionFactDto(
     string Username,
     bool Locked,
-    LoginTransferProtocol Protocol = LoginTransferProtocol.Unspecified);
+    LoginTransferProtocol Protocol);

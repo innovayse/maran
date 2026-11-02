@@ -69,7 +69,7 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     }
 
     /// <inheritdoc />
-    public async Task<Result<bool>> WriteAsync(
+    public async Task<Result> WriteAsync(
         AcmeChallengeTarget target,
         string domain,
         string token,
@@ -78,7 +78,7 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     {
         if (!IsBase64Url(token))
         {
-            return Result<bool>.Fail(
+            return Result.Fail(
                 Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.UpstreamRefused));
         }
 
@@ -94,7 +94,7 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     }
 
     /// <inheritdoc />
-    public async Task<Result<bool>> RemoveAsync(
+    public async Task<Result> RemoveAsync(
         AcmeChallengeTarget target,
         string domain,
         string token,
@@ -102,20 +102,36 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     {
         if (!IsBase64Url(token))
         {
-            return Result<bool>.Fail(
+            return Result.Fail(
                 Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.UpstreamRefused));
         }
 
         return target switch
         {
-            SiteDocumentRootChallenge site => await _files.DeleteEntryAsync(
-                site.AccountUsername,
-                ChallengePath(domain, token),
-                recursive: false,
-                cancellationToken),
+            SiteDocumentRootChallenge site => await RemoveFromDocumentRootAsync(
+                site, domain, token, cancellationToken),
             PanelChallengeDirectory => await _ssl.RemovePanelChallengeAsync(token, cancellationToken),
             _ => throw new UnreachableException("AcmeChallengeTarget is closed to the two targets this module declares."),
         };
+    }
+
+    /// <summary>Removes the file from the site's document root, as the owning account.</summary>
+    /// <param name="site">The account whose document root held the file.</param>
+    /// <param name="domain">The domain that was being validated, which names its document root.</param>
+    /// <param name="token">The challenge token, which is also the file name.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, or the agent's own typed failure.</returns>
+    private async Task<Result> RemoveFromDocumentRootAsync(
+        SiteDocumentRootChallenge site,
+        string domain,
+        string token,
+        CancellationToken cancellationToken)
+    {
+        return await _files.DeleteEntryAsync(
+            site.AccountUsername,
+            ChallengePath(domain, token),
+            recursive: false,
+            cancellationToken);
     }
 
     /// <summary>Writes the file into the site's document root, as the owning account.</summary>
@@ -125,7 +141,7 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     /// <param name="keyAuthorization">The file's content.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, the floor's refusal, or <c>AcmeChallengeWriteFailed</c>.</returns>
-    private async Task<Result<bool>> WriteIntoDocumentRootAsync(
+    private async Task<Result> WriteIntoDocumentRootAsync(
         SiteDocumentRootChallenge site,
         string domain,
         string token,
@@ -140,7 +156,7 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
             cancellationToken);
 
         return ChallengeFailure(
-            written.IsSuccess ? Result<bool>.Ok(true) : Result<bool>.Fail(written.Error!),
+            written.IsSuccess ? Result.Ok() : Result.Fail(written.Error!),
             nameof(ErrorMessages.AcmeChallengeWriteFailed));
     }
 
@@ -155,14 +171,14 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     /// server is nearly out of disk space" (issues #148, #132); every other failure as
     /// <paramref name="failureCode"/>, a local fault.
     /// </returns>
-    private static Result<bool> ChallengeFailure(Result<bool> written, string failureCode)
+    private static Result ChallengeFailure(Result written, string failureCode)
     {
         if (written.IsSuccess || AgentFloorRefusal.Is(written.Error!))
         {
             return written;
         }
 
-        return Result<bool>.Fail(Error.Of(failureCode, ErrorType.Failure));
+        return Result.Fail(Error.Of(failureCode, ErrorType.Failure));
     }
 
     /// <summary>Builds the challenge file's path relative to the account's home.</summary>

@@ -1,5 +1,7 @@
+using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.RevokeSession;
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Queries.ListSessions;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -19,6 +21,7 @@ namespace Maran.Modules.Identity.Controllers;
 [Produces("application/json")]
 [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RefusedWhileViewingAs]
 public sealed class SessionsController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>
@@ -46,7 +49,7 @@ public sealed class SessionsController : BaseApiController
         [FromQuery] ListSessionsQuery query,
         CancellationToken cancellationToken)
     {
-        query = query with { UserId = CurrentUser.UserId, CurrentSessionId = CallerSessionId };
+        query = query with { UserId = SignedInCallerPolicy.Require(CurrentUser).UserId, CurrentSessionId = CallerSessionId };
         return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<SessionDto>>>(query, cancellationToken));
     }
 
@@ -58,11 +61,11 @@ public sealed class SessionsController : BaseApiController
     /// <param name="id">The session to end.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RevokeAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new RevokeSessionCommand(id, CurrentUser.UserId, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        var command = new RevokeSessionCommand(id, SignedInCallerPolicy.Require(CurrentUser).UserId, ClientIpAddress, CallerUserAgent);
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

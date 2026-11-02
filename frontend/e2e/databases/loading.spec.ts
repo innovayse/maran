@@ -18,7 +18,7 @@ import type { PanelModule } from '../../src/types/module'
 // The databases table and the grant repair's rewritten rows while their reads are on the way
 // (#243): each drawn from its own column schema.
 
-const LICENSED: PanelModule[] = [{ name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' }]
 
 const ALICE: Account = {
   id: '22222222-2222-2222-2222-222222222222',
@@ -85,11 +85,12 @@ const GRANT_REPAIR_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubDatabaseGrants(page, {
-      isReportOnly: true,
       examinedGrants: 2,
       alreadyCorrect: 1,
-      repaired: [],
-      wouldRepair: [{ databaseName: 'alice_shop', dbUsername: 'alice_shopuser', alsoMatchedDatabases: [] }],
+      work: {
+        kind: 'preview',
+        grants: [{ databaseName: 'alice_shop', dbUsername: 'alice_shopuser', alsoMatchedDatabases: [] }],
+      },
       refused: [],
     })
   },

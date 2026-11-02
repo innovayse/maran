@@ -49,8 +49,14 @@ use crate::proto::{
 /// (issue #150). 11 adds
 /// `CronService.RunCronEntry` and `ERROR_CODE_ACCOUNT_SUSPENDED` (issue #158).
 /// 12 adds `SftpService.SetSftpAuthorizedKeys`, an SFTP login's public keys
-/// (issue #135).
-const PROTO_VERSION: u32 = 12;
+/// (issue #135). 13 gives three-state facts their own fields — the FTPS
+/// `tls_enforcement` and the suspension `SiteSuspensionFact.serving` — adds the
+/// explicit ban term `BanAddressRequest.term`, and reserves the six
+/// always-zero wire fields (`ServiceStatus.uptime_seconds`,
+/// `AccountDiskUsage.quota_bytes`, the listing's `last_exit_code` and
+/// `last_run_at_unix`, `BanEntry.reason` and `BanEntry.expires_at_unix`)
+/// (issue #323).
+const PROTO_VERSION: u32 = 13;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

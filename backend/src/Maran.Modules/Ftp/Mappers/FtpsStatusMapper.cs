@@ -1,7 +1,9 @@
 using Maran.Modules.Ftp.Common;
 using Maran.Modules.Ftp.Domain.Enums;
 using Maran.Modules.Ftp.Domain.Policies;
+using AgentFtpsCertificate = Maran.Agent.Client.Services.FtpsService.FtpsCertificate;
 using AgentFtpsStatus = Maran.Agent.Client.Services.FtpsService.FtpsStatusDto;
+using AgentFtpsTlsEnforcement = Maran.Agent.Client.Services.FtpsService.FtpsTlsEnforcement;
 
 namespace Maran.Modules.Ftp.Mappers;
 
@@ -16,8 +18,8 @@ namespace Maran.Modules.Ftp.Mappers;
 /// decided by the handler that read the row (<see cref="FtpsDesiredStatePolicy"/>), and the
 /// agreement is <see cref="FtpsAgreementPolicy"/>'s verdict, restated here rather than reasoned out.
 /// Every daemon field is copied across unchanged, in particular
-/// <see cref="AgentFtpsStatus.ForcedTls"/>: it is not defaulted, not inverted, and not replaced by
-/// the panel's own intention when the agent reports <c>false</c>. Substituting an intention there is
+/// <see cref="AgentFtpsStatus.TlsEnforcement"/>: it is not defaulted, not inverted, and not replaced by
+/// the panel's own intention when the agent reports that it did not enforce or did not observe. Substituting an intention there is
 /// the one edit that would make the record lie in the direction that matters — a green screen over a
 /// daemon that takes passwords in the clear.
 /// </para>
@@ -47,13 +49,45 @@ public static class FtpsStatusMapper
             FtpsAgreementPolicy.Of(desired, observed.Running, observed.ControlPortAnswered),
             observed.Running,
             observed.ControlPortAnswered,
-            observed.ForcedTls,
-            observed.CertificatePresent,
-            observed.CertificateIsSelfSigned,
+            ToTlsEnforcement(observed.TlsEnforcement),
+            ToCertificateState(observed.Certificate),
             observed.CertificatePath,
             FtpsDefaults.ControlPort,
             observed.PassivePortMin,
             observed.PassivePortMax,
             observed.Ipv4Only);
+    }
+
+    /// <summary>Restates the agent client's certificate fact as the module's own enum.</summary>
+    /// <param name="observed">What the agent client reports.</param>
+    /// <returns>The same outcome in this module's vocabulary.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A client outcome this module has no name for.</exception>
+    private static FtpsCertificateState ToCertificateState(AgentFtpsCertificate observed)
+    {
+        return observed switch
+        {
+            AgentFtpsCertificate.Absent => FtpsCertificateState.Absent,
+            AgentFtpsCertificate.SelfSigned => FtpsCertificateState.SelfSigned,
+            AgentFtpsCertificate.Provided => FtpsCertificateState.Provided,
+            _ => throw new ArgumentOutOfRangeException(nameof(observed), observed, "Unknown FTPS certificate outcome."),
+        };
+    }
+
+    /// <summary>Restates the agent client's TLS enforcement fact as the module's own enum.</summary>
+    /// <param name="observed">What the agent client reports.</param>
+    /// <returns>The same outcome in this module's vocabulary.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A client outcome this module has no name for.</exception>
+    private static FtpsTlsEnforcement ToTlsEnforcement(AgentFtpsTlsEnforcement observed)
+    {
+        return observed switch
+        {
+            AgentFtpsTlsEnforcement.Enforced => FtpsTlsEnforcement.Enforced,
+            AgentFtpsTlsEnforcement.NotEnforced => FtpsTlsEnforcement.NotEnforced,
+            AgentFtpsTlsEnforcement.NotObserved => FtpsTlsEnforcement.NotObserved,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(observed),
+                observed,
+                "Unknown FTPS TLS enforcement outcome."),
+        };
     }
 }

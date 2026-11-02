@@ -1,5 +1,6 @@
 using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 
 namespace Maran.Modules.Accounts.Domain.Entities;
 
@@ -118,6 +119,17 @@ public sealed class Plan
     /// </summary>
     public RuntimeLimits RuntimeLimits { get; private set; } = RuntimeLimits.Unlimited();
 
+    /// <summary>
+    /// The features the plan sells: which parts of the panel an account on it may use, as a set.
+    /// Shipped plans, and every plan that existed before the set did, include all of them.
+    /// </summary>
+    /// <remarks>
+    /// Read live through the plan, like the limits, so an edit reaches every account on the plan on
+    /// its next request. Enforced by <c>[RequiresAccountFeature]</c> on the controllers of the module
+    /// that owns each feature, never by the menu alone; see <see cref="AccountFeature"/>.
+    /// </remarks>
+    public AccountFeature Features { get; private set; } = AccountFeature.All;
+
     /// <summary>Creates a plan.</summary>
     /// <param name="id">The plan's identity, stable across seeding runs so re-seeding is idempotent.</param>
     /// <param name="displayNameKey">
@@ -169,10 +181,15 @@ public sealed class Plan
     /// direction a limit is allowed to be wrong in — and every plan this panel ships states one
     /// (<see cref="Seeders.PlanSeeder"/>). Making it required is owed work, not a settled shape.
     /// </param>
+    /// <param name="features">
+    /// The features the plan sells. Defaults to every feature, the plan every customer had before the
+    /// set existed, so a caller that does not state one removes nothing from anybody.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="maxDatabases"/>, <paramref name="maxSftpUsers"/> or
-    /// <paramref name="maxPhpWorkersPerPool"/> is not positive, or when
-    /// <paramref name="maxCronEntries"/> or <paramref name="maxFtpUsers"/> is negative.
+    /// <paramref name="maxPhpWorkersPerPool"/> is not positive, when
+    /// <paramref name="maxCronEntries"/> or <paramref name="maxFtpUsers"/> is negative, or when
+    /// <paramref name="features"/> holds a bit that is no feature.
     /// </exception>
     public Plan(
         Guid id,
@@ -183,7 +200,8 @@ public sealed class Plan
         int maxSftpUsers,
         int maxCronEntries,
         int maxPhpWorkersPerPool,
-        int maxFtpUsers = 0)
+        int maxFtpUsers = 0,
+        AccountFeature features = AccountFeature.All)
         : this(
             id,
             displayNameKey,
@@ -194,7 +212,8 @@ public sealed class Plan
             maxSftpUsers,
             maxCronEntries,
             maxPhpWorkersPerPool,
-            maxFtpUsers)
+            maxFtpUsers,
+            features)
     {
     }
 
@@ -209,6 +228,7 @@ public sealed class Plan
     /// <param name="maxCronEntries">The maximum number of cron entries the account may keep.</param>
     /// <param name="maxPhpWorkersPerPool">The maximum number of php-fpm workers one pool may run.</param>
     /// <param name="maxFtpUsers">The maximum number of FTPS logins the account may create.</param>
+    /// <param name="features">The features the plan sells.</param>
     private Plan(
         Guid id,
         string displayNameKey,
@@ -219,9 +239,11 @@ public sealed class Plan
         int maxSftpUsers,
         int maxCronEntries,
         int maxPhpWorkersPerPool,
-        int maxFtpUsers)
+        int maxFtpUsers,
+        AccountFeature features)
     {
         GuardLimits(maxDatabases, maxSftpUsers, maxCronEntries, maxPhpWorkersPerPool, maxFtpUsers);
+        GuardFeatures(features);
 
         Id = id;
         DisplayNameKey = displayNameKey;
@@ -233,6 +255,7 @@ public sealed class Plan
         MaxCronEntries = maxCronEntries;
         MaxPhpWorkersPerPool = maxPhpWorkersPerPool;
         MaxFtpUsers = maxFtpUsers;
+        Features = features;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>
@@ -255,6 +278,7 @@ public sealed class Plan
     /// <param name="maxFtpUsers">The maximum number of FTPS logins the account may create. Zero sells none.</param>
     /// <param name="maxCronEntries">The maximum number of cron entries the account may keep. Zero sells none.</param>
     /// <param name="maxPhpWorkersPerPool">The maximum number of php-fpm workers one pool may run. Must be positive.</param>
+    /// <param name="features">The features the plan sells; every feature when not stated.</param>
     /// <returns>The new plan.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is empty or white space.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a limit breaks its guard.</exception>
@@ -267,7 +291,8 @@ public sealed class Plan
         int maxSftpUsers,
         int maxFtpUsers,
         int maxCronEntries,
-        int maxPhpWorkersPerPool)
+        int maxPhpWorkersPerPool,
+        AccountFeature features = AccountFeature.All)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -283,7 +308,8 @@ public sealed class Plan
             maxSftpUsers,
             maxCronEntries,
             maxPhpWorkersPerPool,
-            maxFtpUsers);
+            maxFtpUsers,
+            features);
     }
 
     /// <summary>
@@ -344,6 +370,27 @@ public sealed class Plan
         RuntimeLimits = runtimeLimits;
     }
 
+    /// <summary>
+    /// Replaces the set of features the plan sells. Takes effect for every account on the plan on its
+    /// next request, because nothing copies the set onto an account.
+    /// </summary>
+    /// <param name="features">The new set; <see cref="AccountFeature.None"/> sells none.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="features"/> holds a bit that is no feature.</exception>
+    public void ChangeFeatures(AccountFeature features)
+    {
+        GuardFeatures(features);
+
+        Features = features;
+    }
+
+    /// <summary>Whether the plan sells every feature in <paramref name="feature"/>.</summary>
+    /// <param name="feature">A feature, or a set that must all be included.</param>
+    /// <returns><c>true</c> when each of them is in the plan's set.</returns>
+    public bool Includes(AccountFeature feature)
+    {
+        return (Features & feature) == feature;
+    }
+
     /// <summary>What this plan says about one kind of resource an account owns.</summary>
     /// <param name="kind">The kind of resource.</param>
     /// <returns>
@@ -387,5 +434,15 @@ public sealed class Plan
         ArgumentOutOfRangeException.ThrowIfNegative(maxCronEntries);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPhpWorkersPerPool);
         ArgumentOutOfRangeException.ThrowIfNegative(maxFtpUsers);
+    }
+
+    /// <summary>The one statement of what a plan's feature set may hold, shared by creation and editing.</summary>
+    /// <param name="features">Must hold no bit outside the defined features.</param>
+    private static void GuardFeatures(AccountFeature features)
+    {
+        if (!features.IsKnownSet())
+        {
+            throw new ArgumentOutOfRangeException(nameof(features), features, "The set holds a bit that is no feature.");
+        }
     }
 }

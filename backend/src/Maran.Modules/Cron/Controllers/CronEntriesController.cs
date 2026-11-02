@@ -8,6 +8,7 @@ using Maran.Modules.Cron.Queries.ListCronEntries;
 using Maran.Modules.Cron.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -40,6 +41,7 @@ namespace Maran.Modules.Cron.Controllers;
 [Tags("Cron")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RequiresAccountFeature(AccountFeature.Cron)]
 public sealed class CronEntriesController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>
@@ -99,7 +101,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <param name="command">The owning account, the new schedule and the new command.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut("{entryId}")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -110,7 +112,7 @@ public sealed class CronEntriesController : BaseApiController
     {
         command = command with { EntryId = entryId, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>
@@ -121,7 +123,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <param name="command">The owning account and the state to put the entry in.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{entryId}/enabled")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -132,7 +134,7 @@ public sealed class CronEntriesController : BaseApiController
     {
         command = command with { EntryId = entryId, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>
@@ -164,7 +166,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <param name="accountId">The account whose crontab holds it.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{entryId}")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -174,6 +176,6 @@ public sealed class CronEntriesController : BaseApiController
         CancellationToken cancellationToken)
     {
         var command = new DeleteCronEntryCommand(accountId, entryId, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

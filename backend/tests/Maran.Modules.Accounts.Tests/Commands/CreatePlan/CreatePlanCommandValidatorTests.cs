@@ -1,9 +1,9 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Accounts.Commands.CreatePlan;
-using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
-using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreatePlan;
 
@@ -21,7 +21,7 @@ public sealed class CreatePlanCommandValidatorTests
     /// <summary>Builds a command that satisfies every rule, so a single field can be broken per test.</summary>
     private static CreatePlanCommand ValidCommand()
     {
-        return new("Agency", 10_240, 10, 5, 5, 0, 0, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, IpAddress: "203.0.113.7", UserAgent: "unit-tests");
+        return new("Agency", 10_240, 10, 5, 5, 0, 0, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), IpAddress: "203.0.113.7", UserAgent: "unit-tests");
     }
 
     /// <summary>A fully valid command passes every rule.</summary>
@@ -171,16 +171,6 @@ public sealed class CreatePlanCommandValidatorTests
             ValidCommand() with { CpuQuotaPercent = ResourceCeilingTestValues.Limited(cpu) });
 
         result.ShouldHaveValidationErrorFor("CpuQuotaPercent.Maximum");
-    }
-
-    /// <summary>An unlimited ceiling carrying a figure is refused: one field, one meaning.</summary>
-    [Fact]
-    public async Task An_unlimited_ceiling_carrying_a_figure_is_refused()
-    {
-        var result = await _validator.TestValidateAsync(
-            ValidCommand() with { MemoryMaxMb = new ResourceCeilingDto(ResourceLimitKind.Unlimited, 512) });
-
-        result.ShouldHaveValidationErrorFor("MemoryMaxMb.Maximum");
     }
 
     /// <summary>An absent ceiling is refused rather than read as unlimited.</summary>

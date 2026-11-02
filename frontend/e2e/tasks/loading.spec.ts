@@ -15,7 +15,7 @@ import type { PanelTask } from '../../src/types/panelTask'
 // The tasks table while the listing is on the way (#243): drawn from its own column schema.
 
 const LICENSED: PanelModule[] = [
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', isEnabled: true },
+  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
 ]
 
 const INSTALL: PanelTask = {

@@ -85,7 +85,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> ChangePhpVersionAsync(
+    public Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -105,12 +105,12 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         }
 
         return Task.FromResult(ChangePhpFailingDomains.Contains(domain)
-            ? Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure))
+            ? Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure))
             : Answer());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> EnableAsync(
+    public Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -123,7 +123,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DisableAsync(
+    public Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -136,7 +136,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -144,7 +144,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     {
         Calls.Add($"delete:{accountUsername}:{domain}:{retiredPhpVersion}");
         Tokens.Add(cancellationToken);
-        return Task.FromResult(DeleteFailure is null ? Answer() : Result<bool>.Fail(DeleteFailure));
+        return Task.FromResult(DeleteFailure is null ? Answer() : Result.Fail(DeleteFailure));
     }
 
     /// <summary>The events a tail yields, in order. Empty means a stream that ends saying nothing.</summary>
@@ -177,15 +177,15 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     public int ReloadCallCount { get; private set; }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         ReloadCallCount++;
         return Task.FromResult(Answer());
     }
 
     /// <summary>The configured answer for a call returning nothing but success.</summary>
-    private Result<bool> Answer()
+    private Result Answer()
     {
-        return _failure is null ? Result<bool>.Ok(true) : Result<bool>.Fail(_failure);
+        return _failure is null ? Result.Ok() : Result.Fail(_failure);
     }
 }

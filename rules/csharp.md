@@ -165,6 +165,8 @@ backend/
 │   │   ├── Modules/                     # what only the composition root knows about the module set.
 │   │   │                                 #   ModuleRegistry.cs (explicit list — no assembly scanning),
 │   │   │                                 #   ModulesEndpoint.cs + ModuleDto.cs (GET /api/v1/modules),
+│   │   │                                 #   ModuleStateResolver.cs (the one place a module's
+│   │   │                                 #   Enabled/Locked state is decided; its enum is Enums/),
 │   │   │                                 #   AgentCapabilityGuard.cs (refuses at composition time to
 │   │   │                                 #   load a module reaching past the agent capabilities its
 │   │   │                                 #   Manifest declares — one door to the only root process,
@@ -209,6 +211,12 @@ backend/
 │   │   ├── DependencyInjection.cs       # AddSharedKernel — the project's registrations
 │   │   ├── Interfaces/                  # ALL contracts: IClock, ICurrentUser, ICorrelationIdAccessor,
 │   │   │                                 #   IEncryptionService, IErrorTextProvider
+│   │   ├── Callers/                     # who a request or message runs as, ONE closed type: Caller and its
+│   │   │                                 #   cases AnonymousCaller, AdministratorCaller, CustomerCaller,
+│   │   │                                 #   AccountlessCustomerCaller (a customer login acting for no
+│   │   │                                 #   account), the shared PrincipalCaller base and ViewingOperator
+│   │   │                                 #   (the operator viewing as a login). ICurrentUser.Caller hands it
+│   │   │                                 #   out; a member exists only on the case that has it
 │   │   ├── Results/                     # Error.cs, Result.cs, ResultOfT.cs, PagedResult.cs
 │   │   ├── Domain/                      # Entity, AggregateRoot, ValueObject, IDomainEvent
 │   │   ├── Pagination/                  # the list contract's values: PageDefaults (first page, allowed
@@ -456,7 +464,7 @@ public sealed class AuditLogsController : BaseApiController
   address, the caller's user agent, the caller's identity from their own access token, and any id
   that comes from the route — carries `[property: JsonIgnore][property: BindNever][BindNever]` on its
   record parameter, takes `= ""` if it is a trailing reference type, and is written by the action from
-  `ClientIpAddress`, `CallerUserAgent`, `CurrentUser.UserId` or the action's own route parameter:
+  `ClientIpAddress`, `CallerUserAgent`, `CurrentUser.Caller` or the action's own route parameter:
 
   ```csharp
   public sealed record LoginCommand(

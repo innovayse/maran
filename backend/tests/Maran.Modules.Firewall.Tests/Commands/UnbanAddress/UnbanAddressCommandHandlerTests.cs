@@ -88,7 +88,7 @@ public sealed class UnbanAddressCommandHandlerTests
         // leave an address the administrator has just released permanently unreleasable — and the
         // next reconciliation pass would re-apply it.
         var world = new World(InForce("203.0.113.7"));
-        world.Agent.UnbanResult = Result<bool>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
+        world.Agent.UnbanResult = Result.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
 
         var result = await world.UnbanAsync("203.0.113.7");
 
@@ -103,7 +103,7 @@ public sealed class UnbanAddressCommandHandlerTests
         // Marking the row lifted while the kernel still drops the packets would tell an operator
         // the address is back while it is not.
         var world = new World(InForce("203.0.113.7"));
-        world.Agent.UnbanResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.UnbanResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.UnbanAsync("203.0.113.7");
 
@@ -188,7 +188,7 @@ public sealed class UnbanAddressCommandHandlerTests
 
         /// <summary>Runs the handler once, on its own context, the way a request does.</summary>
         /// <param name="address">The address the caller asked to release.</param>
-        public async Task<Result<bool>> UnbanAsync(string address)
+        public async Task<Result> UnbanAsync(string address)
         {
             using var context = FirewallTestContext.Create(_store);
             var handler = new UnbanAddressCommandHandler(

@@ -60,7 +60,7 @@ public sealed class ResilientAgentSslClient : IAgentSslClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> RemoveCertificateAsync(
+    public async Task<Result> RemoveCertificateAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -95,7 +95,7 @@ public sealed class ResilientAgentSslClient : IAgentSslClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> WritePanelChallengeAsync(
+    public async Task<Result> WritePanelChallengeAsync(
         string token,
         string keyAuthorization,
         CancellationToken cancellationToken)
@@ -112,7 +112,7 @@ public sealed class ResilientAgentSslClient : IAgentSslClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+    public async Task<Result> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
     {
         return await AgentOperationPipeline.ExecuteAsync(
             _pipeline,

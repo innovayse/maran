@@ -1,3 +1,5 @@
+using Maran.Host.HealthChecks.Enums;
+
 namespace Maran.Host.HealthChecks;
 
 /// <summary>
@@ -25,7 +27,7 @@ public static class HealthEndpoint
         // Liveness must never depend on a dependency: anything that restarts the panel on its answer
         // would otherwise turn a database outage into a restart loop of a perfectly healthy process.
         // Anonymous, all three: a monitor or proxy that probes the panel holds no panel credential.
-        // The reports carry three words and no version, path or host detail. The one thing they tell
+        // The reports carry two words and no version, path or host detail. The one thing they tell
         // an anonymous caller beyond "the panel answers" is the state of the agent and the database —
         // including `incompatible`, which says an upgrade was left half-done without saying which
         // revisions. That is accepted: readiness answering 503 already says something is wrong, and
@@ -36,7 +38,7 @@ public static class HealthEndpoint
         {
             var databaseStatus = await database.ProbeAsync();
             var agentStatus = await agent.ProbeAsync();
-            var report = new PanelHealthReport("ok", agentStatus, databaseStatus);
+            var report = new PanelHealthReport(agentStatus, databaseStatus);
 
             // Two things refuse traffic. Without the database the panel cannot serve anyone. An agent
             // that ANSWERED in a contract outside the window the panel drives means every agent action
@@ -45,8 +47,8 @@ public static class HealthEndpoint
             // its own pages meanwhile, and each agent action reports the outage itself. Both answers
             // are asked afresh on every request and never cached, so finishing an upgrade turns this
             // back to 200 without restarting the API.
-            var ready = databaseStatus == DatabaseHealthProbe.Reachable
-                && agentStatus != AgentHealthProbe.Incompatible;
+            var ready = databaseStatus == DatabaseHealth.Reachable
+                && agentStatus != AgentHealth.Incompatible;
 
             return ready
                 ? Results.Ok(report)
@@ -55,7 +57,7 @@ public static class HealthEndpoint
 
         endpoints.MapGet("/health", async (AgentHealthProbe agent, DatabaseHealthProbe database) =>
         {
-            return Results.Ok(new PanelHealthReport("ok", await agent.ProbeAsync(), await database.ProbeAsync()));
+            return Results.Ok(new PanelHealthReport(await agent.ProbeAsync(), await database.ProbeAsync()));
         }).AllowAnonymous();
 
         return endpoints;

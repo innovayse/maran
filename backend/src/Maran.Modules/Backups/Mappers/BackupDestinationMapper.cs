@@ -16,8 +16,8 @@ namespace Maran.Modules.Backups.Mappers;
 /// refuse, and none that could silently substitute one kind for another.
 /// </para>
 /// <para>
-/// <b><see cref="AgentBackupDestination.Path"/> is EMPTY for a local destination, and that is the
-/// agent's rule rather than an omission.</b> The agent's <c>validated_destination</c> refuses a local
+/// <b>A local destination carries NO path, and that is the agent's rule rather than an omission:
+/// <see cref="AgentLocalBackupDestination"/> has no member to put one in.</b> The agent's <c>validated_destination</c> refuses a local
 /// destination carrying a path — "a local destination carries no path: the agent's backup root is
 /// its own" — because <c>ListBackups</c> carries no destination at all, so a per-call subdirectory
 /// would produce artifacts no listing and therefore no retention could ever see. This mapper sent
@@ -27,8 +27,9 @@ namespace Maran.Modules.Backups.Mappers;
 /// does.
 /// </para>
 /// <para>
-/// The S3 members are empty because no stored destination can carry them: this build has no path
-/// that writes a remote destination, so there is no credential to restate. They are still wrapped in
+/// An object-store row is restated with empty S3 members because no stored destination can carry
+/// them: this build has no path that writes a remote destination, so there is no credential to
+/// restate. They are still wrapped in
 /// <see cref="SensitiveString"/>, which is what makes a formatted destination print the mask — a
 /// habit that has to exist before there is a secret, not after.
 /// </para>
@@ -42,18 +43,18 @@ public static class BackupDestinationMapper
     {
         ArgumentNullException.ThrowIfNull(destination);
 
-        var kind = destination.Kind == BackupDestinationKind.S3
-            ? AgentBackupDestinationKind.S3
-            : AgentBackupDestinationKind.Local;
+        if (destination.Kind == BackupDestinationKind.S3)
+        {
+            return new AgentS3BackupDestination(
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                new SensitiveString(string.Empty),
+                new SensitiveString(string.Empty),
+                PathStyle: false);
+        }
 
-        return new AgentBackupDestination(
-            kind,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            new SensitiveString(string.Empty),
-            new SensitiveString(string.Empty),
-            S3PathStyle: false);
+        return new AgentLocalBackupDestination();
     }
 }

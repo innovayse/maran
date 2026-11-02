@@ -10,7 +10,7 @@ import type { Backup } from '../../src/types/backup'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {
@@ -27,7 +27,7 @@ const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
   ownerName: ALICE.name,
-  orphanedAccountUsername: '',
+  orphanedAccountUsername: null,
   status: 'completed',
   kind: 'manual',
   sizeBytes: 1_572_864,
@@ -35,8 +35,8 @@ const COMPLETED: Backup = {
   databaseCount: 2,
   startedAt: '2026-09-06T03:00:00Z',
   finishedAt: '2026-09-06T03:04:00Z',
-  failureCode: '',
-  failureDisplayName: '',
+  failureCode: null,
+  failureDisplayName: null,
 }
 
 /**
@@ -67,13 +67,7 @@ test('a restore sends nothing until the account name is typed exactly', async ({
   const submitted = await stubBackupRestore(page, 200, {
     backupId: COMPLETED.id,
     accountId: ALICE.id,
-    orphanedAccountUsername: '',
-    whole: true,
-    filesRestored: true,
     databasesRestored: 2,
-    databasesTotal: 2,
-    failureCode: '',
-    failureDisplayName: '',
   })
 
   // Positive control: the dialog IS open and its submit control IS on the page, so the silence
@@ -177,20 +171,14 @@ test('a whole restore reports the counts the panel gave back', async ({ page }) 
   await stubBackupRestore(page, 200, {
     backupId: COMPLETED.id,
     accountId: ALICE.id,
-    orphanedAccountUsername: '',
-    whole: true,
-    filesRestored: true,
     databasesRestored: 2,
-    databasesTotal: 2,
-    failureCode: '',
-    failureDisplayName: '',
   })
 
   await page.getByRole('textbox', { name: 'Account name' }).fill('alice')
   await page.getByRole('button', { name: 'Restore this account' }).click()
 
   await expect(page.getByText('alice was replaced')).toBeVisible()
-  await expect(page.getByText('2 of 2 replaced')).toBeVisible()
+  await expect(page.getByText('2 replaced', { exact: true })).toBeVisible()
 })
 
 // The witness for a mutation that survived: a mutant which PREFILLED the confirmation field left
@@ -240,13 +228,7 @@ test('the confirm control of a dialog taller than the window can actually be pre
   const submitted = await stubBackupRestore(page, 200, {
     backupId: COMPLETED.id,
     accountId: ALICE.id,
-    orphanedAccountUsername: '',
-    whole: true,
-    filesRestored: true,
     databasesRestored: 2,
-    databasesTotal: 2,
-    failureCode: '',
-    failureDisplayName: '',
   })
 
   // Positive control, on the axis that the defect leaves untouched: the submit EXISTS. That is the

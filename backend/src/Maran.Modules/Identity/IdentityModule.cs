@@ -84,6 +84,13 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<InvitationMailComposer>();
         services.AddScoped<InvitationLinkBuilder>();
         services.AddScoped<InvitationIssuer>();
+
+        // Sub-users: the owner check every operation asks first, and the Sdk window the plan-feature
+        // filter asks to learn whether a person was given a feature. Scoped, because both read the
+        // request's own DbContext.
+        services.AddScoped<SubUserOwnerGuard>();
+        services.AddScoped<IAccountMemberGrants, AccountMemberGrants>();
+
         services.AddScoped<PasswordResetLinkBuilder>();
         services.AddScoped<AdminRecoveryIssuer>();
         services.AddScoped<AuditActionDisplayNames>();
@@ -98,11 +105,20 @@ public sealed class IdentityModule : IPanelModule
         // module that issues the claim it reads.
         services.AddSingleton<IAuthorizationHandler, TwoFactorEnrolmentCompleteHandler>();
 
+        // View as (issue #317): the endpoint boundary a view-as token may not cross, attached to the
+        // policies by the Host like the steering above; and the per-request check of the view-as
+        // session, scoped because it reads the request's own DbContext (the bearer handler resolves it).
+        services.AddSingleton<IAuthorizationHandler, ViewAsBoundaryHandler>();
+        services.AddScoped<ViewAsSessionVerifier>();
+
         // Scoped, because it counts through the request's own DbContext and saves alongside the
         // audit entry for the same refused attempt.
         services.AddScoped<BruteForceDetector>();
         services.AddScoped<IAccessTokenIssuer, JwtAccessTokenIssuer>();
         services.AddScoped<ISessionService, SessionService>();
+        // Scoped, because it reads the request's own DbContext. Shared by sign-in and refresh so both
+        // choose the account a session speaks for the same way.
+        services.AddScoped<ActiveAccountResolver>();
         services.AddScoped<AuthenticationCompleter>();
         services.AddScoped<ITotpService, TotpService>();
         services.AddScoped<IRecoveryCodeService, RecoveryCodeService>();

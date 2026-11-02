@@ -66,7 +66,7 @@ public static class AlertDetailMapper
     /// doctrine, in the <c>key=value;key=value</c> shape that same handler established so the
     /// journal reads the same regardless of the panel's active locale.
     /// </returns>
-    public static string FormatDifferingPathsAuditSubject(CodeIntegrityReport report, string subject)
+    public static string FormatDifferingPathsAuditSubject(DriftedCodeIntegrityVerdict report, string subject)
     {
         var capped = report.DifferingPaths.Take(DifferingPathsAuditCap);
         return $"{subject};version={report.InstalledVersion};count={report.DifferingPaths.Count};paths={string.Join(",", capped)}";
@@ -94,37 +94,50 @@ public static class AlertDetailMapper
     }
 
     /// <summary>Renders what the agent found missing, for the body of a jail-drift alert mail.</summary>
-    /// <param name="missing">
-    /// What the agent's block check did not find — the installer's own words, empty when the block
-    /// is intact.
-    /// </param>
-    /// <returns>A comma-separated list, or a fixed sentence when nothing is missing.</returns>
+    /// <param name="status">What the agent's block check found.</param>
+    /// <returns>
+    /// A comma-separated list of what is missing, or an empty string when the block is intact or the
+    /// agent named nothing.
+    /// </returns>
     /// <remarks>
     /// The resolved mail does not need this detail — it says the block is back — but the same
-    /// pending row is built for both directions, so this must answer sensibly for an empty list
+    /// pending row is built for both directions, so this must answer sensibly for an intact block
     /// too rather than being read only on the raising path.
     /// </remarks>
-    public static string FormatMissing(IReadOnlyList<string> missing)
+    public static string FormatMissing(AgentSftpJailStatus status)
     {
-        return missing.Count == 0 ? string.Empty : string.Join(", ", missing);
+        if (status is AgentSftpJailStatus.Drifted drifted)
+        {
+            return string.Join(", ", drifted.Missing);
+        }
+
+        return string.Empty;
     }
 
     /// <summary>Renders why the filesystem cannot enforce a quota, for the body of the alert mail.</summary>
-    /// <param name="reason">The agent's own classification.</param>
-    /// <returns>A short, invariant phrase naming the reason.</returns>
+    /// <param name="status">What the agent found.</param>
+    /// <returns>
+    /// A short, invariant phrase naming the reason, or an empty string when the filesystem can
+    /// enforce a quota and so has no reason.
+    /// </returns>
     /// <remarks>
     /// The resolved mail does not read this — it says enforcement is back — but the same pending row
-    /// is built for both directions, so this must answer sensibly for
-    /// <see cref="QuotaUnenforceableReason.Unspecified"/> too rather than being read only on the
-    /// raising path.
+    /// is built for both directions, so this must answer sensibly for an enforceable filesystem too
+    /// rather than being read only on the raising path.
     /// </remarks>
-    public static string FormatReason(QuotaUnenforceableReason reason)
+    public static string FormatReason(AgentQuotaEnforceability status)
     {
-        return reason switch
+        if (status is not AgentQuotaEnforceability.NotEnforceable notEnforceable)
+        {
+            return string.Empty;
+        }
+
+        return notEnforceable.Reason switch
         {
             QuotaUnenforceableReason.MountedWithoutQuotaAccounting => "not mounted with quota accounting",
             QuotaUnenforceableReason.AccountingNotEnabled => "quota accounting is off",
-            _ => "unknown",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(status), notEnforceable.Reason, "Unmapped quota-unenforceable reason."),
         };
     }
 

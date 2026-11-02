@@ -7,9 +7,11 @@
       "caption": "Версии PHP, установленные на этом сервере",
       "version": "Версия",
       "default": "Версия по умолчанию",
-      "defaultYes": "Да",
-      "defaultNo": "Нет",
-      "defaultUnknown": "Не установлено"
+      "defaultStatus": {
+        "default": "Да",
+        "notDefault": "Нет",
+        "unknown": "Не установлено"
+      }
     },
     "empty": {
       "title": "Не установлено ни одной версии PHP",

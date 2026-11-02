@@ -27,8 +27,8 @@ import type { PanelModule } from '../../src/types/module'
 import type { SftpUser } from '../../src/types/sftpUser'
 
 const LICENSED: PanelModule[] = [
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', isEnabled: true },
-  { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
+  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
+  { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {
@@ -224,7 +224,7 @@ test('the FTPS credential dialog names the panel host and never the customer dom
 test('the placeholder-certificate warning appears only when the status says the certificate is self-signed', async ({
   page,
 }) => {
-  const SELF_SIGNED: FtpsStatus = { ...runningFtpsStatus, certificateIsSelfSigned: true }
+  const SELF_SIGNED: FtpsStatus = { ...runningFtpsStatus, certificate: 'selfSigned' }
   const PLACEHOLDER_SENTENCE = "The server's certificate is a placeholder the panel generated"
 
   await stubSignedIn(page)

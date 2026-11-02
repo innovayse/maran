@@ -143,26 +143,24 @@ export interface CronApi {
    * @param entryId The entry to rewrite.
    * @param request The owning account, the new schedule and the new command.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel rewrote the entry.
    */
   update: (
     entryId: string,
     request: UpdateCronEntryRequest,
     signal?: AbortSignal,
-  ) => Promise<boolean>
+  ) => Promise<void>
 
   /**
    * Switches an entry on or off without touching what it runs.
    * @param entryId The entry to switch.
    * @param request The owning account and the state to put the entry in.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel switched it.
    */
   setEnabled: (
     entryId: string,
     request: SetCronEntryEnabledRequest,
     signal?: AbortSignal,
-  ) => Promise<boolean>
+  ) => Promise<void>
 
   /**
    * Reads what the entry's last run left behind.
@@ -183,9 +181,8 @@ export interface CronApi {
    * @param entryId The entry to remove.
    * @param accountId The account whose crontab holds it.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed it.
    */
-  remove: (entryId: string, accountId: string, signal?: AbortSignal) => Promise<boolean>
+  remove: (entryId: string, accountId: string, signal?: AbortSignal) => Promise<void>
 
   /**
    * Reads one account's managed environment assignments.
@@ -200,9 +197,8 @@ export interface CronApi {
    * Replaces the managed assignments with exactly the set sent.
    * @param request The owning account and the complete new set.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel rewrote them.
    */
-  setEnvironment: (request: SetCronEnvironmentRequest, signal?: AbortSignal) => Promise<boolean>
+  setEnvironment: (request: SetCronEnvironmentRequest, signal?: AbortSignal) => Promise<void>
 }
 
 /**

@@ -335,6 +335,7 @@ public sealed class InvitationLinkEndpointTests : IAsyncLifetime
 
         var invited = User.Invite(Guid.NewGuid(), "owner-olive", "owner-olive@example.com", accountId, now);
         context.Users.Add(invited);
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), invited.Id, accountId, now));
         context.InvitationTokens.Add(new InvitationToken(Guid.NewGuid(), invited.Id, InvitationTokenHasher.Hash(MailedToken), now));
         await context.SaveChangesAsync();
 
@@ -393,9 +394,8 @@ public sealed class InvitationLinkEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var expires = body.RootElement.GetProperty("expiresAt");
-        return (
-            body.RootElement.GetProperty("state").GetString()!,
-            expires.ValueKind == JsonValueKind.Null ? null : expires.GetString());
+        // Only a pending invitation has an expiry; every other state omits the member altogether.
+        var expires = body.RootElement.TryGetProperty("expiresAt", out var value) ? value.GetString() : null;
+        return (body.RootElement.GetProperty("state").GetString()!, expires);
     }
 }

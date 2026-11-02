@@ -7,7 +7,7 @@
  * **Nothing here is what the panel asked for.** Every daemon fact arrives measured on the host by the
  * agent, out of the configuration the daemon was started against. A panel assembled from the
  * settings row would agree with itself by construction: a green screen over a crashed unit, and — the
- * case `forcedTls` exists for — a green screen over a daemon taking passwords in the clear.
+ * case `tlsEnforcement` exists for — a green screen over a daemon taking passwords in the clear.
  *
  * **The firewall composition is the reason this component exists rather than two status lines.**
  * Neither module can answer the question alone: the `Ftp` module reads no firewall, and the
@@ -53,7 +53,7 @@ import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import type { FirewallRule } from '../../types/firewall'
-import type { FtpsAgreement, FtpsServerFailure, FtpsStatus } from '../../types/ftpsStatus'
+import type { FtpsAgreement, FtpsServerFailure, FtpsStatus, FtpsTlsEnforcement } from '../../types/ftpsStatus'
 
 /** Props accepted by {@link FtpsServerPanel}. */
 const props = defineProps<{
@@ -207,6 +207,19 @@ const serviceText: ComputedRef<string> = computed(() => {
   return props.status.running ? t('ftp.server.states.notAnswering') : t('ftp.server.states.stopped')
 })
 
+/**
+ * The encryption line's text, one sentence per outcome. "Not observed" is worded as the admission it
+ * is, never as "off": the agent made no claim that TLS is optional, it could not read the file.
+ */
+const tlsEnforcementText: ComputedRef<string> = computed(() => {
+  const texts: Record<FtpsTlsEnforcement, string> = {
+    enforced: t('ftp.server.tlsEnforcement.enforced'),
+    notEnforced: t('ftp.server.tlsEnforcement.notEnforced'),
+    notObserved: t('ftp.server.tlsEnforcement.notObserved'),
+  }
+  return texts[props.status.tlsEnforcement]
+})
+
 /** The passive range as one readable value, or the placeholder when the daemon has no live one. */
 const passiveRangeText: ComputedRef<string> = computed(() => {
   return props.status.passivePortMin > 0
@@ -317,8 +330,8 @@ const closePorts = (): void => {
       <UiDescriptionItem :term="t('ftp.server.fields.passiveRange')" mono>
         {{ passiveRangeText }}
       </UiDescriptionItem>
-      <UiDescriptionItem :term="t('ftp.server.fields.forcedTls')">
-        {{ status.forcedTls ? t('ftp.server.states.tlsForced') : t('ftp.server.states.tlsUnknown') }}
+      <UiDescriptionItem :term="t('ftp.server.fields.tlsEnforcement')">
+        {{ tlsEnforcementText }}
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('ftp.server.fields.certificate')" mono>
         {{ status.certificatePath || t('common.emptyValue') }}
@@ -332,7 +345,7 @@ const closePorts = (): void => {
     </p>
 
     <p
-      v-if="status.certificateIsSelfSigned"
+      v-if="status.certificate === 'selfSigned'"
       data-testid="ftps-self-signed"
       class="mt-3 text-sm text-text-muted"
     >

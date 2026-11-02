@@ -16,7 +16,7 @@ export const useModuleAccess = (): ModuleAccess => {
   /** The modules this licence covers, in catalogue order. */
   const enabledModules: ComputedRef<PanelModule[]> = computed(() => {
     return store.modules.filter((module) => {
-      return module.isEnabled
+      return module.state === 'enabled'
     })
   })
 
@@ -28,7 +28,7 @@ export const useModuleAccess = (): ModuleAccess => {
    */
   const lockedModules: ComputedRef<PanelModule[]> = computed(() => {
     return store.modules.filter((module) => {
-      return !module.isEnabled
+      return module.state === 'locked'
     })
   })
 

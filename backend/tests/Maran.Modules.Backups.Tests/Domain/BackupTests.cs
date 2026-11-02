@@ -24,8 +24,8 @@ public sealed class BackupTests
         Assert.Equal(BackupStatus.Running, backup.Status);
         Assert.Null(backup.FinishedAt);
         Assert.Null(backup.DestinationId);
-        Assert.Equal(string.Empty, backup.Sha256);
-        Assert.Equal(string.Empty, backup.FailureCode);
+        Assert.Null(backup.ArtifactSha256);
+        Assert.Null(backup.RunFailureCode);
     }
 
     /// <summary>Completing a running backup records what the agent produced.</summary>
@@ -38,7 +38,8 @@ public sealed class BackupTests
 
         Assert.Equal(BackupStatus.Completed, backup.Status);
         Assert.Equal(2048, backup.SizeBytes);
-        Assert.Equal(Digest, backup.Sha256);
+        Assert.Equal(Digest, backup.ArtifactSha256);
+        Assert.Null(backup.RunFailureCode);
         Assert.Equal(2, backup.DatabaseCount);
         Assert.Equal(Finished, backup.FinishedAt);
     }
@@ -69,9 +70,9 @@ public sealed class BackupTests
         backup.Failed("BackupTruncated", Finished);
 
         Assert.Equal(BackupStatus.Failed, backup.Status);
-        Assert.Equal("BackupTruncated", backup.FailureCode);
+        Assert.Equal("BackupTruncated", backup.RunFailureCode);
         Assert.Equal(0, backup.SizeBytes);
-        Assert.Equal(string.Empty, backup.Sha256);
+        Assert.Null(backup.ArtifactSha256);
     }
 
     /// <summary>A finished backup does not move again.</summary>
@@ -83,7 +84,7 @@ public sealed class BackupTests
         completed.Failed("BackupTruncated", Finished.AddMinutes(1));
 
         Assert.Equal(BackupStatus.Completed, completed.Status);
-        Assert.Equal(string.Empty, completed.FailureCode);
+        Assert.Null(completed.RunFailureCode);
 
         var failed = Running();
         failed.Failed("BackupTruncated", Finished);
@@ -162,13 +163,11 @@ public sealed class BackupTests
     {
         var backup = Running();
 
-        Assert.False(backup.NamesADeletedAccount());
-        Assert.Equal(string.Empty, backup.OrphanedAccountUsername);
+        Assert.Null(backup.DeletedAccountUsername);
 
         backup.Orphan("cust01");
 
-        Assert.True(backup.NamesADeletedAccount());
-        Assert.Equal("cust01", backup.OrphanedAccountUsername);
+        Assert.Equal("cust01", backup.DeletedAccountUsername);
     }
 
     /// <summary>The first stamped name survives, and an empty one is refused.</summary>
@@ -182,12 +181,12 @@ public sealed class BackupTests
     {
         var backup = Running();
         backup.Orphan(string.Empty);
-        Assert.False(backup.NamesADeletedAccount());
+        Assert.Null(backup.DeletedAccountUsername);
 
         backup.Orphan("cust01");
         backup.Orphan("cust02");
 
-        Assert.Equal("cust01", backup.OrphanedAccountUsername);
+        Assert.Equal("cust01", backup.DeletedAccountUsername);
     }
 
     /// <summary>Builds a freshly started backup.</summary>

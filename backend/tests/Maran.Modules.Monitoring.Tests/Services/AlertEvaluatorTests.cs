@@ -189,7 +189,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var drifted = new AgentSftpJailStatus(true, ["forcecommand internal-sftp"]);
+        var drifted = new AgentSftpJailStatus.Drifted(["forcecommand internal-sftp"]);
 
         for (var observation = 0; observation < 20; observation++)
         {
@@ -215,8 +215,8 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var drifted = new AgentSftpJailStatus(true, ["forcecommand internal-sftp"]);
-        var intact = new AgentSftpJailStatus(false, []);
+        var drifted = new AgentSftpJailStatus.Drifted(["forcecommand internal-sftp"]);
+        var intact = new AgentSftpJailStatus.Intact();
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
@@ -270,7 +270,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var unenforceable = new AgentQuotaEnforceability(false, QuotaUnenforceableReason.AccountingNotEnabled);
+        var unenforceable = new AgentQuotaEnforceability.NotEnforceable(QuotaUnenforceableReason.AccountingNotEnabled);
 
         for (var observation = 0; observation < 20; observation++)
         {
@@ -296,8 +296,8 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var unenforceable = new AgentQuotaEnforceability(false, QuotaUnenforceableReason.AccountingNotEnabled);
-        var enforceable = new AgentQuotaEnforceability(true, QuotaUnenforceableReason.Unspecified);
+        var unenforceable = new AgentQuotaEnforceability.NotEnforceable(QuotaUnenforceableReason.AccountingNotEnabled);
+        var enforceable = new AgentQuotaEnforceability.Enforceable();
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
@@ -386,11 +386,9 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var report = new CodeIntegrityReport(
-            CodeIntegrityOutcome.Drifted,
+        var report = new DriftedCodeIntegrityVerdict(
             "1.4.2",
             ["api/Maran.Host", "agent/maran-agent", "frontend/index.html"],
-            null,
             Start);
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
@@ -422,7 +420,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var report = new CodeIntegrityReport(CodeIntegrityOutcome.Clean, "1.4.2", [], null, Start);
+        var report = new CleanCodeIntegrityVerdict("1.4.2", Start);
 
         for (var observation = 0; observation < 20; observation++)
         {
@@ -450,11 +448,9 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var unavailable = new CodeIntegrityReport(
-            CodeIntegrityOutcome.Unavailable, "1.4.2", [], "hash list missing", Start);
-        var drifted = new CodeIntegrityReport(
-            CodeIntegrityOutcome.Drifted, "1.4.2", ["api/Maran.Host"], null, Start);
-        var clean = new CodeIntegrityReport(CodeIntegrityOutcome.Clean, "1.4.2", [], null, Start);
+        var unavailable = new UnavailableCodeIntegrityVerdict("1.4.2", "hash list missing", Start);
+        var drifted = new DriftedCodeIntegrityVerdict("1.4.2", ["api/Maran.Host"], Start);
+        var clean = new CleanCodeIntegrityVerdict("1.4.2", Start);
 
         // Raise the hash-list alert first (unavailable), then raise the installed-files alert
         // (drifted) on top of it, in separate rounds — mirroring two independent episodes that can be
@@ -474,8 +470,8 @@ public sealed class AlertEvaluatorTests
         var installedFiles = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.InstalledFilesSubject);
         var hashList = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.HashListSubject);
 
-        Assert.False(installedFiles.IsFiring);
-        Assert.False(hashList.IsFiring);
+        Assert.NotEqual(AlertPhase.Firing, installedFiles.Phase);
+        Assert.NotEqual(AlertPhase.Firing, hashList.Phase);
     }
 
     /// <summary>An unanswered round (no report at all) neither raises nor resolves an open code-integrity episode.</summary>
@@ -493,8 +489,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var drifted = new CodeIntegrityReport(
-            CodeIntegrityOutcome.Drifted, "1.4.2", ["api/Maran.Host"], null, Start);
+        var drifted = new DriftedCodeIntegrityVerdict("1.4.2", ["api/Maran.Host"], Start);
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
@@ -502,14 +497,14 @@ public sealed class AlertEvaluatorTests
         }
 
         var beforeUnanswered = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.InstalledFilesSubject);
-        Assert.True(beforeUnanswered.IsFiring);
+        Assert.Equal(AlertPhase.Firing, beforeUnanswered.Phase);
         var consecutiveBefore = beforeUnanswered.ConsecutiveBreaches;
         var publishedBefore = scopes.Bus.Published.Count;
 
         await evaluator.EvaluateAsync(null, null, [], null, null, null, null, Start.AddMinutes(30), CancellationToken.None);
 
         var afterUnanswered = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.InstalledFilesSubject);
-        Assert.True(afterUnanswered.IsFiring);
+        Assert.Equal(AlertPhase.Firing, afterUnanswered.Phase);
         Assert.Equal(consecutiveBefore, afterUnanswered.ConsecutiveBreaches);
         Assert.Equal(publishedBefore, scopes.Bus.Published.Count);
     }
@@ -528,7 +523,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var malformed = new CodeIntegrityReport(CodeIntegrityOutcome.Drifted, "1.4.2", [], null, Start);
+        var malformed = new DriftedCodeIntegrityVerdict("1.4.2", [], Start);
 
         await evaluator.EvaluateAsync(null, null, [], null, null, null, malformed, Start, CancellationToken.None);
 
@@ -550,8 +545,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var unavailable = new CodeIntegrityReport(
-            CodeIntegrityOutcome.Unavailable, "1.4.2", [], "signature verification failed", Start);
+        var unavailable = new UnavailableCodeIntegrityVerdict("1.4.2", "signature verification failed", Start);
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
@@ -564,7 +558,7 @@ public sealed class AlertEvaluatorTests
         });
 
         var hashList = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.HashListSubject);
-        Assert.True(hashList.IsFiring);
+        Assert.Equal(AlertPhase.Firing, hashList.Phase);
 
         var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
         Assert.Contains("signature verification failed", mail.Body);

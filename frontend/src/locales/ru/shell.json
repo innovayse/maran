@@ -4,6 +4,8 @@
     "nav": {
       "ariaLabel": "Основная навигация",
       "auditJournal": "Журнал аудита",
+      "securityPolicy": "Политика входа",
+      "phpVersions": "Версии PHP",
       "plans": "Тарифы",
       "lockedBadge": "Заблокировано",
       "groups": {
@@ -76,7 +78,10 @@
         "account": "Мой аккаунт"
       },
       "badges": {
-        "failedTasks": "с ошибкой"
+        "failedTasks": "с ошибкой",
+        "needsAttention": "требуют внимания",
+        "mailQueue": "в очереди почты",
+        "availableUpdates": "доступно обновлений"
       }
     },
     "shell": {

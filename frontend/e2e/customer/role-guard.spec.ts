@@ -24,11 +24,11 @@ const CUSTOMER: AuthenticatedUser = {
 // The catalogue an administrator would see, so the guard cannot pass merely because the module
 // guard already redirected: every admin-only route below belongs to a listed, enabled module.
 const MODULES: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
 ]
 
 const ADMIN_ONLY_PATHS = [
@@ -88,7 +88,7 @@ test('a module missing from a customer catalogue is not available, not an upgrad
   // The panel filters the catalogue by role, so "absent" means "not part of your area".
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true }])
+  await stubModules(page, [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }])
 
   await page.goto('/cron')
 
@@ -98,7 +98,7 @@ test('a module missing from a customer catalogue is not available, not an upgrad
 test('a module the licence locks still sends a customer to the upgrade page', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'cron', displayName: 'Cron', tier: 'business', isEnabled: false }])
+  await stubModules(page, [{ name: 'cron', displayName: 'Cron', tier: 'business', state: 'locked' }])
 
   await page.goto('/cron')
 

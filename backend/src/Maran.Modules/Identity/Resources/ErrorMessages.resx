@@ -33,6 +33,9 @@
   <data name="SessionNotFound">
     <value>This session could not be found.</value>
   </data>
+  <data name="AccountMembershipNotFound">
+    <value>This account could not be found.</value>
+  </data>
   <data name="CurrentPasswordIncorrect">
     <value>The current password is not correct.</value>
   </data>
@@ -107,5 +110,41 @@
   </data>
   <data name="AuditDateRangeInverted">
     <value>The start of the date range must not be later than its end.</value>
+  </data>
+  <data name="PinnedPageKeyInvalid">
+    <value>That is not a page that can be pinned.</value>
+  </data>
+  <data name="PinnedPageAlreadyPinned">
+    <value>That page is already pinned.</value>
+  </data>
+  <data name="PinnedPageLimitReached">
+    <value>You have pinned as many pages as you can. Unpin one first.</value>
+  </data>
+  <data name="PinnedPageNotFound">
+    <value>That page is not pinned.</value>
+  </data>
+  <data name="SubUsersOwnerOnly">
+    <value>Only the owner of the account can manage its sub-users.</value>
+  </data>
+  <data name="SubUserNotFound">
+    <value>That sub-user does not exist.</value>
+  </data>
+  <data name="SubUserLoginTaken">
+    <value>That login name is already taken. Choose another.</value>
+  </data>
+  <data name="SubUserEmailTaken">
+    <value>A login with that e-mail address already exists. Use another address.</value>
+  </data>
+  <data name="SubUserFeatureInvalid">
+    <value>Choose the features from the list the panel offers.</value>
+  </data>
+  <data name="ViewAsAccountNotFound">
+    <value>That account was not found, or it has no login to view as.</value>
+  </data>
+  <data name="ViewAsLoginUnavailable">
+    <value>The account's login is suspended or locked, so the panel cannot be viewed as it.</value>
+  </data>
+  <data name="ViewAsNotViewing">
+    <value>You are not viewing the panel as an account.</value>
   </data>
 </root>

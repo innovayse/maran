@@ -9,6 +9,7 @@ using Maran.Modules.Ssl.Resources;
 using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 using Npgsql;
 
 namespace Maran.Modules.Ssl.Commands.IssueCertificate;
@@ -126,7 +127,7 @@ public sealed class IssueCertificateCommandHandler
         var taskId = await _tasks.BeginAsync(
             TaskKinds.CertificateIssue,
             command.Domain,
-            _currentUser.AccountId,
+            _currentUser.Caller is CustomerCaller customer ? customer.AccountId : null,
             TaskAudience.AccountOwner,
             _correlationIds.CorrelationId,
             cancellationToken);

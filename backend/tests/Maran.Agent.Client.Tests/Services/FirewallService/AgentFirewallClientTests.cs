@@ -230,6 +230,27 @@ public sealed class AgentFirewallClientTests
         Assert.False(Assert.IsType<AllowPortRequest>(stub.LastAllowRequest).HasPortTo);
     }
 
+    /// <summary>A protocol this panel cannot name is a defect that throws and is never sent as unspecified.</summary>
+    [Fact]
+    public async Task A_protocol_this_panel_cannot_name_throws_and_is_never_sent_as_unspecified()
+    {
+        var stub = StubFirewallService.AcceptingAllow();
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        {
+            await Client(stub).AllowPortAsync(
+                443,
+                null,
+                (AgentFirewallProtocol)99,
+                AnySource,
+                SshPorts,
+                PanelPort,
+                CancellationToken.None);
+        });
+
+        Assert.Null(stub.LastAllowRequest);
+    }
+
     /// <summary>A range that does not end above where it starts is refused here and never sent.</summary>
     [Theory]
     [InlineData(30_000)]
@@ -514,7 +535,6 @@ public sealed class AgentFirewallClientTests
         var result = await AllowAsync(StubFirewallService.AcceptingAllow());
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>The allow error payload maps to a failed result with the agent code.</summary>
@@ -638,7 +658,6 @@ public sealed class AgentFirewallClientTests
         var result = await DenyAsync(StubFirewallService.AcceptingDeny());
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>The deny error payload maps to a failed result with the agent code.</summary>
@@ -669,42 +688,48 @@ public sealed class AgentFirewallClientTests
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
-    /// <summary>A ban with a duration sends whole seconds and no reason.</summary>
+    /// <summary>A timed ban sends whole seconds as the term, no reason, and no deprecated duration.</summary>
     /// <remarks>
     /// The reason is deliberately absent from the wire: the agent stores none, because the only place
     /// one could go there is an nftables comment, whose argument nft parses in its own grammar.
     /// </remarks>
     [Fact]
-    public async Task A_ban_with_a_duration_sends_whole_seconds_and_no_reason()
+    public async Task A_timed_ban_sends_whole_seconds_as_the_term_and_no_reason()
     {
         var stub = StubFirewallService.AcceptingBan();
 
-        await Client(stub).BanAsync("203.0.113.7", TimeSpan.FromHours(1), CancellationToken.None);
+        await Client(stub).BanAsync(
+            "203.0.113.7",
+            new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(1)),
+            CancellationToken.None);
 
         var request = Assert.IsType<BanAddressRequest>(stub.LastBanRequest);
         Assert.Equal("203.0.113.7", request.Address);
-        Assert.Equal(3600u, request.DurationSeconds);
+        Assert.Equal(BanAddressRequest.TermOneofCase.ExpiresAfterSeconds, request.TermCase);
+        Assert.Equal(3600u, request.ExpiresAfterSeconds);
+        Assert.Equal(0u, request.DurationSeconds);
         Assert.Equal(string.Empty, request.Reason);
     }
 
-    /// <summary>A ban with no duration is sent as the zero the contract spells permanent.</summary>
+    /// <summary>A permanent ban is sent as the contract's explicit permanent term, never as a zero duration.</summary>
     [Fact]
-    public async Task A_ban_with_no_duration_is_sent_as_the_zero_the_contract_spells_permanent()
+    public async Task A_permanent_ban_is_sent_as_the_explicit_permanent_term()
     {
         var stub = StubFirewallService.AcceptingBan();
 
-        var result = await Client(stub).BanAsync("203.0.113.7", null, CancellationToken.None);
+        var result = await Client(stub).BanAsync("203.0.113.7", new AgentBanTerm.Permanent(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(0u, stub.LastBanRequest!.DurationSeconds);
+        Assert.Equal(BanAddressRequest.TermOneofCase.Permanent, stub.LastBanRequest!.TermCase);
+        Assert.Equal(0u, stub.LastBanRequest.DurationSeconds);
     }
 
-    /// <summary>A duration the wire cannot carry is refused rather than rounded into a permanent ban.</summary>
+    /// <summary>A duration the wire cannot carry is refused rather than rounded into a different ban.</summary>
     /// <param name="milliseconds">The duration the caller asked for.</param>
     /// <remarks>
-    /// Zero seconds means permanent on this contract, so truncating half a second — or clamping a
-    /// negative — would turn a brief ban into one that never ends and that nobody remembers placing.
-    /// Null is the only way to ask for permanent.
+    /// The contract refuses a timed ban of zero seconds, so truncating half a second — or clamping a
+    /// negative — would send a request that fails with no cause the caller can see. The permanent
+    /// term is the only way to ask for a ban that never ends.
     /// </remarks>
     [Theory]
     [InlineData(500)]
@@ -715,7 +740,10 @@ public sealed class AgentFirewallClientTests
         var stub = StubFirewallService.AcceptingBan();
 
         var result = await Client(stub)
-            .BanAsync("203.0.113.7", TimeSpan.FromMilliseconds(milliseconds), CancellationToken.None);
+            .BanAsync(
+                "203.0.113.7",
+                new AgentBanTerm.ExpiresAfter(TimeSpan.FromMilliseconds(milliseconds)),
+                CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentInvalidInput", result.Error!.Code);
@@ -730,7 +758,7 @@ public sealed class AgentFirewallClientTests
     /// clock reading is almost never whole, so refusing every fraction would make the ordinary way
     /// of asking for a ban fail. Truncation and not rounding, so an installed ban is never longer
     /// than the one asked for — and the second row is the one that matters, because it proves the
-    /// under-one-second floor is what keeps truncation away from the 0 that means permanent.
+    /// under-one-second floor is what keeps truncation away from the 0 the contract refuses.
     /// </remarks>
     [Theory]
     [InlineData(90_700, 90u)]
@@ -740,11 +768,14 @@ public sealed class AgentFirewallClientTests
         var stub = StubFirewallService.AcceptingBan();
 
         var result = await Client(stub)
-            .BanAsync("203.0.113.7", TimeSpan.FromMilliseconds(milliseconds), CancellationToken.None);
+            .BanAsync(
+                "203.0.113.7",
+                new AgentBanTerm.ExpiresAfter(TimeSpan.FromMilliseconds(milliseconds)),
+                CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(expectedSeconds, stub.LastBanRequest!.DurationSeconds);
-        Assert.NotEqual(0u, stub.LastBanRequest.DurationSeconds);
+        Assert.Equal(expectedSeconds, stub.LastBanRequest!.ExpiresAfterSeconds);
+        Assert.NotEqual(0u, stub.LastBanRequest.ExpiresAfterSeconds);
     }
 
     /// <summary>The ban error payload maps to a failed result with the agent code.</summary>
@@ -759,7 +790,7 @@ public sealed class AgentFirewallClientTests
             },
         };
 
-        var result = await Client(stub).BanAsync("nonsense", null, CancellationToken.None);
+        var result = await Client(stub).BanAsync("nonsense", new AgentBanTerm.Permanent(), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentInvalidInput", result.Error!.Code);
@@ -769,7 +800,8 @@ public sealed class AgentFirewallClientTests
     [Fact]
     public async Task A_ban_response_with_neither_branch_set_is_refused_rather_than_read_as_success()
     {
-        var result = await Client(new StubFirewallService()).BanAsync("203.0.113.7", null, CancellationToken.None);
+        var result = await Client(new StubFirewallService())
+            .BanAsync("203.0.113.7", new AgentBanTerm.Permanent(), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
@@ -889,7 +921,7 @@ public sealed class AgentFirewallClientTests
     /// <summary>Calls the production allow path with fixed, valid arguments.</summary>
     /// <param name="stub">The transport stub to drive.</param>
     /// <returns>What the client returned.</returns>
-    private static async Task<SharedKernel.Results.Result<bool>> AllowAsync(StubFirewallService stub)
+    private static async Task<SharedKernel.Results.Result> AllowAsync(StubFirewallService stub)
     {
         return await Client(stub).AllowPortAsync(
             443,
@@ -904,7 +936,7 @@ public sealed class AgentFirewallClientTests
     /// <summary>Calls the production deny path with fixed, valid arguments.</summary>
     /// <param name="stub">The transport stub to drive.</param>
     /// <returns>What the client returned.</returns>
-    private static async Task<SharedKernel.Results.Result<bool>> DenyAsync(StubFirewallService stub)
+    private static async Task<SharedKernel.Results.Result> DenyAsync(StubFirewallService stub)
     {
         return await Client(stub).DenyPortAsync(
             3306,

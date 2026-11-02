@@ -1,7 +1,7 @@
 namespace Maran.Agent.Client.Services.FtpsService;
 
 /// <summary>
-/// What the agent observed about this panel's own FTPS daemon: the nine facts every one of the
+/// What the agent observed about this panel's own FTPS daemon: the facts every one of the
 /// daemon rpcs answers with, field for field as <c>ftp.proto</c> declares them.
 /// </summary>
 /// <remarks>
@@ -9,7 +9,7 @@ namespace Maran.Agent.Client.Services.FtpsService;
 /// One shape for four rpcs, because the contract gives four separate ok messages carrying the same
 /// nine fields — <c>EnableFtpsOk</c>, <c>DisableFtpsOk</c>, <c>GetFtpsStatusOk</c> and
 /// <c>ReloadFtpsTlsOk</c> — built in the agent from one observation. Four panel-side records would
-/// be four places for the same nine facts to drift apart, and the screen that reads them cannot
+/// be four places for the same facts to drift apart, and the screen that reads them cannot
 /// tell which call produced the answer it is showing.
 /// </para>
 /// <para>
@@ -24,13 +24,10 @@ namespace Maran.Agent.Client.Services.FtpsService;
 /// LOCAL probe: it bypasses the firewall, so "answering here" and "unreachable from outside" are
 /// compatible, and nothing in this client reads a firewall to tell them apart.
 /// </param>
-/// <param name="CertificatePresent">
-/// Certificate material exists for the hostname that was asked about. With an empty hostname this
-/// is <c>false</c> because nothing was asked, which is NOT the same as "no material exists".
-/// </param>
-/// <param name="CertificateIsSelfSigned">
-/// The material is the agent's own self-signed placeholder — read from the marker file beside it,
-/// never from a parse of the certificate.
+/// <param name="Certificate">
+/// What the agent found for the hostname it was asked about. With an empty hostname nothing was
+/// asked, which this record reports as <see cref="FtpsCertificate.Absent"/>: the agent cannot tell
+/// "no hostname" from "no material", so the caller that knows whether a hostname was sent says so.
 /// </param>
 /// <param name="CertificatePath">
 /// Where the material lives, or would have to be placed. Operator-facing: it names an absolute path
@@ -43,19 +40,21 @@ namespace Maran.Agent.Client.Services.FtpsService;
 /// an IPv6 listening bind. <c>false</c> is the dual-stack default and also what a host with no
 /// configuration yet reports.
 /// </param>
-/// <param name="ForcedTls">
-/// The live configuration still forces TLS on both the control and the data channel. <c>false</c>
-/// is the answer whenever the agent cannot say otherwise — no live configuration, a file it could
-/// not resolve, or an agent predating the field — and that direction is deliberate: an unknown must
-/// never read as "encryption is enforced".
+/// <param name="TlsEnforcement">
+/// Whether the live configuration still forces TLS on both the control and the data channel, in
+/// three outcomes: <see cref="FtpsTlsEnforcement.Enforced"/>, <see cref="FtpsTlsEnforcement.NotEnforced"/>
+/// (the configuration was read and TLS is optional) and <see cref="FtpsTlsEnforcement.NotObserved"/>
+/// (the agent could not read the configuration at all). The last is not a spelling of the middle one:
+/// a screen that says "TLS is not enforced" over a file nobody read has made a claim about the host
+/// that nothing measured. A caller must never treat <see cref="FtpsTlsEnforcement.NotObserved"/> as
+/// <see cref="FtpsTlsEnforcement.Enforced"/>.
 /// </param>
 public sealed record FtpsStatusDto(
     bool Running,
     bool ControlPortAnswered,
-    bool CertificatePresent,
-    bool CertificateIsSelfSigned,
+    FtpsCertificate Certificate,
     string CertificatePath,
     uint PassivePortMin,
     uint PassivePortMax,
     bool Ipv4Only,
-    bool ForcedTls);
+    FtpsTlsEnforcement TlsEnforcement);

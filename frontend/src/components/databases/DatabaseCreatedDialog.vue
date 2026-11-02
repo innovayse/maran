@@ -34,17 +34,16 @@ import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../ui/UiDescriptionList.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiModal from '../ui/UiModal.vue'
+import type { RevealedDatabaseCredential } from '../../types/database'
 
 /** Props accepted by {@link DatabaseCreatedDialog}. */
 const props = defineProps<{
-  /** Whether the dialog is shown; owned by the page, which holds the credential. */
-  open: boolean
-  /** The fully-qualified database the login opens, or `null` when the panel named no database. */
-  databaseFullName: string | null
-  /** The fully-qualified MySQL user the password belongs to. */
-  dbUserName: string
-  /** The generated password, exactly as the panel sent it. */
-  password: string
+  /**
+   * The credential on show: the fully-qualified database the login opens (`null` when the panel
+   * named none), the fully-qualified MySQL user and the generated password exactly as the panel
+   * sent them. The page mounts the dialog only while it holds one.
+   */
+  credential: RevealedDatabaseCredential
 }>()
 
 /** Events emitted by {@link DatabaseCreatedDialog}. */
@@ -75,7 +74,7 @@ const copied: Ref<boolean> = ref(false)
  */
 const copyPassword = async (): Promise<void> => {
   try {
-    await navigator.clipboard.writeText(props.password)
+    await navigator.clipboard.writeText(props.credential.password)
     copied.value = true
   } catch {
     copied.value = false
@@ -93,8 +92,8 @@ const close = (): void => {
 // A second credential must not open under the first one's "Copied" state: that would tell the
 // operator a value they have never copied is already on their clipboard.
 watch(
-  (): boolean => {
-    return props.open
+  (): RevealedDatabaseCredential => {
+    return props.credential
   },
   (): void => {
     copied.value = false
@@ -104,7 +103,7 @@ watch(
 
 <template>
   <UiModal
-    :open="open"
+    :open="true"
     :title="t('databases.credential.title')"
     :close-label="t('common.close')"
     :dismissible="false"
@@ -119,11 +118,11 @@ watch(
          detail screen. The raised block is only the frame around it. The password spans both columns
          because it is the longest value and the one the operator must be able to read whole. -->
     <UiDescriptionList class="rounded-control border border-border-subtle bg-surface-2 p-4">
-      <UiDescriptionItem v-if="databaseFullName !== null" :term="t('databases.credential.databaseLabel')" mono>
-        <span class="break-all">{{ databaseFullName }}</span>
+      <UiDescriptionItem v-if="credential.databaseFullName !== null" :term="t('databases.credential.databaseLabel')" mono>
+        <span class="break-all">{{ credential.databaseFullName }}</span>
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('databases.credential.loginLabel')" mono>
-        <span class="break-all">{{ dbUserName }}</span>
+        <span class="break-all">{{ credential.dbUserName }}</span>
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('databases.credential.passwordLabel')" mono class="sm:col-span-2">
         <!-- Selectable text, not a masked field: the clipboard may be unavailable, and the only
@@ -134,7 +133,7 @@ watch(
         <span
           data-testid="database-password"
           class="block rounded-control border border-border-strong bg-page px-3 py-2.5 text-base font-medium break-all text-text-primary select-all"
-        >{{ password }}</span>
+        >{{ credential.password }}</span>
       </UiDescriptionItem>
     </UiDescriptionList>
 

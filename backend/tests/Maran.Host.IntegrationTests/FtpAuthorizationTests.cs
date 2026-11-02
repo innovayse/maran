@@ -232,7 +232,7 @@ public sealed class FtpAuthorizationTests : IAsyncLifetime
 
         var response = await client.DeleteAsync($"/api/v1/ftp-users/{world.OwnFtpUserId}");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         using var scope = factory.Services.CreateScope();
         var ftp = scope.ServiceProvider.GetRequiredService<FtpDbContext>();
@@ -561,6 +561,7 @@ public sealed class FtpAuthorizationTests : IAsyncLifetime
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
         customer.AssignAccount(own.Id);
+        identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, own.Id, now));
         identity.Users.Add(customer);
         await identity.SaveChangesAsync();
 

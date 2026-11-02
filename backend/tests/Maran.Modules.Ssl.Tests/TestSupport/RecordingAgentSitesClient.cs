@@ -30,13 +30,13 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         ReloadCallCount++;
 
         return Task.FromResult(_reloadFailure is null
-            ? Result<bool>.Ok(true)
-            : Result<bool>.Fail(_reloadFailure));
+            ? Result.Ok()
+            : Result.Fail(_reloadFailure));
     }
 
     /// <inheritdoc />
@@ -55,7 +55,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> ChangePhpVersionAsync(
+    public Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -69,7 +69,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> EnableAsync(
+    public Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -79,7 +79,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> DisableAsync(
+    public Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -89,7 +89,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,

@@ -333,7 +333,7 @@ public sealed class CreateDatabaseCommandHandler
     /// <param name="command">The creation being recorded, for the journal's subject.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Success, or the typed failure the customer is answered with.</returns>
-    private async Task<Result<bool>> RecordAsync(
+    private async Task<Result> RecordAsync(
         Database database,
         string accountUsername,
         int allowance,
@@ -344,7 +344,7 @@ public sealed class CreateDatabaseCommandHandler
         {
             if (await _slotGate.TryTakeAsync(database, allowance, cancellationToken))
             {
-                return Result<bool>.Ok(true);
+                return Result.Ok();
             }
 
             // The gate refused, which means another creation committed the account's last slot while
@@ -355,7 +355,7 @@ public sealed class CreateDatabaseCommandHandler
             // needs is what unblocks them.
             await CompensateAsync(accountUsername, command, cancellationToken);
 
-            return Result<bool>.Fail(await FailedErrorAsync(
+            return Result.Fail(await FailedErrorAsync(
                 command,
                 Error.Of(nameof(ErrorMessages.DatabaseLimitReachedConcurrently), ErrorType.Conflict),
                 cancellationToken));
@@ -378,7 +378,7 @@ public sealed class CreateDatabaseCommandHandler
                 // live database with a password nobody holds and no row. It goes.
                 await CompensateAsync(accountUsername, command, cancellationToken);
 
-                return Result<bool>.Fail(await FailedErrorAsync(
+                return Result.Fail(await FailedErrorAsync(
                     command, Error.Of(nameof(ErrorMessages.DatabaseProvisioningFailed), ErrorType.Failure), cancellationToken));
             }
 
@@ -388,7 +388,7 @@ public sealed class CreateDatabaseCommandHandler
                 // ITS row owns the database now on the server. Nothing is orphaned, and dropping
                 // would destroy the winner's data — so this is the one post-create failure that
                 // must NOT compensate. The caller is told the name is taken, which is true.
-                return Result<bool>.Fail(await FailedErrorAsync(
+                return Result.Fail(await FailedErrorAsync(
                     command, Error.Of(nameof(ErrorMessages.DatabaseNameTaken), ErrorType.Conflict), cancellationToken));
             }
 
@@ -397,7 +397,7 @@ public sealed class CreateDatabaseCommandHandler
             // the orphan described above and is compensated for like any other.
             await CompensateAsync(accountUsername, command, cancellationToken);
 
-            return Result<bool>.Fail(await FailedErrorAsync(
+            return Result.Fail(await FailedErrorAsync(
                     command, Error.Of(nameof(ErrorMessages.DatabaseUserNameTaken), ErrorType.Conflict), cancellationToken));
         }
     }

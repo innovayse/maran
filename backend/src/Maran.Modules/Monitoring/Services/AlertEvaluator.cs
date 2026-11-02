@@ -165,7 +165,7 @@ public sealed class AlertEvaluator
     /// when that call did not succeed. A <c>null</c> advances nothing and resets nothing, for the
     /// same reason a <c>null</c> <paramref name="sftpJailStatus"/> does.
     /// </param>
-    /// <param name="codeIntegrityReport">
+    /// <param name="codeIntegrityVerdict">
     /// The closed PluginLoader's latest finding about whether the panel's installed files match the
     /// release's signed hash list, or <c>null</c> when nothing has reported this round. A
     /// <c>null</c> advances nothing and resets nothing, for the same reason a <c>null</c>
@@ -181,7 +181,7 @@ public sealed class AlertEvaluator
         AgentSftpJailStatus? sftpJailStatus,
         AgentQuotaEnforceability? quotaStatus,
         AgentClockSyncState? clockSync,
-        CodeIntegrityReport? codeIntegrityReport,
+        CodeIntegrityVerdict? codeIntegrityVerdict,
         DateTimeOffset observedAt,
         CancellationToken cancellationToken)
     {
@@ -192,7 +192,7 @@ public sealed class AlertEvaluator
             sftpJailStatus,
             quotaStatus,
             clockSync,
-            codeIntegrityReport,
+            codeIntegrityVerdict,
             observedAt,
             cancellationToken);
 

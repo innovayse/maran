@@ -28,13 +28,12 @@ public sealed class RecordingFtpsAgent : IAgentFtpsClient
     public FtpsStatusDto NextStatus { get; set; } = new(
         Running: true,
         ControlPortAnswered: true,
-        CertificatePresent: true,
-        CertificateIsSelfSigned: false,
+        Certificate: FtpsCertificate.Provided,
         CertificatePath: "/etc/maran/certificates/ftp.example.test",
         PassivePortMin: 30000,
         PassivePortMax: 30099,
         Ipv4Only: false,
-        ForcedTls: true);
+        TlsEnforcement: FtpsTlsEnforcement.Enforced);
 
     /// <summary>The failure <see cref="EnableAsync"/> answers with, or null to answer with the observation.</summary>
     public Error? NextEnableError { get; set; }
@@ -165,7 +164,7 @@ public sealed class RecordingFtpsAgent : IAgentFtpsClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string ftpsUsername,
         SensitiveString password,
@@ -177,14 +176,14 @@ public sealed class RecordingFtpsAgent : IAgentFtpsClient
 
         if (NextSetPasswordError is not null)
         {
-            return Task.FromResult(Result<bool>.Fail(NextSetPasswordError));
+            return Task.FromResult(Result.Fail(NextSetPasswordError));
         }
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> DeleteUserAsync(
+    public Task<Result> DeleteUserAsync(
         string accountUsername,
         string ftpsUsername,
         CancellationToken cancellationToken)
@@ -194,10 +193,10 @@ public sealed class RecordingFtpsAgent : IAgentFtpsClient
 
         if (NextDeleteUserError is not null)
         {
-            return Task.FromResult(Result<bool>.Fail(NextDeleteUserError));
+            return Task.FromResult(Result.Fail(NextDeleteUserError));
         }
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Arranges for the next enable to report that the host chose the IPv4-only fallback.</summary>

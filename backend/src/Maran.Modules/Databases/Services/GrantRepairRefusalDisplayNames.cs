@@ -1,3 +1,4 @@
+using Maran.Modules.Databases.Domain.Enums;
 using Maran.Modules.Databases.Resources;
 using Microsoft.Extensions.Localization;
 
@@ -21,11 +22,11 @@ namespace Maran.Modules.Databases.Services;
 /// — which is the failure this whole surface exists to avoid.
 /// </para>
 /// <para>
-/// <b>The fallback is the machine name, and it is a fallback rather than a promise.</b> An agent newer
-/// than this panel can report a reason no bundle here has words for; the operator then reads the
-/// identifier, which is loud rather than wrong. That miss is not left to chance — the module's tests
-/// walk the agent contract's own enum and fail on the first value with no entry, so the fallback
-/// covers a future agent and nothing that ships here.
+/// <b>There is no fallback, because there is no unnamed reason.</b> The reasons are
+/// <see cref="GrantRefusalReason"/>, a closed enum the agent client fills only from values it knows; a
+/// reason from an agent newer than this panel refuses the whole reply before it reaches here. The
+/// guarantee that every member has words is the module's tests, which walk the enum and fail on the
+/// first member with no entry in a language.
 /// </para>
 /// </remarks>
 public sealed class GrantRepairRefusalDisplayNames
@@ -47,39 +48,18 @@ public sealed class GrantRepairRefusalDisplayNames
     }
 
     /// <summary>Names one refusal as an operator reads it.</summary>
-    /// <param name="reason">The machine-stable refusal name the agent reported.</param>
-    /// <returns>The localized name, or <paramref name="reason"/> when this build has no entry for it.</returns>
-    public string NameOf(string reason)
+    /// <param name="reason">The refusal the agent reported.</param>
+    /// <returns>The localized name.</returns>
+    public string NameOf(GrantRefusalReason reason)
     {
-        return Read(NameKeyPrefix, reason);
+        return _displayNames[NameKeyPrefix + reason].Value;
     }
 
     /// <summary>States what the operator can do about one refused row.</summary>
-    /// <param name="reason">The machine-stable refusal name the agent reported.</param>
-    /// <returns>The localized advice, or <paramref name="reason"/> when this build has no entry for it.</returns>
-    public string AdviceOf(string reason)
+    /// <param name="reason">The refusal the agent reported.</param>
+    /// <returns>The localized advice.</returns>
+    public string AdviceOf(GrantRefusalReason reason)
     {
-        return Read(AdviceKeyPrefix, reason);
-    }
-
-    /// <summary>Reads one prefixed entry, falling back to the machine name.</summary>
-    /// <param name="prefix">Which of the two sentences to read.</param>
-    /// <param name="reason">The machine-stable refusal name the agent reported.</param>
-    /// <returns>
-    /// The localized text; <paramref name="reason"/> itself when the key is absent, and the empty
-    /// string when there is no reason to name at all. The empty case is spelled out rather than left
-    /// to the localizer, which would answer with the bare prefix and put the word
-    /// <c>GrantRepairRefusal</c> on the screen.
-    /// </returns>
-    private string Read(string prefix, string reason)
-    {
-        if (string.IsNullOrEmpty(reason))
-        {
-            return string.Empty;
-        }
-
-        var localized = _displayNames[prefix + reason];
-
-        return localized.ResourceNotFound ? reason : localized.Value;
+        return _displayNames[AdviceKeyPrefix + reason].Value;
     }
 }

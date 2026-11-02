@@ -13,7 +13,7 @@ namespace Maran.Modules.Notifications.Persistence;
 /// <b>There is no tenant query filter here, and there must not be one.</b> The one row this schema
 /// holds describes the PANEL — the single mail server every module's mail leaves through. It belongs
 /// to no customer and has no <c>AccountId</c> to scope by, its whole HTTP surface is
-/// <c>[Authorize(AdminOnly)]</c>, and a filter closing over <c>ICurrentUser.AccountId</c> would hide
+/// <c>[Authorize(AdminOnly)]</c>, and a filter closing over the account of <c>ICurrentUser.Caller</c> would hide
 /// the row from the background sender, which runs off a queue with no request and no principal at
 /// all. The visible failure would be that password-reset mail stopped being sent whenever nobody was
 /// signed in — which is precisely when it is sent.

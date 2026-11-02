@@ -1,5 +1,6 @@
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Persistence.Configurations;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Backups.Persistence;
 
@@ -78,6 +79,30 @@ public sealed class BackupsDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// Whether the current principal is a server administrator, whom no tenant filter narrows. Read
+    /// from the context at query time, so each request's own caller decides.
+    /// </summary>
+    private bool IsAdministrator
+    {
+        get
+        {
+            return _currentUser.Caller is AdministratorCaller;
+        }
+    }
+
+    /// <summary>
+    /// The account the current principal acts for, or null for an administrator, an anonymous caller
+    /// and a customer acting for no account — none of whom owns a row.
+    /// </summary>
+    private Guid? TenantAccountId
+    {
+        get
+        {
+            return _currentUser.Caller is CustomerCaller customer ? customer.AccountId : null;
+        }
+    }
+
     /// <summary>Applies the schema, the entity configuration, and the tenant query filter.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -88,10 +113,10 @@ public sealed class BackupsDbContext : DbContext
         modelBuilder.ApplyConfiguration(new BackupScheduleConfiguration());
 
         modelBuilder.Entity<Backup>().HasQueryFilter(backup =>
-            _currentUser.IsAdmin || backup.AccountId == _currentUser.AccountId);
+            IsAdministrator || backup.AccountId == TenantAccountId);
 
         modelBuilder.Entity<BackupSchedule>().HasQueryFilter(schedule =>
-            _currentUser.IsAdmin || schedule.AccountId == _currentUser.AccountId);
+            IsAdministrator || schedule.AccountId == TenantAccountId);
 
         base.OnModelCreating(modelBuilder);
     }

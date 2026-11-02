@@ -27,7 +27,7 @@ public interface IAcmeChallengeWriter
     /// not a fault to re-word; or <c>AcmeChallengeWriteFailed</c> (a site) / <c>PanelChallengeWriteFailed</c> (the
     /// panel) for every other failure.
     /// </returns>
-    Task<Result<bool>> WriteAsync(
+    Task<Result> WriteAsync(
         AcmeChallengeTarget target,
         string domain,
         string token,
@@ -46,7 +46,7 @@ public interface IAcmeChallengeWriter
     /// only against an authorization that has already been consumed — whereas discarding an issued
     /// certificate over a failed unlink would be a real loss.
     /// </remarks>
-    Task<Result<bool>> RemoveAsync(
+    Task<Result> RemoveAsync(
         AcmeChallengeTarget target,
         string domain,
         string token,

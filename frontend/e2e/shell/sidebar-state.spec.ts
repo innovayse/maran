@@ -41,12 +41,12 @@ const stubLocalizedModules = async (page: Page, slowLanguage?: string): Promise<
       await held
     }
     const modules: PanelModule[] = [
-      { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
+      { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
       {
         name: UNKNOWN_MODULE,
         displayName: UNKNOWN_NAME[language] ?? 'Webmail',
         tier: 'included',
-        isEnabled: true,
+        state: 'enabled',
       },
     ]
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(modules) })
@@ -199,15 +199,15 @@ test('the current row is scrolled into view on a short window', async ({ page })
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'monitoring', displayName: 'Monitoring', tier: 'included', isEnabled: true },
-    { name: 'tasks', displayName: 'Tasks', tier: 'included', isEnabled: true },
-    { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
-    { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-    { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
-    { name: 'sftp', displayName: 'File transfer', tier: 'included', isEnabled: true },
-    { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', isEnabled: true },
-    { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
-    { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
+    { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
+    { name: 'tasks', displayName: 'Tasks', tier: 'included', state: 'enabled' },
+    { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+    { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+    { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
+    { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' },
+    { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
+    { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
   ])
   await page.goto('/backups/schedule')
 

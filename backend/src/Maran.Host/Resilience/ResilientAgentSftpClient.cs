@@ -57,7 +57,7 @@ public sealed class ResilientAgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetPasswordAsync(
+    public async Task<Result> SetPasswordAsync(
         string accountUsername,
         string sftpUsername,
         SensitiveString password,
@@ -78,7 +78,7 @@ public sealed class ResilientAgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteAsync(
+    public async Task<Result> DeleteAsync(
         string accountUsername,
         string sftpUsername,
         CancellationToken cancellationToken)

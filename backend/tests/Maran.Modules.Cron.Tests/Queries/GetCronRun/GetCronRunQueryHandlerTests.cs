@@ -1,4 +1,5 @@
 using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Domain.ValueObjects;
 using Maran.Modules.Cron.Queries.GetCronRun;
 using Maran.Modules.Cron.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -55,7 +56,7 @@ public sealed class GetCronRunQueryHandlerTests
     private static async Task<(GetCronRunQueryHandler Handler, CronRun Run)> SeededAsync()
     {
         var database = InMemoryCronDatabase.Open(Guid.NewGuid().ToString(), FakeCurrentUser.Customer(AccountId));
-        var run = new CronRun(Guid.NewGuid(), AccountId, EntryId, DateTimeOffset.UnixEpoch, 10, 0, null, "out", "err");
+        var run = new CronRun(Guid.NewGuid(), AccountId, EntryId, DateTimeOffset.UnixEpoch, 10, new CronRunExited(0), "out", "err");
         database.CronRuns.Add(run);
         await database.SaveChangesAsync();
 

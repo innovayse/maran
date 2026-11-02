@@ -184,13 +184,13 @@ public sealed class SitesController : BaseApiController
     /// <param name="id">The site to remove.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeleteSiteCommand(id, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>

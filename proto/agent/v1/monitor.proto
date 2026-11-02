@@ -186,13 +186,13 @@ message ServiceStatus {
   // SERVICE_STATE_RUNNING, which means it reports both STOPPED and UNKNOWN as
   // false. That conflation is the whole reason `state` exists.
   bool running = 2;
-  // DEPRECATED and always written 0 — the agent does not produce it. The
-  // service manager reports a unit's start timestamp, not an uptime, and
-  // turning one into the other needs a clock reading this agent deliberately
-  // does not take. A 0 here is "unproduced", never "just restarted"; the
-  // field is kept rather than removed because removing it is a breaking
-  // change (rules/proto.md).
-  uint64 uptime_seconds = 3;
+  // Field 3 was `uptime_seconds`, always written 0: the service manager
+  // reports a unit's start timestamp, not an uptime, and turning one into the
+  // other needs a clock reading this agent deliberately does not take.
+  // Removed in revision 13 (2026-11-02) after the panel's client was
+  // confirmed not to read it.
+  reserved 3;
+  reserved "uptime_seconds";
   // Up, down, or not known. Readers prefer this over `running`.
   ServiceState state = 4;
   // Why, in the service manager's own vocabulary — its ActiveState and
@@ -234,14 +234,13 @@ message AccountDiskUsage {
   string account_username = 1;
   // Bytes currently used under the account's home directory.
   uint64 used_bytes = 2;
-  // DEPRECATED and always written 0 — the agent does not produce it. A
-  // quota is the PANEL's own data: it is chosen when an account is created
-  // and stored by the Accounts module, so the panel already holds the exact
-  // figure and asking the agent to re-derive one from the filesystem would
-  // introduce a second answer that can disagree. A 0 here is "unproduced",
-  // never "no quota"; the field is kept rather than removed because removing
-  // it is a breaking change (rules/proto.md).
-  uint64 quota_bytes = 3;
+  // Field 3 was `quota_bytes`, always written 0: a quota is the PANEL's own
+  // data, stored by the Accounts module, and re-deriving one from the
+  // filesystem would introduce a second answer that can disagree. Removed in
+  // revision 13 (2026-11-02) after the panel's client was confirmed not to
+  // read it.
+  reserved 3;
+  reserved "quota_bytes";
 }
 
 message GetSftpJailStatusRequest {}

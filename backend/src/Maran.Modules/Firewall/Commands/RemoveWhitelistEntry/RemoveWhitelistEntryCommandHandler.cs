@@ -85,7 +85,7 @@ public sealed class RemoveWhitelistEntryCommandHandler
     /// Success; <c>WhitelistEntryNotFound</c>; or <c>WhitelistEntryProtectsCaller</c> when the
     /// removal would stop exempting the address the request arrived from.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         RemoveWhitelistEntryCommand command,
         CancellationToken cancellationToken)
     {
@@ -100,7 +100,7 @@ public sealed class RemoveWhitelistEntryCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.WhitelistEntryNotFound), ErrorType.NotFound));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.WhitelistEntryNotFound), ErrorType.NotFound));
         }
 
         // Captured before the row goes: the range is the only thing about a removed exemption
@@ -116,7 +116,7 @@ public sealed class RemoveWhitelistEntryCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<bool>.Fail(
+            return Result.Fail(
                 Error.Of(nameof(ErrorMessages.WhitelistEntryProtectsCaller), ErrorType.Conflict));
         }
 
@@ -130,7 +130,7 @@ public sealed class RemoveWhitelistEntryCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Whether this removal is the thing that would stop exempting its own caller.</summary>

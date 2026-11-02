@@ -11,7 +11,7 @@ import type { PanelModule } from '../../src/types/module'
 
 /** The accounts module licensed, which is what owns plans. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
 ]
 
 /**
@@ -33,9 +33,10 @@ const catalogue = (count: number): ManagedPlan[] => {
       maxFtpUsers: 1,
       maxCronEntries: 1,
       maxPhpWorkersPerPool: 5,
-      cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
-      memoryMaxMb: { kind: 'unlimited', maximum: 0 },
-      maxProcesses: { kind: 'unlimited', maximum: 0 },
+      cpuQuotaPercent: { kind: 'unlimited' },
+      memoryMaxMb: { kind: 'unlimited' },
+      maxProcesses: { kind: 'unlimited' },
+      features: [],
       accountCount: count - index,
     }
   })

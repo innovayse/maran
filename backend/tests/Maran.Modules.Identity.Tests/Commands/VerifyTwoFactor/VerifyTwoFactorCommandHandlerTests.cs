@@ -80,6 +80,7 @@ public sealed class VerifyTwoFactorCommandHandlerTests : IDisposable
             new AuthenticationCompleter(
                 new JwtAccessTokenIssuer(options, TestSecurityPolicyCache.Over(_context), _clock),
                 new SessionService(_context, _clock, options),
+                new ActiveAccountResolver(_context),
                 _clock),
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
             NewDetector(),

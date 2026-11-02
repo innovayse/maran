@@ -46,7 +46,7 @@ use maran_ops::files::{ProcessFilesHost, WriteFileInput};
 use maran_ops::php::ProcessPhpHost;
 use maran_ops::sites::{
     CreateSiteInput, ProcessSiteHost, SiteCertificate, SiteHost, SiteIdentity, SiteKind, SitePaths,
-    SitesOpError, create_site,
+    SiteServing, SitesOpError, create_site,
 };
 use maran_ops::ssl::{ProcessSslHost, delete_site_with_certificate, generate_self_signed};
 
@@ -998,28 +998,30 @@ fn the_suspension_state_answers_on_a_real_host_what_the_requests_above_observed(
         .unwrap_or_else(|error| panic!("the sites must be observable: {error}"));
 
     assert!(
-        observed.directory_readable,
+        observed.is_readable(),
         "the real include directory must be listable, or the answer is blind"
     );
     let fact = |domain: &Domain| {
         observed
-            .sites
+            .sites()
             .iter()
             .find(|fact| fact.domain == domain.as_str())
             .unwrap_or_else(|| {
                 panic!(
                     "the account's own vhosts must be found: {:?}",
-                    observed.sites
+                    observed.sites()
                 )
             })
     };
 
-    assert!(
-        fact(&stubbed_domain).serving_stub,
+    assert_eq!(
+        fact(&stubbed_domain).serving,
+        SiteServing::Stub,
         "the disabled site's real vhost IS the suspended render"
     );
-    assert!(
-        !fact(&serving_domain).serving_stub,
+    assert_eq!(
+        fact(&serving_domain).serving,
+        SiteServing::NotStub,
         "the untouched site is still serving its own content"
     );
 }

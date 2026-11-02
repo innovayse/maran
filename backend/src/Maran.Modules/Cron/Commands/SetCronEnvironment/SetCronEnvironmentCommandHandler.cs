@@ -73,7 +73,7 @@ public sealed class SetCronEnvironmentCommandHandler
     /// <param name="command">The validated parameters; see <see cref="SetCronEnvironmentCommandValidator"/>.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success — or <c>AccountNotFound</c>, or <c>CronOperationFailed</c>.</returns>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         SetCronEnvironmentCommand command,
         CancellationToken cancellationToken)
     {
@@ -110,7 +110,7 @@ public sealed class SetCronEnvironmentCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Builds the journal subject: the names that were set, bounded, and never their values.</summary>
@@ -140,7 +140,7 @@ public sealed class SetCronEnvironmentCommandHandler
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         SetCronEnvironmentCommand command,
         Error error,
         CancellationToken cancellationToken)
@@ -152,6 +152,6 @@ public sealed class SetCronEnvironmentCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }

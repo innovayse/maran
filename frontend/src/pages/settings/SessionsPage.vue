@@ -76,17 +76,15 @@ const table = useServerTable<Session>({
   },
 })
 
-/** The session the user has asked to end and is being asked to confirm, or `null`. */
-const pendingRevocation: Ref<string | null> = ref(null)
-
 /**
- * Whether the confirmed revocation is with the server.
+ * The session the user has asked to end, and how far that has got: `confirming` while the question
+ * is on screen, `sending` once it is with the server; `null` when none is.
  *
- * The page's own flag rather than the store's `loading`: `revokeSession` sets no loading state —
+ * The page's own state rather than the store's `loading`: `revokeSession` sets no loading state —
  * it must not, because `loading` swaps the rows for placeholders — and the dialog needs the
  * one thing that IS in flight.
  */
-const revoking: Ref<boolean> = ref(false)
+const revocation: Ref<{ state: 'confirming' | 'sending'; sessionId: string } | null> = ref(null)
 
 /**
  * The devices table's columns: its header, its cells and its loading placeholder all read this one
@@ -117,7 +115,7 @@ const pendingSession: ComputedRef<{ id: string; ipAddress: string; isCurrent: bo
   computed(() => {
     return (
       sessionsStore.sessions.find((session) => {
-        return session.id === pendingRevocation.value
+        return session.id === revocation.value?.sessionId
       }) ?? null
     )
   })
@@ -143,7 +141,7 @@ const confirmationQuestion: ComputedRef<string> = computed(() => {
  * @returns Nothing; the row switches to its confirming state.
  */
 const askToRevoke = (id: string): void => {
-  pendingRevocation.value = id
+  revocation.value = { state: 'confirming', sessionId: id }
 }
 
 /**
@@ -151,7 +149,7 @@ const askToRevoke = (id: string): void => {
  * @returns Nothing; the row returns to its normal state.
  */
 const cancelRevocation = (): void => {
-  pendingRevocation.value = null
+  revocation.value = null
 }
 
 /**
@@ -165,13 +163,12 @@ const revoke = async (): Promise<void> => {
     return
   }
 
-  revoking.value = true
+  revocation.value = { state: 'sending', sessionId: pending.id }
   const ended = await sessionsStore.revokeSession(pending.id)
-  revoking.value = false
 
   // Closed after the request settles rather than before it is sent: the dialog holds the spinner
   // that tells the user the panel is working.
-  pendingRevocation.value = null
+  revocation.value = null
 
   if (ended && pending.isCurrent) {
     await authStore.logout()
@@ -329,13 +326,13 @@ const signOutEverywhere = async (): Promise<void> => {
          state, and a dialog mounted inside it would be unmounted by the very refresh it survives.
          `:open` is bound to a value that really changes, so `UiModal`s open-watcher runs. -->
     <UiConfirm
-      :open="pendingRevocation !== null"
+      :open="revocation !== null"
       :title="confirmationTitle"
       :question="confirmationQuestion"
       :confirm-label="t('app.sessions.confirmEnd')"
       :cancel-label="t('common.cancel')"
       :close-label="t('common.close')"
-      :acting="revoking"
+      :acting="revocation?.state === 'sending'"
       :acting-label="t('app.sessions.working')"
       @close="cancelRevocation"
       @confirm="revoke"

@@ -4,7 +4,7 @@ import { usePlansApi } from '../composables/apis/usePlansApi'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { LoadingState } from '../types/loading'
-import type { ManagedPlan, PlanRequest } from '../types/plan'
+import type { ManagedPlan, PlanFeatureChoice, PlanRequest } from '../types/plan'
 
 /**
  * Owns the plans an administrator manages: one server page of the list at a time, the one plan the
@@ -42,6 +42,16 @@ export const usePlansStore = defineStore('plans', () => {
    */
   const errorMessage: Ref<string | null> = ref(null)
 
+  /**
+   * The features the plan form offers, exactly as the panel lists them; `null` before they arrived
+   * and after the read failed. The SPA holds no list of its own (rules/architecture.md), so a form
+   * with no answer has nothing to offer rather than a guess.
+   */
+  const featureChoices: Ref<PlanFeatureChoice[] | null> = ref(null)
+
+  /** Where the read of {@link featureChoices} stands. */
+  const featuresState: Ref<LoadingState> = ref('loading')
+
   /** True while a create or update request is in flight. */
   const saving: Ref<boolean> = ref(false)
 
@@ -73,6 +83,23 @@ export const usePlansStore = defineStore('plans', () => {
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
+    }
+  }
+
+  /**
+   * Reads the features a plan can sell into {@link featureChoices}. A failure is a state of the
+   * field, not an error of the page: an edit still saves the set the plan already has, and a
+   * creation waits for the answer (see `PlanForm`).
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadFeatureChoices = async (): Promise<void> => {
+    featuresState.value = 'loading'
+    try {
+      featureChoices.value = await api.features()
+      featuresState.value = 'loaded'
+    } catch {
+      featureChoices.value = null
+      featuresState.value = 'error'
     }
   }
 
@@ -192,11 +219,14 @@ export const usePlansStore = defineStore('plans', () => {
     selected,
     loadState,
     errorMessage,
+    featureChoices,
+    featuresState,
     saving,
     saveErrorMessage,
     deleting,
     deleteErrorMessage,
     list,
+    loadFeatureChoices,
     loadOne,
     clearErrors,
     create,

@@ -66,4 +66,22 @@
   <data name="HomeGroupRepairAdviceUnspecified">
     <value>Գործակալը մերժել է այս հաշիվը պատճառով, որը վահանակի այս տարբերակը չի ճանաչում, ինչը սովորաբար նշանակում է, որ գործակալը վահանակից նոր է։ Ոչինչ չի փոփոխվել։ Թարմացրեք վահանակը և նորից գործարկեք հաշվետվությունը։</value>
   </data>
+  <data name="AccountFeatureMail">
+    <value>Փոստ</value>
+  </data>
+  <data name="AccountFeatureDns">
+    <value>DNS</value>
+  </data>
+  <data name="AccountFeatureDatabases">
+    <value>Տվյալների բազաներ</value>
+  </data>
+  <data name="AccountFeatureCron">
+    <value>Պլանավորիչ</value>
+  </data>
+  <data name="AccountFeatureFileTransfer">
+    <value>Ֆայլերի փոխանցում (SFTP և FTPS)</value>
+  </data>
+  <data name="AccountFeatureBackups">
+    <value>Պահուստներ</value>
+  </data>
 </root>

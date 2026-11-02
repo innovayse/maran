@@ -85,6 +85,6 @@ public sealed class GetBackupAttentionQueryHandler
 
         return Result<BackupAttentionDto>.Ok(new BackupAttentionDto(
             count,
-            BackupMapper.From(newest, ownerNames, _failureNames.Of(newest.FailureCode))));
+            BackupMapper.From(newest, ownerNames, _failureNames.Of(newest.RunFailureCode))));
     }
 }

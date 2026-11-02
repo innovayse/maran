@@ -48,8 +48,8 @@ internal sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     /// <summary>The address of the last ban or unban.</summary>
     public string? LastAddress { get; private set; }
 
-    /// <summary>The duration of the last ban.</summary>
-    public TimeSpan? LastTtl { get; private set; }
+    /// <summary>The term of the last ban: permanent, or a fixed duration.</summary>
+    public AgentBanTerm? LastTerm { get; private set; }
 
     /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<AgentFirewallRule>>> ListRulesAsync(
@@ -66,7 +66,7 @@ internal sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> AllowPortAsync(
+    public async Task<Result> AllowPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -84,11 +84,11 @@ internal sealed class RecordingAgentFirewallClient : IAgentFirewallClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DenyPortAsync(
+    public async Task<Result> DenyPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -106,28 +106,28 @@ internal sealed class RecordingAgentFirewallClient : IAgentFirewallClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> BanAsync(string address, TimeSpan? ttl, CancellationToken cancellationToken)
+    public async Task<Result> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
     {
         LastAddress = address;
-        LastTtl = ttl;
+        LastTerm = term;
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> UnbanAsync(string address, CancellationToken cancellationToken)
+    public async Task<Result> UnbanAsync(string address, CancellationToken cancellationToken)
     {
         LastAddress = address;
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>

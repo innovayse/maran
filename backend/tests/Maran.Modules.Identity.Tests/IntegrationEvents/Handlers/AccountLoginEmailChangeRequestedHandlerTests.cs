@@ -55,7 +55,7 @@ public sealed class AccountLoginEmailChangeRequestedHandlerTests : IDisposable
         Assert.True(result.IsSuccess);
         var stored = await _context.Users.AsNoTracking().SingleAsync(candidate => candidate.Id == user.Id);
         Assert.Equal("new@example.com", stored.Email);
-        Assert.Equal(UserState.Invited, stored.State);
+        Assert.Equal(UserLifecycle.Invited, stored.Lifecycle);
     }
 
     /// <summary>An address another login already holds is refused and the login keeps its address.</summary>

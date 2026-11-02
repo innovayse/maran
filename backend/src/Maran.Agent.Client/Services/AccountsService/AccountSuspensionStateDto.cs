@@ -16,19 +16,19 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// them would be claiming a silence it did not achieve.
 /// </para>
 /// </remarks>
-/// <param name="LoginLocked">
-/// <c>true</c> when the account's own passwd entry is locked, as <c>passwd -S</c> reports it. This
-/// is the account's own login only; the file-transfer logins of both daemons are separate passwd
-/// entries with their own facts in <paramref name="FileTransferLogins"/>.
-/// </param>
 /// <param name="LoginPasswordState">
-/// What the account's own shadow password field holds, as the agent classified it — the fact
-/// <paramref name="LoginLocked"/> cannot express. <c>passwd -S</c> reports a login locked over a
-/// password and one that never had a password as the same thing, and every hosting account is the
-/// second kind, so <paramref name="LoginLocked"/> is true for such an account for ever. A caller
-/// asking whether a suspension took hold may use either; a caller asking whether a reactivation
-/// completed MUST use this one. <see cref="AccountLoginPasswordState.Unspecified"/> means the agent
-/// predates the field, and the caller falls back to <paramref name="LoginLocked"/>.
+/// What the account's own shadow password field holds, as the agent classified it. This is the
+/// account's own login only; the file-transfer logins of both daemons are separate passwd entries
+/// with their own facts in <paramref name="FileTransferLogins"/>. <c>passwd -S</c>, the source of the
+/// wire's older <c>login_locked</c> boolean, reports a login locked over a password and one that
+/// never had a password as the same thing, and every hosting account is the second kind, so a
+/// boolean is true for such an account for ever; the four-state value is the fact both directions
+/// can be asked about. A caller asking whether a suspension took hold and one asking whether a
+/// reactivation completed read the same value through different questions. An agent that predates
+/// the classification sends only the boolean: <see cref="AgentAccountsClient"/> turns that into
+/// <see cref="AccountLoginPasswordState.Locked"/> or <see cref="AccountLoginPasswordState.Usable"/>
+/// at the boundary, which is the conservative reading in both directions (suspension and
+/// reactivation both refuse on a lock), so this member is always one of the four.
 /// </param>
 /// <param name="SitesDirectoryReadable">
 /// <c>true</c> when the agent could read the directory it enumerates vhosts from. This is the field
@@ -84,14 +84,11 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// everything, and a name here would be a name the panel had no business learning from a credential
 /// it does not own.
 ///
-/// It carries a default for the same reason <see cref="FileTransferLoginSuspensionFactDto.Protocol"/> does,
-/// and the default is the wire's own absent value: an agent predating the field sends zero, so a
-/// caller that does not pass one reads what such an agent would have said. Zero is therefore
-/// ambiguous between "none exist" and "the agent was too old to look" — and it is the safe reading
-/// only because an agent that old also has no FTPS logins for it to have missed.
+/// It is a type and not a number because the wire cannot tell "none exist" from "the agent was too
+/// old to look": <see cref="UnmanagedLoginCount"/> carries the decision, made once at the boundary
+/// where the raw answer is in hand, so no caller can read an absent count as zero.
 /// </param>
 public sealed record AccountSuspensionStateDto(
-    bool LoginLocked,
     AccountLoginPasswordState LoginPasswordState,
     bool SitesDirectoryReadable,
     IReadOnlyList<SiteSuspensionFactDto> Sites,
@@ -99,4 +96,4 @@ public sealed record AccountSuspensionStateDto(
     uint CronEntriesSuspended,
     uint CronForeignLines,
     IReadOnlyList<FileTransferLoginSuspensionFactDto> FileTransferLogins,
-    uint UnmanagedLogins = 0);
+    UnmanagedLoginCount UnmanagedLogins);

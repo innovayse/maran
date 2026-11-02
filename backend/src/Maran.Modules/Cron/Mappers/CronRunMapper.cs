@@ -1,5 +1,6 @@
 using Maran.Modules.Cron.Common;
 using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Domain.ValueObjects;
 
 namespace Maran.Modules.Cron.Mappers;
 
@@ -18,8 +19,7 @@ public static class CronRunMapper
             run.EntryId,
             run.StartedAt,
             run.DurationMilliseconds,
-            run.ExitCode,
-            run.Limit,
+            End(run.End),
             run.Outcome,
             run.Stdout,
             run.Stderr);
@@ -37,8 +37,22 @@ public static class CronRunMapper
             run.EntryId,
             run.StartedAt,
             run.DurationMilliseconds,
-            run.ExitCode,
-            run.Limit,
+            End(run.End),
             run.Outcome);
+    }
+
+    /// <summary>The wire shape of how a run ended.</summary>
+    /// <param name="end">How the run ended.</param>
+    /// <returns>Its DTO, one shape per case.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">An ending this mapper has no shape for.</exception>
+    private static CronRunEndDto End(CronRunEnd end)
+    {
+        return end switch
+        {
+            CronRunExited exited => new CronRunExitedDto(exited.ExitCode),
+            CronRunEndedWithoutStatus => new CronRunWithoutStatusDto(),
+            CronRunStopped stopped => new CronRunStoppedDto(stopped.Limit),
+            _ => throw new ArgumentOutOfRangeException(nameof(end), end, "Unknown cron run ending."),
+        };
     }
 }

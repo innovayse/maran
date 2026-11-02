@@ -73,14 +73,14 @@ export const useCronApi = (): CronApi => {
    * @param entryId The entry to rewrite.
    * @param request The owning account, the new schedule and the new command.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel rewrote the entry.
+   * @returns Resolves once the panel rewrote the entry; the answer is an empty 204.
    */
   const update = (
     entryId: string,
     request: UpdateCronEntryRequest,
     signal?: AbortSignal,
-  ): Promise<boolean> => {
-    return api.put<boolean>(`${CRON_ENTRIES_PATH}/${encodeURIComponent(entryId)}`, request, signal)
+  ): Promise<void> => {
+    return api.put<void>(`${CRON_ENTRIES_PATH}/${encodeURIComponent(entryId)}`, request, signal)
   }
 
   /**
@@ -88,14 +88,14 @@ export const useCronApi = (): CronApi => {
    * @param entryId The entry to switch.
    * @param request The owning account and the state to put the entry in.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel switched it.
+   * @returns Resolves once the panel switched it; the answer is an empty 204.
    */
   const setEnabled = (
     entryId: string,
     request: SetCronEntryEnabledRequest,
     signal?: AbortSignal,
-  ): Promise<boolean> => {
-    return api.post<boolean>(
+  ): Promise<void> => {
+    return api.post<void>(
       `${CRON_ENTRIES_PATH}/${encodeURIComponent(entryId)}/enabled`,
       request,
       signal,
@@ -135,14 +135,14 @@ export const useCronApi = (): CronApi => {
    * @param entryId The entry to remove.
    * @param accountId The account whose crontab holds it.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed it.
+   * @returns Resolves once the panel removed it; the answer is an empty 204.
    */
   const remove = (
     entryId: string,
     accountId: string,
     signal?: AbortSignal,
-  ): Promise<boolean> => {
-    return api.delete<boolean>(
+  ): Promise<void> => {
+    return api.delete<void>(
       `${CRON_ENTRIES_PATH}/${encodeURIComponent(entryId)}${accountQuery(accountId)}`,
       signal,
     )
@@ -168,13 +168,13 @@ export const useCronApi = (): CronApi => {
    * Replaces the managed assignments with exactly the set sent.
    * @param request The owning account and the complete new set.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel rewrote them.
+   * @returns Resolves once the panel rewrote them; the answer is an empty 204.
    */
   const setEnvironment = (
     request: SetCronEnvironmentRequest,
     signal?: AbortSignal,
-  ): Promise<boolean> => {
-    return api.put<boolean>(CRON_ENVIRONMENT_PATH, request, signal)
+  ): Promise<void> => {
+    return api.put<void>(CRON_ENVIRONMENT_PATH, request, signal)
   }
 
   return {

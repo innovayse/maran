@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Services.AccountsService;
 using Maran.Agent.Client.Services.MonitorService;
+using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.ListAccountDiskUsage;
 using Maran.Modules.Monitoring.Resources;
 using Maran.Modules.Monitoring.Tests.TestSupport;
@@ -227,7 +228,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         {
             DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([new AgentAccountDiskUsage("alice", 1)]),
             QuotaEnforceability = Result<AgentQuotaEnforceability>.Ok(
-                new AgentQuotaEnforceability(true, QuotaUnenforceableReason.Unspecified)),
+                new AgentQuotaEnforceability.Enforceable()),
         };
         var handler = new ListAccountDiskUsageQueryHandler(
             agent,
@@ -237,8 +238,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
         var row = Assert.Single(result.Value.Items);
-        Assert.True(row.Enforceable);
-        Assert.Null(row.Note);
+        Assert.IsType<EnforcedQuotaBackingDto>(row.Backing);
     }
 
     /// <summary>
@@ -253,7 +253,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         {
             DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([new AgentAccountDiskUsage("alice", 1)]),
             QuotaEnforceability = Result<AgentQuotaEnforceability>.Ok(
-                new AgentQuotaEnforceability(false, QuotaUnenforceableReason.AccountingNotEnabled)),
+                new AgentQuotaEnforceability.NotEnforceable(QuotaUnenforceableReason.AccountingNotEnabled)),
         };
         var handler = new ListAccountDiskUsageQueryHandler(
             agent,
@@ -263,13 +263,14 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
         var row = Assert.Single(result.Value.Items);
-        Assert.Equal("AccountQuotaNotEnforceableNote", row.Note);
+        var backing = Assert.IsType<NotEnforcedQuotaBackingDto>(row.Backing);
+        Assert.Equal("AccountQuotaNotEnforceableNote", backing.Note);
     }
 
     /// <summary>
-    /// The mutant this test exists to kill: hardcoding <c>Enforceable = true</c> regardless of what
+    /// The mutant this test exists to kill: hardcoding the enforced case regardless of what
     /// the agent reports is the exact regression issue #29 exists to fix. Every row must read
-    /// <c>false</c> when the shared filesystem cannot enforce anything — regardless of each
+    /// not enforced when the shared filesystem cannot enforce anything — regardless of each
     /// account's own <see cref="AccountSnapshot.DiskQuotaMb"/>.
     /// </summary>
     [Fact]
@@ -283,8 +284,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
                 new AgentAccountDiskUsage("bob", 2),
             ]),
             QuotaEnforceability = Result<AgentQuotaEnforceability>.Ok(
-                new AgentQuotaEnforceability(
-                    false,
+                new AgentQuotaEnforceability.NotEnforceable(
                     QuotaUnenforceableReason.MountedWithoutQuotaAccounting)),
         };
         var handler = new ListAccountDiskUsageQueryHandler(
@@ -298,16 +298,17 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         Assert.All(result.Value.Items, row =>
         {
-            Assert.False(row.Enforceable);
+            Assert.IsType<NotEnforcedQuotaBackingDto>(row.Backing);
         });
     }
 
     /// <summary>
-    /// A failed enforceability read defaults to the SAFE reading — not enforceable — rather than
-    /// silently claiming a limit is backed by a kernel this call never actually asked.
+    /// A failed enforceability read is reported as UNMEASURED — neither enforced, which would claim a
+    /// limit is backed by a kernel this call never asked, nor not enforced, which would assert a
+    /// finding the agent never made — and does not fail the listing.
     /// </summary>
     [Fact]
-    public async Task A_failed_enforceability_read_defaults_to_not_enforceable_rather_than_the_listing_failing()
+    public async Task A_failed_enforceability_read_is_reported_as_unmeasured_rather_than_the_listing_failing()
     {
         var agent = new StubAgentMonitorClient
         {
@@ -324,7 +325,33 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         Assert.True(result.IsSuccess);
         var row = Assert.Single(result.Value.Items);
-        Assert.False(row.Enforceable);
+        var backing = Assert.IsType<UnmeasuredQuotaBackingDto>(row.Backing);
+        Assert.Equal("AccountQuotaUnmeasuredNote", backing.Note);
+    }
+
+    /// <summary>
+    /// A reading the client refused — the agent's reply named no enforceability this panel can read —
+    /// reaches the handler as a failed read, so its rows are unmeasured too: the same honest answer
+    /// whether the agent was silent or its reply was unreadable.
+    /// </summary>
+    [Fact]
+    public async Task An_unreadable_enforceability_reply_is_reported_as_unmeasured()
+    {
+        var agent = new StubAgentMonitorClient
+        {
+            DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([new AgentAccountDiskUsage("alice", 1)]),
+            QuotaEnforceability = Result<AgentQuotaEnforceability>.Fail(
+                Error.Of("AgentInvalidResponse", ErrorType.Failure)),
+        };
+        var handler = new ListAccountDiskUsageQueryHandler(
+            agent,
+            new StubAccountDirectory(Snapshot(Guid.NewGuid(), "alice", diskQuotaMb: 512)),
+            new StubStringLocalizer<DisplayNames>());
+
+        var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
+
+        var row = Assert.Single(result.Value.Items);
+        Assert.IsType<UnmeasuredQuotaBackingDto>(row.Backing);
     }
 
     /// <summary>Builds the handler over an agent that measured one thing and a panel that knows another.</summary>
@@ -339,7 +366,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         {
             DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok(measured),
             QuotaEnforceability = Result<AgentQuotaEnforceability>.Ok(
-                new AgentQuotaEnforceability(true, QuotaUnenforceableReason.Unspecified)),
+                new AgentQuotaEnforceability.Enforceable()),
         };
 
         return new ListAccountDiskUsageQueryHandler(agent, new StubAccountDirectory(known), new StubStringLocalizer<DisplayNames>());

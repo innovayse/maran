@@ -94,8 +94,8 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
     [Fact]
     public async Task A_completed_reset_revokes_every_session_the_account_had()
     {
-        await NewSessions().IssueAsync(_userId, "198.51.100.4", "thief", CancellationToken.None);
-        await NewSessions().IssueAsync(_userId, "203.0.113.7", "owner", CancellationToken.None);
+        await NewSessions().IssueAsync(_userId, "198.51.100.4", "thief", null, CancellationToken.None);
+        await NewSessions().IssueAsync(_userId, "203.0.113.7", "owner", null, CancellationToken.None);
         var token = await IssueTokenAsync();
 
         await NewHandler().HandleAsync(Command(token), CancellationToken.None);
@@ -104,7 +104,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
         Assert.Equal(2, sessions.Count);
         Assert.All(sessions, session =>
         {
-            Assert.Equal(SessionRevocationReason.PasswordChanged, session.RevocationReason);
+            Assert.Equal(SessionRevocationReason.PasswordChanged, session.Revocation?.Reason);
         });
     }
 
@@ -244,7 +244,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
 
     /// <summary>
     /// A reset token presented for a login that was never claimed completes the invitation instead of
-    /// leaving it stuck in <see cref="UserState.Invited"/> forever — the dead end an invited customer
+    /// leaving it stuck in <see cref="UserLifecycle.Invited"/> forever — the dead end an invited customer
     /// hits when their invitation mail is lost and "forgot password" is the only path they can find
     /// back in.
     /// </summary>
@@ -263,7 +263,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
 
         Assert.True(result.IsSuccess);
         var user = await _context.Users.SingleAsync(candidate => candidate.Id == invitedUserId);
-        Assert.Equal(UserState.Active, user.State);
+        Assert.Equal(UserLifecycle.Active, user.Lifecycle);
         Assert.True(_hasher.Verify(NewPassword, user.PasswordHash));
     }
 

@@ -71,7 +71,7 @@ export interface SmtpSettingsApi {
   /** Reads the settings, with a flag in place of the password. */
   get: (signal?: AbortSignal) => Promise<SmtpSettings>
   /** Replaces the settings wholesale. */
-  save: (request: SaveSmtpSettingsRequest, signal?: AbortSignal) => Promise<boolean>
+  save: (request: SaveSmtpSettingsRequest, signal?: AbortSignal) => Promise<void>
   /** Sends one test message to a stated recipient. */
-  sendTest: (recipient: string, signal?: AbortSignal) => Promise<boolean>
+  sendTest: (recipient: string, signal?: AbortSignal) => Promise<void>
 }

@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Tasks.Tests.TestSupport;
@@ -10,28 +11,16 @@ namespace Maran.Modules.Tasks.Tests.TestSupport;
 public sealed class FakeCurrentUser : ICurrentUser
 {
     /// <inheritdoc />
-    public Guid UserId { get; }
-
-    /// <inheritdoc />
-    public string Username { get; }
-
-    /// <inheritdoc />
-    public Guid? AccountId { get; }
-
-    /// <inheritdoc />
-    public bool IsAdmin { get; }
+    public Caller Caller { get; }
 
     /// <summary>Creates a principal.</summary>
     /// <param name="userId">The panel user id.</param>
     /// <param name="accountId">The owning account for a customer, or null.</param>
     /// <param name="isAdmin">Whether the principal is a server administrator.</param>
-    /// <param name="username">The login name.</param>
+    /// <param name="username">The login name the audit journal records.</param>
     public FakeCurrentUser(Guid userId, Guid? accountId, bool isAdmin, string username = "tester")
     {
-        UserId = userId;
-        Username = username;
-        AccountId = accountId;
-        IsAdmin = isAdmin;
+        Caller = CallerFor(userId, accountId, isAdmin, username);
     }
 
     /// <summary>Creates a customer principal owning a fresh account no seeded task belongs to.</summary>
@@ -53,5 +42,27 @@ public sealed class FakeCurrentUser : ICurrentUser
     public static FakeCurrentUser Admin()
     {
         return new FakeCurrentUser(Guid.NewGuid(), null, isAdmin: true);
+    }
+
+    /// <summary>
+    /// Picks the caller kind the arguments describe: an administrator, a customer acting for an
+    /// account, or — for a non-administrator with no account — a customer who owns nothing, which is
+    /// what a tenant filter must show no row.
+    /// </summary>
+    /// <param name="userId">The panel user id.</param>
+    /// <param name="accountId">The owning account for a customer, or null.</param>
+    /// <param name="isAdmin">Whether the principal is a server administrator.</param>
+    /// <param name="username">The login name the audit journal records.</param>
+    /// <returns>The caller.</returns>
+    private static Caller CallerFor(Guid userId, Guid? accountId, bool isAdmin, string username)
+    {
+        if (isAdmin)
+        {
+            return new AdministratorCaller(userId, username);
+        }
+
+        return accountId is { } account
+            ? new CustomerCaller(userId, username, account)
+            : new AccountlessCustomerCaller(userId, username);
     }
 }

@@ -59,7 +59,7 @@ public sealed class ChangeLogLevelCommandHandler
     /// <param name="command">The validated choice.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Success; the level is the caller's own input and there is nothing else to hand back.</returns>
-    public async Task<Result<bool>> HandleAsync(ChangeLogLevelCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(ChangeLogLevelCommand command, CancellationToken cancellationToken)
     {
         var now = _clock.UtcNow;
         var previous = _levelSwitch.Current;
@@ -87,6 +87,6 @@ public sealed class ChangeLogLevelCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

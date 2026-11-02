@@ -106,12 +106,12 @@ public sealed class AdminRecoveryIssuer
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
-    /// The issued recovery; <c>Ok(null)</c> when no administrator exists at all, in which case the
-    /// caller points the operator at first-run setup (<c>/setup</c>) and prints no token; or a typed
-    /// refusal — <c>AdminRecoveryUserNotFound</c>, <c>AdminRecoveryNotAdministrator</c>,
+    /// <see cref="AdminRecoveryIssued"/>; <see cref="NoAdministratorExists"/> when no administrator
+    /// exists at all, in which case the caller points the operator at first-run setup
+    /// (<c>/setup</c>) and prints no token; or a typed refusal — <c>AdminRecoveryUserNotFound</c>, <c>AdminRecoveryNotAdministrator</c>,
     /// <c>AdminRecoveryLoginNotActive</c>.
     /// </returns>
-    public async Task<Result<IssuedAdminRecovery?>> IssueAsync(
+    public async Task<Result<AdminRecoveryOutcome>> IssueAsync(
         string identifier,
         bool clearTwoFactor,
         string operatorClaim,
@@ -130,25 +130,25 @@ public sealed class AdminRecoveryIssuer
             {
                 // No administrator has ever been created: first-run setup is the way in, and a reset
                 // token would be a key to a door that does not exist.
-                return Result<IssuedAdminRecovery?>.Ok(null);
+                return Result<AdminRecoveryOutcome>.Ok(new NoAdministratorExists());
             }
 
             await _journal.RecordConsoleRecoveryAsync(identifier, claim, succeeded: false, cancellationToken);
-            return Result<IssuedAdminRecovery?>.Fail(
+            return Result<AdminRecoveryOutcome>.Fail(
                 Error.Of(nameof(ErrorMessages.AdminRecoveryUserNotFound), ErrorType.NotFound));
         }
 
         if (user.Role != UserRole.Admin)
         {
             await _journal.RecordConsoleRecoveryAsync(user.Id.ToString(), claim, succeeded: false, cancellationToken);
-            return Result<IssuedAdminRecovery?>.Fail(
+            return Result<AdminRecoveryOutcome>.Fail(
                 Error.Of(nameof(ErrorMessages.AdminRecoveryNotAdministrator), ErrorType.Conflict));
         }
 
-        if (user.State != UserState.Active)
+        if (!user.MayAuthenticate)
         {
             await _journal.RecordConsoleRecoveryAsync(user.Id.ToString(), claim, succeeded: false, cancellationToken);
-            return Result<IssuedAdminRecovery?>.Fail(
+            return Result<AdminRecoveryOutcome>.Fail(
                 Error.Of(nameof(ErrorMessages.AdminRecoveryLoginNotActive), ErrorType.Conflict));
         }
 
@@ -181,13 +181,14 @@ public sealed class AdminRecoveryIssuer
 
         await _journal.RecordConsoleRecoveryAsync(user.Id.ToString(), claim, succeeded: true, cancellationToken);
 
-        return Result<IssuedAdminRecovery?>.Ok(
-            new IssuedAdminRecovery(
-                user.Username,
-                new SensitiveString(_links.Build(token)),
-                !_links.HasPublicAddress,
-                issued.ExpiresAt,
-                clearTwoFactor && hadTwoFactor));
+        return Result<AdminRecoveryOutcome>.Ok(
+            new AdminRecoveryIssued(
+                new IssuedAdminRecovery(
+                    user.Username,
+                    new SensitiveString(_links.Build(token)),
+                    !_links.HasPublicAddress,
+                    issued.ExpiresAt,
+                    clearTwoFactor && hadTwoFactor)));
     }
 
     /// <summary>Drops control characters from the operator's claimed name and bounds its length.</summary>

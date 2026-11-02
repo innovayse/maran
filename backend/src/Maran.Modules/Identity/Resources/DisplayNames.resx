@@ -33,6 +33,9 @@
   <data name="AuditActionRefreshTokenReuseDetected">
     <value>Refresh token reuse detected</value>
   </data>
+  <data name="AuditActionActiveAccountSwitched">
+    <value>Switched active account</value>
+  </data>
   <data name="AuditActionTwoFactorEnabled">
     <value>Two-factor enabled</value>
   </data>
@@ -281,5 +284,50 @@
   </data>
   <data name="AuditActionConsoleRecovery">
     <value>Administrator recovered from the server console</value>
+  </data>
+  <data name="AuditActionPagePinned">
+    <value>Page pinned to the app bar</value>
+  </data>
+  <data name="AuditActionPageUnpinned">
+    <value>Page removed from the app bar</value>
+  </data>
+  <data name="AuditActionSubUserInvited">
+    <value>Sub-user invited</value>
+  </data>
+  <data name="AuditActionSubUserGrantsChanged">
+    <value>Sub-user features changed</value>
+  </data>
+  <data name="AuditActionSubUserRemoved">
+    <value>Sub-user removed</value>
+  </data>
+  <data name="AccountFeatureMail">
+    <value>Mail</value>
+  </data>
+  <data name="AccountFeatureDns">
+    <value>DNS</value>
+  </data>
+  <data name="AccountFeatureDatabases">
+    <value>Databases</value>
+  </data>
+  <data name="AccountFeatureCron">
+    <value>Scheduled tasks</value>
+  </data>
+  <data name="AccountFeatureFileTransfer">
+    <value>File transfer (SFTP and FTPS)</value>
+  </data>
+  <data name="AccountFeatureBackups">
+    <value>Backups</value>
+  </data>
+  <data name="MembershipRoleOwner">
+    <value>Owner</value>
+  </data>
+  <data name="MembershipRoleMember">
+    <value>Team member</value>
+  </data>
+  <data name="AuditActionViewAsStarted">
+    <value>Started viewing as an account</value>
+  </data>
+  <data name="AuditActionViewAsEnded">
+    <value>Stopped viewing as an account</value>
   </data>
 </root>

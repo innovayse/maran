@@ -1,6 +1,8 @@
 using Maran.Agent.Client.Services.AccountsService;
 using Maran.Agent.V1;
 using Microsoft.Extensions.Logging.Abstractions;
+using PanelSiteServing = Maran.Agent.Client.Services.AccountsService.SiteServing;
+using WireSiteServing = Maran.Agent.V1.SiteServing;
 
 namespace Maran.Agent.Client.Tests.Services.AccountsService;
 
@@ -35,8 +37,9 @@ public sealed class AgentAccountsClientSuspensionStateTests
                     SitesDirectoryReadable = true,
                     Sites =
                     {
-                        new SiteSuspensionFact { Domain = "a.example.com", ServingStub = true },
-                        new SiteSuspensionFact { Domain = "b.example.com", ServingStub = false },
+                        new SiteSuspensionFact { Domain = "a.example.com", Serving = WireSiteServing.Stub },
+                        new SiteSuspensionFact { Domain = "b.example.com", Serving = WireSiteServing.NotStub },
+                        new SiteSuspensionFact { Domain = "c.example.com", Serving = WireSiteServing.Unobservable },
                     },
                     CronEntriesTotal = 7,
                     CronEntriesSuspended = 5,
@@ -65,12 +68,15 @@ public sealed class AgentAccountsClientSuspensionStateTests
 
         Assert.True(result.IsSuccess);
         var state = result.Value!;
-        Assert.True(state.LoginLocked);
         Assert.Equal(AccountLoginPasswordState.Absent, state.LoginPasswordState);
         Assert.True(state.SitesDirectoryReadable);
         Assert.Equal(
-            [("a.example.com", true), ("b.example.com", false)],
-            state.Sites.Select(site => { return (site.Domain, site.ServingStub); }));
+            [
+                ("a.example.com", PanelSiteServing.Stub),
+                ("b.example.com", PanelSiteServing.NotStub),
+                ("c.example.com", PanelSiteServing.Unobservable),
+            ],
+            state.Sites.Select(site => { return (site.Domain, site.Serving); }));
         Assert.Equal(7u, state.CronEntriesTotal);
         Assert.Equal(5u, state.CronEntriesSuspended);
         Assert.Equal(3u, state.CronForeignLines);
@@ -80,7 +86,7 @@ public sealed class AgentAccountsClientSuspensionStateTests
                 ("alice_deploy", false, LoginTransferProtocol.Ftps),
             ],
             state.FileTransferLogins.Select(login => { return (login.Username, login.Locked, login.Protocol); }));
-        Assert.Equal(2u, state.UnmanagedLogins);
+        Assert.Equal(new MeasuredUnmanagedLogins(2), state.UnmanagedLogins);
     }
 
     /// <summary>The count of logins the suspension could not cover survives the trip to the panel.</summary>
@@ -114,19 +120,19 @@ public sealed class AgentAccountsClientSuspensionStateTests
         var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(11u, result.Value!.UnmanagedLogins);
+        Assert.Equal(new MeasuredUnmanagedLogins(11), result.Value!.UnmanagedLogins);
         Assert.Equal(3u, result.Value.CronForeignLines);
     }
 
-    /// <summary>A login the agent reported without a protocol reads as unspecified rather than as ftps.</summary>
+    /// <summary>A login the agent reported without a protocol reads as sftp.</summary>
     /// <remarks>
-    /// Version skew downwards: an agent predating the field sends nothing, and the caller resolves
+    /// Version skew downwards: an agent predating the field sends nothing, and the client resolves
     /// that to SFTP because before FTPS existed every reported login was an SFTP one by construction.
-    /// What must never happen is the absent value landing on a concrete protocol HERE, which would
-    /// make the panel state a daemon the agent never named.
+    /// What must never happen is the contract's zero value leaving the client, which would hand every
+    /// module a protocol that is not one.
     /// </remarks>
     [Fact]
-    public async Task A_login_reported_without_a_protocol_reads_as_unspecified()
+    public async Task A_login_reported_without_a_protocol_reads_as_sftp()
     {
         var stub = new StubAccountsService
         {
@@ -143,23 +149,23 @@ public sealed class AgentAccountsClientSuspensionStateTests
 
         Assert.True(result.IsSuccess);
         var login = Assert.Single(result.Value!.FileTransferLogins);
-        Assert.Equal(LoginTransferProtocol.Unspecified, login.Protocol);
+        Assert.Equal(LoginTransferProtocol.Sftp, login.Protocol);
 
         // Positive control: the record around the protocol did carry its other fields, so the
-        // unspecified above is the mapping's answer and not an empty entry.
+        // answer above is the mapping's and not an empty entry.
         Assert.Equal("alice_web", login.Username);
         Assert.True(login.Locked);
     }
 
-    /// <summary>A protocol this build has never heard of reads as unspecified.</summary>
+    /// <summary>A protocol this build has never heard of reads as sftp, and an ftps login still reads as ftps.</summary>
     /// <remarks>
     /// Version skew upwards, the same shape as the password state's: a NEWER agent naming a third
-    /// daemon. The mapping is by number, so an unknown number must land on
-    /// <see cref="LoginTransferProtocol.Unspecified"/> rather than on whatever the cast produced —
-    /// a value no switch in the panel has an arm for, and one that would print as a number.
+    /// daemon. The mapping is explicit, so an unknown number must land on a protocol the panel can
+    /// name rather than on whatever a cast produced. The ftps login beside it is the inverse
+    /// control: a mapping that answered sftp for everything would satisfy the first half alone.
     /// </remarks>
     [Fact]
-    public async Task A_protocol_this_build_does_not_know_reads_as_unspecified()
+    public async Task A_protocol_this_build_does_not_know_reads_as_sftp()
     {
         var stub = new StubAccountsService
         {
@@ -175,6 +181,12 @@ public sealed class AgentAccountsClientSuspensionStateTests
                             Locked = true,
                             Protocol = (TransferProtocol)99,
                         },
+                        new SftpLoginSuspensionFact
+                        {
+                            Username = "alice_files",
+                            Locked = true,
+                            Protocol = TransferProtocol.Ftps,
+                        },
                     },
                 },
             },
@@ -183,19 +195,28 @@ public sealed class AgentAccountsClientSuspensionStateTests
         var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(LoginTransferProtocol.Unspecified, Assert.Single(result.Value!.FileTransferLogins).Protocol);
+        Assert.Equal(
+            [LoginTransferProtocol.Sftp, LoginTransferProtocol.Ftps],
+            result.Value!.FileTransferLogins.Select(login => { return login.Protocol; }));
     }
 
-    /// <summary>A password state this build has never heard of reads as unspecified.</summary>
+    /// <summary>A password state this build has never heard of reads as the state the boolean implies.</summary>
     /// <remarks>
     /// Version skew in the direction nobody arranges for: a NEWER agent naming a fifth state. The
-    /// mapping is by number, so an unknown number must land on
-    /// <see cref="AccountLoginPasswordState.Unspecified"/> — which sends both handlers back to
-    /// <c>LoginLocked</c> and refuses — rather than on whatever the cast produced, which would be a
-    /// value the handlers' switches fall through.
+    /// contract's zero and an unknown number are answered from the older boolean in the one way that
+    /// is conservative in both directions: a lock reads as <see cref="AccountLoginPasswordState.Locked"/>,
+    /// no lock as <see cref="AccountLoginPasswordState.Usable"/>. Both rows are asserted so that a
+    /// mapping answering one of them for everything fails the other.
     /// </remarks>
-    [Fact]
-    public async Task A_password_state_this_build_does_not_know_reads_as_unspecified()
+    [Theory]
+    [InlineData(99, true, AccountLoginPasswordState.Locked)]
+    [InlineData(99, false, AccountLoginPasswordState.Usable)]
+    [InlineData(0, true, AccountLoginPasswordState.Locked)]
+    [InlineData(0, false, AccountLoginPasswordState.Usable)]
+    public async Task A_password_state_the_agent_did_not_classify_reads_as_the_state_the_boolean_implies(
+        int wireState,
+        bool loginLocked,
+        AccountLoginPasswordState expected)
     {
         var stub = new StubAccountsService
         {
@@ -203,7 +224,8 @@ public sealed class AgentAccountsClientSuspensionStateTests
             {
                 Ok = new GetAccountSuspensionStateOk
                 {
-                    LoginPasswordState = (LoginPasswordState)99,
+                    LoginLocked = loginLocked,
+                    LoginPasswordState = (LoginPasswordState)wireState,
                 },
             },
         };
@@ -211,7 +233,62 @@ public sealed class AgentAccountsClientSuspensionStateTests
         var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(AccountLoginPasswordState.Unspecified, result.Value!.LoginPasswordState);
+        Assert.Equal(expected, result.Value!.LoginPasswordState);
+    }
+
+    /// <summary>A classified password state is never overridden by the boolean.</summary>
+    /// <remarks>
+    /// The inverse control for the theory above: a login with no hash reads as locked through
+    /// <c>passwd -S</c> for ever, and the classified state must win over that boolean, or the
+    /// reactivation would refuse every hosting account again.
+    /// </remarks>
+    [Fact]
+    public async Task A_classified_password_state_is_never_overridden_by_the_boolean()
+    {
+        var stub = new StubAccountsService
+        {
+            SuspensionStateResponse = new GetAccountSuspensionStateResponse
+            {
+                Ok = new GetAccountSuspensionStateOk
+                {
+                    LoginLocked = true,
+                    LoginPasswordState = LoginPasswordState.Absent,
+                },
+            },
+        };
+
+        var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
+
+        Assert.Equal(AccountLoginPasswordState.Absent, result.Value!.LoginPasswordState);
+    }
+
+    /// <summary>A zero count with no stated protocol is carried as unmeasured, never as a zero.</summary>
+    /// <remarks>
+    /// The wire cannot tell "none exist" from "the agent predates the field", so the client decides
+    /// from the rest of the answer: a count above zero, or any login naming its daemon, proves the
+    /// agent counted. The three rows keep the decision from collapsing to either answer.
+    /// </remarks>
+    [Fact]
+    public async Task A_zero_count_is_unmeasured_unless_the_answer_proves_the_agent_counted()
+    {
+        var silent = await StateOf(new GetAccountSuspensionStateOk
+        {
+            SftpLogins = { new SftpLoginSuspensionFact { Username = "alice_web", Locked = true } },
+        });
+        var named = await StateOf(new GetAccountSuspensionStateOk
+        {
+            SftpLogins =
+            {
+                new SftpLoginSuspensionFact { Username = "alice_web", Locked = true, Protocol = TransferProtocol.Sftp },
+            },
+        });
+        var counted = await StateOf(new GetAccountSuspensionStateOk { UnmanagedLogins = 4 });
+        var empty = await StateOf(new GetAccountSuspensionStateOk());
+
+        Assert.Equal(new UnmeasuredUnmanagedLogins(), silent.UnmanagedLogins);
+        Assert.Equal(new MeasuredUnmanagedLogins(0), named.UnmanagedLogins);
+        Assert.Equal(new MeasuredUnmanagedLogins(4), counted.UnmanagedLogins);
+        Assert.Equal(new UnmeasuredUnmanagedLogins(), empty.UnmanagedLogins);
     }
 
     /// <summary>The request carries the account the caller asked about.</summary>
@@ -252,6 +329,49 @@ public sealed class AgentAccountsClientSuspensionStateTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentNotFound", result.Error!.Code);
+    }
+
+    /// <summary>A vhost fact stating no serving outcome is refused as an invalid response.</summary>
+    /// <remarks>
+    /// The contract's zero value means the agent predates the field; the deprecated boolean is never
+    /// read as a stand-in because it cannot say "could not compare". Its inverse control is
+    /// <see cref="Every_field_of_the_hosts_answer_lands_in_its_own_place"/>, where every outcome is stated.
+    /// </remarks>
+    [Fact]
+    public async Task A_vhost_fact_without_a_serving_outcome_is_refused_as_an_invalid_response()
+    {
+        var stub = new StubAccountsService
+        {
+            SuspensionStateResponse = new GetAccountSuspensionStateResponse
+            {
+                Ok = new GetAccountSuspensionStateOk
+                {
+                    SitesDirectoryReadable = true,
+                    Sites = { new SiteSuspensionFact { Domain = "a.example.com" } },
+                },
+            },
+        };
+
+        var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
+    /// <summary>Asks the client about one wire answer and returns the mapped observation.</summary>
+    /// <param name="ok">The wire payload the stub answers with.</param>
+    /// <returns>The mapped observation; the call is asserted to have succeeded.</returns>
+    private static async Task<AccountSuspensionStateDto> StateOf(GetAccountSuspensionStateOk ok)
+    {
+        var stub = new StubAccountsService
+        {
+            SuspensionStateResponse = new GetAccountSuspensionStateResponse { Ok = ok },
+        };
+
+        var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        return result.Value!;
     }
 
     /// <summary>The client under test, over the stub invoker.</summary>

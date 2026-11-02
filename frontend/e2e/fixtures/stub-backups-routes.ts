@@ -17,7 +17,7 @@ const BACKUP_PATTERN = '**/api/v1/backups/*'
  */
 const BACKUP_RULES: PagedRules<Backup> = {
   matches: (backup, term) => {
-    return backup.ownerName.toLowerCase().includes(term) || backup.orphanedAccountUsername.toLowerCase().includes(term)
+    return backup.ownerName.toLowerCase().includes(term) || (backup.orphanedAccountUsername ?? '').toLowerCase().includes(term)
   },
   sorts: {
     startedAt: (backup) => {
@@ -120,7 +120,7 @@ export const stubBackups = async (page: Page, backups: Backup[]): Promise<() => 
         // This stub holds no account catalogue to name the owner from, so it answers as the panel does
         // for an account its directory does not name.
         ownerName: '',
-        orphanedAccountUsername: '',
+        orphanedAccountUsername: null,
         status: 'completed',
         kind: 'manual',
         sizeBytes: 5_242_880,
@@ -128,8 +128,8 @@ export const stubBackups = async (page: Page, backups: Backup[]): Promise<() => 
         databaseCount: 1,
         startedAt: '2026-09-07T09:00:00Z',
         finishedAt: '2026-09-07T09:02:00Z',
-        failureCode: '',
-        failureDisplayName: '',
+        failureCode: null,
+        failureDisplayName: null,
       }
       backups.unshift(created)
       await route.fulfill({
@@ -175,7 +175,7 @@ export const stubBackupsProblem = async (page: Page, detail: string): Promise<vo
 }
 
 /**
- * Fulfils `DELETE /api/v1/backups/{id}` with a success, and counts every request that reaches it.
+ * Fulfils `DELETE /api/v1/backups/{id}` with a 204 No Content, and counts every request that reaches it.
  *
  * The counter is the point rather than a convenience: a confirmation that a spec drives by clicking
  * proves only that a second click exists, where the number of requests that left the page proves
@@ -206,7 +206,7 @@ export const stubBackupDeletion = async (page: Page, backups: Backup[]): Promise
     if (index >= 0) {
       backups.splice(index, 1)
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 
   return (): number => {

@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
@@ -62,7 +63,7 @@ public sealed class SaveSecurityPolicyCommandHandler
     /// <param name="command">The validated policy.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>Success. The values are the caller's own input; there is nothing to hand back.</returns>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         SaveSecurityPolicyCommand command,
         CancellationToken cancellationToken)
     {
@@ -96,7 +97,7 @@ public sealed class SaveSecurityPolicyCommandHandler
         _cache.Invalidate();
 
         await _journal.RecordIdentifiedAsync(
-            _currentUser.UserId,
+            SignedInCallerPolicy.Require(_currentUser).UserId,
             AuditActions.SecurityPolicySaved,
             nameof(Domain.Entities.SecurityPolicy),
             command.IpAddress,
@@ -104,6 +105,6 @@ public sealed class SaveSecurityPolicyCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

@@ -57,7 +57,7 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DropAsync(
+    public async Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -69,11 +69,11 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetPasswordAsync(
+    public async Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,
@@ -85,7 +85,7 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
@@ -115,18 +115,27 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
     }
 
     /// <summary>Counts the call like every other, so the pipeline is observed around this member too.</summary>
-    /// <param name="reportOnly">Recorded, so a test can see which pass the decorator forwarded.</param>
     /// <param name="cancellationToken">The token the pipeline's timeout cancels.</param>
     /// <returns>An empty census once the call may return.</returns>
-    public async Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
-        bool reportOnly,
-        CancellationToken cancellationToken)
+    public async Task<Result<GrantInspectionReportDto>> InspectGrantsAsync(CancellationToken cancellationToken)
     {
-        LastReportOnly = reportOnly;
+        LastReportOnly = true;
 
         await EnterAsync(cancellationToken);
 
-        return Result<GrantRepairReportDto>.Ok(new GrantRepairReportDto(0, 0, [], [], []));
+        return Result<GrantInspectionReportDto>.Ok(new GrantInspectionReportDto(0, 0, [], []));
+    }
+
+    /// <summary>Counts the call like every other, so the pipeline is observed around this member too.</summary>
+    /// <param name="cancellationToken">The token the pipeline's timeout cancels.</param>
+    /// <returns>An empty census once the call may return.</returns>
+    public async Task<Result<GrantRepairReportDto>> RepairGrantsAsync(CancellationToken cancellationToken)
+    {
+        LastReportOnly = false;
+
+        await EnterAsync(cancellationToken);
+
+        return Result<GrantRepairReportDto>.Ok(new GrantRepairReportDto(0, 0, [], []));
     }
 
     /// <summary>Counts the call and applies whichever misbehaviour the test asked for.</summary>

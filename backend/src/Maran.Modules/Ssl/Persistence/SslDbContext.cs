@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Maran.Modules.Ssl.Domain.Entities;
 using Maran.Modules.Ssl.Persistence.Configurations;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Ssl.Persistence;
 
@@ -76,6 +78,44 @@ public sealed class SslDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// True when the caller is an administrator, who sees every account's certificates. Read per
+    /// context instance by the tenant filter, which an expression tree cannot express as a type switch.
+    /// </summary>
+    private bool SeesEveryAccount
+    {
+        get
+        {
+            return _currentUser.Caller switch
+            {
+                AdministratorCaller => true,
+                AnonymousCaller => false,
+                CustomerCaller => false,
+                AccountlessCustomerCaller => false,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            };
+        }
+    }
+
+    /// <summary>
+    /// The one account a customer acts for, or null for an administrator, an anonymous caller and a
+    /// customer login with no account selected — none of whom own a certificate through this arm.
+    /// </summary>
+    private Guid? OwnAccountId
+    {
+        get
+        {
+            return _currentUser.Caller switch
+            {
+                CustomerCaller customer => customer.AccountId,
+                AdministratorCaller => null,
+                AnonymousCaller => null,
+                AccountlessCustomerCaller => null,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            };
+        }
+    }
+
     /// <summary>Applies the schema, the entity configurations, and the tenant query filter.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -86,7 +126,7 @@ public sealed class SslDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PanelCertificateConfiguration());
 
         modelBuilder.Entity<Certificate>().HasQueryFilter(certificate =>
-            _currentUser.IsAdmin || certificate.AccountId == _currentUser.AccountId);
+            SeesEveryAccount || certificate.AccountId == OwnAccountId);
 
         base.OnModelCreating(modelBuilder);
     }

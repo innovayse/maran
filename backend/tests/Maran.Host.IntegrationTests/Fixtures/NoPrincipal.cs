@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Host.IntegrationTests.Fixtures;
@@ -9,32 +10,5 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 public sealed class NoPrincipal : ICurrentUser
 {
     /// <inheritdoc />
-    public Guid UserId { get; } = Guid.Empty;
-
-    /// <inheritdoc />
-    public string Username
-    {
-        get
-        {
-            return "system";
-        }
-    }
-
-    /// <inheritdoc />
-    public Guid? AccountId
-    {
-        get
-        {
-            return null;
-        }
-    }
-
-    /// <inheritdoc />
-    public bool IsAdmin
-    {
-        get
-        {
-            return false;
-        }
-    }
+    public Caller Caller { get; } = AnonymousCaller.Instance;
 }

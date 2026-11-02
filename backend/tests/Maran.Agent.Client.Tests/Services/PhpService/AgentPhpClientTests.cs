@@ -57,9 +57,9 @@ public sealed class AgentPhpClientTests
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
-    /// <summary>An unset default flag stays unknown rather than becoming false.</summary>
+    /// <summary>An unset default flag maps to unknown, a stated false to not-default and a stated true to default.</summary>
     [Fact]
-    public async Task An_unset_default_flag_stays_unknown_rather_than_becoming_false()
+    public async Task An_unset_default_flag_maps_to_unknown_and_stated_flags_to_not_default_and_default()
     {
         var ok = new ListPhpVersionsOk();
         ok.Versions.Add(new PhpVersion { Version = "8.3", FpmSocketDirectory = "/run/php" });
@@ -70,9 +70,9 @@ public sealed class AgentPhpClientTests
         var result = await NewClient(stub, NullLogger<AgentPhpClient>.Instance).ListVersionsAsync(
             CancellationToken.None);
 
-        Assert.Null(result.Value[0].IsDefault);
-        Assert.False(result.Value[1].IsDefault);
-        Assert.True(result.Value[2].IsDefault);
+        Assert.Equal(AgentPhpDefaultStatus.Unknown, result.Value[0].DefaultStatus);
+        Assert.Equal(AgentPhpDefaultStatus.NotDefault, result.Value[1].DefaultStatus);
+        Assert.Equal(AgentPhpDefaultStatus.Default, result.Value[2].DefaultStatus);
     }
 
     /// <summary>The agents message and tool output are logged and never returned.</summary>

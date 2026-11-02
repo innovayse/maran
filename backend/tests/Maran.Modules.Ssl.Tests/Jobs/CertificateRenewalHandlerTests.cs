@@ -133,7 +133,12 @@ public sealed class CertificateRenewalHandlerTests
 
         Assert.Equal(0, renewed);
         var stored = await fixture.DbContext.Certificates.SingleAsync();
-        Assert.Equal("AcmeValidationFailed", stored.LastRenewalErrorCode);
+        Assert.Equal("AcmeValidationFailed", stored.LastRenewalFailureCode);
+
+        // The previous release's column is kept in step until it is dropped.
+        Assert.Equal(
+            "AcmeValidationFailed",
+            fixture.DbContext.Entry(stored).Property<string>("LegacyRenewalErrorCode").CurrentValue);
         Assert.Equal(1, stored.ConsecutiveRenewalFailures);
         Assert.Equal(SslHandlerFixture.Now.AddDays(5), stored.NotAfter);
     }

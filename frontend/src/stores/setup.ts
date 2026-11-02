@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useAuthApi } from '../composables/apis/useAuthApi'
 import { ApiError } from '../composables/useApi'
-import type { CompleteSetupRequest } from '../types/auth'
+import type { CompleteSetupRequest, SetupState } from '../types/auth'
+import type { Read } from '../types/loading'
 
 /**
  * Owns the panel's first-run state: whether an administrator exists yet, and the action that
@@ -12,8 +13,11 @@ import type { CompleteSetupRequest } from '../types/auth'
 export const useSetupStore = defineStore('setup', () => {
   const api = useAuthApi()
 
-  /** Whether the panel already has an administrator; `null` until asked. */
-  const isSetupComplete: Ref<boolean | null> = ref(null)
+  /**
+   * What the panel answered about its first administrator. `idle` until asked; `failed` when the
+   * panel could not be reached, which is its own answer and not a flavour of "complete".
+   */
+  const setupRead: Ref<Read<SetupState>> = ref({ state: 'idle' })
 
   /** True while the first administrator is being created. */
   const loading: Ref<boolean> = ref(false)
@@ -35,17 +39,18 @@ export const useSetupStore = defineStore('setup', () => {
    * @returns Resolves once the answer is known.
    */
   const loadSetupState = async (): Promise<void> => {
-    if (isSetupComplete.value !== null) {
+    if (setupRead.value.state !== 'idle') {
       return
     }
 
+    setupRead.value = { state: 'loading' }
     try {
-      isSetupComplete.value = (await api.setupState()).isComplete
-    } catch {
-      // An unreachable panel is not an un-set-up one. Assuming "complete" keeps a
-      // visitor on the login screen rather than offering to claim a server that
-      // may well already have an owner.
-      isSetupComplete.value = true
+      setupRead.value = { state: 'loaded', value: await api.setupState() }
+    } catch (error) {
+      // An unreachable panel is not an un-set-up one. The router treats a failed read like a
+      // complete setup, which keeps a visitor on the login screen rather than offering to claim a
+      // server that may well already have an owner.
+      setupRead.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
     }
   }
 
@@ -59,7 +64,7 @@ export const useSetupStore = defineStore('setup', () => {
     errorMessage.value = null
     try {
       await api.completeSetup(request)
-      isSetupComplete.value = true
+      setupRead.value = { state: 'loaded', value: { isComplete: true } }
       return true
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
@@ -70,7 +75,7 @@ export const useSetupStore = defineStore('setup', () => {
   }
 
   return {
-    isSetupComplete,
+    setupRead,
     loading,
     errorMessage,
     dismissError,

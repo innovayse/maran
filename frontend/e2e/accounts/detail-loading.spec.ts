@@ -32,7 +32,7 @@ const ACCOUNT: AccountDetail = {
 
 const SUMMARY: AccountResourceSummary = {
   accountId: ACCOUNT.id,
-  resources: [{ kind: 'sites', state: 'counted', used: 2, limitKind: 'limited', limit: 5 }],
+  resources: [{ kind: 'sites', count: { state: 'counted', used: 2 }, limit: { kind: 'limited', maximum: 5 } }],
 }
 
 /** The server's refusal the failure cases answer with. */
@@ -68,7 +68,7 @@ const refuse = async (page: Page, pattern: string): Promise<void> => {
 const stubShell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
   await stubInvitation(page, ACCOUNT.id, 'pending')
 }
 

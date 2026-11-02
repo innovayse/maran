@@ -25,7 +25,7 @@ public sealed class CountingFrameSource
         while (Yielded < Available)
         {
             Yielded++;
-            yield return SiteLogFrame.OfLine($"line {Yielded}", historical: false);
+            yield return new SiteLogLineFrame($"line {Yielded}", false);
             await Task.Yield();
         }
     }

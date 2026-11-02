@@ -13,7 +13,7 @@ import type { PanelModule } from '../../src/types/module'
 
 // The plans table while the list is on the way (#243): drawn from its own column schema.
 
-const LICENSED: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }]
 
 /** The server's refusal the failure case answers with. */
 const REFUSAL = 'The plans could not be read.'

@@ -10,7 +10,7 @@ import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

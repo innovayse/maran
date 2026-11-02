@@ -1,18 +1,13 @@
 using Maran.Host.Authorization;
 using Maran.Modules.Accounts.Queries.CountAccounts;
-using Maran.Modules.Backups.Queries.CountFailedBackups;
 using Maran.Modules.Databases.Queries.CountDatabases;
-using Maran.Modules.Firewall.Queries.CountBans;
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Queries.ListRecentAuditEvents;
 using Maran.Modules.Monitoring.Common;
-using Maran.Modules.Monitoring.Queries.GetClockSync;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 using Maran.Modules.Sites.Queries.CountSites;
-using Maran.Modules.Ssl.Queries.CountExpiringCertificates;
-using Maran.Modules.Tasks.Queries.CountFailedTasks;
-using Maran.SharedKernel.Results;
+using Maran.SharedKernel.Callers;
 using Wolverine;
 
 namespace Maran.Host.Dashboard;
@@ -34,13 +29,13 @@ namespace Maran.Host.Dashboard;
 /// Dispatching <see cref="CountAccountsQuery"/> from here therefore runs a query whose HTTP surface
 /// is administrators-only with no policy in the way, so this endpoint supplies the decision itself:
 /// the route requires a signed-in caller, and every server-wide section is read only after
-/// <see cref="ICurrentUser.IsAdmin"/> is confirmed true. The check comes BEFORE any dispatch, not
+/// <see cref="ICurrentUser.Caller"/> is confirmed to be an <see cref="AdministratorCaller"/>. The check comes BEFORE any dispatch, not
 /// after — a response filtered on the way out would already have read the data. Any section added
 /// here later inherits that rule or it does not go in.
 /// </para>
 /// <para>
-/// A non-administrator receives the shape with every administrator-only section null. That is not
-/// an oversight: a customer's own landing screen is the client zone, which is issue #49's subject,
+/// A non-administrator receives <see cref="CustomerDashboardDto"/>, which has no section at all.
+/// That is not an oversight: a customer's own landing screen is the client zone, which is issue #49's subject,
 /// and a second one invented here is a thing that issue would then have to undo.
 /// </para>
 /// <para>
@@ -60,26 +55,6 @@ namespace Maran.Host.Dashboard;
 /// </remarks>
 public static class DashboardEndpoint
 {
-    /// <summary>Pre-compiled log delegate for a section whose query threw rather than refused.</summary>
-    private static readonly Action<ILogger, string, Exception?> LogUnreadableSection =
-        LoggerMessage.Define<string>(
-            LogLevel.Warning,
-            new EventId(1, nameof(DashboardEndpoint)),
-            "Dashboard section {Query} could not be read");
-
-    /// <summary>
-    /// How near expiry a certificate has to be to count as needing attention.
-    /// </summary>
-    /// <remarks>
-    /// Thirty days because that is comfortably more than the renewal window of the certificates the
-    /// panel issues — ACME renewal is attempted well inside it — so anything still listed here has
-    /// had renewal fail repeatedly, or is a certificate the operator uploaded and must replace by
-    /// hand. A shorter horizon would surface problems too late to act on; a longer one would list
-    /// certificates that are going to renew themselves tomorrow, and a number an operator learns to
-    /// ignore is worse than no number.
-    /// </remarks>
-    private static readonly TimeSpan CertificateExpiryHorizon = TimeSpan.FromDays(30);
-
     /// <summary>How many audit entries the landing page shows.</summary>
     /// <remarks>
     /// Few enough to read without scrolling on the screen they share with everything else; the
@@ -102,7 +77,9 @@ public static class DashboardEndpoint
                 CancellationToken cancellationToken) =>
             {
                 var logger = loggers.CreateLogger(typeof(DashboardEndpoint));
-                return Results.Ok(await DescribeAsync(bus, logger, currentUser, clock, cancellationToken));
+                // Declared as the union's base: only then does the serializer write `audience`.
+                return Results.Ok<DashboardDto>(
+                    await DescribeAsync(bus, logger, currentUser, clock, cancellationToken));
             })
             // Authenticated, never anonymous: /api/v1/modules may be read by anybody because it
             // describes what this build composed, while this route describes what the server holds.
@@ -126,39 +103,29 @@ public static class DashboardEndpoint
         IClock clock,
         CancellationToken cancellationToken)
     {
-        // Before any dispatch. ICurrentUser fails closed, so an unauthenticated caller — which this
-        // route refuses anyway — and a customer both read false here.
-        if (!currentUser.IsAdmin)
+        // Before any dispatch. An unauthenticated caller — which this route refuses anyway — and a
+        // customer are both not an AdministratorCaller.
+        if (currentUser.Caller is not AdministratorCaller)
         {
-            return new DashboardDto(
-                IsAdministrator: false,
-                Resources: null,
-                Services: null,
-                Counts: null,
-                Attention: null,
-                RecentAudit: null);
+            return new CustomerDashboardDto();
         }
 
         // Together rather than one after another: they are one screen, and eleven sequential
         // round-trips would make the first paint the sum of them. Each task already carries its own
         // failure, so WhenAll cannot throw on behalf of one of them, and every await below it reads a
         // task that has already finished.
-        var resources = ReadAsync<HostMetricsDto>(bus, logger, new GetHostMetricsQuery(), cancellationToken);
-        var services = ReadAsync<IReadOnlyList<ServiceStatusDto>>(
+        var resources = DashboardSectionReader.ReadAsync<HostMetricsDto>(
+            bus, logger, new GetHostMetricsQuery(), cancellationToken);
+        var services = DashboardSectionReader.ReadAsync<IReadOnlyList<ServiceStatusDto>>(
             bus, logger, new ListServiceStatusesQuery(), cancellationToken);
-        var accounts = ReadAsync<int>(bus, logger, new CountAccountsQuery(), cancellationToken);
-        var sites = ReadAsync<int>(bus, logger, new CountSitesQuery(), cancellationToken);
-        var databases = ReadAsync<int>(bus, logger, new CountDatabasesQuery(), cancellationToken);
-        var certificates = ReadAsync<int>(
-            bus,
-            logger,
-            new CountExpiringCertificatesQuery(clock.UtcNow.Add(CertificateExpiryHorizon)),
-            cancellationToken);
-        var failedBackups = ReadAsync<int>(bus, logger, new CountFailedBackupsQuery(), cancellationToken);
-        var bans = ReadAsync<int>(bus, logger, new CountBansQuery(), cancellationToken);
-        var failedTasks = ReadAsync<int>(bus, logger, new CountFailedTasksQuery(), cancellationToken);
-        var clockSync = ReadAsync<ClockSyncDto>(bus, logger, new GetClockSyncQuery(), cancellationToken);
-        var audit = ReadAsync<IReadOnlyList<AuditEventDto>>(
+        var accounts = DashboardSectionReader.ReadAsync<int>(
+            bus, logger, new CountAccountsQuery(), cancellationToken);
+        var sites = DashboardSectionReader.ReadAsync<int>(
+            bus, logger, new CountSitesQuery(), cancellationToken);
+        var databases = DashboardSectionReader.ReadAsync<int>(
+            bus, logger, new CountDatabasesQuery(), cancellationToken);
+        var attention = AttentionReader.ReadAsync(bus, logger, clock, cancellationToken);
+        var audit = DashboardSectionReader.ReadAsync<IReadOnlyList<AuditEventDto>>(
             bus, logger, new ListRecentAuditEventsQuery(RecentAuditEntries), cancellationToken);
 
         await Task.WhenAll(
@@ -167,15 +134,10 @@ public static class DashboardEndpoint
             accounts,
             sites,
             databases,
-            certificates,
-            failedBackups,
-            bans,
-            failedTasks,
-            clockSync,
+            attention,
             audit);
 
-        return new DashboardDto(
-            IsAdministrator: true,
+        return new AdministratorDashboardDto(
             Resources: await resources,
             Services: await services,
 
@@ -187,68 +149,8 @@ public static class DashboardEndpoint
                 Sites: await sites,
                 Databases: await databases),
 
-            Attention: new DashboardAttentionDto(
-                // Already-expired certificates are included, deliberately: the horizon is an upper
-                // bound on "soon", and a certificate that lapsed yesterday has not stopped needing
-                // attention by becoming late.
-                CertificatesExpiringSoon: await certificates,
-                FailedBackups: await failedBackups,
-
-                BannedAddresses: await bans,
-                FailedTasks: await failedTasks,
-                Clock: await clockSync),
+            Attention: await attention,
 
             RecentAudit: await audit);
-    }
-
-    /// <summary>
-    /// Dispatches one query and answers with its value as a loaded section, or with an unavailable
-    /// one when the module refused or failed.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The failure is not swallowed: it becomes the section's state, which the screen draws as "could
-    /// not be read" — the one honest thing it can say about it — and one module's bad day does not take
-    /// the whole landing page down. The caller is an administrator by this point, so a refusal is a
-    /// genuine failure rather than a permission boundary, and the module that refused has already
-    /// logged why, in its own words, which is where that belongs. A query that threw instead is logged
-    /// here, since nothing else would.
-    /// </para>
-    /// <para>
-    /// A count is asked of the module as a count — one <c>count(*)</c> — and never read off a page of
-    /// a listing, which since lists are paged would be the size of one page and not the total.
-    /// </para>
-    /// </remarks>
-    /// <typeparam name="TResult">What the query answers with.</typeparam>
-    /// <param name="bus">The bus to dispatch on.</param>
-    /// <param name="logger">Where a query that threw is recorded.</param>
-    /// <param name="query">The query to send.</param>
-    /// <param name="cancellationToken">Cancels the dispatch.</param>
-    /// <returns>The section, loaded or unavailable.</returns>
-    private static async Task<DashboardSection<TResult>> ReadAsync<TResult>(
-        IMessageBus bus,
-        ILogger logger,
-        object query,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var answer = await bus.InvokeAsync<Result<TResult>>(query, cancellationToken);
-            return answer.IsSuccess
-                ? DashboardSection.Loaded<TResult>(answer.Value)
-                : DashboardSection.Unavailable<TResult>();
-        }
-        catch (OperationCanceledException)
-        {
-            // The caller gave up or the request was cancelled; not this endpoint's to report.
-            throw;
-        }
-        catch (Exception exception)
-        {
-            // Recorded here, because a query that THREW logged nothing of its own; the screen is told
-            // through the section's state (see the remarks).
-            LogUnreadableSection(logger, query.GetType().Name, exception);
-            return DashboardSection.Unavailable<TResult>();
-        }
     }
 }

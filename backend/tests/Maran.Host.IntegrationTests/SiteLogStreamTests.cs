@@ -79,9 +79,9 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         {
             Events =
             [
-                new SiteLogEvent(SiteLogEventKind.Line, "first", true, null),
-                new SiteLogEvent(SiteLogEventKind.Line, "second", false, null),
-                new SiteLogEvent(SiteLogEventKind.Completed, string.Empty, false, null),
+                new SiteLogLine("first", true),
+                new SiteLogLine("second", false),
+                new SiteLogEnded(SiteLogEndKind.Completed),
             ],
         };
 
@@ -111,7 +111,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
     {
         // The whole point of the chain. "Dropped" means lines were lost; "completed" would tell the
         // operator they had seen everything there was.
-        var agent = Scripted(SiteLogEventKind.Dropped);
+        var agent = Scripted(SiteLogEndKind.Dropped);
 
         var events = await TailAsync(agent, "error", historyLines: 0);
 
@@ -123,7 +123,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
     [Fact]
     public async Task An_idle_stream_is_reported_as_idle_and_never_as_completed()
     {
-        var agent = Scripted(SiteLogEventKind.Idle);
+        var agent = Scripted(SiteLogEndKind.Idle);
 
         var events = await TailAsync(agent, "error", historyLines: 0);
 
@@ -138,7 +138,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         // is broken: says so, pessimistically, rather than inventing "completed".
         var agent = new StubAgentSitesClient
         {
-            Events = [new SiteLogEvent(SiteLogEventKind.Line, "orphan", false, null)],
+            Events = [new SiteLogLine("orphan", false)],
         };
 
         var events = await TailAsync(agent, "access", historyLines: 0);
@@ -158,7 +158,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         {
             Events =
             [
-                new SiteLogEvent(SiteLogEventKind.Failed, string.Empty, false, "AgentSystemFailure"),
+                new SiteLogFailed("AgentSystemFailure"),
             ],
         };
 
@@ -190,7 +190,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         // Maran.Agent.Client.Tests.
         var agent = new StubAgentSitesClient
         {
-            Events = [new SiteLogEvent(SiteLogEventKind.Line, "watching", false, null)],
+            Events = [new SiteLogLine("watching", false)],
             WaitsForCancellation = true,
         };
 
@@ -366,7 +366,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
     {
         // Definition of Done item 4 on the path that actually happens. A journal of refusals alone
         // answers "was anybody turned away" and never "who read this customer's log".
-        var agent = Scripted(SiteLogEventKind.Completed);
+        var agent = Scripted(SiteLogEndKind.Completed);
         await using var factory = CreateFactory(agent);
         await MigrateAsync(factory);
         var world = await SeedAsync(factory);
@@ -408,7 +408,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
     [Fact]
     public async Task A_log_request_naming_neither_of_a_sites_logs_is_refused_and_nothing_is_streamed()
     {
-        var agent = Scripted(SiteLogEventKind.Completed);
+        var agent = Scripted(SiteLogEndKind.Completed);
         await using var factory = CreateFactory(agent);
         await MigrateAsync(factory);
         var world = await SeedAsync(factory);
@@ -427,7 +427,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         // Order of checks, as a security property: if the parameters were validated first, a bad
         // "source" would answer 400 for a site that exists and 404 for one that does not, and the
         // pair of answers is the existence oracle the 404-never-403 rule removes.
-        var agent = Scripted(SiteLogEventKind.Completed);
+        var agent = Scripted(SiteLogEndKind.Completed);
         await using var factory = CreateFactory(agent);
         await MigrateAsync(factory);
         var world = await SeedAsync(factory);
@@ -443,7 +443,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
     [Fact]
     public async Task Reaching_for_another_tenants_log_is_journalled_as_a_refusal()
     {
-        var agent = Scripted(SiteLogEventKind.Completed);
+        var agent = Scripted(SiteLogEndKind.Completed);
         await using var factory = CreateFactory(agent);
         await MigrateAsync(factory);
         var world = await SeedAsync(factory);
@@ -466,9 +466,9 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
     /// <summary>Builds a stub whose only event is one terminal event of the given kind.</summary>
     /// <param name="kind">The ending to script.</param>
     /// <returns>The stub.</returns>
-    private static StubAgentSitesClient Scripted(SiteLogEventKind kind)
+    private static StubAgentSitesClient Scripted(SiteLogEndKind kind)
     {
-        return new StubAgentSitesClient { Events = [new SiteLogEvent(kind, string.Empty, false, null)] };
+        return new StubAgentSitesClient { Events = [new SiteLogEnded(kind)] };
     }
 
     /// <summary>Runs one complete tail against a seeded world and returns the events it produced.</summary>
@@ -653,6 +653,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
         customer.AssignAccount(own.Id);
+        identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, own.Id, now));
         identity.Users.Add(customer);
 
         // A customer on the OTHER account, so a test can ask the opposite question: that two
@@ -660,6 +661,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         var neighbour = new User(
             Guid.NewGuid(), "neighbour", "neighbour@example.com", hasher.Hash(Password), UserRole.Customer, now);
         neighbour.AssignAccount(stranger.Id);
+        identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), neighbour.Id, stranger.Id, now));
         identity.Users.Add(neighbour);
         await identity.SaveChangesAsync();
 

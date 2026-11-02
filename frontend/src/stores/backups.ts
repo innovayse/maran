@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useBackupsApi } from '../composables/apis/useBackupsApi'
 import { ApiError } from '../composables/useApi'
+import { restoreChangedTheAccount } from '../utils/restoreChangedTheAccount'
 import { restorePartialCounts } from '../utils/restorePartialCounts'
 import type { AccountListFilter } from '../types/accountListFilter'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -10,8 +11,7 @@ import type {
   BackupAttentionLoad,
   CreateBackupRequest,
   RestoreBackupRequest,
-  RestoreOutcome,
-  RestorePartial,
+  RestoreRun,
 } from '../types/backup'
 
 /**
@@ -26,8 +26,9 @@ import type {
  * is kept apart from every other action's for a reason the other actions do not have: a failed
  * restore is not one condition but two. Most codes mean nothing was touched; `RestorePartial` and
  * `RestoreTruncated` mean the account has been CHANGED, and the screen must be able to tell those
- * apart without re-reading a message it does not own. So the code is kept beside the message, and
- * `restoreChangedTheAccount` (`src/utils/restoreChangedTheAccount.ts`) is what reads it.
+ * apart without re-reading a message it does not own. So the store decides which arm of `RestoreRun`
+ * the ending is, from the code, through `restoreChangedTheAccount`
+ * (`src/utils/restoreChangedTheAccount.ts`), and the screen only reads the arm.
  *
  * The store never retries a restore of its own accord, and offers no helper that would: a second
  * attempt over a half-replaced account is how the retry destroys what the first attempt left
@@ -67,41 +68,16 @@ export const useBackupsStore = defineStore('backups', () => {
   const createErrorMessage: Ref<string | null> = ref(null)
 
   /**
-   * True while a restore is in flight.
+   * Where the most recent restore stands: idle, running, replaced the whole account, refused
+   * before anything was touched, or stopped after the account was changed.
    *
-   * Like {@link creating} this stays true for the whole run rather than for a moment: the panel's
-   * restore endpoint answers only when the account has been replaced, which is minutes for a large
-   * one. The dialog says so, and refuses to be dismissed while it holds.
+   * `running` holds for the whole run rather than for a moment: the panel's restore endpoint
+   * answers only when the account has been replaced, which is minutes for a large one. The dialog
+   * says so, and refuses to be dismissed while it holds. The `changed` arm is what keeps the screen
+   * from offering a retry, and it is decided here from the problem code through
+   * `restoreChangedTheAccount` (`src/utils/restoreChangedTheAccount.ts`).
    */
-  const restoring: Ref<boolean> = ref(false)
-
-  /**
-   * What the most recent restore replaced, or `null` when none has succeeded since the dialog was
-   * opened. Present only for a whole restore — the panel answers 200 for nothing else.
-   */
-  const restoreOutcome: Ref<RestoreOutcome | null> = ref(null)
-
-  /**
-   * Backend-localized message from the most recent failed restore, or `null`. Rendered verbatim.
-   */
-  const restoreErrorMessage: Ref<string | null> = ref(null)
-
-  /**
-   * Machine-stable problem code of the most recent failed restore, or the empty string when the
-   * last one succeeded or none has been attempted.
-   *
-   * Held for BEHAVIOUR only — whether the screen may offer the operation again — and never looked
-   * up in a translation table (rules/vue.md: the backend owns the text of a server outcome).
-   */
-  const restoreErrorCode: Ref<string> = ref('')
-
-  /**
-   * The counts a PARTIAL restore's failure carried — what the server had already replaced when it
-   * stopped — or `null` when the failure stated none: a refusal that touched nothing, a truncated
-   * stream, or an older panel that predates the counts. Read beside {@link restoreErrorCode} by
-   * the dialog's changed-account arm; the numbers are shown, never re-judged.
-   */
-  const restorePartial: Ref<RestorePartial | null> = ref(null)
+  const restoreRun: Ref<RestoreRun> = ref({ state: 'idle' })
 
   /**
    * Loads one page of the backup history into {@link backups} and reports how the read ended, for
@@ -185,19 +161,15 @@ export const useBackupsStore = defineStore('backups', () => {
    * @returns Nothing.
    */
   const clearRestore = (): void => {
-    restoreOutcome.value = null
-    restoreErrorMessage.value = null
-    restoreErrorCode.value = ''
-    restorePartial.value = null
+    restoreRun.value = { state: 'idle' }
   }
 
   /**
    * Replaces an account from one of its backups.
    *
    * A rejection is recorded rather than thrown, because both of its meanings are display states:
-   * either nothing was touched and the operator may try again, or the account was changed and they
-   * must not. The caller reads {@link restoreErrorCode} through
-   * `restoreChangedTheAccount` (`src/utils/restoreChangedTheAccount.ts`) to tell which.
+   * either nothing was touched (`untouched`) and the operator may try again, or the account was
+   * changed (`changed`) and they must not.
    *
    * The held list is NOT reloaded on success. A restore creates a `preRestore` safety copy on the
    * server, so the list is genuinely stale afterwards — but re-reading it here would replace the
@@ -209,20 +181,25 @@ export const useBackupsStore = defineStore('backups', () => {
    * @returns True when the account was wholly replaced.
    */
   const restore = async (id: string, request: RestoreBackupRequest): Promise<boolean> => {
-    restoring.value = true
-    clearRestore()
+    restoreRun.value = { state: 'running' }
     try {
-      restoreOutcome.value = await api.restore(id, request)
+      restoreRun.value = { state: 'restored', outcome: await api.restore(id, request) }
       return true
     } catch (error) {
-      restoreErrorMessage.value = error instanceof ApiError ? error.message : null
-      restoreErrorCode.value = error instanceof ApiError ? error.code : ''
-      // The counts of a measured partial ride the same rejection as its code; absent on every
-      // other ending, and the dialog renders cleanly without them.
-      restorePartial.value = error instanceof ApiError ? restorePartialCounts(error.extensions) : null
+      if (!(error instanceof ApiError)) {
+        restoreRun.value = { state: 'unanswered' }
+      } else if (restoreChangedTheAccount(error.code)) {
+        // The counts of a measured partial ride the same rejection as its code; absent on every
+        // other ending, and the dialog renders cleanly without them.
+        restoreRun.value = {
+          state: 'changed',
+          message: error.message,
+          partial: restorePartialCounts(error.extensions),
+        }
+      } else {
+        restoreRun.value = { state: 'untouched', message: error.message, code: error.code }
+      }
       return false
-    } finally {
-      restoring.value = false
     }
   }
 
@@ -233,11 +210,7 @@ export const useBackupsStore = defineStore('backups', () => {
     acting,
     removeErrorMessage,
     createErrorMessage,
-    restoring,
-    restoreOutcome,
-    restoreErrorMessage,
-    restoreErrorCode,
-    restorePartial,
+    restoreRun,
     list,
     loadAttention,
     create,

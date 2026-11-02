@@ -69,6 +69,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkle,
+  Star,
   Sun,
   Trash2,
   TriangleAlert,
@@ -199,6 +200,8 @@ export type UiIconName =
   | 'pencil'
   /** Two opposed chevrons — a column that can be sorted but is not. */
   | 'chevronsUpDown'
+  /** A five-point star — a favourite: a page pinned to the app bar. Drawn filled when pinned. */
+  | 'star'
 
 /**
  * Every glyph the panel draws, mapped to its lucide component. The map is
@@ -265,6 +268,7 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   pencil: Pencil,
   chevronsUpDown: ChevronsUpDown,
   package: Package,
+  star: Star,
 }
 
 /**

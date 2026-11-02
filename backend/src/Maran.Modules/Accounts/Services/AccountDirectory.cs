@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Accounts.Services;
@@ -52,7 +54,7 @@ public sealed class AccountDirectory : IAccountDirectory
         // An administrator sees every account; a customer sees exactly the one they own. The
         // comparison is against the id the caller's own token carries, never against anything on
         // the request, so a forged or guessed account id cannot widen it.
-        if (!_currentUser.IsAdmin && _currentUser.AccountId != accountId)
+        if (!Sees(accountId))
         {
             return null;
         }
@@ -87,7 +89,7 @@ public sealed class AccountDirectory : IAccountDirectory
     /// <para>
     /// No tenant scope, by contract — see <see cref="IAccountDirectory.ListAsync"/>, which states
     /// the exposure and puts the whole authorization burden on the caller. There is deliberately no
-    /// <c>IsAdmin</c> check here to mirror <see cref="FindAsync"/>'s: this method runs from the
+    /// administrator check here to mirror <see cref="FindAsync"/>'s: this method runs from the
     /// administrator's host disk view and would also have to run from a timer one day, where there
     /// is no principal at all and a check against one would silently answer "nothing" rather than
     /// fail — the failure mode <c>CertificateRenewalHandler</c> and <c>TaskRetentionHandler</c> both
@@ -142,9 +144,7 @@ public sealed class AccountDirectory : IAccountDirectory
     {
         // The same scope FindAsync applies, to a set instead of one id: a customer's answer can only
         // ever hold their own account, whatever ids they managed to put in front of the caller.
-        var visible = _currentUser.IsAdmin
-            ? accountIds.Distinct().ToList()
-            : accountIds.Where(id => { return id == _currentUser.AccountId; }).Distinct().ToList();
+        var visible = accountIds.Where(Sees).Distinct().ToList();
 
         if (visible.Count == 0)
         {
@@ -179,16 +179,38 @@ public sealed class AccountDirectory : IAccountDirectory
             .Where(account => EF.Functions.ILike(account.Name, pattern, LikePattern.EscapeCharacter));
 
         // Scoped as FindAsync is, and from the caller's own token, never from the request.
-        if (!_currentUser.IsAdmin)
+        accounts = _currentUser.Caller switch
         {
-            var ownAccountId = _currentUser.AccountId;
-            accounts = accounts.Where(account => account.Id == ownAccountId);
-        }
+            AdministratorCaller => accounts,
+            CustomerCaller customer => accounts.Where(account => account.Id == customer.AccountId),
+            AnonymousCaller => accounts.Where(account => false),
+            AccountlessCustomerCaller => accounts.Where(account => false),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+        };
 
         // Not capped and not ordered: the caller filters its own rows by the whole set (see the
         // interface's remarks), so every match must be in it and their order means nothing.
         return await accounts
             .Select(account => account.Id)
             .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Whether the caller may see the account <paramref name="accountId"/>: an administrator any
+    /// account, a customer only the one their own token names, and nobody else (an anonymous caller,
+    /// a customer login acting for no account) none.
+    /// </summary>
+    /// <param name="accountId">The account asked about.</param>
+    /// <returns>True when the caller's tenant scope includes the account.</returns>
+    private bool Sees(Guid accountId)
+    {
+        return _currentUser.Caller switch
+        {
+            AdministratorCaller => true,
+            CustomerCaller customer => customer.AccountId == accountId,
+            AnonymousCaller => false,
+            AccountlessCustomerCaller => false,
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+        };
     }
 }

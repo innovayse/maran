@@ -142,17 +142,17 @@ export interface FirewallApi {
    * Opens a port, scoped to one source range.
    * @param rule The port, protocol and source range to allow.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel installed the rule.
+   * @returns Resolves once the panel installed the rule; the answer is an empty 204.
    */
-  allowPort: (rule: FirewallRule, signal?: AbortSignal) => Promise<boolean>
+  allowPort: (rule: FirewallRule, signal?: AbortSignal) => Promise<void>
 
   /**
    * Closes a port that was opened, matching the source range the allow was scoped to.
    * @param rule The rule to remove, spelled exactly as the listing reported it.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed the rule.
+   * @returns Resolves once the panel removed the rule; the answer is an empty 204.
    */
-  denyPort: (rule: FirewallRule, signal?: AbortSignal) => Promise<boolean>
+  denyPort: (rule: FirewallRule, signal?: AbortSignal) => Promise<void>
 
   /**
    * Lists one page of the bans still in force, newest first unless a sort is named.
@@ -166,17 +166,17 @@ export interface FirewallApi {
    * Bans an address, for a duration or until somebody lifts it.
    * @param request The address to ban and how long for.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel placed the ban.
+   * @returns Resolves once the panel placed the ban; the answer is an empty 204.
    */
-  banAddress: (request: BanAddressRequest, signal?: AbortSignal) => Promise<boolean>
+  banAddress: (request: BanAddressRequest, signal?: AbortSignal) => Promise<void>
 
   /**
    * Lifts every ban in force for one address.
    * @param address The address to let back in.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel lifted the ban.
+   * @returns Resolves once the panel lifted the ban; the answer is an empty 204.
    */
-  unbanAddress: (address: string, signal?: AbortSignal) => Promise<boolean>
+  unbanAddress: (address: string, signal?: AbortSignal) => Promise<void>
 
   /**
    * Lists one page of the ranges the automatic bans never touch, oldest first unless a sort is named.
@@ -198,7 +198,35 @@ export interface FirewallApi {
    * Removes an exemption, so the automatic bans may reach the range again.
    * @param id The row to remove.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed the row.
+   * @returns Resolves once the panel removed the row; the answer is an empty 204.
    */
-  removeWhitelistEntry: (id: string, signal?: AbortSignal) => Promise<boolean>
+  removeWhitelistEntry: (id: string, signal?: AbortSignal) => Promise<void>
 }
+
+/**
+ * A rule change waiting on the lockout confirmation. The two arms carry different facts, so each
+ * holds only its own: an allow remembers where it came from, a removal remembers what it would
+ * leave behind.
+ */
+export type PendingFirewallChange =
+  | {
+      /** The change installs rules. */
+      intent: 'allow'
+      /** The rules the change covers, spelled as they will be sent. */
+      rules: readonly FirewallRule[]
+      /** Whether the raw form produced them, whose fields are emptied once the change lands. */
+      fromForm: boolean
+    }
+  | {
+      /** The change removes rules. */
+      intent: 'deny'
+      /** The rules the change covers, spelled as they will be sent. */
+      rules: readonly FirewallRule[]
+      /**
+       * Whether the change would leave the host with no rule at all for one of the ports it names.
+       *
+       * True is the case the plan calls "removing the last one": if that port is the SSH port, the
+       * panel's unconditional accept comes back and SSH is reachable from every source again.
+       */
+      leavesPortsUnruled: boolean
+    }

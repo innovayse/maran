@@ -1,5 +1,6 @@
 import { expect, test, type ConsoleMessage } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
@@ -45,15 +46,15 @@ const OWN_ACCOUNT: MyAccount = {
 
 const OWN_RESOURCES: AccountResourceSummary = {
   accountId: OWN_ACCOUNT.id,
-  resources: [{ kind: 'sites', state: 'counted', used: 1, limitKind: 'limited', limit: 1 }],
+  resources: [{ kind: 'sites', count: { state: 'counted', used: 1 }, limit: { kind: 'limited', maximum: 1 } }],
 }
 
 const MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
-  { name: 'cron', displayName: 'Cron', tier: 'included', isEnabled: true },
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+  { name: 'cron', displayName: 'Cron', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
 ]
 
 const CUSTOMER_PAGES = ['/', '/sites', '/databases', '/backups', '/cron', '/tasks', '/my-account', '/accounts']
@@ -73,6 +74,7 @@ test('a customer walks their own area with a clean console', async ({ page }) =>
   })
 
   await stubSignedIn(page, CUSTOMER)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
   await stubDashboard(page, WITHHELD_DASHBOARD)

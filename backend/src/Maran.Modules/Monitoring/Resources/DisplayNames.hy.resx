@@ -15,9 +15,6 @@
   <data name="MonitoringModuleDisplayName">
     <value>Մոնիտորինգ</value>
   </data>
-  <data name="ServiceUnspecified">
-    <value>Անհայտ ծառայություն</value>
-  </data>
   <data name="ServiceWebServer">
     <value>Վեբ սերվեր</value>
   </data>
@@ -38,6 +35,9 @@
   </data>
   <data name="AccountQuotaNotEnforceableNote">
     <value>Ներկայում չի կիրառվում. սա տարիֆի սահմանաչափն է, բայց այս սերվերը այժմ չի կարող այն ապահովել սկավառակի իրական սահմանափակմամբ, այնպես որ հաշիվը կարող է օգտագործել ավելի շատ։ Կիրառումը վերականգնելու համար մոնտավորեք ֆայլային համակարգը քվոտաների հաշվառմամբ և գործարկեք quotaon. վահանակը դա ձեզ փոխարեն չի անելու։</value>
+  </data>
+  <data name="AccountQuotaUnmeasuredNote">
+    <value>Կիրառումը չհաջողվեց ստուգել. սերվերը չհայտնեց՝ կարող է արդյոք այս սահմանաչափն ապահովել սկավառակի իրական սահմանափակմամբ, ուստի վահանակը չի կարող ասել՝ հաշվի համար այն պահպանվո՞ւմ է։ Փորձեք մի փոքր ուշ. եթե խնդիրը մնում է, ստուգեք՝ գործակալը աշխատու՞մ է։</value>
   </data>
   <data name="LogLevelVerbose">
     <value>Մանրամասն — ամեն ինչ</value>
@@ -65,5 +65,8 @@
   </data>
   <data name="ClockSyncSyncServiceDisabled">
     <value>Ժամանակի համաժամեցման ծառայություն միացված չէ, ուստի ժամացույցի շեղման դեպքում այն ոչ ոք չի ուղղի։ Միացրեք systemd-timesyncd կամ chrony այս սերվերում։</value>
+  </data>
+  <data name="ServerKindLocal">
+    <value>Այս սերվերը (տեղային)</value>
   </data>
 </root>

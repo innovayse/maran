@@ -190,10 +190,9 @@ public sealed class SmtpSettingsCache : IDisposable
             settings.Host,
             settings.Port,
             settings.Security,
-            settings.Username,
-            settings.Password,
+            settings.Credentials,
             settings.FromAddress,
             settings.FromName,
-            settings.AlertRecipient);
+            settings.AlertRecipientAddress);
     }
 }

@@ -26,7 +26,7 @@ namespace Maran.Modules.Identity.Commands.AcceptInvitation;
 /// </para>
 /// <para>
 /// <b>The login becomes usable only here.</b> A token that never arrives — lost mail, an unread
-/// inbox — leaves the account in <c>UserState.Invited</c>, a state nobody can sign in from, rather
+/// inbox — leaves the account in <c>UserLifecycle.Invited</c>, a state nobody can sign in from, rather
 /// than one anybody who intercepts the mail can sign in to. There is no session to revoke and no
 /// lockout to clear: an invited login has never had either.
 /// </para>

@@ -17,9 +17,10 @@
  * The bar itself is {@link UiMeter}, a kit primitive, so its accessible name and announced value
  * are decided once for the whole panel rather than per screen.
  *
- * **A fourth state the bar must never draw as if it were the first.** `enforceable === false`
- * means the allowance shown is real — the plan the customer paid for — but this server cannot
- * currently back it with a kernel-enforced limit. Drawing {@link UiMeter} against it regardless
+ * **A fourth state the bar must never draw as if it were the first.** A `backing` other than
+ * `enforced` means the allowance shown is real — the plan the customer paid for — but this server
+ * either cannot currently back it with a kernel-enforced limit (`notEnforced`) or could not say
+ * (`unmeasured`); the two get different badges, because the second asserts nothing. Drawing {@link UiMeter} against it regardless
  * would tell the reader a limit is in force when the panel itself already knows it is not, which
  * is exactly the defect issue #29 exists to fix — so this row renders the used figure plain, with
  * a badge, instead of a bar that implies enforcement.
@@ -35,7 +36,7 @@ import UiMeter from '../ui/UiMeter.vue'
 import UiTable from '../ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import { formatBytes } from '../../utils/formatBytes'
-import type { AccountDiskUsage } from '../../types/monitoring'
+import type { AccountDiskUsage, QuotaBacking } from '../../types/monitoring'
 
 /** Props accepted by {@link AccountDiskTable}. */
 defineProps<{
@@ -97,6 +98,26 @@ const ratioText = (row: AccountDiskUsage): string => {
 }
 
 /**
+ * The backend's own explanation for an allowance that is not known to be enforced, or nothing when
+ * it is enforced and there is nothing to explain.
+ * @param backing The row's quota backing.
+ * @returns The localized note, or `undefined` for an enforced quota.
+ */
+const noteOf = (backing: QuotaBacking): string | undefined => {
+  return backing.state === 'enforced' ? undefined : backing.note
+}
+
+/**
+ * The badge wording for an allowance that is not known to be enforced: what the agent found, or
+ * that the panel could not find out.
+ * @param backing The row's quota backing.
+ * @returns The badge label.
+ */
+const badgeText = (backing: QuotaBacking): string => {
+  return backing.state === 'unmeasured' ? t('monitoring.disk.unmeasuredBadge') : t('monitoring.disk.notEnforcedBadge')
+}
+
+/**
  * The plain-text readout for a row whose quota this server cannot currently enforce — used
  * instead of {@link ratioText} so the sentence never claims a limit is in force.
  * @param row The account's row.
@@ -123,8 +144,13 @@ const notEnforcedRatioText = (row: AccountDiskUsage): string => {
     <template #cell-quota="{ row }">
       <!-- The badge's title comes from the backend's own note — the SPA never invents the
            wording for why a real, paid-for allowance is not being applied right now. -->
-      <UiBadge v-if="!row.enforceable" variant="warning" class="mr-2" :title="row.note ?? undefined">
-        {{ t('monitoring.disk.notEnforcedBadge') }}
+      <UiBadge
+        v-if="row.backing.state !== 'enforced'"
+        variant="warning"
+        class="mr-2"
+        :title="noteOf(row.backing)"
+      >
+        {{ badgeText(row.backing) }}
       </UiBadge>
       {{ quotaText(row.quotaBytes) }}
     </template>
@@ -139,9 +165,12 @@ const notEnforcedRatioText = (row: AccountDiskUsage): string => {
       }}</span>
       <!-- Plain text, not a bar: a bar against `quotaBytes` here would draw a limit as if it
            were in force, which is the exact defect issue #29 exists to fix. -->
-      <span v-else-if="!row.enforceable" class="text-sm text-text-muted" :title="row.note ?? undefined">{{
-        notEnforcedRatioText(row)
-      }}</span>
+      <span
+        v-else-if="row.backing.state !== 'enforced'"
+        class="text-sm text-text-muted"
+        :title="noteOf(row.backing)"
+        >{{ notEnforcedRatioText(row) }}</span
+      >
       <!-- The cells beside the bar print the used and allowed figures, not the ratio, so the bar's
            own visible percentage is kept: the bar is never an anonymous stripe. -->
       <UiMeter

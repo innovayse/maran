@@ -1,8 +1,19 @@
 import type { ComputedRef } from 'vue'
 
 /**
+ * Whether a module the panel composed may be used right now. Two states and no third: a module the
+ * panel did not compose is absent from the catalogue, which is how the interface tells "not
+ * installed" from "installed but not covered".
+ */
+export type ModuleState =
+  /** Usable. */
+  | 'enabled'
+  /** Composed but not covered: shown as locked and led to the upgrade page. */
+  | 'locked'
+
+/**
  * A module as the panel reports it to the interface: what it is, which licence tier it belongs
- * to, and whether the running licence currently permits it.
+ * to, and whether the panel lets it be used.
  *
  * The interface uses this only to decide what to show — the backend re-checks the licence on
  * every request, so a tampered response grants nothing (rules/architecture.md).
@@ -27,8 +38,8 @@ export interface PanelModule {
    * server-side concepts and the SPA holds no list of them (rules/vue.md).
    */
   tierDisplayName?: string
-  /** Whether the running licence permits using it right now. */
-  isEnabled: boolean
+  /** Whether the module may be used right now; the backend decides it in one place. */
+  state: ModuleState
 }
 
 /**

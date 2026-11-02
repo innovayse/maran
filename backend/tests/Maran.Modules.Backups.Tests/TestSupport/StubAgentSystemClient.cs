@@ -64,7 +64,7 @@ public sealed class StubAgentSystemClient : IAgentSystemClient
     public static StubAgentSystemClient Reporting(string backupRoot)
     {
         return new StubAgentSystemClient(
-            Result<AgentInfoDto>.Ok(new AgentInfoDto("1.0.0", "ubuntu", "debian", AgentProtoVersionWindow.Maximum, backupRoot)));
+            Result<AgentInfoDto>.Ok(new AgentInfoDto("1.0.0", "ubuntu", AgentDistroFamily.Debian, AgentProtoVersionWindow.Maximum, backupRoot)));
     }
 
     /// <summary>An agent that cannot be reached at all.</summary>

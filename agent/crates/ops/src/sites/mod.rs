@@ -70,6 +70,7 @@ pub use model::site_identity::SiteIdentity;
 pub use model::site_kind::SiteKind;
 pub use model::site_log_kind::SiteLogKind;
 pub use model::site_paths::SitePaths;
+pub use model::site_serving::SiteServing;
 pub use model::site_suspension_fact::SiteSuspensionFact;
 pub use model::tail_end::TailEnd;
 pub use process_site_host::ProcessSiteHost;

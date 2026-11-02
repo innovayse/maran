@@ -12,7 +12,7 @@ import type { AccountDiskUsage, ChartRange, MetricBucket, ServiceStatus } from '
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', isEnabled: true },
+  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
 ]
 
 // Five day-range buckets. The processor values are distinct and deliberately not round, so a
@@ -49,32 +49,31 @@ const ACCOUNTS: AccountDiskUsage[] = [
     username: 'alice',
     usedBytes: 512 * 1024 * 1024,
     quotaBytes: 1024 * 1024 * 1024,
-    enforceable: true,
-    note: null,
+    backing: { state: 'enforced' },
   },
   {
     accountId: '22222222-2222-2222-2222-222222222222',
     username: 'bob',
     usedBytes: 3 * 1024 * 1024 * 1024,
     quotaBytes: 2 * 1024 * 1024 * 1024,
-    enforceable: true,
-    note: null,
+    backing: { state: 'enforced' },
   },
   {
     accountId: '33333333-3333-3333-3333-333333333333',
     username: 'carol',
     usedBytes: null,
     quotaBytes: 1024 * 1024 * 1024,
-    enforceable: true,
-    note: null,
+    backing: { state: 'enforced' },
   },
   {
     accountId: '44444444-4444-4444-4444-444444444444',
     username: 'dave',
     usedBytes: 256 * 1024 * 1024,
     quotaBytes: 1024 * 1024 * 1024,
-    enforceable: false,
-    note: 'Not currently enforced — mount the filesystem with quota accounting and run quotaon.',
+    backing: {
+      state: 'notEnforced',
+      note: 'Not currently enforced — mount the filesystem with quota accounting and run quotaon.',
+    },
   },
 ]
 
@@ -201,6 +200,29 @@ test('an account whose quota cannot be enforced gets no bar and a badge instead'
   await expect(dave.getByText('256 MiB, allowance not enforced')).toBeVisible()
 })
 
+// The proposition: an account whose backing the panel could not determine is NOT drawn as "not
+// enforced": it gets its own "Not checked" badge, still no bar, and the backend's own sentence as
+// the badge title — because a bar would imply a limit in force and the other badge would assert a
+// finding nobody made. Breakable: fold `unmeasured` into the not-enforced branch and the badge reads
+// "Not enforced" here; draw the bar for it and the progressbar count stops being zero.
+test('an account whose quota backing could not be determined gets its own badge and no bar', async ({ page }) => {
+  await openMonitoring(page, [
+    {
+      accountId: '55555555-5555-5555-5555-555555555555',
+      username: 'erin',
+      usedBytes: 128 * 1024 * 1024,
+      quotaBytes: 1024 * 1024 * 1024,
+      backing: { state: 'unmeasured', note: 'Enforcement could not be checked.' },
+    },
+  ])
+
+  const erin = page.getByRole('row').filter({ hasText: 'erin' })
+  await expect(erin.getByRole('progressbar')).toHaveCount(0)
+  await expect(erin.getByText('Not checked', { exact: true })).toBeVisible()
+  await expect(erin.getByText('Not enforced', { exact: true })).toHaveCount(0)
+  await expect(erin.getByText('128 MiB, allowance not enforced')).toBeVisible()
+})
+
 // The proposition: all three states the agent reports are rendered, each with its own text — the
 // badge never carries its meaning in colour alone, and "not known" is never collapsed into
 // "stopped". Breakable: map `unknown` onto the stopped label and the third badge reads "Stopped",
@@ -302,8 +324,7 @@ const accountNumbered = (index: number): AccountDiskUsage => {
     username: `user${String(index).padStart(2, '0')}`,
     usedBytes: 1024 * 1024,
     quotaBytes: 1024 * 1024 * 1024,
-    enforceable: true,
-    note: null,
+    backing: { state: 'enforced' },
   }
 }
 

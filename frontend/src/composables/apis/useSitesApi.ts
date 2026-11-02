@@ -123,10 +123,10 @@ export const useSitesApi = (): SitesApi => {
    * Removes a site's vhost and its row; the customer's files are left alone.
    * @param id The site's identity.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed the site.
+   * @returns Resolves once the panel removed the site; the answer is an empty 204.
    */
-  const remove = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${SITES_PATH}/${id}`, signal)
+  const remove = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${SITES_PATH}/${id}`, signal)
   }
 
   /**

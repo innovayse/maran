@@ -20,12 +20,6 @@ export const useSystemStore = defineStore('system', () => {
   const api = useSystemApi()
 
   /**
-   * Health status reported by the backend, or `null` before the first
-   * successful check.
-   */
-  const status: Ref<string | null> = ref(null)
-
-  /**
    * Backend-localized error message from the most recent failed check, or
    * `null` if the last check succeeded or never reached the server.
    */
@@ -35,19 +29,17 @@ export const useSystemStore = defineStore('system', () => {
   const healthState: Ref<LoadingState> = ref('loading')
 
   /**
-   * Fetches `/health` and updates `status`, `errorMessage` and `healthState`
+   * Fetches `/health` and updates `errorMessage` and `healthState`
    * from the result.
    * @returns A promise that resolves once the check has settled.
    */
   const checkHealth = async (): Promise<void> => {
     healthState.value = 'loading'
     try {
-      const health = await api.getHealth()
-      status.value = health.status
+      await api.getHealth()
       errorMessage.value = null
       healthState.value = 'loaded'
     } catch (error) {
-      status.value = null
       // A response with an error carries the backend's own already-localized text; a request that
       // never reached the backend (network/DNS failure, CORS) carries none.
       errorMessage.value = error instanceof ApiError ? error.message : null
@@ -55,5 +47,5 @@ export const useSystemStore = defineStore('system', () => {
     }
   }
 
-  return { status, errorMessage, healthState, checkHealth }
+  return { errorMessage, healthState, checkHealth }
 })

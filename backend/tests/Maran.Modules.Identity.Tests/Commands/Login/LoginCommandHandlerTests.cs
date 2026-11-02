@@ -67,6 +67,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
             new AuthenticationCompleter(
                 new JwtAccessTokenIssuer(options, TestSecurityPolicyCache.Over(_context), _clock),
                 new SessionService(_context, _clock, options),
+                new ActiveAccountResolver(_context),
                 _clock),
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
             NewDetector(bruteForce),
@@ -258,8 +259,8 @@ public sealed class LoginCommandHandlerTests : IDisposable
     /// handler has no state check at all, and the invitation's empty hash happens to fail
     /// verification anyway" — a handler with the check deleted would still pass it. This constructs
     /// the one case that tells them apart: <see cref="User.ChangePassword"/> sets a real hash without
-    /// touching <see cref="UserState"/>, so the seeded user has the RIGHT password and is still
-    /// <see cref="UserState.Invited"/>. If the state gate were missing, this login would succeed.
+    /// touching <see cref="UserLifecycle"/>, so the seeded user has the RIGHT password and is still
+    /// <see cref="UserLifecycle.Invited"/>. If the state gate were missing, this login would succeed.
     /// </remarks>
     [Fact]
     public async Task An_invited_login_with_a_valid_password_hash_is_still_refused_identically()

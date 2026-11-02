@@ -37,13 +37,12 @@ public sealed class StubAgentFtpsClient : IAgentFtpsClient
     private static readonly FtpsStatusDto Observed = new(
         Running: true,
         ControlPortAnswered: true,
-        CertificatePresent: true,
-        CertificateIsSelfSigned: false,
+        Certificate: FtpsCertificate.Provided,
         CertificatePath: "/etc/maran/ssl/panel.example.com/fullchain.pem",
         PassivePortMin: 30_000,
         PassivePortMax: 30_099,
         Ipv4Only: true,
-        ForcedTls: true);
+        TlsEnforcement: FtpsTlsEnforcement.Enforced);
 
     /// <summary>Reports the fixed observation as though the daemon had been configured and started.</summary>
     /// <param name="hostname">The hostname the daemon would serve; ignored.</param>
@@ -100,24 +99,24 @@ public sealed class StubAgentFtpsClient : IAgentFtpsClient
     /// <param name="ftpsUsername">The login suffix; ignored.</param>
     /// <param name="password">The new password; ignored, and never recorded.</param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string ftpsUsername,
         SensitiveString password,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Accepts the removal.</summary>
     /// <param name="accountUsername">The owning account's system user name; ignored.</param>
     /// <param name="ftpsUsername">The login suffix; ignored.</param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
-    public Task<Result<bool>> DeleteUserAsync(
+    public Task<Result> DeleteUserAsync(
         string accountUsername,
         string ftpsUsername,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 }

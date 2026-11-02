@@ -3,7 +3,9 @@
     "title": "Maran",
     "nav": {
       "ariaLabel": "Հիմնական նավիգացիա",
-      "auditJournal": "Աուդիտի մատյան",
+      "auditJournal": "Աուդիտ",
+      "securityPolicy": "Մուտքի կանոն",
+      "phpVersions": "PHP տարբերակ",
       "plans": "Սակագներ",
       "lockedBadge": "Արգելափակված",
       "groups": {
@@ -76,7 +78,10 @@
         "account": "Իմ հաշիվը"
       },
       "badges": {
-        "failedTasks": "ձախողված"
+        "failedTasks": "ձախողված",
+        "needsAttention": "պահանջում է ուշադրություն",
+        "mailQueue": "փոստի հերթում",
+        "availableUpdates": "հասանելի թարմացումներ"
       }
     },
     "shell": {

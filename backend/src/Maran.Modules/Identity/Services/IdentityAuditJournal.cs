@@ -1,5 +1,6 @@
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Identity.Services;
 
@@ -140,7 +141,9 @@ public sealed class IdentityAuditJournal
         bool succeeded,
         CancellationToken cancellationToken)
     {
-        var name = _currentUser.UserId == actorUserId ? _currentUser.Username : string.Empty;
+        var name = _currentUser.Caller is PrincipalCaller principal && principal.UserId == actorUserId
+            ? principal.Username
+            : string.Empty;
 
         await WriteAsync(actorUserId, name, action, subject, ipAddress, userAgent, succeeded, cancellationToken);
     }
@@ -210,6 +213,47 @@ public sealed class IdentityAuditJournal
             subject,
             ConsoleOrigin,
             OperatorClaimPrefix + operatorClaim,
+            succeeded,
+            cancellationToken);
+    }
+
+    /// <summary>Records the start or the end of a view-as session, or a refused start (issue #317).</summary>
+    /// <param name="operatorUserId">The operator, verified from their own token or from the view-as session row.</param>
+    /// <param name="operatorUsername">The operator's login name, read by the handler from the user row.</param>
+    /// <param name="action"><see cref="AuditActions.ViewAsStarted"/> or <see cref="AuditActions.ViewAsEnded"/>.</param>
+    /// <param name="subject">
+    /// The viewed identity: the account and the login, or for a refused start the account id that was
+    /// asked for. Never a token.
+    /// </param>
+    /// <param name="ipAddress">The caller's address.</param>
+    /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="succeeded">Whether it took effect.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    /// <remarks>
+    /// The actor is ALWAYS the operator, named by the handler rather than taken from
+    /// <see cref="ICurrentUser"/>: the end is requested with the view-as token, whose principal is the
+    /// viewed login, and writing that name would put the customer in the "who" column of an act the
+    /// operator performed. The writer still stamps the impersonator column on the end entry, which is
+    /// then the operator twice — redundant, and true.
+    /// </remarks>
+    public async Task RecordViewAsAsync(
+        Guid operatorUserId,
+        string operatorUsername,
+        string action,
+        string subject,
+        string ipAddress,
+        string userAgent,
+        bool succeeded,
+        CancellationToken cancellationToken)
+    {
+        await WriteAsync(
+            operatorUserId,
+            operatorUsername,
+            action,
+            subject,
+            ipAddress,
+            userAgent,
             succeeded,
             cancellationToken);
     }

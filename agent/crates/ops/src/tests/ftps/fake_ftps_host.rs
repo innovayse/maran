@@ -32,7 +32,7 @@ use crate::ftps::model::ftps_user_request::FtpsUserRequest;
 use crate::safe_write::model::{Reload, Validator};
 use crate::sftp::AccountOwnership;
 use crate::sites::SiteCertificate;
-use crate::ssl::CertificateState;
+use crate::ssl::{CertificateInstallation, CertificateState};
 
 /// The hostname every test in this area serves FTPS for.
 pub(crate) const HOSTNAME: &str = "ftp.example.test";
@@ -1343,8 +1343,11 @@ impl FtpsHost for FakeFtpsHost {
                 .to_string_lossy()
                 .into_owned(),
             private_key_path: certificate.key_path().to_string_lossy().into_owned(),
-            present: self.certificate_present,
-            is_self_signed_placeholder: false,
+            installation: if self.certificate_present {
+                CertificateInstallation::Installed
+            } else {
+                CertificateInstallation::Absent
+            },
         })
     }
 }

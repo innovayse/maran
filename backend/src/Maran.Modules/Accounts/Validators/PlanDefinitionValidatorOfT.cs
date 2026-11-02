@@ -1,8 +1,9 @@
 using FluentValidation;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
-using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Interfaces;
+using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Extensions;
 
 namespace Maran.Modules.Accounts.Validators;
 
@@ -83,6 +84,18 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
         RuleFor(command => command.MaxCronEntries).InclusiveBetween(0, MaxCount);
         RuleFor(command => command.MaxPhpWorkersPerPool).InclusiveBetween(1, MaxWorkers);
 
+        // Each stated feature must name exactly one feature: the JSON converter also accepts a number
+        // or a comma-joined name, which can arrive as a set, as None or as a value nothing defines.
+        // The list is required: a request that leaves it out binds to null and is refused here, since
+        // no reading of "not stated" exists. An empty list is stated and sells no feature.
+        RuleFor(command => command.Features).NotNull();
+        RuleForEach(command => command.Features)
+            .Must(feature =>
+            {
+                return feature.IsFeature();
+            })
+            .WithMessage(nameof(ErrorMessages.PlanFeatureUnknown));
+
         // A ceiling the caller left out binds to null; NotNull answers that before the child rules
         // read it, so an absent ceiling is refused rather than read as "unlimited".
         RuleFor(command => command.CpuQuotaPercent)
@@ -106,27 +119,25 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
     }
 
     /// <summary>
-    /// The rules for one runtime ceiling: a known kind, a figure from 1 to the agent's own bound when
-    /// limited, and no figure at all when unlimited — an unlimited ceiling carrying a figure is refused,
-    /// not ignored (one field, one meaning). Child rules rather than a validator class of its own,
-    /// because the module registers every validator type it finds and this one needs its bound.
+    /// The rules for one runtime ceiling: a figure from 1 to the agent's own bound when limited. An
+    /// unlimited ceiling has no figure to check, because the wire shape carries none. Child rules
+    /// rather than a validator class of its own, because the module registers every validator type
+    /// it finds and this one needs its bound.
     /// </summary>
     /// <param name="ceiling">The child validator for the ceiling.</param>
     /// <param name="maximum">The largest figure the agent accepts for this ceiling.</param>
     private static void CeilingRules(InlineValidator<ResourceCeilingDto> ceiling, int maximum)
     {
-        ceiling.RuleFor(c => c.Kind).IsInEnum();
-        ceiling.RuleFor(c => c.Maximum)
-            .InclusiveBetween(1, maximum)
-            .When(c =>
+        ceiling.When(
+            c =>
             {
-                return c.Kind == ResourceLimitKind.Limited;
-            });
-        ceiling.RuleFor(c => c.Maximum)
-            .Equal(0)
-            .When(c =>
+                return c is LimitedResourceCeilingDto;
+            },
+            () =>
             {
-                return c.Kind == ResourceLimitKind.Unlimited;
+                ceiling.RuleFor(c => ((LimitedResourceCeilingDto)c).Maximum)
+                    .InclusiveBetween(1, maximum)
+                    .OverridePropertyName(nameof(LimitedResourceCeilingDto.Maximum));
             });
     }
 }

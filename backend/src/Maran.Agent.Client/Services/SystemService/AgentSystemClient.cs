@@ -147,26 +147,37 @@ public sealed class AgentSystemClient : IAgentSystemClient
             return Result<AgentInfoDto>.Fail(Error.Of(AgentProtoVersionWindow.IncompatibleCode, ErrorType.Unavailable));
         }
 
-        return Result<AgentInfoDto>.Ok(ToDto(info));
+        return ToDto(info);
     }
 
     /// <summary>Converts the wire <see cref="AgentInfo"/> into the backend-facing DTO.</summary>
     /// <param name="info">The successful handshake payload.</param>
-    private static AgentInfoDto ToDto(AgentInfo info)
+    /// <returns>
+    /// The identity, or an <c>AgentInvalidResponse</c> failure when the agent states no distro
+    /// family this build can name — never a guessed family.
+    /// </returns>
+    private static Result<AgentInfoDto> ToDto(AgentInfo info)
     {
-        return new(info.Version, info.DistroId, ToFamily(info.Family), info.ProtoVersion, info.BackupRoot);
+        var family = ToFamily(info.Family);
+        if (family is null)
+        {
+            return Result<AgentInfoDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
+
+        return Result<AgentInfoDto>.Ok(
+            new AgentInfoDto(info.Version, info.DistroId, family.Value, info.ProtoVersion, info.BackupRoot));
     }
 
-    /// <summary>Renders a wire <see cref="DistroFamily"/> as the DTO's stable lowercase string.</summary>
+    /// <summary>Maps a wire <see cref="DistroFamily"/> onto the panel's family.</summary>
     /// <param name="family">The distro family reported by the agent.</param>
-    private static string ToFamily(DistroFamily family)
+    /// <returns>The matching family, or <c>null</c> for the unspecified wire value or one this build does not know.</returns>
+    private static AgentDistroFamily? ToFamily(DistroFamily family)
     {
         return family switch
         {
-            DistroFamily.Debian => "debian",
-            DistroFamily.Rhel => "rhel",
-            DistroFamily.Unspecified => "unspecified",
-            _ => "unspecified",
+            DistroFamily.Debian => AgentDistroFamily.Debian,
+            DistroFamily.Rhel => AgentDistroFamily.Rhel,
+            _ => null,
         };
     }
 }

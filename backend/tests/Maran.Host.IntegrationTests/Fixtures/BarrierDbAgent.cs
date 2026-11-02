@@ -107,7 +107,7 @@ public sealed class BarrierDbAgent : IAgentDbClient
     /// <param name="dbUsername">The dedicated user's suffix; ignored.</param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
     /// <returns>Success.</returns>
-    public Task<Result<bool>> DropAsync(
+    public Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -115,7 +115,7 @@ public sealed class BarrierDbAgent : IAgentDbClient
     {
         Interlocked.Increment(ref _dropCalls);
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Not exercised by a database creation.</summary>
@@ -124,7 +124,7 @@ public sealed class BarrierDbAgent : IAgentDbClient
     /// <param name="password">Ignored.</param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,
@@ -158,12 +158,17 @@ public sealed class BarrierDbAgent : IAgentDbClient
     }
 
     /// <summary>Not exercised by a database creation.</summary>
-    /// <param name="reportOnly">Ignored.</param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
-        bool reportOnly,
-        CancellationToken cancellationToken)
+    public Task<Result<GrantInspectionReportDto>> InspectGrantsAsync(CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers database creation and dropping only.");
+    }
+
+    /// <summary>Not exercised by a database creation.</summary>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result<GrantRepairReportDto>> RepairGrantsAsync(CancellationToken cancellationToken)
     {
         throw new NotSupportedException("This double answers database creation and dropping only.");
     }

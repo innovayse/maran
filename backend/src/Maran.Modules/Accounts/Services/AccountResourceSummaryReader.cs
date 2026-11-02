@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Common;
+using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Sdk.Interfaces;
@@ -73,7 +74,7 @@ public sealed class AccountResourceSummaryReader
         {
             var count = await counter.CountAsync(accountId, cancellationToken);
             var limit = plan.LimitFor(count.Kind);
-            rows.Add(new AccountResourceUsageDto(count.Kind, count.State, count.Used, limit.Kind, limit.Maximum));
+            rows.Add(AccountResourceUsageMapper.ToDto(count, limit));
         }
 
         return Result<AccountResourceSummaryDto>.Ok(new AccountResourceSummaryDto(accountId, rows));

@@ -1,7 +1,9 @@
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Queries.GetProfile;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.SharedKernel.Callers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -40,7 +42,9 @@ public sealed class ProfileController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {
-        var query = new GetProfileQuery(CurrentUser.UserId);
+        var principal = SignedInCallerPolicy.Require(CurrentUser);
+        Guid? accountId = principal is CustomerCaller customer ? customer.AccountId : null;
+        var query = new GetProfileQuery(principal.UserId, accountId);
         return ToActionResult(await _bus.InvokeAsync<Result<ProfileDto>>(query, cancellationToken));
     }
 }

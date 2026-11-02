@@ -1,7 +1,9 @@
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Identity.Services;
@@ -46,24 +48,38 @@ public sealed class DatabaseAuditWriter : IAuditWriter
     /// <summary>The current request's correlation id, tying a row to the logs.</summary>
     private readonly ICorrelationIdAccessor _correlationIdAccessor;
 
+    /// <summary>
+    /// The current request's principal, read for ONE thing only: the operator viewing as the actor,
+    /// if any (issue #317). Every module's journal reaches the table through this writer, so stamping
+    /// it here is what puts the impersonator on every entry written while viewing, including entries
+    /// from modules that have never heard of view-as.
+    /// </summary>
+    private readonly ICurrentUser _currentUser;
+
     /// <summary>Creates the writer.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="clock">The panel's clock.</param>
     /// <param name="correlationIdAccessor">The current request's correlation id.</param>
+    /// <param name="currentUser">The current request's principal, read for the viewing operator only.</param>
     public DatabaseAuditWriter(
         IdentityDbContext dbContext,
         IClock clock,
-        ICorrelationIdAccessor correlationIdAccessor)
+        ICorrelationIdAccessor correlationIdAccessor,
+        ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _clock = clock;
         _correlationIdAccessor = correlationIdAccessor;
+        _currentUser = currentUser;
     }
 
     /// <inheritdoc />
     public async Task WriteAsync(AuditEntry entry, CancellationToken cancellationToken)
     {
         var correlationId = _correlationIdAccessor.CorrelationId;
+        var impersonator = _currentUser.Caller is PrincipalCaller { ViewedBy: { } viewer }
+            ? new AuditImpersonator(viewer.UserId, ColumnText.Fit(viewer.Username, AuditEvent.ActorUsernameMaxLength))
+            : null;
 
         _dbContext.AuditEvents.Add(new AuditEvent(
             Guid.NewGuid(),
@@ -75,7 +91,8 @@ public sealed class DatabaseAuditWriter : IAuditWriter
             ColumnText.Fit(entry.IpAddress, AuditEvent.IpAddressMaxLength),
             entry.UserAgent,
             entry.Succeeded,
-            correlationId is null ? null : ColumnText.Fit(correlationId, AuditEvent.CorrelationIdMaxLength)));
+            correlationId is null ? null : ColumnText.Fit(correlationId, AuditEvent.CorrelationIdMaxLength),
+            impersonator));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }

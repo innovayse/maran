@@ -39,7 +39,7 @@ const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
   ownerName: ALICE.name,
-  orphanedAccountUsername: '',
+  orphanedAccountUsername: null,
   status: 'completed',
   kind: 'manual',
   sizeBytes: 1_572_864,
@@ -47,8 +47,8 @@ const COMPLETED: Backup = {
   databaseCount: 2,
   startedAt: '2026-09-06T03:00:00Z',
   finishedAt: '2026-09-06T03:04:00Z',
-  failureCode: '',
-  failureDisplayName: '',
+  failureCode: null,
+  failureDisplayName: null,
 }
 
 /**
@@ -91,7 +91,7 @@ test('the account-deletion dialog takes focus, closes on Escape, and gives focus
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'accounts', displayName: 'Аккаунты', tier: 'included', isEnabled: true },
+    { name: 'accounts', displayName: 'Аккаунты', tier: 'included', state: 'enabled' },
   ])
   await stubInvitation(page, ALICE.id, 'pending')
   await page.route(`**/api/v1/accounts/${ALICE.id}`, async (route) => {
@@ -124,7 +124,7 @@ test('the backup-restore dialog takes focus, closes on Escape, and gives focus b
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'backups', displayName: 'Резервные копии', tier: 'included', isEnabled: true },
+    { name: 'backups', displayName: 'Резервные копии', tier: 'included', state: 'enabled' },
   ])
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])

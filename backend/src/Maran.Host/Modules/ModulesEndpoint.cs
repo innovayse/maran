@@ -1,4 +1,5 @@
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Host.Modules;
 
@@ -10,7 +11,7 @@ namespace Maran.Host.Modules;
 /// </summary>
 public static class ModulesEndpoint
 {
-    /// <summary>Maps <c>GET /api/v1/modules</c>, listing modules with their licence state.</summary>
+    /// <summary>Maps <c>GET /api/v1/modules</c>, listing modules with their state.</summary>
     /// <param name="endpoints">The endpoint route builder to map onto.</param>
     /// <returns>The same builder, for chaining.</returns>
     public static IEndpointRouteBuilder MapModuleCatalogue(this IEndpointRouteBuilder endpoints)
@@ -22,17 +23,17 @@ public static class ModulesEndpoint
             // Anonymous: the SPA reads the catalogue to build its navigation before anyone has
             // signed in, and to know whether a login screen is even the right thing to show. The
             // list names the modules installed on this server and nothing about its data. An
-            // unauthenticated caller reads ICurrentUser.IsAdmin as false (fail closed), so it sees
+            // unauthenticated caller is not an AdministratorCaller (fail closed), so it sees
             // the same, customer-shaped list a signed-in customer does.
             .AllowAnonymous();
         return endpoints;
     }
 
     /// <summary>
-    /// Describes every composed module the caller is allowed to be offered. Until the Licensing
-    /// module lands there is nothing to disable, so every entry reports an enabled state of true;
-    /// tier and display name already come from each module's own <c>Manifest</c>, so wiring real
-    /// licence data later only changes <c>IsEnabled</c>, not the contract.
+    /// Describes every composed module the caller is allowed to be offered. Tier and display name
+    /// come from each module's own <c>Manifest</c>; the state comes from
+    /// <see cref="ModuleStateResolver"/>, the one place that decides it, so wiring real licence data
+    /// later changes that resolver and not the contract.
     /// </summary>
     /// <remarks>
     /// The <see cref="ModuleAudience.AdministratorOnly"/> filter below is presentation, not
@@ -42,7 +43,7 @@ public static class ModulesEndpoint
     /// </remarks>
     /// <param name="errorTextProvider">Resolves each module's <c>Manifest.DisplayNameKey</c> in the current request culture.</param>
     /// <param name="tierDisplayNames">Resolves each module's licence tier into the words an operator reads.</param>
-    /// <param name="currentUser">The caller, whose <see cref="ICurrentUser.IsAdmin"/> decides whether administrator-only modules are included.</param>
+    /// <param name="currentUser">The caller, whose <see cref="ICurrentUser.Caller"/> being an <see cref="AdministratorCaller"/> decides whether administrator-only modules are included.</param>
     /// <returns>One descriptor per compiled-in module addressed to this caller, in registration order.</returns>
     private static List<ModuleDto> DescribeModules(
         IErrorTextProvider errorTextProvider,
@@ -52,7 +53,7 @@ public static class ModulesEndpoint
         return ModuleRegistry.All
             .Where(module =>
             {
-                return currentUser.IsAdmin || module.Manifest.Audience == ModuleAudience.Everyone;
+                return currentUser.Caller is AdministratorCaller || module.Manifest.Audience == ModuleAudience.Everyone;
             })
             .Select(module =>
             {
@@ -61,7 +62,7 @@ public static class ModulesEndpoint
                                 module.Manifest.Tier,
                                 tierDisplayNames.Of(module.Manifest.Tier),
                                 errorTextProvider.Resolve(module.Manifest.DisplayNameKey),
-                                IsEnabled: true,
+                                ModuleStateResolver.Of(module.Manifest.Tier),
                                 module.Manifest.AgentCapabilities);
             })
             .ToList();

@@ -1,5 +1,6 @@
 using Maran.Modules.Cron.Commands.DeleteCronEntry;
 using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Domain.ValueObjects;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Services;
 using Maran.Modules.Cron.Tests.TestSupport;
@@ -51,7 +52,7 @@ public sealed class DeleteCronEntryCommandHandlerTests
     public async Task A_second_removal_of_the_same_entry_is_answered_not_found()
     {
         var world = new World();
-        world.Agent.DeleteEntryResult = Result<bool>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
+        world.Agent.DeleteEntryResult = Result.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
 
         var result = await world.HandleAsync();
 
@@ -82,7 +83,7 @@ public sealed class DeleteCronEntryCommandHandlerTests
         var world = new World();
         world.Database.CronRuns.Add(Run(EntryId));
         await world.Database.SaveChangesAsync();
-        world.Agent.DeleteEntryResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.DeleteEntryResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         await world.HandleAsync();
 
@@ -111,7 +112,7 @@ public sealed class DeleteCronEntryCommandHandlerTests
     public async Task A_refused_removal_is_journalled_as_a_failure()
     {
         var world = new World();
-        world.Agent.DeleteEntryResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.DeleteEntryResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         await world.HandleAsync();
 
@@ -126,7 +127,7 @@ public sealed class DeleteCronEntryCommandHandlerTests
     /// <returns>The run.</returns>
     private static CronRun Run(string entryId)
     {
-        return new CronRun(Guid.NewGuid(), AccountId, entryId, DateTimeOffset.UnixEpoch, 10, 0, null, "ok", string.Empty);
+        return new CronRun(Guid.NewGuid(), AccountId, entryId, DateTimeOffset.UnixEpoch, 10, new CronRunExited(0), "ok", string.Empty);
     }
 
     /// <summary>Everything one removal test needs, wired the way the Host wires it.</summary>
@@ -162,7 +163,7 @@ public sealed class DeleteCronEntryCommandHandlerTests
 
         /// <summary>Runs the handler with the usual audit context.</summary>
         /// <param name="accountId">The account to act under; the owner by default.</param>
-        public async Task<Result<bool>> HandleAsync(Guid? accountId = null)
+        public async Task<Result> HandleAsync(Guid? accountId = null)
         {
             return await Handler.HandleAsync(
                 new DeleteCronEntryCommand(accountId ?? AccountId, EntryId, "203.0.113.7", "tests"),

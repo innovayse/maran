@@ -11,6 +11,9 @@
  *
  * A locked page carries the "Locked" pill; a counted page carries its count, with what is counted
  * read to assistive technology after the number.
+ *
+ * **An openable page carries a favourites star** (`ShellPinToggle`, issue #318), laid over the end
+ * of its row; a planned or locked page carries none, so a page that cannot be opened cannot be pinned.
  */
 import { useI18n } from 'vue-i18n'
 import UiBadge from '../ui/UiBadge.vue'
@@ -19,6 +22,7 @@ import UiNavItem from '../ui/UiNavItem.vue'
 import UiNavLink from '../ui/UiNavLink.vue'
 import UiNavPlanned from '../ui/UiNavPlanned.vue'
 import UiNavSection from '../ui/UiNavSection.vue'
+import ShellPinToggle from './ShellPinToggle.vue'
 import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { NavigationEntry } from '../../types/navigation'
 
@@ -99,21 +103,25 @@ const toggle = (): void => {
     <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
   </UiNavPlanned>
 
-  <UiNavLink
-    v-else-if="entry.state.kind !== 'planned' && entry.children.length === 0"
-    :to="entry.state.target"
-    :locked="entry.state.kind === 'locked'"
-    @click="navigate"
-  >
-    <UiIcon :name="entry.icon" size="md" />
-    <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
-    <template v-if="pillOf(entry) !== null" #badge>
-      <UiBadge>
-        {{ pillOf(entry) }}
-        <span v-if="entry.badge !== null" class="sr-only">{{ t(`app.nav.badges.${entry.badge.kind}`) }}</span>
-      </UiBadge>
-    </template>
-  </UiNavLink>
+  <div v-else-if="entry.state.kind !== 'planned' && entry.children.length === 0" class="relative">
+    <UiNavLink
+      :to="entry.state.target"
+      :locked="entry.state.kind === 'locked'"
+      :trailing="entry.state.kind === 'open'"
+      class="peer"
+      @click="navigate"
+    >
+      <UiIcon :name="entry.icon" size="md" />
+      <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
+      <template v-if="pillOf(entry) !== null" #badge>
+        <UiBadge>
+          {{ pillOf(entry) }}
+          <span v-if="entry.badge !== null" class="sr-only">{{ t(`app.nav.badges.${entry.badge.kind}`) }}</span>
+        </UiBadge>
+      </template>
+    </UiNavLink>
+    <ShellPinToggle v-if="entry.state.kind === 'open'" :item-key="entry.key" :label="labelOf(entry)" />
+  </div>
 
   <template v-else>
     <UiNavSection
@@ -140,22 +148,26 @@ const toggle = (): void => {
         <UiNavPlanned v-if="child.state.kind === 'planned'" :hint="t('app.nav.plannedHint')" nested>
           <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
         </UiNavPlanned>
-        <UiNavLink
-          v-else
-          :to="child.state.target"
-          :locked="child.state.kind === 'locked'"
-          nested
-          :data-nav-parent="entry.key"
-          @click="navigate"
-        >
-          <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
-          <template v-if="pillOf(child) !== null" #badge>
-            <UiBadge>
-              {{ pillOf(child) }}
-              <span v-if="child.badge !== null" class="sr-only">{{ t(`app.nav.badges.${child.badge.kind}`) }}</span>
-            </UiBadge>
-          </template>
-        </UiNavLink>
+        <div v-else class="relative">
+          <UiNavLink
+            :to="child.state.target"
+            :locked="child.state.kind === 'locked'"
+            :trailing="child.state.kind === 'open'"
+            nested
+            class="peer"
+            :data-nav-parent="entry.key"
+            @click="navigate"
+          >
+            <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
+            <template v-if="pillOf(child) !== null" #badge>
+              <UiBadge>
+                {{ pillOf(child) }}
+                <span v-if="child.badge !== null" class="sr-only">{{ t(`app.nav.badges.${child.badge.kind}`) }}</span>
+              </UiBadge>
+            </template>
+          </UiNavLink>
+          <ShellPinToggle v-if="child.state.kind === 'open'" :item-key="child.key" :label="labelOf(child)" />
+        </div>
       </UiNavItem>
     </ul>
   </template>

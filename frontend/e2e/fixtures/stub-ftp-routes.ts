@@ -39,9 +39,8 @@ export const runningFtpsStatus: FtpsStatus = {
   agreement: 'consistent',
   running: true,
   controlPortAnswered: true,
-  forcedTls: true,
-  certificatePresent: true,
-  certificateIsSelfSigned: false,
+  tlsEnforcement: 'enforced',
+  certificate: 'provided',
   certificatePath: '/etc/maran/certificates/panel.example.net/fullchain.pem',
   controlPort: 21,
   passivePortMin: 30000,
@@ -61,9 +60,8 @@ export const disabledFtpsStatus: FtpsStatus = {
   agreement: 'consistent',
   running: false,
   controlPortAnswered: false,
-  forcedTls: false,
-  certificatePresent: false,
-  certificateIsSelfSigned: false,
+  tlsEnforcement: 'notObserved',
+  certificate: 'absent',
   certificatePath: '/etc/maran/certificates',
   controlPort: 21,
   passivePortMin: 0,
@@ -211,7 +209,7 @@ export const stubCreateFtpUserProblem = async (page: Page, detail: string): Prom
 
 /**
  * Fulfils `POST /api/v1/ftp-users/{id}/password` with a new password, and `DELETE
- * /api/v1/ftp-users/{id}` with a success.
+ * /api/v1/ftp-users/{id}` with an empty 204.
  *
  * Installed AFTER {@link stubFtpUsers} in a spec: Playwright gives priority to the most recently
  * registered route, and these two patterns are the narrower ones.
@@ -221,7 +219,7 @@ export const stubCreateFtpUserProblem = async (page: Page, detail: string): Prom
  */
 export const stubFtpUserActions = async (page: Page, fullName: string): Promise<void> => {
   await page.route(FTP_USER_PATTERN, async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 
   await page.route(FTP_USER_PASSWORD_PATTERN, async (route) => {

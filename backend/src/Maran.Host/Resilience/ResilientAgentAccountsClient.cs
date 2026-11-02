@@ -56,7 +56,7 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> SuspendAsync(string username, CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
         {
@@ -65,7 +65,7 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
         {
@@ -94,7 +94,7 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
         {
@@ -103,7 +103,7 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetResourceLimitsAsync(
+    public Task<Result> SetResourceLimitsAsync(
         string username,
         AccountSliceLimitsDto limits,
         CancellationToken cancellationToken)
@@ -132,6 +132,30 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
         {
             return _inner.RepairHomeGroupsAsync(reportOnly, token);
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs one call that answers success or a typed failure through the pipeline, carrying the
+    /// caller's cancellation into it.
+    /// </summary>
+    /// <param name="call">The call to make.</param>
+    /// <param name="cancellationToken">The caller's cancellation token.</param>
+    /// <returns>
+    /// What the call returned, once the pipeline has finished with it, or the typed failure a
+    /// transport failure is answered with.
+    /// </returns>
+    private async Task<Result> ExecuteAsync(
+        Func<CancellationToken, Task<Result>> call,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state(token);
+            },
+            call,
+            cancellationToken);
     }
 
     /// <summary>Runs one call through the pipeline, carrying the caller's cancellation into it.</summary>

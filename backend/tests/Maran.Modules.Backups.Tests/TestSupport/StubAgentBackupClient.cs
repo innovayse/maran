@@ -27,7 +27,7 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
     private readonly IReadOnlyList<BackupCreateEvent> _createEvents;
 
     /// <summary>The answer <see cref="DeleteAsync"/> gives.</summary>
-    private readonly Result<bool> _deleteResult;
+    private readonly Result _deleteResult;
 
     /// <summary>The events <see cref="RestoreAsync"/> replays, in order.</summary>
     private readonly IReadOnlyList<BackupRestoreEvent> _restoreEvents;
@@ -38,11 +38,11 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
     /// <param name="restoreEvents">The restore stream to replay; empty for a stream that says nothing.</param>
     public StubAgentBackupClient(
         IReadOnlyList<BackupCreateEvent>? createEvents = null,
-        Result<bool>? deleteResult = null,
+        Result? deleteResult = null,
         IReadOnlyList<BackupRestoreEvent>? restoreEvents = null)
     {
         _createEvents = createEvents ?? [];
-        _deleteResult = deleteResult ?? Result<bool>.Ok(true);
+        _deleteResult = deleteResult ?? Result.Ok();
         _restoreEvents = restoreEvents ?? [];
     }
 
@@ -168,7 +168,7 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string backupId,
         AgentBackupDestination destination,

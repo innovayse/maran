@@ -323,7 +323,6 @@ public sealed class AgentCronClientTests
             .UpdateEntryAsync("alice", "e1", NightlySchedule, BackupCommand, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>Update error payload maps to a failed result with the agent code.</summary>
@@ -384,7 +383,6 @@ public sealed class AgentCronClientTests
         var result = await Client(stub).DeleteEntryAsync("alice", "e1", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>Deletion error payload maps to a failed result with the agent code.</summary>
@@ -447,7 +445,6 @@ public sealed class AgentCronClientTests
         var result = await Client(stub).SetEntryEnabledAsync("alice", "e1", true, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>The enablement error payload maps to a failed result with the agent code.</summary>
@@ -796,7 +793,6 @@ public sealed class AgentCronClientTests
         var result = await Client(stub).SetAccountSuspendedAsync("alice", true, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>The account-wide suspension error payload maps to a failed result with the agent code.</summary>

@@ -58,17 +58,16 @@ public sealed class SiteLogStreamWriter
     /// <remarks>
     /// A log line is a customer's own file content, so it is serialized rather than concatenated and
     /// cannot forge a frame of its own; the reasoning lives with the renderer
-    /// (<see cref="EventStreamFrame"/>). The ending is discriminated by
-    /// <see cref="SiteLogFrame.EndReason"/> rather than by the line, because an empty line is a
-    /// legitimate log line and the end message may be absent.
+    /// (<see cref="EventStreamFrame"/>). The ending is its own frame type rather than a line with an
+    /// empty text, because an empty line is a legitimate log line and the end message may be absent.
     /// </remarks>
     private static string Format(SiteLogFrame frame)
     {
-        if (frame.EndReason is null)
+        return frame switch
         {
-            return EventStreamFrame.Render("line", new SiteLogLineDto(frame.Line, frame.Historical));
-        }
-
-        return EventStreamFrame.Render("end", new SiteLogEndDto(frame.EndReason.Value, frame.EndMessage));
+            SiteLogLineFrame line => EventStreamFrame.Render("line", new SiteLogLineDto(line.Line, line.Historical)),
+            SiteLogEndFrame end => EventStreamFrame.Render("end", new SiteLogEndDto(end.Reason, end.Message)),
+            _ => throw new ArgumentOutOfRangeException(nameof(frame), frame, "Unknown site log frame."),
+        };
     }
 }

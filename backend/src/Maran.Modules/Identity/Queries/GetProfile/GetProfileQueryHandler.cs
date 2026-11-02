@@ -1,6 +1,9 @@
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
+using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Identity.Queries.GetProfile;
 
@@ -13,13 +16,18 @@ public sealed class GetProfileQueryHandler
     /// <summary>The panel's clock, deciding which sessions are still live.</summary>
     private readonly IClock _clock;
 
+    /// <summary>Names the caller's role on the account for the request's culture.</summary>
+    private readonly IStringLocalizer<DisplayNames> _displayNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="clock">The panel's clock.</param>
-    public GetProfileQueryHandler(IdentityDbContext dbContext, IClock clock)
+    /// <param name="displayNames">Names the caller's role on the account for the request's culture.</param>
+    public GetProfileQueryHandler(IdentityDbContext dbContext, IClock clock, IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
         _clock = clock;
+        _displayNames = displayNames;
     }
 
     /// <summary>Returns the caller's profile.</summary>
@@ -46,14 +54,39 @@ public sealed class GetProfileQueryHandler
         var activeSessions = await _dbContext.Sessions
             .AsNoTracking()
             .CountAsync(
-                session => session.UserId == user.Id && session.RevokedAt == null && session.ExpiresAt > now,
+                session => session.UserId == user.Id && session.Revocation == null && session.ExpiresAt > now,
                 cancellationToken);
+
+        // How the person stands towards the account they are acting for. Read through the entity's own
+        // rule (Allows), so what the screen is told is what the endpoints will decide.
+        AccountAccessDto? access = null;
+        if (query.AccountId is { } accountId)
+        {
+            var membership = await _dbContext.AccountMemberships
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    candidate => candidate.UserId == user.Id && candidate.AccountId == accountId,
+                    cancellationToken);
+            if (membership is not null)
+            {
+                access = new AccountAccessDto(
+                    membership.Role,
+                    _displayNames["MembershipRole" + membership.Role].Value,
+                    AccountFeature.All.Members()
+                        .Where(feature =>
+                        {
+                            return membership.Allows(feature);
+                        })
+                        .ToList());
+            }
+        }
 
         return Result<ProfileDto>.Ok(new ProfileDto(
             user.Username,
             user.Email,
             user.Role,
             user.IsTotpEnabled,
-            activeSessions));
+            activeSessions,
+            access));
     }
 }

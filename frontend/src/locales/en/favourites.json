@@ -1,0 +1,9 @@
+{
+  "favourites": {
+    "menuLabel": "Favourites",
+    "empty": "Nothing is pinned yet. Use the star beside a page in the menu to pin it here.",
+    "pin": "Pin {name} to favourites",
+    "unpin": "Remove {name} from favourites",
+    "limitReached": "Favourites are full. Remove one to pin {name}."
+  }
+}

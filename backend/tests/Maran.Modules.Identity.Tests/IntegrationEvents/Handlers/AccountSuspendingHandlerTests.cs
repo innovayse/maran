@@ -61,7 +61,7 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
     /// </summary>
     /// <remarks>
     /// This is the property the type's own remarks name as the half of a suspension that actually
-    /// matters: blocking <see cref="User.State"/> alone leaves a session issued before the
+    /// matters: blocking <see cref="User.Lifecycle"/> alone leaves a session issued before the
     /// suspension authenticating for the rest of its own lifetime. Removing the
     /// <c>RevokeAllAsync</c> call from the handler must turn this test red — asserting only that the
     /// LOGIN is blocked would not catch that regression, because the login and the session are two
@@ -71,14 +71,14 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
     public async Task Suspension_revokes_the_live_sessions_of_an_already_signed_in_owner()
     {
         var user = await SeedActiveUserAsync();
-        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "browser", CancellationToken.None);
+        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "browser", null, CancellationToken.None);
 
         await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
 
         var session = await _context.Sessions.SingleAsync(candidate => candidate.Id == issued.SessionId);
         Assert.False(session.IsActive(Now));
-        Assert.NotNull(session.RevokedAt);
-        Assert.Equal(SessionRevocationReason.AccountSuspended, session.RevocationReason);
+        Assert.NotNull(session.Revocation);
+        Assert.Equal(SessionRevocationReason.AccountSuspended, session.Revocation?.Reason);
     }
 
     /// <summary>Suspending an account blocks its login from signing in again.</summary>
@@ -90,7 +90,7 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
         await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
 
         var user = await _context.Users.SingleAsync(candidate => candidate.AccountId == AccountId);
-        Assert.Equal(UserState.Suspended, user.State);
+        Assert.Equal(UserLifecycle.Suspended, user.Lifecycle);
     }
 
     /// <summary>Suspension leaves an invited login invited, so the unused invitation survives.</summary>
@@ -110,7 +110,7 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
         await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
 
         var stored = await _context.Users.SingleAsync(candidate => candidate.AccountId == AccountId);
-        Assert.Equal(UserState.Invited, stored.State);
+        Assert.Equal(UserLifecycle.InvitedAccountSuspended, stored.Lifecycle);
     }
 
     /// <summary>An account with no login at all is left with nothing to do.</summary>

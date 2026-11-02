@@ -23,7 +23,7 @@ public static class BackupMapper
     /// </param>
     /// <param name="failureDisplayName">
     /// The row's failure code named in the caller's language, from <c>BackupFailureDisplayNames</c>,
-    /// and empty when nothing failed. Passed in rather than looked up here because a mapper
+    /// and <c>null</c> when nothing failed. Passed in rather than looked up here because a mapper
     /// translates and never decides, and because resolving a localized name needs the request's
     /// culture, which a static translation has no business holding.
     /// </param>
@@ -33,7 +33,7 @@ public static class BackupMapper
     public static BackupDto From(
         Backup backup,
         IReadOnlyDictionary<Guid, string> ownerNames,
-        string failureDisplayName)
+        string? failureDisplayName)
     {
         ArgumentNullException.ThrowIfNull(backup);
         ArgumentNullException.ThrowIfNull(ownerNames);
@@ -42,15 +42,15 @@ public static class BackupMapper
             backup.Id,
             backup.AccountId,
             ownerNames.GetValueOrDefault(backup.AccountId, string.Empty),
-            backup.OrphanedAccountUsername,
+            backup.DeletedAccountUsername,
             backup.Status,
             backup.Kind,
             backup.SizeBytes,
-            backup.Sha256,
+            backup.ArtifactSha256,
             backup.DatabaseCount,
             backup.StartedAt,
             backup.FinishedAt,
-            backup.FailureCode,
+            backup.RunFailureCode,
             failureDisplayName);
     }
 }

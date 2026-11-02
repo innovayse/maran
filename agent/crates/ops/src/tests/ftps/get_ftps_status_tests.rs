@@ -205,7 +205,7 @@ fn a_hostname_is_answered_with_the_material_the_store_holds_for_it() {
         .certificate
         .expect("a question was asked");
 
-    assert!(certificate.present);
+    assert!(certificate.installation.is_present());
     assert_eq!(
         certificate.certificate_path,
         "/etc/maran/certificates/ftp.example.test/fullchain.pem"

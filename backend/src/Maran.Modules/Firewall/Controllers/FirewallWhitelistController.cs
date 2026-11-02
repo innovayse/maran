@@ -86,7 +86,7 @@ public sealed class FirewallWhitelistController : BaseApiController
     /// is called from as well as on which row is named.
     /// </remarks>
     [HttpDelete("{id:guid}")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -94,6 +94,6 @@ public sealed class FirewallWhitelistController : BaseApiController
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new RemoveWhitelistEntryCommand(id, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

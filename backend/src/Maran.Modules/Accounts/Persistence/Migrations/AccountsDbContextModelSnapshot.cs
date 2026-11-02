@@ -90,6 +90,9 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<long>("Features")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("MaxCronEntries")
                         .HasColumnType("integer");
 
@@ -153,13 +156,17 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                                     b2.Property<Guid>("RuntimeLimitsPlanId")
                                         .HasColumnType("uuid");
 
-                                    b2.Property<string>("Kind")
+                                    b2.Property<int?>("Maximum")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("CpuQuotaPercentCeiling");
+
+                                    b2.Property<string>("_legacyKind")
                                         .IsRequired()
                                         .HasMaxLength(16)
                                         .HasColumnType("character varying(16)")
                                         .HasColumnName("CpuLimitKind");
 
-                                    b2.Property<int>("Maximum")
+                                    b2.Property<int>("_legacyMaximum")
                                         .HasColumnType("integer")
                                         .HasColumnName("CpuQuotaPercent");
 
@@ -176,13 +183,17 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                                     b2.Property<Guid>("RuntimeLimitsPlanId")
                                         .HasColumnType("uuid");
 
-                                    b2.Property<string>("Kind")
+                                    b2.Property<int?>("Maximum")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("MaxProcessesCeiling");
+
+                                    b2.Property<string>("_legacyKind")
                                         .IsRequired()
                                         .HasMaxLength(16)
                                         .HasColumnType("character varying(16)")
                                         .HasColumnName("ProcessLimitKind");
 
-                                    b2.Property<int>("Maximum")
+                                    b2.Property<int>("_legacyMaximum")
                                         .HasColumnType("integer")
                                         .HasColumnName("MaxProcesses");
 
@@ -199,13 +210,17 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                                     b2.Property<Guid>("RuntimeLimitsPlanId")
                                         .HasColumnType("uuid");
 
-                                    b2.Property<string>("Kind")
+                                    b2.Property<int?>("Maximum")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("MemoryMaxMbCeiling");
+
+                                    b2.Property<string>("_legacyKind")
                                         .IsRequired()
                                         .HasMaxLength(16)
                                         .HasColumnType("character varying(16)")
                                         .HasColumnName("MemoryLimitKind");
 
-                                    b2.Property<int>("Maximum")
+                                    b2.Property<int>("_legacyMaximum")
                                         .HasColumnType("integer")
                                         .HasColumnName("MemoryMaxMb");
 

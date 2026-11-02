@@ -140,7 +140,7 @@ public sealed class AcmeSession
         CancellationToken cancellationToken)
     {
         var first = await SendOnceAsync(url, payload, cancellationToken);
-        if (first.Succeeded || !first.RetryableNonce)
+        if (first is not StaleNonceAcmeAttempt)
         {
             return first.ToResult();
         }
@@ -173,7 +173,7 @@ public sealed class AcmeSession
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (response.IsSuccessStatusCode)
         {
-            return new AcmeAttempt(true, false, body);
+            return new AcceptedAcmeAttempt(body);
         }
 
         // Logged HERE, at the only point that has the document, and logged as its machine fields
@@ -184,7 +184,9 @@ public sealed class AcmeSession
         var problem = ProblemOf(response.StatusCode, body);
         LogRefusal(_logger, url, problem.Status, problem.Type, null);
 
-        return new AcmeAttempt(false, IsBadNonce(response.StatusCode, body), body);
+        return IsBadNonce(response.StatusCode, body)
+            ? new StaleNonceAcmeAttempt(body)
+            : new RefusedAcmeAttempt(body);
     }
 
     /// <summary>Reads the machine-readable half of a problem document.</summary>

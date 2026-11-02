@@ -12,6 +12,12 @@ public interface IAccessTokenIssuer
     /// The session this token belongs to, written as the <c>sid</c> claim so a revoked session can
     /// be recognised without waiting for the token itself to expire.
     /// </param>
+    /// <param name="accountId">
+    /// The hosting account the token speaks for, written as the account claim every tenant query
+    /// follows. It is the session's active account, never <see cref="User.AccountId"/>: a login that
+    /// holds several accounts has one active at a time. Null writes no claim, which is right for an
+    /// administrator and for a customer with no membership.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the read of the panel's security policy.</param>
     /// <returns>The signed token, the instant it expires, and whether its holder is steered into enrolment.</returns>
     /// <remarks>
@@ -22,5 +28,17 @@ public interface IAccessTokenIssuer
     /// silently clears. Making it the issuer's own job means every present and future issuing path
     /// gets it without remembering to.
     /// </remarks>
-    Task<AccessToken> IssueAsync(User user, Guid sessionId, CancellationToken cancellationToken);
+    Task<AccessToken> IssueAsync(User user, Guid sessionId, Guid? accountId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Issues the one access token of a view-as session: it speaks for <paramref name="viewedUser"/>
+    /// and the session's account, carries the operator as an RFC 8693 <c>act</c> claim and the
+    /// session kind as <c>sk</c>, and expires with the session (issue #317).
+    /// </summary>
+    /// <param name="viewedUser">The login being viewed as.</param>
+    /// <param name="session">A view-as session (<see cref="Domain.Entities.Session.ViewAs"/> is set) of that login, started by <paramref name="actor"/>.</param>
+    /// <param name="actor">The operator viewing.</param>
+    /// <returns>The signed token and its expiry; never steered into two-factor enrolment.</returns>
+    /// <exception cref="InvalidOperationException">The session is not a view-as session of these two users.</exception>
+    AccessToken IssueViewAs(User viewedUser, Session session, User actor);
 }

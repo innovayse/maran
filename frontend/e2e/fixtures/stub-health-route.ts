@@ -1,18 +1,18 @@
 import type { Page } from '@playwright/test'
+import type { HealthResponse } from '../../src/types/system'
 
 /**
  * Fulfils `GET /health` with a healthy body, so a spec can assert the status
  * page's "ok" state without a live backend.
  * @param page The Playwright page whose network the route is installed on.
- * @param status The `status` field the stub reports (defaults to `"ok"`).
  * @returns Resolves once the route is installed.
  */
-export const stubHealthy = async (page: Page, status = 'ok'): Promise<void> => {
+export const stubHealthy = async (page: Page): Promise<void> => {
   await page.route('**/health', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ status, agent: 'connected' }),
+      body: JSON.stringify({ agent: 'connected', database: 'reachable' } satisfies HealthResponse),
     })
   })
 }

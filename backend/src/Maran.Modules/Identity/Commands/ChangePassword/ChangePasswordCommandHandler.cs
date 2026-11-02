@@ -84,12 +84,12 @@ public sealed class ChangePasswordCommandHandler
     /// Success; <c>CurrentPasswordIncorrect</c> for a wrong current password or a locked account;
     /// <c>UserNotFound</c> when the token names a user that no longer exists.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(ChangePasswordCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(ChangePasswordCommand command, CancellationToken cancellationToken)
     {
         var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Id == command.UserId, cancellationToken);
         if (user is null)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound), ErrorType.NotFound));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.UserNotFound), ErrorType.NotFound));
         }
 
         var now = _clock.UtcNow;
@@ -130,7 +130,7 @@ public sealed class ChangePasswordCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Records a refused change and returns the one refusal it gets.</summary>
@@ -138,7 +138,7 @@ public sealed class ChangePasswordCommandHandler
     /// <param name="command">The attempt. Neither password reaches the journal.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>The refusal.</returns>
-    private async Task<Result<bool>> RefuseAsync(
+    private async Task<Result> RefuseAsync(
         User user,
         ChangePasswordCommand command,
         CancellationToken cancellationToken)
@@ -152,6 +152,6 @@ public sealed class ChangePasswordCommandHandler
             succeeded: false,
             cancellationToken);
 
-        return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.CurrentPasswordIncorrect), ErrorType.Validation));
+        return Result.Fail(Error.Of(nameof(ErrorMessages.CurrentPasswordIncorrect), ErrorType.Validation));
     }
 }

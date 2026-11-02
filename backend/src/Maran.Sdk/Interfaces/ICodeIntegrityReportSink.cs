@@ -2,6 +2,8 @@ using Maran.Sdk.Contracts;
 
 namespace Maran.Sdk.Interfaces;
 
+#pragma warning disable CS0618 // The closed PluginLoader still calls this with the superseded report; the contract cannot change under it, and the implementation converts at once (CodeIntegrityReportExtensions.ToVerdict).
+
 /// <summary>
 /// Receives a <see cref="CodeIntegrityReport"/> from the closed PluginLoader, the one point where a
 /// finding produced outside this monorepo becomes available inside the panel process.
@@ -49,3 +51,4 @@ public interface ICodeIntegrityReportSink
     /// <param name="cancellationToken">Cancels the call.</param>
     Task ReportAsync(CodeIntegrityReport report, CancellationToken cancellationToken);
 }
+#pragma warning restore CS0618

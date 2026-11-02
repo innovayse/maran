@@ -5,20 +5,13 @@ use maran_ops::cron::CronEntry;
 use crate::proto::CronEntry as WireEntry;
 use crate::proto::CronSchedule as WireSchedule;
 
-/// The exit code a LISTED entry reports.
-///
-/// Zero, and it means "not read" rather than "the last run succeeded" —
-/// `cron.proto` says so on the field. A listing does not read it because doing
-/// so would mean one privileged read per entry under the account's home just to
-/// draw a table; `GetCronEntryOutput` answers it for the one entry an operator
-/// opened.
-const UNREAD_EXIT_CODE: i32 = 0;
-
-/// The run timestamp a LISTED entry reports: zero, meaning "not read". See
-/// [`UNREAD_EXIT_CODE`].
-const UNREAD_RUN_TIME: i64 = 0;
-
 /// Builds the wire message for one entry of an account's crontab.
+///
+/// A listing carries no run information. Reading an entry's exit status means
+/// one privileged read per entry under the account's home just to draw a
+/// table, so the two fields that used to hold it as zeros are reserved in
+/// `cron.proto` (revision 13); `GetCronEntryOutput` answers them, with explicit
+/// presence, for the one entry an operator opened.
 ///
 /// The command is the part worth naming. It does not live in the crontab: the
 /// installed line names a file, and the listing reads that file back. When the
@@ -47,8 +40,6 @@ pub fn listed_entry(entry: CronEntry) -> WireEntry {
         command: entry.command.unwrap_or_default(),
         enabled: entry.enabled,
         suspended: entry.suspended,
-        last_exit_code: UNREAD_EXIT_CODE,
-        last_run_at_unix: UNREAD_RUN_TIME,
     }
 }
 

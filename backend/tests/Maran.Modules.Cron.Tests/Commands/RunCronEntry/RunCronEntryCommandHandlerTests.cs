@@ -4,6 +4,7 @@ using Maran.Modules.Cron.Common;
 using Maran.Modules.Cron.Domain.Entities;
 using Maran.Modules.Cron.Domain.Enums;
 using Maran.Modules.Cron.Domain.Policies;
+using Maran.Modules.Cron.Domain.ValueObjects;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Services;
 using Maran.Modules.Cron.Tests.TestSupport;
@@ -71,13 +72,13 @@ public sealed class RunCronEntryCommandHandlerTests
     public async Task A_job_that_failed_is_a_recorded_run_not_a_failed_request()
     {
         var world = new World();
-        world.Agent.RunEntryResult = Result<AgentCronRun>.Ok(new AgentCronRun(40, 1, string.Empty, "boom", null));
+        world.Agent.RunEntryResult = Result<AgentCronRun>.Ok(new AgentCronRun(40, new AgentCronRunExited(1), string.Empty, "boom"));
 
         var result = await world.HandleAsync();
 
         Assert.True(result.IsSuccess);
         Assert.Equal(CronRunOutcome.Failed, result.Value.Outcome);
-        Assert.Equal(1, result.Value.ExitCode);
+        Assert.Equal(new CronRunExitedDto(1), result.Value.End);
     }
 
     /// <summary>A run a ceiling stopped is recorded as stopped, with its ceiling and no status.</summary>
@@ -86,13 +87,28 @@ public sealed class RunCronEntryCommandHandlerTests
     {
         var world = new World();
         world.Agent.RunEntryResult = Result<AgentCronRun>.Ok(
-            new AgentCronRun(120_000, null, string.Empty, string.Empty, AgentCronRunLimit.Runtime));
+            new AgentCronRun(
+                120_000, new AgentCronRunStopped(AgentCronRunLimit.Runtime), string.Empty, string.Empty));
 
         var result = await world.HandleAsync();
 
         Assert.Equal(CronRunOutcome.Stopped, result.Value.Outcome);
-        Assert.Equal(CronRunLimit.Runtime, result.Value.Limit);
-        Assert.Null(result.Value.ExitCode);
+        Assert.Equal(new CronRunStoppedDto(CronRunLimit.Runtime), result.Value.End);
+    }
+
+    /// <summary>A run that died of a signal is recorded as failed and says it reported no status.</summary>
+    [Fact]
+    public async Task A_run_that_died_of_a_signal_is_recorded_as_failed_without_a_status()
+    {
+        var world = new World();
+        world.Agent.RunEntryResult = Result<AgentCronRun>.Ok(
+            new AgentCronRun(30, new AgentCronRunWithoutStatus(), string.Empty, string.Empty));
+
+        var result = await world.HandleAsync();
+
+        Assert.Equal(CronRunOutcome.Failed, result.Value.Outcome);
+        Assert.Equal(new CronRunWithoutStatusDto(), result.Value.End);
+        Assert.Equal(CronRunOutcome.Failed, Assert.Single(world.Database.CronRuns).Outcome);
     }
 
     /// <summary>An agent refusal records nothing, maps to the module's code and is journalled as a failure.</summary>
@@ -164,7 +180,7 @@ public sealed class RunCronEntryCommandHandlerTests
     /// <returns>The run.</returns>
     private static CronRun Run(string entryId, DateTimeOffset startedAt)
     {
-        return new CronRun(Guid.NewGuid(), AccountId, entryId, startedAt, 10, 0, null, "ok", string.Empty);
+        return new CronRun(Guid.NewGuid(), AccountId, entryId, startedAt, 10, new CronRunExited(0), "ok", string.Empty);
     }
 
     /// <summary>Everything one run test needs, wired the way the Host wires it.</summary>

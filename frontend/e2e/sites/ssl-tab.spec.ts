@@ -23,7 +23,7 @@ import type { SiteDetail } from '../../src/types/site'
 // real behaviour the screen has to have.
 
 const LICENSED_SITES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
 ]
 
 const SITE: SiteDetail = {

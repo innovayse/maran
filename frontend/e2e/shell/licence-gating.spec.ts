@@ -14,8 +14,8 @@ test('navigation shows an enabled module and marks a disabled module as locked',
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-    { name: 'backups', displayName: 'Backups', tier: 'business', isEnabled: false },
+    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+    { name: 'backups', displayName: 'Backups', tier: 'business', state: 'locked' },
   ])
 
   await page.goto('/')
@@ -43,7 +43,7 @@ test('visiting the upgrade page for a locked module names the module and its lic
   // `tierDisplayName` is the tier in the backend's own words; the SPA owns no list of tiers, so a
   // catalogue without it makes the page say nothing about the tier (e2e/upgrade/tier-name.spec.ts).
   await stubModules(page, [
-    { name: 'backups', tier: 'business', tierDisplayName: 'Business', isEnabled: false },
+    { name: 'backups', tier: 'business', tierDisplayName: 'Business', state: 'locked' },
   ])
 
   await page.goto('/upgrade/backups')
@@ -67,7 +67,7 @@ test('deep link to a gated route whose module the licence does not cover lands o
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'business', isEnabled: false }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'business', state: 'locked' }])
 
   await page.goto('/accounts')
 
@@ -79,7 +79,7 @@ test('deep link to a gated route whose module the licence does not cover lands o
 test('deep link to a gated child route of an unlicensed module is redirected too', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'business', isEnabled: false }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'business', state: 'locked' }])
 
   await page.goto('/accounts/new')
 
@@ -89,7 +89,7 @@ test('deep link to a gated child route of an unlicensed module is redirected too
 test('a gated route the licence covers is reachable and renders its own page', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
 
   await page.goto('/accounts')
@@ -113,7 +113,7 @@ test('navigating from the sidebar into an enabled module reaches its page rather
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
 
   await page.goto('/')
@@ -134,8 +134,8 @@ test('a licensed module whose screen exists is not sent to the upgrade wall', as
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'identity', displayName: 'Users and access', tier: 'included', isEnabled: true },
-    { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+    { name: 'identity', displayName: 'Users and access', tier: 'included', state: 'enabled' },
+    { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
   ])
 
   await page.goto('/')
@@ -164,8 +164,8 @@ test('a licensed module whose interface lives inside another screen gets no side
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-    { name: 'ssl', displayName: 'SSL certificates', tier: 'included', isEnabled: true },
+    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+    { name: 'ssl', displayName: 'SSL certificates', tier: 'included', state: 'enabled' },
   ])
 
   await page.goto('/')
@@ -187,7 +187,7 @@ test('a module the licence does not permit still shows inside its section and le
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'firewall', displayName: 'Firewall', tier: 'business', isEnabled: false },
+    { name: 'firewall', displayName: 'Firewall', tier: 'business', state: 'locked' },
   ])
 
   await page.goto('/')

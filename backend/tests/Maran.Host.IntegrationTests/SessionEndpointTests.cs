@@ -255,7 +255,7 @@ public sealed class SessionEndpointTests : IAsyncLifetime
 
         var response = await client.PostAsync("/api/v1/auth/logout", content: null);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var cookie = response.Headers.GetValues("Set-Cookie").Single();
         Assert.StartsWith("maran_refresh=;", cookie, StringComparison.Ordinal);
 

@@ -43,7 +43,7 @@ const stubShell = async (page: Page, modules: PanelModule[]): Promise<void> => {
 }
 
 test('the plan chooser prompts for a choice instead of showing an identifier', async ({ page }) => {
-  await stubShell(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
+  await stubShell(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
   await stubPlans(page)
 
@@ -65,11 +65,11 @@ test('the account pickers of every create form prompt for a choice instead of st
   page,
 }) => {
   await stubShell(page, [
-    { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
-    { name: 'sftp', displayName: 'SFTP', tier: 'included', isEnabled: true },
-    { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
-    { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
-    { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+    { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+    { name: 'sftp', displayName: 'SFTP', tier: 'included', state: 'enabled' },
+    { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
+    { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
   ])
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
@@ -79,7 +79,7 @@ test('the account pickers of every create form prompt for a choice instead of st
   await stubFtpsServer(page, runningFtpsStatus)
   await stubBackups(page, [])
   await stubSites(page, [])
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 
   for (const path of ['/databases', '/file-transfer/sftp', '/file-transfer/ftps', '/backups', '/sites/new']) {
     await page.goto(path)
@@ -97,11 +97,11 @@ test('the account pickers of every create form prompt for a choice instead of st
 test('the account pickers of every create form are named after the account in Armenian', async ({ page }) => {
   await setPersistedLocale(page, 'hy')
   await stubShell(page, [
-    { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
-    { name: 'sftp', displayName: 'SFTP', tier: 'included', isEnabled: true },
-    { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
-    { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
-    { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+    { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+    { name: 'sftp', displayName: 'SFTP', tier: 'included', state: 'enabled' },
+    { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
+    { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
   ])
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
@@ -110,7 +110,7 @@ test('the account pickers of every create form are named after the account in Ar
   await stubFtpsServer(page, runningFtpsStatus)
   await stubBackups(page, [])
   await stubSites(page, [])
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 
   for (const path of ['/databases', '/file-transfer/sftp', '/file-transfer/ftps', '/backups', '/sites/new']) {
     await page.goto(path)
@@ -122,12 +122,12 @@ test('the account pickers of every create form are named after the account in Ar
 })
 
 test('the PHP version picker prompts for a choice instead of standing blank', async ({ page }) => {
-  await stubShell(page, [{ name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true }])
+  await stubShell(page, [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [ALICE])
   await stubSites(page, [])
   await stubPhpVersions(page, [
-    { version: '8.2', isDefault: false },
-    { version: '8.3', isDefault: true },
+    { version: '8.2', defaultStatus: 'notDefault' },
+    { version: '8.3', defaultStatus: 'default' },
   ])
 
   await page.goto('/sites/new')

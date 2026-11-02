@@ -10,6 +10,7 @@ use maran_agent_core::utils::output_stream::OutputStream;
 use maran_agent_core::utils::spawn_error::SpawnError;
 
 use crate::cron::cron_error::CronError;
+use crate::cron::model::cron_run_end::CronRunEnd;
 use crate::cron::model::cron_run_limit::CronRunLimit;
 use crate::cron::run_now_outcome::run_now_outcome;
 
@@ -27,10 +28,9 @@ fn answered(status: i32) -> Result<CommandOutcome, SpawnError> {
 fn a_run_that_ended_on_its_own_carries_its_status_and_output() {
     let run = run_now_outcome(answered(3), Duration::from_secs(2)).unwrap();
 
-    assert_eq!(run.exit_code, Some(3));
+    assert_eq!(run.end, CronRunEnd::Exited { code: 3 });
     assert_eq!(run.stdout, "out");
     assert_eq!(run.stderr, "err");
-    assert_eq!(run.limit, None);
     assert_eq!(run.duration, Duration::from_secs(2));
 }
 
@@ -39,8 +39,7 @@ fn a_run_that_ended_on_its_own_carries_its_status_and_output() {
 fn a_run_that_lasted_the_ceiling_was_stopped_and_has_no_status() {
     let run = run_now_outcome(answered(1), Duration::from_secs(120)).unwrap();
 
-    assert_eq!(run.exit_code, None);
-    assert_eq!(run.limit, Some(CronRunLimit::Runtime));
+    assert_eq!(run.end, CronRunEnd::Stopped(CronRunLimit::Runtime));
 }
 
 /// One second under the ceiling is still a run that ended on its own.
@@ -48,8 +47,7 @@ fn a_run_that_lasted_the_ceiling_was_stopped_and_has_no_status() {
 fn one_second_under_the_ceiling_ended_on_its_own() {
     let run = run_now_outcome(answered(0), Duration::from_secs(119)).unwrap();
 
-    assert_eq!(run.exit_code, Some(0));
-    assert_eq!(run.limit, None);
+    assert_eq!(run.end, CronRunEnd::Exited { code: 0 });
 }
 
 /// A client that died of a signal reports no status rather than a sentinel.
@@ -57,8 +55,7 @@ fn one_second_under_the_ceiling_ended_on_its_own() {
 fn a_client_killed_by_a_signal_reports_no_status() {
     let run = run_now_outcome(answered(-1), Duration::from_secs(1)).unwrap();
 
-    assert_eq!(run.exit_code, None);
-    assert_eq!(run.limit, None);
+    assert_eq!(run.end, CronRunEnd::WithoutStatus);
 }
 
 /// Output past the ceiling stops the run and keeps none of it.
@@ -72,8 +69,7 @@ fn output_past_the_ceiling_keeps_none_of_it() {
 
     let run = run_now_outcome(answer, Duration::from_secs(4)).unwrap();
 
-    assert_eq!(run.limit, Some(CronRunLimit::Output));
-    assert_eq!(run.exit_code, None);
+    assert_eq!(run.end, CronRunEnd::Stopped(CronRunLimit::Output));
     assert!(run.stdout.is_empty() && run.stderr.is_empty());
 }
 
@@ -87,7 +83,7 @@ fn a_wedged_client_is_the_runtime_ceiling() {
 
     let run = run_now_outcome(answer, Duration::from_secs(180)).unwrap();
 
-    assert_eq!(run.limit, Some(CronRunLimit::Runtime));
+    assert_eq!(run.end, CronRunEnd::Stopped(CronRunLimit::Runtime));
 }
 
 /// A client that could not be started is no run at all.

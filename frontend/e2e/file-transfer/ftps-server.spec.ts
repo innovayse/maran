@@ -20,8 +20,8 @@ import type { FtpsStatus } from '../../src/types/ftpsStatus'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', isEnabled: true },
-  { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
+  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
+  { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {
@@ -191,7 +191,7 @@ test('the ports on screen are the ones the server reported, not ones the SPA hol
 
 // Both directions, on the panel as well as in the credential dialog.
 test('the placeholder-certificate line on the server panel follows the status', async ({ page }) => {
-  await openScreen(page, { ...runningFtpsStatus, certificateIsSelfSigned: true }, FTPS_RULES)
+  await openScreen(page, { ...runningFtpsStatus, certificate: 'selfSigned' }, FTPS_RULES)
   await expect(page.getByTestId('ftps-self-signed')).toContainText(
     'The certificate is a placeholder this panel generated.',
   )
@@ -281,29 +281,48 @@ test('the open-ports offer installs rules for the ports the server reported', as
 })
 
 // The field a screen built from the plan's own text would be blind to: the plan calls the status
-// "eight facts" in four places and it is nine, the ninth being forced TLS — the one that says
-// whether the daemon actually requires encryption, which is the reason this protocol is offered.
+// "eight facts" in four places and it is nine, the ninth being the TLS enforcement — the one that
+// says whether the daemon actually requires encryption, which is the reason this protocol is offered.
 //
-// It renders false when UNKNOWN by design (no live configuration, an unreadable file, an older
-// agent), so the two states are "required" and "not confirmed as required" — never "off", which
-// would be a claim the agent did not make. It sits beside the panel's own `desiredState` intention so an
-// operator can see the two disagree rather than be shown one of them as the truth.
-test('the forced-TLS fact is stated in both directions and never as the panel intention', async ({
+// Three states, because the agent can say "required", "optional" (it read the configuration and TLS
+// is not forced) or nothing at all (it could not read it). The last is worded as the admission it is
+// and never as "off", which would be a claim the agent did not make. The line sits beside the panel's
+// own `desiredState` intention so an operator can see the two disagree rather than be shown one of
+// them as the truth.
+test('the TLS enforcement is stated in all three outcomes and never as the panel intention', async ({
   page,
 }) => {
-  await openScreen(page, { ...runningFtpsStatus, forcedTls: true }, FTPS_RULES)
+  const REQUIRED = 'TLS required for logins and transfers'
+  const OPTIONAL = 'TLS is optional: logins and transfers can travel unencrypted'
+  const UNREAD = 'Not observed: the configuration could not be read'
+
+  await openScreen(page, { ...runningFtpsStatus, tlsEnforcement: 'enforced' }, FTPS_RULES)
   await expect(SERVER_PANEL(page)).toBeVisible()
-  await expect(page.getByText('TLS required for logins and transfers', { exact: true })).toBeVisible()
-  await expect(page.getByText('Not confirmed as required', { exact: true })).toHaveCount(0)
+  await expect(page.getByText(REQUIRED, { exact: true })).toBeVisible()
+  await expect(page.getByText(OPTIONAL, { exact: true })).toHaveCount(0)
+  await expect(page.getByText(UNREAD, { exact: true })).toHaveCount(0)
 
   // The panel still believes FTPS is enabled here. A screen that took the intention as the answer
   // would keep reporting enforced encryption over a daemon reporting that it enforces none.
   await page.unrouteAll({ behavior: 'ignoreErrors' })
-  await openScreen(page, { ...runningFtpsStatus, desiredState: 'on', forcedTls: false }, FTPS_RULES)
+  await openScreen(
+    page,
+    { ...runningFtpsStatus, desiredState: 'on', tlsEnforcement: 'notEnforced' },
+    FTPS_RULES,
+  )
   await expect(SERVER_PANEL(page)).toBeVisible()
-  await expect(page.getByText('Not confirmed as required', { exact: true })).toBeVisible()
-  await expect(page.getByText('TLS required for logins and transfers', { exact: true })).toHaveCount(0)
+  await expect(page.getByText(OPTIONAL, { exact: true })).toBeVisible()
+  await expect(page.getByText(REQUIRED, { exact: true })).toHaveCount(0)
+  await expect(page.getByText(UNREAD, { exact: true })).toHaveCount(0)
   await expect(page.getByText('Turned on', { exact: true })).toBeVisible()
+
+  // Not read is neither of the other two: it says nothing was measured.
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await openScreen(page, { ...runningFtpsStatus, tlsEnforcement: 'notObserved' }, FTPS_RULES)
+  await expect(SERVER_PANEL(page)).toBeVisible()
+  await expect(page.getByText(UNREAD, { exact: true })).toBeVisible()
+  await expect(page.getByText(REQUIRED, { exact: true })).toHaveCount(0)
+  await expect(page.getByText(OPTIONAL, { exact: true })).toHaveCount(0)
 })
 
 // Measured on a live stack, not imagined: a server with no certificate installed answers
@@ -316,7 +335,7 @@ test('the forced-TLS fact is stated in both directions and never as the panel in
 test('a server with no certificate installed says so rather than rendering nothing', async ({
   page,
 }) => {
-  await openScreen(page, { ...runningFtpsStatus, certificatePresent: false, certificatePath: '' }, FTPS_RULES)
+  await openScreen(page, { ...runningFtpsStatus, certificate: 'absent', certificatePath: '' }, FTPS_RULES)
   await expect(SERVER_PANEL(page)).toBeVisible()
   // Counted rather than merely found: every other field in this fixture has a value, so the one
   // dash on the screen is the certificate's. Asserting mere presence would also pass on a screen

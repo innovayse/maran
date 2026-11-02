@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useAuthApi } from '../composables/apis/useAuthApi'
 import { ApiError } from '../composables/useApi'
-import type { AuthenticatedSession, AuthenticatedUser, LoginRequest } from '../types/auth'
+import type { AuthenticatedSession, AuthenticatedUser, AuthSession, LoginRequest } from '../types/auth'
+import type { ViewAsSession } from '../types/viewAs'
 
 /**
  * Owns who is signed in: the access token, the user it belongs to, and the actions that obtain,
@@ -20,11 +21,23 @@ import type { AuthenticatedSession, AuthenticatedUser, LoginRequest } from '../t
 export const useAuthStore = defineStore('auth', () => {
   const api = useAuthApi()
 
-  /** The signed access token, or `null` when nobody is signed in. */
-  const accessToken: Ref<string | null> = ref(null)
+  /**
+   * Who is signed in, as one value. The token, the user, the owed second factor and the enrolment
+   * steer used to be four refs kept in step by hand; here they cannot disagree.
+   */
+  const session: Ref<AuthSession> = ref({ state: 'signedOut' })
+
+  /** The signed access token, or `null` when nobody holds one. */
+  const accessToken: ComputedRef<string | null> = computed(() => {
+    const current = session.value
+    return current.state === 'signedIn' || current.state === 'enrolmentRequired' ? current.accessToken : null
+  })
 
   /** Who is signed in, or `null`. */
-  const user: Ref<AuthenticatedUser | null> = ref(null)
+  const user: ComputedRef<AuthenticatedUser | null> = computed(() => {
+    const current = session.value
+    return current.state === 'signedIn' || current.state === 'enrolmentRequired' ? current.user : null
+  })
 
   /** True while a sign-in, refresh or sign-out is in flight. */
   const loading: Ref<boolean> = ref(false)
@@ -33,7 +46,9 @@ export const useAuthStore = defineStore('auth', () => {
   const errorMessage: Ref<string | null> = ref(null)
 
   /** The username whose sign-in is waiting for a second factor, or `null`. */
-  const twoFactorUsername: Ref<string | null> = ref(null)
+  const twoFactorUsername: ComputedRef<string | null> = computed(() => {
+    return session.value.state === 'awaitingSecondFactor' ? session.value.username : null
+  })
 
   /**
    * True when the panel forces administrators to hold a second factor and the
@@ -44,7 +59,9 @@ export const useAuthStore = defineStore('auth', () => {
    * 403. The router reads this to keep the person inside enrolment; without it the
    * panel would render its whole shell over screens that can only fail.
    */
-  const requiresTwoFactorSetup: Ref<boolean> = ref(false)
+  const requiresTwoFactorSetup: ComputedRef<boolean> = computed(() => {
+    return session.value.state === 'enrolmentRequired'
+  })
 
   /** True once the store has tried to restore a session, successfully or not. */
   const isRestored: Ref<boolean> = ref(false)
@@ -71,13 +88,34 @@ export const useAuthStore = defineStore('auth', () => {
    * enrolment flag arrive together or not at all, so there is no caller who could
    * pass two of the three and leave the shell open to a token every endpoint but
    * enrolment refuses.
-   * @param session The signed-in half, or `null` when a second factor is still owed.
+   * @param signedIn The signed-in half of the result.
    * @returns Nothing; state is updated synchronously.
    */
-  const accept = (session: AuthenticatedSession | null): void => {
-    accessToken.value = session?.accessToken ?? null
-    user.value = session?.user ?? null
-    requiresTwoFactorSetup.value = session?.requiresTwoFactorSetup ?? false
+  const accept = (signedIn: AuthenticatedSession): void => {
+    session.value = {
+      state: signedIn.requiresTwoFactorSetup ? 'enrolmentRequired' : 'signedIn',
+      accessToken: signedIn.accessToken,
+      user: signedIn.user,
+    }
+  }
+
+  /**
+   * Holds a view-as token in place of the operator's own (issue #317).
+   *
+   * Only the in-memory token and user change. The operator's refresh cookie is untouched — the
+   * panel never sets one for a view-as session — so the next renewal, whether from Back, from the
+   * view-as token expiring, or from its revocation, brings the operator's own session back. The
+   * page that started viewing calls this with what the view-as store received.
+   * @param viewAs The view-as session the panel issued.
+   * @returns Nothing; state is updated synchronously.
+   */
+  const adoptViewAs = (viewAs: ViewAsSession): void => {
+    accept({
+      accessToken: viewAs.accessToken,
+      expiresAt: viewAs.expiresAt,
+      user: viewAs.user,
+      requiresTwoFactorSetup: false,
+    })
   }
 
   /**
@@ -89,10 +127,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @returns Nothing; state is cleared synchronously.
    */
   const clear = (): void => {
-    accessToken.value = null
-    user.value = null
-    twoFactorUsername.value = null
-    requiresTwoFactorSetup.value = false
+    session.value = { state: 'signedOut' }
   }
 
   /**
@@ -126,16 +161,16 @@ export const useAuthStore = defineStore('auth', () => {
 
     const attempt = api
       .refresh()
-      .then((session) => {
+      .then((renewed) => {
         // `null` is the backend's answer to a browser that sent no refresh cookie:
         // nobody is signed in here, which is a state rather than a failure, so it is
         // cleared exactly like a refused cookie but without an error on the wire.
-        if (session === null) {
+        if (renewed === null) {
           clear()
           return false
         }
 
-        accept(session)
+        accept(renewed)
         return true
       })
       .catch(() => {
@@ -174,7 +209,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const result = await api.login(request)
       if (result.session === null) {
-        twoFactorUsername.value = request.username
+        session.value = { state: 'awaitingSecondFactor', username: request.username }
         return false
       }
 
@@ -195,16 +230,16 @@ export const useAuthStore = defineStore('auth', () => {
    * @returns True when the user is now signed in.
    */
   const verifyTwoFactor = async (password: string, code: string): Promise<boolean> => {
-    if (twoFactorUsername.value === null) {
+    const waiting = session.value
+    if (waiting.state !== 'awaitingSecondFactor') {
       return false
     }
 
     loading.value = true
     errorMessage.value = null
     try {
-      const session = await api.verifyTwoFactor({ username: twoFactorUsername.value, password, code })
-      accept(session)
-      twoFactorUsername.value = null
+      const verified = await api.verifyTwoFactor({ username: waiting.username, password, code })
+      accept(verified)
       return true
     } catch (error) {
       remember(error)
@@ -265,5 +300,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     dismissError,
     logoutEverywhere,
+    adoptViewAs,
   }
 })

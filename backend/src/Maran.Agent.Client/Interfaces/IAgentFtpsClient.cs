@@ -135,7 +135,7 @@ public interface IAgentFtpsClient
     /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure — <c>AgentNotFound</c> when there is no such login.</returns>
-    Task<Result<bool>> SetPasswordAsync(
+    Task<Result> SetPasswordAsync(
         string accountUsername,
         string ftpsUsername,
         SensitiveString password,
@@ -151,7 +151,7 @@ public interface IAgentFtpsClient
     /// home is bind-mounted inside it, and removing a login means revoking a key rather than
     /// deleting what it opened. The jail stays for the account's other logins.
     /// </remarks>
-    Task<Result<bool>> DeleteUserAsync(
+    Task<Result> DeleteUserAsync(
         string accountUsername,
         string ftpsUsername,
         CancellationToken cancellationToken);

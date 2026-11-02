@@ -6,7 +6,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_templates::nftables::nftables_allow::NftablesAllow;
+use maran_templates::nftables::nftables_allow_source::NftablesAllowSource;
 use maran_templates::nftables::nftables_bans_table::NftablesBansTable;
+use maran_templates::nftables::nftables_network::NftablesNetwork;
 use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 use maran_templates::nftables::nftables_ruleset::NftablesRuleset;
 use maran_templates::nftables::nftables_ssh_port::NftablesSshPort;
@@ -321,16 +323,13 @@ fn an_authorized_keys_file_renders_its_golden() {
 // test. These are fixtures, not the installer's seed — the installer renders
 // through the agent with detected values.
 
-/// An allow open to every source, as the builder fills one: the two source
-/// fields carry nothing because the template never reads them in that branch.
+/// An allow open to every source, as the builder fills one: no network at all.
 fn allow_from_anywhere(port: u16, protocol: NftablesProtocol) -> NftablesAllow {
     NftablesAllow {
         port,
         port_to: None,
         protocol,
-        source_cidr: String::new(),
-        source_is_any: true,
-        family_keyword: "",
+        source: NftablesAllowSource::Anyone,
     }
 }
 
@@ -360,9 +359,10 @@ fn a_firewall_ruleset_renders_its_golden() {
                 port: 3306,
                 port_to: None,
                 protocol: NftablesProtocol::Tcp,
-                source_cidr: "10.0.0.0/8".to_owned(),
-                source_is_any: false,
-                family_keyword: "ip",
+                source: NftablesAllowSource::Network(NftablesNetwork {
+                    family_keyword: "ip",
+                    cidr: "10.0.0.0/8".to_owned(),
+                }),
             },
         ],
     };
@@ -399,17 +399,19 @@ fn a_ruleset_with_a_restricted_ssh_rule_renders_its_golden() {
                         port: 22,
                         port_to: None,
                         protocol: NftablesProtocol::Tcp,
-                        source_cidr: "203.0.113.0/24".to_owned(),
-                        source_is_any: false,
-                        family_keyword: "ip",
+                        source: NftablesAllowSource::Network(NftablesNetwork {
+                            family_keyword: "ip",
+                            cidr: "203.0.113.0/24".to_owned(),
+                        }),
                     },
                     NftablesAllow {
                         port: 22,
                         port_to: None,
                         protocol: NftablesProtocol::Tcp,
-                        source_cidr: "2001:db8:1::/48".to_owned(),
-                        source_is_any: false,
-                        family_keyword: "ip6",
+                        source: NftablesAllowSource::Network(NftablesNetwork {
+                            family_keyword: "ip6",
+                            cidr: "2001:db8:1::/48".to_owned(),
+                        }),
                     },
                 ],
             },
@@ -425,9 +427,10 @@ fn a_ruleset_with_a_restricted_ssh_rule_renders_its_golden() {
                 port: 5432,
                 port_to: None,
                 protocol: NftablesProtocol::Tcp,
-                source_cidr: "2001:db8::/32".to_owned(),
-                source_is_any: false,
-                family_keyword: "ip6",
+                source: NftablesAllowSource::Network(NftablesNetwork {
+                    family_keyword: "ip6",
+                    cidr: "2001:db8::/32".to_owned(),
+                }),
             },
             // A source-restricted UDP allow. Without one, nothing distinguishes
             // the restricted branch's `{{ allow.protocol }}` from a literal
@@ -437,9 +440,10 @@ fn a_ruleset_with_a_restricted_ssh_rule_renders_its_golden() {
                 port: 51820,
                 port_to: None,
                 protocol: NftablesProtocol::Udp,
-                source_cidr: "198.51.100.0/24".to_owned(),
-                source_is_any: false,
-                family_keyword: "ip",
+                source: NftablesAllowSource::Network(NftablesNetwork {
+                    family_keyword: "ip",
+                    cidr: "198.51.100.0/24".to_owned(),
+                }),
             },
         ],
     };
@@ -473,9 +477,7 @@ fn a_ruleset_with_an_any_source_ssh_rule_renders_its_golden() {
                 port: 22,
                 port_to: None,
                 protocol: NftablesProtocol::Tcp,
-                source_cidr: String::new(),
-                source_is_any: true,
-                family_keyword: "",
+                source: NftablesAllowSource::Anyone,
             }],
         }],
         // Empty on purpose: no other golden renders the allow loop with zero
@@ -496,9 +498,7 @@ fn range_from_anywhere(port: u16, port_to: u16, protocol: NftablesProtocol) -> N
         port,
         port_to: Some(port_to),
         protocol,
-        source_cidr: String::new(),
-        source_is_any: true,
-        family_keyword: "",
+        source: NftablesAllowSource::Anyone,
     }
 }
 
@@ -528,9 +528,10 @@ fn a_ruleset_with_port_ranges_renders_its_golden() {
                 port: 52000,
                 port_to: Some(52049),
                 protocol: NftablesProtocol::Udp,
-                source_cidr: "2001:db8::/32".to_owned(),
-                source_is_any: false,
-                family_keyword: "ip6",
+                source: NftablesAllowSource::Network(NftablesNetwork {
+                    family_keyword: "ip6",
+                    cidr: "2001:db8::/32".to_owned(),
+                }),
             },
             // A single port AFTER the ranges. The absent bound must render
             // nothing at all — no separator, no repeated port — beside rules

@@ -56,7 +56,7 @@ public sealed class SessionRevokeAuditTests : IAsyncLifetime
 
         var response = await client.DeleteAsync($"/api/v1/sessions/{sessionId}");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var entry = Assert.Single(audit.Entries, candidate =>
         {
             return candidate.Action == AuditActions.SessionRevoked;

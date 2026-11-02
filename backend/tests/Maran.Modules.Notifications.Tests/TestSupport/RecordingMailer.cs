@@ -15,7 +15,7 @@ public sealed class RecordingMailer : IMailer
     public List<(string Recipient, string Subject, string Body)> Sends { get; } = [];
 
     /// <summary>The result every send returns, unless <see cref="Throws"/> is set.</summary>
-    public Result<bool> Outcome { get; set; } = Result<bool>.Ok(true);
+    public Result Outcome { get; set; } = Result.Ok();
 
     /// <summary>When set, every send throws this instead of returning.</summary>
     public Exception? Throws { get; set; }
@@ -26,7 +26,7 @@ public sealed class RecordingMailer : IMailer
     /// <param name="body">The plain-text body.</param>
     /// <param name="cancellationToken">Unused; nothing here waits.</param>
     /// <returns>The configured outcome.</returns>
-    public Task<Result<bool>> SendAsync(
+    public Task<Result> SendAsync(
         string recipient,
         string subject,
         string body,

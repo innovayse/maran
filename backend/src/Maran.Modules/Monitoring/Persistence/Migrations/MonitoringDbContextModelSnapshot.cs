@@ -32,14 +32,18 @@ namespace Maran.Modules.Monitoring.Persistence.Migrations
                     b.Property<int>("ConsecutiveBreaches")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("IsFiring")
-                        .HasColumnType("boolean");
-
                     b.Property<int>("Kind")
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("LastObservedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("LegacyIsFiring")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsFiring");
+
+                    b.Property<int>("Phase")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("RaisedAt")
                         .HasColumnType("timestamp with time zone");
@@ -55,7 +59,10 @@ namespace Maran.Modules.Monitoring.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_AlertStates_Kind_Subject");
 
-                    b.ToTable("AlertStates", "monitoring");
+                    b.ToTable("AlertStates", "monitoring", t =>
+                        {
+                            t.HasCheckConstraint("CK_AlertStates_Phase_RaisedAt", "(\"Phase\" = 2 AND \"RaisedAt\" IS NOT NULL) OR (\"Phase\" IN (0, 1) AND \"RaisedAt\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Maran.Modules.Monitoring.Domain.Entities.LogLevelSetting", b =>

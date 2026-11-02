@@ -69,10 +69,10 @@ export const useDatabasesApi = (): DatabasesApi => {
    * Drops the database and its dedicated user.
    * @param id The database to drop.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel dropped the database.
+   * @returns Resolves once the panel dropped the database (an empty 204 answer).
    */
-  const remove = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${DATABASES_PATH}/${id}`, signal)
+  const remove = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${DATABASES_PATH}/${id}`, signal)
   }
 
   return { list, create, resetPassword, remove }

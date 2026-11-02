@@ -24,10 +24,10 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
     public Result<string>? CreateResult { get; set; }
 
     /// <summary>What <see cref="DeleteAsync"/> answers; success by default.</summary>
-    public Result<bool>? DeleteResult { get; set; }
+    public Result? DeleteResult { get; set; }
 
     /// <summary>What <see cref="SetPasswordAsync"/> answers; success by default.</summary>
-    public Result<bool>? SetPasswordResult { get; set; }
+    public Result? SetPasswordResult { get; set; }
 
     /// <inheritdoc/>
     public Task<Result<string>> CreateAsync(
@@ -45,7 +45,7 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string sftpUsername,
         SensitiveString password,
@@ -53,7 +53,7 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
     {
         PasswordChanges.Add(new AgentSetPasswordCall(accountUsername, sftpUsername, password));
 
-        return Task.FromResult(SetPasswordResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(SetPasswordResult ?? Result.Ok());
     }
 
     /// <summary>Every account-wide lock change the handler asked for, in order.</summary>
@@ -81,13 +81,13 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string sftpUsername,
         CancellationToken cancellationToken)
     {
         Deletes.Add(new AgentDeleteCall(accountUsername, sftpUsername));
 
-        return Task.FromResult(DeleteResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(DeleteResult ?? Result.Ok());
     }
 }

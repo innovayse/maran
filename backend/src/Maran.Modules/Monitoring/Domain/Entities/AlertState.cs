@@ -57,18 +57,32 @@ public sealed class AlertState
     /// <summary>How many observations in a row have found the condition breaching.</summary>
     public int ConsecutiveBreaches { get; private set; }
 
-    /// <summary>Whether the panel currently considers this condition to be in alarm.</summary>
-    public bool IsFiring { get; private set; }
-
-    /// <summary>When the current episode was raised, or <c>null</c> when the condition is healthy.</summary>
+    /// <summary>Where the condition stands: healthy, breaching but not yet alarming, or firing.</summary>
     /// <remarks>
-    /// Cleared on resolve rather than kept as "when it last fired", so that its presence and
-    /// <see cref="IsFiring"/> can never disagree about whether an episode is open.
+    /// The one state the code reads. It replaces the pair of a firing flag and a breach count that
+    /// together spelled the same three states, so they can no longer disagree.
+    /// </remarks>
+    public AlertPhase Phase { get; private set; }
+
+    /// <summary>When the current episode was raised, or <c>null</c> unless <see cref="Phase"/> is firing.</summary>
+    /// <remarks>
+    /// Cleared on resolve rather than kept as "when it last fired", so that it is set exactly while
+    /// an episode is open; a check constraint holds the database to the same rule.
     /// </remarks>
     public DateTimeOffset? RaisedAt { get; private set; }
 
     /// <summary>When the row was last written, whether or not the observation changed anything.</summary>
     public DateTimeOffset LastObservedAt { get; private set; }
+
+    /// <summary>
+    /// The previous release's firing flag, kept mapped to its column and written in step with
+    /// <see cref="Phase"/> so that release still reads a correct row after a rollback.
+    /// </summary>
+    /// <remarks>
+    /// Nothing reads it. It is dropped in a later release, once no release that reads the column can
+    /// run against this schema (expand-then-contract, rules/architecture.md).
+    /// </remarks>
+    internal bool LegacyIsFiring { get; private set; }
 
     /// <summary>Starts watching a condition, in the healthy state.</summary>
     /// <param name="id">The row's identity.</param>
@@ -86,8 +100,9 @@ public sealed class AlertState
         Kind = kind;
         Subject = subject;
         ConsecutiveBreaches = 0;
-        IsFiring = false;
+        Phase = AlertPhase.Healthy;
         RaisedAt = null;
+        LegacyIsFiring = false;
         LastObservedAt = observedAt;
     }
 
@@ -118,14 +133,9 @@ public sealed class AlertState
         {
             ConsecutiveBreaches = 0;
 
-            if (!IsFiring)
-            {
-                return AlertTransition.None;
-            }
-
-            IsFiring = false;
-            RaisedAt = null;
-            return AlertTransition.Resolved;
+            var wasFiring = Phase == AlertPhase.Firing;
+            Enter(AlertPhase.Healthy, null);
+            return wasFiring ? AlertTransition.Resolved : AlertTransition.None;
         }
 
         // Saturating rather than unbounded: a condition left unfixed for a year would otherwise
@@ -136,23 +146,38 @@ public sealed class AlertState
             ConsecutiveBreaches++;
         }
 
-        if (IsFiring || ConsecutiveBreaches < BreachesBeforeAlert)
+        if (Phase == AlertPhase.Firing)
         {
             return AlertTransition.None;
         }
 
-        IsFiring = true;
-        RaisedAt = observedAt;
+        if (ConsecutiveBreaches < BreachesBeforeAlert)
+        {
+            Enter(AlertPhase.Pending, null);
+            return AlertTransition.None;
+        }
+
+        Enter(AlertPhase.Firing, observedAt);
         return AlertTransition.Raised;
     }
 
     /// <summary>Whether the most recent observation found the condition unhealthy.</summary>
     /// <returns>
-    /// <c>true</c> from the first breaching observation on, before an episode is raised: a reset
-    /// returns the counter to zero, so a count above zero means the latest observation breached.
+    /// <c>true</c> from the first breaching observation on, before an episode is raised: the phase is
+    /// healthy only after an observation that found nothing wrong.
     /// </returns>
     public bool LastObservationBreached()
     {
-        return ConsecutiveBreaches > 0;
+        return Phase != AlertPhase.Healthy;
+    }
+
+    /// <summary>Moves to a phase, writing the raise time and the legacy flag that go with it.</summary>
+    /// <param name="phase">The phase to enter.</param>
+    /// <param name="raisedAt">The raise time for a firing phase; <c>null</c> otherwise.</param>
+    private void Enter(AlertPhase phase, DateTimeOffset? raisedAt)
+    {
+        Phase = phase;
+        RaisedAt = raisedAt;
+        LegacyIsFiring = phase == AlertPhase.Firing;
     }
 }

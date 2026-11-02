@@ -12,7 +12,7 @@ import { setPersistedLocale } from '../fixtures/set-locale'
 
 /** Catalogue every spec here starts from: the accounts module licensed, so the form is reachable. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
 ]
 
 /**

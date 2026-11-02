@@ -3,6 +3,7 @@ using Maran.Modules.Tasks.Domain.Enums;
 using Maran.Modules.Tasks.Mappers;
 using Maran.Modules.Tasks.Persistence;
 using Maran.Modules.Tasks.Services;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Tasks.Queries.ListRunningTasks;
 
@@ -60,7 +61,7 @@ public sealed class ListRunningTasksQueryHandler
             .ThenBy(task => task.Id)
             .ToListAsync(cancellationToken);
 
-        var includeLog = _currentUser.IsAdmin;
+        var includeLog = _currentUser.Caller is AdministratorCaller;
         IReadOnlyList<PanelTaskDto> projected = running
             .Select(task =>
             {

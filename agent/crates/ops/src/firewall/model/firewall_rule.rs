@@ -2,6 +2,8 @@
 
 use maran_agent_core::validation::web::source_cidr::SourceCidr;
 use maran_templates::nftables::nftables_allow::NftablesAllow;
+use maran_templates::nftables::nftables_allow_source::NftablesAllowSource;
+use maran_templates::nftables::nftables_network::NftablesNetwork;
 use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 
 use crate::firewall::model::port_span::PortSpan;
@@ -62,11 +64,11 @@ impl FirewallRule {
 
     /// Turns the rule into the shape the ruleset template renders.
     ///
-    /// The `source_cidr` string is written by [`SourceCidr`]'s own `Display`,
-    /// never by a caller, and it is left empty for an unrestricted rule
-    /// because the template renders no `saddr` clause in that branch. The
-    /// family keyword is one of two constants chosen from the parsed address
-    /// family, so no byte derived from a request can become it.
+    /// The network string is written by [`SourceCidr`]'s own `Display`, never
+    /// by a caller, and an unrestricted rule carries no network at all because
+    /// the template renders no `saddr` clause in that branch. The family
+    /// keyword is one of two constants chosen from the parsed address family,
+    /// so no byte derived from a request can become it.
     #[must_use]
     pub fn to_allow(&self) -> NftablesAllow {
         let open_to_anyone = self.is_open_to_anyone();
@@ -75,16 +77,13 @@ impl FirewallRule {
             port: self.ports.lower().value(),
             port_to: self.ports.upper().map(|upper| upper.value()),
             protocol: self.protocol,
-            source_cidr: if open_to_anyone {
-                String::new()
+            source: if open_to_anyone {
+                NftablesAllowSource::Anyone
             } else {
-                self.source.to_string()
-            },
-            source_is_any: open_to_anyone,
-            family_keyword: if self.source.is_v4() {
-                IPV4_KEYWORD
-            } else {
-                IPV6_KEYWORD
+                NftablesAllowSource::Network(NftablesNetwork {
+                    family_keyword: Self::keyword_for(&self.source),
+                    cidr: self.source.to_string(),
+                })
             },
         }
     }

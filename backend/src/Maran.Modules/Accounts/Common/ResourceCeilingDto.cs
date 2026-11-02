@@ -1,12 +1,19 @@
-using Maran.Modules.Accounts.Domain.Enums;
+using System.Text.Json.Serialization;
 
 namespace Maran.Modules.Accounts.Common;
 
 /// <summary>
 /// One runtime ceiling of a plan on the wire, in both directions: what a plan states and what an
-/// administrator sends to define or edit one. Both halves state their own case, so "no ceiling" is
-/// never read off a zero.
+/// administrator sends to define or edit one. Exactly one of two shapes, told apart by <c>kind</c>,
+/// so a figure exists only where there is a cap and "no ceiling" is never read off a zero.
 /// </summary>
-/// <param name="Kind">Whether the plan caps this resource at all.</param>
-/// <param name="Maximum">The cap when <paramref name="Kind"/> is <c>Limited</c>; zero otherwise.</param>
-public sealed record ResourceCeilingDto(ResourceLimitKind Kind, int Maximum);
+/// <remarks>
+/// The closed set is stated by the <c>JsonDerivedType</c> attributes: <see cref="LimitedResourceCeilingDto"/> and
+/// <see cref="UnlimitedResourceCeilingDto"/> are the whole set. The stored ceiling has the same two
+/// cases (a nullable figure, null when uncapped), and <see cref="Mappers.RuntimeLimitsMapper"/> is
+/// the one place the two are restated into each other.
+/// </remarks>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+[JsonDerivedType(typeof(LimitedResourceCeilingDto), "limited")]
+[JsonDerivedType(typeof(UnlimitedResourceCeilingDto), "unlimited")]
+public abstract record ResourceCeilingDto;

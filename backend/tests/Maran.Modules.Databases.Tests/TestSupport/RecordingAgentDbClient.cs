@@ -32,21 +32,21 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     public Result<CreatedDatabaseDto>? CreateResult { get; set; }
 
     /// <summary>What <see cref="DropAsync"/> answers; success by default.</summary>
-    public Result<bool>? DropResult { get; set; }
+    public Result? DropResult { get; set; }
 
     /// <summary>What <see cref="SetPasswordAsync"/> answers; success by default.</summary>
-    public Result<bool>? SetPasswordResult { get; set; }
+    public Result? SetPasswordResult { get; set; }
 
     /// <summary>
     /// Every grant-repair pass this client was asked for, in order, each recorded as its
-    /// <c>reportOnly</c> flag. The ORDER is load-bearing: the repair command is required to read a
+    /// <c>reportOnly</c> flag (true for an inspection, false for a repair). The ORDER is load-bearing: the repair command is required to read a
     /// report-only pass before it acts, so <c>[true, false]</c> and <c>[false]</c> are the difference
     /// between an inspected repair and a blind one.
     /// </summary>
     public List<bool> GrantRepairPasses { get; } = [];
 
     /// <summary>What a report-only pass answers; an empty census by default.</summary>
-    public Result<GrantRepairReportDto>? ReportResult { get; set; }
+    public Result<GrantInspectionReportDto>? ReportResult { get; set; }
 
     /// <summary>
     /// What an acting pass answers; an empty census by default. Separate from
@@ -73,7 +73,7 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DropAsync(
+    public Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -81,11 +81,11 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     {
         Drops.Add(new AgentDropCall(accountUsername, databaseName, dbUsername));
 
-        return Task.FromResult(DropResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(DropResult ?? Result.Ok());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,
@@ -93,7 +93,7 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     {
         PasswordChanges.Add(new AgentSetPasswordCall(accountUsername, dbUsername, password));
 
-        return Task.FromResult(SetPasswordResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(SetPasswordResult ?? Result.Ok());
     }
 
     /// <inheritdoc/>
@@ -118,15 +118,20 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
-        bool reportOnly,
-        CancellationToken cancellationToken)
+    public Task<Result<GrantInspectionReportDto>> InspectGrantsAsync(CancellationToken cancellationToken)
     {
-        GrantRepairPasses.Add(reportOnly);
+        GrantRepairPasses.Add(true);
 
-        var configured = reportOnly ? ReportResult : RepairResult;
+        return Task.FromResult(ReportResult ?? Result<GrantInspectionReportDto>.Ok(
+            new GrantInspectionReportDto(0, 0, [], [])));
+    }
 
-        return Task.FromResult(configured ?? Result<GrantRepairReportDto>.Ok(
-            new GrantRepairReportDto(0, 0, [], [], [])));
+    /// <inheritdoc/>
+    public Task<Result<GrantRepairReportDto>> RepairGrantsAsync(CancellationToken cancellationToken)
+    {
+        GrantRepairPasses.Add(false);
+
+        return Task.FromResult(RepairResult ?? Result<GrantRepairReportDto>.Ok(
+            new GrantRepairReportDto(0, 0, [], [])));
     }
 }

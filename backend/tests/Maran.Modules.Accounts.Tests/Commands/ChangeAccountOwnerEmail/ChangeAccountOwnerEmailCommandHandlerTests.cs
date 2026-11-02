@@ -62,7 +62,7 @@ public sealed class ChangeAccountOwnerEmailCommandHandlerTests : IDisposable
 
     /// <summary>Builds a bus whose login answers every request with <paramref name="answer"/>.</summary>
     /// <param name="answer">What the login module answers.</param>
-    private static StubMessageBus LoginAnswering(Result<bool> answer)
+    private static StubMessageBus LoginAnswering(Result answer)
     {
         return new StubMessageBus
         {
@@ -91,7 +91,7 @@ public sealed class ChangeAccountOwnerEmailCommandHandlerTests : IDisposable
     [Fact]
     public async Task An_accepted_change_asks_the_login_to_follow_stores_the_address_and_is_journalled_without_it()
     {
-        var bus = LoginAnswering(Result<bool>.Ok(true));
+        var bus = LoginAnswering(Result.Ok());
 
         var result = await NewHandler(bus).HandleAsync(ChangeTo("new@example.com"), CancellationToken.None);
 
@@ -112,7 +112,7 @@ public sealed class ChangeAccountOwnerEmailCommandHandlerTests : IDisposable
     [Fact]
     public async Task A_change_the_login_refuses_keeps_the_stored_address_and_answers_with_the_logins_refusal()
     {
-        var bus = LoginAnswering(Result<bool>.Fail(Error.Of("EmailTaken", ErrorType.Conflict)));
+        var bus = LoginAnswering(Result.Fail(Error.Of("EmailTaken", ErrorType.Conflict)));
 
         var result = await NewHandler(bus).HandleAsync(ChangeTo("taken@example.com"), CancellationToken.None);
 
@@ -126,7 +126,7 @@ public sealed class ChangeAccountOwnerEmailCommandHandlerTests : IDisposable
     [Fact]
     public async Task A_change_of_an_account_that_does_not_exist_is_refused_as_not_found_without_asking_the_login()
     {
-        var bus = LoginAnswering(Result<bool>.Ok(true));
+        var bus = LoginAnswering(Result.Ok());
         var missing = Guid.NewGuid();
 
         var result = await NewHandler(bus).HandleAsync(ChangeTo("new@example.com", missing), CancellationToken.None);

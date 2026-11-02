@@ -67,15 +67,30 @@ fn a_clients_own_refusal_still_classifies_by_its_server_error_number() {
     );
 }
 
-/// A client killed from outside carries no signal number, so it reads as zero.
+/// A client killed from outside carries no signal number, so the signal is
+/// absent rather than a number that means nothing.
 #[test]
-fn a_client_killed_from_outside_reports_signal_zero() {
+fn a_client_killed_from_outside_reports_no_signal() {
     assert_eq!(
         DbError::client_killed(None),
-        DbError::ClientKilled { signal: 0 }
+        DbError::ClientKilled { signal: None }
     );
     assert_eq!(
         DbError::client_killed(Some(9)),
-        DbError::ClientKilled { signal: 9 }
+        DbError::ClientKilled { signal: Some(9) }
+    );
+}
+
+/// The operator-facing text names the signal when it is known and says it is
+/// unknown otherwise.
+#[test]
+fn a_killed_client_names_its_signal_only_when_it_is_known() {
+    assert_eq!(
+        DbError::ClientKilled { signal: Some(9) }.to_string(),
+        "the database client was killed by signal 9"
+    );
+    assert_eq!(
+        DbError::ClientKilled { signal: None }.to_string(),
+        "the database client was killed by signal (unknown)"
     );
 }

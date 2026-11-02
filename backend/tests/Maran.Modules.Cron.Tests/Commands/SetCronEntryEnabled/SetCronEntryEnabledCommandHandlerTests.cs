@@ -83,7 +83,7 @@ public sealed class SetCronEntryEnabledCommandHandlerTests
     public async Task A_refused_enablement_change_is_journalled_as_a_failure()
     {
         var world = new World();
-        world.Agent.SetEntryEnabledResult = Result<bool>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
+        world.Agent.SetEntryEnabledResult = Result.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
 
         var result = await world.HandleAsync();
 
@@ -123,7 +123,7 @@ public sealed class SetCronEntryEnabledCommandHandlerTests
         /// <summary>Runs the handler with the usual audit context.</summary>
         /// <param name="enabled">The state to ask for.</param>
         /// <param name="accountId">The account to act under; the owner by default.</param>
-        public async Task<Result<bool>> HandleAsync(bool enabled = true, Guid? accountId = null)
+        public async Task<Result> HandleAsync(bool enabled = true, Guid? accountId = null)
         {
             return await Handler.HandleAsync(
                 new SetCronEntryEnabledCommand(

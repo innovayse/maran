@@ -25,6 +25,13 @@ public static class AuditActions
     /// <summary>A refresh token was presented after it had already been rotated.</summary>
     public const string RefreshTokenReuseDetected = "RefreshTokenReuseDetected";
 
+    /// <summary>
+    /// A customer switched their sign-in to another hosting account they hold a membership of.
+    /// Recorded on the refusals too: an attempt aimed at an account the person has no membership of
+    /// is how one caller probes for another's account ids. The subject is the requested account id.
+    /// </summary>
+    public const string ActiveAccountSwitched = "ActiveAccountSwitched";
+
     /// <summary>A user enrolled a second factor.</summary>
     public const string TwoFactorEnabled = "TwoFactorEnabled";
 
@@ -497,4 +504,34 @@ public static class AuditActions
     /// (docs/superpowers/notes/2026-09-22-licence-installation-threat-note.md §5).
     /// </summary>
     public const string LicenceInstalled = "LicenceInstalled";
+
+    /// <summary>
+    /// A user pinned a page of the navigation to their app bar. The subject is the page's navigation
+    /// key, which is a label for a screen and not a secret.
+    /// </summary>
+    public const string PagePinned = "PagePinned";
+
+    /// <summary>A user removed a page of the navigation from their app bar; the subject is its key.</summary>
+    public const string PageUnpinned = "PageUnpinned";
+
+    /// <summary>
+    /// An account's owner invited a person to act for the account with a limited set of features; the
+    /// subject is the new login's name. Never the invitation token or its link.
+    /// </summary>
+    public const string SubUserInvited = "SubUserInvited";
+
+    /// <summary>An account's owner changed which features a sub-user may use; the subject is the sub-user's login name.</summary>
+    public const string SubUserGrantsChanged = "SubUserGrantsChanged";
+
+    /// <summary>An account's owner removed a sub-user, ending their access and their sessions; the subject is the login name.</summary>
+    public const string SubUserRemoved = "SubUserRemoved";
+
+    /// <summary>
+    /// An operator started viewing the panel as an account's login; the actor is the operator and the
+    /// subject names the account and the login. Recorded on refusals too (issue #317).
+    /// </summary>
+    public const string ViewAsStarted = "ViewAsStarted";
+
+    /// <summary>An operator pressed Back and ended a view-as session; the actor is the operator.</summary>
+    public const string ViewAsEnded = "ViewAsEnded";
 }

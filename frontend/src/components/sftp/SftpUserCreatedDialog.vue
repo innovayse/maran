@@ -37,15 +37,16 @@ import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../ui/UiDescriptionList.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiModal from '../ui/UiModal.vue'
+import type { RevealedSftpCredential } from '../../types/sftpUser'
 
 /** Props accepted by {@link SftpUserCreatedDialog}. */
 const props = defineProps<{
-  /** Whether the dialog is shown; owned by the page, which holds the credential. */
-  open: boolean
-  /** The system login the password belongs to, prefixed exactly as the host holds it. */
-  fullName: string
-  /** The generated password, exactly as the panel sent it. */
-  password: string
+  /**
+   * The credential on show: the system login, prefixed exactly as the host holds it, and the
+   * generated password exactly as the panel sent it. The page mounts the dialog only while it
+   * holds one.
+   */
+  credential: RevealedSftpCredential
 }>()
 
 /** Events emitted by {@link SftpUserCreatedDialog}. */
@@ -76,7 +77,7 @@ const copied: Ref<boolean> = ref(false)
  */
 const copyPassword = async (): Promise<void> => {
   try {
-    await navigator.clipboard.writeText(props.password)
+    await navigator.clipboard.writeText(props.credential.password)
     copied.value = true
   } catch {
     copied.value = false
@@ -94,8 +95,8 @@ const close = (): void => {
 // A second credential must not open under the first one's "Copied" state: that would tell the
 // operator a value they have never copied is already on their clipboard.
 watch(
-  (): boolean => {
-    return props.open
+  (): RevealedSftpCredential => {
+    return props.credential
   },
   (): void => {
     copied.value = false
@@ -105,7 +106,7 @@ watch(
 
 <template>
   <UiModal
-    :open="open"
+    :open="true"
     :title="t('sftp.credential.title')"
     :close-label="t('common.close')"
     :dismissible="false"
@@ -117,7 +118,7 @@ watch(
 
     <UiDescriptionList>
       <UiDescriptionItem :term="t('sftp.credential.loginLabel')" mono class="sm:col-span-2">
-        {{ fullName }}
+        {{ credential.fullName }}
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('sftp.credential.passwordLabel')" mono class="sm:col-span-2">
         <!-- Selectable text, not a masked field: the clipboard may be unavailable, and the only
@@ -126,7 +127,7 @@ watch(
           data-testid="sftp-password"
           class="mt-1 block rounded-control border border-border-strong bg-surface-2 px-3 py-2.5 text-base text-text-primary wrap-anywhere"
         >
-          {{ password }}
+          {{ credential.password }}
         </span>
       </UiDescriptionItem>
     </UiDescriptionList>

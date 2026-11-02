@@ -85,53 +85,31 @@ public sealed class LicenceStatusDisplayNames
     /// <summary>
     /// Names, on the wire, the short label an operator reads for <see cref="Common.LicenceStatusDto.State"/>.
     /// </summary>
-    /// <param name="state">
-    /// The machine value already placed on <see cref="Common.LicenceStatusDto.State"/> — <c>"Valid"</c>,
-    /// <c>"Absent"</c> or <c>"Refused"</c>.
-    /// </param>
-    /// <returns>
-    /// The localized label, or <paramref name="state"/> itself when this build carries no entry for it.
-    /// </returns>
+    /// <param name="state">The case already placed on <see cref="Common.LicenceStatusDto.State"/>.</param>
+    /// <returns>The localized label.</returns>
     /// <remarks>
-    /// <see cref="Common.LicenceStatusDto"/> carries <c>State</c> as a <see cref="string"/>, not the
-    /// closed <see cref="LicenceStatus"/> hierarchy itself — the DTO is the panel's outward wire shape,
-    /// and <c>rules/architecture.md</c>'s display-name law treats every outward string identifier as an
-    /// open set (a build that has not shipped a name for a value it does not recognize must still show
-    /// something, not an empty label or a raw resource key), the same fallback
-    /// <c>Services.BackupFailureDisplayNames.Of</c> uses for the Backups module's own open string set.
-    /// In practice <see cref="LicenceStatus"/> is closed and every case is covered by this module's own
-    /// resx triple and tests; the fallback exists for the wire shape's own contract, not because a
-    /// fourth state is expected.
+    /// <see cref="LicenceStateKind"/> is closed, so there is no fallback for an unrecognised value:
+    /// every member has an entry in this module's resx triple, checked by this module's own tests, as
+    /// <see cref="AdviceFor"/> relies on for <see cref="LicenceRefusalReason"/>.
     /// </remarks>
-    public string StateNameFor(string state)
+    public string StateNameFor(LicenceStateKind state)
     {
-        var localized = _displayNames[StateKeyPrefix + state];
-
-        return localized.ResourceNotFound ? state : localized.Value;
+        return _displayNames[StateKeyPrefix + state];
     }
 
     /// <summary>
     /// Names, on the wire, the short label an operator reads for
     /// <see cref="Common.LicenceStatusDto.RefusalReason"/>.
     /// </summary>
-    /// <param name="reasonCode">
-    /// The machine value already placed on <see cref="Common.LicenceStatusDto.RefusalReason"/> — one of
-    /// <see cref="LicenceRefusalReason"/>'s members, stringified.
-    /// </param>
-    /// <returns>
-    /// The localized label, or <paramref name="reasonCode"/> itself when this build carries no entry
-    /// for it.
-    /// </returns>
+    /// <param name="reason">The reason already placed on <see cref="Common.LicenceStatusDto.RefusalReason"/>.</param>
+    /// <returns>The localized label.</returns>
     /// <remarks>
     /// Reuses the same <c>LicenceRefusal&lt;Reason&gt;</c> entries <see cref="SentenceFor"/> already
-    /// resolves for a <see cref="LicenceStatus.Refused"/> case — one name, read from two call sites, the
-    /// wire's own <c>string</c> field and the strongly-typed enum. See <see cref="StateNameFor"/>'s
-    /// remarks for why the fallback exists despite the reason set being closed today.
+    /// resolves for a <see cref="LicenceStatus.Refused"/> case — one name, read from two call sites.
+    /// See <see cref="StateNameFor"/>'s remarks for why there is no fallback.
     /// </remarks>
-    public string ReasonNameFor(string reasonCode)
+    public string ReasonNameFor(LicenceRefusalReason reason)
     {
-        var localized = _displayNames[RefusalKeyPrefix + reasonCode];
-
-        return localized.ResourceNotFound ? reasonCode : localized.Value;
+        return _displayNames[RefusalKeyPrefix + reason];
     }
 }

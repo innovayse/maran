@@ -45,6 +45,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
+import type { PhpDefaultStatus } from '../../types/phpVersion'
 import type { UiTableColumn } from '../../types/tableColumn'
 import { usePhpVersionsStore } from '../../stores/phpVersions'
 
@@ -66,18 +67,21 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
 /**
  * Names whether a version is the host's default CLI PHP.
  *
- * Three answers, not two. `null` means the agent could not establish it, which is
+ * Three answers, not two. `unknown` means the agent could not establish it, which is
  * not the same as "no" — printing "no" for it would state a fact nobody observed
  * (the backend keeps the two apart for exactly this reason).
- * @param isDefault What the panel reported for this version.
+ * @param status What the panel reported for this version.
  * @returns The word an operator reads.
  */
-const defaultLabel = (isDefault: boolean | null): string => {
-  if (isDefault === null) {
-    return t('php.table.defaultUnknown')
+const defaultLabel = (status: PhpDefaultStatus): string => {
+  switch (status) {
+    case 'default':
+      return t('php.table.defaultStatus.default')
+    case 'notDefault':
+      return t('php.table.defaultStatus.notDefault')
+    case 'unknown':
+      return t('php.table.defaultStatus.unknown')
   }
-
-  return isDefault ? t('php.table.defaultYes') : t('php.table.defaultNo')
 }
 
 /**
@@ -139,9 +143,9 @@ onMounted(async () => {
           >
             <template #cell-version="{ row }">{{ row.version }}</template>
             <template #cell-default="{ row }">
-              <UiBadge v-if="row.isDefault === true" variant="success">{{ defaultLabel(row.isDefault) }}</UiBadge>
-              <UiBadge v-else-if="row.isDefault === null" variant="warning">{{ defaultLabel(row.isDefault) }}</UiBadge>
-              <template v-else>{{ defaultLabel(row.isDefault) }}</template>
+              <UiBadge v-if="row.defaultStatus === 'default'" variant="success">{{ defaultLabel(row.defaultStatus) }}</UiBadge>
+              <UiBadge v-else-if="row.defaultStatus === 'unknown'" variant="warning">{{ defaultLabel(row.defaultStatus) }}</UiBadge>
+              <template v-else>{{ defaultLabel(row.defaultStatus) }}</template>
             </template>
           </UiTable>
         </UiLoadingRegion>

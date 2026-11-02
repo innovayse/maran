@@ -66,12 +66,12 @@ public sealed class GetInvitationStatusQueryHandler
 
         if (user is null)
         {
-            return Result<InvitationStatusDto>.Ok(StatusOf(InvitationState.None, null));
+            return Result<InvitationStatusDto>.Ok(new NoInvitationStatusDto(NameOf(InvitationState.None)));
         }
 
-        if (user.State != UserState.Invited)
+        if (!user.HasPendingInvitation)
         {
-            return Result<InvitationStatusDto>.Ok(StatusOf(InvitationState.Accepted, null));
+            return Result<InvitationStatusDto>.Ok(new AcceptedInvitationStatusDto(NameOf(InvitationState.Accepted)));
         }
 
         var now = _clock.UtcNow;
@@ -90,18 +90,18 @@ public sealed class GetInvitationStatusQueryHandler
             })
             .FirstOrDefault();
 
-        return Result<InvitationStatusDto>.Ok(
-            usable is null
-                ? StatusOf(InvitationState.Expired, null)
-                : StatusOf(InvitationState.Pending, usable.ExpiresAt));
+        InvitationStatusDto status = usable is null
+            ? new ExpiredInvitationStatusDto(NameOf(InvitationState.Expired))
+            : new PendingInvitationStatusDto(NameOf(InvitationState.Pending), usable.ExpiresAt);
+
+        return Result<InvitationStatusDto>.Ok(status);
     }
 
-    /// <summary>Builds the answer for a state, with the state named for the request's culture.</summary>
-    /// <param name="state">The state to report.</param>
-    /// <param name="expiresAt">When the usable token lapses; null unless the state is pending.</param>
-    /// <returns>The answer.</returns>
-    private InvitationStatusDto StatusOf(InvitationState state, DateTimeOffset? expiresAt)
+    /// <summary>Names a state for the request's culture.</summary>
+    /// <param name="state">The state to name.</param>
+    /// <returns>The state's display name.</returns>
+    private string NameOf(InvitationState state)
     {
-        return new InvitationStatusDto(state, _displayNames[$"InvitationState{state}"].Value, expiresAt);
+        return _displayNames[$"InvitationState{state}"].Value;
     }
 }

@@ -90,13 +90,13 @@ public sealed class PartialRestoreAgentBackupClient : IAgentBackupClient
     /// <param name="destination">Where the artifact resides.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success.</returns>
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string backupId,
         AgentBackupDestination destination,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Answers as the shipping agent does: no probe is performed at all.</summary>

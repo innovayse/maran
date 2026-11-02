@@ -3,7 +3,8 @@ namespace Maran.Agent.Client.Services.MonitorService;
 /// <summary>Which of the host's services a status describes.</summary>
 /// <remarks>
 /// A closed set, mirroring the wire's <c>ManagedService</c> so callers outside this project never
-/// hold a generated protobuf type. No call anywhere accepts a unit name from a caller: the agent
+/// hold a generated protobuf type. It has no member for "a service this build cannot name": the
+/// client refuses a row naming one as an invalid response instead of inventing a service to carry it. No call anywhere accepts a unit name from a caller: the agent
 /// watches the units it knows about and nothing else.
 ///
 /// The set the agent REPORTS is smaller than this one, and absence is meaningful: a service with no
@@ -12,12 +13,6 @@ namespace Maran.Agent.Client.Services.MonitorService;
 /// </remarks>
 public enum AgentManagedService
 {
-    /// <summary>
-    /// The agent named a service this build has no name for — an unset field, or a newer agent
-    /// reporting a unit added after this panel was compiled. Never a health claim about anything.
-    /// </summary>
-    Unspecified = 0,
-
     /// <summary>The web server.</summary>
     WebServer = 1,
 

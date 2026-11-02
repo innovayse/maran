@@ -1,26 +1,30 @@
 /**
- * Where a hosting account's owner stands in their invitation, mirroring the backend's
- * `Maran.Modules.Identity.Domain.Enums.InvitationState`. The API serializes enums as camelCase
- * strings (panel-wide `JsonStringEnumConverter`), so these are the camelCase forms of the C# names.
+ * What the panel says about an account owner's invitation, mirroring the backend's
+ * `InvitationStatusDto`. Carries no token and no link: it is what the panel may say without
+ * minting anything. Exactly one of four shapes told apart by `state`, so the expiry exists only on
+ * the shape that has one and a screen never reads "no expiry" off a `null`.
  *
  * - `none` — the account has no panel login yet.
- * - `pending` — the owner has been invited and holds a token that still works.
+ * - `pending` — the owner has been invited and holds a token that still works, until `expiresAt`.
  * - `expired` — the owner was invited but every token they were given has lapsed or been replaced.
  * - `accepted` — the owner has set a password; there is nothing left to hand over.
  */
-export type InvitationState = 'none' | 'pending' | 'expired' | 'accepted'
+export type InvitationStatus =
+  /** The owner holds an invitation that still works. */
+  | {
+      /** Discriminator: an invitation is outstanding. */
+      state: 'pending'
+      /** When the newest usable token stops working, as an ISO-8601 string. */
+      expiresAt: string
+    }
+  /** Every other state, none of which has an expiry. */
+  | {
+      /** Discriminator: no login yet, a lapsed invitation, or an accepted one. */
+      state: 'none' | 'expired' | 'accepted'
+    }
 
-/**
- * What the panel says about an account owner's invitation, mirroring the backend's
- * `InvitationStatusDto`. Carries no token and no link: it is what the panel may say without
- * minting anything.
- */
-export interface InvitationStatus {
-  /** Whether an invitation is outstanding, lapsed, accepted or was never issued. */
-  state: InvitationState
-  /** When the newest usable token stops working, as an ISO-8601 string; `null` unless `pending`. */
-  expiresAt: string | null
-}
+/** Where a hosting account's owner stands in their invitation: the `state` of {@link InvitationStatus}. */
+export type InvitationState = InvitationStatus['state']
 
 /**
  * The one-time link an administrator hands to an account's owner, mirroring the backend's
@@ -71,7 +75,6 @@ export interface InvitationsApi {
    * already existed. Administrator-only on the server.
    * @param accountId The hosting account whose owner is being (re)invited.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once a new invitation was sent.
    */
-  resend: (accountId: string, signal?: AbortSignal) => Promise<boolean>
+  resend: (accountId: string, signal?: AbortSignal) => Promise<void>
 }

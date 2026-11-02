@@ -398,7 +398,7 @@ public sealed class CreateSiteCommandHandler
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Success, or the typed failure the customer is answered with — not yet journalled.</returns>
     /// <exception cref="DbUpdateException">Rethrown, after the vhost is removed, for any failure but a taken hostname.</exception>
-    private async Task<Result<bool>> RecordAsync(
+    private async Task<Result> RecordAsync(
         Site site,
         string accountUsername,
         int allowance,
@@ -409,7 +409,7 @@ public sealed class CreateSiteCommandHandler
         {
             if (await _slotGate.TryTakeAsync(site, allowance, cancellationToken))
             {
-                return Result<bool>.Ok(true);
+                return Result.Ok();
             }
         }
         catch (DbUpdateException exception)
@@ -422,7 +422,7 @@ public sealed class CreateSiteCommandHandler
             // and goes, unless the winner's row owns that very file.
             await CompensateUnlessOwnedAsync(accountUsername, command);
 
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.SiteDomainTaken), ErrorType.Conflict));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.SiteDomainTaken), ErrorType.Conflict));
         }
         catch (DbUpdateException)
         {
@@ -441,7 +441,7 @@ public sealed class CreateSiteCommandHandler
         // problem and deleting a site the customer no longer needs is what unblocks them.
         await CompensateUnlessOwnedAsync(accountUsername, command);
 
-        return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.SiteLimitReachedConcurrently), ErrorType.Conflict));
+        return Result.Fail(Error.Of(nameof(ErrorMessages.SiteLimitReachedConcurrently), ErrorType.Conflict));
     }
 
     /// <summary>Removes the vhost this request made, unless a committed site with the same domain owns that file.</summary>

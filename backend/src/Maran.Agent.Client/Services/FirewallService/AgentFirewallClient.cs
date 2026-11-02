@@ -116,7 +116,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> AllowPortAsync(
+    public async Task<Result> AllowPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -130,7 +130,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
             ?? RefuseUnusableHostPorts(nameof(AllowPortAsync), sshPorts, panelPort);
         if (refusal is not null)
         {
-            return Result<bool>.Fail(refusal);
+            return Result.Fail(refusal);
         }
 
         var request = new AllowPortRequest
@@ -155,15 +155,15 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
 
         return response.ResultCase switch
         {
-            AllowPortResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            AllowPortResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            AllowPortResponse.ResultOneofCase.Ok => Result.Ok(),
+            AllowPortResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(AllowPortAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DenyPortAsync(
+    public async Task<Result> DenyPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -177,7 +177,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
             ?? RefuseUnusableHostPorts(nameof(DenyPortAsync), sshPorts, panelPort);
         if (refusal is not null)
         {
-            return Result<bool>.Fail(refusal);
+            return Result.Fail(refusal);
         }
 
         var request = new DenyPortRequest
@@ -202,60 +202,75 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
 
         return response.ResultCase switch
         {
-            DenyPortResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DenyPortResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DenyPortResponse.ResultOneofCase.Ok => Result.Ok(),
+            DenyPortResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DenyPortAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> BanAsync(string address, TimeSpan? ttl, CancellationToken cancellationToken)
+    public async Task<Result> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
     {
-        if (!TryToDurationSeconds(ttl, out var durationSeconds))
-        {
-            LogRefusedArgument(
-                _logger,
-                nameof(BanAsync),
-                "a ban's duration is whole seconds on the wire and 0 there means permanent, so a "
-                + "duration under one second, a negative one, or one longer than the wire can carry "
-                + "is refused rather than rounded into a different ban",
-                null);
-
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidInput), ErrorType.Validation));
-        }
-
         var request = new BanAddressRequest
         {
             Address = address,
-            DurationSeconds = durationSeconds,
 
             // Reason is deliberately not set: the agent never reads it, and the only place it could
             // go on that side is an nftables comment, whose argument nft parses in its own grammar.
+            // Nor is the deprecated duration_seconds: the term below is the only form this client writes.
         };
+
+        switch (term)
+        {
+            case AgentBanTerm.Permanent:
+                request.Permanent = new PermanentBan();
+                break;
+            case AgentBanTerm.ExpiresAfter expiresAfter:
+                if (!TryToWholeSeconds(expiresAfter.Duration, out var seconds))
+                {
+                    LogRefusedArgument(
+                        _logger,
+                        nameof(BanAsync),
+                        "a timed ban is whole seconds on the wire and the contract refuses a zero, so a "
+                        + "duration under one second, a negative one, or one longer than the wire can carry "
+                        + "is refused rather than rounded into a different ban",
+                        null);
+
+                    return Result.Fail(
+                        Error.Of(nameof(ErrorMessages.AgentInvalidInput), ErrorType.Validation));
+                }
+
+                request.ExpiresAfterSeconds = seconds;
+                break;
+            default:
+                // The hierarchy is closed to the two cases above; a third would be a bug in this assembly.
+                throw new ArgumentOutOfRangeException(nameof(term), term, "Unknown ban term.");
+        }
+
         var response = await _invoker.BanAddressAsync(request, cancellationToken);
 
         return response.ResultCase switch
         {
-            BanAddressResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            BanAddressResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            BanAddressResponse.ResultOneofCase.Ok => Result.Ok(),
+            BanAddressResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(BanAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> UnbanAsync(string address, CancellationToken cancellationToken)
+    public async Task<Result> UnbanAsync(string address, CancellationToken cancellationToken)
     {
         var request = new UnbanAddressRequest { Address = address };
         var response = await _invoker.UnbanAddressAsync(request, cancellationToken);
 
         return response.ResultCase switch
         {
-            UnbanAddressResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            UnbanAddressResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            UnbanAddressResponse.ResultOneofCase.Ok => Result.Ok(),
+            UnbanAddressResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(UnbanAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -321,14 +336,18 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
 
     /// <summary>Maps the panel's protocol onto its wire counterpart.</summary>
     /// <param name="protocol">The protocol the caller named.</param>
-    /// <returns>The wire value; an unknown selector becomes the unspecified value the agent refuses.</returns>
+    /// <returns>The wire value.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown for a protocol this mapping does not know: a defect of the panel, never sent on as the
+    /// wire's unspecified value.
+    /// </exception>
     private static Protocol ToWireProtocol(AgentFirewallProtocol protocol)
     {
         return protocol switch
         {
             AgentFirewallProtocol.Tcp => Protocol.Tcp,
             AgentFirewallProtocol.Udp => Protocol.Udp,
-            _ => Protocol.Unspecified,
+            _ => throw new ArgumentOutOfRangeException(nameof(protocol), protocol, "Unknown firewall protocol."),
         };
     }
 
@@ -348,43 +367,36 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
         }
     }
 
-    /// <summary>Converts a ban's duration into the whole seconds the wire carries.</summary>
-    /// <param name="ttl">The duration the caller asked for, or null for a permanent ban.</param>
-    /// <param name="durationSeconds">
-    /// The value to send: 0 for a permanent ban, and otherwise the duration TRUNCATED to whole
-    /// seconds — 90.7 seconds is sent as 90.
+    /// <summary>Converts a timed ban's duration into the whole seconds the wire carries.</summary>
+    /// <param name="duration">The duration the caller asked for.</param>
+    /// <param name="seconds">
+    /// The value to send: the duration TRUNCATED to whole seconds — 90.7 seconds is sent as 90.
     /// </param>
     /// <returns>False when the duration cannot be carried at all.</returns>
     /// <remarks>
-    /// The one dangerous conversion in this file, and the danger is entirely below one second. On
-    /// the wire 0 means "permanent until somebody unbans it", so half a second truncated to 0, or a
-    /// negative duration clamped to it, would arrive as the opposite of what the caller asked for —
-    /// a ban that never ends where a brief one was wanted. That is refused, and null is the only
-    /// way to ask for permanent. So is a duration beyond what the field can hold.
+    /// The one dangerous conversion in this file, and the danger is entirely below one second. The
+    /// contract refuses a timed ban of zero seconds, so half a second truncated to 0, or a negative
+    /// duration clamped to it, would be answered with an invalid-input refusal that names no cause the
+    /// caller can see; it is refused here instead, before the call. So is a duration beyond what the
+    /// field can hold.
     ///
     /// Everything at or above one second has its fraction DROPPED, deliberately and not as an
-    /// oversight: the wire has one-second resolution, a ttl computed as an expiry minus a clock
+    /// oversight: the wire has one-second resolution, a duration computed as an expiry minus a clock
     /// reading is almost never whole, and refusing those would make the ordinary way of asking for
     /// a ban fail. Truncation rather than rounding, so an installed ban is never longer than the
     /// one asked for — and the one-second floor above is exactly what makes truncation safe here,
     /// since no value that reaches the cast can fall to 0.
     /// </remarks>
-    private static bool TryToDurationSeconds(TimeSpan? ttl, out uint durationSeconds)
+    private static bool TryToWholeSeconds(TimeSpan duration, out uint seconds)
     {
-        if (ttl is null)
+        var total = duration.TotalSeconds;
+        if (total < 1 || total > uint.MaxValue)
         {
-            durationSeconds = 0;
-            return true;
-        }
-
-        var seconds = ttl.Value.TotalSeconds;
-        if (seconds < 1 || seconds > uint.MaxValue)
-        {
-            durationSeconds = 0;
+            seconds = 0;
             return false;
         }
 
-        durationSeconds = (uint)seconds;
+        seconds = (uint)total;
         return true;
     }
 

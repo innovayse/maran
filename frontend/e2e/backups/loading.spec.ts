@@ -19,13 +19,13 @@ import type { PanelModule } from '../../src/types/module'
 
 // The backups table and the destinations screen while their reads are on the way (#243).
 
-const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' }]
 
 const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: '22222222-2222-2222-2222-222222222222',
   ownerName: 'alice',
-  orphanedAccountUsername: '',
+  orphanedAccountUsername: null,
   status: 'completed',
   kind: 'manual',
   sizeBytes: 1_572_864,
@@ -33,8 +33,8 @@ const COMPLETED: Backup = {
   databaseCount: 2,
   startedAt: '2026-09-06T03:00:00Z',
   finishedAt: '2026-09-06T03:04:00Z',
-  failureCode: '',
-  failureDisplayName: '',
+  failureCode: null,
+  failureDisplayName: null,
 }
 
 const LOCAL: BackupDestination = {

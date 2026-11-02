@@ -1,15 +1,19 @@
-using Maran.Modules.Identity.Common;
-using Maran.Modules.Monitoring.Common;
+using System.Text.Json.Serialization;
 
 namespace Maran.Host.Dashboard;
 
-/// <summary>Everything the panel's landing screen shows, for the caller who asked.</summary>
+/// <summary>
+/// Everything the panel's landing screen shows, for the caller who asked. Exactly one of two shapes,
+/// told apart by <c>audience</c>, so a section exists only on the shape that has it.
+/// </summary>
 /// <remarks>
 /// <para>
-/// <b>A null section means "not for this caller", and nothing else.</b> Both audiences receive this
-/// one shape rather than two, so the SPA has a single contract and no second one to drift from: an
-/// administrator receives every section, and everyone else receives every section null. The
-/// difference is decided on the server, by <c>ICurrentUser.IsAdmin</c>, which fails closed.
+/// <b>Who gets which shape is decided on the server</b>, by whether <c>ICurrentUser.Caller</c> is an
+/// <c>AdministratorCaller</c>, which fails closed: an administrator receives <see cref="AdministratorDashboardDto"/> with every section, and
+/// everyone else receives <see cref="CustomerDashboardDto"/>, which has no section at all. The shape
+/// replaced one record carrying an <c>isAdministrator</c> flag beside five nullable sections, which
+/// allowed combinations no code path produced (the flag true with null sections, false with data) and
+/// made the SPA read two members to learn one fact.
 /// </para>
 /// <para>
 /// <b>Whether a section could be read is its <see cref="DashboardSection{T}"/> state</b>, never an
@@ -17,21 +21,13 @@ namespace Maran.Host.Dashboard;
 /// audit entries yet — and a different one from a module that did not answer, so the two are
 /// carried as different values rather than drawn the same way.
 /// </para>
+/// <para>
+/// The endpoint must serialize it as this declared type for <c>audience</c> to be written, which is
+/// why it returns <c>Results.Ok&lt;DashboardDto&gt;</c>: a value serialized as its own derived type
+/// carries no discriminator.
+/// </para>
 /// </remarks>
-/// <param name="IsAdministrator">
-/// Whether the sections below were filled for this caller. Reported explicitly so the SPA renders
-/// "nothing to show you here" rather than a screen of missing panels, and so a reader of the
-/// payload can tell a withheld section from an absent one.
-/// </param>
-/// <param name="Resources">The host's live resource reading, or <c>null</c> when withheld.</param>
-/// <param name="Services">The services the agent watches, or <c>null</c> when withheld.</param>
-/// <param name="Counts">What this server holds, or <c>null</c> when withheld.</param>
-/// <param name="Attention">What needs looking at, or <c>null</c> when withheld.</param>
-/// <param name="RecentAudit">The newest audit entries, or <c>null</c> when withheld.</param>
-public sealed record DashboardDto(
-    bool IsAdministrator,
-    DashboardSection<HostMetricsDto>? Resources,
-    DashboardSection<IReadOnlyList<ServiceStatusDto>>? Services,
-    DashboardCountsDto? Counts,
-    DashboardAttentionDto? Attention,
-    DashboardSection<IReadOnlyList<AuditEventDto>>? RecentAudit);
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "audience")]
+[JsonDerivedType(typeof(AdministratorDashboardDto), "administrator")]
+[JsonDerivedType(typeof(CustomerDashboardDto), "customer")]
+public abstract record DashboardDto;

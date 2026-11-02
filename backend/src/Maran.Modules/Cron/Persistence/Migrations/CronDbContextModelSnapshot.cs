@@ -35,19 +35,33 @@ namespace Maran.Modules.Cron.Persistence.Migrations
                     b.Property<long>("DurationMilliseconds")
                         .HasColumnType("bigint");
 
+                    b.Property<int?>("EndExitCode")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EndKind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(2);
+
+                    b.Property<int?>("EndLimit")
+                        .HasColumnType("integer");
+
                     b.Property<string>("EntryId")
                         .IsRequired()
                         .HasMaxLength(36)
                         .HasColumnType("character varying(36)");
 
-                    b.Property<int?>("ExitCode")
-                        .HasColumnType("integer");
+                    b.Property<int?>("LegacyExitCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("ExitCode");
 
-                    b.Property<int?>("Limit")
-                        .HasColumnType("integer");
+                    b.Property<int?>("LegacyLimit")
+                        .HasColumnType("integer")
+                        .HasColumnName("Limit");
 
-                    b.Property<int>("Outcome")
-                        .HasColumnType("integer");
+                    b.Property<int>("LegacyOutcome")
+                        .HasColumnType("integer")
+                        .HasColumnName("Outcome");
 
                     b.Property<DateTimeOffset>("StartedAt")
                         .HasColumnType("timestamp with time zone");

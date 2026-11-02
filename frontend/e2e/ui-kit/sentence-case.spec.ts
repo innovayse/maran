@@ -44,7 +44,7 @@ const VIEWPORTS = [
 ] as const
 
 const MODULES: PanelModule[] = ['accounts', 'tasks'].map((name) => {
-  return { name, displayName: name, tier: 'included', isEnabled: true }
+  return { name, displayName: name, tier: 'included', state: 'enabled' }
 })
 
 const ACCOUNT: Account = {
@@ -78,7 +78,7 @@ const TASK: PanelTask = {
 }
 
 const DASHBOARD: Dashboard = {
-  isAdministrator: true,
+  audience: 'administrator',
   resources: loaded({
     cpuPercent: 12,
     memoryUsedBytes: 1024 * 1024 * 1024,

@@ -32,12 +32,10 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     /// </para>
     /// <para>
     /// <see cref="SuspendAsync"/> and <see cref="UnsuspendAsync"/> move
-    /// <see cref="AccountSuspensionStateDto.LoginLocked"/> on a successful call, which is what makes
-    /// the default honest rather than merely convenient: a double whose observation never followed
-    /// its own actions would let a handler that never calls the agent at all pass every test here.
-    /// </para>
-    /// <para>
-    /// They move <see cref="AccountSuspensionStateDto.LoginPasswordState"/> with it, between
+    /// <see cref="AccountSuspensionStateDto.LoginPasswordState"/> on a successful call, which is what
+    /// makes the default honest rather than merely convenient: a double whose observation never
+    /// followed its own actions would let a handler that never calls the agent at all pass every
+    /// test here. They move it between
     /// <see cref="AccountLoginPasswordState.Locked"/> and
     /// <see cref="AccountLoginPasswordState.Usable"/>, so this double models an account with a
     /// HAND-SET password — the one kind of account whose login a suspension really locks and a
@@ -48,7 +46,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     /// </para>
     /// </remarks>
     public AccountSuspensionStateDto SuspensionState { get; set; } =
-        new AccountSuspensionStateDto(false, AccountLoginPasswordState.Usable, true, [], 0, 0, 0, []);
+        new AccountSuspensionStateDto(AccountLoginPasswordState.Usable, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0));
 
     /// <summary>Creates a client that succeeds at everything.</summary>
     public RecordingAgentAccountsClient()
@@ -75,7 +73,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> SuspendAsync(string username, CancellationToken cancellationToken)
     {
         Calls.Add($"suspend:{username}");
         var answer = Answer();
@@ -83,7 +81,6 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
         {
             SuspensionState = SuspensionState with
             {
-                LoginLocked = true,
                 LoginPasswordState = AccountLoginPasswordState.Locked,
             };
         }
@@ -92,7 +89,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
     {
         Calls.Add($"unsuspend:{username}");
         var answer = Answer();
@@ -100,7 +97,6 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
         {
             SuspensionState = SuspensionState with
             {
-                LoginLocked = false,
                 LoginPasswordState = AccountLoginPasswordState.Usable,
             };
         }
@@ -150,7 +146,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     public Dictionary<string, Error> RuntimeLimitRefusals { get; } = [];
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetResourceLimitsAsync(
+    public Task<Result> SetResourceLimitsAsync(
         string username,
         AccountSliceLimitsDto limits,
         CancellationToken cancellationToken)
@@ -160,19 +156,19 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
             + $"{limits.MemoryMaxMib.Kind}{limits.MemoryMaxMib.Maximum}/{limits.TasksMax.Kind}{limits.TasksMax.Maximum}");
         if (RuntimeLimitRefusals.TryGetValue(username, out var refusal))
         {
-            return Task.FromResult(Result<bool>.Fail(refusal));
+            return Task.FromResult(Result.Fail(refusal));
         }
 
         return Task.FromResult(Answer());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {
         Calls.Add($"quota:{username}:{quotaBytes}");
         if (QuotaRefusals.TryGetValue(username, out var refusal))
         {
-            return Task.FromResult(Result<bool>.Fail(refusal));
+            return Task.FromResult(Result.Fail(refusal));
         }
 
         return Task.FromResult(Answer());
@@ -184,7 +180,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
         Calls.Add($"usage:{username}");
         var used = UsedBytes.GetValueOrDefault(username, DefaultUsedBytes);
         return Task.FromResult(_failure is null
-            ? Result<AccountUsageDto>.Ok(new AccountUsageDto(used, 4096, AccountQuotaState.Enforced, QuotaUnenforceableReason.Unspecified))
+            ? Result<AccountUsageDto>.Ok(new AccountUsageDto(used, new AccountQuota.Enforced(4096)))
             : Result<AccountUsageDto>.Fail(_failure));
     }
 
@@ -221,8 +217,8 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <summary>The configured answer for a call returning nothing but success.</summary>
-    private Result<bool> Answer()
+    private Result Answer()
     {
-        return _failure is null ? Result<bool>.Ok(true) : Result<bool>.Fail(_failure);
+        return _failure is null ? Result.Ok() : Result.Fail(_failure);
     }
 }

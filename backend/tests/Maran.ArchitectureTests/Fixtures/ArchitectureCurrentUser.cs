@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.ArchitectureTests.Fixtures;
@@ -11,19 +12,13 @@ namespace Maran.ArchitectureTests.Fixtures;
 /// before <c>OnModelCreating</c> can run at all. The values are never read: these tests ask whether
 /// a filter was REGISTERED, not what it evaluates to, and a filter's expression is captured once
 /// per model rather than per query. It reports a customer rather than an administrator so that a
-/// context whose filter short-circuits on <c>IsAdmin</c> still registers the whole expression.
+/// context whose filter short-circuits on an administrator caller still registers the whole expression.
 /// </remarks>
 public sealed class ArchitectureCurrentUser : ICurrentUser
 {
     /// <inheritdoc />
-    public Guid UserId { get; } = Guid.Empty;
-
-    /// <inheritdoc />
-    public string Username { get; } = string.Empty;
-
-    /// <inheritdoc />
-    public Guid? AccountId { get; } = Guid.Empty;
-
-    /// <inheritdoc />
-    public bool IsAdmin { get; }
+    public Caller Caller { get; } = new CustomerCaller(
+        new Guid("00000000-0000-4000-8000-00000000a4c1"),
+        "architecture",
+        new Guid("00000000-0000-4000-8000-00000000a4c2"));
 }

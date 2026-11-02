@@ -1,7 +1,7 @@
 import { useApi } from '../useApi'
 import type {
   BackupSchedule,
-  BackupScheduleScope,
+  BackupScheduleScopeView,
   BackupSchedulesApi,
   SaveBackupScheduleRequest,
 } from '../../types/backupSchedule'
@@ -27,14 +27,14 @@ export const useBackupSchedulesApi = (): BackupSchedulesApi => {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The scope, holding its schedule or none.
    */
-  const get = (accountId: string | null, signal?: AbortSignal): Promise<BackupScheduleScope> => {
+  const get = (accountId: string | null, signal?: AbortSignal): Promise<BackupScheduleScopeView> => {
     // The host-wide policy is the request with NO `accountId` at all, not one with an empty value:
     // the query binds `Guid?`, and an empty string is a bad request rather than "no account".
     const path =
       accountId === null
         ? BACKUP_SCHEDULES_PATH
         : `${BACKUP_SCHEDULES_PATH}?accountId=${encodeURIComponent(accountId)}`
-    return api.get<BackupScheduleScope>(path, signal)
+    return api.get<BackupScheduleScopeView>(path, signal)
   }
 
   /**

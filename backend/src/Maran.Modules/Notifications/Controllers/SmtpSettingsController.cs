@@ -70,7 +70,7 @@ public sealed class SmtpSettingsController : BaseApiController
     /// all of it, and repeating the same body twice leaves the panel in the same state.
     /// </remarks>
     [HttpPut]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -80,7 +80,7 @@ public sealed class SmtpSettingsController : BaseApiController
     {
         var stamped = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(stamped, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(stamped, cancellationToken));
     }
 
     /// <summary>Sends one fixed test message, so an administrator can see whether the settings work.</summary>
@@ -96,7 +96,7 @@ public sealed class SmtpSettingsController : BaseApiController
     /// precisely to find out, so the refusal — and its localized reason — is the answer.
     /// </remarks>
     [HttpPost("test")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -107,6 +107,6 @@ public sealed class SmtpSettingsController : BaseApiController
         CancellationToken cancellationToken)
     {
         var stamped = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(stamped, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(stamped, cancellationToken));
     }
 }

@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useSmtpSettingsApi } from '../composables/apis/useSmtpSettingsApi'
 import { ApiError } from '../composables/useApi'
-import type { LoadingState } from '../types/loading'
+import type { LoadingState, Read, Submission } from '../types/loading'
 import type { SaveSmtpSettingsRequest, SmtpSettings } from '../types/smtpSettings'
+import { loadingStateOf } from '../utils/loadingStateOf'
 
 /**
  * Owns the panel's outgoing mail settings for the settings screen.
@@ -16,42 +17,75 @@ import type { SaveSmtpSettingsRequest, SmtpSettings } from '../types/smtpSetting
 export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
   const api = useSmtpSettingsApi()
 
-  /** The settings the panel holds, or `null` until they have been read. */
-  const settings: Ref<SmtpSettings | null> = ref(null)
-
-  /** True while a read, a save or a test send is in flight. */
-  const loading: Ref<boolean> = ref(false)
-
   /**
-   * Where the read of the settings stands: on its way, arrived, or refused. A save or a test send
-   * never moves it, so their refusals leave the form on screen with the alert above it.
+   * The read of the settings: on its way, arrived, or refused. A save or a test send never moves
+   * it, so their refusals leave the form on screen with the alert above it.
    */
-  const loadState: Ref<LoadingState> = ref('loading')
+  const read: Ref<Read<SmtpSettings>> = ref({ state: 'loading' })
 
-  /** True once the last save succeeded, so the screen can confirm it. */
-  const saved: Ref<boolean> = ref(false)
+  /** Where the last save stands; `done` lets the screen confirm it. */
+  const saveSubmission: Ref<Submission> = ref({ state: 'idle' })
 
-  /** True once the last test message was accepted by the mail server. */
-  const testSent: Ref<boolean> = ref(false)
+  /** Where the last test message stands; `done` means the mail server accepted it. */
+  const testSubmission: Ref<Submission> = ref({ state: 'idle' })
+
+  /** The settings the panel holds, or `null` until they have been read. */
+  const settings: ComputedRef<SmtpSettings | null> = computed(() => {
+    return read.value.state === 'loaded' ? read.value.value : null
+  })
+
+  /** Where the read stands, in the words the loading region understands. */
+  const loadState: ComputedRef<LoadingState> = computed(() => {
+    return loadingStateOf(read.value)
+  })
+
+  /** The panel's reason the read failed, rendered verbatim; `null` otherwise. */
+  const loadMessage: ComputedRef<string | null> = computed(() => {
+    return read.value.state === 'failed' ? read.value.message : null
+  })
 
   /**
-   * Backend-localized message from the last failure, rendered verbatim.
+   * The panel's reason the last save or test send was refused, rendered verbatim; `null` otherwise.
    *
    * For the test send this is the mail server's own refusal as the panel relayed it
    * (the RFC 7807 `detail`), and it is the answer the operator pressed the button
    * for: a generic "sending failed" would hide the one sentence that says which
    * setting is wrong.
    */
-  const errorMessage: Ref<string | null> = ref(null)
+  const submitMessage: ComputedRef<string | null> = computed(() => {
+    if (saveSubmission.value.state === 'failed') {
+      return saveSubmission.value.message
+    }
+
+    return testSubmission.value.state === 'failed' ? testSubmission.value.message : null
+  })
+
+  /** True once the last save succeeded, so the screen can confirm it. */
+  const saved: ComputedRef<boolean> = computed(() => {
+    return saveSubmission.value.state === 'done'
+  })
+
+  /** True once the last test message was accepted by the mail server. */
+  const testSent: ComputedRef<boolean> = computed(() => {
+    return testSubmission.value.state === 'done'
+  })
+
+  /** True while a read, a save or a test send is in flight. */
+  const loading: ComputedRef<boolean> = computed(() => {
+    return (
+      read.value.state === 'loading' ||
+      saveSubmission.value.state === 'sending' ||
+      testSubmission.value.state === 'sending'
+    )
+  })
 
   /**
-   * Reads a failure's backend-localized text, or clears it for anything that is not
-   * an API error.
+   * Reads a failure's backend-localized text, or nothing for anything that is not an API error.
    * @param error The caught error.
-   * @returns Nothing; `errorMessage` is updated.
+   * @returns The text, or `null`.
    */
-  const remember = (error: unknown): void => {
-    errorMessage.value = error instanceof ApiError ? error.message : null
+  const messageOf = (error: unknown): string | null => {
+    return error instanceof ApiError ? error.message : null
   }
 
   /**
@@ -59,17 +93,11 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loading.value = true
-    loadState.value = 'loading'
-    errorMessage.value = null
+    read.value = { state: 'loading' }
     try {
-      settings.value = await api.get()
-      loadState.value = 'loaded'
+      read.value = { state: 'loaded', value: await api.get() }
     } catch (error) {
-      remember(error)
-      loadState.value = 'error'
-    } finally {
-      loading.value = false
+      read.value = { state: 'failed', message: messageOf(error) }
     }
   }
 
@@ -83,20 +111,16 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
    * @returns True when they were stored.
    */
   const save = async (request: SaveSmtpSettingsRequest): Promise<boolean> => {
-    loading.value = true
-    errorMessage.value = null
-    saved.value = false
-    testSent.value = false
+    saveSubmission.value = { state: 'sending' }
+    testSubmission.value = { state: 'idle' }
     try {
       await api.save(request)
-      settings.value = await api.get()
-      saved.value = true
+      read.value = { state: 'loaded', value: await api.get() }
+      saveSubmission.value = { state: 'done' }
       return true
     } catch (error) {
-      remember(error)
+      saveSubmission.value = { state: 'failed', message: messageOf(error) }
       return false
-    } finally {
-      loading.value = false
     }
   }
 
@@ -106,21 +130,17 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
    * @returns True when the mail server accepted it.
    */
   const sendTest = async (recipient: string): Promise<boolean> => {
-    loading.value = true
-    errorMessage.value = null
-    testSent.value = false
-    saved.value = false
+    testSubmission.value = { state: 'sending' }
+    saveSubmission.value = { state: 'idle' }
     try {
       await api.sendTest(recipient)
-      testSent.value = true
+      testSubmission.value = { state: 'done' }
       return true
     } catch (error) {
-      remember(error)
+      testSubmission.value = { state: 'failed', message: messageOf(error) }
       return false
-    } finally {
-      loading.value = false
     }
   }
 
-  return { settings, loading, loadState, saved, testSent, errorMessage, load, save, sendTest }
+  return { settings, loading, loadState, loadMessage, saved, testSent, submitMessage, load, save, sendTest }
 })

@@ -21,6 +21,12 @@ namespace Maran.Modules.Identity.Services;
 /// </remarks>
 public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
 {
+    /// <summary>
+    /// The value of <see cref="PanelClaimTypes.SessionKind"/> on a view-as token. A closed one-value
+    /// vocabulary: an own sign-in carries no such claim, so there is no second value to name.
+    /// </summary>
+    private const string ViewAsClaimValue = "ViewAs";
+
     /// <summary>Signing key, issuer, audience and lifetime.</summary>
     private readonly JwtOptions _options;
 
@@ -42,7 +48,54 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
     }
 
     /// <inheritdoc />
-    public async Task<AccessToken> IssueAsync(User user, Guid sessionId, CancellationToken cancellationToken)
+    public AccessToken IssueViewAs(User viewedUser, Session session, User actor)
+    {
+        // Refuse rather than sign: a session of the other kind, or one belonging to somebody else,
+        // reaching here is a caller bug, and a token is the one thing that must not be produced on a
+        // bug (issue #317).
+        if (session.ViewAs is not { } origin
+            || session.UserId != viewedUser.Id
+            || origin.ActorUserId != actor.Id
+            || session.ActiveAccountId is not { } viewedAccountId)
+        {
+            throw new InvalidOperationException("A view-as token was requested for a session that is not a view-as session of these two users.");
+        }
+
+        var actorSessionId = origin.ActorSessionId;
+
+        var claims = new Dictionary<string, object>
+        {
+            [PanelClaimTypes.UserId] = viewedUser.Id.ToString(),
+            [PanelClaimTypes.Username] = viewedUser.Username,
+            [PanelClaimTypes.Role] = viewedUser.Role.ToString(),
+            [PanelClaimTypes.SessionId] = session.Id.ToString(),
+            [PanelClaimTypes.AccountId] = viewedAccountId.ToString(),
+            [PanelClaimTypes.SessionKind] = ViewAsClaimValue,
+
+            // RFC 8693 §4.1: the party actually acting, as a JSON object nested in the token. The
+            // operator's own session id rides along so the bearer handler can require that the
+            // operator is still signed in (ViewAsSessionVerifier).
+            [PanelClaimTypes.Actor] = new Dictionary<string, object>
+            {
+                [PanelClaimTypes.UserId] = actor.Id.ToString(),
+                [PanelClaimTypes.Username] = actor.Username,
+                [PanelClaimTypes.SessionId] = actorSessionId.ToString(),
+            },
+        };
+
+        // No forced-two-factor steering: the token speaks for a customer login, and the steering is
+        // an administrator's own obligation, already met (or refused) on the operator's own token.
+        // The expiry is the SESSION's, so the token and the row it is checked against die together.
+        var token = Sign(claims, session.IssuedAt, session.ExpiresAt);
+        return new AccessToken(token, session.ExpiresAt, RequiresTwoFactorSetup: false);
+    }
+
+    /// <inheritdoc />
+    public async Task<AccessToken> IssueAsync(
+        User user,
+        Guid sessionId,
+        Guid? accountId,
+        CancellationToken cancellationToken)
     {
         var policy = await _policyCache.GetAsync(cancellationToken);
         var requiresSetup = policy.ForceTwoFactorForAdmins
@@ -60,12 +113,13 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
             [PanelClaimTypes.SessionId] = sessionId.ToString(),
         };
 
-        // Only a Customer has an owning account. Writing the claim as an empty string for an
-        // administrator would make "no account" and "an account whose id failed to render" the
-        // same value on the wire, and the authorization code would have to tell them apart.
-        if (user.AccountId is { } accountId)
+        // The claim names the account the session is acting for, chosen by the caller from the
+        // login's memberships. Writing it as an empty string when there is none would make "no
+        // account" and "an account whose id failed to render" the same value on the wire, and the
+        // authorization code would have to tell them apart.
+        if (accountId is { } activeAccountId)
         {
-            claims[PanelClaimTypes.AccountId] = accountId.ToString();
+            claims[PanelClaimTypes.AccountId] = activeAccountId.ToString();
         }
 
         // Written only when the steering applies. The claim's PRESENCE is the restriction, so a
@@ -90,5 +144,28 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
         };
 
         return new AccessToken(new JsonWebTokenHandler().CreateToken(descriptor), expiresAt, requiresSetup);
+    }
+
+    /// <summary>Signs a set of claims with the panel's key, issuer and audience.</summary>
+    /// <param name="claims">The claims to carry.</param>
+    /// <param name="issuedAt">The instant the token is issued and becomes valid.</param>
+    /// <param name="expiresAt">The instant it stops being accepted.</param>
+    /// <returns>The compact-serialized token.</returns>
+    private string Sign(Dictionary<string, object> claims, DateTimeOffset issuedAt, DateTimeOffset expiresAt)
+    {
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = _options.Issuer,
+            Audience = _options.Audience,
+            IssuedAt = issuedAt.UtcDateTime,
+            NotBefore = issuedAt.UtcDateTime,
+            Expires = expiresAt.UtcDateTime,
+            Claims = claims,
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Convert.FromBase64String(_options.SigningKey)),
+                SecurityAlgorithms.HmacSha256),
+        };
+
+        return new JsonWebTokenHandler().CreateToken(descriptor);
     }
 }

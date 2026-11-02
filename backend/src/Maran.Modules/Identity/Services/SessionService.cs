@@ -41,9 +41,10 @@ public sealed class SessionService : ISessionService
         Guid userId,
         string ipAddress,
         string userAgent,
+        Guid? activeAccountId,
         CancellationToken cancellationToken)
     {
-        return await CreateAsync(userId, Guid.NewGuid(), ipAddress, userAgent, cancellationToken);
+        return await CreateAsync(userId, Guid.NewGuid(), ipAddress, userAgent, activeAccountId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -56,7 +57,10 @@ public sealed class SessionService : ISessionService
         var hash = RefreshTokenHasher.Hash(refreshToken);
         var session = await _dbContext.Sessions.SingleOrDefaultAsync(s => s.TokenHash == hash, cancellationToken);
 
-        if (session is null)
+        // A view-as session's refresh token never left the server, so presenting one is impossible
+        // in honest use; refusing it here as well means that even a leak of the discarded plaintext
+        // could not stretch a fifteen-minute view into a renewable one (issue #317).
+        if (session is null || session.ViewAs is not null)
         {
             return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized));
         }
@@ -67,7 +71,7 @@ public sealed class SessionService : ISessionService
         // is compromised. Revoking the whole family is what makes a stolen cookie usable once
         // rather than for a fortnight, and it tells the real user something is wrong by signing
         // them out.
-        if (session.RevokedAt is not null)
+        if (session.Revocation is not null)
         {
             await RevokeFamilyAsync(session.FamilyId, SessionRevocationReason.ReuseDetected, cancellationToken);
             return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenReusedUnauthorized), ErrorType.Unauthorized));
@@ -79,7 +83,14 @@ public sealed class SessionService : ISessionService
         }
 
         session.Revoke(_clock.UtcNow, SessionRevocationReason.Rotated);
-        var issued = await CreateAsync(session.UserId, session.FamilyId, ipAddress, userAgent, cancellationToken);
+        // The account the sign-in speaks for survives a rotation: refreshing is not choosing again.
+        var issued = await CreateAsync(
+            session.UserId,
+            session.FamilyId,
+            ipAddress,
+            userAgent,
+            session.ActiveAccountId,
+            cancellationToken);
 
         return Result<IssuedSession>.Ok(issued);
     }
@@ -121,7 +132,7 @@ public sealed class SessionService : ISessionService
     public async Task RevokeAllAsync(Guid userId, SessionRevocationReason reason, CancellationToken cancellationToken)
     {
         var sessions = await _dbContext.Sessions
-            .Where(s => s.UserId == userId && s.RevokedAt == null)
+            .Where(s => s.UserId == userId && s.Revocation == null)
             .ToListAsync(cancellationToken);
 
         foreach (var session in sessions)
@@ -146,7 +157,7 @@ public sealed class SessionService : ISessionService
             .SingleOrDefaultAsync(cancellationToken);
 
         var sessions = await _dbContext.Sessions
-            .Where(s => s.UserId == userId && s.RevokedAt == null && s.FamilyId != keptFamilyId)
+            .Where(s => s.UserId == userId && s.Revocation == null && s.FamilyId != keptFamilyId)
             .ToListAsync(cancellationToken);
 
         foreach (var session in sessions)
@@ -162,6 +173,7 @@ public sealed class SessionService : ISessionService
     /// <param name="familyId">The rotation family; a new one at login, the inherited one on rotation.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="activeAccountId">The account the session speaks for; null when it has none.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>The stored session and its plaintext refresh token.</returns>
     private async Task<IssuedSession> CreateAsync(
@@ -169,6 +181,7 @@ public sealed class SessionService : ISessionService
         Guid familyId,
         string ipAddress,
         string userAgent,
+        Guid? activeAccountId,
         CancellationToken cancellationToken)
     {
         var token = RefreshTokenHasher.Generate();
@@ -183,12 +196,13 @@ public sealed class SessionService : ISessionService
             issuedAt,
             expiresAt,
             ipAddress,
-            userAgent);
+            userAgent,
+            activeAccountId);
 
         _dbContext.Sessions.Add(session);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return new IssuedSession(session.Id, token, expiresAt);
+        return new IssuedSession(session.Id, token, expiresAt, session.ActiveAccountId);
     }
 
     /// <summary>Revokes every session in one rotation family.</summary>
@@ -199,7 +213,7 @@ public sealed class SessionService : ISessionService
     private async Task RevokeFamilyAsync(Guid familyId, SessionRevocationReason reason, CancellationToken cancellationToken)
     {
         var sessions = await _dbContext.Sessions
-            .Where(s => s.FamilyId == familyId && s.RevokedAt == null)
+            .Where(s => s.FamilyId == familyId && s.Revocation == null)
             .ToListAsync(cancellationToken);
 
         foreach (var session in sessions)

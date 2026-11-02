@@ -40,5 +40,5 @@ export interface LogLevelApi {
   /** Reads the running level and the levels on offer. */
   get: (signal?: AbortSignal) => Promise<LogLevel>
   /** Applies a level, now and after every restart. */
-  change: (request: ChangeLogLevelRequest, signal?: AbortSignal) => Promise<boolean>
+  change: (request: ChangeLogLevelRequest, signal?: AbortSignal) => Promise<void>
 }

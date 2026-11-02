@@ -180,7 +180,7 @@ public sealed class SiteLogTailService
 
             if (cancelled)
             {
-                yield return SiteLogFrame.OfEnd(SiteLogEndReason.Cancelled, null);
+                yield return new SiteLogEndFrame(SiteLogEndReason.Cancelled, null);
                 yield break;
             }
 
@@ -188,13 +188,13 @@ public sealed class SiteLogTailService
             {
                 // The agent client promises a terminal event and did not deliver one. Reported as
                 // truncated — not completed — because lines may be missing and we cannot know.
-                yield return SiteLogFrame.OfEnd(SiteLogEndReason.Truncated, null);
+                yield return new SiteLogEndFrame(SiteLogEndReason.Truncated, null);
                 yield break;
             }
 
-            if (next.Kind == SiteLogEventKind.Line)
+            if (next is SiteLogLine line)
             {
-                yield return SiteLogFrame.OfLine(next.Line, next.Historical);
+                yield return new SiteLogLineFrame(line.Line, line.Historical);
                 continue;
             }
 
@@ -204,32 +204,36 @@ public sealed class SiteLogTailService
     }
 
     /// <summary>Translates the agent client's terminal event into the frame the client is shown.</summary>
-    /// <param name="terminal">The agent client's terminal event.</param>
+    /// <param name="terminal">The agent client's terminal event: anything but a line.</param>
     /// <returns>The terminal frame, carrying a localized sentence only where one adds anything.</returns>
-    private SiteLogFrame ToTerminalFrame(SiteLogEvent terminal)
+    private SiteLogEndFrame ToTerminalFrame(SiteLogEvent terminal)
     {
-        if (terminal.Kind == SiteLogEventKind.Failed)
+        switch (terminal)
         {
-            // The code, resolved to a sentence here. The agent's own text never travels: it can
-            // name absolute paths on the host (rules/security.md).
-            var code = terminal.ErrorCode ?? nameof(ErrorMessages.SiteLogTailFailed);
-            return SiteLogFrame.OfEnd(SiteLogEndReason.Failed, _errorText.Resolve(code));
+            case SiteLogFailed failed:
+                // The code, resolved to a sentence here. The agent's own text never travels: it can
+                // name absolute paths on the host (rules/security.md).
+                return new SiteLogEndFrame(SiteLogEndReason.Failed, _errorText.Resolve(failed.ErrorCode));
+            case SiteLogEnded ended:
+                return new SiteLogEndFrame(ToReason(ended.Kind), null);
+            default:
+                // An event this map does not know is not an ending we can describe, and the safe
+                // answer is the pessimistic one: something may be missing.
+                return new SiteLogEndFrame(SiteLogEndReason.Truncated, null);
         }
-
-        return SiteLogFrame.OfEnd(ToReason(terminal.Kind), null);
     }
 
-    /// <summary>Maps a non-failing terminal event kind onto its wire reason.</summary>
-    /// <param name="kind">The agent client's terminal kind.</param>
+    /// <summary>Maps a non-failing ending onto its wire reason.</summary>
+    /// <param name="kind">The agent client's ending.</param>
     /// <returns>The reason the client is told.</returns>
-    private static SiteLogEndReason ToReason(SiteLogEventKind kind)
+    private static SiteLogEndReason ToReason(SiteLogEndKind kind)
     {
         return kind switch
         {
-            SiteLogEventKind.Completed => SiteLogEndReason.Completed,
-            SiteLogEventKind.Dropped => SiteLogEndReason.Dropped,
-            SiteLogEventKind.Idle => SiteLogEndReason.Idle,
-            SiteLogEventKind.Cancelled => SiteLogEndReason.Cancelled,
+            SiteLogEndKind.Completed => SiteLogEndReason.Completed,
+            SiteLogEndKind.Dropped => SiteLogEndReason.Dropped,
+            SiteLogEndKind.Idle => SiteLogEndReason.Idle,
+            SiteLogEndKind.Cancelled => SiteLogEndReason.Cancelled,
 
             // A kind this map does not know is not an ending we can describe, and the safe answer
             // is the pessimistic one: something may be missing.

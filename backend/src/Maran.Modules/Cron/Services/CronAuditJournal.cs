@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using Maran.Modules.Cron.Common;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Cron.Services;
 
@@ -108,10 +110,19 @@ public sealed class CronAuditJournal
         bool succeeded,
         CancellationToken cancellationToken)
     {
+        var (actorId, actorName) = _currentUser.Caller switch
+        {
+            AdministratorCaller administrator => (administrator.UserId, administrator.Username),
+            CustomerCaller customer => (customer.UserId, customer.Username),
+            AccountlessCustomerCaller accountless => (accountless.UserId, accountless.Username),
+            AnonymousCaller => (Guid.Empty, string.Empty),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+        };
+
         await _auditWriter.WriteAsync(
             new AuditEntry(
-                _currentUser.UserId,
-                _currentUser.Username,
+                actorId,
+                actorName,
                 action,
                 subject,
                 ipAddress,

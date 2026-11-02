@@ -88,7 +88,7 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> ChangePhpVersionAsync(
+    public async Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -108,11 +108,11 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
 
         await AttemptAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> EnableAsync(
+    public async Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -124,11 +124,11 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
 
         await AttemptAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DisableAsync(
+    public async Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -140,11 +140,11 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
 
         await AttemptAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteAsync(
+    public async Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -155,15 +155,15 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
 
         await AttemptAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public async Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         await AttemptAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
@@ -181,7 +181,7 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
 
         await AttemptAsync(cancellationToken);
 
-        yield return new SiteLogEvent(SiteLogEventKind.Completed, string.Empty, false, null);
+        yield return new SiteLogEnded(SiteLogEndKind.Completed);
     }
 
     /// <summary>Counts the call, stalls for <see cref="Delay"/>, and fails while failures remain.</summary>

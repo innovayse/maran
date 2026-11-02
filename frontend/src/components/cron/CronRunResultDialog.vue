@@ -21,14 +21,33 @@ import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import { formatSeconds } from '../../utils/formatSeconds'
 import type { CronRun } from '../../types/cronRun'
 
-/** Props accepted by {@link CronRunResultDialog}. */
+/** What the dialog is showing: the run still going, a refused or unanswered request, or the finished run. */
+export type CronRunResult =
+  | {
+      /** The job is still running, or its record is still being read. */
+      state: 'running'
+    }
+  | {
+      /** The panel answered and refused. */
+      state: 'refused'
+      /** The panel's already-localized refusal, shown verbatim. */
+      message: string
+    }
+  | {
+      /** No answer arrived, so there is no panel sentence to show. */
+      state: 'unreachable'
+    }
+  | {
+      /** The run finished and was read. */
+      state: 'done'
+      /** The run. */
+      run: CronRun
+    }
+
+/** Props accepted by {@link CronRunResultDialog}; the caller mounts it only while a run is on show. */
 const props = defineProps<{
-  /** Whether the dialog is shown; owned by the caller. */
-  open: boolean
-  /** The run, or `null` while it is still running or being read, or when it failed. */
-  run: CronRun | null
-  /** The panel's already-localized refusal, `''` when no answer arrived, or `null` when nothing failed. */
-  errorMessage: string | null
+  /** What the dialog draws. */
+  result: CronRunResult
 }>()
 
 /** Events emitted by {@link CronRunResultDialog}. */
@@ -42,10 +61,11 @@ const localeStore = useLocaleStore()
 
 /** The two streams that printed something, labelled; a stream that printed nothing is not drawn. */
 const streams: ComputedRef<{ key: string; label: string; text: string }[]> = computed(() => {
-  const run = props.run
-  if (run === null) {
+  const result = props.result
+  if (result.state !== 'done') {
     return []
   }
+  const run = result.run
   return [
     { key: 'stdout', label: t('cron.runs.stdout'), text: run.stdout },
     { key: 'stderr', label: t('cron.runs.stderr'), text: run.stderr },
@@ -56,8 +76,11 @@ const streams: ComputedRef<{ key: string; label: string; text: string }[]> = com
 
 /** Why a stopped run was stopped, or `null` for a run that ended on its own. */
 const limitNote: ComputedRef<string | null> = computed(() => {
-  const limit = props.run?.limit ?? null
-  return limit === null ? null : t(`cron.runs.limit.${limit}`)
+  if (props.result.state !== 'done') {
+    return null
+  }
+  const end = props.result.run.end
+  return end.kind === 'stopped' ? t(`cron.runs.limit.${end.limit}`) : null
 })
 
 /**
@@ -70,26 +93,28 @@ const close = (): void => {
 </script>
 
 <template>
-  <UiModal :open="open" :title="t('cron.runs.resultTitle')" :close-label="t('common.close')" @close="close">
-    <UiAlert v-if="errorMessage !== null" variant="error">
-      {{ errorMessage === '' ? t('common.list.unreachable') : errorMessage }}
+  <UiModal :open="true" :title="t('cron.runs.resultTitle')" :close-label="t('common.close')" @close="close">
+    <UiAlert v-if="result.state === 'refused'" variant="error">{{ result.message }}</UiAlert>
+
+    <UiAlert v-else-if="result.state === 'unreachable'" variant="error">
+      {{ t('common.list.unreachable') }}
     </UiAlert>
 
-    <UiSpinner v-else-if="run === null" :label="t('cron.runs.running')" />
+    <UiSpinner v-else-if="result.state === 'running'" :label="t('cron.runs.running')" />
 
     <div v-else class="flex min-w-0 flex-col gap-4">
       <UiDescriptionList class="rounded-control bg-surface-2 px-4 py-3">
         <UiDescriptionItem :term="t('cron.runs.columns.outcome')">
-          <CronRunOutcomeBadge :outcome="run.outcome" />
+          <CronRunOutcomeBadge :outcome="result.run.outcome" />
         </UiDescriptionItem>
         <UiDescriptionItem :term="t('cron.output.exitCode')" mono>
-          <span data-testid="cron-run-exit-code">{{ run.exitCode ?? t('cron.output.notReported') }}</span>
+          <span data-testid="cron-run-exit-code">{{ result.run.end.kind === 'exited' ? result.run.end.exitCode : t('cron.output.notReported') }}</span>
         </UiDescriptionItem>
         <UiDescriptionItem :term="t('cron.runs.columns.duration')" mono>
-          {{ formatSeconds(run.durationMilliseconds, localeStore.current) }}
+          {{ formatSeconds(result.run.durationMilliseconds, localeStore.current) }}
         </UiDescriptionItem>
         <UiDescriptionItem :term="t('cron.runs.columns.startedAt')" mono>
-          {{ formatIsoTimestamp(run.startedAt, localeStore.current) }}
+          {{ formatIsoTimestamp(result.run.startedAt, localeStore.current) }}
         </UiDescriptionItem>
       </UiDescriptionList>
 

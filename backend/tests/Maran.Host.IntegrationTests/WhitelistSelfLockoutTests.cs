@@ -130,7 +130,7 @@ public sealed class WhitelistSelfLockoutTests : IAsyncLifetime
 
         var response = await client.DeleteAsync($"/api/v1/firewall/whitelist/{seeded}");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(["203.0.113.0/24"], await CidrsAsync(factory));
     }
 
@@ -154,7 +154,7 @@ public sealed class WhitelistSelfLockoutTests : IAsyncLifetime
 
         var response = await client.DeleteAsync($"/api/v1/firewall/whitelist/{seeded}");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Empty(await CidrsAsync(factory));
     }
 

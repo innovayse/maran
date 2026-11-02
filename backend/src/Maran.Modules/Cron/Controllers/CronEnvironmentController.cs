@@ -3,6 +3,7 @@ using Maran.Modules.Cron.Common;
 using Maran.Modules.Cron.Queries.GetCronEnvironment;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -26,6 +27,7 @@ namespace Maran.Modules.Cron.Controllers;
 [Tags("Cron")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
+[RequiresAccountFeature(AccountFeature.Cron)]
 public sealed class CronEnvironmentController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>
@@ -66,7 +68,7 @@ public sealed class CronEnvironmentController : BaseApiController
     /// <param name="command">The owning account and the complete new set.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -76,6 +78,6 @@ public sealed class CronEnvironmentController : BaseApiController
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

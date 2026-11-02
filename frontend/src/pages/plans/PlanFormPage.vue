@@ -65,9 +65,8 @@ const headingKey: ComputedRef<string> = computed(() => {
  */
 const prepare = async (): Promise<void> => {
   store.clearErrors()
-  if (props.id !== undefined) {
-    await store.loadOne(props.id)
-  }
+  // The panel's feature list and the plan are independent reads, so they go out together.
+  await Promise.all([store.loadFeatureChoices(), props.id === undefined ? undefined : store.loadOne(props.id)])
 }
 
 /**
@@ -119,7 +118,14 @@ onMounted(prepare)
         <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
       </template>
 
-      <PlanForm v-if="store.loadState === 'loading'" :plan="null" loading :submitting="store.saving" />
+      <PlanForm
+        v-if="store.loadState === 'loading'"
+        :plan="null"
+        loading
+        :submitting="store.saving"
+        :feature-choices="store.featureChoices"
+        :features-state="store.featuresState"
+      />
 
       <UiEmptyState
         v-else-if="plan === undefined"
@@ -129,9 +135,25 @@ onMounted(prepare)
         <UiLink :to="{ name: 'plans' }" icon="chevronLeft">{{ t('plans.form.backToList') }}</UiLink>
       </UiEmptyState>
 
-      <PlanForm v-else :plan="plan" :submitting="store.saving" @submit="save" @cancel="cancel" />
+      <PlanForm
+        v-else
+        :plan="plan"
+        :submitting="store.saving"
+        :feature-choices="store.featureChoices"
+        :features-state="store.featuresState"
+        @submit="save"
+        @cancel="cancel"
+      />
     </UiLoadingRegion>
 
-    <PlanForm v-else :plan="null" :submitting="store.saving" @submit="save" @cancel="cancel" />
+    <PlanForm
+      v-else
+      :plan="null"
+      :submitting="store.saving"
+      :feature-choices="store.featureChoices"
+      :features-state="store.featuresState"
+      @submit="save"
+      @cancel="cancel"
+    />
   </section>
 </template>

@@ -1,7 +1,8 @@
 import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
+import type { AccountFeatureName } from '../../src/types/accountFeature'
 import type { Plan } from '../../src/types/account'
-import type { ManagedPlan, PlanRequest } from '../../src/types/plan'
+import type { ManagedPlan, PlanFeatureChoice, PlanRequest } from '../../src/types/plan'
 
 /**
  * The single plan the create-account form offers in specs. One is enough: the form's
@@ -19,6 +20,9 @@ const CHOICES_PATTERN = /\/api\/v1\/plans\/choices(\?.*)?$/
 
 /** The plan-management list read and create, with or without the list's query string. */
 export const PLANS_PATTERN = /\/api\/v1\/plans(\?.*)?$/
+
+/** The features a plan can sell: what the plan form offers. */
+const FEATURES_PATTERN = /\/api\/v1\/plans\/features(\?.*)?$/
 
 /** One plan by id: the edit screen's read, the update and the delete. */
 const PLAN_PATTERN = /\/api\/v1\/plans\/([0-9a-f-]{36})$/
@@ -125,6 +129,25 @@ export const THREE_PLANS: Plan[] = [
 ]
 
 /**
+ * The features the panel offers a plan in specs, in its order and with its English names — what
+ * `GET /api/v1/plans/features` answers. The names are the panel's, so a spec asserts on them as
+ * text the page must render, not as constants the page owns.
+ */
+export const PLAN_FEATURE_CHOICES: PlanFeatureChoice[] = [
+  { feature: 'mail', featureDisplayName: 'Mail' },
+  { feature: 'dns', featureDisplayName: 'DNS' },
+  { feature: 'databases', featureDisplayName: 'Databases' },
+  { feature: 'cron', featureDisplayName: 'Scheduled tasks' },
+  { feature: 'fileTransfer', featureDisplayName: 'File transfer (SFTP and FTPS)' },
+  { feature: 'backups', featureDisplayName: 'Backups' },
+]
+
+/** Every feature name, the set a plan that predates features sells. */
+const EVERY_FEATURE: AccountFeatureName[] = PLAN_FEATURE_CHOICES.map((choice) => {
+  return choice.feature
+})
+
+/**
  * The plans the management screen lists in specs: a shipped-looking tier with accounts on it
  * (which cannot be deleted), one nobody is on (which can), and a tier that sells no FTPS logins and
  * no cron entries, so the word "None" has a row to appear in.
@@ -143,6 +166,7 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     cpuQuotaPercent: { kind: 'limited', maximum: 100 },
     memoryMaxMb: { kind: 'limited', maximum: 1024 },
     maxProcesses: { kind: 'limited', maximum: 50 },
+    features: ['databases', 'cron', 'fileTransfer', 'backups'],
     accountCount: 3,
   },
   {
@@ -155,9 +179,10 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     maxFtpUsers: 10,
     maxCronEntries: 20,
     maxPhpWorkersPerPool: 10,
-    cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
-    memoryMaxMb: { kind: 'unlimited', maximum: 0 },
-    maxProcesses: { kind: 'unlimited', maximum: 0 },
+    cpuQuotaPercent: { kind: 'unlimited' },
+    memoryMaxMb: { kind: 'unlimited' },
+    maxProcesses: { kind: 'unlimited' },
+    features: EVERY_FEATURE,
     accountCount: 0,
   },
   {
@@ -170,9 +195,10 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     maxFtpUsers: 100,
     maxCronEntries: 200,
     maxPhpWorkersPerPool: 20,
-    cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
-    memoryMaxMb: { kind: 'unlimited', maximum: 0 },
-    maxProcesses: { kind: 'unlimited', maximum: 0 },
+    cpuQuotaPercent: { kind: 'unlimited' },
+    memoryMaxMb: { kind: 'unlimited' },
+    maxProcesses: { kind: 'unlimited' },
+    features: EVERY_FEATURE,
     accountCount: 1,
   },
 ]
@@ -234,6 +260,10 @@ export const stubManagedPlans = async (
     })
   }
 
+  await page.route(FEATURES_PATTERN, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PLAN_FEATURE_CHOICES) })
+  })
+
   await page.route(PLANS_PATTERN, async (route) => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON() as PlanRequest
@@ -255,6 +285,7 @@ export const stubManagedPlans = async (
         cpuQuotaPercent: body.cpuQuotaPercent,
         memoryMaxMb: body.memoryMaxMb,
         maxProcesses: body.maxProcesses,
+        features: body.features,
         accountCount: 0,
       }
       plans.push(created)
@@ -303,7 +334,7 @@ export const stubManagedPlans = async (
         return
       }
       plans.splice(index, 1)
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
 

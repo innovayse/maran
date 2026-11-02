@@ -19,7 +19,12 @@ namespace Maran.Sdk.Contracts;
 /// a fourth outcome later is a decision for whoever next reads that plan, not something a caller of
 /// this enum should be able to invent by combining these three.
 /// </para>
+/// <para>
+/// <b>Superseded by <see cref="CodeIntegrityVerdict"/></b>, whose cases are these three outcomes.
+/// Kept only because <see cref="CodeIntegrityReport"/> carries it.
+/// </para>
 /// </remarks>
+[Obsolete("Use CodeIntegrityVerdict, whose cases are the three outcomes.")]
 public enum CodeIntegrityOutcome
 {
     /// <summary>

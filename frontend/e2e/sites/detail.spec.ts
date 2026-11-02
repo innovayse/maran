@@ -7,7 +7,7 @@ import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
 
 const LICENSED_SITES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
 ]
 
 const SITE: SiteDetail = {
@@ -36,8 +36,8 @@ const stubDetailDependencies = async (page: Page): Promise<void> => {
   await stubSites(page, [])
   await stubSiteDetail(page, SITE)
   await stubPhpVersions(page, [
-    { version: '8.2', isDefault: false },
-    { version: '8.3', isDefault: true },
+    { version: '8.2', defaultStatus: 'notDefault' },
+    { version: '8.3', defaultStatus: 'default' },
   ])
 }
 

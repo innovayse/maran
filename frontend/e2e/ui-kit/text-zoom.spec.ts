@@ -40,7 +40,7 @@ const MIN_TITLE_WIDTH = 200
 
 /** Every module, so no screen is gated. */
 const MODULES: PanelModule[] = ['accounts', 'sites', 'databases', 'backups', 'monitoring', 'tasks'].map((name) => {
-  return { name, displayName: name, tier: 'included', isEnabled: true }
+  return { name, displayName: name, tier: 'included', state: 'enabled' }
 })
 
 const ACCOUNT: Account = {
@@ -67,11 +67,11 @@ const BACKUP: Backup = {
   id: '77777777-7777-7777-7777-777777777771',
   accountId: ACCOUNT.id,
   ownerName: ACCOUNT.name,
-  orphanedAccountUsername: '',
+  orphanedAccountUsername: null,
   status: 'failed',
   kind: 'manual',
   sizeBytes: 0,
-  sha256: '',
+  sha256: null,
   databaseCount: 0,
   startedAt: '2026-09-07T03:00:00Z',
   finishedAt: '2026-09-07T03:01:00Z',
@@ -80,7 +80,7 @@ const BACKUP: Backup = {
 }
 
 const DASHBOARD: Dashboard = {
-  isAdministrator: true,
+  audience: 'administrator',
   resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 ** 3,
@@ -130,7 +130,7 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubPlans(page, THREE_PLANS)
   await stubAccounts(page, [ACCOUNT])
   await stubSites(page, [SITE])
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   await stubBackups(page, [BACKUP])
   await stubBackupSchedules(page, {})
   await stubBackupDestinations(page, [])

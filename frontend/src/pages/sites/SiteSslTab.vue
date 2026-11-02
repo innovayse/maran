@@ -292,9 +292,7 @@ onMounted(load);
            the list's place, with the real terms of a certificate. -->
       <CertificateCard
         v-if="store.listState === 'loading'"
-        loading
-        :days-left="null"
-        :attention="null"
+        :read="{ state: 'loading' }"
         :locale="localeStore.current"
       />
 
@@ -333,9 +331,12 @@ onMounted(load);
         <CertificateCard
           v-for="row in rows"
           :key="row.certificate.id"
-          :certificate="row.certificate"
-          :days-left="row.daysLeft"
-          :attention="row.attention"
+          :read="{
+            state: 'loaded',
+            certificate: row.certificate,
+            daysLeft: row.daysLeft,
+            attention: row.attention,
+          }"
           :locale="localeStore.current"
           @remove="askRemove"
         />

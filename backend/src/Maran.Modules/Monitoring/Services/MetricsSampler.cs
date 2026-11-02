@@ -155,7 +155,7 @@ public sealed class MetricsSampler : BackgroundService
             sftpJailStatus,
             quotaStatus,
             clockSync,
-            codeIntegrityReport: null,
+            codeIntegrityVerdict: null,
             observedAt,
             cancellationToken);
 

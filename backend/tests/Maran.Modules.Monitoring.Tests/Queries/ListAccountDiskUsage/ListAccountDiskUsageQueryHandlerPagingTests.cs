@@ -1,4 +1,3 @@
-using Maran.Agent.Client.Services.AccountsService;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.ListAccountDiskUsage;
@@ -148,7 +147,7 @@ public sealed class ListAccountDiskUsageQueryHandlerPagingTests
         {
             DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok(measured),
             QuotaEnforceability = Result<AgentQuotaEnforceability>.Ok(
-                new AgentQuotaEnforceability(true, QuotaUnenforceableReason.Unspecified)),
+                new AgentQuotaEnforceability.Enforceable()),
         };
     }
 

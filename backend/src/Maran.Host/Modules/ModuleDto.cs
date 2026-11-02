@@ -1,10 +1,11 @@
+using Maran.Host.Modules.Enums;
 using Maran.Sdk.Contracts;
 
 namespace Maran.Host.Modules;
 
 /// <summary>
-/// What the panel tells its interface about one module: identity plus whether the current licence
-/// makes it usable. The SPA renders navigation and guards routes from this list, but the gate is
+/// What the panel tells its interface about one module: identity plus whether the panel lets it be
+/// used. The SPA renders navigation and guards routes from this list, but the gate is
 /// cosmetic — the backend re-checks the licence on every request (rules/architecture.md
 /// "Where a module's UI lives").
 /// </summary>
@@ -33,9 +34,13 @@ namespace Maran.Host.Modules;
 /// SPA can never own this label; the backend owns all user-facing text regardless
 /// (rules/csharp.md "The backend owns all user-facing message text").
 /// </param>
-/// <param name="IsEnabled">
-/// Whether the running licence currently permits it. False renders the module's entries as locked
-/// rather than hiding the product's existence.
+/// <param name="State">
+/// Whether the module may be used right now, decided in one place by
+/// <see cref="ModuleStateResolver"/>. <see cref="ModuleState.Locked"/> renders the module's entries
+/// as locked and leads them to the upgrade page rather than hiding the product's existence.
+/// Serialized as its member name (<c>"enabled"</c>, <c>"locked"</c>) by the panel-wide
+/// <see cref="System.Text.Json.Serialization.JsonStringEnumConverter"/>. A module the panel did not
+/// compose is not in the list at all, so there is no third value.
 /// </param>
 /// <param name="AgentCapabilities">
 /// The parts of the root agent this module is permitted to drive, from its own
@@ -54,5 +59,5 @@ public sealed record ModuleDto(
     LicenceTier Tier,
     string TierDisplayName,
     string DisplayName,
-    bool IsEnabled,
+    ModuleState State,
     IReadOnlyList<AgentCapability> AgentCapabilities);

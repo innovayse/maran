@@ -73,7 +73,7 @@ export const useModulesStore = defineStore('modules', () => {
    */
   const isEnabled = (name: string): boolean => {
     return modules.value.some((module) => {
-      return module.name === name && module.isEnabled
+      return module.name === name && module.state === 'enabled'
     })
   }
 
@@ -81,11 +81,11 @@ export const useModulesStore = defineStore('modules', () => {
    * Whether a module exists but the licence does not permit it — the case that deserves an
    * upgrade prompt rather than a "not found".
    * @param name Machine name of the module.
-   * @returns True when the module is known but disabled.
+   * @returns True when the module is known but locked.
    */
   const isLocked = (name: string): boolean => {
     return modules.value.some((module) => {
-      return module.name === name && !module.isEnabled
+      return module.name === name && module.state === 'locked'
     })
   }
 

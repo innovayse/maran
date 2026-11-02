@@ -31,5 +31,5 @@ export interface SecurityPolicyApi {
   /** Reads the policy the panel is enforcing. */
   get: (signal?: AbortSignal) => Promise<SecurityPolicy>
   /** Replaces the policy wholesale. */
-  save: (request: SaveSecurityPolicyRequest, signal?: AbortSignal) => Promise<boolean>
+  save: (request: SaveSecurityPolicyRequest, signal?: AbortSignal) => Promise<void>
 }

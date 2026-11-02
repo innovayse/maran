@@ -29,6 +29,17 @@ export interface RepairedGrant {
   alsoMatchedDatabases: string[]
 }
 
+/**
+ * Why the repair left a grant-table row exactly as it found it, mirroring the backend's
+ * `GrantRefusalReason` as a camelCase name. A reason the backend has no words for never reaches the
+ * SPA: the whole reply is refused first.
+ */
+export type GrantRefusalReason =
+  | 'hostIsNotLocalhost'
+  | 'notThePanelsNaming'
+  | 'unrecognisedPrivileges'
+  | 'partiallyOrUnfamiliarlyEscaped'
+
 /** One grant-table row the repair left exactly as it found it, and what to do about it. */
 export interface RefusedGrant {
   /** The database server's `Host` column, verbatim. */
@@ -43,15 +54,41 @@ export interface RefusedGrant {
   /** The server's `User` column, verbatim. */
   dbUsername: string
   /**
-   * The machine-stable refusal name the agent reported. Shown as machine text beside the sentence,
-   * never instead of it — it is what a support conversation and a log line can both spell.
+   * The refusal the agent reported. Shown as machine text beside the sentence, never instead of it —
+   * it is what a support conversation and a log line can both spell.
    */
-  reason: string
+  reason: GrantRefusalReason
   /** What the agent decided, already localized by the backend (rules/vue.md). */
   reasonDisplayName: string
   /** What the operator can do about this row, already localized by the backend. */
   reasonAdvice: string
 }
+
+/** A report-only pass: the rows it would rewrite, with nothing on the server changed. */
+export interface GrantRepairPreview {
+  /** Discriminator. */
+  kind: 'preview'
+  /** Rows a repair would rewrite. */
+  grants: RepairedGrant[]
+}
+
+/** A repairing pass: the rows it rewrote. */
+export interface GrantRepairApplied {
+  /** Discriminator. */
+  kind: 'applied'
+  /** Rows that were rewritten. */
+  grants: RepairedGrant[]
+}
+
+/**
+ * What a pass did about the rows that needed rewriting, mirroring the backend's `GrantRepairWorkDto`.
+ *
+ * The screen reads `kind` rather than testing whether the list is empty: a repair that found nothing
+ * to do returns the same empty list an inspection of a clean host does, and a reader who cannot tell
+ * an inspection from an action would not know whether their customers' access had already been
+ * rewritten.
+ */
+export type GrantRepairWork = GrantRepairPreview | GrantRepairApplied
 
 /**
  * What `GET /api/v1/database-grants` answers, and what `POST /api/v1/database-grants/repair` answers
@@ -62,23 +99,12 @@ export interface RefusedGrant {
  * store reads that as "not disclosed to me" rather than as a failure.
  */
 export interface GrantRepairReport {
-  /**
-   * True when nothing on the server was changed.
-   *
-   * The screen reads this rather than testing whether {@link repaired} is empty: a repair that found
-   * nothing to do returns the same two empty lists an inspection of a clean host does, and a reader
-   * who cannot tell an inspection from an action would not know whether their customers' access had
-   * already been rewritten.
-   */
-  isReportOnly: boolean
-  /** Rows read and classified. The four buckets sum to exactly this number. */
+  /** Rows read and classified. The buckets sum to exactly this number. */
   examinedGrants: number
   /** Rows that were already right, or whose name cannot hold a wildcard at all. */
   alreadyCorrect: number
-  /** Rows that were rewritten. Empty on a report. */
-  repaired: RepairedGrant[]
-  /** Rows a report says would be rewritten. Empty after a repair. */
-  wouldRepair: RepairedGrant[]
+  /** The rows that needed rewriting: listed by a report, or rewritten by a repair. */
+  work: GrantRepairWork
   /** Rows left untouched, each with its reason and the action it needs. */
   refused: RefusedGrant[]
 }
@@ -101,7 +127,7 @@ export interface DatabaseGrantsApi {
   /**
    * Reads what a repair would change on this host, changing nothing.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The census, with `isReportOnly` true.
+   * @returns The census, its work a `preview`.
    */
   report: (signal?: AbortSignal) => Promise<GrantRepairReport>
 
@@ -109,7 +135,7 @@ export interface DatabaseGrantsApi {
    * Performs the repair, provided the host still matches the report that was read.
    * @param request The figure the report gave the operator.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The census of what was actually changed, with `isReportOnly` false.
+   * @returns The census of what was actually changed, its work `applied`.
    */
   repair: (request: RepairGrantsRequest, signal?: AbortSignal) => Promise<GrantRepairReport>
 }

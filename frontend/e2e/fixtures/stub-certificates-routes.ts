@@ -95,7 +95,7 @@ export const stubCertificates = async (page: Page, installed: Certificate[]): Pr
     if (at >= 0) {
       installed.splice(at, 1)
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 }
 
@@ -166,7 +166,7 @@ export const certificateFor = (
     issuedAt: '2026-08-01T10:00:00Z',
     notAfter: '2026-11-01T10:00:00Z',
     lastRenewalAttemptAt: null,
-    lastRenewalErrorCode: '',
+    lastRenewalErrorCode: null,
     consecutiveRenewalFailures: 0,
   }
 }

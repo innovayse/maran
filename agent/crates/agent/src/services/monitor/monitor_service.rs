@@ -30,22 +30,6 @@ use crate::services::monitor::reported_state::reported_state;
 use crate::services::monitor::validated_account_selection::validated_account_selection;
 use crate::services::wire::run_blocking::run_blocking;
 
-/// The uptime the agent reports for every unit.
-///
-/// Zero, and `monitor.proto` marks the field deprecated and says why: the
-/// service manager reports a unit's start timestamp, not an uptime, and turning
-/// one into the other needs a clock reading this agent deliberately does not
-/// take. It is a constant here rather than a literal in the mapping so that a
-/// reader sees the field is unproduced rather than merely happening to be 0.
-const UNPRODUCED_UPTIME: u64 = 0;
-
-/// The quota the agent reports for every account: none.
-///
-/// A quota is the PANEL's own data — it is chosen when an account is created
-/// and stored by the Accounts module — so the agent reports used bytes and
-/// nothing else. `monitor.proto` marks the field deprecated and says the same.
-const UNPRODUCED_QUOTA: u64 = 0;
-
 /// Serves the read-only host and service observability over the wire.
 ///
 /// Every rpc follows the same three steps: validate the request, run one
@@ -151,7 +135,6 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
                         ServiceStatus {
                             service: managed_service(position) as i32,
                             running,
-                            uptime_seconds: UNPRODUCED_UPTIME,
                             state: state as i32,
                             detail: status.detail,
                         }
@@ -195,7 +178,6 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
                     .map(|usage| AccountDiskUsage {
                         account_username: usage.account.as_str().to_owned(),
                         used_bytes: usage.used_bytes,
-                        quota_bytes: UNPRODUCED_QUOTA,
                     })
                     .collect(),
             }),

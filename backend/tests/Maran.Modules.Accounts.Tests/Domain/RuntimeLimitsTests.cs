@@ -39,4 +39,44 @@ public sealed class RuntimeLimitsTests
         Assert.NotSame(limits.MemoryMaxMb, limits.MaxProcesses);
         Assert.Equal(limits.CpuQuotaPercent, limits.MaxProcesses);
     }
+
+    /// <summary>An unlimited ceiling carries no maximum at all, not a stored zero.</summary>
+    [Fact]
+    public void An_unlimited_ceiling_carries_no_maximum()
+    {
+        Assert.Null(ResourceLimit.Unlimited().Maximum);
+        Assert.Equal(ResourceLimitKind.Unlimited, ResourceLimit.Unlimited().Kind);
+    }
+
+    /// <summary>A limited ceiling carries exactly the maximum it was built with.</summary>
+    [Fact]
+    public void A_limited_ceiling_carries_its_maximum()
+    {
+        var limit = ResourceLimit.Limited(150);
+
+        Assert.Equal(150, limit.Maximum);
+        Assert.Equal(ResourceLimitKind.Limited, limit.Kind);
+    }
+
+    /// <summary>The columns the previous release reads are written beside the nullable maximum the code reads.</summary>
+    [Fact]
+    public async Task Saving_a_plan_writes_the_old_columns_beside_the_nullable_maximum()
+    {
+        await using var context = TestSupport.AccountsTestContext.Create();
+        var plan = Accounts.Domain.Entities.Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);
+        plan.ChangeRuntimeLimits(
+            RuntimeLimits.Of(ResourceLimit.Limited(200), ResourceLimit.Unlimited(), ResourceLimit.Limited(64)));
+        context.Plans.Add(plan);
+        await context.SaveChangesAsync();
+
+        var cpu = context.Entry(plan.RuntimeLimits.CpuQuotaPercent);
+        var memory = context.Entry(plan.RuntimeLimits.MemoryMaxMb);
+
+        Assert.Equal(200, cpu.Property<int?>(nameof(ResourceLimit.Maximum)).CurrentValue);
+        Assert.Equal(ResourceLimitKind.Limited, cpu.Property<ResourceLimitKind>("_legacyKind").CurrentValue);
+        Assert.Equal(200, cpu.Property<int>("_legacyMaximum").CurrentValue);
+        Assert.Null(memory.Property<int?>(nameof(ResourceLimit.Maximum)).CurrentValue);
+        Assert.Equal(ResourceLimitKind.Unlimited, memory.Property<ResourceLimitKind>("_legacyKind").CurrentValue);
+        Assert.Equal(0, memory.Property<int>("_legacyMaximum").CurrentValue);
+    }
 }

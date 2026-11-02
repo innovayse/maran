@@ -11,12 +11,12 @@ import type { PanelModule } from '../../src/types/module'
 
 /** A catalogue in an order deliberately unlike the sidebar's groups. */
 const MODULES: PanelModule[] = [
-  { name: 'identity', displayName: 'Users and access', tier: 'included', isEnabled: true },
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
-  { name: 'notifications', displayName: 'Notifications', tier: 'included', isEnabled: true },
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
-  { name: 'tasks', displayName: 'Tasks', tier: 'included', isEnabled: true },
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', isEnabled: true },
+  { name: 'identity', displayName: 'Users and access', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'notifications', displayName: 'Notifications', tier: 'included', state: 'enabled' },
+  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Tasks', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
 ]
 
 /**

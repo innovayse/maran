@@ -76,7 +76,7 @@ public sealed class CertificateMissingFtpsAgent : IAgentFtpsClient
     /// <param name="password">The new password, never recorded.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>The stub's answer.</returns>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string ftpsUsername,
         SensitiveString password,
@@ -90,7 +90,7 @@ public sealed class CertificateMissingFtpsAgent : IAgentFtpsClient
     /// <param name="ftpsUsername">The login suffix.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>The stub's answer.</returns>
-    public Task<Result<bool>> DeleteUserAsync(
+    public Task<Result> DeleteUserAsync(
         string accountUsername,
         string ftpsUsername,
         CancellationToken cancellationToken)

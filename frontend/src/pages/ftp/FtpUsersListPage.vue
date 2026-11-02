@@ -40,7 +40,7 @@ import FtpUsersTable from '../../components/ftp/FtpUsersTable.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import type { ToastVariant } from '../../components/ui/UiToast.vue'
 import FtpUserCreateForm from '../../components/ftp/FtpUserCreateForm.vue'
-import FtpUserCreatedDialog from '../../components/ftp/FtpUserCreatedDialog.vue'
+import FtpUserCreatedDialog, { type FtpConnection } from '../../components/ftp/FtpUserCreatedDialog.vue'
 import FtpsServerPanel from '../../components/ftp/FtpsServerPanel.vue'
 import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
@@ -52,7 +52,7 @@ import { useFirewallStore } from '../../stores/firewall'
 import { useFtpUsersStore } from '../../stores/ftpUsers'
 import { useFtpsServerStore } from '../../stores/ftpsServer'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
-import type { CreateFtpUserRequest, FtpUser, FtpUserAction } from '../../types/ftpUser'
+import type { CreateFtpUserRequest, FtpUser, FtpUserAction, PendingFtpUserAction } from '../../types/ftpUser'
 import { usePlanLimit } from '../../composables/usePlanLimit'
 
 
@@ -108,11 +108,25 @@ const ftps = useFtpsServerSwitch(
 /** Whether the filter sheet is open. */
 const filtersOpen: Ref<boolean> = ref(false)
 
-/** The login whose action is awaiting confirmation, or `null` when none is. */
-const pending: Ref<FtpUser | null> = ref(null)
+/** The login and the action awaiting confirmation, or `null` when none is. */
+const pending: Ref<PendingFtpUserAction | null> = ref(null)
 
-/** Which action that login is waiting on. */
-const pendingAction: Ref<FtpUserAction> = ref('remove')
+/**
+ * What the dialog may tell a new login's owner about reaching the server: the facts when the panel
+ * disclosed them to this caller and FTPS has a host name, otherwise that it did not.
+ */
+const connection: ComputedRef<FtpConnection> = computed(() => {
+  const status = ftpsServerStore.status
+  if (!ftpsServerStore.isDisclosed || status === null || status.hostname === null) {
+    return { state: 'undisclosed' }
+  }
+  return {
+    state: 'disclosed',
+    hostname: status.hostname,
+    controlPort: status.controlPort,
+    certificate: status.certificate,
+  }
+})
 
 /** Whether the list is narrowed by a search or a filter, so an empty answer means "no match". */
 const isNarrowed: ComputedRef<boolean> = computed(() => {
@@ -162,8 +176,7 @@ const create = async (request: CreateFtpUserRequest): Promise<void> => {
  * @returns Nothing.
  */
 const ask = (login: FtpUser, action: FtpUserAction): void => {
-  pending.value = login
-  pendingAction.value = action
+  pending.value = { login, action }
 }
 
 /**
@@ -179,16 +192,16 @@ const cancel = (): void => {
  * @returns Resolves once the request has settled.
  */
 const confirm = async (): Promise<void> => {
-  const login = pending.value
-  if (login === null) {
+  const awaiting = pending.value
+  if (awaiting === null) {
     return
   }
-  if (pendingAction.value === 'remove') {
-    if (await store.remove(login.id)) {
+  if (awaiting.action === 'remove') {
+    if (await store.remove(awaiting.login.id)) {
       await table.reload()
     }
   } else {
-    await store.resetPassword(login.id)
+    await store.resetPassword(awaiting.login.id)
   }
   // Closed after the request settles rather than before it is sent: the dialog holds the spinner.
   pending.value = null
@@ -377,20 +390,17 @@ onBeforeUnmount(store.dismissCredential)
     </UiFilterSheet>
 
     <FtpUserActionConfirm
-      :login="pending"
-      :action="pendingAction"
+      v-if="pending !== null"
+      :pending="pending"
       :acting="store.acting"
       @close="cancel"
       @confirm="confirm"
     />
 
     <FtpUserCreatedDialog
-      :open="store.revealedCredential !== null"
-      :full-name="store.revealedCredential?.fullName ?? ''"
-      :password="store.revealedCredential?.password ?? ''"
-      :hostname="ftpsServerStore.status?.hostname ?? null"
-      :control-port="ftpsServerStore.status?.controlPort ?? null"
-      :certificate-is-self-signed="ftpsServerStore.status?.certificateIsSelfSigned ?? false"
+      v-if="store.revealedCredential !== null"
+      :credential="store.revealedCredential"
+      :connection="connection"
       @close="store.dismissCredential"
     />
 

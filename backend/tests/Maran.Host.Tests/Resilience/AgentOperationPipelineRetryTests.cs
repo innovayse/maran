@@ -230,9 +230,24 @@ public sealed class AgentOperationPipelineRetryTests
     /// <param name="result">The answer under test.</param>
     private static void AssertUnavailable<T>(Result<T> result)
     {
-        Assert.False(result.IsSuccess);
-        Assert.Equal("AgentUnavailable", result.Error!.Code);
-        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+        AssertUnavailable(result.IsSuccess, result.Error);
+    }
+
+    /// <summary>Asserts the answer of a call that produces no value is the unavailable-agent failure.</summary>
+    /// <param name="result">The answer under test.</param>
+    private static void AssertUnavailable(Result result)
+    {
+        AssertUnavailable(result.IsSuccess, result.Error);
+    }
+
+    /// <summary>The one assertion of the unavailable-agent failure, shared by both result shapes.</summary>
+    /// <param name="isSuccess">Whether the answer under test succeeded.</param>
+    /// <param name="error">The failure the answer carried, if any.</param>
+    private static void AssertUnavailable(bool isSuccess, Error? error)
+    {
+        Assert.False(isSuccess);
+        Assert.Equal("AgentUnavailable", error!.Code);
+        Assert.Equal(ErrorType.Unavailable, error.Type);
     }
 
     /// <summary>Resolves the real operation pipeline with a stated per-attempt timeout.</summary>

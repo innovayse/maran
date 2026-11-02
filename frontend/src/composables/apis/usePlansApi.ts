@@ -1,7 +1,7 @@
 import { useApi } from '../useApi'
 import { listQuery } from '../../utils/listQuery'
 import type { ListRequest, Paged } from '../../types/list'
-import type { ManagedPlan, PlanRequest, PlansApi } from '../../types/plan'
+import type { ManagedPlan, PlanFeatureChoice, PlanRequest, PlansApi } from '../../types/plan'
 
 /**
  * The endpoint plans are managed through: administrator-only, and the rows carry the account count.
@@ -31,6 +31,15 @@ export const usePlansApi = (): PlansApi => {
    */
   const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<ManagedPlan>> => {
     return api.get<Paged<ManagedPlan>>(`${PLANS_PATH}${listQuery(request, LIST_FILTER_PARAMS)}`, signal)
+  }
+
+  /**
+   * Lists the features a plan can sell.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The features in the panel's order, each with its localized name.
+   */
+  const features = (signal?: AbortSignal): Promise<PlanFeatureChoice[]> => {
+    return api.get<PlanFeatureChoice[]>(`${PLANS_PATH}/features`, signal)
   }
 
   /**
@@ -68,11 +77,11 @@ export const usePlansApi = (): PlansApi => {
    * Deletes a plan.
    * @param id The plan to delete.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the plan was deleted.
+   * @returns Resolves once the plan was deleted; the panel answers 204 with no body.
    */
-  const remove = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${PLANS_PATH}/${id}`, signal)
+  const remove = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${PLANS_PATH}/${id}`, signal)
   }
 
-  return { list, get, create, update, remove }
+  return { list, features, get, create, update, remove }
 }

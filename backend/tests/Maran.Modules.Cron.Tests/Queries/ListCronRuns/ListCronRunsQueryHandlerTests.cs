@@ -1,5 +1,7 @@
+using Maran.Modules.Cron.Common;
 using Maran.Modules.Cron.Domain.Entities;
 using Maran.Modules.Cron.Domain.Enums;
+using Maran.Modules.Cron.Domain.ValueObjects;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Queries.ListCronRuns;
 using Maran.Modules.Cron.Tests.TestSupport;
@@ -38,9 +40,9 @@ public sealed class ListCronRunsQueryHandlerTests
     {
         var handler = Handler(out var database);
         database.CronRuns.AddRange(
-            Run(EntryId, Noon.AddMinutes(-2), 0, null),
-            Run(EntryId, Noon, 0, null),
-            Run(OtherEntryId, Noon.AddMinutes(1), 0, null));
+            Run(EntryId, Noon.AddMinutes(-2), new CronRunExited(0)),
+            Run(EntryId, Noon, new CronRunExited(0)),
+            Run(OtherEntryId, Noon.AddMinutes(1), new CronRunExited(0)));
         await database.SaveChangesAsync();
 
         var result = await handler.HandleAsync(new ListCronRunsQuery(AccountId, EntryId: EntryId), default);
@@ -58,9 +60,9 @@ public sealed class ListCronRunsQueryHandlerTests
     {
         var handler = Handler(out var database);
         database.CronRuns.AddRange(
-            Run(EntryId, Noon, 0, null),
-            Run(EntryId, Noon.AddMinutes(1), 2, null),
-            Run(EntryId, Noon.AddMinutes(2), null, CronRunLimit.Output));
+            Run(EntryId, Noon, new CronRunExited(0)),
+            Run(EntryId, Noon.AddMinutes(1), new CronRunExited(2)),
+            Run(EntryId, Noon.AddMinutes(2), new CronRunStopped(CronRunLimit.Output)));
         await database.SaveChangesAsync();
 
         var result = await handler.HandleAsync(
@@ -68,7 +70,7 @@ public sealed class ListCronRunsQueryHandlerTests
             default);
 
         var row = Assert.Single(result.Value.Items);
-        Assert.Equal(2, row.ExitCode);
+        Assert.Equal(new CronRunExitedDto(2), row.End);
     }
 
     /// <summary>A page of the given size is cut from the newest.</summary>
@@ -78,7 +80,7 @@ public sealed class ListCronRunsQueryHandlerTests
         var handler = Handler(out var database);
         for (var minute = 0; minute < 12; minute++)
         {
-            database.CronRuns.Add(Run(EntryId, Noon.AddMinutes(minute), 0, null));
+            database.CronRuns.Add(Run(EntryId, Noon.AddMinutes(minute), new CronRunExited(0)));
         }
 
         await database.SaveChangesAsync();
@@ -105,11 +107,10 @@ public sealed class ListCronRunsQueryHandlerTests
     /// <summary>A recorded run.</summary>
     /// <param name="entryId">The entry.</param>
     /// <param name="startedAt">When it started.</param>
-    /// <param name="exitCode">Its status.</param>
-    /// <param name="limit">The ceiling that stopped it.</param>
+    /// <param name="end">How it ended.</param>
     /// <returns>The run.</returns>
-    private static CronRun Run(string entryId, DateTimeOffset startedAt, int? exitCode, CronRunLimit? limit)
+    private static CronRun Run(string entryId, DateTimeOffset startedAt, CronRunEnd end)
     {
-        return new CronRun(Guid.NewGuid(), AccountId, entryId, startedAt, 10, exitCode, limit, "out", "err");
+        return new CronRun(Guid.NewGuid(), AccountId, entryId, startedAt, 10, end, "out", "err");
     }
 }

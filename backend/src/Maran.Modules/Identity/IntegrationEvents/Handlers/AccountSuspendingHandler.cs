@@ -11,7 +11,7 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Closing the door is not enough on its own.</b> Marking the login <see cref="UserState.Suspended"/>
+/// <b>Closing the door is not enough on its own.</b> Marking the login <see cref="UserLifecycle.Suspended"/>
 /// only stops the NEXT sign-in; an access token issued before the suspension keeps authenticating
 /// for the rest of its own lifetime unless the sessions behind it are revoked here. That is the half
 /// of a suspension that actually matters — a customer already signed in must not go on working

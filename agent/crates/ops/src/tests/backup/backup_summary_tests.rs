@@ -25,14 +25,14 @@ fn readable_carries_the_current_version_and_every_fact() {
     let summary = BackupSummary::readable("b1".to_owned(), manifest(), 123, "a".repeat(64));
 
     assert!(summary.is_readable());
-    assert_eq!(summary.version, SUMMARY_VERSION);
+    assert_eq!(summary.version, Some(SUMMARY_VERSION));
     assert!(summary.reason().is_none());
     let details = summary.readable_details().expect("a readable summary");
     assert_eq!(details.artifact_bytes, 123);
     assert_eq!(details.artifact_sha256, "a".repeat(64));
 }
 
-/// `unreadable` with `Corrupt` reports no data and version `0` — the state
+/// `unreadable` with `Corrupt` reports no data and no version — the state
 /// for a sidecar that is missing or whose JSON never parsed at all.
 #[test]
 fn unreadable_reports_corrupt_with_no_data() {
@@ -40,7 +40,7 @@ fn unreadable_reports_corrupt_with_no_data() {
 
     assert!(!summary.is_readable());
     assert_eq!(summary.reason(), Some(&UnreadableReason::Corrupt));
-    assert_eq!(summary.version, 0);
+    assert_eq!(summary.version, None);
     assert!(summary.readable_details().is_none());
 }
 
@@ -51,15 +51,15 @@ fn unreadable_reports_corrupt_with_no_data() {
 fn unknown_version_reports_the_version_and_not_corrupt() {
     let summary = BackupSummary::unreadable(
         "b1".to_owned(),
-        UnreadableReason::UnknownVersion { version: 7 },
+        UnreadableReason::UnknownVersion { version: Some(7) },
     );
 
     assert!(!summary.is_readable());
     assert_eq!(
         summary.reason(),
-        Some(&UnreadableReason::UnknownVersion { version: 7 })
+        Some(&UnreadableReason::UnknownVersion { version: Some(7) })
     );
-    assert_eq!(summary.version, 7);
+    assert_eq!(summary.version, Some(7));
     assert!(summary.readable_details().is_none());
 }
 
@@ -71,7 +71,7 @@ fn not_a_regular_file_reports_that_reason_with_no_version() {
 
     assert!(!summary.is_readable());
     assert_eq!(summary.reason(), Some(&UnreadableReason::NotARegularFile));
-    assert_eq!(summary.version, 0);
+    assert_eq!(summary.version, None);
 }
 
 /// **F2, at the type.** The document that used to deserialise into a

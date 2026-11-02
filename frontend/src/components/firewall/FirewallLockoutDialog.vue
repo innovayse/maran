@@ -28,23 +28,12 @@ import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiModal from '../ui/UiModal.vue'
 import { portRangeLabel } from '../../utils/portRangeLabel'
-import type { FirewallRule, FirewallRuleChange } from '../../types/firewall'
+import type { FirewallRule, PendingFirewallChange } from '../../types/firewall'
 
-/** Props accepted by {@link FirewallLockoutDialog}. */
+/** Props accepted by {@link FirewallLockoutDialog}; the page mounts it only while a change waits. */
 const props = defineProps<{
-  /** Whether the dialog is shown; owned by the page. */
-  open: boolean
-  /** Whether the pending change installs rules or removes them. */
-  intent: FirewallRuleChange
-  /** The rules the change covers, spelled as they will be sent. */
-  rules: readonly FirewallRule[]
-  /**
-   * Whether the change would leave the host with no rule at all for one of the ports it names.
-   *
-   * True is the case the plan calls "removing the last one": if that port is the SSH port, the
-   * panel's unconditional accept comes back and SSH is reachable from every source again.
-   */
-  leavesPortsUnruled: boolean
+  /** The change awaiting an answer. */
+  change: PendingFirewallChange
   /** Whether the change is already in flight, which disables the confirm control. */
   busy: boolean
 }>()
@@ -61,21 +50,21 @@ const { t } = useI18n()
 
 /** Heading, which states which way the change goes before the operator reads anything else. */
 const title: ComputedRef<string> = computed(() => {
-  return props.intent === 'allow'
+  return props.change.intent === 'allow'
     ? t('firewall.lockout.allowTitle')
     : t('firewall.lockout.denyTitle')
 })
 
 /** The risk this particular change carries, in one paragraph. */
 const warning: ComputedRef<string> = computed(() => {
-  return props.intent === 'allow'
+  return props.change.intent === 'allow'
     ? t('firewall.lockout.allowWarning')
     : t('firewall.lockout.denyWarning')
 })
 
 /** Label of the control that goes ahead with the change. */
 const confirmLabel: ComputedRef<string> = computed(() => {
-  return props.intent === 'allow'
+  return props.change.intent === 'allow'
     ? t('firewall.lockout.confirmAllow')
     : t('firewall.lockout.confirmDeny')
 })
@@ -100,7 +89,7 @@ const describe = (rule: FirewallRule): string => {
        scroll out of sight cannot be answered. Focus order is close, Cancel, then the confirm
        control, so the first control reached is never the one that goes ahead with the change. -->
   <UiModal
-    :open="open"
+    :open="true"
     :title="title"
     :close-label="t('common.close')"
     @close="emit('close')"
@@ -108,7 +97,7 @@ const describe = (rule: FirewallRule): string => {
     <div class="flex flex-col gap-3">
       <ul class="flex flex-col gap-1 rounded-control border border-border-subtle bg-surface-2 p-3">
         <li
-          v-for="rule in rules"
+          v-for="rule in change.rules"
           :key="`${rule.protocol}-${portRangeLabel(rule.port, rule.portTo)}-${rule.sourceCidr}`"
           class="font-mono text-sm text-text-primary wrap-anywhere"
         >
@@ -117,7 +106,7 @@ const describe = (rule: FirewallRule): string => {
       </ul>
       <UiAlert variant="warning">
         <p>{{ warning }}</p>
-        <p v-if="leavesPortsUnruled" class="mt-2 font-semibold">
+        <p v-if="change.intent === 'deny' && change.leavesPortsUnruled" class="mt-2 font-semibold">
           {{ t('firewall.lockout.lastRuleForPort') }}
         </p>
       </UiAlert>
@@ -131,7 +120,7 @@ const describe = (rule: FirewallRule): string => {
         {{ t('common.cancel') }}
       </UiButton>
       <UiButton
-        :variant="intent === 'deny' ? 'destructive' : 'primary'"
+        :variant="change.intent === 'deny' ? 'destructive' : 'primary'"
         :disabled="busy"
         @click="emit('confirm')"
       >

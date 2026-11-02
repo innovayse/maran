@@ -212,8 +212,12 @@ export const useApi = (): ApiClient => {
 
   /**
    * Reads a response body as `T`, tolerating an empty one.
+   *
+   * An endpoint that has nothing to return answers 204 No Content with no body; the caller types
+   * it `<void>` (`api.post<void>(path)`) and receives `undefined`. Errors never reach this point:
+   * `request` has already decoded any non-2xx response into an `ApiError`.
    * @param response The successful response.
-   * @returns The parsed body, or `undefined` cast to `T` when there was none.
+   * @returns The parsed body, or `undefined` cast to `T` (`void` for a 204) when there was none.
    */
   const readJson = async <T>(response: Response): Promise<T> => {
     const text = await response.text()

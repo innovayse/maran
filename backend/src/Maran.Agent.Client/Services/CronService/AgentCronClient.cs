@@ -14,11 +14,11 @@ namespace Maran.Agent.Client.Services.CronService;
 /// <see cref="Error"/> carrying only a code, and the agent's own diagnostic text — which can name
 /// paths under the account's home — is logged rather than returned (rules/security.md item 8).
 ///
-/// Three fields of the cron contract are deprecated and written as zeros by the agent
-/// (<c>CronEntry.last_exit_code</c>, <c>CronEntry.last_run_at_unix</c> and
-/// <c>UpdateCronEntryRequest.enabled</c>). None of them is read or written here, and the panel-side
-/// types have no member for them: a zero copied out of a field the agent never fills is a claim
-/// nobody made, and it reads exactly like a measurement.
+/// <c>CronEntry.last_exit_code</c> and <c>CronEntry.last_run_at_unix</c> are reserved in the contract
+/// (revision 13) and <c>UpdateCronEntryRequest.enabled</c> is deprecated and written as zero by the
+/// agent. None of them is read or written here, and the panel-side types have no member for them: a
+/// zero copied out of a field the agent never fills is a claim nobody made, and it reads exactly like
+/// a measurement. The last run's exit code and time are answered by <c>GetCronEntryOutput</c> alone.
 /// </remarks>
 public sealed class AgentCronClient : IAgentCronClient
 {
@@ -98,7 +98,7 @@ public sealed class AgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> UpdateEntryAsync(
+    public async Task<Result> UpdateEntryAsync(
         string accountUsername,
         string entryId,
         AgentCronSchedule schedule,
@@ -120,15 +120,15 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            UpdateCronEntryResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            UpdateCronEntryResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            UpdateCronEntryResponse.ResultOneofCase.Ok => Result.Ok(),
+            UpdateCronEntryResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(UpdateEntryAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteEntryAsync(
+    public async Task<Result> DeleteEntryAsync(
         string accountUsername,
         string entryId,
         CancellationToken cancellationToken)
@@ -142,15 +142,15 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            DeleteCronEntryResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DeleteCronEntryResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DeleteCronEntryResponse.ResultOneofCase.Ok => Result.Ok(),
+            DeleteCronEntryResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteEntryAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetEntryEnabledAsync(
+    public async Task<Result> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,
         bool enabled,
@@ -166,15 +166,15 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            SetCronEntryEnabledResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetCronEntryEnabledResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetCronEntryEnabledResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetCronEntryEnabledResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetEntryEnabledAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetAccountSuspendedAsync(
+    public async Task<Result> SetAccountSuspendedAsync(
         string accountUsername,
         bool suspended,
         CancellationToken cancellationToken)
@@ -188,10 +188,10 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            SetAccountCronSuspendedResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetAccountCronSuspendedResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetAccountCronSuspendedResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetAccountCronSuspendedResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetAccountSuspendedAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -229,17 +229,7 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            RunCronEntryResponse.ResultOneofCase.Ok => Result<AgentCronRun>.Ok(new AgentCronRun(
-                (long)Math.Min(response.Ok.DurationMs, long.MaxValue),
-                response.Ok.HasExitCode ? response.Ok.ExitCode : null,
-                response.Ok.Stdout,
-                response.Ok.Stderr,
-                response.Ok.Limit switch
-                {
-                    CronRunLimit.Runtime => AgentCronRunLimit.Runtime,
-                    CronRunLimit.Output => AgentCronRunLimit.Output,
-                    _ => null,
-                })),
+            RunCronEntryResponse.ResultOneofCase.Ok => ToRun(response.Ok),
             RunCronEntryResponse.ResultOneofCase.Error => Result<AgentCronRun>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(RunEntryAsync))),
             _ => Result<AgentCronRun>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
@@ -265,7 +255,7 @@ public sealed class AgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetEnvironmentAsync(
+    public async Task<Result> SetEnvironmentAsync(
         string accountUsername,
         IReadOnlyList<AgentCronEnvVar> variables,
         CancellationToken cancellationToken)
@@ -284,11 +274,46 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            SetCronEnvironmentResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetCronEnvironmentResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetCronEnvironmentResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetCronEnvironmentResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetEnvironmentAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
+    }
+
+    /// <summary>Projects the wire run onto the panel's, resolving how it ended.</summary>
+    /// <param name="ok">The success payload of <c>RunCronEntry</c>.</param>
+    /// <returns>The run, or <c>AgentInvalidResponse</c> when the wire names a ceiling this build does not know.</returns>
+    /// <remarks>
+    /// The wire's zero ceiling is the contract's own spelling of "none stopped it" (<c>cron.proto</c>), so it
+    /// is not an unknown here: it means the program ended on its own, with the status the wire carries or
+    /// with none. A ceiling this build has no name for is an agent newer than the panel and is refused
+    /// rather than read as a run that ended by itself.
+    /// </remarks>
+    private static Result<AgentCronRun> ToRun(RunCronEntryOk ok)
+    {
+        AgentCronRunEnd end;
+        switch (ok.Limit)
+        {
+            case CronRunLimit.Runtime:
+                end = new AgentCronRunStopped(AgentCronRunLimit.Runtime);
+                break;
+            case CronRunLimit.Output:
+                end = new AgentCronRunStopped(AgentCronRunLimit.Output);
+                break;
+            case CronRunLimit.Unspecified:
+                end = ok.HasExitCode ? new AgentCronRunExited(ok.ExitCode) : new AgentCronRunWithoutStatus();
+                break;
+            default:
+                return Result<AgentCronRun>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
+
+        return Result<AgentCronRun>.Ok(new AgentCronRun(
+            (long)Math.Min(ok.DurationMs, long.MaxValue),
+            end,
+            ok.Stdout,
+            ok.Stderr));
     }
 
     /// <summary>Maps the panel's schedule onto its wire counterpart.</summary>

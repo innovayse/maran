@@ -326,7 +326,7 @@ public sealed class PebbleAcmeIssuanceTests
             return Task.FromResult(Result<ulong>.Ok((ulong)content.Length));
         }
 
-        public Task<Result<bool>> DeleteEntryAsync(
+        public Task<Result> DeleteEntryAsync(
             string accountUsername, string path, bool recursive, CancellationToken cancellationToken)
         {
             var fullPath = Path.Combine(_documentRoot, StripSitesPrefix(path));
@@ -336,7 +336,7 @@ public sealed class PebbleAcmeIssuanceTests
             }
 
             _log($"[challenge-writer] removed {fullPath} for account={accountUsername}");
-            return Task.FromResult(Result<bool>.Ok(true));
+            return Task.FromResult(Result.Ok());
         }
 
         private static string StripSitesPrefix(string path)

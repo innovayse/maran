@@ -19,6 +19,8 @@ enum maran.agent.v1.ServiceState
 enum maran.agent.v1.SftpJailState
 enum maran.agent.v1.SiteBackendType
 enum maran.agent.v1.SiteLogKind
+enum maran.agent.v1.SiteServing
+enum maran.agent.v1.TlsEnforcement
 enum maran.agent.v1.TransferProtocol
 enum maran.agent.v1.UnreadableKind
 enum-value maran.agent.v1.ArchiveFormat 0 ARCHIVE_FORMAT_UNSPECIFIED
@@ -114,6 +116,14 @@ enum-value maran.agent.v1.SiteBackendType 3 SITE_BACKEND_TYPE_REVERSE_PROXY
 enum-value maran.agent.v1.SiteLogKind 0 SITE_LOG_KIND_UNSPECIFIED
 enum-value maran.agent.v1.SiteLogKind 1 SITE_LOG_KIND_ACCESS
 enum-value maran.agent.v1.SiteLogKind 2 SITE_LOG_KIND_ERROR
+enum-value maran.agent.v1.SiteServing 0 SITE_SERVING_UNSPECIFIED
+enum-value maran.agent.v1.SiteServing 1 SITE_SERVING_STUB
+enum-value maran.agent.v1.SiteServing 2 SITE_SERVING_NOT_STUB
+enum-value maran.agent.v1.SiteServing 3 SITE_SERVING_UNOBSERVABLE
+enum-value maran.agent.v1.TlsEnforcement 0 TLS_ENFORCEMENT_UNSPECIFIED
+enum-value maran.agent.v1.TlsEnforcement 1 TLS_ENFORCEMENT_ENFORCED
+enum-value maran.agent.v1.TlsEnforcement 2 TLS_ENFORCEMENT_NOT_ENFORCED
+enum-value maran.agent.v1.TlsEnforcement 3 TLS_ENFORCEMENT_NOT_OBSERVED
 enum-value maran.agent.v1.TransferProtocol 0 TRANSFER_PROTOCOL_UNSPECIFIED
 enum-value maran.agent.v1.TransferProtocol 1 TRANSFER_PROTOCOL_SFTP
 enum-value maran.agent.v1.TransferProtocol 2 TRANSFER_PROTOCOL_FTPS
@@ -123,7 +133,6 @@ enum-value maran.agent.v1.UnreadableKind 2 UNREADABLE_KIND_UNKNOWN_VERSION
 enum-value maran.agent.v1.UnreadableKind 3 UNREADABLE_KIND_NOT_A_REGULAR_FILE
 field maran.agent.v1.AccountDiskUsage 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.AccountDiskUsage 2 used_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
-field maran.agent.v1.AccountDiskUsage 3 quota_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.AgentError 1 code TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.ErrorCode oneof=-
 field maran.agent.v1.AgentError 2 message TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.AgentError 3 tool_output TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -164,11 +173,11 @@ field maran.agent.v1.BackupManifest 7 agent_version TYPE_STRING LABEL_OPTIONAL t
 field maran.agent.v1.BanAddressRequest 1 address TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.BanAddressRequest 2 duration_seconds TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.BanAddressRequest 3 reason TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.BanAddressRequest 4 permanent TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.PermanentBan oneof=term
+field maran.agent.v1.BanAddressRequest 5 expires_after_seconds TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=term
 field maran.agent.v1.BanAddressResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.BanAddressOk oneof=result
 field maran.agent.v1.BanAddressResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.BanEntry 1 address TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
-field maran.agent.v1.BanEntry 2 reason TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
-field maran.agent.v1.BanEntry 3 expires_at_unix TYPE_INT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.BanEntry 4 expires_in_seconds TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=_expires_in_seconds
 field maran.agent.v1.ChangePermissionsRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ChangePermissionsRequest 2 path TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -245,8 +254,6 @@ field maran.agent.v1.CronEntry 1 entry_id TYPE_STRING LABEL_OPTIONAL type_name=-
 field maran.agent.v1.CronEntry 2 schedule TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.CronSchedule oneof=-
 field maran.agent.v1.CronEntry 3 command TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.CronEntry 4 enabled TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
-field maran.agent.v1.CronEntry 5 last_exit_code TYPE_INT32 LABEL_OPTIONAL type_name=- oneof=-
-field maran.agent.v1.CronEntry 6 last_run_at_unix TYPE_INT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.CronEntry 7 suspended TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.CronEnvironmentVariable 1 name TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.CronEnvironmentVariable 2 value TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -303,6 +310,7 @@ field maran.agent.v1.DirectoryEntry 3 size_bytes TYPE_UINT64 LABEL_OPTIONAL type
 field maran.agent.v1.DirectoryEntry 4 mode TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.DirectoryEntry 5 modified_at_unix TYPE_INT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.DisableFtpsOk 1 running TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.DisableFtpsOk 10 tls_enforcement TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.TlsEnforcement oneof=-
 field maran.agent.v1.DisableFtpsOk 2 control_port_answered TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.DisableFtpsOk 3 certificate_present TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.DisableFtpsOk 4 certificate_is_self_signed TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
@@ -324,6 +332,7 @@ field maran.agent.v1.DropDatabaseRequest 3 db_username TYPE_STRING LABEL_OPTIONA
 field maran.agent.v1.DropDatabaseResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.DropDatabaseOk oneof=result
 field maran.agent.v1.DropDatabaseResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.EnableFtpsOk 1 running TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.EnableFtpsOk 10 tls_enforcement TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.TlsEnforcement oneof=-
 field maran.agent.v1.EnableFtpsOk 2 control_port_answered TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.EnableFtpsOk 3 certificate_present TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.EnableFtpsOk 4 certificate_is_self_signed TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
@@ -406,6 +415,7 @@ field maran.agent.v1.GetDatabaseSizeRequest 2 database_name TYPE_STRING LABEL_OP
 field maran.agent.v1.GetDatabaseSizeResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetDatabaseSizeOk oneof=result
 field maran.agent.v1.GetDatabaseSizeResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.GetFtpsStatusOk 1 running TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.GetFtpsStatusOk 10 tls_enforcement TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.TlsEnforcement oneof=-
 field maran.agent.v1.GetFtpsStatusOk 2 control_port_answered TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.GetFtpsStatusOk 3 certificate_present TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.GetFtpsStatusOk 4 certificate_is_self_signed TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
@@ -537,6 +547,7 @@ field maran.agent.v1.RefusedHome 1 account_username TYPE_STRING LABEL_OPTIONAL t
 field maran.agent.v1.RefusedHome 2 home TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RefusedHome 3 reason TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.HomeGroupRepairRefusal oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 1 running TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.ReloadFtpsTlsOk 10 tls_enforcement TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.TlsEnforcement oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 2 control_port_answered TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 3 certificate_present TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 4 certificate_is_self_signed TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
@@ -603,7 +614,6 @@ field maran.agent.v1.RunCronEntryResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_
 field maran.agent.v1.RunCronEntryResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.ServiceStatus 1 service TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.ManagedService oneof=-
 field maran.agent.v1.ServiceStatus 2 running TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
-field maran.agent.v1.ServiceStatus 3 uptime_seconds TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ServiceStatus 4 state TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.ServiceState oneof=-
 field maran.agent.v1.ServiceStatus 5 detail TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetAccountCronSuspendedRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -665,6 +675,7 @@ field maran.agent.v1.SiteSpec 4 proxy_upstream TYPE_STRING LABEL_OPTIONAL type_n
 field maran.agent.v1.SiteSpec 5 has_certificate TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SiteSuspensionFact 1 domain TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SiteSuspensionFact 2 serving_stub TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.SiteSuspensionFact 3 serving TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.SiteServing oneof=-
 field maran.agent.v1.SuspendAccountRequest 1 username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SuspendAccountResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SuspendAccountOk oneof=result
 field maran.agent.v1.SuspendAccountResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
@@ -883,6 +894,7 @@ message maran.agent.v1.ManifestDatabase
 message maran.agent.v1.MoveEntryOk
 message maran.agent.v1.MoveEntryRequest
 message maran.agent.v1.MoveEntryResponse
+message maran.agent.v1.PermanentBan
 message maran.agent.v1.PhpSetting
 message maran.agent.v1.PhpVersion
 message maran.agent.v1.PrimaryInterfaceStatus
@@ -984,13 +996,25 @@ message maran.agent.v1.WriteFileResponse
 message maran.agent.v1.WritePanelChallengeOk
 message maran.agent.v1.WritePanelChallengeRequest
 message maran.agent.v1.WritePanelChallengeResponse
+reserved-name maran.agent.v1.AccountDiskUsage quota_bytes
 reserved-name maran.agent.v1.AllowPortRequest ssh_port
+reserved-name maran.agent.v1.BanEntry expires_at_unix
+reserved-name maran.agent.v1.BanEntry reason
 reserved-name maran.agent.v1.CreateSftpUserRequest chroot_path
+reserved-name maran.agent.v1.CronEntry last_exit_code
+reserved-name maran.agent.v1.CronEntry last_run_at_unix
 reserved-name maran.agent.v1.DenyPortRequest ssh_port
+reserved-name maran.agent.v1.ServiceStatus uptime_seconds
 reserved-name maran.agent.v1.SetSftpPasswordRequest chroot_path
+reserved-number maran.agent.v1.AccountDiskUsage 3
 reserved-number maran.agent.v1.AllowPortRequest 4
+reserved-number maran.agent.v1.BanEntry 2
+reserved-number maran.agent.v1.BanEntry 3
 reserved-number maran.agent.v1.CreateSftpUserRequest 4
+reserved-number maran.agent.v1.CronEntry 5
+reserved-number maran.agent.v1.CronEntry 6
 reserved-number maran.agent.v1.DenyPortRequest 4
+reserved-number maran.agent.v1.ServiceStatus 3
 reserved-number maran.agent.v1.SetSftpPasswordRequest 4
 rpc maran.agent.v1.AccountsService CreateAccount in=.maran.agent.v1.CreateAccountRequest out=.maran.agent.v1.CreateAccountResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService DeleteAccount in=.maran.agent.v1.DeleteAccountRequest out=.maran.agent.v1.DeleteAccountResponse client_streaming=false server_streaming=false

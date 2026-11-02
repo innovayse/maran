@@ -1,6 +1,6 @@
 using Maran.Agent.Client.Services.BackupService;
 using Maran.Modules.Backups.Domain.Entities;
-using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.ValueObjects;
 using Maran.Modules.Backups.Jobs;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
@@ -103,8 +103,8 @@ public sealed class BackupSweepWorld
         var world = new BackupSweepWorld(accountId, secondAccountId, events);
 
         var schedule = new BackupSchedule(
-            Guid.NewGuid(), scheduleAccountId, destinationId, BackupFrequency.Daily, 3, null, RetainCount);
-        schedule.Reconfigure(destinationId, BackupFrequency.Daily, 3, null, RetainCount, enabled, EnabledAt);
+            Guid.NewGuid(), scheduleAccountId, destinationId, new DailyBackupCadence(3), RetainCount);
+        schedule.Reconfigure(destinationId, new DailyBackupCadence(3), RetainCount, enabled, EnabledAt);
 
         await using var seed = BackupsTestContext.Create(world._currentUser, world._database);
         seed.BackupSchedules.Add(schedule);

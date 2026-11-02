@@ -98,7 +98,7 @@ public sealed class SetCronEnvironmentCommandHandlerTests
     {
         const string Secret = "postgres://user:HUNTER2@db.internal/app";
         var world = new World();
-        world.Agent.SetEnvironmentResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.SetEnvironmentResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.HandleAsync([new CronEnvironmentVariableDto("DATABASE_URL", Secret)]);
 
@@ -121,7 +121,7 @@ public sealed class SetCronEnvironmentCommandHandlerTests
         // must land as a failed row. A journal that recorded a refusal as success would tell an
         // operator a change took effect when the crontab never moved.
         var world = new World();
-        world.Agent.SetEnvironmentResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.SetEnvironmentResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.HandleAsync();
 
@@ -197,7 +197,7 @@ public sealed class SetCronEnvironmentCommandHandlerTests
         /// <summary>Runs the handler with the usual audit context.</summary>
         /// <param name="variables">The complete new set; one ordinary assignment by default.</param>
         /// <param name="accountId">The account to act under; the owner by default.</param>
-        public async Task<Result<bool>> HandleAsync(
+        public async Task<Result> HandleAsync(
             IReadOnlyList<CronEnvironmentVariableDto>? variables = null,
             Guid? accountId = null)
         {

@@ -3,6 +3,7 @@ using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Mappers;
 using Maran.Modules.Tasks.Persistence;
 using Maran.Modules.Tasks.Services;
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Extensions;
 using Maran.SharedKernel.Utilities.Text;
 
@@ -103,7 +104,7 @@ public sealed class ListTasksQueryHandler
         }
 
         var page = await tasks.ToPagedAsync(query, ListTasksSorts.Map, cancellationToken);
-        var includeLog = _currentUser.IsAdmin;
+        var includeLog = _currentUser.Caller is AdministratorCaller;
 
         return Result<PagedResult<PanelTaskDto>>.Ok(page.Map(task =>
         {

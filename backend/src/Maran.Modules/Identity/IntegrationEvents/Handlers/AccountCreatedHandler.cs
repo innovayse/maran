@@ -119,7 +119,12 @@ public sealed class AccountCreatedHandler
 
         var invitationToken = new InvitationToken(
             Guid.NewGuid(), user.Id, InvitationTokenHasher.Hash(token), now);
+        // The owner's membership is written in the same save as the login: memberships are the
+        // truth about which accounts a login may act for, so a login without one could sign in and
+        // find no account to speak for.
+        var membership = AccountMembership.Own(Guid.NewGuid(), user.Id, message.AccountId, now);
         _dbContext.Users.Add(user);
+        _dbContext.AccountMemberships.Add(membership);
         _dbContext.InvitationTokens.Add(invitationToken);
 
         try
@@ -138,6 +143,7 @@ public sealed class AccountCreatedHandler
             // than left tracked as still-pending adds on a context that may be reused.
             _dbContext.Entry(user).State = EntityState.Detached;
             _dbContext.Entry(invitationToken).State = EntityState.Detached;
+            _dbContext.Entry(membership).State = EntityState.Detached;
             return;
         }
 

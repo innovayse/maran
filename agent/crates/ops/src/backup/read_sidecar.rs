@@ -54,7 +54,7 @@ pub(crate) fn read_sidecar(path: &Path) -> Result<ReadableBackup, UnreadableReas
     let summary: BackupSummary =
         serde_json::from_str(&text).map_err(|_| UnreadableReason::Corrupt)?;
 
-    if summary.version != SUMMARY_VERSION {
+    if summary.version != Some(SUMMARY_VERSION) {
         return Err(UnreadableReason::UnknownVersion {
             version: summary.version,
         });

@@ -5,6 +5,7 @@ using Maran.Modules.Ftp.Services;
 using Maran.Modules.Ftp.Tests.TestSupport;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using AgentFtpsTlsEnforcement = Maran.Agent.Client.Services.FtpsService.FtpsTlsEnforcement;
 
 namespace Maran.Modules.Ftp.Tests.Commands.EnableFtps;
 
@@ -217,13 +218,13 @@ public sealed class EnableFtpsCommandHandlerTests
     {
         using var context = new FtpTestContext();
         context.Sites.Serve(ServedHostname);
-        context.Agent.NextStatus = context.Agent.NextStatus with { ForcedTls = false };
+        context.Agent.NextStatus = context.Agent.NextStatus with { TlsEnforcement = AgentFtpsTlsEnforcement.NotEnforced };
 
         var result = await context.EnableHandler.HandleAsync(
             new EnableFtpsCommand(ServedHostname), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.False(result.Value.ForcedTls);
+        Assert.Equal(FtpsTlsEnforcement.NotEnforced, result.Value.TlsEnforcement);
         Assert.Equal(FtpsDesiredState.On, result.Value.DesiredState);
     }
 }

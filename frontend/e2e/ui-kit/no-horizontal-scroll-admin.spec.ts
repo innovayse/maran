@@ -81,7 +81,7 @@ const MODULES: PanelModule[] = [
   'monitoring',
   'tasks',
 ].map((name) => {
-  return { name, displayName: name, tier: 'included', isEnabled: true }
+  return { name, displayName: name, tier: 'included', state: 'enabled' }
 })
 
 // Long on purpose: the longest value a customer is plausibly to type, with no break opportunity
@@ -139,7 +139,7 @@ const SERVICES: ServiceStatus[] = [
 ]
 
 const DASHBOARD: Dashboard = {
-  isAdministrator: true,
+  audience: 'administrator',
   resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 * 1024 * 1024,
@@ -196,23 +196,24 @@ const DATABASE: Database = {
 }
 
 const GRANT_REPORT: GrantRepairReport = {
-  isReportOnly: true,
   examinedGrants: 11,
   alreadyCorrect: 9,
-  repaired: [],
-  wouldRepair: [
-    {
-      databaseName: 'acme_industrial_storefront_catalogue',
-      dbUsername: 'acme_industrial_storefront_catalogue',
-      alsoMatchedDatabases: ['acme_industrial_xstorefront_catalogue'],
-    },
-  ],
+  work: {
+    kind: 'preview',
+    grants: [
+      {
+        databaseName: 'acme_industrial_storefront_catalogue',
+        dbUsername: 'acme_industrial_storefront_catalogue',
+        alsoMatchedDatabases: ['acme_industrial_xstorefront_catalogue'],
+      },
+    ],
+  },
   refused: [
     {
       grantHost: '10.0.0.5',
       databaseName: 'reporting_metrics_warehouse_nightly',
       dbUsername: 'reporting_tool_readonly',
-      reason: 'HostIsNotLocalhost',
+      reason: 'hostIsNotLocalhost',
       reasonDisplayName: 'Granted from another host than this server',
       reasonAdvice:
         'Nothing was changed. Open your database server own grant table, then narrow the row by hand.',
@@ -286,7 +287,7 @@ const BACKUPS: Backup[] = [
     id: '77777777-7777-7777-7777-777777777771',
     accountId: ACCOUNT.id,
     ownerName: ACCOUNT.name,
-    orphanedAccountUsername: '',
+    orphanedAccountUsername: null,
     status: 'completed',
     kind: 'scheduled',
     sizeBytes: 3_221_225_472,
@@ -294,18 +295,18 @@ const BACKUPS: Backup[] = [
     databaseCount: 2,
     startedAt: '2026-09-06T03:00:00Z',
     finishedAt: '2026-09-06T03:04:00Z',
-    failureCode: '',
-    failureDisplayName: '',
+    failureCode: null,
+    failureDisplayName: null,
   },
   {
     id: '77777777-7777-7777-7777-777777777772',
     accountId: ACCOUNT.id,
     ownerName: ACCOUNT.name,
-    orphanedAccountUsername: '',
+    orphanedAccountUsername: null,
     status: 'failed',
     kind: 'manual',
     sizeBytes: 0,
-    sha256: '',
+    sha256: null,
     databaseCount: 0,
     startedAt: '2026-09-07T03:00:00Z',
     finishedAt: '2026-09-07T03:01:00Z',
@@ -324,8 +325,8 @@ const BACKUPS: Backup[] = [
     databaseCount: 1,
     startedAt: '2026-09-05T03:00:00Z',
     finishedAt: '2026-09-05T03:02:00Z',
-    failureCode: '',
-    failureDisplayName: '',
+    failureCode: null,
+    failureDisplayName: null,
   },
 ]
 
@@ -455,8 +456,8 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubSites(page, [SITE])
   await stubSiteDetail(page, SITE_DETAIL)
   await stubPhpVersions(page, [
-    { version: '8.2', isDefault: false },
-    { version: '8.3', isDefault: true },
+    { version: '8.2', defaultStatus: 'notDefault' },
+    { version: '8.3', defaultStatus: 'default' },
   ])
   await stubOpenSiteLogStream(page)
   await stubCertificates(page, [certificateFor(LONG_DOMAIN, 'acme')])
@@ -485,8 +486,7 @@ const stubPanel = async (page: Page): Promise<void> => {
       username: LONG_ACCOUNT,
       usedBytes: 3 * 1024 * 1024 * 1024,
       quotaBytes: 2 * 1024 * 1024 * 1024,
-      enforceable: true,
-      note: null,
+      backing: { state: 'enforced' },
     },
   ])
 }

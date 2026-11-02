@@ -14,7 +14,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use crate::sites::fake_site_host::{
     FakeSiteHost, create_test_site, distro, legacy_suspended_text, php_input, test_account,
 };
-use crate::sites::{disable_site, inspect_account_sites};
+use crate::sites::{SiteServing, disable_site, inspect_account_sites};
 
 /// The vhost every test here acts on.
 const VHOST: &str = "/etc/maran/nginx/sites/example.com.conf";
@@ -34,11 +34,12 @@ fn a_disabled_site_is_reported_as_serving_the_stub() {
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
-    assert!(observed.directory_readable);
-    assert_eq!(observed.sites.len(), 1);
-    assert_eq!(observed.sites[0].domain, "example.com");
-    assert!(
-        observed.sites[0].serving_stub,
+    assert!(observed.is_readable());
+    assert_eq!(observed.sites().len(), 1);
+    assert_eq!(observed.sites()[0].domain, "example.com");
+    assert_eq!(
+        observed.sites()[0].serving,
+        SiteServing::Stub,
         "the vhost on disk IS the suspended render, so it must be reported as stubbed"
     );
 }
@@ -51,9 +52,10 @@ fn a_site_that_is_still_serving_its_own_content_is_not_reported_as_stubbed() {
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
-    assert_eq!(observed.sites.len(), 1);
-    assert!(
-        !observed.sites[0].serving_stub,
+    assert_eq!(observed.sites().len(), 1);
+    assert_eq!(
+        observed.sites()[0].serving,
+        SiteServing::NotStub,
         "a live PHP vhost is not the suspended render"
     );
 }
@@ -73,7 +75,7 @@ fn a_vhost_that_names_another_accounts_logs_is_not_reported() {
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
-    assert!(observed.sites.is_empty());
+    assert!(observed.sites().is_empty());
 }
 
 #[test]
@@ -94,7 +96,7 @@ fn a_neighbour_whose_name_this_account_prefixes_is_not_reported() {
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
-    assert!(observed.sites.is_empty());
+    assert!(observed.sites().is_empty());
 }
 
 #[test]
@@ -115,12 +117,12 @@ fn a_vhost_altered_after_it_was_stubbed_is_not_reported_as_stubbed() {
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
-    assert_eq!(observed.sites.len(), 1);
-    assert!(!observed.sites[0].serving_stub);
+    assert_eq!(observed.sites().len(), 1);
+    assert_eq!(observed.sites()[0].serving, SiteServing::NotStub);
 }
 
 #[test]
-fn a_vhost_with_no_server_name_line_is_not_reported_as_stubbed() {
+fn a_vhost_with_no_server_name_line_is_reported_as_unobservable_and_not_as_not_stubbed() {
     let host = FakeSiteHost::passing();
     host.place_config(
         Path::new(VHOST),
@@ -132,8 +134,12 @@ fn a_vhost_with_no_server_name_line_is_not_reported_as_stubbed() {
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
-    assert_eq!(observed.sites.len(), 1);
-    assert!(!observed.sites[0].serving_stub);
+    assert_eq!(observed.sites().len(), 1);
+    assert_eq!(
+        observed.sites()[0].serving,
+        SiteServing::Unobservable,
+        "no comparison text could be produced, which is not the same as a site serving its own content"
+    );
 }
 
 #[test]
@@ -148,8 +154,8 @@ fn a_vhost_directory_that_cannot_be_listed_is_reported_as_unreadable_and_not_as_
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
-    assert!(!observed.directory_readable);
-    assert!(observed.sites.is_empty());
+    assert!(!observed.is_readable());
+    assert!(observed.sites().is_empty());
 }
 
 #[test]
@@ -160,8 +166,8 @@ fn an_account_with_no_vhost_at_all_is_readable_and_empty() {
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
-    assert!(observed.directory_readable);
-    assert!(observed.sites.is_empty());
+    assert!(observed.is_readable());
+    assert!(observed.sites().is_empty());
 }
 
 #[test]
@@ -176,9 +182,10 @@ fn a_site_still_serving_the_stub_an_earlier_agent_wrote_is_reported_as_stubbed()
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
-    assert_eq!(observed.sites.len(), 1);
-    assert!(
-        observed.sites[0].serving_stub,
+    assert_eq!(observed.sites().len(), 1);
+    assert_eq!(
+        observed.sites()[0].serving,
+        SiteServing::Stub,
         "the previous release's stub is a suspension, so the panel must be told it is stubbed"
     );
 }
@@ -198,21 +205,23 @@ fn a_site_stubbed_under_a_name_that_is_reserved_today_is_still_reported_as_stubb
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
     let reserved = observed
-        .sites
+        .sites()
         .iter()
         .find(|site| site.domain == "host.local")
         .expect("the reserved-name vhost is listed");
-    assert!(
-        reserved.serving_stub,
+    assert_eq!(
+        reserved.serving,
+        SiteServing::Stub,
         "a reserved stem must still be recognised as the suspended render"
     );
     let ordinary = observed
-        .sites
+        .sites()
         .iter()
         .find(|site| site.domain == "example.com")
         .expect("the ordinary vhost is listed");
-    assert!(
-        !ordinary.serving_stub,
+    assert_eq!(
+        ordinary.serving,
+        SiteServing::NotStub,
         "inverse control: a live ordinary vhost is still not a stub"
     );
 }

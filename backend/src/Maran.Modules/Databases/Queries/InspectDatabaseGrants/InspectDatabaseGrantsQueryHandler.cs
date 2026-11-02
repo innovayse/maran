@@ -18,7 +18,7 @@ namespace Maran.Modules.Databases.Queries.InspectDatabaseGrants;
 /// rather than about the panel.
 /// </para>
 /// <para>
-/// <b>The report-only flag is passed as a constant, never from a caller.</b> A query that could be
+/// <b>The pass is the inspecting member, never one a caller chooses.</b> A query that could be
 /// asked to act would be a mutation wearing a read's name, reachable by a <c>GET</c>, and cacheable.
 /// </para>
 /// </remarks>
@@ -49,13 +49,13 @@ public sealed class InspectDatabaseGrantsQueryHandler
         InspectDatabaseGrantsQuery query,
         CancellationToken cancellationToken)
     {
-        var report = await _agent.RepairGrantsAsync(reportOnly: true, cancellationToken);
+        var report = await _agent.InspectGrantsAsync(cancellationToken);
         if (!report.IsSuccess)
         {
             return Result<GrantRepairReportDto>.Fail(report.Error!);
         }
 
         return Result<GrantRepairReportDto>.Ok(
-            GrantRepairReportMapper.ToDto(report.Value, isReportOnly: true, _refusalText));
+            GrantRepairReportMapper.ToDto(report.Value, _refusalText));
     }
 }

@@ -1,0 +1,5 @@
+{
+  "accountSelector": {
+    "label": "Current account: {name}. Switch account"
+  }
+}

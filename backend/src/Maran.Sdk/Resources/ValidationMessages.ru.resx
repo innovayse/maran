@@ -30,4 +30,10 @@
   <data name="RequestParameterInvalid">
     <value>Значение параметра «{0}» не удаётся прочитать.</value>
   </data>
+  <data name="PlanFeatureNotIncluded">
+    <value>Эта возможность не входит в ваш тарифный план.</value>
+  </data>
+  <data name="AccountFeatureNotGranted">
+    <value>Вам не предоставлен доступ к этой возможности. Обратитесь к владельцу аккаунта.</value>
+  </data>
 </root>

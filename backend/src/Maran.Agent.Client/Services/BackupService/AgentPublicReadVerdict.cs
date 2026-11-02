@@ -7,24 +7,24 @@ namespace Maran.Agent.Client.Services.BackupService;
 /// a request that was never answered. Only <see cref="Private"/> may save a destination.
 ///
 /// <para>
+/// There is no member for "the agent stated no verdict". The wire's zero value, and a verdict a newer
+/// agent added, reach the caller as an <c>AgentInvalidResponse</c> failure instead, so a verdict this
+/// build cannot name can never be mistaken for one that may save a destination.
+/// </para>
+///
+/// <para>
 /// Hand-written rather than the generated wire enum, because a generated type may not leave the
 /// invoker layer (<c>WireTypeContainmentTests</c>).
 /// </para>
 /// </remarks>
 public enum AgentPublicReadVerdict
 {
-    /// <summary>
-    /// The agent stated no verdict — the wire's zero value, or a verdict this panel build has no
-    /// member for. Nothing was established, so it may not save a destination either.
-    /// </summary>
-    Unspecified = 0,
-
     /// <summary>The fetch was made and the destination refused it.</summary>
-    Private = 1,
+    Private,
 
     /// <summary>The fetch was made and the object came back: the destination serves backups to anyone.</summary>
-    PubliclyReadable = 2,
+    PubliclyReadable,
 
     /// <summary>The fetch could not be made or was not answered. Nothing was established.</summary>
-    Unproven = 3,
+    Unproven,
 }

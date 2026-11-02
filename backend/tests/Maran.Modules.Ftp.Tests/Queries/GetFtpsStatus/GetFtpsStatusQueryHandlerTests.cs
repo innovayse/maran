@@ -3,6 +3,7 @@ using Maran.Modules.Ftp.Domain.Enums;
 using Maran.Modules.Ftp.Domain.Policies;
 using Maran.Modules.Ftp.Queries.GetFtpsStatus;
 using Maran.Modules.Ftp.Tests.TestSupport;
+using AgentFtpsTlsEnforcement = Maran.Agent.Client.Services.FtpsService.FtpsTlsEnforcement;
 
 namespace Maran.Modules.Ftp.Tests.Queries.GetFtpsStatus;
 
@@ -12,7 +13,7 @@ public sealed class GetFtpsStatusQueryHandlerTests
     /// <summary>The hostname FTPS is enabled for in these tests.</summary>
     private const string FtpsHostname = "ftp.example.test";
 
-    /// <summary>A daemon that no longer forces tls is reported as not forcing it.</summary>
+    /// <summary>A daemon that no longer forces TLS is reported as not enforcing it.</summary>
     /// <remarks>
     /// The defect this field exists to prevent, asserted on the screen's own shape: every other value
     /// here is healthy — the unit is active, the control port greets, real certificate material is
@@ -21,21 +22,45 @@ public sealed class GetFtpsStatusQueryHandlerTests
     /// passwords in the clear.
     /// </remarks>
     [Fact]
-    public async Task A_daemon_that_no_longer_forces_tls_is_reported_as_not_forcing_it()
+    public async Task A_daemon_that_no_longer_forces_tls_is_reported_as_not_enforcing_it()
     {
         using var context = new FtpTestContext();
         context.Sites.Serve(FtpsHostname);
         await context.EnableHandler.HandleAsync(
             new EnableFtpsCommand(FtpsHostname), CancellationToken.None);
-        context.Agent.NextStatus = context.Agent.NextStatus with { ForcedTls = false };
+        context.Agent.NextStatus = context.Agent.NextStatus with { TlsEnforcement = AgentFtpsTlsEnforcement.NotEnforced };
 
         var result = await context.StatusHandler.HandleAsync(new GetFtpsStatusQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.False(result.Value.ForcedTls);
+        Assert.Equal(FtpsTlsEnforcement.NotEnforced, result.Value.TlsEnforcement);
         Assert.True(result.Value.Running);
         Assert.True(result.Value.ControlPortAnswered);
-        Assert.True(result.Value.CertificatePresent);
+        Assert.Equal(FtpsCertificateState.Provided, result.Value.Certificate);
+        Assert.Equal(FtpsDesiredState.On, result.Value.DesiredState);
+    }
+
+    /// <summary>A daemon whose live configuration could not be read is reported as not observed, never as enforced.</summary>
+    /// <remarks>
+    /// The unknown is a state of its own: collapsing it into "not enforced" would claim a measurement
+    /// that was never made, and into "enforced" would certify encryption nobody looked at.
+    /// </remarks>
+    [Fact]
+    public async Task A_daemon_whose_configuration_could_not_be_read_is_reported_as_not_observed()
+    {
+        using var context = new FtpTestContext();
+        context.Sites.Serve(FtpsHostname);
+        await context.EnableHandler.HandleAsync(
+            new EnableFtpsCommand(FtpsHostname), CancellationToken.None);
+        context.Agent.NextStatus = context.Agent.NextStatus with { TlsEnforcement = AgentFtpsTlsEnforcement.NotObserved };
+
+        var result = await context.StatusHandler.HandleAsync(new GetFtpsStatusQuery(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(FtpsTlsEnforcement.NotObserved, result.Value.TlsEnforcement);
+        Assert.True(result.Value.Running);
+        Assert.True(result.Value.ControlPortAnswered);
+        Assert.Equal(FtpsCertificateState.Provided, result.Value.Certificate);
         Assert.Equal(FtpsDesiredState.On, result.Value.DesiredState);
     }
 

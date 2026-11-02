@@ -35,6 +35,7 @@ public static class RolePolicies
         {
             policy.RequireAuthenticatedUser();
             policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
+            policy.AddRequirements(new ViewAsBoundaryRequirement());
         });
 
         options.AddPolicy(AdminOnly, policy =>
@@ -42,6 +43,7 @@ public static class RolePolicies
             policy.RequireAuthenticatedUser();
             policy.RequireClaim(PanelClaimTypes.Role, nameof(UserRole.Admin));
             policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
+            policy.AddRequirements(new ViewAsBoundaryRequirement());
         });
 
         // The FALLBACK is what the framework evaluates for a request whose endpoint carries no

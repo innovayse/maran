@@ -2,6 +2,8 @@ using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Extensions;
+using Maran.SharedKernel.Callers;
 using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Accounts.Queries.GetMyAccount;
@@ -13,7 +15,7 @@ namespace Maran.Modules.Accounts.Queries.GetMyAccount;
 /// <remarks>
 /// The account id never comes from the request — there is no route or query parameter naming one —
 /// so there is nothing here for a caller to forge. An administrator carries no
-/// <see cref="ICurrentUser.AccountId"/> and gets the same <c>AccountNotFound</c> as anybody else
+/// <see cref="CustomerCaller.AccountId"/> and gets the same <c>AccountNotFound</c> as anybody else
 /// without one: this endpoint answers "the account you own", and an administrator owns none. That
 /// is not a gap; the administrator already has the whole list through
 /// <see cref="Controllers.AccountsController"/>.
@@ -49,7 +51,7 @@ public sealed class GetMyAccountQueryHandler
     {
         // Read off the token, never off the request. There is no parameter to forge because there
         // is no parameter.
-        if (_currentUser.AccountId is not { } accountId)
+        if (_currentUser.Caller is not CustomerCaller { AccountId: var accountId })
         {
             return Result<MyAccountDto>.Fail(Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound));
         }
@@ -78,7 +80,8 @@ public sealed class GetMyAccountQueryHandler
             row.plan.MaxDatabases,
             row.plan.MaxSftpUsers,
             row.plan.MaxFtpUsers,
-            row.plan.MaxCronEntries);
+            row.plan.MaxCronEntries,
+            row.plan.Features.Members());
 
         return Result<MyAccountDto>.Ok(
             new MyAccountDto(row.account.Id, row.account.Name, row.account.PrimaryDomain, row.account.Status, planDto));

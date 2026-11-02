@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.ValueObjects;
 
 namespace Maran.Modules.Identity.Tests.Domain;
 /// <summary>Behavioural contract of session.</summary>
@@ -26,6 +27,27 @@ public sealed class SessionTests
     public void A_new_session_is_active()
     {
         Assert.True(NewSession().IsActive(Now));
+    }
+
+    /// <summary>A new session speaks for no account unless it is given one.</summary>
+    [Fact]
+    public void A_new_session_speaks_for_no_account_unless_given_one()
+    {
+        Assert.Null(NewSession().ActiveAccountId);
+    }
+
+    /// <summary>Switching changes the account the session speaks for, and clearing it leaves none.</summary>
+    [Fact]
+    public void Switching_changes_the_account_and_clearing_leaves_none()
+    {
+        var session = NewSession();
+        var accountId = Guid.NewGuid();
+
+        session.SwitchAccount(accountId);
+        Assert.Equal(accountId, session.ActiveAccountId);
+
+        session.SwitchAccount(null);
+        Assert.Null(session.ActiveAccountId);
     }
 
     /// <summary>A revoked session is not active.</summary>
@@ -55,7 +77,35 @@ public sealed class SessionTests
 
         session.Revoke(Now.AddMinutes(9), SessionRevocationReason.ReuseDetected);
 
-        Assert.Equal(Now.AddMinutes(5), session.RevokedAt);
-        Assert.Equal(SessionRevocationReason.Rotated, session.RevocationReason);
+        Assert.Equal(Now.AddMinutes(5), session.Revocation?.At);
+        Assert.Equal(SessionRevocationReason.Rotated, session.Revocation?.Reason);
+    }
+
+    /// <summary>A user's own session has no view-as origin.</summary>
+    [Fact]
+    public void A_users_own_session_has_no_view_as_origin()
+    {
+        Assert.Null(NewSession().ViewAs);
+    }
+
+    /// <summary>A view-as session names the operator and the operator's own session.</summary>
+    [Fact]
+    public void A_view_as_session_names_the_operator_and_the_operators_own_session()
+    {
+        var actorUserId = Guid.NewGuid();
+        var actorSessionId = Guid.NewGuid();
+
+        var session = Session.StartViewAs(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            actorUserId,
+            actorSessionId,
+            "hash",
+            Now,
+            "203.0.113.7",
+            "Mozilla/5.0");
+
+        Assert.Equal(new ViewAsOrigin(actorUserId, actorSessionId), session.ViewAs);
     }
 }

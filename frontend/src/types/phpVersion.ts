@@ -1,4 +1,11 @@
 /**
+ * Whether an installed PHP runtime is the host's default CLI PHP, as the backend's
+ * `PhpDefaultStatus` reports it. `unknown` is a real answer — the agent did not establish the
+ * default — and is not the same as `notDefault`.
+ */
+export type PhpDefaultStatus = 'default' | 'notDefault' | 'unknown'
+
+/**
  * One PHP runtime installed on this server, mirroring the backend's `PhpVersionDto`
  * field-for-field.
  *
@@ -11,9 +18,9 @@ export interface PhpVersion {
   /** Two-component version as the packages name it, e.g. `8.3`. */
   version: string
   /**
-   * Whether this version is the host's default CLI PHP, or `null` when the agent could not
-   * establish it. Null and false are different answers and must not be conflated: "not known"
-   * is not "not the default", and the backend deliberately keeps them apart.
+   * Whether this version is the host's default CLI PHP. `unknown` and `notDefault` are different
+   * answers and must not be conflated: "not known" is not "not the default", and the backend
+   * deliberately keeps them apart.
    */
-  isDefault: boolean | null
+  defaultStatus: PhpDefaultStatus
 }

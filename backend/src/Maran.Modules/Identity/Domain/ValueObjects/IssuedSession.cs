@@ -9,4 +9,12 @@ namespace Maran.Modules.Identity.Domain.ValueObjects;
 /// cannot be recovered afterwards — by us or by anyone reading the database.
 /// </param>
 /// <param name="ExpiresAt">When the refresh token stops being accepted.</param>
-public sealed record IssuedSession(Guid SessionId, string RefreshToken, DateTimeOffset ExpiresAt);
+/// <param name="ActiveAccountId">
+/// The account the session speaks for, copied from the stored session so the access token issued
+/// beside it and the user shown to the caller both follow the session's own answer.
+/// </param>
+public sealed record IssuedSession(
+    Guid SessionId,
+    string RefreshToken,
+    DateTimeOffset ExpiresAt,
+    Guid? ActiveAccountId);

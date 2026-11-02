@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.FirewallService;
 using Maran.Modules.Firewall.Domain.Entities;
 using Maran.Modules.Firewall.Domain.Enums;
 using Maran.Modules.Firewall.Domain.Policies;
@@ -301,7 +302,7 @@ public sealed class StartupBanReconciler : BackgroundService
     /// <summary>How much of an address's ban is still to run, taking every row that describes it.</summary>
     /// <param name="episodes">Every in-force episode for one address.</param>
     /// <param name="now">The current instant, from <see cref="IClock"/>.</param>
-    /// <returns>The longest remaining duration, or <c>null</c> when any of them is permanent.</returns>
+    /// <returns>The longest remaining duration, or the permanent term when any of them is permanent.</returns>
     /// <remarks>
     /// The panel can hold more than one in-force episode for an address — an operator's ban and a
     /// detector's, placed independently and by design not collapsed into one row, because the
@@ -310,7 +311,7 @@ public sealed class StartupBanReconciler : BackgroundService
     /// episode beats every timed one, which is what makes an operator's decision survive a restart no
     /// matter what the detector wrote beside it.
     /// </remarks>
-    private static TimeSpan? LongestRemaining(IEnumerable<BanEpisode> episodes, DateTimeOffset now)
+    private static AgentBanTerm LongestRemaining(IEnumerable<BanEpisode> episodes, DateTimeOffset now)
     {
         var longest = TimeSpan.Zero;
 
@@ -320,7 +321,7 @@ public sealed class StartupBanReconciler : BackgroundService
             if (remaining is null)
             {
                 // Nothing outlasts a ban with no end, so the answer is settled.
-                return null;
+                return new AgentBanTerm.Permanent();
             }
 
             if (remaining.Value > longest)
@@ -329,6 +330,6 @@ public sealed class StartupBanReconciler : BackgroundService
             }
         }
 
-        return longest;
+        return new AgentBanTerm.ExpiresAfter(longest);
     }
 }

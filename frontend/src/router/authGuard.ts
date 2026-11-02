@@ -66,7 +66,8 @@ export const createAuthGuard = (): NavigationGuardWithThis<undefined> => {
     // A panel with no administrator has exactly one meaningful screen, and every
     // other route is a dead end until somebody claims it.
     await setupStore.loadSetupState()
-    if (setupStore.isSetupComplete === false) {
+    const setup = setupStore.setupRead
+    if (setup.state === 'loaded' && !setup.value.isComplete) {
       return to.name === SETUP_ROUTE ? true : { name: SETUP_ROUTE }
     }
 

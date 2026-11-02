@@ -24,6 +24,10 @@ namespace Maran.Modules.Accounts.Seeders;
 /// practice, without pretending the server has infinite resources.</item>
 /// </list>
 ///
+/// Every shipped tier includes every feature (<see cref="Maran.Sdk.Contracts.AccountFeature.All"/>), by
+/// the <see cref="Plan"/> constructor's default: a customer on a shipped plan loses nothing, and an
+/// operator who wants a tier without a feature edits it or defines their own plan.
+///
 /// The FTPS allowance of each tier equals its SFTP one, and that is a product decision rather than a
 /// derivation: the two are separate limits on separate daemons (<see cref="Plan.MaxFtpUsers"/>), and
 /// nothing stops an operator selling different numbers. Equal is what the shipped tiers mean —

@@ -3,9 +3,9 @@ using Maran.Agent.V1;
 
 namespace Maran.Agent.Client.Tests.Services.AccountsService;
 
-/// <summary>Stub of <c>IAccountsServiceInvoker</c> answering the two rpcs these tests read.</summary>
+/// <summary>Stub of <c>IAccountsServiceInvoker</c> answering the three rpcs these tests read.</summary>
 /// <remarks>
-/// Only the suspension state and the runtime ceilings are answered; every other member throws, because a stub that shrugged at
+/// Only the suspension state, the runtime ceilings and the usage reading are answered; every other member throws, because a stub that shrugged at
 /// an unexpected call would let a client reaching for the wrong rpc pass. What is under test here is
 /// the mapping of that one answer onto this project's own DTOs, which is where four numbers and two
 /// lists sit side by side and a swap compiles.
@@ -23,6 +23,9 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
 
     /// <summary>The last runtime-ceiling request the stub received.</summary>
     public SetAccountResourceLimitsRequest? LastResourceLimitsRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="GetAccountUsageAsync"/>.</summary>
+    public GetAccountUsageResponse UsageResponse { get; set; } = new();
 
     /// <inheritdoc/>
     public Task<GetAccountSuspensionStateResponse> GetAccountSuspensionStateAsync(
@@ -87,7 +90,7 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
         GetAccountUsageRequest request,
         CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("no test in this file reads usage");
+        return Task.FromResult(UsageResponse);
     }
 
     /// <inheritdoc/>

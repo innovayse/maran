@@ -14,7 +14,7 @@ import type { Database } from '../../src/types/database'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

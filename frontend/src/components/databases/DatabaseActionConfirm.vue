@@ -12,14 +12,12 @@
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiConfirm from '../ui/UiConfirm.vue'
-import type { Database, DatabaseAction } from '../../types/database'
+import type { PendingDatabaseAction } from '../../types/database'
 
-/** Props accepted by {@link DatabaseActionConfirm}. */
+/** Props accepted by {@link DatabaseActionConfirm}; the page mounts it only while an action waits. */
 const props = defineProps<{
-  /** The database awaiting confirmation, or `null` while none is (the dialog is closed). */
-  database: Database | null
-  /** Which action that database is waiting on. */
-  action: DatabaseAction
+  /** The database and action awaiting confirmation. */
+  pending: PendingDatabaseAction
   /** Whether the confirmed request is in flight, which holds the dialog's spinner. */
   acting: boolean
 }>()
@@ -36,20 +34,20 @@ const { t } = useI18n()
 
 /** The confirmation's title, naming the row and what would be done to it. */
 const confirmationTitle: ComputedRef<string> = computed(() => {
-  const name = props.database?.fullName ?? ''
-  return props.action === 'drop'
+  const name = props.pending.database.fullName
+  return props.pending.action === 'drop'
     ? t('databases.list.confirmDropTitle', { name })
     : t('databases.list.confirmResetPasswordTitle', { name })
 })
 
 /** The consequence the confirmation asks the operator to weigh. */
 const confirmationQuestion: ComputedRef<string> = computed(() => {
-  return props.action === 'drop' ? t('databases.list.confirmDrop') : t('databases.list.confirmResetPassword')
+  return props.pending.action === 'drop' ? t('databases.list.confirmDrop') : t('databases.list.confirmResetPassword')
 })
 
 /** The confirm button's label, naming the action rather than a bare "Confirm" (#218). */
 const confirmationLabel: ComputedRef<string> = computed(() => {
-  return props.action === 'drop'
+  return props.pending.action === 'drop'
     ? t('databases.list.confirmDropAction')
     : t('databases.list.confirmResetPasswordAction')
 })
@@ -57,7 +55,7 @@ const confirmationLabel: ComputedRef<string> = computed(() => {
 
 <template>
   <UiConfirm
-    :open="database !== null"
+    :open="true"
     :title="confirmationTitle"
     :question="confirmationQuestion"
     :confirm-label="confirmationLabel"
@@ -65,7 +63,7 @@ const confirmationLabel: ComputedRef<string> = computed(() => {
     :close-label="t('common.close')"
     :acting="acting"
     :acting-label="t('databases.list.working')"
-    :destructive="action === 'drop'"
+    :destructive="pending.action === 'drop'"
     @close="emit('close')"
     @confirm="emit('confirm')"
   />

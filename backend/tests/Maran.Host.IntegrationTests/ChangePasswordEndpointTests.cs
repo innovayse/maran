@@ -157,7 +157,7 @@ public sealed class ChangePasswordEndpointTests : IAsyncLifetime
 
         var response = await ChangeAsync(client, EndpointHarness.Password);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(HttpStatusCode.OK, await LoginStatusAsync(factory, NewPassword));
         Assert.Equal(HttpStatusCode.Unauthorized, await LoginStatusAsync(factory, EndpointHarness.Password));
     }

@@ -96,12 +96,8 @@ public sealed class BackupRunner
                 return Failure(nameof(ErrorMessages.BackupInvalidOutcome));
             }
 
-            return new BackupRunOutcome(
-                Succeeded: true,
-                (long)progress.SizeBytes,
-                progress.Sha256,
-                (int)progress.DatabaseCount,
-                string.Empty);
+            return new CreatedBackupOutcome(
+                (long)progress.SizeBytes, progress.Sha256, (int)progress.DatabaseCount);
         }
 
         // The sequence ended without a terminal event at all. Whether an artifact exists on the
@@ -111,9 +107,9 @@ public sealed class BackupRunner
 
     /// <summary>Builds the outcome of a run that produced no usable artifact.</summary>
     /// <param name="failureCode">The machine-stable code naming what went wrong.</param>
-    /// <returns>An unsuccessful outcome carrying that code and no artifact figures.</returns>
-    private static BackupRunOutcome Failure(string failureCode)
+    /// <returns>A <see cref="FailedBackupOutcome"/> carrying that code and no artifact figures.</returns>
+    private static FailedBackupOutcome Failure(string failureCode)
     {
-        return new BackupRunOutcome(Succeeded: false, 0, string.Empty, 0, failureCode);
+        return new FailedBackupOutcome(failureCode);
     }
 }

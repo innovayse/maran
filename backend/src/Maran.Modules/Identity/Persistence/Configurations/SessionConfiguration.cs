@@ -33,9 +33,23 @@ public sealed class SessionConfiguration : IEntityTypeConfiguration<Session>
         builder.Property(s => s.ExpiresAt)
             .IsRequired();
 
-        builder.Property(s => s.RevocationReason)
-            .HasConversion<string>()
-            .HasMaxLength(32);
+        // The pair that says how a session ended, stored in the two columns the first release
+        // created ("RevokedAt", "RevocationReason") and read as one optional value: both columns are
+        // null while the session is live. No schema change; the owned type only reads the old columns
+        // together. Presence is decided by the instant, the one column that is required inside the
+        // value.
+        builder.OwnsOne(s => s.Revocation, revocation =>
+        {
+            revocation.Property(r => r.At)
+                .HasColumnName("RevokedAt")
+                .IsRequired();
+
+            revocation.Property(r => r.Reason)
+                .HasColumnName("RevocationReason")
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+        });
 
         builder.Property(s => s.IpAddress)
             .IsRequired()
@@ -44,6 +58,32 @@ public sealed class SessionConfiguration : IEntityTypeConfiguration<Session>
         builder.Property(s => s.UserAgent)
             .IsRequired()
             .HasMaxLength(UserAgentText.MaxLength);
+
+        // Who is behind a view-as session: the operator and the operator's own session. Both columns
+        // are null for an own sign-in, so there is no kind column to disagree with them: a row is a
+        // view-as session exactly when the origin is present. Presence is decided by the required
+        // properties of the owned value, so a half-filled pair can never read as an origin.
+        //
+        // Migration note (20261102104553_AddMembershipsPinsAndViewAs is UNRELEASED, on no remote
+        // branch, so it is edited in place rather than followed by a new migration): drop its
+        // AddColumn "Kind" from Up and Down; "ActorUserId" and "ActorSessionId" stay as they are.
+        // Backfill SQL for a database that already applied the earlier shape of that migration
+        // (development databases only; nothing shipped ever held a Kind column):
+        //   -- raw-sql: forget the retired discriminator; a view-as row already has both actor ids.
+        //   ALTER TABLE identity."Sessions" DROP COLUMN IF EXISTS "Kind";
+        // No other data step is needed: "RevokedAt"/"RevocationReason" are unchanged columns and
+        // the actor columns keep their names and values.
+        builder.OwnsOne(s => s.ViewAs, origin =>
+        {
+            origin.Property(o => o.ActorUserId)
+                .HasColumnName("ActorUserId")
+                .IsRequired();
+
+            origin.Property(o => o.ActorSessionId)
+                .HasColumnName("ActorSessionId")
+                .IsRequired();
+        });
+
 
         // Every refresh looks a session up by this hash, so the index is the hot path; unique
         // because two sessions sharing a token hash would make rotation ambiguous.

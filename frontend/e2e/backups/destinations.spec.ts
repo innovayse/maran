@@ -12,7 +12,7 @@ import type { BackupDestination } from '../../src/types/backupDestination'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
 ]
 
 /** The one destination a running panel reconciles at startup: local, and the default. */

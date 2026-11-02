@@ -1,5 +1,6 @@
 using System.Net;
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.FirewallService;
 using Maran.Modules.Firewall.Domain.Entities;
 using Maran.Modules.Firewall.Domain.Enums;
 using Maran.Modules.Firewall.Domain.Policies;
@@ -84,7 +85,7 @@ public sealed class BanAddressCommandHandler
     /// <param name="command">Which address to ban, and for how long.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or <c>BanAddressInvalid</c>, or the agent's own typed failure.</returns>
-    public async Task<Result<bool>> HandleAsync(BanAddressCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(BanAddressCommand command, CancellationToken cancellationToken)
     {
         if (!IpAddressNormalizer.TryNormalize(command.Address, out var address))
         {
@@ -95,7 +96,7 @@ public sealed class BanAddressCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.BanAddressInvalid), ErrorType.Validation));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.BanAddressInvalid), ErrorType.Validation));
         }
 
         if (IPAddress.IsLoopback(address))
@@ -107,25 +108,25 @@ public sealed class BanAddressCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.BanAddressLoopback), ErrorType.Validation));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.BanAddressLoopback), ErrorType.Validation));
         }
 
         var subject = address.ToString();
-        var ttl = command.DurationMinutes is null
-            ? (TimeSpan?)null
-            : TimeSpan.FromMinutes(command.DurationMinutes.Value);
+        AgentBanTerm term = command.DurationMinutes is null
+            ? new AgentBanTerm.Permanent()
+            : new AgentBanTerm.ExpiresAfter(TimeSpan.FromMinutes(command.DurationMinutes.Value));
 
-        var banned = await _agent.BanAsync(subject, ttl, cancellationToken);
+        var banned = await _agent.BanAsync(subject, term, cancellationToken);
         if (!banned.IsSuccess)
         {
             await _journal.RecordFailureAsync(
                 AuditActions.AddressBanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-            return Result<bool>.Fail(banned.Error!);
+            return Result.Fail(banned.Error!);
         }
 
         var now = _clock.UtcNow;
-        var expiresAt = ttl is null ? (DateTimeOffset?)null : now + ttl.Value;
+        DateTimeOffset? expiresAt = term is AgentBanTerm.ExpiresAfter expiring ? now + expiring.Duration : null;
 
         var standing = await _dbContext.BanEpisodes
             .Where(episode => episode.IpAddress == subject && episode.LiftedAt == null)
@@ -163,6 +164,6 @@ public sealed class BanAddressCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.AddressBanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

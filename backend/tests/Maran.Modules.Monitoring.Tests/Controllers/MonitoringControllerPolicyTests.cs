@@ -18,6 +18,7 @@ public sealed class MonitoringControllerPolicyTests
     /// <param name="policy">The policy the controller must name.</param>
     [Theory]
     [InlineData(typeof(MonitoringController), AuthorizationPolicies.AdminOnly)]
+    [InlineData(typeof(ServersController), AuthorizationPolicies.AdminOnly)]
     public void A_controller_names_its_policy_on_the_class(Type controller, string policy)
     {
         var policies = controller
@@ -85,6 +86,7 @@ public sealed class MonitoringControllerPolicyTests
         {
             nameof(MonitoringController),
             nameof(PanelLogLevelController),
+            nameof(ServersController),
         };
         Assert.Equal(expected.Order(StringComparer.Ordinal), names);
     }

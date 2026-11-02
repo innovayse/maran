@@ -64,8 +64,8 @@ const now: Ref<number> = ref(Date.now())
 /** The ticker's handle, kept so it can be stopped when the screen goes away. */
 const ticker: Ref<ReturnType<typeof setInterval> | null> = ref(null)
 
-/** The ban whose lift is awaiting confirmation, or the empty string when none is. */
-const pendingId: Ref<string> = ref('')
+/** The ban whose lift is awaiting confirmation, or `null` when none is. */
+const pendingId: Ref<string | null> = ref(null)
 
 /**
  * The table's columns: its header, its cells and its loading placeholder all read this one list.
@@ -132,7 +132,7 @@ const ask = (id: string): void => {
  * @returns Nothing.
  */
 const cancel = (): void => {
-  pendingId.value = ''
+  pendingId.value = null
 }
 
 /**
@@ -158,7 +158,7 @@ watch(
   },
   (busy, wasBusy): void => {
     if (wasBusy && !busy) {
-      pendingId.value = ''
+      pendingId.value = null
     }
   },
 )
@@ -223,7 +223,7 @@ onBeforeUnmount(() => {
        answer, and the menu that opened it is already gone by the time it appears. Lifting a ban is
        not a removal, so the confirm button is not weighted as destructive. -->
   <UiConfirm
-    :open="pendingId.length > 0"
+    :open="pendingId !== null"
     :title="confirmationTitle"
     :question="t('firewall.bans.confirmUnban')"
     :confirm-label="t('firewall.bans.confirm')"

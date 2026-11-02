@@ -1,9 +1,12 @@
 using Maran.Modules.Monitoring.Persistence;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Maran.Modules.Monitoring.Services;
+
+#pragma warning disable CS0618 // This handler receives the closed PluginLoader's superseded report and converts it to a verdict at once; nothing past this file reads the report.
 
 /// <summary>
 /// The Monitoring module's implementation of <see cref="ICodeIntegrityReportSink"/> — the point
@@ -56,6 +59,8 @@ public sealed partial class CodeIntegrityReportHandler : ICodeIntegrityReportSin
     {
         try
         {
+            var verdict = report.ToVerdict();
+
             await _evaluator.EvaluateAsync(
                 diskUsedPercent: null,
                 freeSpaceFloor: null,
@@ -63,8 +68,8 @@ public sealed partial class CodeIntegrityReportHandler : ICodeIntegrityReportSin
                 sftpJailStatus: null,
                 quotaStatus: null,
                 clockSync: null,
-                codeIntegrityReport: report,
-                report.ObservedAt,
+                codeIntegrityVerdict: verdict,
+                verdict.ObservedAt,
                 cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -72,12 +77,14 @@ public sealed partial class CodeIntegrityReportHandler : ICodeIntegrityReportSin
             // Per ICodeIntegrityReportSink's own contract: the caller is a closed, foreign component
             // that cannot itself react to an exception meaningfully. Logged here, on this side of the
             // boundary, rather than allowed to propagate into PluginLoader's AssemblyLoadContext.
-            LogReportFailed(_logger, report.InstalledVersion, report.Outcome, ex);
+            LogReportFailed(_logger, report.InstalledVersion, report.Outcome.ToString(), ex);
         }
     }
 
     [LoggerMessage(
         Level = LogLevel.Error,
         Message = "Failed to record a code-integrity report for version {InstalledVersion} (outcome {Outcome}).")]
-    private static partial void LogReportFailed(ILogger logger, string installedVersion, CodeIntegrityOutcome outcome, Exception exception);
+    private static partial void LogReportFailed(ILogger logger, string installedVersion, string outcome, Exception exception);
 }
+
+#pragma warning restore CS0618

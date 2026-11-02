@@ -34,7 +34,7 @@
  * A rate needs two readings and the panel does not offer one here, so this card shows nothing
  * rather than something that would be misread.
  *
- * **While the reading is on its way** (`loading`, no `resources`), the three tiles are drawn with
+ * **While the reading is on its way** (`resources` is `null`), the three tiles are drawn with
  * their real icons and labels, and each figure, the load averages and each bar draw a placeholder
  * in their own place, so the reading lands without moving anything.
  */
@@ -52,15 +52,13 @@ import { formatBytes } from '../../utils/formatBytes'
 import type { HostMetrics } from '../../types/monitoring'
 
 const props = defineProps<{
-  /** The host's live reading, as the panel answered it; absent only while `loading`. */
-  resources?: HostMetrics
-  /** Whether the reading is still on its way; see the component note. */
-  loading?: boolean
+  /** The host's live reading, as the panel answered it; `null` is the one state in which it is still on its way. */
+  resources: HostMetrics | null
 }>()
 
 const { t } = useI18n()
 const disk = useDiskSegments(() => {
-  return props.resources
+  return props.resources ?? undefined
 })
 
 /**
@@ -71,7 +69,7 @@ const disk = useDiskSegments(() => {
  * would stop matching the tool it is being checked against.
  */
 const cpuText: ComputedRef<string> = computed(() => {
-  if (props.resources === undefined) {
+  if (props.resources === null) {
     return ''
   }
   return `${props.resources.cpuPercent.toFixed(1)}${t('monitoring.units.percent')}`
@@ -79,7 +77,7 @@ const cpuText: ComputedRef<string> = computed(() => {
 
 /** Memory in use beside what is installed, as one sentence for assistive technology. */
 const memoryText: ComputedRef<string> = computed(() => {
-  if (props.resources === undefined) {
+  if (props.resources === null) {
     return ''
   }
   return t('app.status.resources.ratio', {
@@ -123,7 +121,7 @@ interface Reading {
  */
 const readings: ComputedRef<Reading[]> = computed(() => {
   // Before the reading arrives every tile still exists, labelled, with nothing measured: the
-  // template draws placeholders for the figures and bars while `loading`.
+  // template draws placeholders for the figures and bars while `resources` is `null`.
   const resources = props.resources
   return [
     {
@@ -145,8 +143,8 @@ const readings: ComputedRef<Reading[]> = computed(() => {
       key: 'memory',
       icon: 'memoryStick',
       label: t('monitoring.charts.memory'),
-      figure: resources === undefined ? '' : formatBytes(resources.memoryUsedBytes),
-      of: resources === undefined ? null : `/ ${formatBytes(resources.memoryTotalBytes)}`,
+      figure: resources === null ? '' : formatBytes(resources.memoryUsedBytes),
+      of: resources === null ? null : `/ ${formatBytes(resources.memoryTotalBytes)}`,
       meter: {
         value: resources?.memoryUsedBytes ?? 0,
         max: resources?.memoryTotalBytes ?? 0,
@@ -157,8 +155,8 @@ const readings: ComputedRef<Reading[]> = computed(() => {
       key: 'disk',
       icon: 'hardDrive',
       label: t('monitoring.charts.disk'),
-      figure: resources === undefined ? '' : formatBytes(resources.diskUsedBytes),
-      of: resources === undefined ? null : `/ ${formatBytes(resources.diskTotalBytes)}`,
+      figure: resources === null ? '' : formatBytes(resources.diskUsedBytes),
+      of: resources === null ? null : `/ ${formatBytes(resources.diskTotalBytes)}`,
       meter: null,
     },
   ]
@@ -171,7 +169,7 @@ const readings: ComputedRef<Reading[]> = computed(() => {
  * trend is the thing an operator glancing at a landing page actually wants.
  */
 const loadText: ComputedRef<string> = computed(() => {
-  if (props.resources === undefined) {
+  if (props.resources === null) {
     return ''
   }
   return [
@@ -207,7 +205,7 @@ const loadText: ComputedRef<string> = computed(() => {
             <!-- While loading, the placeholder's box is the figure's line height (`leading-none`:
                  the font size, 24px, and 30px from `@xl`), so the row keeps its height. -->
             <p class="m-0 flex flex-wrap items-baseline gap-x-1.5 font-display text-2xl leading-none font-black @xl:text-3xl">
-              <span v-if="loading" class="flex h-6 w-20 items-center @xl:h-7.5"><UiSkeleton shape="line" size="lg" /></span>
+              <span v-if="resources === null" class="flex h-6 w-20 items-center @xl:h-7.5"><UiSkeleton shape="line" size="lg" /></span>
               <span v-else>{{ reading.figure }}</span>
               <small v-if="reading.of !== null" class="text-sm font-extrabold whitespace-nowrap text-text-muted">{{ reading.of }}</small>
             </p>
@@ -222,14 +220,14 @@ const loadText: ComputedRef<string> = computed(() => {
              the trend sits beside the instant it explains. -->
         <p v-if="reading.key === 'cpu'" class="m-0 mt-2 text-xs text-text-muted">
           <span>{{ t('app.status.resources.load') }}</span>
-          <span v-if="loading" class="ml-1.5 inline-flex w-24 align-middle"><UiSkeleton shape="line" size="sm" /></span>
+          <span v-if="resources === null" class="ml-1.5 inline-flex w-24 align-middle"><UiSkeleton shape="line" size="sm" /></span>
           <span v-else class="ml-1.5 font-mono text-text-secondary tabular-nums">{{ loadText }}</span>
         </p>
 
         <div class="mt-auto pt-3.5">
           <!-- The placeholder is clipped to the bar's own track height; the disk tile also holds
                a line for each of its three legend rows, so the reading lands without moving. -->
-          <template v-if="loading">
+          <template v-if="resources === null">
             <span class="block h-1 overflow-hidden rounded-full"><UiSkeleton shape="line" size="sm" /></span>
             <div v-if="reading.meter === null" class="mt-3 flex flex-col gap-1.5">
               <UiSkeleton v-for="row in 3" :key="row" shape="line" size="sm" />

@@ -51,7 +51,7 @@ fn every_variant() -> Vec<DbError> {
         // no reader can check by eye.
         DbError::StatementRefused,
         DbError::ClientUnavailable,
-        DbError::ClientKilled { signal: 9 },
+        DbError::ClientKilled { signal: Some(9) },
         DbError::Unparsable,
         DbError::AccessDenied,
     ]

@@ -154,6 +154,24 @@ export interface ServiceStatus {
 }
 
 /**
+ * Whether the kernel backs an account's disk allowance, mirroring `QuotaBackingDto`: exactly one
+ * of three cases, the `state` member telling which, so an explanation exists only on the cases
+ * that carry one.
+ *
+ * - `enforced`: the agent reported the filesystem is tracking quota accounting.
+ * - `notEnforced`: the agent reported it is not; `note` says what is wrong and what restores it.
+ * - `unmeasured`: the panel could not find out (the agent did not answer, or its reply was
+ *   unreadable); `note` says so. This is NOT `notEnforced`: no finding was made.
+ *
+ * `note` is the backend's own sentence, already localized; the SPA renders it verbatim and invents
+ * no wording of its own (rules/vue.md, rules/architecture.md — the backend owns user-facing text).
+ */
+export type QuotaBacking =
+  | { state: 'enforced' }
+  | { state: 'notEnforced'; note: string }
+  | { state: 'unmeasured'; note: string }
+
+/**
  * What one hosting account occupies on disk beside what its plan allows, mirroring
  * `AccountDiskUsageDto`.
  *
@@ -179,19 +197,12 @@ export interface AccountDiskUsage {
   quotaBytes: number
   /**
    * Whether the filesystem holding this account's home can currently back {@link quotaBytes} with
-   * a real kernel-enforced limit. `false` means the figure is real — it is still the plan the
-   * customer paid for — but nothing on the server refuses a write past it right now. The table
-   * must never draw {@link quotaBytes} as if it were in force when this is `false`: that is
-   * issue #29's own defect, restated for the SPA rather than the backend.
+   * a real kernel-enforced limit. Anything but `enforced` means the figure is real — it is still
+   * the plan the customer paid for — but nothing on the server is known to refuse a write past it.
+   * The table must never draw {@link quotaBytes} as if it were in force then: that is issue #29's
+   * own defect, restated for the SPA rather than the backend.
    */
-  enforceable: boolean
-  /**
-   * The backend's own explanation of why {@link enforceable} is `false`, already localized — or
-   * `null` when {@link enforceable} is `true` and there is nothing to explain. The SPA renders this
-   * text verbatim; it does not invent its own wording for what "not enforceable" means
-   * (rules/vue.md, rules/architecture.md — the backend owns user-facing text).
-   */
-  note: string | null
+  backing: QuotaBacking
 }
 
 /**

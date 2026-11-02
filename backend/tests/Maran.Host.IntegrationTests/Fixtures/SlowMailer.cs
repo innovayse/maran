@@ -40,7 +40,7 @@ public sealed class SlowMailer : IMailer
     /// <param name="body">The plain-text body.</param>
     /// <param name="cancellationToken">Cancels the wait.</param>
     /// <returns>Success, five seconds later.</returns>
-    public async Task<Result<bool>> SendAsync(
+    public async Task<Result> SendAsync(
         string recipient,
         string subject,
         string body,
@@ -59,6 +59,6 @@ public sealed class SlowMailer : IMailer
         // is not).
         await Task.Delay(SendDuration, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

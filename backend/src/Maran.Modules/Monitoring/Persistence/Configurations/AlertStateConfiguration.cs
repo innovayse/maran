@@ -13,7 +13,14 @@ public sealed class AlertStateConfiguration : IEntityTypeConfiguration<AlertStat
     /// <param name="builder">The entity type builder supplied by EF Core.</param>
     public void Configure(EntityTypeBuilder<AlertState> builder)
     {
-        builder.ToTable("AlertStates");
+        builder.ToTable("AlertStates", table =>
+        {
+            // The raise time exists exactly while an episode is open, and the phase is one of the
+            // three it can be: the database refuses a row the entity could never have written.
+            table.HasCheckConstraint(
+                "CK_AlertStates_Phase_RaisedAt",
+                "(\"Phase\" = 2 AND \"RaisedAt\" IS NOT NULL) OR (\"Phase\" IN (0, 1) AND \"RaisedAt\" IS NULL)");
+        });
         builder.HasKey(state => state.Id);
 
         builder.Property(state => state.Kind)
@@ -26,7 +33,23 @@ public sealed class AlertStateConfiguration : IEntityTypeConfiguration<AlertStat
         builder.Property(state => state.ConsecutiveBreaches)
             .IsRequired();
 
-        builder.Property(state => state.IsFiring)
+        // Expand phase of replacing the IsFiring flag and the breach count with one state. The
+        // column is added with the migration that carries the backfill below; the code reads this
+        // one only.
+        //
+        // raw-sql backfill, written into the migration's Up right after the column is added and
+        // before the check constraint above is created (identifiers quoted: PascalCase, rules/csharp.md):
+        //   UPDATE monitoring."AlertStates" SET "Phase" = 2 WHERE "IsFiring";
+        //   UPDATE monitoring."AlertStates" SET "Phase" = 1 WHERE NOT "IsFiring" AND "ConsecutiveBreaches" > 0;
+        // Healthy (0) is the column default, so every other row needs no statement. Down needs no
+        // data statement: the previous release reads IsFiring, which stays written.
+        builder.Property(state => state.Phase)
+            .IsRequired();
+
+        // The previous release's flag: still mapped, still written by the entity in step with Phase,
+        // never read. Dropped in a later release (contract phase).
+        builder.Property<bool>("LegacyIsFiring")
+            .HasColumnName("IsFiring")
             .IsRequired();
 
         builder.Property(state => state.LastObservedAt)

@@ -20,8 +20,9 @@ namespace Maran.Modules.Notifications.Services;
 /// </para>
 /// <para>
 /// An address that is blank or whitespace is reported as <c>null</c>: "configured to nothing" and
-/// "not configured" are the same fact to a caller deciding whether it can send, and collapsing them
-/// here means no caller has to remember to check both.
+/// "not configured" are the same fact to a caller deciding whether it can send. The collapse is made
+/// once, by <see cref="Domain.Entities.SmtpSettings.AlertRecipientAddress"/>, so no caller has to
+/// remember to check both.
 /// </para>
 /// </remarks>
 public sealed class AlertRecipientDirectory : IAlertRecipientDirectory
@@ -41,11 +42,6 @@ public sealed class AlertRecipientDirectory : IAlertRecipientDirectory
     {
         var profile = await _settings.GetAsync(cancellationToken);
 
-        if (profile is null || string.IsNullOrWhiteSpace(profile.AlertRecipient))
-        {
-            return null;
-        }
-
-        return profile.AlertRecipient;
+        return profile?.AlertRecipient;
     }
 }

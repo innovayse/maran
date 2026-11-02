@@ -38,7 +38,7 @@ const stubPanel = async (page: Page, role: UserRole): Promise<ChangePasswordRequ
     const body = route.request().postDataJSON() as ChangePasswordRequest
     received.push(body)
     if (body.currentPassword === CURRENT_PASSWORD) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
     await route.fulfill({

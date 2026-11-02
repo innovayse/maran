@@ -15,7 +15,7 @@ import type { PanelModule } from '../../src/types/module'
 
 // The accounts table while its page is on the way (#243): drawn from its own column schema.
 
-const LICENSED: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }]
 
 const ALPHA: Account = {
   id: '00000000-0000-0000-0000-000000000001',

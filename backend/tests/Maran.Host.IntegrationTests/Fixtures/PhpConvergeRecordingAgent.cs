@@ -15,7 +15,7 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
     public List<string> Calls { get; } = [];
 
     /// <inheritdoc />
-    public Task<Result<bool>> ChangePhpVersionAsync(
+    public Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -26,7 +26,7 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
         CancellationToken cancellationToken)
     {
         Calls.Add($"{accountUsername}:{domain}:{phpVersion}:{removePreviousPool}");
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc />
@@ -45,7 +45,7 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> EnableAsync(
+    public Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -55,7 +55,7 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> DisableAsync(
+    public Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -65,7 +65,7 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -86,7 +86,7 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         throw new NotSupportedException("This double answers a PHP version change only.");
     }

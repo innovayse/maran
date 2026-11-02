@@ -66,7 +66,7 @@ public sealed class StubAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> UpdateEntryAsync(
+    public Task<Result> UpdateEntryAsync(
         string accountUsername,
         string entryId,
         AgentCronSchedule schedule,
@@ -75,33 +75,33 @@ public sealed class StubAgentCronClient : IAgentCronClient
     {
         AddressedAccounts.Add(accountUsername);
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DeleteEntryAsync(
+    public Task<Result> DeleteEntryAsync(
         string accountUsername,
         string entryId,
         CancellationToken cancellationToken)
     {
         AddressedAccounts.Add(accountUsername);
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetAccountSuspendedAsync(
+    public Task<Result> SetAccountSuspendedAsync(
         string accountUsername,
         bool suspended,
         CancellationToken cancellationToken)
     {
         AddressedAccounts.Add(accountUsername);
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetEntryEnabledAsync(
+    public Task<Result> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,
         bool enabled,
@@ -109,7 +109,7 @@ public sealed class StubAgentCronClient : IAgentCronClient
     {
         AddressedAccounts.Add(accountUsername);
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc/>
@@ -133,7 +133,7 @@ public sealed class StubAgentCronClient : IAgentCronClient
         AddressedAccounts.Add(accountUsername);
 
         return Task.FromResult(Result<AgentCronRun>.Ok(
-            new AgentCronRun(1200, 0, "done", string.Empty, null)));
+            new AgentCronRun(1200, new AgentCronRunExited(0), "done", string.Empty)));
     }
 
     /// <inheritdoc/>
@@ -148,13 +148,13 @@ public sealed class StubAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetEnvironmentAsync(
+    public Task<Result> SetEnvironmentAsync(
         string accountUsername,
         IReadOnlyList<AgentCronEnvVar> variables,
         CancellationToken cancellationToken)
     {
         AddressedAccounts.Add(accountUsername);
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 }

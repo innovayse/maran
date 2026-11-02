@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { BackupSchedule, BackupScheduleScope } from '../../src/types/backupSchedule'
+import type { BackupSchedule, BackupScheduleScopeView } from '../../src/types/backupSchedule'
 
 /** The one endpoint the schedule screen reads and writes; the scope travels in query or body. */
 const SCHEDULES_PATTERN = '**/api/v1/backup-schedules*'
@@ -57,7 +57,7 @@ export const stubBackupSchedules = async (
     const scope = url.searchParams.get('accountId') ?? 'host'
     // A scope with no entry is the ordinary first state of this endpoint, not a fault: no schedule
     // has ever been saved for it, and the panel says so in a successful answer.
-    const answer: BackupScheduleScope = { schedule: schedules[scope] ?? null }
+    const answer: BackupScheduleScopeView = { schedule: schedules[scope] ?? null }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

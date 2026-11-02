@@ -68,6 +68,14 @@ public sealed class AccountsModule : IPanelModule
         // it reads the request's own DbContext and applies the request's own tenant scope.
         services.AddScoped<IAccountDirectory, AccountDirectory>();
 
+        // The unscoped, names-only window behind the header's account selector: a login that holds
+        // several accounts must read the names of all of them, not only the one it is acting for.
+        services.AddScoped<IAccountNameDirectory, AccountNameDirectory>();
+
+        // The window the plan-feature filter asks through (Sdk RequiresAccountFeatureFilter): whether
+        // an account's plan includes a feature. Scoped for the same reason as the directory above.
+        services.AddScoped<IAccountFeatureDirectory, AccountFeatureDirectory>();
+
         // Scoped like the Databases module's own refusal resolver: it resolves the sentences an
         // administrator reads against IStringLocalizer<DisplayNames>, which is culture-sensitive per
         // request.

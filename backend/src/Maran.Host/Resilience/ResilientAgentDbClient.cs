@@ -62,7 +62,7 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DropAsync(
+    public async Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -83,7 +83,7 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetPasswordAsync(
+    public async Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,
@@ -136,6 +136,24 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
 
     /// <inheritdoc/>
     /// <remarks>
+    /// Decorated like <see cref="RepairGrantsAsync"/>, for the same reason: it reads the whole of the
+    /// database server's grant table, so a stuck unix socket here would hang an administrator's request
+    /// with no timeout at all.
+    /// </remarks>
+    public async Task<Result<GrantInspectionReportDto>> InspectGrantsAsync(CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.InspectGrantsAsync(token);
+            },
+            _inner,
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
     /// Decorated like the rest, and it is the member with most to lose by not being: it reads the
     /// whole of the database server's grant table, so a stuck unix socket here would hang an
     /// administrator's request with no timeout at all. The timeout is
@@ -143,17 +161,15 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
     /// is stated because a host with an unusually large grant table would meet it as a timeout rather
     /// than as a partial report, and a partial report is the outcome that must never happen.
     /// </remarks>
-    public async Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
-        bool reportOnly,
-        CancellationToken cancellationToken)
+    public async Task<Result<GrantRepairReportDto>> RepairGrantsAsync(CancellationToken cancellationToken)
     {
         return await AgentOperationPipeline.ExecuteAsync(
             _pipeline,
             async (state, token) =>
             {
-                return await state.Client.RepairGrantsAsync(state.ReportOnly, token);
+                return await state.RepairGrantsAsync(token);
             },
-            (Client: _inner, ReportOnly: reportOnly),
+            _inner,
             cancellationToken);
     }
 }

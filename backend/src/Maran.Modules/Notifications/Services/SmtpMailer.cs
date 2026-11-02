@@ -2,6 +2,7 @@ using System.Net.Sockets;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Maran.Modules.Notifications.Domain.Enums;
+using Maran.Modules.Notifications.Domain.ValueObjects;
 using Maran.Modules.Notifications.Interfaces;
 using Maran.Modules.Notifications.Models;
 using Maran.Modules.Notifications.Resources;
@@ -83,7 +84,7 @@ public sealed class SmtpMailer : IMailer
     }
 
     /// <inheritdoc />
-    public async Task<Result<bool>> SendAsync(
+    public async Task<Result> SendAsync(
         string recipient,
         string subject,
         string body,
@@ -93,13 +94,13 @@ public sealed class SmtpMailer : IMailer
 
         if (profile is null)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.SmtpNotConfigured), ErrorType.Validation));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.SmtpNotConfigured), ErrorType.Validation));
         }
 
         try
         {
             await DeliverAsync(profile, recipient, subject, body, cancellationToken);
-            return Result<bool>.Ok(true);
+            return Result.Ok();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -117,7 +118,7 @@ public sealed class SmtpMailer : IMailer
             // individually would be a list that silently stops covering the seventh, so the catch
             // stays broad and only the KIND of the answer is decided, by ClassifyFailure.
             LogSendFailed(_logger, recipient, exception);
-            return Result<bool>.Fail(ClassifyFailure(exception));
+            return Result.Fail(ClassifyFailure(exception));
         }
     }
 
@@ -180,7 +181,7 @@ public sealed class SmtpMailer : IMailer
     /// <param name="body">The plain-text body.</param>
     /// <param name="cancellationToken">Cancellation token for the send.</param>
     /// <remarks>
-    /// Authentication is attempted only when a user name is configured. A relay on localhost takes
+    /// Authentication is attempted only when the settings carry credentials. A relay on localhost takes
     /// none, and offering credentials it did not ask for is how a perfectly working relay starts
     /// refusing the panel's mail.
     /// </remarks>
@@ -204,9 +205,9 @@ public sealed class SmtpMailer : IMailer
 
         await client.ConnectAsync(profile.Host, profile.Port, ToSocketOptions(profile.Security), cancellationToken);
 
-        if (!string.IsNullOrEmpty(profile.Username))
+        if (profile.Credentials is BasicSmtpCredentials basic)
         {
-            await client.AuthenticateAsync(profile.Username, profile.Password, cancellationToken);
+            await client.AuthenticateAsync(basic.Username, basic.Password, cancellationToken);
         }
 
         await client.SendAsync(message, cancellationToken);

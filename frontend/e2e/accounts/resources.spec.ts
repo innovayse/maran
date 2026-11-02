@@ -11,7 +11,7 @@ import type { AccountResourceSummary } from '../../src/types/accountResourceSumm
 import type { AuthenticatedUser } from '../../src/types/auth'
 
 // Issue #223: an account's page shows what the account holds against its plan, each resource a link
-// to its module's list narrowed to the account. Every state is read from an explicit field: a count
+// to its module's list narrowed to the account. Every state is its own case with no number in it: a count
 // the server could not take says "Unavailable", and a resource the plan does not bound says "no
 // limit" and draws no bar.
 
@@ -30,11 +30,11 @@ const ACCOUNT: AccountDetail = {
 const SUMMARY: AccountResourceSummary = {
   accountId: ACCOUNT.id,
   resources: [
-    { kind: 'sites', state: 'counted', used: 2, limitKind: 'limited', limit: 5 },
-    { kind: 'databases', state: 'counted', used: 5, limitKind: 'limited', limit: 5 },
-    { kind: 'sftpLogins', state: 'counted', used: 1, limitKind: 'limited', limit: 3 },
-    { kind: 'cronEntries', state: 'unavailable', used: 0, limitKind: 'limited', limit: 10 },
-    { kind: 'backups', state: 'counted', used: 3, limitKind: 'unlimited', limit: 0 },
+    { kind: 'sites', count: { state: 'counted', used: 2 }, limit: { kind: 'limited', maximum: 5 } },
+    { kind: 'databases', count: { state: 'counted', used: 5 }, limit: { kind: 'limited', maximum: 5 } },
+    { kind: 'sftpLogins', count: { state: 'counted', used: 1 }, limit: { kind: 'limited', maximum: 3 } },
+    { kind: 'cronEntries', count: { state: 'unavailable' }, limit: { kind: 'limited', maximum: 10 } },
+    { kind: 'backups', count: { state: 'counted', used: 3 }, limit: { kind: 'unlimited' } },
   ],
 }
 
@@ -70,7 +70,7 @@ const CUSTOMER: AuthenticatedUser = {
 const stubDetail = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
   await stubInvitation(page, ACCOUNT.id, 'pending')
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     if (route.request().method() !== 'GET') {
@@ -146,7 +146,7 @@ test('the FTPS logins resource links to the FTPS page narrowed to the account', 
   // Registered after the detail's own summary, so this one answers.
   await stubAccountResources(page, {
     accountId: ACCOUNT.id,
-    resources: [{ kind: 'ftpLogins', state: 'counted', used: 1, limitKind: 'limited', limit: 3 }],
+    resources: [{ kind: 'ftpLogins', count: { state: 'counted', used: 1 }, limit: { kind: 'limited', maximum: 3 } }],
   })
 
   await page.goto(`/accounts/${ACCOUNT.id}`)

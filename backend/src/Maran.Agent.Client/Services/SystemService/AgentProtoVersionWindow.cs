@@ -55,6 +55,12 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 12 adds <c>SftpService.SetSftpAuthorizedKeys</c> (issue #135), and both ends moved to it:
 /// an older agent answers the rpc <c>UNIMPLEMENTED</c>, so an SFTP login's public keys could never be
 /// written against it.
+/// Revision 13 replaces three boolean answers with states (issue #323): the FTPS TLS enforcement
+/// (<c>tls_enforcement</c>), whether a suspended site serves the stub (<c>SiteSuspensionFact.serving</c>),
+/// and a ban's term (<c>BanAddressRequest.term</c>), and reserves four fields nobody read. Both ends
+/// moved to it as the one-revision default: a revision-12 agent sends none of the three new fields,
+/// which protobuf reads as the unset zero, so the panel would have to guess at the answer it was
+/// handed, and a revision-12 agent ignores the ban term and would turn a timed ban into a permanent one.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -81,10 +87,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 12;
+    public const uint Minimum = 13;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 12;
+    public const uint Maximum = 13;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

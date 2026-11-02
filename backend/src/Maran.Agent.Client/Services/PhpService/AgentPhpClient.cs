@@ -155,9 +155,10 @@ public sealed class AgentPhpClient : IAgentPhpClient
     /// <summary>Projects the wire version list onto the panel's DTOs.</summary>
     /// <param name="ok">The success payload of <c>ListPhpVersions</c>.</param>
     /// <returns>
-    /// The versions in the order the agent sent them, each keeping the tri-state default flag: an
-    /// unset <c>is_default</c> stays null rather than becoming false, because the agent does not
-    /// currently establish which version is the default.
+    /// The versions in the order the agent sent them, each carrying its default status: an unset
+    /// <c>is_default</c> becomes <see cref="AgentPhpDefaultStatus.Unknown"/> rather than
+    /// <see cref="AgentPhpDefaultStatus.NotDefault"/>, because the agent does not currently
+    /// establish which version is the default.
     /// </returns>
     private static List<PhpVersionDto> ToVersions(ListPhpVersionsOk ok)
     {
@@ -167,10 +168,27 @@ public sealed class AgentPhpClient : IAgentPhpClient
             versions.Add(new PhpVersionDto(
                 version.Version,
                 version.FpmSocketDirectory,
-                version.HasIsDefault ? version.IsDefault : null));
+                ToDefaultStatus(version)));
         }
 
         return versions;
+    }
+
+    /// <summary>Reads the wire's explicit-presence <c>is_default</c> as one of the three answers it can mean.</summary>
+    /// <param name="version">The wire version.</param>
+    /// <returns>
+    /// <see cref="AgentPhpDefaultStatus.Unknown"/> when the field is unset, otherwise
+    /// <see cref="AgentPhpDefaultStatus.Default"/> or <see cref="AgentPhpDefaultStatus.NotDefault"/>
+    /// as the agent stated.
+    /// </returns>
+    private static AgentPhpDefaultStatus ToDefaultStatus(PhpVersion version)
+    {
+        if (!version.HasIsDefault)
+        {
+            return AgentPhpDefaultStatus.Unknown;
+        }
+
+        return version.IsDefault ? AgentPhpDefaultStatus.Default : AgentPhpDefaultStatus.NotDefault;
     }
 
     /// <summary>Turns the terminal error of an install stream into the event that ends the sequence.</summary>

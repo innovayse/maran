@@ -64,7 +64,7 @@ public sealed class SendTestMailCommandHandlerTests
     [Fact]
     public async Task A_refused_test_message_is_reported_to_the_caller_and_audited_as_a_send_failure()
     {
-        var mailer = new RecordingMailer { Outcome = Result<bool>.Fail(Error.Of(MailDeliveryFailedCode, ErrorType.Validation)) };
+        var mailer = new RecordingMailer { Outcome = Result.Fail(Error.Of(MailDeliveryFailedCode, ErrorType.Validation)) };
         var audit = new RecordingAuditWriter();
 
         var result = await Handler(mailer, audit).HandleAsync(Command, CancellationToken.None);
@@ -84,7 +84,7 @@ public sealed class SendTestMailCommandHandlerTests
     [Fact]
     public async Task An_unconfigured_panel_audits_the_test_message_as_skipped()
     {
-        var mailer = new RecordingMailer { Outcome = Result<bool>.Fail(Error.Of(SmtpNotConfiguredCode, ErrorType.Validation)) };
+        var mailer = new RecordingMailer { Outcome = Result.Fail(Error.Of(SmtpNotConfiguredCode, ErrorType.Validation)) };
         var audit = new RecordingAuditWriter();
 
         var result = await Handler(mailer, audit).HandleAsync(Command, CancellationToken.None);

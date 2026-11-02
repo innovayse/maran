@@ -24,7 +24,7 @@ export const useDatabaseGrantsApi = (): DatabaseGrantsApi => {
   /**
    * Reads what a repair would change on this host, changing nothing.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The census, with `isReportOnly` true.
+   * @returns The census, its work a `preview`.
    */
   const report = (signal?: AbortSignal): Promise<GrantRepairReport> => {
     return api.get<GrantRepairReport>(DATABASE_GRANTS_PATH, signal)

@@ -32,16 +32,19 @@ namespace Maran.Modules.Backups.Persistence.Migrations
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ArtifactSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<int>("DatabaseCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("DeletedAccountUsername")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<Guid?>("DestinationId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("FailureCode")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
 
                     b.Property<DateTimeOffset?>("FinishedAt")
                         .HasColumnType("timestamp with time zone");
@@ -51,15 +54,27 @@ namespace Maran.Modules.Backups.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
-                    b.Property<string>("OrphanedAccountUsername")
+                    b.Property<string>("LegacyFailureCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("FailureCode");
+
+                    b.Property<string>("LegacyOrphanedAccountUsername")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
-                        .HasDefaultValue("");
+                        .HasDefaultValue("")
+                        .HasColumnName("OrphanedAccountUsername");
 
-                    b.Property<string>("Sha256")
+                    b.Property<string>("LegacySha256")
                         .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("Sha256");
+
+                    b.Property<string>("RunFailureCode")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
@@ -146,9 +161,6 @@ namespace Maran.Modules.Backups.Persistence.Migrations
                     b.Property<Guid?>("DestinationId")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("boolean");
-
                     b.Property<DateTimeOffset?>("EnabledAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -163,6 +175,10 @@ namespace Maran.Modules.Backups.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LastRunAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("LegacyEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("Enabled");
+
                     b.Property<int>("RetainCount")
                         .HasColumnType("integer");
 
@@ -175,7 +191,12 @@ namespace Maran.Modules.Backups.Persistence.Migrations
 
                     b.HasIndex("DestinationId");
 
-                    b.ToTable("BackupSchedules", "backups");
+                    b.ToTable("BackupSchedules", "backups", t =>
+                        {
+                            t.HasCheckConstraint("CK_BackupSchedules_EnabledMatchesEnabledAt", "\"Enabled\" = (\"EnabledAt\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_BackupSchedules_WeekdayOnlyWhenWeekly", "(\"Frequency\" = 'Weekly') = (\"DayOfWeekUtc\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Maran.Modules.Backups.Domain.Entities.Backup", b =>

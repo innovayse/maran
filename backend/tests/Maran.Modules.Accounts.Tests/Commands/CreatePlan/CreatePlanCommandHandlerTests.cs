@@ -4,6 +4,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -55,7 +56,7 @@ public sealed class CreatePlanCommandHandlerTests : IDisposable
     /// <param name="name">The plan name to ask for.</param>
     private static CreatePlanCommand Command(string name = "Agency")
     {
-        return new(name, 10_240, 10, 5, 4, 2, 3, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, IpAddress: "203.0.113.7", UserAgent: "unit-tests");
+        return new(name, 10_240, 10, 5, 4, 2, 3, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), IpAddress: "203.0.113.7", UserAgent: "unit-tests");
     }
 
     /// <summary>A created plan is stored with the limits it was asked for and returned with none of its accounts.</summary>

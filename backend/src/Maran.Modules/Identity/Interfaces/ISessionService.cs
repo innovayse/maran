@@ -13,9 +13,18 @@ public interface ISessionService
     /// <param name="userId">The user signing in.</param>
     /// <param name="ipAddress">The caller's address, shown on the sessions screen.</param>
     /// <param name="userAgent">The caller's user agent, shown on the sessions screen.</param>
+    /// <param name="activeAccountId">
+    /// The account the sign-in starts out speaking for, chosen by the caller from the login's
+    /// memberships; null for an administrator and for a customer with none.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>The new session and its plaintext refresh token.</returns>
-    Task<IssuedSession> IssueAsync(Guid userId, string ipAddress, string userAgent, CancellationToken cancellationToken);
+    Task<IssuedSession> IssueAsync(
+        Guid userId,
+        string ipAddress,
+        string userAgent,
+        Guid? activeAccountId,
+        CancellationToken cancellationToken);
 
     /// <summary>Exchanges a refresh token for a new one, revoking the token presented.</summary>
     /// <param name="refreshToken">The token the caller presented.</param>

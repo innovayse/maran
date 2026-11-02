@@ -10,9 +10,14 @@
 # also out of scope — this is the REQUEST contract only. Endpoints with no SPA caller cannot be
 # joined and are listed too.
 #
+# A polymorphic member is rendered `union(<discriminator>: <cases>)` and its cases are listed as
+# `name<case>.member`. It is compared only where the SPA tags the union with one string-literal
+# property and the C# base carries [JsonPolymorphic]/[JsonDerivedType]; any other tagging is a
+# failure, never a guess.
+#
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 39 endpoints, 136 members
+covered: 44 endpoints, 139 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -118,6 +123,16 @@ POST /api/v1/ftps-server/enable  ->  EnableFtpsCommand
   passiveAddress: string
 PUT /api/v1/log-level  ->  ChangeLogLevelCommand
   level: enum(debug|error|fatal|information|verbose|warning)
+POST /api/v1/me/active-account  ->  SwitchActiveAccountCommand
+  accountId: string
+POST /api/v1/me/pinned-pages  ->  PinPageCommand
+  itemKey: string
+POST /api/v1/me/sub-users  ->  InviteSubUserCommand
+  username: string
+  email: string
+  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
+PUT /api/v1/me/sub-users/{}/features  ->  ChangeSubUserGrantsCommand
+  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
 PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
   host: string
   port: number
@@ -138,15 +153,13 @@ POST /api/v1/plans  ->  CreatePlanCommand
   maxFtpUsers: number
   maxCronEntries: number
   maxPhpWorkersPerPool: number
-  cpuQuotaPercent: object
-  cpuQuotaPercent.kind: enum(limited|unlimited)
-  cpuQuotaPercent.maximum: number
-  memoryMaxMb: object
-  memoryMaxMb.kind: enum(limited|unlimited)
-  memoryMaxMb.maximum: number
-  maxProcesses: object
-  maxProcesses.kind: enum(limited|unlimited)
-  maxProcesses.maximum: number
+  cpuQuotaPercent: union(kind: limited|unlimited)
+  cpuQuotaPercent<limited>.maximum: number
+  memoryMaxMb: union(kind: limited|unlimited)
+  memoryMaxMb<limited>.maximum: number
+  maxProcesses: union(kind: limited|unlimited)
+  maxProcesses<limited>.maximum: number
+  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
 PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   name: string
   diskQuotaMb: number
@@ -156,15 +169,13 @@ PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   maxFtpUsers: number
   maxCronEntries: number
   maxPhpWorkersPerPool: number
-  cpuQuotaPercent: object
-  cpuQuotaPercent.kind: enum(limited|unlimited)
-  cpuQuotaPercent.maximum: number
-  memoryMaxMb: object
-  memoryMaxMb.kind: enum(limited|unlimited)
-  memoryMaxMb.maximum: number
-  maxProcesses: object
-  maxProcesses.kind: enum(limited|unlimited)
-  maxProcesses.maximum: number
+  cpuQuotaPercent: union(kind: limited|unlimited)
+  cpuQuotaPercent<limited>.maximum: number
+  memoryMaxMb: union(kind: limited|unlimited)
+  memoryMaxMb<limited>.maximum: number
+  maxProcesses: union(kind: limited|unlimited)
+  maxProcesses<limited>.maximum: number
+  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
 PUT /api/v1/security-policy  ->  SaveSecurityPolicyCommand
   minimumPasswordLength: number
   forceTwoFactorForAdmins: boolean
@@ -189,6 +200,8 @@ POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   phpVersion: string
 POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   version: string
+POST /api/v1/view-as  ->  StartViewAsCommand
+  accountId: string
 
 # not covered — no JSON body crosses here, so this check says nothing about it
   DELETE /api/v1/accounts/{} — route-only call, no JSON body
@@ -200,10 +213,13 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   DELETE /api/v1/firewall/rules — query-string call, no JSON body
   DELETE /api/v1/firewall/whitelist/{} — route-only call, no JSON body
   DELETE /api/v1/ftp-users/{} — route-only call, no JSON body
+  DELETE /api/v1/me/pinned-pages/{} — route-only call, no JSON body
+  DELETE /api/v1/me/sub-users/{} — route-only call, no JSON body
   DELETE /api/v1/plans/{} — route-only call, no JSON body
   DELETE /api/v1/sessions/{} — route-only call, no JSON body
   DELETE /api/v1/sftp-users/{} — route-only call, no JSON body
   DELETE /api/v1/sites/{} — route-only call, no JSON body
+  DELETE /api/v1/view-as — route-only call, no JSON body
   POST /api/v1/accounts/{}/reactivate — route-only call, no JSON body
   POST /api/v1/accounts/{}/suspend — route-only call, no JSON body
   POST /api/v1/auth/logout — route-only call, no JSON body
@@ -251,6 +267,10 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/invitations/{}
   GET /api/v1/licence-status
   GET /api/v1/log-level
+  GET /api/v1/me/accounts
+  GET /api/v1/me/pinned-pages
+  GET /api/v1/me/sub-users
+  GET /api/v1/me/sub-users/features
   GET /api/v1/monitoring/accounts-disk
   GET /api/v1/monitoring/chart
   GET /api/v1/monitoring/clock
@@ -260,9 +280,11 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/panel-certificate
   GET /api/v1/plans
   GET /api/v1/plans/choices
+  GET /api/v1/plans/features
   GET /api/v1/plans/{}
   GET /api/v1/profile
   GET /api/v1/security-policy
+  GET /api/v1/servers
   GET /api/v1/sessions
   GET /api/v1/setup/state
   GET /api/v1/sftp-users
@@ -279,6 +301,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/tasks/running/stream
   GET /api/v1/tasks/{}
   GET /api/v1/tasks/{}/stream
+  GET /api/v1/view-as
   POST /api/v1/account-home-groups/repair (binds RepairAccountHomeGroupsCommand, no SPA caller)
   POST /api/v1/backup-destinations (binds SaveBackupDestinationCommand, no SPA caller)
   POST /api/v1/licence-status/install (binds InstallLicenceCommand, no SPA caller)

@@ -1,6 +1,6 @@
 //! Turning a run started by hand into the wire's payload.
 
-use maran_ops::cron::{CronRun, CronRunLimit as RunLimit};
+use maran_ops::cron::{CronRun, CronRunEnd, CronRunLimit as RunLimit};
 
 use crate::proto::{CronRunLimit, RunCronEntryOk};
 
@@ -12,15 +12,16 @@ use crate::proto::{CronRunLimit, RunCronEntryOk};
 /// "No ceiling" is the enum's zero value, which `cron.proto` documents as such.
 #[must_use]
 pub fn run_outcome(run: CronRun) -> RunCronEntryOk {
-    let limit = match run.limit {
-        None => CronRunLimit::Unspecified,
-        Some(RunLimit::Runtime) => CronRunLimit::Runtime,
-        Some(RunLimit::Output) => CronRunLimit::Output,
+    let (exit_code, limit) = match run.end {
+        CronRunEnd::Exited { code } => (Some(code), CronRunLimit::Unspecified),
+        CronRunEnd::WithoutStatus => (None, CronRunLimit::Unspecified),
+        CronRunEnd::Stopped(RunLimit::Runtime) => (None, CronRunLimit::Runtime),
+        CronRunEnd::Stopped(RunLimit::Output) => (None, CronRunLimit::Output),
     };
 
     RunCronEntryOk {
         duration_ms: u64::try_from(run.duration.as_millis()).unwrap_or(u64::MAX),
-        exit_code: run.exit_code,
+        exit_code,
         stdout: run.stdout,
         stderr: run.stderr,
         limit: limit as i32,

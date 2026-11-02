@@ -67,11 +67,11 @@ public sealed class GetSmtpSettingsQueryHandler
             settings.Host,
             settings.Port,
             settings.Security,
-            settings.Username,
-            HasPassword: settings.Password.Length > 0,
+            settings.BasicUsername ?? string.Empty,
+            HasPassword: settings.BasicPassword is { Length: > 0 },
             settings.FromAddress,
             settings.FromName,
-            settings.AlertRecipient,
+            settings.AlertRecipientAddress ?? string.Empty,
             settings.UpdatedAt));
     }
 }

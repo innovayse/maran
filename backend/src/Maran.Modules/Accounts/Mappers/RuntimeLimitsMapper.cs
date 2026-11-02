@@ -1,6 +1,5 @@
 using Maran.Agent.Client.Services.AccountsService;
 using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Interfaces;
 
@@ -12,17 +11,20 @@ namespace Maran.Modules.Accounts.Mappers;
 /// </summary>
 /// <remarks>
 /// It translates and never decides (rules/csharp.md "A mapper translates; it never decides"): every
-/// case arrives already stated — <see cref="ResourceLimitKind"/> on one side, the agent's
+/// case arrives already stated — a cap or its absence on the stored side, the wire's
+/// <see cref="LimitedResourceCeilingDto"/> or <see cref="UnlimitedResourceCeilingDto"/>, the agent's
 /// <see cref="SliceCeilingKind"/> on the other — and is carried across, never inferred from a figure.
 /// </remarks>
 public static class RuntimeLimitsMapper
 {
     /// <summary>Projects one ceiling onto the wire.</summary>
     /// <param name="limit">The plan's ceiling.</param>
-    /// <returns>Its wire shape, case and figure together.</returns>
+    /// <returns>Its wire shape: a figure travels only with a capped ceiling.</returns>
     public static ResourceCeilingDto ToDto(ResourceLimit limit)
     {
-        return new ResourceCeilingDto(limit.Kind, limit.Maximum);
+        return limit.Maximum is int maximum
+            ? new LimitedResourceCeilingDto(maximum)
+            : new UnlimitedResourceCeilingDto();
     }
 
     /// <summary>Reads the three ceilings a validated plan definition states.</summary>
@@ -50,28 +52,24 @@ public static class RuntimeLimitsMapper
     /// <summary>Reads one validated wire ceiling as the plan's.</summary>
     /// <param name="ceiling">The wire ceiling, already validated.</param>
     /// <returns>The plan's ceiling.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown for a kind the validator would have refused.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown for a shape the validator would have refused.</exception>
     private static ResourceLimit ToDomain(ResourceCeilingDto ceiling)
     {
-        return ceiling.Kind switch
+        return ceiling switch
         {
-            ResourceLimitKind.Limited => ResourceLimit.Limited(ceiling.Maximum),
-            ResourceLimitKind.Unlimited => ResourceLimit.Unlimited(),
-            _ => throw new ArgumentOutOfRangeException(nameof(ceiling), ceiling.Kind, "Unknown ceiling kind."),
+            LimitedResourceCeilingDto limited => ResourceLimit.Limited(limited.Maximum),
+            UnlimitedResourceCeilingDto => ResourceLimit.Unlimited(),
+            _ => throw new ArgumentOutOfRangeException(nameof(ceiling), ceiling, "Unknown ceiling shape."),
         };
     }
 
     /// <summary>Restates one plan ceiling as the agent's.</summary>
     /// <param name="limit">The plan's ceiling; a limited one is positive by <see cref="RuntimeLimits"/>'s rule.</param>
     /// <returns>The agent's ceiling.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown for a kind this mapper does not know.</exception>
     private static SliceCeiling ToAgent(ResourceLimit limit)
     {
-        return limit.Kind switch
-        {
-            ResourceLimitKind.Limited => SliceCeiling.Limited((uint)limit.Maximum),
-            ResourceLimitKind.Unlimited => SliceCeiling.Unlimited(),
-            _ => throw new ArgumentOutOfRangeException(nameof(limit), limit.Kind, "Unknown ceiling kind."),
-        };
+        return limit.Maximum is int maximum
+            ? SliceCeiling.Limited((uint)maximum)
+            : SliceCeiling.Unlimited();
     }
 }

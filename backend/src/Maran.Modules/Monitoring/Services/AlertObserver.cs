@@ -49,7 +49,7 @@ public sealed class AlertObserver
     /// <param name="sftpJailStatus">The sshd SFTP jail block check, or <c>null</c> when unanswered.</param>
     /// <param name="quotaStatus">The account-home quota check, or <c>null</c> when unanswered.</param>
     /// <param name="clockSync">The host clock's synchronisation, or <c>null</c> when unanswered.</param>
-    /// <param name="codeIntegrityReport">The latest code-integrity finding, or <c>null</c> when none arrived.</param>
+    /// <param name="codeIntegrityVerdict">The latest code-integrity finding, or <c>null</c> when none arrived.</param>
     /// <param name="observedAt">When the readings were taken, from the panel's clock.</param>
     /// <param name="cancellationToken">Cancels the reads.</param>
     /// <returns>One entry per observation, in observation order, including those that changed nothing.</returns>
@@ -60,7 +60,7 @@ public sealed class AlertObserver
         AgentSftpJailStatus? sftpJailStatus,
         AgentQuotaEnforceability? quotaStatus,
         AgentClockSyncState? clockSync,
-        CodeIntegrityReport? codeIntegrityReport,
+        CodeIntegrityVerdict? codeIntegrityVerdict,
         DateTimeOffset observedAt,
         CancellationToken cancellationToken)
     {
@@ -123,7 +123,7 @@ public sealed class AlertObserver
             var transition = await ObserveAsync(
                 AlertKind.SftpJailDrifted,
                 AlertEvaluator.SftpJailSubject,
-                sftpJailStatus.IsDrifted,
+                sftpJailStatus is AgentSftpJailStatus.Drifted,
                 observedAt,
                 cancellationToken);
 
@@ -132,7 +132,7 @@ public sealed class AlertObserver
                 AlertEvaluator.SftpJailSubject,
                 AlertEvaluator.SftpJailSubject,
                 transition,
-                AlertDetailMapper.FormatMissing(sftpJailStatus.Missing)));
+                AlertDetailMapper.FormatMissing(sftpJailStatus)));
         }
 
         if (quotaStatus is not null)
@@ -140,7 +140,7 @@ public sealed class AlertObserver
             var transition = await ObserveAsync(
                 AlertKind.QuotaNotEnforceable,
                 AlertEvaluator.AccountHomeFilesystemSubject,
-                !quotaStatus.IsEnforceable,
+                quotaStatus is AgentQuotaEnforceability.NotEnforceable,
                 observedAt,
                 cancellationToken);
 
@@ -149,7 +149,7 @@ public sealed class AlertObserver
                 AlertEvaluator.AccountHomeFilesystemSubject,
                 AlertEvaluator.AccountHomeFilesystemSubject,
                 transition,
-                AlertDetailMapper.FormatReason(quotaStatus.Reason)));
+                AlertDetailMapper.FormatReason(quotaStatus)));
         }
 
         if (clockSync is not null)
@@ -169,90 +169,122 @@ public sealed class AlertObserver
                 AlertDetailMapper.FormatClockState(clockSync.Value)));
         }
 
-        if (codeIntegrityReport is not null)
+        switch (codeIntegrityVerdict)
         {
-            if (codeIntegrityReport.Outcome == CodeIntegrityOutcome.Drifted
-                && codeIntegrityReport.DifferingPaths.Count == 0)
-            {
-                // A contract violation: a correct comparison never reports Drifted with nothing
-                // named. Never interpreted charitably as Clean, and never treated as Unavailable
-                // either — that outcome is reserved for "the comparison could not run", not "the
-                // closed side sent a report this repository cannot trust." Logged and otherwise
-                // ignored this round: neither InstalledFilesSubject nor HashListSubject is observed
-                // from it, so it can neither raise nor resolve either alert.
-                await _journal.RecordSystemAsync(
-                    AuditActions.CodeIntegrityReportRejected,
-                    $"version={codeIntegrityReport.InstalledVersion};outcome=Drifted;paths=0",
-                    succeeded: false,
-                    cancellationToken);
-            }
-            else if (codeIntegrityReport.Outcome == CodeIntegrityOutcome.Unavailable)
-            {
-                var transition = await ObserveAsync(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.HashListSubject,
-                    breaching: true,
-                    observedAt,
-                    cancellationToken);
+            case DriftedCodeIntegrityVerdict { DifferingPaths.Count: 0 } malformed:
+                {
+                    // A contract violation: a correct comparison never reports Drifted with nothing
+                    // named. Never interpreted charitably as Clean, and never treated as Unavailable
+                    // either — that case is reserved for "the comparison could not run", not "the
+                    // closed side sent a report this repository cannot trust." Logged and otherwise
+                    // ignored this round: neither InstalledFilesSubject nor HashListSubject is observed
+                    // from it, so it can neither raise nor resolve either alert.
+                    await _journal.RecordSystemAsync(
+                        AuditActions.CodeIntegrityReportRejected,
+                        $"version={malformed.InstalledVersion};outcome=Drifted;paths=0",
+                        succeeded: false,
+                        cancellationToken);
+                    break;
+                }
 
-                pending.Add(new PendingAlert(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.HashListSubject,
-                    AlertEvaluator.HashListSubject,
-                    transition,
-                    codeIntegrityReport.UnavailableReason ?? string.Empty));
+            case UnavailableCodeIntegrityVerdict unavailable:
+                {
+                    var transition = await ObserveAsync(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.HashListSubject,
+                        breaching: true,
+                        observedAt,
+                        cancellationToken);
 
-                // A report that could not run says nothing about whether the files themselves
-                // differ. It must not implicitly resolve an already-open InstalledFilesSubject
-                // episode — that would require an actual Clean comparison, which this round did not
-                // get.
-            }
-            else
-            {
-                var drifted = codeIntegrityReport.Outcome == CodeIntegrityOutcome.Drifted;
+                    pending.Add(new PendingAlert(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.HashListSubject,
+                        AlertEvaluator.HashListSubject,
+                        transition,
+                        unavailable.Reason));
 
-                var filesTransition = await ObserveAsync(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.InstalledFilesSubject,
-                    breaching: drifted,
-                    observedAt,
-                    cancellationToken);
+                    // A report that could not run says nothing about whether the files themselves
+                    // differ. It must not implicitly resolve an already-open InstalledFilesSubject
+                    // episode — that would require an actual Clean comparison, which this round did not
+                    // get.
+                    break;
+                }
 
-                pending.Add(new PendingAlert(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.InstalledFilesSubject,
-                    drifted
-                        ? AlertDetailMapper.FormatDifferingPathsAuditSubject(
-                            codeIntegrityReport,
-                            AlertEvaluator.InstalledFilesSubject)
-                        : AlertEvaluator.InstalledFilesSubject,
-                    filesTransition,
-                    drifted
-                        ? AlertDetailMapper.FormatDifferingPathsBody(codeIntegrityReport.DifferingPaths)
-                        : string.Empty));
+            case DriftedCodeIntegrityVerdict drifted:
+                {
+                    var filesTransition = await ObserveAsync(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.InstalledFilesSubject,
+                        breaching: true,
+                        observedAt,
+                        cancellationToken);
 
-                // Clean also resolves whichever hash-list-availability episode was open. A Clean
-                // comparison is proof the hash list WAS read successfully this round, so it is
-                // exactly the evidence needed to close that alert too — otherwise a
-                // hash-list-availability alert that has nothing to do with drift would never
-                // resolve once drift also clears.
-                var hashListTransition = await ObserveAsync(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.HashListSubject,
-                    breaching: false,
-                    observedAt,
-                    cancellationToken);
+                    pending.Add(new PendingAlert(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.InstalledFilesSubject,
+                        AlertDetailMapper.FormatDifferingPathsAuditSubject(drifted, AlertEvaluator.InstalledFilesSubject),
+                        filesTransition,
+                        AlertDetailMapper.FormatDifferingPathsBody(drifted.DifferingPaths)));
 
-                pending.Add(new PendingAlert(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.HashListSubject,
-                    AlertEvaluator.HashListSubject,
-                    hashListTransition,
-                    string.Empty));
-            }
+                    await ResolveHashListAsync(pending, observedAt, cancellationToken);
+                    break;
+                }
+
+            case CleanCodeIntegrityVerdict:
+                {
+                    var filesTransition = await ObserveAsync(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.InstalledFilesSubject,
+                        breaching: false,
+                        observedAt,
+                        cancellationToken);
+
+                    pending.Add(new PendingAlert(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.InstalledFilesSubject,
+                        AlertEvaluator.InstalledFilesSubject,
+                        filesTransition,
+                        string.Empty));
+
+                    await ResolveHashListAsync(pending, observedAt, cancellationToken);
+                    break;
+                }
         }
 
         return pending;
+    }
+
+    /// <summary>
+    /// Records that the hash list was read this round, which closes whichever hash-list-availability
+    /// episode was open.
+    /// </summary>
+    /// <remarks>
+    /// A comparison that ran (clean or drifted) is proof the hash list WAS read successfully, so it is
+    /// exactly the evidence needed to close that alert too — otherwise a hash-list-availability alert
+    /// that has nothing to do with drift would never resolve once drift also clears.
+    /// </remarks>
+    /// <param name="pending">The round's observations, which gains this one.</param>
+    /// <param name="observedAt">When the readings were taken, from the panel's clock.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>A task that completes once the observation is recorded.</returns>
+    private async Task ResolveHashListAsync(
+        List<PendingAlert> pending,
+        DateTimeOffset observedAt,
+        CancellationToken cancellationToken)
+    {
+        var hashListTransition = await ObserveAsync(
+            AlertKind.CodeIntegrityDrifted,
+            AlertEvaluator.HashListSubject,
+            breaching: false,
+            observedAt,
+            cancellationToken);
+
+        pending.Add(new PendingAlert(
+            AlertKind.CodeIntegrityDrifted,
+            AlertEvaluator.HashListSubject,
+            AlertEvaluator.HashListSubject,
+            hashListTransition,
+            string.Empty));
     }
 
     /// <summary>Records one observation against its alert row, creating the row on first sight.</summary>

@@ -38,7 +38,7 @@ public sealed class UpdateCronEntryCommandHandlerTests
         // The same answer another tenant's entry would get if it could be reached at all, which is
         // what makes the pair indistinguishable to a caller probing for entry ids.
         var world = new World();
-        world.Agent.UpdateEntryResult = Result<bool>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
+        world.Agent.UpdateEntryResult = Result.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
 
         var result = await world.HandleAsync();
 
@@ -85,7 +85,7 @@ public sealed class UpdateCronEntryCommandHandlerTests
     {
         const string Secret = "SECRETTOKENVALUE";
         var world = new World();
-        world.Agent.UpdateEntryResult = Result<bool>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
+        world.Agent.UpdateEntryResult = Result.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
 
         await world.HandleAsync(command: $"/usr/bin/curl https://example.test/hook?token={Secret}");
 
@@ -130,7 +130,7 @@ public sealed class UpdateCronEntryCommandHandlerTests
         /// <summary>Runs the handler with the usual audit context.</summary>
         /// <param name="command">The new command line.</param>
         /// <param name="accountId">The account to act under; the owner by default.</param>
-        public async Task<Result<bool>> HandleAsync(string command = "/usr/bin/backup", Guid? accountId = null)
+        public async Task<Result> HandleAsync(string command = "/usr/bin/backup", Guid? accountId = null)
         {
             return await Handler.HandleAsync(
                 new UpdateCronEntryCommand(

@@ -37,7 +37,7 @@ public sealed class InvitationToken
     /// <summary>The token's identity.</summary>
     public Guid Id { get; private set; }
 
-    /// <summary>The user, in <c>UserState.Invited</c>, whose password this token may set.</summary>
+    /// <summary>The user, in <c>UserLifecycle.Invited</c>, whose password this token may set.</summary>
     public Guid UserId { get; private set; }
 
     /// <summary>The base64-encoded SHA-256 digest of the token. Never the token itself.</summary>

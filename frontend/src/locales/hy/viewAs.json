@@ -1,0 +1,10 @@
+{
+  "viewAs": {
+    "action": "Դիտել որպես այս հաշիվ",
+    "starting": "Բացվում է հաշիվը…",
+    "banner": "Դուք դիտում եք որպես {account} ({username})։",
+    "back": "Վերադառնալ՝ {operator}",
+    "backing": "Վերադարձ…",
+    "regionLabel": "Դիտում է այլ հաշիվ"
+  }
+}

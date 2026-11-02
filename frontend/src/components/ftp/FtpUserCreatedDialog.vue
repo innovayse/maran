@@ -30,27 +30,36 @@ import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../ui/UiDescriptionList.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiModal from '../ui/UiModal.vue'
+import type { FtpsCertificate } from '../../types/ftpsStatus'
+import type { RevealedFtpCredential } from '../../types/ftpUser'
 
-/** Props accepted by {@link FtpUserCreatedDialog}. */
+/**
+ * What the panel told this caller about reaching the FTPS server. `undisclosed` is a real answer —
+ * the status is administrator-only, and a server that was never enabled has no host name yet — and
+ * carries no values, so nothing here can be mistaken for a measured fact.
+ */
+export type FtpConnection =
+  | {
+      /** The panel gave this caller no connection facts. */
+      state: 'undisclosed'
+    }
+  | {
+      /** The panel disclosed the connection facts. */
+      state: 'disclosed'
+      /** The host name the customer must connect to, as the panel persisted it. Never composed here. */
+      hostname: string
+      /** The control port the panel configured the daemon with. Backend-supplied like every number here. */
+      controlPort: number
+      /** What the agent found at the certificate path; the self-signed placeholder earns a warning. */
+      certificate: FtpsCertificate
+    }
+
+/** Props accepted by {@link FtpUserCreatedDialog}; the page mounts it only while a credential is held. */
 const props = defineProps<{
-  /** Whether the dialog is shown; owned by the page, which holds the credential. */
-  open: boolean
-  /** The system login the password belongs to, prefixed exactly as the host holds it. */
-  fullName: string
-  /** The generated password, exactly as the panel sent it. */
-  password: string
-  /**
-   * The host name the customer must connect to, as the panel persisted it, or `null` when the panel
-   * did not disclose it to this caller. Never composed here.
-   */
-  hostname: string | null
-  /**
-   * The control port the panel configured the daemon with, or `null` when it was not disclosed.
-   * Backend-supplied like every other number on these screens.
-   */
-  controlPort: number | null
-  /** Whether the server's certificate is the agent's self-signed placeholder. */
-  certificateIsSelfSigned: boolean
+  /** The login, prefixed exactly as the host holds it, and its generated password as the panel sent it. */
+  credential: RevealedFtpCredential
+  /** The connection facts the panel disclosed, or that it disclosed none. */
+  connection: FtpConnection
 }>()
 
 /** Events emitted by {@link FtpUserCreatedDialog}. */
@@ -71,17 +80,12 @@ const copied: Ref<boolean> = ref(false)
 
 /** The host to connect to, or the panel's placeholder for a value it did not disclose. */
 const hostText: ComputedRef<string> = computed(() => {
-  return props.hostname ?? t('common.emptyValue')
+  return props.connection.state === 'disclosed' ? props.connection.hostname : t('common.emptyValue')
 })
 
 /** The control port, or the panel's placeholder for a value it did not disclose. */
 const portText: ComputedRef<string> = computed(() => {
-  return props.controlPort === null ? t('common.emptyValue') : String(props.controlPort)
-})
-
-/** Whether either connection fact is missing, so the dialog says why rather than showing two dashes. */
-const isConnectionUndisclosed: ComputedRef<boolean> = computed(() => {
-  return props.hostname === null || props.controlPort === null
+  return props.connection.state === 'disclosed' ? String(props.connection.controlPort) : t('common.emptyValue')
 })
 
 /**
@@ -94,7 +98,7 @@ const isConnectionUndisclosed: ComputedRef<boolean> = computed(() => {
  */
 const copyPassword = async (): Promise<void> => {
   try {
-    await navigator.clipboard.writeText(props.password)
+    await navigator.clipboard.writeText(props.credential.password)
     copied.value = true
   } catch {
     copied.value = false
@@ -111,8 +115,8 @@ const close = (): void => {
 
 // A second credential must not open under the first one's "Copied" state.
 watch(
-  (): boolean => {
-    return props.open
+  (): RevealedFtpCredential => {
+    return props.credential
   },
   (): void => {
     copied.value = false
@@ -122,7 +126,7 @@ watch(
 
 <template>
   <UiModal
-    :open="open"
+    :open="true"
     :title="t('ftp.credential.title')"
     :close-label="t('common.close')"
     :dismissible="false"
@@ -141,7 +145,7 @@ watch(
         {{ t('ftp.credential.protocolValue') }}
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('ftp.credential.loginLabel')" mono>
-        {{ fullName }}
+        {{ credential.fullName }}
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('ftp.credential.passwordLabel')" mono class="sm:col-span-2">
         <!-- Selectable text, not a masked field: the clipboard may be unavailable, and the only
@@ -150,7 +154,7 @@ watch(
           data-testid="ftp-password"
           class="mt-1 block rounded-control border border-border-strong bg-surface-2 px-3 py-2.5 text-base text-text-primary wrap-anywhere"
         >
-          {{ password }}
+          {{ credential.password }}
         </span>
       </UiDescriptionItem>
     </UiDescriptionList>
@@ -159,11 +163,11 @@ watch(
          matches; any other name is a mismatch the customer cannot tell from an attack. -->
     <p class="mt-4 text-sm text-text-muted">{{ t('ftp.credential.hostNote') }}</p>
 
-    <p v-if="isConnectionUndisclosed" class="mt-2 text-sm text-text-muted">
+    <p v-if="connection.state === 'undisclosed'" class="mt-2 text-sm text-text-muted">
       {{ t('ftp.credential.hostUndisclosed') }}
     </p>
 
-    <p v-if="certificateIsSelfSigned" class="mt-2 text-sm text-text-muted">
+    <p v-if="connection.state === 'disclosed' && connection.certificate === 'selfSigned'" class="mt-2 text-sm text-text-muted">
       {{ t('ftp.credential.selfSignedNote') }}
     </p>
 

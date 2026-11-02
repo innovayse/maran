@@ -39,10 +39,4 @@
   <data name="GrantRepairAdvicePartiallyOrUnfamiliarlyEscaped">
     <value>The stored name is escaped in a way this panel never produces, so escaping it again could have destroyed a working grant. Nothing was changed. Compare it with a grant the panel issued, and correct it by hand if it is wrong.</value>
   </data>
-  <data name="GrantRepairRefusalUnspecified">
-    <value>Reason not stated</value>
-  </data>
-  <data name="GrantRepairAdviceUnspecified">
-    <value>The server agent refused this row for a reason this version of the panel does not recognise, which usually means the agent is newer than the panel. Nothing was changed. Update the panel, then run the report again.</value>
-  </data>
 </root>

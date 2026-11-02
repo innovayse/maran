@@ -20,10 +20,9 @@ namespace Maran.Modules.Monitoring.Services;
 /// <para>
 /// <b>The key scheme lives in this one method and the input is a closed set.</b> Unlike a task
 /// kind, which a marketplace module can record freely, every row's service is an
-/// <see cref="AgentManagedService"/> member by construction: the agent client maps any wire value
-/// it has no name for onto <see cref="AgentManagedService.Unspecified"/>, so this resolver can be
-/// asked about nothing outside the enum — and the module's tests walk that enum and fail on the
-/// first member without an entry.
+/// <see cref="AgentManagedService"/> member by construction: the agent client refuses a row naming
+/// a wire value it has no member for, so this resolver can be asked about nothing outside the enum —
+/// and the module's tests walk that enum and fail on the first member without an entry.
 /// </para>
 /// <para>
 /// <b>The fallback is the wire spelling, and the census test is what makes it unreachable.</b> A

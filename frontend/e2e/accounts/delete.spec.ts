@@ -19,13 +19,13 @@ const ACCOUNT: Account = {
 
 /** A panel that composed the Backups module, which is what makes a final copy possible. */
 const WITH_BACKUPS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
 ]
 
 /** The same panel composed without it — the `FinalBackupSkippedNoModule` case. */
 const WITHOUT_BACKUPS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
 ]
 
 /**

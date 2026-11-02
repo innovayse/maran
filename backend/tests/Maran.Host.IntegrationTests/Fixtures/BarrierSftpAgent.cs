@@ -103,14 +103,14 @@ public sealed class BarrierSftpAgent : IAgentSftpClient
     /// <param name="sftpUsername">The login suffix; ignored.</param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
     /// <returns>Success.</returns>
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string sftpUsername,
         CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _deleteCalls);
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Not exercised by a login creation.</summary>
@@ -119,7 +119,7 @@ public sealed class BarrierSftpAgent : IAgentSftpClient
     /// <param name="password">Ignored.</param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string sftpUsername,
         SensitiveString password,

@@ -206,7 +206,7 @@ public sealed class BackupFailureDisplayNamesTests
     {
         var names = BackupsTestContext.FailureNames();
 
-        Assert.Equal(string.Empty, names.Of(string.Empty));
+        Assert.Null(names.Of(null));
     }
 
     /// <summary>A code this build has never heard of falls back to itself rather than to a key.</summary>

@@ -1,7 +1,10 @@
+using Maran.Modules.Databases.Common;
+using Maran.Modules.Databases.Domain.Enums;
 using Maran.Modules.Databases.Queries.InspectDatabaseGrants;
 using Maran.Modules.Databases.Tests.TestSupport;
 using Maran.SharedKernel.Results;
-using AgentGrantRepairReport = Maran.Agent.Client.Services.DbService.GrantRepairReportDto;
+using AgentGrantInspectionReport = Maran.Agent.Client.Services.DbService.GrantInspectionReportDto;
+using AgentGrantRefusal = Maran.Agent.Client.Services.DbService.AgentGrantRefusal;
 using AgentRefusedGrant = Maran.Agent.Client.Services.DbService.RefusedGrantDto;
 using AgentRepairedGrant = Maran.Agent.Client.Services.DbService.RepairedGrantDto;
 
@@ -46,17 +49,17 @@ public sealed class InspectDatabaseGrantsQueryHandlerTests
     {
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(11, 11, [], [], [])),
+            ReportResult = Result<AgentGrantInspectionReport>.Ok(new AgentGrantInspectionReport(11, 11, [], [])),
         };
         var handler = new InspectDatabaseGrantsQueryHandler(agent, DatabasesTestContext.RefusalText());
 
         var result = await handler.HandleAsync(new InspectDatabaseGrantsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value.IsReportOnly);
+        var preview = Assert.IsType<GrantRepairPreviewDto>(result.Value.Work);
         Assert.Equal(11u, result.Value.ExaminedGrants);
         Assert.Equal(11u, result.Value.AlreadyCorrect);
-        Assert.Empty(result.Value.WouldRepair);
+        Assert.Empty(preview.Grants);
         Assert.Empty(result.Value.Refused);
     }
 
@@ -72,21 +75,20 @@ public sealed class InspectDatabaseGrantsQueryHandlerTests
     {
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(
+            ReportResult = Result<AgentGrantInspectionReport>.Ok(new AgentGrantInspectionReport(
                 1,
                 0,
                 [],
-                [],
-                [new AgentRefusedGrant("10.0.0.5", "reporting", "reporting_tool", "HostIsNotLocalhost")])),
+                [new AgentRefusedGrant("10.0.0.5", "reporting", "reporting_tool", AgentGrantRefusal.HostIsNotLocalhost)])),
         };
         var handler = new InspectDatabaseGrantsQueryHandler(agent, DatabasesTestContext.RefusalText());
 
         var result = await handler.HandleAsync(new InspectDatabaseGrantsQuery(), CancellationToken.None);
 
         var refused = Assert.Single(result.Value.Refused);
-        Assert.Equal("HostIsNotLocalhost", refused.Reason);
-        Assert.NotEqual(refused.Reason, refused.ReasonDisplayName);
-        Assert.NotEqual(refused.Reason, refused.ReasonAdvice);
+        Assert.Equal(GrantRefusalReason.HostIsNotLocalhost, refused.Reason);
+        Assert.NotEqual(refused.Reason.ToString(), refused.ReasonDisplayName);
+        Assert.NotEqual(refused.Reason.ToString(), refused.ReasonAdvice);
         Assert.NotEqual(refused.ReasonDisplayName, refused.ReasonAdvice);
     }
 
@@ -102,12 +104,12 @@ public sealed class InspectDatabaseGrantsQueryHandlerTests
     {
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(
+            ReportResult = Result<AgentGrantInspectionReport>.Ok(new AgentGrantInspectionReport(
                 1,
                 0,
                 [],
-                [],
-                [new AgentRefusedGrant("localhost", @"alice\\_shop", "alice_shop", "PartiallyOrUnfamiliarlyEscaped")])),
+                [new AgentRefusedGrant(
+                    "localhost", @"alice\\_shop", "alice_shop", AgentGrantRefusal.PartiallyOrUnfamiliarlyEscaped)])),
         };
         var handler = new InspectDatabaseGrantsQueryHandler(agent, DatabasesTestContext.RefusalText());
 
@@ -130,10 +132,9 @@ public sealed class InspectDatabaseGrantsQueryHandlerTests
     {
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(
+            ReportResult = Result<AgentGrantInspectionReport>.Ok(new AgentGrantInspectionReport(
                 1,
                 0,
-                [],
                 [new AgentRepairedGrant("alice_shop", "alice_shop", ["alicexshop", "alice_shop"])],
                 [])),
         };
@@ -141,8 +142,8 @@ public sealed class InspectDatabaseGrantsQueryHandlerTests
 
         var result = await handler.HandleAsync(new InspectDatabaseGrantsQuery(), CancellationToken.None);
 
-        Assert.Empty(result.Value.Repaired);
-        var planned = Assert.Single(result.Value.WouldRepair);
+        var preview = Assert.IsType<GrantRepairPreviewDto>(result.Value.Work);
+        var planned = Assert.Single(preview.Grants);
         Assert.Equal(["alicexshop", "alice_shop"], planned.AlsoMatchedDatabases);
     }
 
@@ -157,7 +158,7 @@ public sealed class InspectDatabaseGrantsQueryHandlerTests
     {
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Fail(
+            ReportResult = Result<AgentGrantInspectionReport>.Fail(
                 Error.Of("AgentSystemFailure", ErrorType.Failure)),
         };
         var handler = new InspectDatabaseGrantsQueryHandler(agent, DatabasesTestContext.RefusalText());

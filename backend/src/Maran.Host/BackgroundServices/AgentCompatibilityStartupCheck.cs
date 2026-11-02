@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Services.SystemService;
 using Maran.Host.HealthChecks;
+using Maran.Host.HealthChecks.Enums;
 
 namespace Maran.Host.BackgroundServices;
 
@@ -20,7 +21,7 @@ namespace Maran.Host.BackgroundServices;
 /// fixed from the panel's own health report. So nothing this check meets escapes it except the
 /// host's own shutdown: the panel keeps serving its own pages and <c>/health/live</c>, and the
 /// refusal lasts where it can be observed — <see cref="AgentHealthProbe"/> reports
-/// <see cref="AgentHealthProbe.Incompatible"/>, and <c>/health/ready</c> answers 503, on every request
+/// <see cref="AgentHealth.Incompatible"/>, and <c>/health/ready</c> answers 503, on every request
 /// until a compatible agent answers.
 /// </para>
 /// <para>
@@ -115,10 +116,10 @@ public sealed class AgentCompatibilityStartupCheck : BackgroundService
 
             switch (verdict)
             {
-                case AgentHealthProbe.Connected:
+                case AgentHealth.Connected:
                     LogCompatible(_logger, AgentProtoVersionWindow.Minimum, AgentProtoVersionWindow.Maximum, null);
                     break;
-                case AgentHealthProbe.Incompatible:
+                case AgentHealth.Incompatible:
                     LogIncompatible(_logger, AgentProtoVersionWindow.Minimum, AgentProtoVersionWindow.Maximum, null);
                     break;
                 default:

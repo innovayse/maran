@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.FirewallService;
 using Maran.Modules.Firewall.Domain.Entities;
 using Maran.Modules.Firewall.Domain.Enums;
 using Maran.Modules.Firewall.IntegrationEvents.Handlers;
@@ -83,7 +84,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7");
 
-        Assert.Equal(TimeSpan.FromMinutes(15), Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromMinutes(15)), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>A second detection inside the day bans for an hour.</summary>
@@ -97,10 +98,15 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7", windowStart: Now);
 
-        Assert.Equal([TimeSpan.FromMinutes(15), TimeSpan.FromHours(1)], world.Agent.Bans.Select(ban =>
-        {
-            return ban.Ttl;
-        }));
+        Assert.Equal(
+            [
+                new AgentBanTerm.ExpiresAfter(TimeSpan.FromMinutes(15)),
+                new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(1)),
+            ],
+            world.Agent.Bans.Select(ban =>
+            {
+                return ban.Term;
+            }));
     }
 
     /// <summary>A third detection inside the day bans for a day.</summary>
@@ -113,7 +119,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7", windowStart: Now);
 
-        Assert.Equal(TimeSpan.FromHours(24), world.Agent.Bans[^1].Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(24)), world.Agent.Bans[^1].Term);
     }
 
     /// <summary>An episode an administrator lifted still counts on the ladder.</summary>
@@ -132,7 +138,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7");
 
-        Assert.Equal(TimeSpan.FromHours(1), Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(1)), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>An episode older than the day does not escalate the next ban.</summary>
@@ -146,7 +152,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7");
 
-        Assert.Equal(TimeSpan.FromMinutes(15), Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromMinutes(15)), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>A ban reaches the agent as plain ipv4 when the detector reported a mapped address.</summary>
@@ -221,7 +227,7 @@ public sealed class BruteForceDetectedHandlerTests
         // while every packet from it arrives — and the reconciler would go on re-applying a ban
         // that has never once existed.
         var world = await WorldAsync();
-        world.Agent.BanResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.BanResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         await world.HandleAsync("203.0.113.7");
 
@@ -276,7 +282,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7");
 
-        Assert.Null(Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.Permanent(), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>A standing permanent ban is still permanent in the panel afterwards.</summary>
@@ -309,7 +315,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7");
 
-        Assert.Equal(TimeSpan.FromHours(12), Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(12)), Assert.Single(world.Agent.Bans).Term);
         Assert.All(await world.EpisodesAsync(), episode =>
         {
             Assert.Equal(Now.AddHours(12), episode.ExpiresAt);
@@ -329,7 +335,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7");
 
-        Assert.Equal(TimeSpan.FromHours(1), Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(1)), Assert.Single(world.Agent.Bans).Term);
 
         // The operator's row is NOT moved to match. The host holds one element, the panel holds two
         // rows describing it, and the ban in force is the longest of them — which is the rule the
@@ -403,7 +409,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7");
 
-        Assert.Equal(TimeSpan.FromHours(1), Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(1)), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>An episode that has run out does not lengthen the next automatic ban.</summary>
@@ -417,7 +423,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         await world.HandleAsync("203.0.113.7");
 
-        Assert.Equal(TimeSpan.FromHours(1), Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(1)), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>A detection naming something that is not an address bans nothing.</summary>

@@ -1,6 +1,7 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Accounts.Queries.GetMyAccountResourceSummary;
 
@@ -34,7 +35,7 @@ public sealed class GetMyAccountResourceSummaryQueryHandler
         GetMyAccountResourceSummaryQuery query,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.AccountId is not { } accountId)
+        if (_currentUser.Caller is not CustomerCaller { AccountId: var accountId })
         {
             return Result<AccountResourceSummaryDto>.Fail(
                 Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound));

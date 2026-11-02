@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ManagedPlan, PlanCeiling, PlanRequest } from '../types/plan'
+import type { ManagedPlan, PlanRequest } from '../types/plan'
+import type { ResourceCeiling } from '../types/resourceCeiling'
 
 /** The runtime ceilings a plan states, by the name the request and the locale file both use. */
 export type PlanCeilingKey = 'cpuQuotaPercent' | 'memoryMaxMb' | 'maxProcesses'
@@ -51,7 +52,7 @@ const FIELDS: readonly PlanCeilingField[] = [
  * @param ceiling The plan's ceiling, or `undefined` for a new plan.
  * @returns The ceiling as the form holds it.
  */
-const startOf = (ceiling: PlanCeiling | undefined): PlanCeilingState => {
+const startOf = (ceiling: ResourceCeiling | undefined): PlanCeilingState => {
   if (ceiling === undefined) {
     return { unlimited: false, figure: '' }
   }
@@ -72,8 +73,9 @@ const parseWhole = (text: string): number | null => {
 
 /**
  * The plan form's runtime ceilings (issue #133): CPU, memory and processes, each a figure or a
- * ticked "No limit", never a zero standing for "none" — the server refuses both a limited zero and
- * an unlimited ceiling carrying a figure. The rules mirror `ResourceCeilingValidator` and are advice;
+ * ticked "No limit", never a zero standing for "none" — the server refuses a limited zero, and an
+ * unlimited ceiling is sent as a case with no figure at all. The rules mirror
+ * `PlanDefinitionValidator` and are advice;
  * the server re-validates, and its refusal is what the page shows.
  * @param plan The plan being edited, or `null` for a new one.
  * @param submitted Whether a submit has been attempted, so nothing turns red before that.
@@ -118,10 +120,10 @@ export const usePlanCeilings = (plan: ManagedPlan | null, submitted: Readonly<Re
    * @param key Which ceiling to read.
    * @returns The ceiling, its case stated.
    */
-  const ceilingOf = (key: PlanCeilingKey): PlanCeiling => {
+  const ceilingOf = (key: PlanCeilingKey): ResourceCeiling => {
     const state = ceilings.value[key]
     return state.unlimited
-      ? { kind: 'unlimited', maximum: 0 }
+      ? { kind: 'unlimited' }
       : { kind: 'limited', maximum: parseWhole(state.figure) ?? 0 }
   }
 

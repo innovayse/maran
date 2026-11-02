@@ -84,7 +84,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> ChangePhpVersionAsync(
+    public async Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -112,15 +112,15 @@ public sealed class AgentSitesClient : IAgentSitesClient
 
         return response.ResultCase switch
         {
-            UpdateSitePhpVersionResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            UpdateSitePhpVersionResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            UpdateSitePhpVersionResponse.ResultOneofCase.Ok => Result.Ok(),
+            UpdateSitePhpVersionResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ChangePhpVersionAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> EnableAsync(
+    public async Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -136,15 +136,15 @@ public sealed class AgentSitesClient : IAgentSitesClient
 
         return response.ResultCase switch
         {
-            EnableSiteResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            EnableSiteResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            EnableSiteResponse.ResultOneofCase.Ok => Result.Ok(),
+            EnableSiteResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(EnableAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DisableAsync(
+    public async Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -160,15 +160,15 @@ public sealed class AgentSitesClient : IAgentSitesClient
 
         return response.ResultCase switch
         {
-            DisableSiteResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DisableSiteResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DisableSiteResponse.ResultOneofCase.Ok => Result.Ok(),
+            DisableSiteResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DisableAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteAsync(
+    public async Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -184,30 +184,30 @@ public sealed class AgentSitesClient : IAgentSitesClient
 
         return response.ResultCase switch
         {
-            DeleteSiteResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DeleteSiteResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DeleteSiteResponse.ResultOneofCase.Ok => Result.Ok(),
+            DeleteSiteResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public async Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         var response = await _invoker.ReloadWebServerAsync(new ReloadWebServerRequest(), cancellationToken);
 
         return response.ResultCase switch
         {
-            ReloadWebServerResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            ReloadWebServerResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            ReloadWebServerResponse.ResultOneofCase.Ok => Result.Ok(),
+            ReloadWebServerResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ReloadWebServerAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
     /// <remarks>
-    /// A transport failure ends the tail in a <see cref="SiteLogEventKind.Failed"/> event carrying the
+    /// A transport failure ends the tail in a <see cref="SiteLogFailed"/> event carrying the
     /// code of <see cref="AgentTransportFailure.ToError"/>, never in the raw exception.
     /// </remarks>
     public IAsyncEnumerable<SiteLogEvent> TailLogAsync(
@@ -221,11 +221,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
             TailLogEventsAsync(accountUsername, domain, logSource, historyLines, cancellationToken),
             exception =>
             {
-                return new SiteLogEvent(
-                    SiteLogEventKind.Failed,
-                    string.Empty,
-                    false,
-                    AgentTransportFailure.ToError(exception).Code);
+                return new SiteLogFailed(AgentTransportFailure.ToError(exception).Code);
             },
             cancellationToken);
     }
@@ -260,17 +256,13 @@ public sealed class AgentSitesClient : IAgentSitesClient
             // messages the caller has stopped wanting.
             if (cancellationToken.IsCancellationRequested)
             {
-                yield return new SiteLogEvent(SiteLogEventKind.Cancelled, string.Empty, false, null);
+                yield return new SiteLogEnded(SiteLogEndKind.Cancelled);
                 yield break;
             }
 
             if (response.ResultCase == TailSiteLogResponse.ResultOneofCase.Ok)
             {
-                yield return new SiteLogEvent(
-                    SiteLogEventKind.Line,
-                    response.Ok.Line,
-                    response.Ok.Historical,
-                    null);
+                yield return new SiteLogLine(response.Ok.Line, response.Ok.Historical);
                 continue;
             }
 
@@ -282,35 +274,35 @@ public sealed class AgentSitesClient : IAgentSitesClient
 
             // A message carrying neither branch is not a line and not an ending the agent named.
             // Reporting it as a failure keeps the invariant that a tail always ends in a stated way.
-            yield return new SiteLogEvent(
-                SiteLogEventKind.Failed,
-                string.Empty,
-                false,
-                nameof(ErrorMessages.AgentInvalidResponse));
+            yield return new SiteLogFailed(nameof(ErrorMessages.AgentInvalidResponse));
             yield break;
         }
 
         if (cancellationToken.IsCancellationRequested)
         {
-            yield return new SiteLogEvent(SiteLogEventKind.Cancelled, string.Empty, false, null);
+            yield return new SiteLogEnded(SiteLogEndKind.Cancelled);
             yield break;
         }
 
         // The agent closed the stream without a terminal message: its natural end, and the only
         // ending that is not an interruption.
-        yield return new SiteLogEvent(SiteLogEventKind.Completed, string.Empty, false, null);
+        yield return new SiteLogEnded(SiteLogEndKind.Completed);
     }
 
     /// <summary>Maps the panel's log selector onto its wire counterpart.</summary>
     /// <param name="logSource">Which log the caller asked for.</param>
-    /// <returns>The wire value; an unknown selector becomes the unspecified value the agent refuses.</returns>
+    /// <returns>The wire value.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown for a selector this mapping does not know: a defect of the panel, never sent on as the
+    /// wire's unspecified value.
+    /// </exception>
     private static SiteLogKind ToWireLogKind(SiteLogSource logSource)
     {
         return logSource switch
         {
             SiteLogSource.Access => SiteLogKind.Access,
             SiteLogSource.Error => SiteLogKind.Error,
-            _ => SiteLogKind.Unspecified,
+            _ => throw new ArgumentOutOfRangeException(nameof(logSource), logSource, "Unknown site log source."),
         };
     }
 
@@ -325,18 +317,14 @@ public sealed class AgentSitesClient : IAgentSitesClient
     {
         if (error.Code == ErrorCode.StreamDropped)
         {
-            return new SiteLogEvent(SiteLogEventKind.Dropped, string.Empty, false, null);
+            return new SiteLogEnded(SiteLogEndKind.Dropped);
         }
 
         if (error.Code == ErrorCode.StreamIdle)
         {
-            return new SiteLogEvent(SiteLogEventKind.Idle, string.Empty, false, null);
+            return new SiteLogEnded(SiteLogEndKind.Idle);
         }
 
-        return new SiteLogEvent(
-            SiteLogEventKind.Failed,
-            string.Empty,
-            false,
-            AgentErrorTranslator.ToError(_logger, error, nameof(TailLogAsync)).Code);
+        return new SiteLogFailed(AgentErrorTranslator.ToError(_logger, error, nameof(TailLogAsync)).Code);
     }
 }

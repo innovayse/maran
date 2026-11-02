@@ -1,0 +1,10 @@
+{
+  "viewAs": {
+    "action": "View as this account",
+    "starting": "Opening the account…",
+    "banner": "You are viewing as {account} ({username}).",
+    "back": "Back to {operator}",
+    "backing": "Returning…",
+    "regionLabel": "Viewing as another account"
+  }
+}

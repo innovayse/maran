@@ -142,10 +142,17 @@ export interface DatabasesApi {
    * Drops the database and its dedicated user. The customer's data goes with it.
    * @param id The database to drop.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel dropped the database.
    */
-  remove: (id: string, signal?: AbortSignal) => Promise<boolean>
+  remove: (id: string, signal?: AbortSignal) => Promise<void>
 }
 
 /** An action the panel offers on a database's row, confirmed by the operator before it is sent. */
 export type DatabaseAction = 'resetPassword' | 'drop'
+
+/** A database and the action the operator started on it; the two are only ever known together. */
+export interface PendingDatabaseAction {
+  /** The database the action is aimed at. */
+  database: Database
+  /** Which action that database is waiting on. */
+  action: DatabaseAction
+}

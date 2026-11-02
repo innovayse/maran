@@ -133,14 +133,14 @@ const stoppedServiceNames: ComputedRef<string[]> = computed(() => {
 
 /**
  * The usernames of accounts on the disk page on screen whose measured use has reached an allowance
- * this server enforces. An unmeasured account, a zero allowance and an unenforced allowance are all
- * left out: none of them is a measurement that says the account is over anything. Only the page on
+ * this server enforces. An unmeasured account, a zero allowance and an allowance not known to be
+ * enforced are all left out: none of them is a measurement that says the account is over anything. Only the page on
  * screen is measured, so only the page on screen can be named.
  */
 const overQuotaUsernames: ComputedRef<string[]> = computed(() => {
   return store.accountDiskUsage
     .filter((row) => {
-      return row.enforceable && row.quotaBytes > 0 && row.usedBytes !== null && row.usedBytes >= row.quotaBytes
+      return row.backing.state === 'enforced' && row.quotaBytes > 0 && row.usedBytes !== null && row.usedBytes >= row.quotaBytes
     })
     .map((row) => {
       return row.username

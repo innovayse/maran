@@ -13,7 +13,7 @@ namespace Maran.Modules.Ftp.Common;
 /// configuration the daemon was started against, on the host, by the agent. A status assembled from
 /// the panel's own settings row would agree with the panel by construction: it would report a
 /// healthy daemon on a server where the unit had crashed, and — the case
-/// <see cref="ForcedTls"/> exists for — a green screen on a daemon taking passwords in the clear.
+/// <see cref="TlsEnforcement"/> exists for — a green screen on a daemon taking passwords in the clear.
 /// </para>
 /// <para>
 /// <b>This shape is admin-only, and <see cref="CertificatePath"/> is why it must stay so.</b> It is
@@ -45,21 +45,20 @@ namespace Maran.Modules.Ftp.Common;
 /// LOCAL probe, so "answering here" and "unreachable from the internet" are compatible: nothing in
 /// this module reads a firewall, and a screen must not promise reachability from this field.
 /// </param>
-/// <param name="ForcedTls">
-/// The live configuration still forces TLS on both the control and the data channel.
-/// <c>false</c> whenever the agent could not say otherwise — no live configuration, a file it could
-/// not resolve, an agent predating the field — because an unknown must never read as "encryption is
-/// enforced". A screen that shows this as green while it is <c>false</c> is the exact defect the
-/// field was put on the wire to prevent.
+/// <param name="TlsEnforcement">
+/// Whether the live configuration forces TLS on both the control and the data channel: enforced, not
+/// enforced (the configuration was read and TLS is optional), or not observed (the agent could not
+/// read it). Not observed is a state of its own because an unknown must never read as "encryption is
+/// enforced", and must not be asserted as "encryption is off" either. A screen that shows this as
+/// green unless it is <see cref="FtpsTlsEnforcement.Enforced"/> is the defect the field was put on
+/// the wire to prevent.
 /// </param>
-/// <param name="CertificatePresent">
-/// Certificate material exists for <paramref name="Hostname"/>. When no hostname is persisted the
-/// agent was asked about nothing, so this is <c>false</c> for "not asked" rather than for "absent" —
-/// which is why a screen reads it together with <paramref name="Hostname"/> and not alone.
-/// </param>
-/// <param name="CertificateIsSelfSigned">
-/// The material is the agent's own self-signed placeholder, read from the marker file beside it.
-/// True means every customer connecting will see their client's certificate warning.
+/// <param name="Certificate">
+/// What the agent found for <paramref name="Hostname"/>: no material, the agent's own self-signed
+/// placeholder (every customer connecting will see their client's certificate warning), or a
+/// certificate somebody installed. When no hostname is persisted the agent was asked about nothing
+/// and this is <c>Absent</c>, which is why a screen reads it together with
+/// <paramref name="Hostname"/> and not alone.
 /// </param>
 /// <param name="CertificatePath">Where the material lives, or would have to be placed. Operator-facing.</param>
 /// <param name="ControlPort">
@@ -79,9 +78,8 @@ public sealed record FtpsStatusDto(
     FtpsAgreement Agreement,
     bool Running,
     bool ControlPortAnswered,
-    bool ForcedTls,
-    bool CertificatePresent,
-    bool CertificateIsSelfSigned,
+    FtpsTlsEnforcement TlsEnforcement,
+    FtpsCertificateState Certificate,
     string CertificatePath,
     int ControlPort,
     uint PassivePortMin,

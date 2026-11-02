@@ -99,10 +99,10 @@ public sealed class DeleteBackupCommandHandler
     /// <param name="command">The backup to delete.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
-    /// <c>true</c> when the artifact and the row are both gone — or <c>BackupNotFound</c>,
+    /// Success when the artifact and the row are both gone — or <c>BackupNotFound</c>,
     /// <c>BackupStillRunning</c>, <c>AccountNotFound</c>, or the agent's own typed failure.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         DeleteBackupCommand command,
         CancellationToken cancellationToken)
     {
@@ -166,7 +166,7 @@ public sealed class DeleteBackupCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.BackupDeleted, username, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>The system user name whose directory this backup's archive sits in.</summary>
@@ -191,9 +191,9 @@ public sealed class DeleteBackupCommandHandler
         Domain.Entities.Backup backup,
         CancellationToken cancellationToken)
     {
-        if (backup.NamesADeletedAccount())
+        if (backup.DeletedAccountUsername is { } deletedAccountUsername)
         {
-            return backup.OrphanedAccountUsername;
+            return deletedAccountUsername;
         }
 
         var account = await _accounts.FindAsync(backup.AccountId, cancellationToken);
@@ -260,7 +260,7 @@ public sealed class DeleteBackupCommandHandler
     /// The one funnel every refusal passes through, so no early return can leave the journal
     /// unwritten.
     /// </remarks>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         DeleteBackupCommand command,
         string subject,
         Error error,
@@ -269,6 +269,6 @@ public sealed class DeleteBackupCommandHandler
         await _journal.RecordFailureAsync(
             AuditActions.BackupDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }

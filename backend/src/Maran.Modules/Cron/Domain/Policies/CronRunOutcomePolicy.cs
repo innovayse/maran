@@ -1,4 +1,7 @@
+using System.Linq.Expressions;
+using Maran.Modules.Cron.Domain.Entities;
 using Maran.Modules.Cron.Domain.Enums;
+using Maran.Modules.Cron.Domain.ValueObjects;
 
 namespace Maran.Modules.Cron.Domain.Policies;
 
@@ -10,17 +13,38 @@ namespace Maran.Modules.Cron.Domain.Policies;
 /// </remarks>
 public static class CronRunOutcomePolicy
 {
-    /// <summary>The outcome of a run that exited with <paramref name="exitCode"/> or hit <paramref name="limit"/>.</summary>
-    /// <param name="exitCode">The program's status, or null when it reported none.</param>
-    /// <param name="limit">The ceiling that stopped it, or null when it ended on its own.</param>
+    /// <summary>The outcome of a run that ended as <paramref name="end"/> says.</summary>
+    /// <param name="end">How the run ended.</param>
     /// <returns>The outcome the history shows.</returns>
-    public static CronRunOutcome Of(int? exitCode, CronRunLimit? limit)
+    /// <exception cref="ArgumentOutOfRangeException">An ending this policy has no rule for.</exception>
+    public static CronRunOutcome Of(CronRunEnd end)
     {
-        if (limit is not null)
+        return end switch
         {
-            return CronRunOutcome.Stopped;
-        }
+            CronRunStopped => CronRunOutcome.Stopped,
+            CronRunExited { ExitCode: 0 } => CronRunOutcome.Succeeded,
+            CronRunExited => CronRunOutcome.Failed,
+            CronRunEndedWithoutStatus => CronRunOutcome.Failed,
+            _ => throw new ArgumentOutOfRangeException(nameof(end), end, "Unknown cron run ending."),
+        };
+    }
 
-        return exitCode == 0 ? CronRunOutcome.Succeeded : CronRunOutcome.Failed;
+    /// <summary>
+    /// The filter selecting runs whose outcome is <paramref name="outcome"/>, written over the stored
+    /// end so a database translates it; it restates <see cref="Of"/> and must agree with it.
+    /// </summary>
+    /// <param name="outcome">The outcome to select.</param>
+    /// <returns>A predicate over a run's stored end.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">An outcome this policy has no rule for.</exception>
+    public static Expression<Func<CronRun, bool>> Matching(CronRunOutcome outcome)
+    {
+        return outcome switch
+        {
+            CronRunOutcome.Stopped => run => run.EndKind == CronRunEndKind.Stopped,
+            CronRunOutcome.Succeeded => run => run.EndKind == CronRunEndKind.Exited && run.EndExitCode == 0,
+            CronRunOutcome.Failed => run => run.EndKind == CronRunEndKind.WithoutStatus
+                || (run.EndKind == CronRunEndKind.Exited && run.EndExitCode != 0),
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Unknown cron run outcome."),
+        };
     }
 }

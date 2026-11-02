@@ -28,13 +28,13 @@ public interface IAgentAccountsClient
     /// <param name="username">The account's system user name.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> SuspendAsync(string username, CancellationToken cancellationToken);
+    Task<Result> SuspendAsync(string username, CancellationToken cancellationToken);
 
     /// <summary>Reverses a suspension.</summary>
     /// <param name="username">The account's system user name.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken);
+    Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken);
 
     /// <summary>Reads what the host can be observed to be doing for the account right now.</summary>
     /// <remarks>
@@ -60,7 +60,7 @@ public interface IAgentAccountsClient
     /// <param name="quotaBytes">The new quota, in bytes; zero removes the limit.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken);
+    Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken);
 
     /// <summary>
     /// Holds the account's systemd slice to <paramref name="limits"/>, replacing every ceiling it held
@@ -75,7 +75,7 @@ public interface IAgentAccountsClient
     /// <param name="limits">The three ceilings, each stated, none left to a default.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> SetResourceLimitsAsync(
+    Task<Result> SetResourceLimitsAsync(
         string username,
         AccountSliceLimitsDto limits,
         CancellationToken cancellationToken);

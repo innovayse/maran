@@ -8,6 +8,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Cron.Controllers;
 using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Domain.ValueObjects;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
@@ -174,7 +175,7 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
         foreach (var (method, path) in Endpoints())
         {
             var response = await SendAsync(client, method, path, world.OwnAccountId);
-            if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Created))
+            if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Created or HttpStatusCode.NoContent))
             {
                 refused.Add($"{method} {path} answered {(int)response.StatusCode}");
             }
@@ -360,7 +361,7 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
     private static CronRun RunOf(Guid accountId, string stdout, string stderr)
     {
         return new CronRun(
-            Guid.NewGuid(), accountId, StubAgentCronClient.EntryId, DateTimeOffset.UnixEpoch, 10, 0, null, stdout, stderr);
+            Guid.NewGuid(), accountId, StubAgentCronClient.EntryId, DateTimeOffset.UnixEpoch, 10, new CronRunExited(0), stdout, stderr);
     }
 
     /// <summary>Boots the host against this class's PostgreSQL, with the agent replaced.</summary>
@@ -431,13 +432,14 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
         customer.AssignAccount(own.Id);
+        identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, own.Id, now));
         identity.Users.Add(customer);
         await identity.SaveChangesAsync();
 
         // One run of the own account's entry, so the single-run read has something its owner may see.
         var cron = scope.ServiceProvider.GetRequiredService<CronDbContext>();
         cron.CronRuns.Add(new CronRun(
-            SeededRunId, own.Id, StubAgentCronClient.EntryId, now, 10, 0, null, "seeded", string.Empty));
+            SeededRunId, own.Id, StubAgentCronClient.EntryId, now, 10, new CronRunExited(0), "seeded", string.Empty));
         await cron.SaveChangesAsync();
 
         return new SeededWorld(own.Id, stranger.Id);

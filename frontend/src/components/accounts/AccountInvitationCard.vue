@@ -40,6 +40,7 @@ import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import UiSpinner from '../ui/UiSpinner.vue'
 import { useInvitationsStore } from '../../stores/invitations'
 import { useLocaleStore } from '../../stores/locale'
+import type { AccountStatus } from '../../types/account'
 import { absoluteInvitationLink } from '../../utils/absoluteInvitationLink'
 import { formatDate } from '../../utils/formatDate'
 
@@ -48,10 +49,10 @@ const props = defineProps<{
   /** The hosting account whose owner's invitation this card shows. */
   accountId: string
   /**
-   * Whether the account is suspended. The panel issues no invitation for a suspended account
+   * The account's lifecycle state. The panel issues no invitation for a suspended account
    * (`InvitationAccountSuspended`), so the card offers none and says why instead.
    */
-  suspended: boolean
+  status: AccountStatus
 }>()
 
 const { t } = useI18n()
@@ -66,6 +67,14 @@ const localeStore = useLocaleStore()
  * attempt threw.
  */
 const copied: Ref<boolean> = ref(false)
+
+/**
+ * Whether the panel will issue this account an invitation, decided from its lifecycle state so a
+ * state added to `AccountStatus` has to be answered here rather than read as "not suspended".
+ */
+const issuance: ComputedRef<'allowed' | 'refused'> = computed(() => {
+  return issuanceOf(props.status)
+})
 
 /** The link to show: the panel's own, made absolute against the origin the operator is looking at. */
 const displayedLink: ComputedRef<string> = computed(() => {
@@ -84,12 +93,29 @@ const stateText: ComputedRef<string> = computed(() => {
     return ''
   }
 
-  if (status.state === 'pending' && status.expiresAt !== null) {
+  if (status.state === 'pending') {
     return t('invitations.state.pending', { date: formatDate(status.expiresAt, localeStore.current) })
   }
 
   return t(`invitations.state.${status.state}`)
 })
+
+/**
+ * Says whether an account in the given lifecycle state may be issued an invitation.
+ *
+ * A function rather than a switch inside the computed so a state added to `AccountStatus` is a
+ * compile error here and not a silent `undefined`.
+ * @param status The account's lifecycle state.
+ * @returns `allowed` for an active account, `refused` for a suspended one.
+ */
+const issuanceOf = (status: AccountStatus): 'allowed' | 'refused' => {
+  switch (status) {
+    case 'active':
+      return 'allowed'
+    case 'suspended':
+      return 'refused'
+  }
+}
 
 /**
  * Loads the invitation's state for the account the card is showing.
@@ -197,13 +223,13 @@ onBeforeUnmount(store.forget)
           </div>
         </div>
 
-        <UiAlert v-if="suspended" variant="info" data-testid="invitation-suspended">
+        <UiAlert v-if="issuance === 'refused'" variant="info" data-testid="invitation-suspended">
           {{ t('invitations.suspendedNote') }}
         </UiAlert>
 
-        <p v-if="!suspended" class="text-sm text-text-muted">{{ t('invitations.replaceNote') }}</p>
+        <p v-if="issuance === 'allowed'" class="text-sm text-text-muted">{{ t('invitations.replaceNote') }}</p>
 
-        <div v-if="!suspended" class="flex flex-wrap items-center gap-2">
+        <div v-if="issuance === 'allowed'" class="flex flex-wrap items-center gap-2">
           <UiButton :disabled="store.acting" @click="createLink">
             {{
               store.acting

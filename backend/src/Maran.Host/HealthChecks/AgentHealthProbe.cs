@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.SystemService;
+using Maran.Host.HealthChecks.Enums;
 using Maran.Host.Resilience;
 using Polly;
 using Polly.Registry;
@@ -8,8 +9,8 @@ using Polly.Timeout;
 namespace Maran.Host.HealthChecks;
 
 /// <summary>
-/// Asks the agent who it is and reports one of three words: <see cref="Connected"/>,
-/// <see cref="Unavailable"/> or <see cref="Incompatible"/>. Asked afresh on every call — by
+/// Asks the agent who it is and reports one of three states: <see cref="AgentHealth.Connected"/>,
+/// <see cref="AgentHealth.Unavailable"/> or <see cref="AgentHealth.Incompatible"/>. Asked afresh on every call — by
 /// <c>/health</c>, <c>/health/ready</c> and <see cref="Maran.Host.BackgroundServices.AgentCompatibilityStartupCheck"/> — and never
 /// cached, so an agent that is restarted or upgraded while the panel runs is seen on the next request.
 /// </summary>
@@ -20,11 +21,11 @@ namespace Maran.Host.HealthChecks;
 /// <see cref="SharedKernel.Results.Result{T}"/>, because <see cref="AgentSystemClient"/> returns
 /// them rather than throwing. A hung agent arrives as the probe pipeline's
 /// <see cref="TimeoutRejectedException"/> once its attempts are spent, and is answered
-/// <see cref="Unavailable"/> here. A cancellation of the caller's own token propagates, because a
+/// <see cref="AgentHealth.Unavailable"/> here. A cancellation of the caller's own token propagates, because a
 /// caller that left is owed no answer.
 /// </para>
 /// <para>
-/// What is deliberately NOT collapsed into <see cref="Unavailable"/> is a defect in the panel itself:
+/// What is deliberately NOT collapsed into <see cref="AgentHealth.Unavailable"/> is a defect in the panel itself:
 /// any other exception escapes, so the health request fails loudly and the log names it. This probe
 /// used to catch every exception and report it as an absent agent, which is the blindness
 /// <see cref="DatabaseHealthProbe"/> documents from the other side — a broken probe reported as a
@@ -34,26 +35,6 @@ namespace Maran.Host.HealthChecks;
 /// </remarks>
 public sealed class AgentHealthProbe
 {
-    /// <summary>
-    /// Reported when the handshake succeeds within the timeout and the revision is inside the window.
-    /// </summary>
-    public const string Connected = "connected";
-
-    /// <summary>
-    /// Reported when the agent could not be reached, did not answer in time, or answered the handshake
-    /// with a failure instead of its identity — an absent agent, a restarting one, a refused peer
-    /// credential.
-    /// </summary>
-    public const string Unavailable = "unavailable";
-
-    /// <summary>
-    /// Reported when the agent answered, in a contract revision outside the window this panel drives
-    /// (<see cref="AgentProtoVersionWindow"/>): an upgrade replaced one side and not the other. The only
-    /// answer that fails readiness on the agent's account, because traffic sent now would be served by a
-    /// panel driving an agent whose answers it may misread.
-    /// </summary>
-    public const string Incompatible = "incompatible";
-
     /// <summary>The client used to reach the agent's system service.</summary>
     private readonly IAgentSystemClient _agentClient;
 
@@ -81,11 +62,11 @@ public sealed class AgentHealthProbe
     /// the probe pipeline carries that.
     /// </param>
     /// <returns>
-    /// <see cref="Connected"/> for a handshake inside the window, <see cref="Incompatible"/> for one
-    /// outside it, otherwise <see cref="Unavailable"/>.
+    /// <see cref="AgentHealth.Connected"/> for a handshake inside the window,
+    /// <see cref="AgentHealth.Incompatible"/> for one outside it, otherwise <see cref="AgentHealth.Unavailable"/>.
     /// </returns>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
-    public async Task<string> ProbeAsync(CancellationToken cancellationToken = default)
+    public async Task<AgentHealth> ProbeAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -98,16 +79,18 @@ public sealed class AgentHealthProbe
 
             if (result.IsSuccess)
             {
-                return Connected;
+                return AgentHealth.Connected;
             }
 
-            return result.Error?.Code == AgentProtoVersionWindow.IncompatibleCode ? Incompatible : Unavailable;
+            return result.Error?.Code == AgentProtoVersionWindow.IncompatibleCode
+                ? AgentHealth.Incompatible
+                : AgentHealth.Unavailable;
         }
         catch (TimeoutRejectedException)
         {
             // The agent accepted the connection and never answered, on every attempt the pipeline
             // made. A health answer reports that; it does not wait longer for it.
-            return Unavailable;
+            return AgentHealth.Unavailable;
         }
     }
 }

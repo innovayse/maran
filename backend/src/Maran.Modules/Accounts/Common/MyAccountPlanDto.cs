@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Accounts.Common;
 
@@ -23,6 +24,11 @@ namespace Maran.Modules.Accounts.Common;
 /// <param name="MaxSftpUsers">The maximum number of SFTP logins the account may create.</param>
 /// <param name="MaxFtpUsers">The maximum number of FTPS logins the account may create.</param>
 /// <param name="MaxCronEntries">The maximum number of cron entries the account may keep in its crontab.</param>
+/// <param name="Features">
+/// The features the plan includes, as the names of the set's members. The customer's menu hides what
+/// is missing here; the endpoints refuse it regardless (<c>[RequiresAccountFeature]</c>), so this is
+/// advice for the screen and never the boundary.
+/// </param>
 public sealed record MyAccountPlanDto(
     string DisplayName,
     int DiskQuotaMb,
@@ -30,4 +36,5 @@ public sealed record MyAccountPlanDto(
     int MaxDatabases,
     int MaxSftpUsers,
     int MaxFtpUsers,
-    int MaxCronEntries);
+    int MaxCronEntries,
+    IReadOnlyList<AccountFeature> Features);

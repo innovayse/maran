@@ -43,7 +43,7 @@ public sealed class SendMailRequestedHandlerTests
     {
         var mailer = new RecordingMailer
         {
-            Outcome = Result<bool>.Fail(Error.Of(MailDeliveryFailedCode, ErrorType.Validation)),
+            Outcome = Result.Fail(Error.Of(MailDeliveryFailedCode, ErrorType.Validation)),
         };
         var audit = new RecordingAuditWriter();
         var handler = Handler(mailer, audit);
@@ -107,7 +107,7 @@ public sealed class SendMailRequestedHandlerTests
     {
         var mailer = new RecordingMailer
         {
-            Outcome = Result<bool>.Fail(Error.Of(SmtpNotConfiguredCode, ErrorType.Validation)),
+            Outcome = Result.Fail(Error.Of(SmtpNotConfiguredCode, ErrorType.Validation)),
         };
         var audit = new RecordingAuditWriter();
         var handler = Handler(mailer, audit);
@@ -159,7 +159,7 @@ public sealed class SendMailRequestedHandlerTests
     {
         var mailer = new RecordingMailer
         {
-            Outcome = Result<bool>.Fail(Error.Of(MailDeliveryFailedCode, ErrorType.Validation)),
+            Outcome = Result.Fail(Error.Of(MailDeliveryFailedCode, ErrorType.Validation)),
         };
         var audit = new RecordingAuditWriter();
         var handler = Handler(mailer, audit);

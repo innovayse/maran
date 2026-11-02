@@ -7,6 +7,7 @@ use maran_agent_core::validation::system::cron_schedule::CronSchedule;
 use maran_ops::cron::CronEntry;
 
 use super::listed_entry;
+use crate::proto::CronEntry as WireEntry;
 
 /// An id of the shape this agent mints.
 const ENTRY_ID: &str = "9f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
@@ -62,13 +63,18 @@ fn an_entry_whose_command_file_is_gone_is_still_listed_with_an_empty_command() {
 }
 
 #[test]
-fn a_listing_reports_the_run_fields_as_unread_rather_than_as_a_successful_run() {
-    // `cron.proto` says both are unproduced by a listing. The assertion exists
-    // because 0 is also the exit status of a run that succeeded: a panel that
-    // drew a green tick from this field would be reporting on a job that may
-    // never have started.
+fn a_listing_carries_no_run_fields_at_all() {
+    // The exit code and run time a listing used to send as zeros are reserved
+    // in `cron.proto` (revision 13), because 0 is also the exit status of a
+    // run that succeeded. Naming every field of the message makes the compiler
+    // refuse one that comes back as an unread default.
     let wire = listed_entry(entry(Some("true")));
 
-    assert_eq!(wire.last_exit_code, 0);
-    assert_eq!(wire.last_run_at_unix, 0);
+    let WireEntry {
+        entry_id: _,
+        schedule: _,
+        command: _,
+        enabled: _,
+        suspended: _,
+    } = wire;
 }

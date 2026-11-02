@@ -52,27 +52,27 @@ public sealed class DisableTotpCommandHandler
     /// stolen session with only the password behind it must not be able to strip the protection
     /// that would have stopped it.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(DisableTotpCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(DisableTotpCommand command, CancellationToken cancellationToken)
     {
         var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Id == command.UserId, cancellationToken);
         if (user is null)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound), ErrorType.NotFound));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.UserNotFound), ErrorType.NotFound));
         }
 
-        if (!user.IsTotpEnabled || user.TotpSecret is null)
+        if (user.TotpSecret is not { } totpSecret)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
         }
 
-        var accepted = _totpService.Verify(user.TotpSecret, command.Code, user.LastTotpWindow, out var window);
+        var accepted = _totpService.Verify(totpSecret, command.Code, user.LastTotpWindow, out var window);
         if (accepted)
         {
             user.RecordTotpWindow(window);
         }
         else if (!await _recoveryCodeService.ConsumeAsync(user.Id, command.Code, cancellationToken))
         {
-            return Result<bool>.Fail(await _rejection.ErrorAsync(cancellationToken));
+            return Result.Fail(await _rejection.ErrorAsync(cancellationToken));
         }
 
         user.DisableTotp();
@@ -91,6 +91,6 @@ public sealed class DisableTotpCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

@@ -93,7 +93,7 @@ public sealed class BackupAlertMailer
             BackupAlertKind.ScheduledRunFailed,
             accountUsername,
             _text[ScheduledRunFailedSubject, accountUsername].Value,
-            _text[ScheduledRunFailedBody, accountUsername, _failures.Of(failureCode), failureCode].Value,
+            _text[ScheduledRunFailedBody, accountUsername, _failures.Of(failureCode) ?? failureCode, failureCode].Value,
             cancellationToken);
     }
 
@@ -111,7 +111,7 @@ public sealed class BackupAlertMailer
             BackupAlertKind.DestinationRefused,
             accountUsername,
             _text[DestinationRefusedSubject, accountUsername].Value,
-            _text[DestinationRefusedBody, accountUsername, _failures.Of(refusalCode), refusalCode].Value,
+            _text[DestinationRefusedBody, accountUsername, _failures.Of(refusalCode) ?? refusalCode, refusalCode].Value,
             cancellationToken);
     }
 
