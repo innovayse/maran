@@ -1,28 +1,10 @@
 import { computed, type ComputedRef } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
 import { useModulesStore } from '../stores/modules'
 import { useTasksStore } from '../stores/tasks'
 import { buildNavigation } from '../utils/buildNavigation'
-import type { UserRole } from '../types/auth'
-import type { NavigationEntry, NavigationRole } from '../types/navigation'
-
-/**
- * The navigation role of a signed-in role. Written as a switch so that a role added to
- * {@link UserRole} (the reseller, issue #179) fails the type check here until it is mapped.
- * @param role The signed-in user's role, or undefined before sign-in has resolved.
- * @returns The role the tree is filtered for; an unknown caller is offered the administrator's menu,
- *   which is advice that errs permissive (rules/security.md) — the endpoints still refuse.
- */
-const navigationRoleOf = (role: UserRole | undefined): NavigationRole => {
-  switch (role) {
-    case 'customer':
-      return 'customer'
-    case 'admin':
-    case undefined:
-      return 'admin'
-  }
-}
+import { useNavigationRole } from './useNavigationRole'
+import type { NavigationEntry } from '../types/navigation'
 
 /**
  * The shell's navigation for the signed-in caller, built from the navigation tree
@@ -32,14 +14,14 @@ const navigationRoleOf = (role: UserRole | undefined): NavigationRole => {
  * @returns A computed list of {@link NavigationEntry} in drawing order.
  */
 export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
-  const authStore = useAuthStore()
+  const role = useNavigationRole()
   const modulesStore = useModulesStore()
   const tasksStore = useTasksStore()
   const router = useRouter()
 
   return computed<NavigationEntry[]>(() => {
     return buildNavigation({
-      role: navigationRoleOf(authStore.user?.role),
+      role: role.value,
       catalogue: modulesStore.modules,
       modules: new Map(
         modulesStore.modules.map((module): [string, boolean] => {

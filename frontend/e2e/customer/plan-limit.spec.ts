@@ -52,7 +52,7 @@ const openFromSidebar = async (page: Page, name: string): Promise<void> => {
 
 test('a customer at the site limit is told why instead of offered a new site', async ({ page }) => {
   await signIn(page, 2, 0)
-  await openFromSidebar(page, 'Sites')
+  await openFromSidebar(page, 'Sites and domains')
 
   await expect(page.getByText(REASON)).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: 'New site' })).toHaveCount(0)
@@ -60,7 +60,7 @@ test('a customer at the site limit is told why instead of offered a new site', a
 
 test('a customer under the site limit is offered a new site', async ({ page }) => {
   await signIn(page, 1, 0)
-  await openFromSidebar(page, 'Sites')
+  await openFromSidebar(page, 'Sites and domains')
 
   await expect(page.getByRole('heading', { level: 1, name: 'Sites' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: 'New site' }).first()).toBeVisible()

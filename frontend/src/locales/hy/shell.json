@@ -11,7 +11,8 @@
         "hosting": "Հոսթինգ",
         "infrastructure": "Ենթակառուցվածք",
         "system": "Համակարգ",
-        "panel": "Վահանակ"
+        "panel": "Վահանակ",
+        "account": "Ձեր հաշիվը"
       },
       "expandSection": "Ցույց տալ «{name}» բաժինները",
       "children": {
@@ -45,7 +46,17 @@
         "settingsPanel": "Վահանակ",
         "settingsAdministrators": "Ադմինիստրատորներ և դերեր",
         "settingsModules": "Մոդուլներ և լիցենզիա",
-        "settingsBranding": "Բրենդինգ"
+        "settingsBranding": "Բրենդինգ",
+        "sitePhp": "PHP կարգավորումներ",
+        "mailAutoresponders": "Ինքնապատասխանիչներ",
+        "mailSpamFilter": "Սպամի զտիչ",
+        "webmail": "Վեբ-փոստ",
+        "databaseAdminTool": "Բազաների կառավարում",
+        "fileManager": "Ֆայլերի կառավարիչ",
+        "backupsRestore": "Վերականգնում",
+        "siteLogs": "Կայքերի մատյաններ",
+        "subUsers": "Ենթաօգտատերեր",
+        "sshKeys": "SSH բանալիներ"
       },
       "plannedHint": "Շուտով",
       "items": {
@@ -59,7 +70,9 @@
         "security": "Անվտանգություն",
         "servers": "Սերվերներ",
         "monitoring": "Մոնիտորինգ",
-        "settings": "Կարգավորումներ"
+        "settings": "Կարգավորումներ",
+        "activity": "Գործունեություն",
+        "account": "Իմ հաշիվը"
       }
     },
     "shell": {
@@ -96,7 +109,9 @@
         "accounts": "Հաշիվներ",
         "sites": "Կայքեր",
         "databases": "Բազաներ",
-        "more": "Ավելին"
+        "more": "Ավելին",
+        "mail": "Փոստ",
+        "account": "Հաշիվ"
       },
       "theme": {
         "label": "Թեմա՝ {mode}",

@@ -104,6 +104,8 @@ test('the jump-to palette offers built pages and leaves planned ones out', async
   await expect(page).toHaveURL('/firewall/bans')
 })
 
+// The customer's own planned items (DNS zones, mail) are theirs too (issue #312) and are asserted in
+// `customer/customer-navigation.spec.ts`; only what belongs to the server is absent here.
 test('a customer sees none of the server items, built or planned', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
@@ -112,7 +114,7 @@ test('a customer sees none of the server items, built or planned', async ({ page
   const nav = mainNavigation(page)
   await expect(nav.getByRole('link', { name: 'System status' })).toBeVisible()
 
-  for (const name of ['Security', 'Servers', 'DNS Coming soon', 'Mail Coming soon', 'Settings']) {
+  for (const name of ['Accounts', 'Security', 'Servers', 'Monitoring', 'Settings']) {
     await expect(nav.getByRole('link', { name, exact: true })).toHaveCount(0)
   }
   await expect(nav.getByRole('button', { name: 'Show the Security pages' })).toHaveCount(0)

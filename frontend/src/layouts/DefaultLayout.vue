@@ -52,6 +52,7 @@ import ShellRail from '../components/shell/ShellRail.vue'
 import ShellSidebar from '../components/shell/ShellSidebar.vue'
 import ShellTabBar from '../components/shell/ShellTabBar.vue'
 import { useNavigation } from '../composables/useNavigation'
+import { useNavigationRole } from '../composables/useNavigationRole'
 import { useLocaleStore } from '../stores/locale'
 import { useModulesStore } from '../stores/modules'
 import { FALLBACK_GROUP } from '../router/navigationTree'
@@ -73,6 +74,7 @@ const WIDE_QUERY = '(min-width: 64rem)'
 
 const { t } = useI18n()
 const route = useRoute()
+const navigationRole = useNavigationRole()
 const entries = useNavigation()
 const modulesStore = useModulesStore()
 const localeStore = useLocaleStore()
@@ -102,7 +104,7 @@ const paletteOpen: Ref<boolean> = ref(false)
  * takes the neutral fallback group.
  */
 const eyebrow: ComputedRef<string> = computed(() => {
-  return t(`app.nav.groups.${locateNavigation(route)?.groupKey ?? FALLBACK_GROUP}`)
+  return t(`app.nav.groups.${locateNavigation(route, navigationRole.value)?.groupKey ?? FALLBACK_GROUP}`)
 })
 
 /**

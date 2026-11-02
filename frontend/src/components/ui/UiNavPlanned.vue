@@ -22,8 +22,13 @@ withDefaults(
     compact?: boolean
     /** Draws the row as a child inside a sidebar submenu: shorter, text only. */
     nested?: boolean
+    /**
+     * Draws the row as a phone tab-bar cell: icon over a short label, in the same box as the bar's
+     * links (issue #312, the customer's Mail tab until mail lands).
+     */
+    tab?: boolean
   }>(),
-  { compact: false, nested: false },
+  { compact: false, nested: false, tab: false },
 )
 </script>
 
@@ -33,19 +38,27 @@ withDefaults(
     aria-disabled="true"
     tabindex="0"
     data-nav-planned
-    class="flex cursor-not-allowed items-center gap-2.5 rounded-control text-sm font-medium text-text-muted focus-visible:shadow-focus focus-visible:outline-none"
+    class="flex cursor-not-allowed items-center rounded-control text-text-muted focus-visible:shadow-focus focus-visible:outline-none"
     :class="
-      compact
-        ? 'mx-auto size-9 justify-center'
-        : nested
-          ? 'w-full px-2.5 py-1 max-lg:py-3'
-          : 'w-full px-2.5 py-1.5 max-lg:py-3'
+      tab
+        ? 'm-0.5 min-w-0 justify-center text-center text-xs leading-tight font-semibold'
+        : compact
+          ? 'mx-auto size-9 justify-center gap-2.5 text-sm font-medium'
+          : nested
+            ? 'w-full gap-2.5 px-2.5 py-1 text-sm font-medium max-lg:py-3'
+            : 'w-full gap-2.5 px-2.5 py-1.5 text-sm font-medium max-lg:py-3'
     "
     :title="hint"
   >
     <span
-      class="flex items-center gap-2.5"
-      :class="compact ? 'flex-none' : 'min-w-min flex-1 [&>span]:min-w-0 [&>span]:line-clamp-2 [&>span]:wrap-normal'"
+      class="flex items-center"
+      :class="
+        tab
+          ? 'flex-col gap-1'
+          : compact
+            ? 'flex-none gap-2.5'
+            : 'min-w-min flex-1 gap-2.5 [&>span]:min-w-0 [&>span]:line-clamp-2 [&>span]:wrap-normal'
+      "
     >
       <slot />
     </span>

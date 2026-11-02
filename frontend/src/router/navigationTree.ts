@@ -69,6 +69,9 @@ const MANAGERS: readonly NavigationRole[] = ['admin', 'reseller']
 /** Every role: a page each caller sees within their own scope. */
 const EVERYONE: readonly NavigationRole[] = ['admin', 'reseller', 'customer']
 
+/** The customer alone: the account owner's own view of what an operator sees from above. */
+const CUSTOMER: readonly NavigationRole[] = ['customer']
+
 /** The signed-in reseller's own settings, which an administrator keeps under the account menu. */
 const RESELLER: readonly NavigationRole[] = ['reseller']
 
@@ -105,7 +108,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.accounts',
         icon: 'users',
         children: [
-          page('accounts-list', 'app.nav.children.accountsList', routed('accounts'), EVERYONE, 'accounts'),
+          page('accounts-list', 'app.nav.children.accountsList', routed('accounts'), MANAGERS, 'accounts'),
           page('accounts-new', 'app.nav.children.accountsNew', routed('accounts-new'), MANAGERS, 'accounts'),
           page('plans', 'app.nav.plans', routed('plans'), MANAGERS, 'accounts'),
           page('resellers', 'app.nav.children.resellers', planned(179), ADMIN, null),
@@ -119,8 +122,9 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         icon: 'earth',
         children: [
           page('sites-list', 'app.nav.children.sitesList', routed('sites'), EVERYONE, 'sites'),
-          page('site-domains', 'app.nav.children.siteDomains', planned(null), MANAGERS, null),
-          page('site-certificates', 'app.nav.children.siteCertificates', planned(null), MANAGERS, null),
+          page('site-domains', 'app.nav.children.siteDomains', planned(null), EVERYONE, null),
+          page('site-certificates', 'app.nav.children.siteCertificates', planned(null), EVERYONE, null),
+          page('site-php', 'app.nav.children.sitePhp', planned(null), CUSTOMER, null),
           page('php-versions', 'php.title', routed('php-versions'), ADMIN, null),
         ],
       },
@@ -130,7 +134,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.dns',
         icon: 'globe',
         children: [
-          page('dns-zones', 'app.nav.children.dnsZones', planned(178), MANAGERS, null),
+          page('dns-zones', 'app.nav.children.dnsZones', planned(178), EVERYONE, null),
           page('dns-templates', 'app.nav.children.dnsTemplates', planned(178), MANAGERS, null),
           page('dns-nameservers', 'app.nav.children.dnsNameservers', planned(178), MANAGERS, null),
         ],
@@ -141,8 +145,11 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.mail',
         icon: 'mail',
         children: [
-          page('mailboxes', 'app.nav.children.mailboxes', planned(177), MANAGERS, null),
-          page('mail-forwarders', 'app.nav.children.mailForwarders', planned(177), MANAGERS, null),
+          page('mailboxes', 'app.nav.children.mailboxes', planned(177), EVERYONE, null),
+          page('mail-forwarders', 'app.nav.children.mailForwarders', planned(177), EVERYONE, null),
+          page('mail-autoresponders', 'app.nav.children.mailAutoresponders', planned(177), CUSTOMER, null),
+          page('mail-spam-filter', 'app.nav.children.mailSpamFilter', planned(177), CUSTOMER, null),
+          page('webmail', 'app.nav.children.webmail', planned(177), CUSTOMER, null),
           page('mail-queue', 'app.nav.children.mailQueue', planned(177), MANAGERS, null),
           page('mail-authentication', 'app.nav.children.mailAuthentication', planned(177), MANAGERS, null),
           page('mail-limits', 'app.nav.children.mailLimits', planned(177), MANAGERS, null),
@@ -162,6 +169,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
             ADMIN,
             'databases',
           ),
+          page('database-admin-tool', 'app.nav.children.databaseAdminTool', planned(null), CUSTOMER, null),
         ],
       },
       {
@@ -172,7 +180,9 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         children: [
           page('file-transfer-sftp', 'app.nav.children.sftpLogins', routed('file-transfer-sftp'), EVERYONE, 'sftp'),
           page('file-transfer-ftps', 'app.nav.children.ftpsLogins', routed('file-transfer-ftps'), EVERYONE, 'ftp'),
+          page('sftp-ssh-keys', 'app.nav.children.sshKeys', planned(135), CUSTOMER, null),
           page('cron', 'cron.list.heading', routed('cron'), EVERYONE, 'cron'),
+          page('file-manager', 'app.nav.children.fileManager', planned(141), CUSTOMER, null),
         ],
       },
       {
@@ -190,6 +200,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
             ADMIN,
             'backups',
           ),
+          page('backups-restore', 'app.nav.children.backupsRestore', planned(null), CUSTOMER, null),
         ],
       },
     ],
@@ -228,7 +239,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         children: [
           page('monitoring-metrics', 'app.nav.children.monitoringMetrics', routed('monitoring'), ADMIN, 'monitoring'),
           page('monitoring-logs', 'app.nav.children.monitoringLogs', planned(null), ADMIN, null),
-          { ...page('tasks', 'tasks.list.heading', routed('tasks'), EVERYONE, 'tasks'), badge: 'runningTasks' },
+          { ...page('tasks', 'tasks.list.heading', routed('tasks'), MANAGERS, 'tasks'), badge: 'runningTasks' },
           page('audit', 'app.nav.auditJournal', routed('audit'), MANAGERS, null),
         ],
       },
@@ -251,6 +262,36 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('profile', 'app.profile.heading', routed('profile'), RESELLER, null),
           page('settings-branding', 'app.nav.children.settingsBranding', planned(179), RESELLER, null),
           page('two-factor', 'app.twoFactor.heading', routed('two-factor'), RESELLER, null),
+        ],
+      },
+    ],
+  },
+  {
+    // The customer's own activity and account (issue #312). The tasks page is the same page the
+    // operators reach under Monitoring; a customer has no Monitoring, so it is listed here for them.
+    key: 'account',
+    nodes: [
+      {
+        kind: 'section',
+        key: 'activity',
+        labelKey: 'app.nav.items.activity',
+        icon: 'listChecks',
+        children: [
+          { ...page('activity-tasks', 'tasks.list.heading', routed('tasks'), CUSTOMER, 'tasks'), badge: 'runningTasks' },
+          page('site-logs', 'app.nav.children.siteLogs', planned(129), CUSTOMER, null),
+        ],
+      },
+      {
+        kind: 'section',
+        key: 'account',
+        labelKey: 'app.nav.items.account',
+        icon: 'user',
+        children: [
+          page('account-overview', 'app.shell.menu.myAccount', routed('my-account'), CUSTOMER, null),
+          page('account-profile', 'app.profile.heading', routed('profile'), CUSTOMER, null),
+          page('account-two-factor', 'app.twoFactor.heading', routed('two-factor'), CUSTOMER, null),
+          page('account-sessions', 'app.sessions.heading', routed('sessions'), CUSTOMER, null),
+          page('account-sub-users', 'app.nav.children.subUsers', planned(315), CUSTOMER, null),
         ],
       },
     ],

@@ -28,6 +28,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import UiSkeleton from '../ui/UiSkeleton.vue'
 import { useDelayedFlag } from '../../composables/useDelayedFlag'
+import { useNavigationRole } from '../../composables/useNavigationRole'
 import { FALLBACK_GROUP } from '../../router/navigationTree'
 import { locateNavigation } from '../../utils/locateNavigation'
 import { PAGE_HEADING_KEY } from '../../utils/pageHeadingKey'
@@ -50,6 +51,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const route = useRoute()
+const navigationRole = useNavigationRole()
 
 /** The page heading on screen (`utils/pageHeadingKey.ts`); a record screen's trail ends on its title. */
 const pageHeading: Ref<PageHeading | null> | null = inject(PAGE_HEADING_KEY, null)
@@ -70,7 +72,7 @@ let observer: ResizeObserver | null = null
  * The trail for the active route: group, entry, submenu page, leaf — as deep as the screen sits.
  */
 const crumbs: ComputedRef<Crumb[]> = computed(() => {
-  const location = locateNavigation(route)
+  const location = locateNavigation(route, navigationRole.value)
   const trail: Crumb[] = [{ key: 'group', text: t(`app.nav.groups.${location?.groupKey ?? FALLBACK_GROUP}`) }]
   if (location === null) {
     return [...trail, { key: 'leaf', text: t(route.meta.title ?? 'app.title') }]
