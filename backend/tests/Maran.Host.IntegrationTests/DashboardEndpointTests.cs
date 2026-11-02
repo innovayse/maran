@@ -40,7 +40,7 @@ namespace Maran.Host.IntegrationTests;
 /// </para>
 /// <para>
 /// UNOBSERVED HERE: these tests see the RESPONSE, so they cannot tell a section that was never read
-/// from one that was read and discarded. The endpoint checks <c>IsAdmin</c> before dispatching
+/// from one that was read and discarded. The endpoint checks the caller is an administrator before dispatching
 /// anything, and the gap between "filtered on the way out" and "never read" is invisible from
 /// outside — a reviewer has to read <c>DashboardEndpoint.DescribeAsync</c> for that. It would be
 /// observable by recording dispatches on a wrapped <c>IMessageBus</c>, which is not done here.

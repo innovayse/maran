@@ -410,7 +410,7 @@ public sealed class CreateSiteCommandHandlerTests
     public async Task The_journal_names_the_caller_who_made_the_change()
     {
         // Both halves: an id nobody can read is not an answer to "who did what", and a blank name
-        // is what every Sites entry carried before ICurrentUser exposed one.
+        // is what every Sites entry carried before the audit journal read the caller's name.
         var account = Guid.NewGuid();
         var world = new World(account);
 

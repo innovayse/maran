@@ -82,7 +82,7 @@ public sealed class BoundCommandGuardTests
     /// <para>
     /// The first two come from the connection and its headers (<c>ClientIpAddress</c>,
     /// <c>CallerUserAgent</c> on <c>BaseApiController</c>). <c>UserId</c> comes from the caller's own
-    /// access token (<c>CurrentUser.UserId</c>) and is the most dangerous of the three: bound from a
+    /// access token (<c>CurrentUser.Caller</c>) and is the most dangerous of the three: bound from a
     /// body it would let any authenticated caller aim an account-changing command at somebody else.
     /// Route ids are NOT listed here — they are discovered per action from the route template,
     /// because an id is only server-established on the endpoint whose URL carries it.

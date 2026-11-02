@@ -12,7 +12,7 @@ namespace Maran.ArchitectureTests.Fixtures;
 /// before <c>OnModelCreating</c> can run at all. The values are never read: these tests ask whether
 /// a filter was REGISTERED, not what it evaluates to, and a filter's expression is captured once
 /// per model rather than per query. It reports a customer rather than an administrator so that a
-/// context whose filter short-circuits on <c>IsAdmin</c> still registers the whole expression.
+/// context whose filter short-circuits on an administrator caller still registers the whole expression.
 /// </remarks>
 public sealed class ArchitectureCurrentUser : ICurrentUser
 {
