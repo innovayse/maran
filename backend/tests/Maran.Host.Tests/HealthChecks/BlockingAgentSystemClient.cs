@@ -49,7 +49,7 @@ public sealed class BlockingAgentSystemClient : IAgentSystemClient, IDisposable
         return Task.FromResult(Result<AgentInfoDto>.Ok(new AgentInfoDto(
             "1.0.0",
             "debian",
-            "debian",
+            AgentDistroFamily.Debian,
             AgentProtoVersionWindow.Maximum,
             "/var/backups/maran")));
     }

@@ -20,13 +20,22 @@ public sealed class AgentSystemClientTests
     /// <returns>The response.</returns>
     private static GetAgentInfoResponse HandshakeReporting(uint protoVersion)
     {
+        return HandshakeReporting(protoVersion, DistroFamily.Debian);
+    }
+
+    /// <summary>Builds a successful handshake reporting the given contract revision and distro family.</summary>
+    /// <param name="protoVersion">The revision the stub agent reports.</param>
+    /// <param name="family">The distro family the stub agent reports.</param>
+    /// <returns>The response.</returns>
+    private static GetAgentInfoResponse HandshakeReporting(uint protoVersion, DistroFamily family)
+    {
         return new GetAgentInfoResponse
         {
             Ok = new AgentInfo
             {
                 Version = "0.1.0",
                 DistroId = "ubuntu",
-                Family = DistroFamily.Debian,
+                Family = family,
                 ProtoVersion = protoVersion,
                 BackupRoot = "/var/backups/maran",
             },
@@ -44,6 +53,36 @@ public sealed class AgentSystemClientTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("ubuntu", result.Value.DistroId);
+    }
+
+    /// <summary>Each distro family the agent can state maps to its own panel family.</summary>
+    [Theory]
+    [InlineData(DistroFamily.Debian, AgentDistroFamily.Debian)]
+    [InlineData(DistroFamily.Rhel, AgentDistroFamily.Rhel)]
+    public async Task Each_stated_distro_family_maps_to_its_own_panel_family(
+        DistroFamily wire,
+        AgentDistroFamily expected)
+    {
+        var response = HandshakeReporting(AgentProtoVersionWindow.Maximum, wire);
+        var client = new AgentSystemClient(new StubSystemService(response), NullLogger<AgentSystemClient>.Instance);
+
+        var result = await client.GetInfoAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expected, result.Value.Family);
+    }
+
+    /// <summary>An agent that states no distro family is refused rather than shown as some family.</summary>
+    [Fact]
+    public async Task An_agent_that_states_no_distro_family_is_refused_as_an_invalid_response()
+    {
+        var response = HandshakeReporting(AgentProtoVersionWindow.Maximum, DistroFamily.Unspecified);
+        var client = new AgentSystemClient(new StubSystemService(response), NullLogger<AgentSystemClient>.Instance);
+
+        var result = await client.GetInfoAsync(CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
     /// <summary>Error payload maps to failed result with agent code.</summary>

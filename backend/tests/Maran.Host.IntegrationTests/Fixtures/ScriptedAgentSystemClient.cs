@@ -26,7 +26,7 @@ public sealed class ScriptedAgentSystemClient : IAgentSystemClient
     public static Result<AgentInfoDto> Compatible()
     {
         return Result<AgentInfoDto>.Ok(
-            new AgentInfoDto("test", "debian", "debian", AgentProtoVersionWindow.Maximum, "/var/backups/maran"));
+            new AgentInfoDto("test", "debian", AgentDistroFamily.Debian, AgentProtoVersionWindow.Maximum, "/var/backups/maran"));
     }
 
     /// <summary>The refusal the real system client returns for a revision outside the window.</summary>
