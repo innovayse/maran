@@ -144,7 +144,7 @@ fn a_variant_that_is_not_a_bound_is_not_reported_as_one() {
         MonitorError::Bound(_)
     ));
     assert!(!matches!(
-        DbError::ClientKilled { signal: 9 },
+        DbError::ClientKilled { signal: Some(9) },
         DbError::Bound(_)
     ));
 }

@@ -1370,9 +1370,9 @@ fn the_suspension_state_carries_the_sites_the_host_actually_serves() {
         )
         .expect("the state is readable");
 
-    assert!(state.sites_directory_readable);
-    assert_eq!(state.sites.len(), 1);
-    assert!(state.sites[0].serving_stub);
+    assert!(state.sites.is_readable());
+    assert_eq!(state.sites.sites().len(), 1);
+    assert!(state.sites.sites()[0].serving_stub);
     // The ordinary hosting account, and the whole reason the field exists:
     // `passwd -S` says LOCKED while the shadow field says there is no password
     // to unlock. A panel deciding a reactivation from the first refuses every

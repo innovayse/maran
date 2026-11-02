@@ -32,11 +32,11 @@ pub enum UnreadableReason {
     /// The sidecar parsed, but named a version this agent does not
     /// understand and therefore will not read past.
     UnknownVersion {
-        /// The version recorded in the sidecar. `0` when the sidecar predates
-        /// the version field entirely — an agent from before this field
-        /// existed never wrote one, and that absence is itself an unknown
-        /// version rather than a parse failure.
-        version: u32,
+        /// The version recorded in the sidecar. `None` when the sidecar
+        /// predates the version field entirely — an agent from before this
+        /// field existed never wrote one, and that absence is itself an
+        /// unknown version rather than a parse failure.
+        version: Option<u32>,
     },
 
     /// Something wearing an artifact's name — `<id>.tar.gz` with an id this

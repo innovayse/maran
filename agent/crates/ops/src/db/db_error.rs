@@ -2,16 +2,6 @@
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 
-/// The signal reported when a client died of a signal and the number is not known.
-///
-/// This is now the ordinary report for a client killed from outside: the
-/// bounded spawn core answers a child that a signal it did not send ended with
-/// an exit status of -1 and does not carry which signal. The number is therefore
-/// zero, which is no signal, and means "unknown". It is still a killed client
-/// and not one that was never started, which is the confusion this file exists
-/// to prevent, and a deadline kill is a different variant ([`DbError::Bound`]).
-const UNKNOWN_SIGNAL: i32 = 0;
-
 /// The prefix the client puts in front of the number it failed with.
 ///
 /// The client prints `ERROR 1045 (28000): Access denied for user …` on standard
@@ -141,13 +131,21 @@ pub enum DbError {
     /// mid-statement. Reported as an exit code it was indistinguishable from a
     /// client that never started, and the panel would have retried a statement
     /// that may well have been executed.
-    #[error("the database client was killed by signal {signal}")]
+    #[error(
+        "the database client was killed by signal {}",
+        .signal.map_or_else(|| "(unknown)".to_owned(), |number| number.to_string())
+    )]
     ClientKilled {
-        /// The signal number, or zero when it is not known (the spawn core
-        /// reports a client killed from outside without saying which signal).
-        /// A number and not a name for the reason the enum's own note gives:
-        /// no variant here has anywhere to put text.
-        signal: i32,
+        /// The signal number, or `None` when it is not known. That is the
+        /// ordinary report for a client killed from outside: the bounded spawn
+        /// core answers a child that a signal it did not send ended with an
+        /// exit status of -1 and does not carry which signal. It is still a
+        /// killed client and not one that was never started, which is the
+        /// confusion this variant exists to prevent, and a deadline kill is a
+        /// different variant ([`Self::Bound`]). A number and not a name for the
+        /// reason the enum's own note gives: no variant here has anywhere to
+        /// put text.
+        signal: Option<i32>,
     },
 
     /// The client's answer was not in the shape this operation reads.
@@ -209,15 +207,12 @@ impl DbError {
 
     /// The error for a client the platform reported as killed.
     ///
-    /// `signal` is what the operating system said, and [`UNKNOWN_SIGNAL`] is
-    /// what is reported when the number is not known — the caller has already
-    /// established that the client produced no exit code, which on every
-    /// supported system means a signal. The spawn core does not carry the
-    /// number, so the host calls this with `None`.
+    /// `signal` is what the operating system said, or `None` when the number is
+    /// not known — the caller has already established that the client produced
+    /// no exit code, which on every supported system means a signal. The spawn
+    /// core does not carry the number, so the host calls this with `None`.
     pub(crate) fn client_killed(signal: Option<i32>) -> Self {
-        Self::ClientKilled {
-            signal: signal.unwrap_or(UNKNOWN_SIGNAL),
-        }
+        Self::ClientKilled { signal }
     }
 }
 

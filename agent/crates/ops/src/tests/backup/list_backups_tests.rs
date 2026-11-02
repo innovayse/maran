@@ -142,7 +142,7 @@ fn a_sidecar_naming_an_unknown_version_is_listed_as_unreadable_with_that_version
     assert_eq!(
         summary.reason(),
         Some(&UnreadableReason::UnknownVersion {
-            version: unknown_version
+            version: Some(unknown_version)
         }),
         "{summary:?}"
     );
@@ -151,9 +151,10 @@ fn a_sidecar_naming_an_unknown_version_is_listed_as_unreadable_with_that_version
 /// A sidecar written before the version field existed at all — the shape a
 /// pre-versioning agent left behind — has no `"version"` key rather than a
 /// wrong one. It must be treated exactly like a known-but-foreign version
-/// (`0`), never like a current one and never like a corrupt one.
+/// (one that names no number), never like a current one and never like a
+/// corrupt one.
 #[test]
-fn a_sidecar_missing_the_version_field_entirely_is_treated_as_version_zero() {
+fn a_sidecar_missing_the_version_field_entirely_is_treated_as_naming_no_version() {
     let directory = directory();
     let legacy = id("66666666-6666-6666-6666-666666666666");
 
@@ -186,7 +187,7 @@ fn a_sidecar_missing_the_version_field_entirely_is_treated_as_version_zero() {
     assert!(summary.readable_details().is_none(), "{summary:?}");
     assert_eq!(
         summary.reason(),
-        Some(&UnreadableReason::UnknownVersion { version: 0 }),
+        Some(&UnreadableReason::UnknownVersion { version: None }),
         "{summary:?}"
     );
 }

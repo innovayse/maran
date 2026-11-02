@@ -4,25 +4,24 @@
 
 use std::time::Duration;
 
-use maran_ops::cron::{CronRun, CronRunLimit as RunLimit};
+use maran_ops::cron::{CronRun, CronRunEnd, CronRunLimit as RunLimit};
 
 use super::run_outcome;
 use crate::proto::CronRunLimit;
 
-/// A run with this limit and status.
-fn run(limit: Option<RunLimit>, exit_code: Option<i32>) -> CronRun {
+/// A run that ended this way.
+fn run(end: CronRunEnd) -> CronRun {
     CronRun {
         duration: Duration::from_millis(1234),
-        exit_code,
+        end,
         stdout: "out".to_owned(),
         stderr: "err".to_owned(),
-        limit,
     }
 }
 
 #[test]
 fn a_run_that_ended_on_its_own_carries_its_status_and_no_limit() {
-    let payload = run_outcome(run(None, Some(2)));
+    let payload = run_outcome(run(CronRunEnd::Exited { code: 2 }));
 
     assert_eq!(payload.duration_ms, 1234);
     assert_eq!(payload.exit_code, Some(2));
@@ -34,10 +33,18 @@ fn a_run_that_ended_on_its_own_carries_its_status_and_no_limit() {
 #[test]
 fn each_ceiling_travels_as_its_own_value_with_no_status() {
     assert_eq!(
-        run_outcome(run(Some(RunLimit::Runtime), None)).limit,
+        run_outcome(run(CronRunEnd::Stopped(RunLimit::Runtime))).limit,
         CronRunLimit::Runtime as i32
     );
-    let output = run_outcome(run(Some(RunLimit::Output), None));
+    let output = run_outcome(run(CronRunEnd::Stopped(RunLimit::Output)));
     assert_eq!(output.limit, CronRunLimit::Output as i32);
     assert_eq!(output.exit_code, None);
+}
+
+#[test]
+fn a_run_that_reported_no_status_travels_with_no_status_and_no_limit() {
+    let payload = run_outcome(run(CronRunEnd::WithoutStatus));
+
+    assert_eq!(payload.exit_code, None);
+    assert_eq!(payload.limit, CronRunLimit::Unspecified as i32);
 }

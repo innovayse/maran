@@ -67,8 +67,8 @@ impl FtpsStatusFields {
             .certificate
             .map_or((false, false, String::new()), |certificate| {
                 (
-                    certificate.present,
-                    certificate.is_self_signed_placeholder,
+                    certificate.installation.is_present(),
+                    certificate.installation.is_self_signed_placeholder(),
                     certificate.certificate_path,
                 )
             });

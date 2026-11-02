@@ -1,8 +1,10 @@
 //! What the agent knows about the certificate material installed for a domain.
 
-/// The two facts a caller can learn about a domain's certificate material
-/// without reading a single byte of it: whether it is there, and whether it is
-/// one of this agent's own self-signed placeholders.
+use crate::ssl::model::certificate_installation::CertificateInstallation;
+
+/// The facts a caller can learn about a domain's certificate material without
+/// reading a single byte of it: whether it is there, and whether it is one of
+/// this agent's own self-signed placeholders.
 ///
 /// Written forward from the question a caller actually has — *"may I point a
 /// daemon at this, and will the customer's client warn about it?"* — rather
@@ -23,21 +25,17 @@ pub struct CertificateState {
     pub certificate_path: String,
     /// Absolute path of the private key, whether or not it exists.
     pub private_key_path: String,
-    /// Whether BOTH halves of the material are installed.
+    /// Whether the material is absent, an agent-made placeholder, or installed.
     ///
-    /// Both, and not the certificate alone: every caller of this type points a
-    /// TLS daemon at the two paths above, and a daemon handed a certificate
-    /// whose key is missing refuses to start. A `present` that answered for the
-    /// certificate alone would be a check that cannot observe what it reports
-    /// on (rules/testing.md) — it would report "there is material" for a state
-    /// in which no daemon can serve any.
-    pub present: bool,
-    /// Whether the installed material is one of the agent's own self-signed
-    /// placeholders — the certificate a customer's client will warn about.
+    /// Both halves, and not the certificate alone, count as installed: every
+    /// caller of this type points a TLS daemon at the two paths above, and a
+    /// daemon handed a certificate whose key is missing refuses to start. A
+    /// reading that answered for the certificate alone would be a check that
+    /// cannot observe what it reports on (rules/testing.md).
     ///
-    /// Decided by the presence of the marker FILE beside the material and by
-    /// nothing else. False whenever [`Self::present`] is false: there is no
-    /// material to describe, and answering anything else about absent bytes is
-    /// an invention.
-    pub is_self_signed_placeholder: bool,
+    /// The placeholder state is decided by the presence of the marker FILE
+    /// beside the material and by nothing else, and it exists only for
+    /// material that is installed: there is no way to say that absent bytes are
+    /// self-signed.
+    pub installation: CertificateInstallation,
 }

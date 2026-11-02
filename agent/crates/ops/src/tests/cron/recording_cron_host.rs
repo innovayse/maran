@@ -43,6 +43,7 @@ use crate::cron::cron_host::CronHost;
 use crate::cron::model::cron_entry::CronEntry;
 use crate::cron::model::cron_environment::CronEnvironment;
 use crate::cron::model::cron_run::CronRun;
+use crate::cron::model::cron_run_end::CronRunEnd;
 use crate::cron::model::cron_run_record::CronRunRecord;
 use crate::cron::unmanaged_case::UnmanagedCase;
 
@@ -584,10 +585,9 @@ impl CronHost for RecordingCronHost {
 
         Ok(CronRun {
             duration: Duration::from_millis(1500),
-            exit_code: Some(0),
+            end: CronRunEnd::Exited { code: 0 },
             stdout: "done\n".to_owned(),
             stderr: String::new(),
-            limit: None,
         })
     }
 }

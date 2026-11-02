@@ -101,13 +101,15 @@ fn to_database(database: ManifestDatabase) -> WireDatabase {
 /// Maps the reason an entry could not be described.
 ///
 /// The version travels only with [`UnreadableReason::UnknownVersion`] and is
-/// zero for the other two, which mirrors the domain type: it is the one state
-/// that knows a version, and a second field filled for the others would be a
-/// number a reader could believe.
+/// zero for the other two, and for a sidecar that named none: the wire carries
+/// a plain number, so absence is spelled `0` here and nowhere in the domain
+/// type, where it is `None`. The kind says which situation the zero is in.
 fn to_unreadable(reason: &UnreadableReason) -> WireUnreadable {
     let (kind, version) = match reason {
         UnreadableReason::Corrupt => (UnreadableKind::Corrupt, 0),
-        UnreadableReason::UnknownVersion { version } => (UnreadableKind::UnknownVersion, *version),
+        UnreadableReason::UnknownVersion { version } => {
+            (UnreadableKind::UnknownVersion, version.unwrap_or_default())
+        }
         UnreadableReason::NotARegularFile => (UnreadableKind::NotARegularFile, 0),
     };
 

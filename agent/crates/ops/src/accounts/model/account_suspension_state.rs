@@ -3,7 +3,7 @@
 use crate::accounts::StoredPassword;
 use crate::cron::AccountCronSuspension;
 use crate::logins::AccountLoginSet;
-use crate::sites::SiteSuspensionFact;
+use crate::sites::AccountSiteSuspension;
 
 /// The evidence a caller needs before it may report an account as suspended.
 ///
@@ -54,17 +54,15 @@ pub struct AccountSuspensionState {
     /// point of reading and drops them.
     pub login_password: StoredPassword,
 
-    /// True when the vhost directory could actually be listed.
+    /// What this host serves for the account: one entry per vhost, whether or
+    /// not the panel remembers creating it, or the statement that the vhost
+    /// directory could not be listed.
     ///
-    /// Carried because [`Self::sites`] going empty is the one way this answer
-    /// can silently stop observing anything: an unreadable directory and an
-    /// account with no sites produce the same empty list, and the empty list
-    /// is the one that reads as "everything is suspended".
-    pub sites_directory_readable: bool,
-
-    /// One entry per vhost this host serves for the account, whether or not
-    /// the panel remembers creating it.
-    pub sites: Vec<SiteSuspensionFact>,
+    /// The unreadable state is its own value because an unreadable directory
+    /// and an account with no sites would otherwise produce the same empty
+    /// list, and the empty list is the one that reads as "everything is
+    /// suspended".
+    pub sites: AccountSiteSuspension,
 
     /// What the account's crontab holds and how much of it is suppressed.
     ///

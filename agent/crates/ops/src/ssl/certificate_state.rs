@@ -4,6 +4,7 @@
 use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::SiteCertificate;
+use crate::ssl::model::certificate_installation::CertificateInstallation;
 use crate::ssl::model::certificate_state::CertificateState;
 use crate::ssl::self_signed_marker::self_signed_marker;
 use crate::ssl::ssl_host::SslHost;
@@ -85,7 +86,13 @@ pub fn certificate_state(
         .read_material(certificate.certificate_path())?
         .is_some()
         && host.read_material(certificate.key_path())?.is_some();
-    let is_self_signed_placeholder = present && host.read_material(&marker)?.is_some();
+    let installation = if !present {
+        CertificateInstallation::Absent
+    } else if host.read_material(&marker)?.is_some() {
+        CertificateInstallation::SelfSignedPlaceholder
+    } else {
+        CertificateInstallation::Installed
+    };
 
     Ok(CertificateState {
         certificate_path: certificate
@@ -93,8 +100,7 @@ pub fn certificate_state(
             .to_string_lossy()
             .into_owned(),
         private_key_path: certificate.key_path().to_string_lossy().into_owned(),
-        present,
-        is_self_signed_placeholder,
+        installation,
     })
 }
 

@@ -998,18 +998,18 @@ fn the_suspension_state_answers_on_a_real_host_what_the_requests_above_observed(
         .unwrap_or_else(|error| panic!("the sites must be observable: {error}"));
 
     assert!(
-        observed.directory_readable,
+        observed.is_readable(),
         "the real include directory must be listable, or the answer is blind"
     );
     let fact = |domain: &Domain| {
         observed
-            .sites
+            .sites()
             .iter()
             .find(|fact| fact.domain == domain.as_str())
             .unwrap_or_else(|| {
                 panic!(
                     "the account's own vhosts must be found: {:?}",
-                    observed.sites
+                    observed.sites()
                 )
             })
     };

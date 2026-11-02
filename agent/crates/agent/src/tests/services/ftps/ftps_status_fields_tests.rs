@@ -4,7 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_ops::ftps::{FtpsState, ListenMode};
-use maran_ops::ssl::CertificateState;
+use maran_ops::ssl::{CertificateInstallation, CertificateState};
 
 use crate::services::ftps::ftps_status_fields::FtpsStatusFields;
 
@@ -30,8 +30,7 @@ fn a_running_daemon() -> FtpsState {
         certificate: Some(CertificateState {
             certificate_path: "/etc/maran/ssl/ftp.example.test/fullchain.pem".to_owned(),
             private_key_path: "/etc/maran/ssl/ftp.example.test/privkey.pem".to_owned(),
-            present: true,
-            is_self_signed_placeholder: false,
+            installation: CertificateInstallation::Installed,
         }),
         forced_tls: Some(true),
         passive_port_min: Some(30000),
@@ -101,8 +100,7 @@ fn the_self_signed_placeholder_is_reported_as_present_and_as_a_placeholder() {
     state.certificate = Some(CertificateState {
         certificate_path: "/etc/maran/ssl/ftp.example.test/fullchain.pem".to_owned(),
         private_key_path: "/etc/maran/ssl/ftp.example.test/privkey.pem".to_owned(),
-        present: true,
-        is_self_signed_placeholder: true,
+        installation: CertificateInstallation::SelfSignedPlaceholder,
     });
 
     let ok = FtpsStatusFields::from_state(state).into_status_ok();

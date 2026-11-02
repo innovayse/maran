@@ -4,6 +4,7 @@
 
 use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
+use crate::cron::model::cron_run_end::CronRunEnd;
 use crate::cron::recording_cron_host::{
     ABSENT_ID, FIRST_ID, RecordingCronHost, account, assert_refused_untouched, assignment, command,
     distro, entry_id, every_five_minutes, unmanaged_cases,
@@ -36,9 +37,8 @@ fn an_existing_entry_is_run_and_its_outcome_returned() {
 
     let run = run_cron_entry(&host, &account(), &entry_id(FIRST_ID)).expect("ran");
 
-    assert_eq!(run.exit_code, Some(0));
+    assert_eq!(run.end, CronRunEnd::Exited { code: 0 });
     assert_eq!(run.stdout, "done\n");
-    assert_eq!(run.limit, None);
     assert_eq!(host.runs().len(), 1);
     assert_eq!(host.runs()[0].0, FIRST_ID);
 }

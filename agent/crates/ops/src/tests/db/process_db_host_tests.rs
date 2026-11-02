@@ -190,7 +190,7 @@ fn a_client_killed_by_a_signal_is_reported_as_killed_and_not_as_one_that_never_s
     // ended by a signal it did not send as having no exit status, and not WHICH
     // signal, so the number is the unknown one. The variant is what matters here:
     // a killed client is still told apart from one that never started.
-    assert_eq!(answer, Err(DbError::ClientKilled { signal: 0 }));
+    assert_eq!(answer, Err(DbError::ClientKilled { signal: None }));
 }
 
 #[test]
@@ -214,7 +214,7 @@ fn a_client_that_answered_with_a_number_is_told_apart_from_one_that_never_ran() 
     let never_sent = run_client(&suicidal, "SELECT 1; SELECT 2");
 
     assert_eq!(answered, Err(DbError::ClientFailed { code: 1064 }));
-    assert_eq!(signalled, Err(DbError::ClientKilled { signal: 0 }));
+    assert_eq!(signalled, Err(DbError::ClientKilled { signal: None }));
     assert_eq!(never_started, Err(DbError::ClientUnavailable));
     assert_eq!(never_sent, Err(DbError::StatementRefused));
 

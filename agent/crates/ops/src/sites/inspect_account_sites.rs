@@ -74,13 +74,13 @@ const SERVER_NAME_DIRECTIVE: &str = "    server_name ";
 /// Returns [`SitesOpError::ConfigUnreadable`] when a vhost exists but cannot
 /// be read, which must not be silently treated as "no site here". A directory
 /// that cannot be LISTED is not an error but a reported fact — see
-/// [`AccountSiteSuspension::directory_readable`].
+/// [`AccountSiteSuspension::Unreadable`].
 pub fn inspect_account_sites(
     host: &dyn SiteHost,
     account: &AccountName,
 ) -> Result<AccountSiteSuspension, SitesOpError> {
     let Ok(paths) = host.list_config_paths() else {
-        return Ok(AccountSiteSuspension::default());
+        return Ok(AccountSiteSuspension::Unreadable);
     };
 
     let marker = format!(
@@ -107,10 +107,7 @@ pub fn inspect_account_sites(
         });
     }
 
-    Ok(AccountSiteSuspension {
-        directory_readable: true,
-        sites,
-    })
+    Ok(AccountSiteSuspension::Listed(sites))
 }
 
 /// The domain a vhost file name spells, or the file name itself when it spells

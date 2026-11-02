@@ -2,9 +2,10 @@
 
 /// The ceiling that ended a run before the program ended on its own.
 ///
-/// A run that reached neither is `None` where this type is held, never a third
-/// variant: "no ceiling" is the absence of one, and a variant for it would let a
-/// caller hold a limit and an exit status that contradict each other.
+/// A run that reached neither is not a
+/// [`CronRunEnd::Stopped`](crate::cron::CronRunEnd::Stopped), never a third
+/// variant here: "no ceiling" is the absence of one, and a variant for it would
+/// let a caller hold a limit and an exit status that contradict each other.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CronRunLimit {
     /// The run lasted as long as the runtime ceiling, so the service manager

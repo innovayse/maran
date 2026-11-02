@@ -23,7 +23,7 @@ use crate::proto::{
     GetAccountUsageRequest, GetAccountUsageResponse, RepairAccountHomeGroupsRequest,
     RepairAccountHomeGroupsResponse, SetAccountQuotaOk, SetAccountQuotaRequest,
     SetAccountQuotaResponse, SetAccountResourceLimitsOk, SetAccountResourceLimitsRequest,
-    SetAccountResourceLimitsResponse, SftpLoginSuspensionFact, SiteSuspensionFact,
+    SetAccountResourceLimitsResponse, SftpLoginSuspensionFact,
     SuspendAccountOk, SuspendAccountRequest, SuspendAccountResponse, UnsuspendAccountOk,
     UnsuspendAccountRequest, UnsuspendAccountResponse, create_account_response,
     delete_account_response, get_account_suspension_state_response, get_account_usage_response,
@@ -34,6 +34,7 @@ use crate::services::accounts::account_status::to_agent_error;
 use crate::services::accounts::to_login_password_state::to_login_password_state;
 use crate::services::accounts::to_transfer_protocol::to_transfer_protocol;
 use crate::services::accounts::to_wire_quota_state::to_wire_quota_state;
+use crate::services::accounts::to_wire_site_listing::to_wire_site_listing;
 use crate::services::accounts::validated_resource_limits::validated_resource_limits;
 use crate::services::accounts::wire_home_group_repair_report::wire_home_group_repair_report;
 use crate::services::wire::run_blocking::run_blocking;
@@ -402,18 +403,12 @@ impl<
             .await
         {
             Ok(state) => {
+                let (sites_directory_readable, sites) = to_wire_site_listing(state.sites);
                 get_account_suspension_state_response::Result::Ok(GetAccountSuspensionStateOk {
                     login_locked: state.login_locked,
                     login_password_state: to_login_password_state(state.login_password) as i32,
-                    sites_directory_readable: state.sites_directory_readable,
-                    sites: state
-                        .sites
-                        .into_iter()
-                        .map(|fact| SiteSuspensionFact {
-                            domain: fact.domain,
-                            serving_stub: fact.serving_stub,
-                        })
-                        .collect(),
+                    sites_directory_readable,
+                    sites,
                     cron_entries_total: state.cron.entries_total,
                     cron_entries_suspended: state.cron.entries_suspended,
                     cron_foreign_lines: state.cron.foreign_lines,

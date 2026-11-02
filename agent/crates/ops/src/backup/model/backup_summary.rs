@@ -94,15 +94,16 @@ pub struct BackupSummary {
     #[serde(default)]
     pub backup_id: String,
 
-    /// The sidecar layout version. [`SUMMARY_VERSION`] when this agent wrote
-    /// it; `0` when the document did not name one this agent understands.
+    /// The sidecar layout version. `Some(`[`SUMMARY_VERSION`]`)` when this
+    /// agent wrote it; `None` when the document named no version at all, and
+    /// the version it named otherwise (which this agent will not read past).
     ///
     /// Never consulted by a caller that already has a [`Self`] in hand —
     /// [`Self::state`] already says everything the version could add. It
     /// exists so the one function that parses a sidecar has something to
     /// check the document's claim against before trusting the rest of it.
     #[serde(default)]
-    pub version: u32,
+    pub version: Option<u32>,
 
     /// Everything the sidecar described, or the reason it described nothing.
     pub state: BackupState,
@@ -120,7 +121,7 @@ impl BackupSummary {
     ) -> Self {
         Self {
             backup_id,
-            version: SUMMARY_VERSION,
+            version: Some(SUMMARY_VERSION),
             state: BackupState::Readable(ReadableBackup {
                 manifest,
                 artifact_bytes,
@@ -141,7 +142,7 @@ impl BackupSummary {
     pub fn unreadable(backup_id: String, reason: UnreadableReason) -> Self {
         let version = match &reason {
             UnreadableReason::UnknownVersion { version } => *version,
-            UnreadableReason::Corrupt | UnreadableReason::NotARegularFile => 0,
+            UnreadableReason::Corrupt | UnreadableReason::NotARegularFile => None,
         };
 
         Self {

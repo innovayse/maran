@@ -42,12 +42,23 @@ const MAXIMUM_CONTENT: usize = 1024 * 1024;
 /// the line is refused before it is appended, so the cap is a bound on what the
 /// daemon holds rather than a report on what it already held.
 pub struct WriteCollector {
-    /// The header, once the first message has supplied it.
-    header: Option<crate::proto::WriteFileHeader>,
+    /// How the stream opened: not yet, with a header, or without one. This is
+    /// how "first message" is decided, and a header held with nothing started
+    /// cannot be written down.
+    opening: Opening,
     /// The body so far, never longer than [`MAXIMUM_CONTENT`].
     contents: Vec<u8>,
-    /// Whether any message has arrived, which is how "first" is decided.
-    started: bool,
+}
+
+/// How a write stream opened.
+enum Opening {
+    /// No message has arrived.
+    NotStarted,
+    /// The first message arrived carrying the header.
+    Headed(crate::proto::WriteFileHeader),
+    /// The first message arrived without a header, so the write can never be
+    /// finished: a later message may not supply one.
+    Headerless,
 }
 
 impl WriteCollector {
@@ -55,9 +66,8 @@ impl WriteCollector {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            header: None,
+            opening: Opening::NotStarted,
             contents: Vec::new(),
-            started: false,
         }
     }
 
@@ -81,17 +91,20 @@ impl WriteCollector {
     ///
     /// Returns the wire error for both.
     pub fn accept(&mut self, message: WriteFileRequest) -> Result<(), AgentError> {
-        if let Some(sent) = message.header {
-            if self.started {
-                return Err(invalid_input(
-                    "the header belongs on the first message of a write stream, and there is \
-                     exactly one of it"
-                        .to_owned(),
-                ));
-            }
-            self.header = Some(sent);
+        let first = matches!(self.opening, Opening::NotStarted);
+        if message.header.is_some() && !first {
+            return Err(invalid_input(
+                "the header belongs on the first message of a write stream, and there is \
+                 exactly one of it"
+                    .to_owned(),
+            ));
         }
-        self.started = true;
+        if first {
+            self.opening = match message.header {
+                Some(sent) => Opening::Headed(sent),
+                None => Opening::Headerless,
+            };
+        }
 
         if !within_budget(self.contents.len(), message.chunk.len()) {
             return Err(invalid_input(format!(
@@ -115,9 +128,11 @@ impl WriteCollector {
     /// Returns the wire error when no header ever arrived, when the account name
     /// or the path is invalid, or when the mode is not a plain permission mode.
     pub fn finish(self) -> Result<WriteFileInput, AgentError> {
-        let header = self.header.ok_or_else(|| {
-            invalid_input("the first message of a write stream carries the header".to_owned())
-        })?;
+        let Opening::Headed(header) = self.opening else {
+            return Err(invalid_input(
+                "the first message of a write stream carries the header".to_owned(),
+            ));
+        };
 
         let account = AccountName::parse(&header.account_username)
             .map_err(|error| invalid_input(error.to_string()))?;

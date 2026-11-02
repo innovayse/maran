@@ -174,6 +174,7 @@ pub use model::cron_entry::CronEntry;
 pub use model::cron_entry_output::CronEntryOutput;
 pub use model::cron_environment::CronEnvironment;
 pub use model::cron_run::CronRun;
+pub use model::cron_run_end::CronRunEnd;
 pub use model::cron_run_limit::CronRunLimit;
 pub use model::cron_run_record::CronRunRecord;
 pub use model::crontab_document::CrontabDocument;
