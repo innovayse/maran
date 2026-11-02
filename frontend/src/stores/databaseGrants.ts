@@ -70,11 +70,11 @@ export const useDatabaseGrantsStore = defineStore('databaseGrants', () => {
    * Whether the held census is an inspection that has not been acted on yet.
    *
    * The screen offers the repair on this and on nothing else: after a repair the same shape comes back
-   * with `isReportOnly` false, and offering "repair" again over the result of one would invite a
+   * with its work `applied`, and offering "repair" again over the result of one would invite a
    * second host-wide rewrite nobody had inspected.
    */
   const canRepair: ComputedRef<boolean> = computed(() => {
-    return report.value !== null && report.value.isReportOnly
+    return report.value !== null && report.value.work.kind === 'preview'
   })
 
   /**
@@ -115,7 +115,7 @@ export const useDatabaseGrantsStore = defineStore('databaseGrants', () => {
    */
   const repair = async (): Promise<boolean> => {
     const held = report.value
-    if (held === null || !held.isReportOnly) {
+    if (held === null || held.work.kind !== 'preview') {
       return false
     }
 
@@ -124,7 +124,7 @@ export const useDatabaseGrantsStore = defineStore('databaseGrants', () => {
       // The response is the census measured AFTER the change, so it REPLACES the report rather than
       // being merged into it: a screen assembled from what was planned would show a rewrite that the
       // server may have refused row by row.
-      report.value = await api.repair({ expectedRepairCount: held.wouldRepair.length })
+      report.value = await api.repair({ expectedRepairCount: held.work.grants.length })
       isDisclosed.value = true
       repairErrorMessage.value = null
       return true

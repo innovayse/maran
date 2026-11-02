@@ -151,7 +151,7 @@ public sealed class ResilientAgentDbClientTests
         Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
-    /// <summary>The grant repair goes through the pipeline and forwards the pass it was asked for.</summary>
+    /// <summary>The grant inspection goes through the pipeline and forwards the pass it was asked for.</summary>
     /// <remarks>
     /// The member with most to lose by being left undecorated: it reads the whole of the database
     /// server's grant table, so a wedged socket here hangs an administrator's request with no bound at
@@ -160,15 +160,32 @@ public sealed class ResilientAgentDbClientTests
     /// assertion stayed green.
     /// </remarks>
     [Fact]
-    public async Task The_grant_repair_goes_through_the_pipeline_and_forwards_the_pass_it_was_asked_for()
+    public async Task The_grant_inspection_goes_through_the_pipeline_and_forwards_the_pass_it_was_asked_for()
     {
         var inner = new RecordingAgentDbClient { FailuresBeforeSuccess = 1 };
 
-        var result = await Decorate(inner).RepairGrantsAsync(true, default).WaitAsync(TestTimeout);
+        var result = await Decorate(inner).InspectGrantsAsync(default).WaitAsync(TestTimeout);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, inner.Calls);
         Assert.True(inner.LastReportOnly);
+    }
+
+    /// <summary>The grant repair goes through the pipeline and forwards the repairing pass.</summary>
+    /// <remarks>
+    /// The twin of the inspection test above: a decorator that forwarded the inspection for a repair
+    /// would answer an administrator's confirmed repair with a report that changed nothing.
+    /// </remarks>
+    [Fact]
+    public async Task The_grant_repair_goes_through_the_pipeline_and_forwards_the_repairing_pass()
+    {
+        var inner = new RecordingAgentDbClient { FailuresBeforeSuccess = 1 };
+
+        var result = await Decorate(inner).RepairGrantsAsync(default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+        Assert.False(inner.LastReportOnly);
     }
 
     /// <summary>A grant repair that never returns is abandoned by the pipelines timeout.</summary>
@@ -182,7 +199,7 @@ public sealed class ResilientAgentDbClientTests
     {
         var inner = new RecordingAgentDbClient { Hangs = true };
 
-        var result = await Decorate(inner).RepairGrantsAsync(false, default).WaitAsync(TestTimeout);
+        var result = await Decorate(inner).RepairGrantsAsync(default).WaitAsync(TestTimeout);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentUnavailable", result.Error!.Code);

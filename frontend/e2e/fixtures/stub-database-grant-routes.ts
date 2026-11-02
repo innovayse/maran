@@ -11,8 +11,8 @@ const REPAIR_PATTERN = '**/api/v1/database-grants/repair'
  * Fulfils `GET /api/v1/database-grants` with a census, and `POST .../repair` with the census the
  * same host would report after acting.
  *
- * The repaired answer is DERIVED from the report rather than supplied separately: the rows move
- * from `wouldRepair` to `repaired` and `isReportOnly` flips, which is exactly what the server does.
+ * The repaired answer is DERIVED from the report rather than supplied separately: the rows stay
+ * in the work and its kind flips from `preview` to `applied`, which is exactly what the server does.
  * A stub that answered the repair with an independently written body would let a screen that showed
  * the plan instead of the outcome pass.
  * @param page The Playwright page whose network the routes are installed on.
@@ -37,7 +37,7 @@ export const stubDatabaseGrants = async (
     // The server's own gate, mirrored: a figure that does not match what this host would rewrite is
     // answered 409 and nothing is changed. Mirrored rather than always accepted, because the
     // screen's promise is that the repair runs on the list that was read and on no other.
-    if (submitted.expectedRepairCount !== report.wouldRepair.length) {
+    if (submitted.expectedRepairCount !== report.work.grants.length) {
       await route.fulfill({
         status: 409,
         contentType: 'application/problem+json',
@@ -52,9 +52,7 @@ export const stubDatabaseGrants = async (
 
     const acted: GrantRepairReport = {
       ...report,
-      isReportOnly: false,
-      repaired: report.wouldRepair,
-      wouldRepair: [],
+      work: { kind: 'applied', grants: report.work.grants },
     }
     await route.fulfill({
       status: 200,

@@ -107,20 +107,27 @@ public interface IAgentDbClient
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Reads this server's whole database-level grant table and narrows every row this panel issued
-    /// whose stored name became a wildcard pattern, or reports what it would narrow and changes
-    /// nothing.
+    /// Reads this server's whole database-level grant table and reports what a repair would narrow,
+    /// changing nothing — the pass an operator reads before anything changes.
     /// </summary>
-    /// <param name="reportOnly">
-    /// True to classify every row and send no statement — the pass an operator reads before anything
-    /// changes. False to perform the rewrite.
-    /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>The census of the grant table, or the agent's own typed failure.</returns>
     /// <remarks>
+    /// Every remark on <see cref="RepairGrantsAsync"/> applies here as well: it is host-wide, it
+    /// returns other tenants' identifiers, and it settles nothing about exploitation.
+    /// </remarks>
+    Task<Result<GrantInspectionReportDto>> InspectGrantsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads this server's whole database-level grant table and narrows every row this panel issued
+    /// whose stored name became a wildcard pattern.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The census of the grant table after the rewrite, or the agent's own typed failure.</returns>
+    /// <remarks>
     /// <para>
-    /// <b>The one member here that is not scoped to an account, and the only one that takes no
-    /// name.</b> Every other call on this interface acts on a suffix under one account's prefix; this
+    /// <b>The two members here, with <see cref="InspectGrantsAsync"/>, that are not scoped to an
+    /// account, and the only ones that take no name.</b> Every other call on this interface acts on a suffix under one account's prefix; this
     /// one acts on rows nobody asked about, host-wide, for every customer on the server at once. The
     /// panel therefore gates it on an administrator rather than on tenant scoping, which has nothing
     /// to scope here: see <c>DatabaseGrantsController</c>.
@@ -137,7 +144,5 @@ public interface IAgentDbClient
     /// (docs/superpowers/notes/2026-09-13-grant-repair-threat-note.md).
     /// </para>
     /// </remarks>
-    Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
-        bool reportOnly,
-        CancellationToken cancellationToken);
+    Task<Result<GrantRepairReportDto>> RepairGrantsAsync(CancellationToken cancellationToken);
 }

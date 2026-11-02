@@ -85,11 +85,12 @@ const GRANT_REPAIR_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubDatabaseGrants(page, {
-      isReportOnly: true,
       examinedGrants: 2,
       alreadyCorrect: 1,
-      repaired: [],
-      wouldRepair: [{ databaseName: 'alice_shop', dbUsername: 'alice_shopuser', alsoMatchedDatabases: [] }],
+      work: {
+        kind: 'preview',
+        grants: [{ databaseName: 'alice_shop', dbUsername: 'alice_shopuser', alsoMatchedDatabases: [] }],
+      },
       refused: [],
     })
   },

@@ -66,8 +66,8 @@ const pending: Ref<boolean> = ref(false)
  * The rows this census says were, or would be, rewritten.
  *
  * One list for both buckets, because a row's shape is identical and the screen's headings already say
- * which pass it is reading. It is keyed on `isReportOnly` rather than on emptiness: a repair that found
- * nothing returns the same two empty lists an inspection of a clean host does.
+ * which pass it is reading. The work says which pass it is (`kind`), so nothing is inferred from
+ * emptiness: a repair that found nothing returns the same empty list an inspection of a clean host does.
  */
 const changedRows: ComputedRef<RepairedGrant[]> = computed(() => {
   const held = store.report
@@ -75,7 +75,7 @@ const changedRows: ComputedRef<RepairedGrant[]> = computed(() => {
     return []
   }
 
-  return held.isReportOnly ? held.wouldRepair : held.repaired
+  return held.work.grants
 })
 
 
@@ -88,13 +88,13 @@ const isLoading: ComputedRef<boolean> = computed(() => {
  * Whether the census on screen is an inspection. A read always answers with one, so while the
  * first read is on its way the placeholders stand under the inspection's headings.
  */
-const isReportOnly: ComputedRef<boolean> = computed(() => {
-  return store.report?.isReportOnly ?? true
+const isPreview: ComputedRef<boolean> = computed(() => {
+  return store.report === null || store.report.work.kind === 'preview'
 })
 
 /** The heading of the rewritten rows, which is also their table's caption. */
 const changedHeading: ComputedRef<string> = computed(() => {
-  return isReportOnly.value
+  return isPreview.value
     ? t('databases.grantRepair.changed.plannedHeading')
     : t('databases.grantRepair.changed.doneHeading')
 })
@@ -217,8 +217,8 @@ onBeforeMount(() => {
           <!-- Drawn while the read is on its way too: a read always answers with an inspection, so the
                badge is known before the figures are, and the card keeps its height when they land. -->
           <div class="mt-3">
-            <UiBadge :variant="isReportOnly ? 'info' : 'success'">
-              {{ isReportOnly ? t('databases.grantRepair.census.inspected') : t('databases.grantRepair.census.acted') }}
+            <UiBadge :variant="isPreview ? 'info' : 'success'">
+              {{ isPreview ? t('databases.grantRepair.census.inspected') : t('databases.grantRepair.census.acted') }}
             </UiBadge>
           </div>
           <!-- Four buckets and the total, side by side, because the four sum to the total and that is
@@ -230,7 +230,7 @@ onBeforeMount(() => {
             <UiDescriptionItem :term="t('databases.grantRepair.census.alreadyCorrect')" figure>{{ store.report?.alreadyCorrect }}</UiDescriptionItem>
             <UiDescriptionItem
               :term="
-                isReportOnly
+                isPreview
                   ? t('databases.grantRepair.census.wouldRepair')
                   : t('databases.grantRepair.census.repaired')
               " figure>{{ changedRows.length }}</UiDescriptionItem>
@@ -358,7 +358,7 @@ onBeforeMount(() => {
                 {{ t('databases.grantRepair.action.refresh') }}
               </UiButton>
               <!-- Offered on a held INSPECTION and on nothing else. After a repair the same shape comes
-                   back with `isReportOnly` false, and a control here would invite a second host-wide
+                   back with its work `applied`, and a control here would invite a second host-wide
                    rewrite over a census nobody had read as a plan. -->
               <UiButton
                 v-if="store.canRepair"

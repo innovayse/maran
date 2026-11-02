@@ -1,4 +1,4 @@
-using Maran.Agent.V1;
+using Maran.Modules.Databases.Domain.Enums;
 using Maran.Modules.Databases.Tests.TestSupport;
 
 namespace Maran.Modules.Databases.Tests.Services;
@@ -9,10 +9,10 @@ namespace Maran.Modules.Databases.Tests.Services;
 /// </summary>
 /// <remarks>
 /// The set is walked, not sampled, because a reason with no entry does not fail, does not warn and
-/// does not look like a defect from the backend: the resolver answers with the machine identifier, so
-/// an operator reads <c>PartiallyOrUnfamiliarlyEscaped</c> where a sentence belongs, in all three
-/// languages. The closed set is the agent contract's own enum, so a reason the agent gains fails here
-/// rather than reaching a screen as a constant.
+/// does not look like a defect from the backend: the localizer answers with the key itself, so an
+/// operator reads <c>GrantRepairRefusalPartiallyOrUnfamiliarlyEscaped</c> where a sentence belongs, in
+/// all three languages. The closed set is the module's own <see cref="GrantRefusalReason"/>, so a reason
+/// added to it fails here rather than reaching a screen as a key.
 /// </remarks>
 public sealed class GrantRepairRefusalDisplayNamesTests
 {
@@ -22,14 +22,14 @@ public sealed class GrantRepairRefusalDisplayNamesTests
     /// <summary>Every refusal the agent can report has a name and an action in every language.</summary>
     /// <remarks>
     /// Read through the REAL resource files by culture, so a missing satellite or an untranslated entry
-    /// is visible here rather than in a browser. <c>Unspecified</c> is included deliberately: the agent
-    /// never sends it, but a panel older than its agent receives values it cannot name, and this is the
-    /// entry that keeps that case a sentence instead of a machine word.
+    /// is visible here rather than in a browser. There is no entry for a reason the module does not
+    /// have: the agent client refuses a reply naming one, so no row ever reaches the resolver without
+    /// a member of the enum.
     /// </remarks>
     [Fact]
     public void Every_refusal_the_agent_can_report_has_a_name_and_an_action_in_every_language()
     {
-        var reasons = Enum.GetValues<GrantRepairRefusal>();
+        var reasons = Enum.GetValues<GrantRefusalReason>();
         Assert.NotEmpty(reasons);
 
         var problems = new List<string>();
@@ -40,64 +40,48 @@ public sealed class GrantRepairRefusalDisplayNamesTests
 
             foreach (var reason in reasons)
             {
-                var machine = reason.ToString();
-
-                if (string.Equals(text.NameOf(machine), machine, StringComparison.Ordinal))
+                // A missing entry makes the localizer answer with the key it looked up.
+                if (string.Equals(text.NameOf(reason), "GrantRepairRefusal" + reason, StringComparison.Ordinal))
                 {
-                    problems.Add($"'{machine}' has no name in {culture}; the screen prints the identifier.");
+                    problems.Add($"'{reason}' has no name in {culture}; the screen prints the key.");
                 }
 
-                if (string.Equals(text.AdviceOf(machine), machine, StringComparison.Ordinal))
+                if (string.Equals(text.AdviceOf(reason), "GrantRepairAdvice" + reason, StringComparison.Ordinal))
                 {
-                    problems.Add($"'{machine}' has no advice in {culture}; the row states a verdict with no next step.");
+                    problems.Add($"'{reason}' has no advice in {culture}; the row states a verdict with no next step.");
                 }
             }
         }
 
         Assert.True(
             problems.Count == 0,
-            "A refusal reaches the operator's screen as a machine identifier (rules/vue.md):"
+            "A refusal reaches the operator's screen as a resource key (rules/vue.md):"
             + Environment.NewLine
             + string.Join(Environment.NewLine, problems));
     }
 
-    /// <summary>The walk reads the contract enum it claims to, and the resolver can miss.</summary>
+    /// <summary>The walk reads the enum it claims to, and the localizer can miss.</summary>
     /// <remarks>
     /// The positive control the walk above owes, on the axis that can go blind (rules/testing.md). Two
     /// halves: the enumeration really contains the values this build ships — a reflection query that
-    /// returned nothing would make the walk pass over nothing at all — and the resolver really answers
-    /// with the identifier for a reason it has no entry for, which is the condition the walk detects. A
-    /// resolver that answered with a sentence for every input would make the walk green forever.
+    /// returned nothing would make the walk pass over nothing at all — and the localizer really answers
+    /// with the key for a name it has no entry for, which is the condition the walk detects. A localizer
+    /// that answered with a sentence for every input would make the walk green forever.
     /// </remarks>
     [Fact]
-    public void The_walk_reads_the_contract_enum_it_claims_to_and_the_resolver_can_miss()
+    public void The_walk_reads_the_enum_it_claims_to_and_the_localizer_can_miss()
     {
-        var reasons = Enum.GetValues<GrantRepairRefusal>().Select(reason => { return reason.ToString(); }).ToList();
+        var reasons = Enum.GetValues<GrantRefusalReason>();
 
-        Assert.Contains("HostIsNotLocalhost", reasons);
-        Assert.Contains("NotThePanelsNaming", reasons);
-        Assert.Contains("UnrecognisedPrivileges", reasons);
-        Assert.Contains("PartiallyOrUnfamiliarlyEscaped", reasons);
-        Assert.Contains("Unspecified", reasons);
+        Assert.Contains(GrantRefusalReason.HostIsNotLocalhost, reasons);
+        Assert.Contains(GrantRefusalReason.NotThePanelsNaming, reasons);
+        Assert.Contains(GrantRefusalReason.UnrecognisedPrivileges, reasons);
+        Assert.Contains(GrantRefusalReason.PartiallyOrUnfamiliarlyEscaped, reasons);
+        Assert.Equal(4, reasons.Length);
 
         var text = DatabasesTestContext.RefusalText();
-        Assert.Equal("AReasonNoAgentHasEverSent", text.NameOf("AReasonNoAgentHasEverSent"));
-        Assert.Equal("AReasonNoAgentHasEverSent", text.AdviceOf("AReasonNoAgentHasEverSent"));
-    }
-
-    /// <summary>Nothing to name answers with nothing, and not with the bare resource prefix.</summary>
-    /// <remarks>
-    /// The failure this branch exists for is specific: handed an empty reason, an unguarded localizer
-    /// looks up the key <c>GrantRepairRefusal</c>, finds nothing, and answers with that key — putting
-    /// the words <c>GrantRepairRefusal</c> on the screen.
-    /// </remarks>
-    [Fact]
-    public void Nothing_to_name_answers_with_nothing_and_not_with_the_bare_resource_prefix()
-    {
-        var text = DatabasesTestContext.RefusalText();
-
-        Assert.Equal(string.Empty, text.NameOf(string.Empty));
-        Assert.Equal(string.Empty, text.AdviceOf(string.Empty));
+        Assert.Equal("GrantRepairRefusal99", text.NameOf((GrantRefusalReason)99));
+        Assert.Equal("GrantRepairAdvice99", text.AdviceOf((GrantRefusalReason)99));
     }
 
     /// <summary>The refusal for a grant from another host tells the operator it is still wide.</summary>
@@ -116,10 +100,10 @@ public sealed class GrantRepairRefusalDisplayNamesTests
         using var _ = new CultureScope("ru");
         var text = DatabasesTestContext.RefusalText();
 
-        Assert.Equal("Выдано для другого хоста", text.NameOf("HostIsNotLocalhost"));
+        Assert.Equal("Выдано для другого хоста", text.NameOf(GrantRefusalReason.HostIsNotLocalhost));
         Assert.Contains(
             "Широкий шаблон в имени остался.",
-            text.AdviceOf("HostIsNotLocalhost"),
+            text.AdviceOf(GrantRefusalReason.HostIsNotLocalhost),
             StringComparison.Ordinal);
     }
 
@@ -153,9 +137,9 @@ public sealed class GrantRepairRefusalDisplayNamesTests
             using var _ = new CultureScope(culture);
             var text = DatabasesTestContext.RefusalText();
 
-            foreach (var reason in Enum.GetValues<GrantRepairRefusal>())
+            foreach (var reason in Enum.GetValues<GrantRefusalReason>())
             {
-                Assert.Contains(clauses[culture], text.AdviceOf(reason.ToString()), StringComparison.Ordinal);
+                Assert.Contains(clauses[culture], text.AdviceOf(reason), StringComparison.Ordinal);
             }
         }
     }
@@ -172,7 +156,7 @@ public sealed class GrantRepairRefusalDisplayNamesTests
 
         Assert.DoesNotContain(
             "Nothing was changed.",
-            text.NameOf("HostIsNotLocalhost"),
+            text.NameOf(GrantRefusalReason.HostIsNotLocalhost),
             StringComparison.Ordinal);
     }
 }

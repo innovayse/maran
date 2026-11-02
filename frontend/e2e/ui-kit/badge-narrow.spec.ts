@@ -21,11 +21,9 @@ const LICENSED: PanelModule[] = [{ name: 'databases', displayName: 'Databases', 
 
 /** An inspection report: the census card then carries the long "inspected" badge. */
 const REPORT: GrantRepairReport = {
-  isReportOnly: true,
   examinedGrants: 3,
   alreadyCorrect: 3,
-  repaired: [],
-  wouldRepair: [],
+  work: { kind: 'preview', grants: [] },
   refused: [],
 }
 

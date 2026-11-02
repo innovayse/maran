@@ -196,23 +196,24 @@ const DATABASE: Database = {
 }
 
 const GRANT_REPORT: GrantRepairReport = {
-  isReportOnly: true,
   examinedGrants: 11,
   alreadyCorrect: 9,
-  repaired: [],
-  wouldRepair: [
-    {
-      databaseName: 'acme_industrial_storefront_catalogue',
-      dbUsername: 'acme_industrial_storefront_catalogue',
-      alsoMatchedDatabases: ['acme_industrial_xstorefront_catalogue'],
-    },
-  ],
+  work: {
+    kind: 'preview',
+    grants: [
+      {
+        databaseName: 'acme_industrial_storefront_catalogue',
+        dbUsername: 'acme_industrial_storefront_catalogue',
+        alsoMatchedDatabases: ['acme_industrial_xstorefront_catalogue'],
+      },
+    ],
+  },
   refused: [
     {
       grantHost: '10.0.0.5',
       databaseName: 'reporting_metrics_warehouse_nightly',
       dbUsername: 'reporting_tool_readonly',
-      reason: 'HostIsNotLocalhost',
+      reason: 'hostIsNotLocalhost',
       reasonDisplayName: 'Granted from another host than this server',
       reasonAdvice:
         'Nothing was changed. Open your database server own grant table, then narrow the row by hand.',

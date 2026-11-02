@@ -1,3 +1,5 @@
+using Maran.Modules.Databases.Domain.Enums;
+
 namespace Maran.Modules.Databases.Common;
 
 /// <summary>One grant-table row the repair left exactly as it found it, and what to do about it.</summary>
@@ -9,9 +11,8 @@ namespace Maran.Modules.Databases.Common;
 /// </param>
 /// <param name="DbUsername">The server's <c>User</c> column, verbatim.</param>
 /// <param name="Reason">
-/// The machine-stable refusal name the agent reported. Kept beside the localized text because a
-/// support conversation and a log line need one spelling that does not change with the reader's
-/// language.
+/// The refusal the agent reported. Kept beside the localized text because a support conversation and
+/// a log line need one spelling that does not change with the reader's language.
 /// </param>
 /// <param name="ReasonDisplayName">
 /// What the agent decided, in the caller's language. Produced here and never in the SPA: the
@@ -35,6 +36,6 @@ public sealed record RefusedGrantDto(
     string GrantHost,
     string DatabaseName,
     string DbUsername,
-    string Reason,
+    GrantRefusalReason Reason,
     string ReasonDisplayName,
     string ReasonAdvice);

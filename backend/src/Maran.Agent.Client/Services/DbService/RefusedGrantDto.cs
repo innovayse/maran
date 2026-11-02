@@ -9,15 +9,8 @@ namespace Maran.Agent.Client.Services.DbService;
 /// </param>
 /// <param name="DbUsername">The server's <c>User</c> column, verbatim.</param>
 /// <param name="Reason">
-/// Why the row was refused, as the machine-stable name of the agent's <c>GrantRepairRefusal</c>
-/// value — <c>HostIsNotLocalhost</c>, <c>NotThePanelsNaming</c>, <c>UnrecognisedPrivileges</c>,
-/// <c>PartiallyOrUnfamiliarlyEscaped</c>, or <c>Unspecified</c> for a value this build was not
-/// compiled knowing about.
-/// <para>
-/// A string and not the wire enum, so that an agent newer than this panel widens the set without the
-/// panel mistaking an unknown value for the zero one. The panel names it for an operator by resource
-/// key and falls back to this identifier, which is loud rather than wrong.
-/// </para>
+/// Why the row was refused. The agent's closed set, named by the panel's own enum; a value this build
+/// does not know is refused by the client as a whole reply rather than carried here.
 /// </param>
 /// <remarks>
 /// <b>These three names belong to whoever wrote the row, which on a real host is frequently not the
@@ -30,4 +23,4 @@ public sealed record RefusedGrantDto(
     string GrantHost,
     string DatabaseName,
     string DbUsername,
-    string Reason);
+    AgentGrantRefusal Reason);

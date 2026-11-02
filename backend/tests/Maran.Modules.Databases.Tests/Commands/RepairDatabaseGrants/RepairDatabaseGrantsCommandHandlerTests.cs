@@ -1,7 +1,11 @@
 using Maran.Modules.Databases.Commands.RepairDatabaseGrants;
+using Maran.Modules.Databases.Common;
+using Maran.Modules.Databases.Domain.Enums;
 using Maran.Modules.Databases.Services;
 using Maran.Modules.Databases.Tests.TestSupport;
 using Maran.SharedKernel.Results;
+using AgentGrantInspectionReport = Maran.Agent.Client.Services.DbService.GrantInspectionReportDto;
+using AgentGrantRefusal = Maran.Agent.Client.Services.DbService.AgentGrantRefusal;
 using AgentGrantRepairReport = Maran.Agent.Client.Services.DbService.GrantRepairReportDto;
 using AgentRefusedGrant = Maran.Agent.Client.Services.DbService.RefusedGrantDto;
 using AgentRepairedGrant = Maran.Agent.Client.Services.DbService.RepairedGrantDto;
@@ -80,9 +84,9 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
     /// hide the one that did.
     /// </para>
     /// <para>
-    /// It also pins the report-only flag, which the mapper takes from the CALLER rather than inferring
-    /// from the lists. An inference would be right here and wrong on the case below, where both lists
-    /// are empty.
+    /// It also pins the kind of work the answer lists: the mapper takes it from the TYPE of report the
+    /// agent client hands over, not from the lists. An inference would be right here and wrong on the
+    /// case below, where both lists are empty.
     /// </para>
     /// </remarks>
     [Fact]
@@ -90,18 +94,17 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
     {
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(
-                2, 1, [], [new AgentRepairedGrant("alice_shop", "alice_shop", [])], [])),
+            ReportResult = Result<AgentGrantInspectionReport>.Ok(new AgentGrantInspectionReport(
+                2, 1, [new AgentRepairedGrant("alice_shop", "alice_shop", [])], [])),
             RepairResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(
-                2, 1, [new AgentRepairedGrant("bob_blog", "bob_blog", ["bobxblog"])], [], [])),
+                2, 1, [new AgentRepairedGrant("bob_blog", "bob_blog", ["bobxblog"])], [])),
         };
         var handler = HandlerOver(agent, new RecordingAuditWriter());
 
         var result = await handler.HandleAsync(new RepairDatabaseGrantsCommand(1), CancellationToken.None);
 
-        Assert.False(result.Value.IsReportOnly);
-        Assert.Empty(result.Value.WouldRepair);
-        var repaired = Assert.Single(result.Value.Repaired);
+        var applied = Assert.IsType<GrantRepairAppliedDto>(result.Value.Work);
+        var repaired = Assert.Single(applied.Grants);
         Assert.Equal("bob_blog", repaired.DatabaseName);
         Assert.Equal(["bobxblog"], repaired.AlsoMatchedDatabases);
     }
@@ -115,8 +118,8 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
     /// not as an error, and not as an inspection.
     /// </para>
     /// <para>
-    /// <c>IsReportOnly</c> is the assertion with teeth. Both lists are empty, so a mapper that inferred
-    /// the flag from them would report this ACTION as an inspection, and an operator would be left
+    /// The <c>applied</c> kind is the assertion with teeth. Both lists are empty, so a mapper that inferred
+    /// the kind from them would report this ACTION as an inspection, and an operator would be left
     /// unsure whether the repair had run.
     /// </para>
     /// </remarks>
@@ -125,17 +128,17 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
     {
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(9, 9, [], [], [])),
-            RepairResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(9, 9, [], [], [])),
+            ReportResult = Result<AgentGrantInspectionReport>.Ok(new AgentGrantInspectionReport(9, 9, [], [])),
+            RepairResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(9, 9, [], [])),
         };
         var handler = HandlerOver(agent, new RecordingAuditWriter());
 
         var result = await handler.HandleAsync(new RepairDatabaseGrantsCommand(0), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.False(result.Value.IsReportOnly);
+        var applied = Assert.IsType<GrantRepairAppliedDto>(result.Value.Work);
         Assert.Equal(9u, result.Value.AlreadyCorrect);
-        Assert.Empty(result.Value.Repaired);
+        Assert.Empty(applied.Grants);
         Assert.Equal([true, false], agent.GrantRepairPasses);
     }
 
@@ -148,11 +151,11 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
     [Fact]
     public async Task A_refused_row_survives_the_acting_pass_with_its_sentence_and_its_action()
     {
-        var refused = new AgentRefusedGrant("localhost", "ops_metrics", "grafana", "NotThePanelsNaming");
+        var refused = new AgentRefusedGrant("localhost", "ops_metrics", "grafana", AgentGrantRefusal.NotThePanelsNaming);
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(1, 0, [], [], [refused])),
-            RepairResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(1, 0, [], [], [refused])),
+            ReportResult = Result<AgentGrantInspectionReport>.Ok(new AgentGrantInspectionReport(1, 0, [], [refused])),
+            RepairResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(1, 0, [], [refused])),
         };
         var handler = HandlerOver(agent, new RecordingAuditWriter());
 
@@ -160,8 +163,9 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
 
         var row = Assert.Single(result.Value.Refused);
         Assert.Equal("grafana", row.DbUsername);
-        Assert.NotEqual(row.Reason, row.ReasonDisplayName);
-        Assert.NotEqual(row.Reason, row.ReasonAdvice);
+        Assert.Equal(GrantRefusalReason.NotThePanelsNaming, row.Reason);
+        Assert.NotEqual(row.Reason.ToString(), row.ReasonDisplayName);
+        Assert.NotEqual(row.Reason.ToString(), row.ReasonAdvice);
     }
 
     /// <summary>An agent that refuses the planning pass stops the repair before it is attempted.</summary>
@@ -170,7 +174,7 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
     {
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Fail(
+            ReportResult = Result<AgentGrantInspectionReport>.Fail(
                 Error.Of("AgentSystemFailure", ErrorType.Failure)),
         };
         var handler = HandlerOver(agent, new RecordingAuditWriter());
@@ -193,7 +197,7 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
     {
         var agent = new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Ok(new AgentGrantRepairReport(9, 9, [], [], [])),
+            ReportResult = Result<AgentGrantInspectionReport>.Ok(new AgentGrantInspectionReport(9, 9, [], [])),
             RepairResult = Result<AgentGrantRepairReport>.Fail(
                 Error.Of("AgentSystemFailure", ErrorType.Failure)),
         };
@@ -233,8 +237,7 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
                 9,
                 6,
                 [new AgentRepairedGrant("alice_db0", "alice_db0", []), new AgentRepairedGrant("alice_db1", "alice_db1", [])],
-                [],
-                [new AgentRefusedGrant("localhost", "other_db", "other_user", "NotThePanelsNaming")]));
+                [new AgentRefusedGrant("localhost", "other_db", "other_user", AgentGrantRefusal.NotThePanelsNaming)]));
         var audit = new RecordingAuditWriter();
         var handler = HandlerOver(agent, audit);
 
@@ -303,8 +306,8 @@ public sealed class RepairDatabaseGrantsCommandHandlerTests
 
         return new RecordingAgentDbClient
         {
-            ReportResult = Result<AgentGrantRepairReport>.Ok(
-                new AgentGrantRepairReport((uint)wouldRepair, 0, [], planned, [])),
+            ReportResult = Result<AgentGrantInspectionReport>.Ok(
+                new AgentGrantInspectionReport((uint)wouldRepair, 0, planned, [])),
         };
     }
 }

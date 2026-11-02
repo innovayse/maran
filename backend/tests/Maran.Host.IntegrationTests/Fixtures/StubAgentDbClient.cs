@@ -84,22 +84,40 @@ public sealed class StubAgentDbClient : IAgentDbClient
 
     /// <inheritdoc/>
     /// <remarks>
-    /// The same census for either pass, with the one repairable row in whichever bucket the pass
-    /// belongs to. One row would be rewritten, so an administrator confirming <c>1</c> is accepted and
-    /// one confirming anything else is refused — which is what lets a wire test see the gate.
+    /// One row would be rewritten, so an administrator confirming <c>1</c> is accepted and one
+    /// confirming anything else is refused — which is what lets a wire test see the gate.
     /// </remarks>
-    public Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
-        bool reportOnly,
-        CancellationToken cancellationToken)
+    public Task<Result<GrantInspectionReportDto>> InspectGrantsAsync(CancellationToken cancellationToken)
     {
-        var repairable = new RepairedGrantDto("own_shop", "own_shop", [ExposedDatabase]);
-        var refused = new RefusedGrantDto("localhost", StrangerDatabase, StrangerUser, "NotThePanelsNaming");
+        return Task.FromResult(Result<GrantInspectionReportDto>.Ok(new GrantInspectionReportDto(
+            3,
+            1,
+            [Repairable()],
+            [Refused()])));
+    }
 
+    /// <inheritdoc/>
+    /// <remarks>The same census as the inspection, with the one repairable row rewritten.</remarks>
+    public Task<Result<GrantRepairReportDto>> RepairGrantsAsync(CancellationToken cancellationToken)
+    {
         return Task.FromResult(Result<GrantRepairReportDto>.Ok(new GrantRepairReportDto(
             3,
             1,
-            reportOnly ? [] : [repairable],
-            reportOnly ? [repairable] : [],
-            [refused])));
+            [Repairable()],
+            [Refused()])));
+    }
+
+    /// <summary>The one row both passes find repairable.</summary>
+    /// <returns>The row, with the other database its old pattern also matched.</returns>
+    private static RepairedGrantDto Repairable()
+    {
+        return new RepairedGrantDto("own_shop", "own_shop", [ExposedDatabase]);
+    }
+
+    /// <summary>The one row both passes refuse, which belongs to another tenant.</summary>
+    /// <returns>The refused row.</returns>
+    private static RefusedGrantDto Refused()
+    {
+        return new RefusedGrantDto("localhost", StrangerDatabase, StrangerUser, AgentGrantRefusal.NotThePanelsNaming);
     }
 }

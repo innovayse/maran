@@ -32,23 +32,24 @@ const LICENSED: PanelModule[] = [
  * the SPA holds no refusal vocabulary at all, which is the property several of these specs pin.
  */
 const REPORT: GrantRepairReport = {
-  isReportOnly: true,
   examinedGrants: 11,
   alreadyCorrect: 9,
-  repaired: [],
-  wouldRepair: [
-    {
-      databaseName: 'alice_shop',
-      dbUsername: 'alice_shop',
-      alsoMatchedDatabases: ['alicexshop'],
-    },
-  ],
+  work: {
+    kind: 'preview',
+    grants: [
+      {
+        databaseName: 'alice_shop',
+        dbUsername: 'alice_shop',
+        alsoMatchedDatabases: ['alicexshop'],
+      },
+    ],
+  },
   refused: [
     {
       grantHost: '10.0.0.5',
       databaseName: 'reporting_metrics',
       dbUsername: 'reporting_tool',
-      reason: 'HostIsNotLocalhost',
+      reason: 'hostIsNotLocalhost',
       reasonDisplayName: 'Granted from another host',
       reasonAdvice:
         'Nothing was changed. Open your database server own grant table, then narrow the row by hand.',
@@ -124,9 +125,10 @@ test('a repaired row with nothing else matching says so without reading as an al
   await stubModules(page, LICENSED)
   await stubDatabaseGrants(page, {
     ...REPORT,
-    wouldRepair: [
-      { databaseName: 'alice_shop', dbUsername: 'alice_shop', alsoMatchedDatabases: [] },
-    ],
+    work: {
+      kind: 'preview',
+      grants: [{ databaseName: 'alice_shop', dbUsername: 'alice_shop', alsoMatchedDatabases: [] }],
+    },
   })
 
   await page.goto('/databases/grant-repair')
@@ -211,18 +213,21 @@ test('the dialog counts more than one grant in the plural', async ({ page }) => 
   await stubModules(page, LICENSED)
   await stubDatabaseGrants(page, {
     ...REPORT,
-    wouldRepair: [
-      {
-        databaseName: 'alice_shop',
-        dbUsername: 'alice_shop',
-        alsoMatchedDatabases: ['alicexshop'],
-      },
-      {
-        databaseName: 'bob_blog',
-        dbUsername: 'bob_blog',
-        alsoMatchedDatabases: ['bobxblog'],
-      },
-    ],
+    work: {
+      kind: 'preview',
+      grants: [
+        {
+          databaseName: 'alice_shop',
+          dbUsername: 'alice_shop',
+          alsoMatchedDatabases: ['alicexshop'],
+        },
+        {
+          databaseName: 'bob_blog',
+          dbUsername: 'bob_blog',
+          alsoMatchedDatabases: ['bobxblog'],
+        },
+      ],
+    },
   })
 
   await page.goto('/databases/grant-repair')
@@ -263,11 +268,9 @@ test('a host with nothing to narrow says so instead of offering a repair', async
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubDatabaseGrants(page, {
-    isReportOnly: true,
     examinedGrants: 9,
     alreadyCorrect: 9,
-    repaired: [],
-    wouldRepair: [],
+    work: { kind: 'preview', grants: [] },
     refused: [],
   })
 

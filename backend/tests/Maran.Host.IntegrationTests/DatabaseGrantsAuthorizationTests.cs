@@ -176,15 +176,15 @@ public sealed class DatabaseGrantsAuthorizationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(body.RootElement.GetProperty("isReportOnly").GetBoolean());
+        var work = body.RootElement.GetProperty("work");
+        Assert.Equal("preview", work.GetProperty("kind").GetString());
         Assert.Equal(3, body.RootElement.GetProperty("examinedGrants").GetInt32());
-        Assert.Equal(1, body.RootElement.GetProperty("wouldRepair").GetArrayLength());
-        Assert.Equal(0, body.RootElement.GetProperty("repaired").GetArrayLength());
+        Assert.Equal(1, work.GetProperty("grants").GetArrayLength());
 
         var refused = body.RootElement.GetProperty("refused")[0];
-        Assert.Equal("NotThePanelsNaming", refused.GetProperty("reason").GetString());
-        Assert.NotEqual("NotThePanelsNaming", refused.GetProperty("reasonDisplayName").GetString());
-        Assert.NotEqual("NotThePanelsNaming", refused.GetProperty("reasonAdvice").GetString());
+        Assert.Equal("notThePanelsNaming", refused.GetProperty("reason").GetString());
+        Assert.NotEqual("notThePanelsNaming", refused.GetProperty("reasonDisplayName").GetString());
+        Assert.NotEqual("notThePanelsNaming", refused.GetProperty("reasonAdvice").GetString());
     }
 
     /// <summary>An administrator confirming the figure the report gave gets a repair that ran.</summary>
@@ -193,8 +193,8 @@ public sealed class DatabaseGrantsAuthorizationTests : IAsyncLifetime
     {
         // The second inverse control, on the confirmation gate rather than on the role: a gate that
         // refused every figure would pass the staleness test below while making the repair unreachable.
-        // `isReportOnly: false` is the assertion with teeth — it says an ACTION was performed rather
-        // than another inspection returned.
+        // `work.kind` being `applied` is the assertion with teeth — it says an ACTION was performed
+        // rather than another inspection returned.
         await using var factory = CreateFactory();
         await MigrateAsync(factory);
         await SeedAsync(factory);
@@ -205,9 +205,9 @@ public sealed class DatabaseGrantsAuthorizationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.False(body.RootElement.GetProperty("isReportOnly").GetBoolean());
-        Assert.Equal(1, body.RootElement.GetProperty("repaired").GetArrayLength());
-        Assert.Equal(0, body.RootElement.GetProperty("wouldRepair").GetArrayLength());
+        var work = body.RootElement.GetProperty("work");
+        Assert.Equal("applied", work.GetProperty("kind").GetString());
+        Assert.Equal(1, work.GetProperty("grants").GetArrayLength());
     }
 
     /// <summary>An administrator who confirms a figure the host no longer matches is refused.</summary>

@@ -443,18 +443,20 @@ public sealed class AgentDbClientTests
             CancellationToken.None);
     }
 
-    /// <summary>The grant repair sends the report only flag it was given and nothing else.</summary>
+    /// <summary>Inspecting and repairing send opposite report-only flags and nothing else.</summary>
     /// <remarks>
     /// The flag is the whole of the request, and it is the difference between reading the host's grant
     /// table and rewriting every customer's database access on it. A client that dropped it would send
     /// proto3's default — <c>false</c>, which means ACT — so an inspection would silently become a
-    /// repair, and every assertion about the response shape would still pass. Both values are driven,
-    /// because a client that hard-coded either one would satisfy a single-value test.
+    /// repair, and every assertion about the response shape would still pass. Both members are driven,
+    /// because a client that hard-coded either value would satisfy a single-member test.
     /// </remarks>
+    /// <param name="inspect">True to call the inspection, false to call the repair.</param>
+    /// <returns>The asynchronous test.</returns>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task The_grant_repair_sends_the_report_only_flag_it_was_given_and_nothing_else(bool reportOnly)
+    public async Task Inspecting_and_repairing_send_opposite_report_only_flags_and_nothing_else(bool inspect)
     {
         var stub = new StubDbService
         {
@@ -462,28 +464,34 @@ public sealed class AgentDbClientTests
         };
         var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
 
-        await client.RepairGrantsAsync(reportOnly, CancellationToken.None);
+        if (inspect)
+        {
+            await client.InspectGrantsAsync(CancellationToken.None);
+        }
+        else
+        {
+            await client.RepairGrantsAsync(CancellationToken.None);
+        }
 
         var request = Assert.IsType<RepairDatabaseGrantsRequest>(stub.LastRepairGrantsRequest);
-        Assert.Equal(reportOnly, request.ReportOnly);
+        Assert.Equal(inspect, request.ReportOnly);
     }
 
-    /// <summary>The grant repair census keeps its four buckets apart and its exposure list intact.</summary>
+    /// <summary>A repairing census keeps the rewritten rows, the refused rows and the exposure list intact.</summary>
     /// <remarks>
-    /// Four buckets that sum to the number examined are what make the report a census of the grant table
-    /// rather than a list of what happened to be interesting, so a mapping that merged "would repair"
-    /// into "repaired" would make an inspection indistinguishable from an action. The exposure list is
-    /// asserted for the same reason it exists: it is the only evidence this operation can produce, and
-    /// a projection that dropped it would leave the panel with nothing to say about reach.
+    /// The exposure list is asserted for the same reason it exists: it is the only evidence this
+    /// operation can produce, and a projection that dropped it would leave the panel with nothing to say
+    /// about reach. The refused row's names are asserted verbatim because a row is refused precisely
+    /// because it is not a value this panel could have produced, so a tidied name would hide the
+    /// evidence an operator has to read.
     /// </remarks>
     [Fact]
-    public async Task The_grant_repair_census_keeps_its_four_buckets_apart_and_its_exposure_list_intact()
+    public async Task A_repairing_census_keeps_the_rewritten_rows_the_refused_rows_and_the_exposure_list_intact()
     {
-        var ok = new RepairDatabaseGrantsOk { ExaminedGrants = 4, AlreadyCorrect = 1 };
-        ok.Repaired.Add(new RepairedGrant { DatabaseName = "a_one", DbUsername = "a_one" });
-        var planned = new RepairedGrant { DatabaseName = "a_two", DbUsername = "a_two" };
-        planned.AlsoMatchedDatabases.Add("axtwo");
-        ok.WouldRepair.Add(planned);
+        var ok = new RepairDatabaseGrantsOk { ExaminedGrants = 3, AlreadyCorrect = 1 };
+        var repaired = new RepairedGrant { DatabaseName = "a_one", DbUsername = "a_one" };
+        repaired.AlsoMatchedDatabases.Add("axone");
+        ok.Repaired.Add(repaired);
         ok.Refused.Add(new RefusedGrant
         {
             GrantHost = "10.0.0.5",
@@ -491,27 +499,111 @@ public sealed class AgentDbClientTests
             DbUsername = "reporting_tool",
             Reason = GrantRepairRefusal.HostIsNotLocalhost,
         });
-        var stub = new StubDbService
-        {
-            RepairGrantsResponse = new RepairDatabaseGrantsResponse { Ok = ok },
-        };
+        var stub = new StubDbService { RepairGrantsResponse = new RepairDatabaseGrantsResponse { Ok = ok } };
         var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
 
-        var result = await client.RepairGrantsAsync(reportOnly: false, CancellationToken.None);
+        var result = await client.RepairGrantsAsync(CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(4u, result.Value.ExaminedGrants);
+        Assert.Equal(3u, result.Value.ExaminedGrants);
         Assert.Equal(1u, result.Value.AlreadyCorrect);
-        Assert.Equal("a_one", Assert.Single(result.Value.Repaired).DatabaseName);
-        Assert.Equal(["axtwo"], Assert.Single(result.Value.WouldRepair).AlsoMatchedDatabases);
+        var row = Assert.Single(result.Value.Repaired);
+        Assert.Equal("a_one", row.DatabaseName);
+        Assert.Equal(["axone"], row.AlsoMatchedDatabases);
 
-        // The raw columns, verbatim: a row is refused precisely because it is not a value this panel
-        // could have produced, so a tidied name would hide the evidence an operator has to read.
         var refused = Assert.Single(result.Value.Refused);
         Assert.Equal("10.0.0.5", refused.GrantHost);
         Assert.Equal(@"b\_three", refused.DatabaseName);
         Assert.Equal("reporting_tool", refused.DbUsername);
-        Assert.Equal("HostIsNotLocalhost", refused.Reason);
+        Assert.Equal(AgentGrantRefusal.HostIsNotLocalhost, refused.Reason);
+    }
+
+    /// <summary>An inspecting census lists the rows a repair would rewrite and none as rewritten.</summary>
+    [Fact]
+    public async Task An_inspecting_census_lists_the_rows_a_repair_would_rewrite()
+    {
+        var ok = new RepairDatabaseGrantsOk { ExaminedGrants = 2, AlreadyCorrect = 1 };
+        var planned = new RepairedGrant { DatabaseName = "a_two", DbUsername = "a_two" };
+        planned.AlsoMatchedDatabases.Add("axtwo");
+        ok.WouldRepair.Add(planned);
+        var stub = new StubDbService { RepairGrantsResponse = new RepairDatabaseGrantsResponse { Ok = ok } };
+        var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
+
+        var result = await client.InspectGrantsAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(["axtwo"], Assert.Single(result.Value.WouldRepair).AlsoMatchedDatabases);
+        Assert.Empty(result.Value.Refused);
+    }
+
+    /// <summary>A reply that claims rewritten rows to an inspection is refused, not shown as one.</summary>
+    [Fact]
+    public async Task A_reply_that_claims_rewritten_rows_to_an_inspection_is_refused()
+    {
+        var ok = new RepairDatabaseGrantsOk { ExaminedGrants = 1 };
+        ok.Repaired.Add(new RepairedGrant { DatabaseName = "a_one", DbUsername = "a_one" });
+        var stub = new StubDbService { RepairGrantsResponse = new RepairDatabaseGrantsResponse { Ok = ok } };
+        var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
+
+        var result = await client.InspectGrantsAsync(CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
+    /// <summary>A reply that lists rows it only would have rewritten to a repair is refused, not shown as done.</summary>
+    [Fact]
+    public async Task A_reply_that_lists_would_be_rewrites_to_a_repair_is_refused()
+    {
+        var ok = new RepairDatabaseGrantsOk { ExaminedGrants = 1 };
+        ok.WouldRepair.Add(new RepairedGrant { DatabaseName = "a_one", DbUsername = "a_one" });
+        var stub = new StubDbService { RepairGrantsResponse = new RepairDatabaseGrantsResponse { Ok = ok } };
+        var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
+
+        var result = await client.RepairGrantsAsync(CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
+    /// <summary>Each refusal the wire names reaches the panel as the same refusal, and one it does not name is refused.</summary>
+    /// <param name="wire">The refusal on the wire.</param>
+    /// <param name="expected">The refusal the panel is told, or null when the whole reply is refused.</param>
+    /// <returns>The asynchronous test.</returns>
+    [Theory]
+    [InlineData(GrantRepairRefusal.HostIsNotLocalhost, AgentGrantRefusal.HostIsNotLocalhost)]
+    [InlineData(GrantRepairRefusal.NotThePanelsNaming, AgentGrantRefusal.NotThePanelsNaming)]
+    [InlineData(GrantRepairRefusal.UnrecognisedPrivileges, AgentGrantRefusal.UnrecognisedPrivileges)]
+    [InlineData(GrantRepairRefusal.PartiallyOrUnfamiliarlyEscaped, AgentGrantRefusal.PartiallyOrUnfamiliarlyEscaped)]
+    [InlineData(GrantRepairRefusal.Unspecified, null)]
+    [InlineData((GrantRepairRefusal)99, null)]
+    public async Task Each_refusal_the_wire_names_reaches_the_panel_as_the_same_refusal(
+        GrantRepairRefusal wire,
+        AgentGrantRefusal? expected)
+    {
+        var ok = new RepairDatabaseGrantsOk { ExaminedGrants = 1 };
+        ok.Refused.Add(new RefusedGrant
+        {
+            GrantHost = "localhost",
+            DatabaseName = "x",
+            DbUsername = "x",
+            Reason = wire,
+        });
+        var stub = new StubDbService { RepairGrantsResponse = new RepairDatabaseGrantsResponse { Ok = ok } };
+        var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
+
+        var result = await client.InspectGrantsAsync(CancellationToken.None);
+
+        if (expected is null)
+        {
+            Assert.False(result.IsSuccess);
+            Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+        }
+        else
+        {
+            Assert.True(result.IsSuccess);
+            Assert.Equal(expected, Assert.Single(result.Value.Refused).Reason);
+        }
     }
 
     /// <summary>The grant repair error payload maps to a failed result with the agent code.</summary>
@@ -532,7 +624,7 @@ public sealed class AgentDbClientTests
         };
         var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
 
-        var result = await client.RepairGrantsAsync(reportOnly: true, CancellationToken.None);
+        var result = await client.InspectGrantsAsync(CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentSystemFailure", result.Error!.Code);
