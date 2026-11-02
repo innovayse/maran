@@ -65,6 +65,12 @@ import { PAGE_HEADING_KEY } from '../utils/pageHeadingKey'
 import type { PageHeading } from '../types/pageHeading'
 
 /**
+ * How the shell presents its navigation: the full sidebar or the icon rail on a wide viewport, the
+ * modal drawer (closed or open) below the breakpoint.
+ */
+type NavigationPresentation = 'sidebar' | 'rail' | 'drawerClosed' | 'drawerOpen'
+
+/**
  * The viewport at which the sidebar can afford a column of its own: Tailwind's `lg`, `64rem`
  * (1024px), written as the `min-width` media query that `lg:` itself compiles to. Below it the
  * 240px sidebar eats most of a phone screen, so the shell moves it into a drawer instead.
@@ -87,18 +93,25 @@ const localeStore = useLocaleStore()
 /** Live match for {@link WIDE_QUERY}; kept so its listener can be removed. */
 const wideQuery: MediaQueryList = window.matchMedia(WIDE_QUERY)
 
-/** Whether the viewport is too narrow for a sidebar in the flow. */
-const isCompact: Ref<boolean> = ref(!wideQuery.matches)
-
-/** Whether the navigation drawer is open. Only meaningful while compact. */
-const drawerOpen: Ref<boolean> = ref(false)
-
 /**
- * Whether the navigation is collapsed to the icon rail. The design keeps both presentations and
- * switches between them, so this is the shell's own state rather than a preference the panel
- * reports.
+ * How the navigation is presented right now. One value rather than three flags, because the
+ * presentations exclude one another and a flag is only meaningful in some of them: on a wide
+ * viewport the navigation is the full `sidebar` or the icon `rail` (the design keeps both and
+ * switches between them, so this is the shell's own state, not a preference the panel reports);
+ * below the breakpoint it is a modal drawer, `drawerClosed` until the hamburger or the tab bar's
+ * "More" opens it. Crossing the breakpoint resets it to the presentation of the new width.
  */
-const collapsed: Ref<boolean> = ref(false)
+const navigation: Ref<NavigationPresentation> = ref(wideQuery.matches ? 'sidebar' : 'drawerClosed')
+
+/** Whether the viewport is too narrow for a sidebar in the flow. */
+const isCompact: ComputedRef<boolean> = computed(() => {
+  return navigation.value === 'drawerClosed' || navigation.value === 'drawerOpen'
+})
+
+/** Whether the navigation drawer is open. */
+const drawerOpen: ComputedRef<boolean> = computed(() => {
+  return navigation.value === 'drawerOpen'
+})
 
 /** Whether the jump-to palette is open. */
 const paletteOpen: Ref<boolean> = ref(false)
@@ -155,7 +168,7 @@ const closePalette = (): void => {
  * @returns Nothing; state updates synchronously.
  */
 const openDrawer = (): void => {
-  drawerOpen.value = true
+  navigation.value = 'drawerOpen'
 }
 
 /**
@@ -163,7 +176,7 @@ const openDrawer = (): void => {
  * @returns Nothing; state updates synchronously.
  */
 const closeDrawer = (): void => {
-  drawerOpen.value = false
+  navigation.value = 'drawerClosed'
 }
 
 /**
@@ -171,7 +184,7 @@ const closeDrawer = (): void => {
  * @returns Nothing; state updates synchronously.
  */
 const collapseNavigation = (): void => {
-  collapsed.value = true
+  navigation.value = 'rail'
 }
 
 /**
@@ -179,7 +192,7 @@ const collapseNavigation = (): void => {
  * @returns Nothing; state updates synchronously.
  */
 const expandNavigation = (): void => {
-  collapsed.value = false
+  navigation.value = 'sidebar'
 }
 
 /**
@@ -188,12 +201,10 @@ const expandNavigation = (): void => {
  * @returns Nothing; state updates synchronously.
  */
 const applyCompact = (event: MediaQueryListEvent): void => {
-  isCompact.value = !event.matches
   // Growing back to desktop must not leave the drawer "open" over a sidebar that is in the flow
-  // again — the inert frame and the backdrop would block the whole page.
-  if (event.matches) {
-    drawerOpen.value = false
-  }
+  // again — the inert frame and the backdrop would block the whole page. Taking the new width's
+  // presentation outright drops the drawer with the compact state.
+  navigation.value = event.matches ? 'sidebar' : 'drawerClosed'
 }
 
 /**
@@ -304,7 +315,7 @@ onBeforeUnmount((): void => {
 
       <div class="flex min-h-0 flex-1 gap-3">
         <template v-if="!isCompact">
-          <ShellRail v-if="collapsed" :entries="entries" @expand="expandNavigation" />
+          <ShellRail v-if="navigation === 'rail'" :entries="entries" @expand="expandNavigation" />
           <ShellSidebar v-else :entries="entries" @collapse="collapseNavigation" />
         </template>
 
