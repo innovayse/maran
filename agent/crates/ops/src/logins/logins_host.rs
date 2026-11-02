@@ -1,5 +1,7 @@
 //! The seam between the login operations and the machine they run on.
 
+use std::path::Path;
+
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::system_account::SystemAccount;
@@ -59,4 +61,14 @@ pub trait LoginsHost: Send + Sync {
         arguments: &[&str],
         class: CallClass,
     ) -> Result<CommandOutcome, LoginsError>;
+
+    /// Renames `from` to `to` when `from` exists, replacing `to`; a missing
+    /// `from` is success. Moves an SFTP login's key file between the name sshd
+    /// reads and the one it never reads (issue #135).
+    ///
+    /// # Errors
+    ///
+    /// [`LoginsError::KeyFileFailed`] when `from` exists and could not be
+    /// renamed.
+    fn rename_if_present(&self, from: &Path, to: &Path) -> Result<(), LoginsError>;
 }

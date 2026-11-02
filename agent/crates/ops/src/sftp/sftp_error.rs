@@ -176,6 +176,25 @@ pub enum SftpError {
     /// build).
     #[error(transparent)]
     Bound(#[from] BoundExceeded),
+
+    /// More distinct public keys were supplied than one login may hold.
+    ///
+    /// Refused, never truncated: a key silently dropped is a deploy pipeline
+    /// that stops being able to log in with no message to say why.
+    #[error("{count} public keys were supplied, over the per-login ceiling")]
+    TooManyKeys {
+        /// How many distinct keys were supplied.
+        count: usize,
+    },
+
+    /// A login's key file could not be written, moved or removed.
+    ///
+    /// Its own variant and not [`Self::JailFailed`]: the jail is untouched, and
+    /// what an operator looks at is the key directory, not a mount unit. The
+    /// config-write protocol has restored the previous file when the write
+    /// itself was refused.
+    #[error("the login's key file could not be written")]
+    KeyFileFailed,
 }
 
 impl From<SpawnError> for SftpError {
@@ -233,6 +252,18 @@ impl SftpError {
         match error {
             SafeWriteError::Bound(bound) => Self::Bound(bound),
             _ => Self::JailFailed,
+        }
+    }
+
+    /// Maps a failure of the key file's write onto this area's list.
+    ///
+    /// A bound stays a [`Self::Bound`]; every other failure is
+    /// [`Self::KeyFileFailed`], since the protocol's variants hold a tool's
+    /// standard error and this area has no field that could hold one.
+    pub(crate) fn from_key_file_write(error: SafeWriteError) -> Self {
+        match error {
+            SafeWriteError::Bound(bound) => Self::Bound(bound),
+            _ => Self::KeyFileFailed,
         }
     }
 

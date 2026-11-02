@@ -18,6 +18,7 @@ use maran_templates::nginx::static_site::StaticSite;
 use maran_templates::nginx::suspended_site::SuspendedSite;
 use maran_templates::php_fpm::pool::Pool;
 use maran_templates::php_fpm::pool_override::PoolOverride;
+use maran_templates::sshd::authorized_keys::AuthorizedKeys;
 use maran_templates::systemd::unit::MountUnit;
 use maran_templates::vsftpd::vsftpd_daemon_config::VsftpdDaemonConfig;
 
@@ -282,6 +283,24 @@ fn a_jail_mount_unit_renders_its_golden() {
     assert_eq!(
         unit.render_config().unwrap(),
         golden("systemd/mount_unit.mount")
+    );
+}
+
+#[test]
+fn an_authorized_keys_file_renders_its_golden() {
+    let keys = [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG7OpD9/qnELjIQS7Z+hv9E4OBM+3IqncDtZr2x3fz0s"
+            .to_owned(),
+        "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTY=".to_owned(),
+    ];
+    let file = AuthorizedKeys {
+        login: "acme_deploy",
+        keys: &keys,
+    };
+
+    assert_eq!(
+        file.render_config().unwrap(),
+        golden("sshd/authorized_keys")
     );
 }
 

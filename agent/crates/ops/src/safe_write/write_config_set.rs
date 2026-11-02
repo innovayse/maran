@@ -62,6 +62,28 @@ pub fn write_config_set(
     validator: &Validator<'_>,
     reload: &Reload<'_>,
 ) -> Result<(), SafeWriteError> {
+    swap_set(host, files, validator, Some(reload))
+}
+
+/// The set protocol itself, shared by [`write_config_set`] and
+/// [`super::write_unreloaded_config::write_unreloaded_config`] so the two
+/// cannot drift: one body, and `reload` is the only thing that differs.
+///
+/// `None` is for a file whose reader opens it afresh on every use and holds no
+/// copy to refresh — an SFTP login's key file, which sshd reads at each
+/// authentication — so there is nothing to reload, and inventing a command to
+/// stand in that place would be a second meaning for the field.
+///
+/// # Errors
+///
+/// As [`write_config_set`]; with `reload` absent, the two reload errors cannot
+/// occur.
+pub(super) fn swap_set(
+    host: &dyn ConfigHost,
+    files: &[ConfigFile<'_>],
+    validator: &Validator<'_>,
+    reload: Option<&Reload<'_>>,
+) -> Result<(), SafeWriteError> {
     // Held for the whole sequence below, capture included. See
     // `config_tree_lock` for why the unit of serialisation is the host.
     let _guard = config_tree_lock();
@@ -116,6 +138,13 @@ pub fn write_config_set(
             },
         );
     }
+
+    let Some(reload) = reload else {
+        for guard in guards {
+            guard.commit();
+        }
+        return Ok(());
+    };
 
     match host.run(reload.program, reload.arguments, CallClass::Reload) {
         Ok(outcome) if outcome.status == 0 => {

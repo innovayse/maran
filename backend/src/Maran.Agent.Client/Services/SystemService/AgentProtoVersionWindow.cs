@@ -52,6 +52,9 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 11 adds <c>CronService.RunCronEntry</c> and <c>ERROR_CODE_ACCOUNT_SUSPENDED</c>
 /// (issue #158), and both ends moved to it again: an older agent answers the rpc <c>UNIMPLEMENTED</c>, so
 /// "Run now" could never succeed against it.
+/// Revision 12 adds <c>SftpService.SetSftpAuthorizedKeys</c> (issue #135), and both ends moved to it:
+/// an older agent answers the rpc <c>UNIMPLEMENTED</c>, so an SFTP login's public keys could never be
+/// written against it.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -78,10 +81,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 11;
+    public const uint Minimum = 12;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 11;
+    public const uint Maximum = 12;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

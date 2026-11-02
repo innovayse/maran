@@ -9,7 +9,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 use maran_distro::AdapterBinary;
 
-use crate::safe_write::model::{Reload, Validator};
+use crate::safe_write::model::{ConfigFile, Reload, Validator};
 use crate::sftp::model::account_ownership::AccountOwnership;
 use crate::sftp::sftp_error::SftpError;
 
@@ -227,4 +227,19 @@ pub trait SftpHost: Send + Sync {
     /// be removed — including when it is not empty, which on the mount point
     /// means the mount is still in place.
     fn remove_directory(&self, path: &Path) -> Result<(), SftpError>;
+
+    /// Writes a login's key file through the config-write protocol with no
+    /// reload (`safe_write::write_unreloaded_config`): sshd opens the file at
+    /// each authentication, so a renamed file is live at once.
+    ///
+    /// # Errors
+    ///
+    /// [`SftpError::KeyFileFailed`] when the protocol refused or failed, with
+    /// the previous file restored, and [`SftpError::Bound`] when the validator
+    /// outran its deadline.
+    fn write_key_file(
+        &self,
+        file: &ConfigFile<'_>,
+        validator: &Validator<'_>,
+    ) -> Result<(), SftpError>;
 }

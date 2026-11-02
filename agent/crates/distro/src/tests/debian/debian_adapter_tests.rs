@@ -111,7 +111,7 @@ fn the_debian_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 24] = [
+const EXPECTED_BINARIES: [(&str, &str); 25] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
@@ -122,6 +122,7 @@ const EXPECTED_BINARIES: [(&str, &str); 24] = [
     ("ipcrm", "/usr/bin/ipcrm"),
     ("userdel", "/usr/sbin/userdel"),
     ("chpasswd", "/usr/sbin/chpasswd"),
+    ("ssh-keygen", "/usr/bin/ssh-keygen"),
     ("setquota", "/usr/sbin/setquota"),
     ("quota", "/usr/bin/quota"),
     ("quotaon", "/usr/sbin/quotaon"),
@@ -139,7 +140,7 @@ const EXPECTED_BINARIES: [(&str, &str); 24] = [
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [String; 24] {
+fn actual_binaries() -> [String; 25] {
     [
         DebianAdapter.useradd_binary().to_string(),
         DebianAdapter.usermod_binary().to_string(),
@@ -151,6 +152,7 @@ fn actual_binaries() -> [String; 24] {
         DebianAdapter.ipcrm_binary().to_string(),
         DebianAdapter.userdel_binary().to_string(),
         DebianAdapter.chpasswd_binary().to_string(),
+        DebianAdapter.ssh_keygen_binary().to_string(),
         DebianAdapter.setquota_binary().to_string(),
         DebianAdapter.quota_binary().to_string(),
         DebianAdapter.quotaon_binary().to_string(),
@@ -259,6 +261,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("chmod", DebianAdapter.chmod_binary()),
         ("chgrp", DebianAdapter.chgrp_binary()),
         ("chpasswd", DebianAdapter.chpasswd_binary()),
+        ("ssh-keygen", DebianAdapter.ssh_keygen_binary()),
         ("crontab", DebianAdapter.crontab_binary()),
         ("nft", DebianAdapter.nft_binary()),
     ]

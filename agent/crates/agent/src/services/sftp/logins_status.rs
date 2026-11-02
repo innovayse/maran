@@ -32,6 +32,9 @@ pub fn to_agent_error(error: &LoginsError) -> AgentError {
         // are the same value to a caller that guesses, and the guess would
         // certify a suspension nobody observed.
         LoginsError::SpawnFailed { .. } | LoginsError::StatusUnreadable => ErrorCode::SystemFailure,
+        // An SFTP login's key file could not be parked or restored (issue
+        // #135): a fault of the host, never of the request.
+        LoginsError::KeyFileFailed => ErrorCode::SystemFailure,
         // The account's wait-free lock was held by another operation, so no
         // login was enumerated and none was locked or unlocked. ACCOUNT_BUSY
         // rather than SYSTEM_FAILURE, which is where it used to land and which

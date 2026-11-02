@@ -10,12 +10,15 @@ use crate::proto::sftp_service_server::SftpService;
 use crate::proto::{
     CreateSftpUserOk, CreateSftpUserRequest, CreateSftpUserResponse, DeleteSftpUserOk,
     DeleteSftpUserRequest, DeleteSftpUserResponse, SetAccountLoginsLockedOk,
-    SetAccountLoginsLockedRequest, SetAccountLoginsLockedResponse, SetSftpPasswordOk,
+    SetAccountLoginsLockedRequest, SetAccountLoginsLockedResponse, SetSftpAuthorizedKeysOk,
+    SetSftpAuthorizedKeysRequest, SetSftpAuthorizedKeysResponse, SetSftpPasswordOk,
     SetSftpPasswordRequest, SetSftpPasswordResponse, create_sftp_user_response,
-    delete_sftp_user_response, set_account_logins_locked_response, set_sftp_password_response,
+    delete_sftp_user_response, set_account_logins_locked_response,
+    set_sftp_authorized_keys_response, set_sftp_password_response,
 };
 use crate::services::sftp::logins_status::to_agent_error as to_logins_error;
 use crate::services::sftp::sftp_status::to_agent_error;
+use crate::services::sftp::validated_authorized_keys::validated_authorized_keys;
 use crate::services::sftp::validated_creation::validated_creation;
 use crate::services::sftp::validated_password_change::validated_password_change;
 use crate::services::sftp::validated_sftp_user::validated_sftp_user;
@@ -237,6 +240,44 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
         };
 
         Ok(Response::new(SetAccountLoginsLockedResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Converges one login's key file to the set the panel holds (issue #135).
+    ///
+    /// Proto to validated input, one `ops` call, result to response. The
+    /// account travels beside the login for the reason `delete_sftp_user` gives:
+    /// it is what the ownership check and the lock are taken on.
+    async fn set_sftp_authorized_keys(
+        &self,
+        request: Request<SetSftpAuthorizedKeysRequest>,
+    ) -> Result<Response<SetSftpAuthorizedKeysResponse>, Status> {
+        let request = request.into_inner();
+
+        let result = match validated_authorized_keys(
+            &request.account_username,
+            &request.sftp_username,
+            &request.public_keys,
+        ) {
+            Ok((account, user, keys)) => {
+                let (host, distro) = (Arc::clone(&self.host), self.distro);
+                run_blocking("sftp operation", to_agent_error, move || {
+                    sftp::set_sftp_authorized_keys(host.as_ref(), distro, &account, &user, &keys)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+
+        let result = match result {
+            Ok(count) => set_sftp_authorized_keys_response::Result::Ok(SetSftpAuthorizedKeysOk {
+                key_count: u32::try_from(count).unwrap_or(u32::MAX),
+            }),
+            Err(error) => set_sftp_authorized_keys_response::Result::Error(error),
+        };
+
+        Ok(Response::new(SetSftpAuthorizedKeysResponse {
             result: Some(result),
         }))
     }

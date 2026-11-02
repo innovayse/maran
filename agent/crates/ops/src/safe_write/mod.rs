@@ -31,6 +31,7 @@ mod render_validate_swap;
 mod rollback_guard;
 mod safe_write_error;
 mod write_config_set;
+mod write_unreloaded_config;
 
 pub use config_host::ConfigHost;
 pub use create_config::create_config;
@@ -40,3 +41,4 @@ pub use render_validate_swap::write_config;
 pub use rollback_guard::RollbackGuard;
 pub use safe_write_error::SafeWriteError;
 pub use write_config_set::write_config_set;
+pub use write_unreloaded_config::write_unreloaded_config;

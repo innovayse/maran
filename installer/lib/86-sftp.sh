@@ -52,6 +52,13 @@ readonly MARAN_SFTP_JAIL_ROOT="/var/lib/maran-sftp"
 
 readonly MARAN_SSHD_CONFIG="/etc/ssh/sshd_config"
 
+# The directory holding one root-owned public-key file per SFTP login (issue
+# #135), matching `AgentPaths::SFTP_AUTHORIZED_KEYS_DIRECTORY`. root:root 0711:
+# sshd reads a login's file with the LOGIN's uid, so the directory must be
+# traversable, and it is not listable. Outside every jail and every home, so no
+# customer uid can choose who may log in.
+readonly MARAN_SFTP_KEYS_DIRECTORY="/etc/ssh/maran-sftp-keys"
+
 # The marker comments delimiting our block. They are the whole idempotency
 # mechanism: the block between them is deleted and rewritten on every run, so the
 # file converges on one current block whether it had none, one, or an older one.
@@ -134,6 +141,21 @@ ensure_jail_root() {
   install -d -o root -g root -m 0700 "$MARAN_SFTP_JAIL_ROOT"
 }
 
+# ensure_keys_directory: the public-key directory, root:root 0711.
+#
+# The same conditional removal ensure_jail_root uses runs first, for the same
+# reason: `install -d` would accept a path somebody had already put there and
+# follow a symbolic link. Only root can create a root-owned directory under
+# /etc/ssh, so a real one is left alone with the keys inside it.
+ensure_keys_directory() {
+  if [ -L "$MARAN_SFTP_KEYS_DIRECTORY" ] \
+    || { [ -e "$MARAN_SFTP_KEYS_DIRECTORY" ] && [ ! -d "$MARAN_SFTP_KEYS_DIRECTORY" ]; } \
+    || { [ -d "$MARAN_SFTP_KEYS_DIRECTORY" ] && [ "$(stat -c '%u' "$MARAN_SFTP_KEYS_DIRECTORY")" -ne 0 ]; }; then
+    rm -rf -- "$MARAN_SFTP_KEYS_DIRECTORY"
+  fi
+  install -d -o root -g root -m 0711 "$MARAN_SFTP_KEYS_DIRECTORY"
+}
+
 # render_sshd_block: the block itself, on stdout.
 #
 # `ChrootDirectory %h` rather than a literal path: %h is the login's passwd home,
@@ -144,11 +166,18 @@ ensure_jail_root() {
 # file transfer credential, and a customer who can forward ports through it has a
 # tunnel into the server's private network — including the panel's own
 # unix-socket-only PostgreSQL.
+#
+# `AuthorizedKeysFile` points the group's public-key logins at the root-owned
+# file the agent writes per login (issue #135), and ONLY there: a key a customer
+# drops into their home is never read. `%u` is the login name, so one line
+# serves every login. `Match` accepts this keyword on every OpenSSH the supported
+# families ship.
 render_sshd_block() {
   cat <<EOF
 ${MARAN_SSHD_BEGIN_MARKER}
 Match Group ${MARAN_SFTP_GROUP}
     ChrootDirectory %h
+    AuthorizedKeysFile ${MARAN_SFTP_KEYS_DIRECTORY}/%u
     ForceCommand internal-sftp
     AllowTcpForwarding no
     X11Forwarding no
@@ -245,6 +274,7 @@ report_legacy_jails() {
 install_sftp_prerequisites() {
   ensure_sftp_group
   ensure_jail_root
+  ensure_keys_directory
   # Before the Match block, because install_sshd_match_block refuses on a missing sshd_config and
   # this is the step that is supposed to put one there (issue #43). `pkg_install` is idempotent:
   # on the overwhelmingly common host that already has sshd this resolves to "already the newest

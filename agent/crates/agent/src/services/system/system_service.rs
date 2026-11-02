@@ -48,7 +48,9 @@ use crate::proto::{
 /// `MonitorService.GetClockSync`, whether the host's clock is synchronised
 /// (issue #150). 11 adds
 /// `CronService.RunCronEntry` and `ERROR_CODE_ACCOUNT_SUSPENDED` (issue #158).
-const PROTO_VERSION: u32 = 11;
+/// 12 adds `SftpService.SetSftpAuthorizedKeys`, an SFTP login's public keys
+/// (issue #135).
+const PROTO_VERSION: u32 = 12;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

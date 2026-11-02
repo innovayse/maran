@@ -553,6 +553,10 @@ remove_sftp_sshd_block() {
   if "$sshd_bin" -t -f "$candidate" >/dev/null 2>&1; then
     mv -f "$candidate" "$config"
     systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
+    # The SFTP logins' public-key files (issue #135). Removed only once the block
+    # naming them is gone, so sshd never reads a directory that no longer exists
+    # as the group's AuthorizedKeysFile.
+    rm -rf /etc/ssh/maran-sftp-keys
   else
     rm -f "$candidate"
     echo "WARNING: removing the Maran SFTP block would leave an sshd_config that 'sshd -t' rejects."

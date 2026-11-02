@@ -19,5 +19,6 @@ pub mod nftables;
 pub mod nginx;
 pub mod php_fpm;
 pub mod render_error;
+pub mod sshd;
 pub mod systemd;
 pub mod vsftpd;

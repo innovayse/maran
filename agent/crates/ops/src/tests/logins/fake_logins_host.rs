@@ -16,6 +16,7 @@
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::path::Path;
 use std::sync::Mutex;
 
 use maran_agent_core::command_outcome::CommandOutcome;
@@ -92,6 +93,8 @@ pub(crate) struct FakeLoginsHost {
     /// The spawn is recorded first and then fails with a
     /// [`LoginsError::Bound`], as the real host fails after killing the group.
     times_out: Mutex<Option<String>>,
+    /// The SFTP key file paths that exist on the "host" (issue #135).
+    key_files: Mutex<Vec<String>>,
 }
 
 impl FakeLoginsHost {
@@ -123,7 +126,21 @@ impl FakeLoginsHost {
             processes: Mutex::new(Vec::new()),
             pkill_status: Mutex::new(None),
             times_out: Mutex::new(None),
+            key_files: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Puts an SFTP key file at `path` on the "host".
+    pub(crate) fn with_key_file(self, path: &str) -> Self {
+        self.key_files.lock().unwrap().push(path.to_owned());
+        self
+    }
+
+    /// The SFTP key file paths that exist now, sorted.
+    pub(crate) fn key_files(&self) -> Vec<String> {
+        let mut files = self.key_files.lock().unwrap().clone();
+        files.sort();
+        files
     }
 
     /// Puts one process running as `uid` on the "host".
@@ -366,6 +383,20 @@ impl LoginsHost for FakeLoginsHost {
         }
 
         panic!("the fake was asked to run an unexpected program: {program}");
+    }
+
+    /// Moves a planted key file, replacing the destination; a missing source
+    /// is success, as `rename(2)` answering ENOENT is to the real host.
+    fn rename_if_present(&self, from: &Path, to: &Path) -> Result<(), LoginsError> {
+        let mut files = self.key_files.lock().unwrap();
+        let from = from.display().to_string();
+        let to = to.display().to_string();
+        if files.contains(&from) {
+            files.retain(|held| *held != from && *held != to);
+            files.push(to);
+        }
+
+        Ok(())
     }
 }
 

@@ -101,6 +101,24 @@ service SftpService {
   // so this is a hand-made login, and the panel reports it rather than hiding
   // it.
   rpc SetAccountLoginsLocked(SetAccountLoginsLockedRequest) returns (SetAccountLoginsLockedResponse);
+
+  // Replaces the whole set of public keys an SFTP login may authenticate with
+  // (issue #135). The panel's record is the truth, so the agent converges the
+  // host to exactly the list it is handed; an empty list removes the login's
+  // key file and leaves password login as it was.
+  //
+  // Each key is re-validated by the agent and written as
+  // `restrict <algorithm> <base64>`, one per line, into a root-owned file
+  // OUTSIDE the jail (`/etc/ssh/maran-sftp-keys/<login>`), which the
+  // installer's `Match Group` block names as the group's `AuthorizedKeysFile`.
+  // A key's comment is dropped and no caller-supplied option ever reaches the
+  // file. While the account is suspended the file is kept under a name sshd
+  // does not read, so setting keys cannot lift a suspension.
+  //
+  // The login must belong to the account (its passwd home is exactly that
+  // account's jail), or the answer is NOT_FOUND and nothing is written.
+  // Idempotent: the same list twice converges to the same file.
+  rpc SetSftpAuthorizedKeys(SetSftpAuthorizedKeysRequest) returns (SetSftpAuthorizedKeysResponse);
 }
 
 message CreateSftpUserRequest {
@@ -216,6 +234,36 @@ message SetAccountLoginsLockedOk {
   // been signalled and some may not, and a suspension it cannot account for is
   // reported as failed rather than as a count.
   optional uint32 sessions_ended = 1;
+}
+
+message SetSftpAuthorizedKeysRequest {
+  // System username of the owning account. Load-bearing: the login is checked
+  // against this account's jail, and the account's lock is taken on it.
+  string account_username = 1;
+  // Login name suffix, namespaced under the account exactly as at creation.
+  string sftp_username = 2;
+  // The complete key set, in OpenSSH public-key form:
+  // `<algorithm> <base64> [comment]`. Accepted algorithms are ssh-ed25519,
+  // ecdsa-sha2-nistp256/384/521, ssh-rsa (2048 to 16384 bits) and the two
+  // security-key forms sk-ssh-ed25519@openssh.com and
+  // sk-ecdsa-sha2-nistp256@openssh.com. At most 32 keys of at most 8 KiB each;
+  // no control characters, and no options before the algorithm. A refused key
+  // refuses the whole request with INVALID_INPUT and nothing is written.
+  // Duplicates are written once.
+  repeated string public_keys = 3;
+}
+
+message SetSftpAuthorizedKeysResponse {
+  oneof result {
+    SetSftpAuthorizedKeysOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetSftpAuthorizedKeysOk {
+  // How many distinct keys the login's key file now holds; zero when the list
+  // was empty and the file was removed.
+  uint32 key_count = 1;
 }
 
 // This panel's own FTPS daemon: the service that configures it, observes it,

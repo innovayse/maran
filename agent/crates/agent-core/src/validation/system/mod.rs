@@ -29,5 +29,7 @@ pub mod name;
 pub mod name_error;
 pub mod sftp_user_name;
 pub mod sftp_user_name_error;
+pub mod ssh_public_key;
+pub mod ssh_public_key_error;
 pub mod tasks_max;
 pub mod tasks_max_error;

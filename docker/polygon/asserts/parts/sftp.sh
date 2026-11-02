@@ -48,12 +48,19 @@ assert_sftp_prerequisites() {
   local directive
   for directive in \
     '^    ChrootDirectory %h$' \
+    '^    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u$' \
     '^    ForceCommand internal-sftp$' \
     '^    AllowTcpForwarding no$' \
     '^    X11Forwarding no$'; do
     grep -q "$directive" "$SSHD_CONFIG" \
       || fail "the Match block is missing a directive matching: ${directive}"
   done
+
+  # The public-key directory (issue #135): root-owned and 0711, because sshd
+  # reads a login's key file with the login's uid and refuses one whose path a
+  # non-root uid could write.
+  [ "$(stat -c '%U:%G %a' /etc/ssh/maran-sftp-keys)" = "root:root 711" ] \
+    || fail "/etc/ssh/maran-sftp-keys is $(stat -c '%U:%G %a' /etc/ssh/maran-sftp-keys), not root:root 711"
 
   sshd -t || fail "sshd rejects the config the installer produced"
 }

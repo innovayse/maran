@@ -377,6 +377,14 @@ impl SftpHost for UnusedSftpHost {
     fn remove_directory(&self, _path: &Path) -> Result<(), SftpError> {
         unreachable!("no rpc in this file reaches the sftp host")
     }
+
+    fn write_key_file(
+        &self,
+        _file: &maran_ops::safe_write::model::ConfigFile<'_>,
+        _validator: &maran_ops::safe_write::model::Validator<'_>,
+    ) -> Result<(), SftpError> {
+        unreachable!("no rpc in this file reaches the sftp host")
+    }
 }
 
 /// The FTPS host the service holds for the deletion cascade.
@@ -548,6 +556,14 @@ impl LoginsHost for UnusedLoginsHost {
         _class: CallClass,
     ) -> Result<CommandOutcome, LoginsError> {
         unreachable!("no login exists in this file, so none is asked about")
+    }
+
+    fn rename_if_present(
+        &self,
+        _from: &std::path::Path,
+        _to: &std::path::Path,
+    ) -> Result<(), LoginsError> {
+        unreachable!("no login exists in this file, so no key file is moved")
     }
 }
 

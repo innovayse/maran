@@ -7,6 +7,8 @@ use maran_distro::DistroAdapter;
 
 use crate::accounts::take_account_lock;
 use crate::sftp::model::account_jail::AccountJail;
+use crate::sftp::model::login_key_file::LoginKeyFile;
+use crate::sftp::remove_key_file::remove_key_file;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
@@ -164,6 +166,14 @@ pub(crate) fn delete_sftp_user_under_lock(
     if outcome.status != 0 {
         return Err(SftpError::from_userdel(outcome.status));
     }
+
+    // The login's key file, under both of its names (issue #135). After
+    // `userdel`, so a refusal there leaves a login that still has its keys
+    // rather than a login whose keys vanished; and a key file outliving its
+    // login would hand a recreated login of the same name the old keys.
+    let keys = LoginKeyFile::for_login(user);
+    remove_key_file(host, keys.active())?;
+    remove_key_file(host, keys.suspended())?;
 
     Ok(())
 }
