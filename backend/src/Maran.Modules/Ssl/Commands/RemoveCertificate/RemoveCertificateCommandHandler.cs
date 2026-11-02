@@ -66,8 +66,8 @@ public sealed class RemoveCertificateCommandHandler
     /// <summary>Removes one of the caller's certificates.</summary>
     /// <param name="command">The certificate to remove.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns><c>true</c>, or <c>CertificateNotFound</c>, <c>SiteNotFound</c>, or the agent's failure.</returns>
-    public async Task<Result<bool>> HandleAsync(
+    /// <returns>Success, or <c>CertificateNotFound</c>, <c>SiteNotFound</c>, or the agent's failure.</returns>
+    public async Task<Result> HandleAsync(
         RemoveCertificateCommand command,
         CancellationToken cancellationToken)
     {
@@ -120,7 +120,7 @@ public sealed class RemoveCertificateCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Journals a refused removal and returns it as the typed failure.</summary>
@@ -132,7 +132,7 @@ public sealed class RemoveCertificateCommandHandler
     /// <param name="command">The removal that was refused.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         string subject,
         Error error,
         RemoveCertificateCommand command,
@@ -141,6 +141,6 @@ public sealed class RemoveCertificateCommandHandler
         await _journal.RecordFailureAsync(
             AuditActions.CertificateRemoved, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }

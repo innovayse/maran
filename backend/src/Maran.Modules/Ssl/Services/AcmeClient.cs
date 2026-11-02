@@ -311,7 +311,7 @@ public sealed class AcmeClient : IAcmeClient
     /// validation into a failure: a consumed token proves nothing to anybody, while discarding a
     /// valid authorization over a failed unlink would cost a real certificate.
     /// </remarks>
-    private async Task<Result<bool>> ValidateAsync(
+    private async Task<Result> ValidateAsync(
         AcmeSession session,
         string authorizationUrl,
         AcmeOrderRequest request,
@@ -320,7 +320,7 @@ public sealed class AcmeClient : IAcmeClient
         var authorization = await session.PostAsync(authorizationUrl, PostAsGet, cancellationToken);
         if (!authorization.IsSuccess)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.UpstreamRefused));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.UpstreamRefused));
         }
 
         // The same cached-authorization case as the order status above, checked separately because
@@ -329,12 +329,12 @@ public sealed class AcmeClient : IAcmeClient
         // order). Answering a challenge on a valid authorization is refused as "malformed".
         if (string.Equals(Url(authorization.Value.Body, "status"), AuthorizationValid, StringComparison.Ordinal))
         {
-            return Result<bool>.Ok(true);
+            return Result.Ok();
         }
 
         if (!TryReadHttpChallenge(authorization.Value.Body, out var challengeUrl, out var token))
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeUnavailable), ErrorType.Unavailable));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeUnavailable), ErrorType.Unavailable));
         }
 
         var written = await _challengeWriter.WriteAsync(
@@ -345,7 +345,7 @@ public sealed class AcmeClient : IAcmeClient
             cancellationToken);
         if (!written.IsSuccess)
         {
-            return Result<bool>.Fail(written.Error!); // the writer already worded it (floor kept as itself)
+            return Result.Fail(written.Error!); // the writer already worded it (floor kept as itself)
         }
 
         try
@@ -353,7 +353,7 @@ public sealed class AcmeClient : IAcmeClient
             var triggered = await session.PostAsync(challengeUrl, "{}", cancellationToken);
             if (!triggered.IsSuccess)
             {
-                return Result<bool>.Fail(
+                return Result.Fail(
                     Error.Of(nameof(ErrorMessages.AcmeValidationFailed), ErrorType.UpstreamRefused));
             }
 
@@ -409,7 +409,7 @@ public sealed class AcmeClient : IAcmeClient
     /// unbounded poll here is not a slow renewal, it is a renewal job that never returns and a
     /// certificate that silently stops being renewed.
     /// </remarks>
-    private async Task<Result<bool>> PollAsync(
+    private async Task<Result> PollAsync(
         AcmeSession session,
         string authorizationUrl,
         CancellationToken cancellationToken)
@@ -423,26 +423,26 @@ public sealed class AcmeClient : IAcmeClient
             var polled = await session.PostAsync(authorizationUrl, PostAsGet, cancellationToken);
             if (!polled.IsSuccess)
             {
-                return Result<bool>.Fail(
+                return Result.Fail(
                     Error.Of(nameof(ErrorMessages.AcmeValidationFailed), ErrorType.UpstreamRefused));
             }
 
             var status = Url(polled.Value.Body, "status");
             if (string.Equals(status, "valid", StringComparison.Ordinal))
             {
-                return Result<bool>.Ok(true);
+                return Result.Ok();
             }
 
             if (string.Equals(status, "invalid", StringComparison.Ordinal)
                 || string.Equals(status, "revoked", StringComparison.Ordinal)
                 || string.Equals(status, "deactivated", StringComparison.Ordinal))
             {
-                return Result<bool>.Fail(
+                return Result.Fail(
                     Error.Of(nameof(ErrorMessages.AcmeValidationFailed), ErrorType.UpstreamRefused));
             }
         }
 
-        return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationTimedOut), ErrorType.Unavailable));
+        return Result.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationTimedOut), ErrorType.Unavailable));
     }
 
     /// <summary>Finalizes a validated order and downloads the issued chain.</summary>

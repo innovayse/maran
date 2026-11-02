@@ -309,13 +309,13 @@ public sealed class CustomCertificateMaterialEndpointTests : IAsyncLifetime
         }
 
         /// <inheritdoc />
-        public Task<Result<bool>> RemoveCertificateAsync(
+        public Task<Result> RemoveCertificateAsync(
             string accountUsername,
             string domain,
             SiteDescriptor site,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(Result<bool>.Ok(true));
+            return Task.FromResult(Result.Ok());
         }
 
         /// <inheritdoc />
@@ -328,18 +328,18 @@ public sealed class CustomCertificateMaterialEndpointTests : IAsyncLifetime
         }
 
         /// <inheritdoc />
-        public Task<Result<bool>> WritePanelChallengeAsync(
+        public Task<Result> WritePanelChallengeAsync(
             string token,
             string keyAuthorization,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(Result<bool>.Ok(true));
+            return Task.FromResult(Result.Ok());
         }
 
         /// <inheritdoc />
-        public Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+        public Task<Result> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Result<bool>.Ok(true));
+            return Task.FromResult(Result.Ok());
         }
     }
 }

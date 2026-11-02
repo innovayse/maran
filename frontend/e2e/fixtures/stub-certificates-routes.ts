@@ -95,7 +95,7 @@ export const stubCertificates = async (page: Page, installed: Certificate[]): Pr
     if (at >= 0) {
       installed.splice(at, 1)
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 }
 

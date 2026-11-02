@@ -79,10 +79,10 @@ export const useCertificatesApi = (): CertificatesApi => {
    * Removes an installed certificate; the site returns to serving plain HTTP.
    * @param id The certificate to remove.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed it.
+   * @returns Resolves once the panel removed it; the answer is an empty 204.
    */
-  const remove = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${CERTIFICATES_PATH}/${id}`, signal)
+  const remove = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${CERTIFICATES_PATH}/${id}`, signal)
   }
 
   return { list, issue, installCustom, remove }

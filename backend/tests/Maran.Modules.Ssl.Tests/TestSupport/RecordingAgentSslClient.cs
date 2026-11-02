@@ -64,7 +64,7 @@ public sealed class RecordingAgentSslClient : IAgentSslClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> RemoveCertificateAsync(
+    public Task<Result> RemoveCertificateAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -72,7 +72,7 @@ public sealed class RecordingAgentSslClient : IAgentSslClient
     {
         Removals.Add((accountUsername, domain, site));
 
-        return Task.FromResult(_failure is null ? Result<bool>.Ok(true) : Result<bool>.Fail(_failure));
+        return Task.FromResult(_failure is null ? Result.Ok() : Result.Fail(_failure));
     }
 
     /// <inheritdoc />
@@ -89,21 +89,21 @@ public sealed class RecordingAgentSslClient : IAgentSslClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> WritePanelChallengeAsync(
+    public Task<Result> WritePanelChallengeAsync(
         string token,
         string keyAuthorization,
         CancellationToken cancellationToken)
     {
         PanelChallengesWritten.Add((token, keyAuthorization));
 
-        return Task.FromResult(_failure is null ? Result<bool>.Ok(true) : Result<bool>.Fail(_failure));
+        return Task.FromResult(_failure is null ? Result.Ok() : Result.Fail(_failure));
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+    public Task<Result> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
     {
         PanelChallengesRemoved.Add(token);
 
-        return Task.FromResult(_failure is null ? Result<bool>.Ok(true) : Result<bool>.Fail(_failure));
+        return Task.FromResult(_failure is null ? Result.Ok() : Result.Fail(_failure));
     }
 }

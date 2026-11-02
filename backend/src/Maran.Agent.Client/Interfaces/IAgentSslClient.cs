@@ -41,7 +41,7 @@ public interface IAgentSslClient
     /// choice: a placeholder keeps 443 answering and gives every visitor a full-page interstitial, and
     /// where the real certificate had set HSTS, no click-through at all.
     /// </remarks>
-    Task<Result<bool>> RemoveCertificateAsync(
+    Task<Result> RemoveCertificateAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -68,7 +68,7 @@ public interface IAgentSslClient
     /// <param name="keyAuthorization">The file's content: the token joined to the account key's thumbprint.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> WritePanelChallengeAsync(
+    Task<Result> WritePanelChallengeAsync(
         string token,
         string keyAuthorization,
         CancellationToken cancellationToken);
@@ -77,5 +77,5 @@ public interface IAgentSslClient
     /// <param name="token">The challenge token whose file is removed.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure — <c>AgentNotFound</c> when no file was in place.</returns>
-    Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken);
+    Task<Result> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken);
 }

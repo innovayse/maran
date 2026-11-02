@@ -57,7 +57,7 @@ internal sealed class RecordingAgentSslClient : IAgentSslClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> RemoveCertificateAsync(
+    public async Task<Result> RemoveCertificateAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -75,7 +75,7 @@ internal sealed class RecordingAgentSslClient : IAgentSslClient
 
         await Task.Yield();
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
@@ -99,7 +99,7 @@ internal sealed class RecordingAgentSslClient : IAgentSslClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> WritePanelChallengeAsync(
+    public async Task<Result> WritePanelChallengeAsync(
         string token,
         string keyAuthorization,
         CancellationToken cancellationToken)
@@ -113,11 +113,11 @@ internal sealed class RecordingAgentSslClient : IAgentSslClient
 
         await Task.Yield();
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+    public async Task<Result> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
     {
         Calls++;
 
@@ -128,6 +128,6 @@ internal sealed class RecordingAgentSslClient : IAgentSslClient
 
         await Task.Yield();
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }
