@@ -77,7 +77,7 @@ test('the site form refuses an upstream carrying a scheme, as the server would',
   await stubSites(page, [])
 
   await page.goto('/sites/new')
-  await page.getByLabel('Domain').fill('proxied.example.com')
+  await page.getByLabel('Domain', { exact: true }).fill('proxied.example.com')
   await page.getByRole('combobox', { name: 'Account' }).click()
   await page.getByRole('option', { name: /alpha/ }).click()
   await page.getByRole('combobox', { name: 'Backend' }).click()
@@ -113,7 +113,7 @@ test('the site form renders the server rejection verbatim', async ({ page }) => 
   await page.goto('/sites/new')
   await page.getByRole('combobox', { name: 'Account' }).click()
   await page.getByRole('option', { name: /alpha/ }).click()
-  await page.getByLabel('Domain').fill('alpha.example.com')
+  await page.getByLabel('Domain', { exact: true }).fill('alpha.example.com')
   await page.getByRole('button', { name: 'Create site' }).click()
 
   await expect(page.getByText(backendDetail)).toBeVisible()
