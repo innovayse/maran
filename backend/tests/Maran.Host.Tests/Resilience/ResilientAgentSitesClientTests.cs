@@ -265,14 +265,37 @@ public sealed class ResilientAgentSitesClientTests
             OperationPipelineRegistry.WithOperationTimeout(30));
     }
 
-    /// <summary>Runs one decorated call under the test deadline.</summary>
+    /// <summary>Runs one decorated call that produces a value under the test deadline.</summary>
     /// <typeparam name="T">The value the call produces.</typeparam>
     /// <param name="inner">The recording client to wrap.</param>
     /// <param name="call">The decorated method to invoke.</param>
     /// <returns>What the call returned.</returns>
-    private static async Task<SharedKernel.Results.Result<T>> Invoke<T>(
+    private static Task<SharedKernel.Results.Result<T>> Invoke<T>(
         RecordingAgentSitesClient inner,
         Func<ResilientAgentSitesClient, Task<SharedKernel.Results.Result<T>>> call)
+    {
+        return RunAsync(inner, call);
+    }
+
+    /// <summary>Runs one decorated call that produces no value under the test deadline.</summary>
+    /// <param name="inner">The recording client to wrap.</param>
+    /// <param name="call">The decorated method to invoke.</param>
+    /// <returns>What the call returned.</returns>
+    private static Task<SharedKernel.Results.Result> Invoke(
+        RecordingAgentSitesClient inner,
+        Func<ResilientAgentSitesClient, Task<SharedKernel.Results.Result>> call)
+    {
+        return RunAsync(inner, call);
+    }
+
+    /// <summary>The one place a decorated call is run under the test deadline, whatever it returns.</summary>
+    /// <typeparam name="TResult">The result type the call returns.</typeparam>
+    /// <param name="inner">The recording client to wrap.</param>
+    /// <param name="call">The decorated method to invoke.</param>
+    /// <returns>What the call returned.</returns>
+    private static async Task<TResult> RunAsync<TResult>(
+        RecordingAgentSitesClient inner,
+        Func<ResilientAgentSitesClient, Task<TResult>> call)
     {
         return await call(NewClient(inner)).WaitAsync(TestTimeout);
     }
