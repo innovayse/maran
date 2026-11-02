@@ -1,6 +1,6 @@
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Entities;
-using Maran.Modules.Identity.Extensions;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Mappers;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
@@ -165,7 +165,7 @@ public sealed class InviteSubUserCommandHandler
         }
 
         await _journal.RecordIdentifiedAsync(
-            _currentUser.RequirePrincipal().UserId,
+            SignedInCallerPolicy.Require(_currentUser).UserId,
             AuditActions.SubUserInvited,
             user.Username,
             command.IpAddress,
@@ -213,7 +213,7 @@ public sealed class InviteSubUserCommandHandler
         // The subject is the login name the owner asked for: a refused attempt still leaves a trace of
         // what was attempted, as the other credential-issuing actions do.
         await _journal.RecordIdentifiedAsync(
-            _currentUser.RequirePrincipal().UserId,
+            SignedInCallerPolicy.Require(_currentUser).UserId,
             AuditActions.SubUserInvited,
             command.Username,
             command.IpAddress,

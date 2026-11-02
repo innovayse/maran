@@ -1,4 +1,4 @@
-using Maran.Modules.Identity.Extensions;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
@@ -97,7 +97,7 @@ public sealed class SaveSecurityPolicyCommandHandler
         _cache.Invalidate();
 
         await _journal.RecordIdentifiedAsync(
-            _currentUser.RequirePrincipal().UserId,
+            SignedInCallerPolicy.Require(_currentUser).UserId,
             AuditActions.SecurityPolicySaved,
             nameof(Domain.Entities.SecurityPolicy),
             command.IpAddress,

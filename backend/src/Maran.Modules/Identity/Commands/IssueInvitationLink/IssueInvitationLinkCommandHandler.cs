@@ -1,5 +1,5 @@
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Extensions;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
@@ -141,7 +141,7 @@ public sealed class IssueInvitationLinkCommandHandler
         // The subject is the customer's login name — what was acted on — and nothing derived from the
         // token: not the link, not the token, not its digest.
         await _journal.RecordIdentifiedAsync(
-            _currentUser.RequirePrincipal().UserId,
+            SignedInCallerPolicy.Require(_currentUser).UserId,
             AuditActions.InvitationLinkIssued,
             invitation.Username,
             command.IpAddress,
@@ -168,7 +168,7 @@ public sealed class IssueInvitationLinkCommandHandler
         // No login was acted on, so the subject is the identifier the caller supplied: a probe for an
         // account that is not there still leaves a trace of what was probed for.
         await _journal.RecordIdentifiedAsync(
-            _currentUser.RequirePrincipal().UserId,
+            SignedInCallerPolicy.Require(_currentUser).UserId,
             AuditActions.InvitationLinkIssued,
             command.AccountId.ToString("D"),
             command.IpAddress,

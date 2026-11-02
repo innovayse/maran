@@ -1,7 +1,7 @@
 using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.RevokeSession;
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Extensions;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Queries.ListSessions;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -49,7 +49,7 @@ public sealed class SessionsController : BaseApiController
         [FromQuery] ListSessionsQuery query,
         CancellationToken cancellationToken)
     {
-        query = query with { UserId = CurrentUser.RequirePrincipal().UserId, CurrentSessionId = CallerSessionId };
+        query = query with { UserId = SignedInCallerPolicy.Require(CurrentUser).UserId, CurrentSessionId = CallerSessionId };
         return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<SessionDto>>>(query, cancellationToken));
     }
 
@@ -65,7 +65,7 @@ public sealed class SessionsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RevokeAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new RevokeSessionCommand(id, CurrentUser.RequirePrincipal().UserId, ClientIpAddress, CallerUserAgent);
+        var command = new RevokeSessionCommand(id, SignedInCallerPolicy.Require(CurrentUser).UserId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }
