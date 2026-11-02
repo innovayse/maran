@@ -426,8 +426,8 @@ public sealed class AccountSuspensionTests : IDisposable
             0,
             0,
             0,
-            [new FileTransferLoginSuspensionFactDto("acme_web", true),
-             new FileTransferLoginSuspensionFactDto("acme_deploy", false)], new MeasuredUnmanagedLogins(0));
+            [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp),
+             new FileTransferLoginSuspensionFactDto("acme_deploy", false, LoginTransferProtocol.Sftp)], new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -446,7 +446,7 @@ public sealed class AccountSuspensionTests : IDisposable
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
             AccountLoginPasswordState.Locked, true, [], 0, 0, 0,
-            [new FileTransferLoginSuspensionFactDto("acme_web", true)], new MeasuredUnmanagedLogins(0));
+            [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp)], new MeasuredUnmanagedLogins(0));
 
         var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -486,7 +486,7 @@ public sealed class AccountSuspensionTests : IDisposable
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
         _agent.SuspensionState = new AccountSuspensionStateDto(
             AccountLoginPasswordState.Usable, true, [], 0, 0, 0,
-            [new FileTransferLoginSuspensionFactDto("acme_web", true)], new MeasuredUnmanagedLogins(0));
+            [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp)], new MeasuredUnmanagedLogins(0));
 
         var result = await ReactivateAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -683,7 +683,7 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
         _agent.SuspensionState = new AccountSuspensionStateDto(
-            AccountLoginPasswordState.Locked, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0));
+            AccountLoginPasswordState.Locked, true, [], 0, 0, 0, [], new UnmeasuredUnmanagedLogins());
 
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
@@ -854,9 +854,10 @@ public sealed class AccountSuspensionTests : IDisposable
     /// claim this whole attestation exists to stop the panel making.
     /// </para>
     /// <para>
-    /// The only difference between this arrangement and the one above is that the reported login
-    /// carries no protocol, which is how such an agent is recognised. A handler that read the number
-    /// alone would produce the same sentence for both and pass exactly one of the two.
+    /// The only difference between this arrangement and the one above is the count's case: the agent
+    /// client carries a zero as unmeasured when the raw answer cannot prove the agent counted (no
+    /// login named its daemon). A handler that read the number alone would produce the same sentence
+    /// for both and pass exactly one of the two.
     /// </para>
     /// </remarks>
     [Fact]
@@ -870,8 +871,8 @@ public sealed class AccountSuspensionTests : IDisposable
             0,
             0,
             0,
-            [new FileTransferLoginSuspensionFactDto("acme_web", true)],
-            new MeasuredUnmanagedLogins(0));
+            [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp)],
+            new UnmeasuredUnmanagedLogins());
 
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
 
