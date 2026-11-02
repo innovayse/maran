@@ -29,12 +29,19 @@ public static class ApiResultExtensions
     /// <summary>Translates a query/read result: 200 OK with the value, or a problem response.</summary>
     /// <param name="result">The outcome to translate.</param>
     /// <param name="httpContext">The current request, used to read the correlation id and resolve <see cref="IErrorTextProvider"/>.</param>
+    /// <remarks>
+    /// The response is serialized as <typeparamref name="T"/>, the type the handler declared, and not
+    /// as the runtime type of the value. The two differ only for a polymorphic answer, and there the
+    /// difference is the whole answer: <c>System.Text.Json</c> writes a type discriminator only when
+    /// the value is serialized as its base type, so a root-level union serialized as its derived case
+    /// would reach the SPA without the member that says which case it is.
+    /// </remarks>
     public static IActionResult ToActionResult<T>(this Result<T> result, HttpContext httpContext)
     {
         return result.Match<IActionResult>(
             onOk: value =>
             {
-                return new OkObjectResult(value);
+                return new OkObjectResult(value) { DeclaredType = typeof(T) };
             },
             onFail: error =>
             {
@@ -51,7 +58,7 @@ public static class ApiResultExtensions
         return result.Match<IActionResult>(
             onOk: value =>
             {
-                return new CreatedResult(location, value);
+                return new CreatedResult(location, value) { DeclaredType = typeof(T) };
             },
             onFail: error =>
             {
