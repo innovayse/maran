@@ -15,9 +15,6 @@
   <data name="MonitoringModuleDisplayName">
     <value>Մոնիտորինգ</value>
   </data>
-  <data name="ServiceUnspecified">
-    <value>Անհայտ ծառայություն</value>
-  </data>
   <data name="ServiceWebServer">
     <value>Վեբ սերվեր</value>
   </data>

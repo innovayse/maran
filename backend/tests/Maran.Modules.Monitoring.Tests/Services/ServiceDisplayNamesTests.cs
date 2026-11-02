@@ -15,16 +15,14 @@ namespace Maran.Modules.Monitoring.Tests.Services;
 /// because a member with no entry falls back to the raw constant and IS the defect; so the closed
 /// set the rows come from is walked here rather than sampled. That set is
 /// <see cref="AgentManagedService"/> itself: the agent client's <c>ToPanelService</c> maps every
-/// wire value onto a member of it (anything unknown onto <c>Unspecified</c>), so no row can carry
+/// wire value onto a member of it and refuses a row naming anything else, so no row can carry
 /// anything this walk does not visit.
 /// </remarks>
 public sealed class ServiceDisplayNamesTests
 {
     /// <summary>Every service a row can carry has a name an operator can read.</summary>
     /// <remarks>
-    /// The whole enum, no exemptions — <c>Unspecified</c> included, because a newer agent watching
-    /// a unit this panel predates reaches the screen as exactly that member, and <c>PhpFpm</c> and
-    /// <c>Ftp</c> included, because "the agent never reports it today" is a fact about the agent,
+    /// The whole enum, no exemptions — <c>PhpFpm</c> and <c>Ftp</c> included, because "the agent never reports it today" is a fact about the agent,
     /// not about what this resolver must be able to answer. A member added to the enum without an
     /// entry fails this test by name rather than reaching a card as a constant.
     /// </remarks>
@@ -83,19 +81,6 @@ public sealed class ServiceDisplayNamesTests
         {
             CultureInfo.CurrentUICulture = previous;
         }
-    }
-
-    /// <summary>The service the agent could not name is named honestly, not left as a constant.</summary>
-    /// <remarks>
-    /// <c>Unspecified</c> is the one member that reaches a row when a NEWER agent reports a unit
-    /// this panel predates, so its name matters on the day nobody expects it to.
-    /// </remarks>
-    [Fact]
-    public void The_unspecified_service_is_named_an_unknown_service()
-    {
-        var names = MonitoringTestContext.ServiceNames();
-
-        Assert.Equal("Unknown service", names.Of(AgentManagedService.Unspecified));
     }
 
     /// <summary>The wire spelling of a member — the camelCase form the JSON surface carries.</summary>

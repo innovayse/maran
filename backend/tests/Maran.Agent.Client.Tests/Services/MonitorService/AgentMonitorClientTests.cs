@@ -258,20 +258,23 @@ public sealed class AgentMonitorClientTests
         Assert.Equal(expected, Assert.Single(result.Value).Service);
     }
 
-    /// <summary>A service this build has no name for arrives unspecified and never as another service.</summary>
+    /// <summary>A service this build has no name for is refused as an invalid response, never shown as another.</summary>
     /// <remarks>
     /// Written out rather than cast, so a newer agent watching a unit this panel predates cannot hand
     /// callers an enum value outside the declared set — every switch over which would fall silently
     /// through all its arms.
     /// </remarks>
-    [Fact]
-    public async Task A_service_this_build_has_no_name_for_arrives_unspecified_and_never_as_another_service()
+    [Theory]
+    [InlineData((ManagedService)99)]
+    [InlineData(ManagedService.Unspecified)]
+    public async Task A_service_this_build_has_no_name_for_is_refused_as_an_invalid_response(ManagedService wire)
     {
-        var stub = StubMonitorService.ReportingOneService((ManagedService)99, ServiceState.Running, true, "active");
+        var stub = StubMonitorService.ReportingOneService(wire, ServiceState.Running, true, "active");
 
         var result = await Client(stub).GetServiceStatusesAsync(CancellationToken.None);
 
-        Assert.Equal(AgentManagedService.Unspecified, Assert.Single(result.Value).Service);
+        Assert.True(result.IsFailure);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
     /// <summary>The statuses error payload maps to a failed result with the agent code.</summary>

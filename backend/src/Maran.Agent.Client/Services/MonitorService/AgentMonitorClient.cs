@@ -70,8 +70,7 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
 
         return response.ResultCase switch
         {
-            GetServiceStatusesResponse.ResultOneofCase.Ok => Result<IReadOnlyList<AgentServiceStatus>>.Ok(
-                ToStatuses(response.Ok)),
+            GetServiceStatusesResponse.ResultOneofCase.Ok => ToStatusesResult(response.Ok),
             GetServiceStatusesResponse.ResultOneofCase.Error => Result<IReadOnlyList<AgentServiceStatus>>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetServiceStatusesAsync))),
             _ => Result<IReadOnlyList<AgentServiceStatus>>.Fail(
@@ -317,34 +316,42 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
 
     /// <summary>Projects the wire statuses onto the panel's DTOs.</summary>
     /// <param name="ok">The success payload of <c>GetServiceStatuses</c>.</param>
-    /// <returns>One row per service the agent reported, in the order it sent them.</returns>
-    private static List<AgentServiceStatus> ToStatuses(GetServiceStatusesOk ok)
+    /// <returns>
+    /// One row per service the agent reported, in the order it sent them, or an
+    /// <c>AgentInvalidResponse</c> failure when a row names a service this build has no member for —
+    /// never a row standing in for a service nobody can name.
+    /// </returns>
+    private static Result<IReadOnlyList<AgentServiceStatus>> ToStatusesResult(GetServiceStatusesOk ok)
     {
         var statuses = new List<AgentServiceStatus>(ok.Services.Count);
 
         foreach (var status in ok.Services)
         {
-            statuses.Add(new AgentServiceStatus(
-                ToPanelService(status.Service),
-                ToPanelState(status),
-                status.Detail));
+            var service = ToPanelService(status.Service);
+            if (service is null)
+            {
+                return Result<IReadOnlyList<AgentServiceStatus>>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+            }
+
+            statuses.Add(new AgentServiceStatus(service.Value, ToPanelState(status), status.Detail));
         }
 
-        return statuses;
+        return Result<IReadOnlyList<AgentServiceStatus>>.Ok(statuses);
     }
 
     /// <summary>Maps a wire service onto the panel's own.</summary>
     /// <param name="service">The value the agent sent.</param>
     /// <returns>
-    /// The matching member, or <see cref="AgentManagedService.Unspecified"/> for a value this build
-    /// has no name for.
+    /// The matching member, or <c>null</c> for the unspecified wire value or one this build has no
+    /// name for.
     /// </returns>
     /// <remarks>
     /// Written out rather than cast. A cast would hand callers an enum value outside the declared
     /// set the first time a newer agent watches a unit this panel predates, and every switch over
     /// the result would then fall through its arms silently.
     /// </remarks>
-    private static AgentManagedService ToPanelService(ManagedService service)
+    private static AgentManagedService? ToPanelService(ManagedService service)
     {
         return service switch
         {
@@ -354,7 +361,7 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
             ManagedService.Ftp => AgentManagedService.Ftp,
             ManagedService.Cron => AgentManagedService.Cron,
             ManagedService.Ssh => AgentManagedService.Ssh,
-            _ => AgentManagedService.Unspecified,
+            _ => null,
         };
     }
 
