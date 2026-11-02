@@ -8,18 +8,32 @@ namespace Maran.Modules.Identity.Models;
 /// active account. The page is cut over this shape so search, sort and the total are all computed in
 /// the database over the same rows.
 /// </summary>
-/// <param name="Id">The login's id.</param>
-/// <param name="Username">The login name.</param>
-/// <param name="Email">The login's address.</param>
-/// <param name="Lifecycle">Whether the login has accepted its invitation, and whether its account is suspended.</param>
-/// <param name="Grants">The membership's grant set.</param>
-/// <param name="CreatedAt">When the login was created.</param>
-/// <param name="LastLoginAt">The most recent sign-in, or <c>null</c>.</param>
-public sealed record SubUserRow(
-    Guid Id,
-    string Username,
-    string Email,
-    UserLifecycle Lifecycle,
-    AccountFeature Grants,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset? LastLoginAt);
+/// <remarks>
+/// <b>Initialised by member, not by constructor, because the pager sorts over it.</b> The sort map
+/// reads a member of this row inside the database query, and EF Core can bind a member of a
+/// projection only when the projection names its members (an object initializer); a positional
+/// constructor call leaves it nothing to bind the sort to, and the query is refused as untranslatable.
+/// </remarks>
+public sealed record SubUserRow
+{
+    /// <summary>The login's id.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>The login name.</summary>
+    public required string Username { get; init; }
+
+    /// <summary>The login's address.</summary>
+    public required string Email { get; init; }
+
+    /// <summary>Whether the login has accepted its invitation, and whether its account is suspended.</summary>
+    public required UserLifecycle Lifecycle { get; init; }
+
+    /// <summary>The membership's grant set.</summary>
+    public required AccountFeature Grants { get; init; }
+
+    /// <summary>When the login was created.</summary>
+    public required DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>The most recent sign-in, or <c>null</c>.</summary>
+    public required DateTimeOffset? LastLoginAt { get; init; }
+}

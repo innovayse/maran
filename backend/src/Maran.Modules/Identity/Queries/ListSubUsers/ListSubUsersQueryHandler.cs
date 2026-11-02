@@ -52,14 +52,16 @@ public sealed class ListSubUsersQueryHandler
         var rows = from membership in _dbContext.AccountMemberships.AsNoTracking()
                    join user in _dbContext.Users.AsNoTracking() on membership.UserId equals user.Id
                    where membership.AccountId == accountId && membership.Role == MembershipRole.Member
-                   select new SubUserRow(
-                       user.Id,
-                       user.Username,
-                       user.Email,
-                       user.Lifecycle,
-                       membership.Grants,
-                       user.CreatedAt,
-                       user.LastLoginAt);
+                   select new SubUserRow
+                   {
+                       Id = user.Id,
+                       Username = user.Username,
+                       Email = user.Email,
+                       Lifecycle = user.Lifecycle,
+                       Grants = membership.Grants,
+                       CreatedAt = user.CreatedAt,
+                       LastLoginAt = user.LastLoginAt,
+                   };
 
         if (!query.Search.IsNone)
         {
