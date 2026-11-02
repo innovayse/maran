@@ -115,19 +115,19 @@ public sealed class SmtpSettings
     /// Contract phase: the previous release reads this column, so it stays until the release after
     /// the one that stopped reading it; then the column and this property are dropped together.
     /// </remarks>
-    private string LegacyUsername { get; set; }
+    internal string LegacyUsername { get; private set; }
 
     /// <summary>
     /// The legacy <c>Password</c> column: the encrypted password, or empty for anonymous. Same
     /// contract phase and the same encrypted-string conversion as <see cref="BasicPassword"/>.
     /// </summary>
-    private string LegacyPassword { get; set; }
+    internal string LegacyPassword { get; private set; }
 
     /// <summary>
     /// The legacy <c>AlertRecipient</c> column: the address, or empty when none. Same contract phase
     /// as <see cref="LegacyUsername"/>.
     /// </summary>
-    private string LegacyAlertRecipient { get; set; }
+    internal string LegacyAlertRecipient { get; private set; }
 
     /// <summary>Creates the panel's mail settings for the first time.</summary>
     /// <param name="host">Host name or address of the mail server.</param>
