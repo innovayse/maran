@@ -3,9 +3,10 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// <summary>Which file-transfer daemon serves one of an account's jailed logins.</summary>
 /// <remarks>
 /// <para>
-/// The panel-side spelling of the contract's <c>TransferProtocol</c>, mapped by NUMBER exactly as
-/// <see cref="AccountLoginPasswordState"/> is, so that a value a newer agent knows and this build
-/// does not reads as <see cref="Unspecified"/> rather than as whatever a cast produced.
+/// The panel-side spelling of the contract's <c>TransferProtocol</c>, mapped explicitly by
+/// <see cref="AgentAccountsClient"/>. The contract's zero value, which an agent that predates the
+/// field sends, is resolved there to <see cref="Sftp"/> — before FTPS existed every reported login
+/// was an SFTP one by construction — so no panel code sees an unstated protocol.
 /// </para>
 /// <para>
 /// <b>Why the panel needs it at all.</b> An account's logins are one list on the wire and were one
@@ -23,14 +24,6 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// </remarks>
 public enum LoginTransferProtocol
 {
-    /// <summary>
-    /// The agent did not say, because it predates the field. A caller MUST read such a login as
-    /// <see cref="Sftp"/> — before FTPS existed, every login a suspension could report was an SFTP
-    /// login by construction, so that is the correct reading rather than a guess. This is the one
-    /// absent value in this contract that resolves to a concrete answer instead of to a refusal.
-    /// </summary>
-    Unspecified = 0,
-
     /// <summary>Served by the host's OpenSSH daemon, jailed under the panel's SFTP jail root.</summary>
     Sftp = 1,
 

@@ -11,8 +11,8 @@ namespace Maran.Modules.Accounts.Tests.TestSupport;
 /// <remarks>
 /// <para>
 /// It is a separate type from <see cref="RecordingAgentAccountsClient"/> because that double MOVES
-/// its observation with the call it was last given — <c>LoginLocked</c> true after a suspend, false
-/// after an unsuspend — which models an account with a hand-set password and nothing else. A real
+/// its observation with the call it was last given — locked after a suspend, usable after an
+/// unsuspend — which models an account with a hand-set password and nothing else. A real
 /// host does not answer that way for a login with no password hash: <c>passwd -S</c> reports
 /// <c>L</c> (Debian) / <c>LK</c> (RHEL) for such a login before a suspension, during it and after
 /// it, and every hosting account is that kind, because the agent sets no password on an account's
@@ -42,15 +42,15 @@ public sealed class FixedObservationAgentAccountsClient : IAgentAccountsClient
     /// <summary>A double for the ordinary hosting account: a login that never had a password.</summary>
     /// <returns>A double answering with a readable directory, no vhosts, and no password hash.</returns>
     /// <remarks>
-    /// <c>LoginLocked</c> is <c>true</c> AND the field is
-    /// <see cref="AccountLoginPasswordState.Absent"/> at the same time, and that pair is not a
-    /// contradiction — it is the whole defect. <c>passwd -S</c> collapses "locked over a password"
-    /// and "no password at all" into one answer; the shadow field does not.
+    /// The field is <see cref="AccountLoginPasswordState.Absent"/> while <c>passwd -S</c> would
+    /// report the same login as locked, and that pair is not a contradiction — it is the whole
+    /// defect. <c>passwd -S</c> collapses "locked over a password" and "no password at all" into
+    /// one answer; the shadow field does not.
     /// </remarks>
     public static FixedObservationAgentAccountsClient ForPasswordlessAccount()
     {
         return new FixedObservationAgentAccountsClient(
-            new AccountSuspensionStateDto(true, AccountLoginPasswordState.Absent, true, [], 0, 0, 0, []));
+            new AccountSuspensionStateDto(AccountLoginPasswordState.Absent, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0)));
     }
 
     /// <summary>Succeeds, as a suspension of such an account does on both families.</summary>

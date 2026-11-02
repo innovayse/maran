@@ -109,55 +109,114 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
         return response.ResultCase switch
         {
             GetAccountSuspensionStateResponse.ResultOneofCase.Ok => Result<AccountSuspensionStateDto>.Ok(
-                new AccountSuspensionStateDto(
-                    response.Ok.LoginLocked,
-                    // Mapped by NUMBER and not by name: the wire enum and this project's are two
-                    // declarations of the same four states, and a value this build has never heard
-                    // of — a newer agent — must read as Unspecified, which sends the caller back to
-                    // LoginLocked rather than to whatever the cast produced.
-                    Enum.IsDefined(typeof(AccountLoginPasswordState), (int)response.Ok.LoginPasswordState)
-                        ? (AccountLoginPasswordState)(int)response.Ok.LoginPasswordState
-                        : AccountLoginPasswordState.Unspecified,
-                    response.Ok.SitesDirectoryReadable,
-                    response.Ok.Sites
-                        .Select(site => { return new SiteSuspensionFactDto(site.Domain, site.ServingStub); })
-                        .ToList(),
-                    response.Ok.CronEntriesTotal,
-                    response.Ok.CronEntriesSuspended,
-                    response.Ok.CronForeignLines,
-                    // The seam where two vocabularies meet, and it is NOT a bug: the wire field is
-                    // sftp_logins and the message SftpLoginSuspensionFact, names they keep for ever
-                    // because the contract evolves additively (rules/architecture.md) and they
-                    // predate FTPS. The list itself has carried logins of BOTH transfer daemons
-                    // since FTPS shipped, so this project's own DTO is named for the pair —
-                    // FileTransferLogins / FileTransferLoginSuspensionFactDto. Renaming what the
-                    // panel received is what a DTO layer is for; renaming what was sent is not.
-                    response.Ok.SftpLogins
-                        .Select(login =>
-                        {
-                            return new FileTransferLoginSuspensionFactDto(
-                                login.Username,
-                                login.Locked,
-
-                                // By NUMBER and with the same guard the password state gets: a
-                                // protocol a newer agent knows and this build does not must read as
-                                // Unspecified, which a caller resolves to SFTP, rather than as a
-                                // cast to an enum member that does not exist.
-                                Enum.IsDefined(typeof(LoginTransferProtocol), (int)login.Protocol)
-                                    ? (LoginTransferProtocol)(int)login.Protocol
-                                    : LoginTransferProtocol.Unspecified);
-                        })
-                        .ToList(),
-
-                    // The count of what the enumeration above deliberately could not speak for.
-                    // Carried rather than dropped: an attestation is worth what it says about its
-                    // own gaps, and this is the only field that says anything about them.
-                    response.Ok.UnmanagedLogins)),
+                ToSuspensionState(response.Ok)),
             GetAccountSuspensionStateResponse.ResultOneofCase.Error => Result<AccountSuspensionStateDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetSuspensionStateAsync))),
             _ => Result<AccountSuspensionStateDto>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
+    }
+
+    /// <summary>Projects the wire suspension observation onto the panel's own.</summary>
+    /// <param name="ok">The success payload of <c>GetAccountSuspensionState</c>.</param>
+    /// <returns>The observation, with no wire default left in it.</returns>
+    private static AccountSuspensionStateDto ToSuspensionState(GetAccountSuspensionStateOk ok)
+    {
+        return new AccountSuspensionStateDto(
+            ToLoginPasswordState(ok.LoginPasswordState, ok.LoginLocked),
+            ok.SitesDirectoryReadable,
+            ok.Sites
+                .Select(site => { return new SiteSuspensionFactDto(site.Domain, site.ServingStub); })
+                .ToList(),
+            ok.CronEntriesTotal,
+            ok.CronEntriesSuspended,
+            ok.CronForeignLines,
+            // The seam where two vocabularies meet, and it is NOT a bug: the wire field is
+            // sftp_logins and the message SftpLoginSuspensionFact, names they keep for ever
+            // because the contract evolves additively (rules/architecture.md) and they
+            // predate FTPS. The list itself has carried logins of BOTH transfer daemons
+            // since FTPS shipped, so this project's own DTO is named for the pair —
+            // FileTransferLogins / FileTransferLoginSuspensionFactDto. Renaming what the
+            // panel received is what a DTO layer is for; renaming what was sent is not.
+            ok.SftpLogins
+                .Select(login =>
+                {
+                    return new FileTransferLoginSuspensionFactDto(
+                        login.Username,
+                        login.Locked,
+                        ToProtocol(login.Protocol));
+                })
+                .ToList(),
+            ToUnmanagedLoginCount(ok));
+    }
+
+    /// <summary>Names what the account's own shadow password field holds.</summary>
+    /// <param name="state">The wire classification.</param>
+    /// <param name="loginLocked">The wire's older boolean, <c>passwd -S</c>'s view of the same login.</param>
+    /// <returns>One of the four real states, never the contract's zero value.</returns>
+    /// <remarks>
+    /// The contract's zero value means the agent predates the classification, and a value this build
+    /// has never heard of means the agent is newer; neither is a state of the login. Both are
+    /// answered from the boolean the agent has always sent, in the one way that is conservative in
+    /// both directions: a lock reads as <see cref="AccountLoginPasswordState.Locked"/>, which makes a
+    /// suspension accept it and a reactivation refuse it, and no lock reads as
+    /// <see cref="AccountLoginPasswordState.Usable"/>, which makes a suspension refuse and a
+    /// reactivation accept — exactly what falling back to the boolean did when the handlers did it
+    /// themselves, decided here once so that no handler sees a value that is not a state.
+    /// </remarks>
+    private static AccountLoginPasswordState ToLoginPasswordState(LoginPasswordState state, bool loginLocked)
+    {
+        return state switch
+        {
+            LoginPasswordState.Empty => AccountLoginPasswordState.Empty,
+            LoginPasswordState.Absent => AccountLoginPasswordState.Absent,
+            LoginPasswordState.Locked => AccountLoginPasswordState.Locked,
+            LoginPasswordState.Usable => AccountLoginPasswordState.Usable,
+            _ => loginLocked ? AccountLoginPasswordState.Locked : AccountLoginPasswordState.Usable,
+        };
+    }
+
+    /// <summary>Names which transfer daemon serves a login.</summary>
+    /// <param name="protocol">The wire protocol.</param>
+    /// <returns>The daemon, never the contract's zero value.</returns>
+    /// <remarks>
+    /// The contract's zero value means the agent predates the field, and before FTPS existed every
+    /// login a suspension could report was an SFTP login by construction, so SFTP is the correct
+    /// reading rather than a default chosen for convenience. A protocol this build has never heard
+    /// of (an agent newer than the panel) is read the same way: the handshake window refuses such a
+    /// pair, and a login is never reported as a daemon the agent did not name.
+    /// </remarks>
+    private static LoginTransferProtocol ToProtocol(TransferProtocol protocol)
+    {
+        return protocol == TransferProtocol.Ftps ? LoginTransferProtocol.Ftps : LoginTransferProtocol.Sftp;
+    }
+
+    /// <summary>Decides whether the answer carries a measured count of the unmanaged logins.</summary>
+    /// <param name="ok">The success payload of <c>GetAccountSuspensionState</c>.</param>
+    /// <returns>The measured count, or the fact that the answer carries none.</returns>
+    /// <remarks>
+    /// <para>
+    /// The wire carries a <c>uint32</c>, so an agent that predates the field looks like one that
+    /// counted zero. They are told apart by the rest of the same answer: <c>unmanaged_logins</c> and
+    /// the per-login <c>protocol</c> were added by one change, so an agent that states a protocol for
+    /// any login also counted these entries, and a non-zero count is self-evidently a measurement. A
+    /// zero count with no stated protocol is not proof, and is carried as unmeasured so that no caller
+    /// prints it as the completeness claim "none exist".
+    /// </para>
+    /// <para>
+    /// The inference errs in one direction only, deliberately: an account with no transfer login at
+    /// all reads as unmeasured even when a current agent counted and found none, so the panel says
+    /// less than it knows and never claims a silence it did not achieve. It reads the RAW protocol,
+    /// before <see cref="ToProtocol"/> resolves an unstated one to SFTP; after that resolution the
+    /// distinction no longer exists.
+    /// </para>
+    /// </remarks>
+    private static UnmanagedLoginCount ToUnmanagedLoginCount(GetAccountSuspensionStateOk ok)
+    {
+        var measured = ok.UnmanagedLogins > 0
+            || ok.SftpLogins.Any(login => { return login.Protocol != TransferProtocol.Unspecified; });
+
+        return measured ? new MeasuredUnmanagedLogins(ok.UnmanagedLogins) : new UnmeasuredUnmanagedLogins();
     }
 
     /// <inheritdoc/>

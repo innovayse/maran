@@ -15,36 +15,20 @@ namespace Maran.Modules.Accounts.Domain.Policies;
 /// rule lives here once so the two cannot drift into wording the same list differently.
 /// </para>
 /// <para>
-/// <b>This is a rule and not a mapping</b>, which is why it is a policy: an absent protocol resolves
-/// to <see cref="LoginTransferProtocol.Sftp"/>, and that resolution is a claim about the contract's
-/// history rather than a restatement of what arrived. It is a correct claim — before FTPS existed
-/// every fact in this list was an SFTP login by construction — and it is the one place it is made.
+/// <b>This is wording and not a reading of the wire.</b> A protocol an old agent did not state is
+/// resolved to <see cref="LoginTransferProtocol.Sftp"/> by the agent client, once, at the boundary —
+/// before FTPS existed every fact in this list was an SFTP login by construction — so everything
+/// here works from a daemon the host named.
 /// </para>
 /// </remarks>
 public static class TransferLoginProtocolPolicy
 {
-    /// <summary>Which daemon serves a reported login, with an unstated protocol read as SFTP.</summary>
-    /// <param name="login">The fact the host reported for one of the account's jailed logins.</param>
-    /// <returns>
-    /// The login's daemon. Never <see cref="LoginTransferProtocol.Unspecified"/>: an agent that
-    /// predates the field only ever had SFTP logins to report, so reading its silence as SFTP is the
-    /// contract's own answer and not a default chosen for convenience.
-    /// </returns>
-    public static LoginTransferProtocol Read(FileTransferLoginSuspensionFactDto login)
-    {
-        return login.Protocol == LoginTransferProtocol.Ftps
-            ? LoginTransferProtocol.Ftps
-            : LoginTransferProtocol.Sftp;
-    }
-
     /// <summary>Names one login the way an operator sent to look at it needs to read it.</summary>
     /// <param name="login">The fact the host reported for one of the account's jailed logins.</param>
-    /// <returns>The login's system name, suffixed with its daemon when the host stated one.</returns>
+    /// <returns>The login's system name, suffixed with the daemon that serves it.</returns>
     /// <remarks>
-    /// The suffix is written only when the host actually stated the protocol. A login an old agent
-    /// reported is left bare rather than labelled <c>(sftp)</c>: the reading above is right for
-    /// counting, but printing a daemon beside a name would put a fact on the operator's screen that
-    /// the host never said, and this line exists to send somebody to the right client.
+    /// The suffix is always written: the client resolves a protocol an old agent did not state to
+    /// SFTP before it reaches this module, so every login here has a daemon the panel can name.
     /// </remarks>
     public static string Describe(FileTransferLoginSuspensionFactDto login)
     {
@@ -52,7 +36,10 @@ public static class TransferLoginProtocolPolicy
         {
             LoginTransferProtocol.Sftp => $"{login.Username} (sftp)",
             LoginTransferProtocol.Ftps => $"{login.Username} (ftps)",
-            _ => login.Username,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(login),
+                login.Protocol,
+                "Unmapped transfer protocol."),
         };
     }
 
@@ -90,7 +77,7 @@ public static class TransferLoginProtocolPolicy
     /// </remarks>
     public static string DescribeAll(IReadOnlyList<FileTransferLoginSuspensionFactDto> logins)
     {
-        var ftps = logins.Count(login => { return Read(login) == LoginTransferProtocol.Ftps; });
+        var ftps = logins.Count(login => { return login.Protocol == LoginTransferProtocol.Ftps; });
         var sftp = logins.Count - ftps;
 
         return $"all {sftp} of its sftp logins and all {ftps} of its ftps logins";

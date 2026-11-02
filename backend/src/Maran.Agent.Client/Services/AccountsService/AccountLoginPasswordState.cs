@@ -4,7 +4,7 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// <remarks>
 /// <para>
 /// This exists because one boolean could not carry two directions. <c>passwd -S</c> — the source of
-/// <see cref="AccountSuspensionStateDto.LoginLocked"/> — reports a login LOCKED OVER A PASSWORD and
+/// <c>login_locked</c> on the wire — reports a login LOCKED OVER A PASSWORD and
 /// a login that NEVER HAD ONE as the same thing (<c>L</c> on the Debian family, <c>LK</c> on the
 /// RHEL one). Every hosting account is the second kind, because the agent sets no password on an
 /// account's own entry. So the boolean is true for such an account for ever: before a suspension,
@@ -17,19 +17,13 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// </para>
 /// <para>
 /// No hash and no field bytes reach here: the agent classifies at the point of reading and drops
-/// them, and this type has four inhabitants plus the skew value.
+/// them, and this type has exactly four inhabitants. The contract's own zero value, which an agent
+/// that predates the classification sends, is not one of them: <see cref="AgentAccountsClient"/>
+/// resolves it at the boundary from the legacy <c>passwd -S</c> boolean, so no panel code sees it.
 /// </para>
 /// </remarks>
 public enum AccountLoginPasswordState
 {
-    /// <summary>
-    /// The agent predates this field and said nothing. A caller MUST fall back to
-    /// <see cref="AccountSuspensionStateDto.LoginLocked"/>, which is the behaviour that existed
-    /// before the field and is conservative in both directions — suspension refuses, reactivation
-    /// refuses.
-    /// </summary>
-    Unspecified = 0,
-
     /// <summary>
     /// The field is empty: the login authenticates with NO password. A suspension must never leave a
     /// login here, and it is what <c>passwd -u -f</c> produces on the RHEL family — the reason that

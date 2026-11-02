@@ -442,11 +442,12 @@ public sealed class SuspendAccountCommandHandler
     /// holds a hash behind a lock marker or no hash at all.
     /// </para>
     /// <para>
-    /// <see cref="AccountLoginPasswordState.Unspecified"/> means the agent predates the field, so
-    /// this falls back to <c>passwd -S</c>'s boolean — exactly the behaviour that existed before,
-    /// which for this question is correct: <c>passwd -S</c> reports a login with no hash and a login
-    /// locked over a hash as the same thing, and neither of them can authenticate. It is the OTHER
-    /// direction, the one reactivation asks about, where collapsing them is fatal.
+    /// An agent that predates the classification sends only <c>passwd -S</c>'s boolean, and the
+    /// client turns it into one of these four states before it reaches here, so there is no
+    /// fallback to write: <c>passwd -S</c> reports a login with no hash and a login locked over a
+    /// hash as the same thing, and neither of them can authenticate, which is the direction this
+    /// question asks in. It is the OTHER direction, the one reactivation asks about, where
+    /// collapsing them is fatal.
     /// </para>
     /// </remarks>
     private static bool CanStillAuthenticate(AccountSuspensionStateDto state)
@@ -457,7 +458,10 @@ public sealed class SuspendAccountCommandHandler
             AccountLoginPasswordState.Usable => true,
             AccountLoginPasswordState.Absent => false,
             AccountLoginPasswordState.Locked => false,
-            _ => !state.LoginLocked,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(state),
+                state.LoginPasswordState,
+                "Unmapped login password state."),
         };
     }
 }

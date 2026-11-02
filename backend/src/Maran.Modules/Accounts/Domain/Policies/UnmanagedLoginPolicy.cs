@@ -25,13 +25,14 @@ namespace Maran.Modules.Accounts.Domain.Policies;
 /// defect this whole attestation exists to end, one field further along.
 /// </para>
 /// <para>
-/// <b>How "unknown" is recognised, and why it is an inference.</b> The wire carries a
-/// <c>uint32</c>, so an agent that predates the field is indistinguishable from one reporting zero
-/// by looking at the number alone. It is distinguishable by looking at the rest of the same answer:
-/// <c>unmanaged_logins</c> and <see cref="FileTransferLoginSuspensionFactDto.Protocol"/> were added to the
-/// contract by one change, so an agent that states a protocol for any login has also counted these
-/// entries. A non-zero count is self-evidently a measurement; a zero count is one only when some
-/// login in the same answer carries a stated protocol.
+/// <b>How "unknown" is recognised, and where.</b> The wire carries a <c>uint32</c>, so an agent that
+/// predates the field is indistinguishable from one reporting zero by looking at the number alone. It
+/// is distinguishable by looking at the rest of the same answer: <c>unmanaged_logins</c> and the
+/// per-login protocol were added to the contract by one change, so an agent that states a protocol for
+/// any login has also counted these entries. That inference is made once, in the agent client, where
+/// the raw answer is still in hand, and arrives here as a type: <see cref="MeasuredUnmanagedLogins"/>
+/// is a number that may be stated as a fact, <see cref="UnmeasuredUnmanagedLogins"/> carries none.
+/// This policy therefore re-derives nothing and has no heuristic to keep in step with the client.
 /// </para>
 /// <para>
 /// The inference errs in one direction only, deliberately: an account with NO logins at all, or with
@@ -83,40 +84,25 @@ public static class UnmanagedLoginPolicy
     /// </returns>
     public static string Describe(AccountSuspensionStateDto state)
     {
-        if (!WasMeasured(state))
+        switch (state.UnmanagedLogins)
         {
-            if (state.FileTransferLogins.Count == 0)
-            {
-                return ", and no transfer login was reported, so nothing in the host's answer can say "
-                    + "whether a login outside the panel's own shares this account's uid: read the "
-                    + "host's passwd for entries carrying it";
-            }
+            case MeasuredUnmanagedLogins measured:
+                return measured.Count == 0
+                    ? ", and no login outside the panel's own shares this account's uid"
+                    : $", and {measured.Count} login(s) sharing this account's uid that the panel did "
+                        + "not create and does not lock";
+            case UnmeasuredUnmanagedLogins:
+                if (state.FileTransferLogins.Count == 0)
+                {
+                    return ", and no transfer login was reported, so nothing in the host's answer can say "
+                        + "whether a login outside the panel's own shares this account's uid: read the "
+                        + "host's passwd for entries carrying it";
+                }
 
-            return ", and the host did not say how many logins share this account's uid without the "
-                + "panel having created them, so that number is unknown rather than zero";
+                return ", and the host did not say how many logins share this account's uid without the "
+                    + "panel having created them, so that number is unknown rather than zero";
+            default:
+                throw new ArgumentOutOfRangeException(nameof(state), state.UnmanagedLogins, "Unmapped login count.");
         }
-
-        return state.UnmanagedLogins == 0
-            ? ", and no login outside the panel's own shares this account's uid"
-            : $", and {state.UnmanagedLogins} login(s) sharing this account's uid that the panel did "
-                + "not create and does not lock";
-    }
-
-    /// <summary>Whether the host's answer carries a measured count rather than an absent one.</summary>
-    /// <param name="state">What the host answered when asked what it is doing for the account.</param>
-    /// <returns><c>true</c> when the count may be stated as a fact.</returns>
-    /// <remarks>
-    /// The two conditions are independent and either is sufficient: a non-zero count can only come
-    /// from an agent that counted, and a login carrying a stated protocol proves the answering agent
-    /// speaks the contract version that introduced both fields. Neither is a guess about the agent's
-    /// build; both are read out of the answer in hand.
-    /// </remarks>
-    private static bool WasMeasured(AccountSuspensionStateDto state)
-    {
-        return state.UnmanagedLogins > 0
-            || state.FileTransferLogins.Any(login =>
-            {
-                return login.Protocol != LoginTransferProtocol.Unspecified;
-            });
     }
 }

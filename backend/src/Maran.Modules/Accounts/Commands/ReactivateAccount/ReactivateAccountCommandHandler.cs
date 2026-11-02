@@ -331,8 +331,8 @@ public sealed class ReactivateAccountCommandHandler
     /// <remarks>
     /// <para>
     /// This is the question a REACTIVATION has to ask, and until this method existed it was answered
-    /// with the SUSPENSION question's answer. <c>passwd -S</c> — the source of
-    /// <see cref="AccountSuspensionStateDto.LoginLocked"/> — reports a login locked over a password
+    /// with the SUSPENSION question's answer. <c>passwd -S</c> — the source of the wire's older
+    /// <c>login_locked</c> boolean — reports a login locked over a password
     /// and a login that never had one as the same thing, and every hosting account is the second
     /// kind, because the agent sets no password on an account's own entry. So the boolean was true
     /// for such an account for ever and this handler refused EVERY hosting account, on both
@@ -351,10 +351,11 @@ public sealed class ReactivateAccountCommandHandler
     /// unreactivatable while doing nothing about the open door.
     /// </para>
     /// <para>
-    /// <see cref="AccountLoginPasswordState.Unspecified"/> means the agent predates the field. It
-    /// falls back to the boolean, which restores the OLD refusal — the defect — rather than
-    /// inventing a permission from an answer nobody gave. A skewed pair is then no worse off than
-    /// before and never more permissive; the handshake covers one release of skew (rules/proto.md).
+    /// An agent that predates the classification sends only the boolean, and the client resolves it
+    /// to <see cref="AccountLoginPasswordState.Locked"/> when it reports a lock, which restores the
+    /// OLD refusal — the defect — rather than inventing a permission from an answer nobody gave. A
+    /// skewed pair is then no worse off than before and never more permissive; the handshake covers
+    /// one release of skew (rules/proto.md).
     /// </para>
     /// </remarks>
     private static bool StillHeldDown(AccountSuspensionStateDto state)
@@ -365,7 +366,10 @@ public sealed class ReactivateAccountCommandHandler
             AccountLoginPasswordState.Absent => false,
             AccountLoginPasswordState.Empty => false,
             AccountLoginPasswordState.Usable => false,
-            _ => state.LoginLocked,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(state),
+                state.LoginPasswordState,
+                "Unmapped login password state."),
         };
     }
 }

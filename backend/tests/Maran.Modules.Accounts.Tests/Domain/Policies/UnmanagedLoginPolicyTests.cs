@@ -17,7 +17,7 @@ public sealed class UnmanagedLoginPolicyTests
         // The threat note covering this work asks a reviewer to be sure the panel SHOWS this number
         // rather than swallowing it. The whole clause is asserted, because a check for "2" alone
         // would also pass over a sentence that reported two of something else.
-        var described = UnmanagedLoginPolicy.Describe(State(2, LoginTransferProtocol.Ftps));
+        var described = UnmanagedLoginPolicy.Describe(State(new MeasuredUnmanagedLogins(2)));
 
         Assert.Equal(
             ", and 2 login(s) sharing this account's uid that the panel did not create and does not lock",
@@ -31,7 +31,7 @@ public sealed class UnmanagedLoginPolicyTests
         // Zero is a fact the host measured, and it is the fact that makes the rest of the attestation
         // complete. Rendering nothing would leave silence to carry it, which is indistinguishable
         // from the host never having answered.
-        var described = UnmanagedLoginPolicy.Describe(State(0, LoginTransferProtocol.Sftp));
+        var described = UnmanagedLoginPolicy.Describe(State(new MeasuredUnmanagedLogins(0)));
 
         Assert.Equal(", and no login outside the panel's own shares this account's uid", described);
     }
@@ -42,9 +42,10 @@ public sealed class UnmanagedLoginPolicyTests
     {
         // The vacuity guard for the pair above, on the axis that can go blind: the wire carries a
         // uint32, so an agent predating the field is indistinguishable from one reporting zero by the
-        // NUMBER alone. A policy that read the number only would answer these two identically, and
-        // the completeness claim above would then be printed over an answer nobody gave.
-        var described = UnmanagedLoginPolicy.Describe(State(0, LoginTransferProtocol.Unspecified));
+        // NUMBER alone. The client decides which it was and hands over a type, so this policy must
+        // answer the two cases differently or the completeness claim above would be printed over an
+        // answer nobody gave.
+        var described = UnmanagedLoginPolicy.Describe(State(new UnmeasuredUnmanagedLogins()));
 
         Assert.Equal(
             ", and the host did not say how many logins share this account's uid without the panel "
@@ -62,7 +63,7 @@ public sealed class UnmanagedLoginPolicyTests
         // NEITHER of the other two unmeasured-or-zero wordings — a substring check for "uid" passes
         // over all three.
         var described = UnmanagedLoginPolicy.Describe(new AccountSuspensionStateDto(
-            true, AccountLoginPasswordState.Locked, true, [], 0, 0, 0, []));
+            AccountLoginPasswordState.Locked, true, [], 0, 0, 0, [], new UnmeasuredUnmanagedLogins()));
 
         Assert.Equal(
             ", and no transfer login was reported, so nothing in the host's answer can say whether a "
@@ -81,21 +82,21 @@ public sealed class UnmanagedLoginPolicyTests
         // absent count must never read as the measured zero's completeness claim. This is what stops
         // the two new wordings drifting into one that sounds like an answer.
         var described = anyLogin
-            ? UnmanagedLoginPolicy.Describe(State(0, LoginTransferProtocol.Unspecified))
+            ? UnmanagedLoginPolicy.Describe(State(new UnmeasuredUnmanagedLogins()))
             : UnmanagedLoginPolicy.Describe(new AccountSuspensionStateDto(
-                true, AccountLoginPasswordState.Locked, true, [], 0, 0, 0, []));
+                AccountLoginPasswordState.Locked, true, [], 0, 0, 0, [], new UnmeasuredUnmanagedLogins()));
 
         Assert.DoesNotContain("no login outside the panel's own shares", described, StringComparison.Ordinal);
     }
 
-    /// <summary>A count above zero is a measurement whatever else the host said.</summary>
+    /// <summary>A measured count above zero is worded as a warning whatever else the host said.</summary>
     [Fact]
-    public void A_count_above_zero_is_a_measurement_whatever_else_the_host_said()
+    public void A_measured_count_above_zero_is_worded_as_a_warning_whatever_else_the_host_said()
     {
         // A non-zero count can only come from an agent that counted, so it needs no corroboration —
         // and an implementation that demanded a stated protocol before believing any count would
         // report a real warning as "unknown", which is the one reading that hides it.
-        var described = UnmanagedLoginPolicy.Describe(State(3, LoginTransferProtocol.Unspecified));
+        var described = UnmanagedLoginPolicy.Describe(State(new MeasuredUnmanagedLogins(3)));
 
         Assert.Equal(
             ", and 3 login(s) sharing this account's uid that the panel did not create and does not lock",
@@ -103,20 +104,18 @@ public sealed class UnmanagedLoginPolicyTests
     }
 
     /// <summary>Builds a host answer carrying one login and the given unmanaged count.</summary>
-    /// <param name="unmanaged">How many passwd entries share the uid without being the panel's.</param>
-    /// <param name="protocol">The daemon the host stated for the one reported login.</param>
+    /// <param name="unmanaged">What the host's answer says about passwd entries sharing the uid.</param>
     /// <returns>The observation to word.</returns>
-    private static AccountSuspensionStateDto State(uint unmanaged, LoginTransferProtocol protocol)
+    private static AccountSuspensionStateDto State(UnmanagedLoginCount unmanaged)
     {
         return new AccountSuspensionStateDto(
-            true,
             AccountLoginPasswordState.Locked,
             true,
             [],
             0,
             0,
             0,
-            [new FileTransferLoginSuspensionFactDto("acme_web", true, protocol)],
+            [new FileTransferLoginSuspensionFactDto("acme_web", true, LoginTransferProtocol.Sftp)],
             unmanaged);
     }
 }

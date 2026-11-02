@@ -32,12 +32,10 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     /// </para>
     /// <para>
     /// <see cref="SuspendAsync"/> and <see cref="UnsuspendAsync"/> move
-    /// <see cref="AccountSuspensionStateDto.LoginLocked"/> on a successful call, which is what makes
-    /// the default honest rather than merely convenient: a double whose observation never followed
-    /// its own actions would let a handler that never calls the agent at all pass every test here.
-    /// </para>
-    /// <para>
-    /// They move <see cref="AccountSuspensionStateDto.LoginPasswordState"/> with it, between
+    /// <see cref="AccountSuspensionStateDto.LoginPasswordState"/> on a successful call, which is what
+    /// makes the default honest rather than merely convenient: a double whose observation never
+    /// followed its own actions would let a handler that never calls the agent at all pass every
+    /// test here. They move it between
     /// <see cref="AccountLoginPasswordState.Locked"/> and
     /// <see cref="AccountLoginPasswordState.Usable"/>, so this double models an account with a
     /// HAND-SET password — the one kind of account whose login a suspension really locks and a
@@ -48,7 +46,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     /// </para>
     /// </remarks>
     public AccountSuspensionStateDto SuspensionState { get; set; } =
-        new AccountSuspensionStateDto(false, AccountLoginPasswordState.Usable, true, [], 0, 0, 0, []);
+        new AccountSuspensionStateDto(AccountLoginPasswordState.Usable, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0));
 
     /// <summary>Creates a client that succeeds at everything.</summary>
     public RecordingAgentAccountsClient()
@@ -83,7 +81,6 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
         {
             SuspensionState = SuspensionState with
             {
-                LoginLocked = true,
                 LoginPasswordState = AccountLoginPasswordState.Locked,
             };
         }
@@ -100,7 +97,6 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
         {
             SuspensionState = SuspensionState with
             {
-                LoginLocked = false,
                 LoginPasswordState = AccountLoginPasswordState.Usable,
             };
         }

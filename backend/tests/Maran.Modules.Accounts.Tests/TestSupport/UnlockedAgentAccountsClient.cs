@@ -41,7 +41,7 @@ public sealed class UnlockedAgentAccountsClient : IAgentAccountsClient
         CancellationToken cancellationToken)
     {
         return Task.FromResult(Result<AccountSuspensionStateDto>.Ok(
-            new AccountSuspensionStateDto(false, AccountLoginPasswordState.Usable, true, [], 0, 0, 0, [])));
+            new AccountSuspensionStateDto(AccountLoginPasswordState.Usable, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0))));
     }
 
     /// <summary>Not exercised by these tests; a call would be a test asking the wrong question.</summary>
