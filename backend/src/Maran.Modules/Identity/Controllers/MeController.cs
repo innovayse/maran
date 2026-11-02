@@ -1,9 +1,11 @@
 using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.SwitchActiveAccount;
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Extensions;
 using Maran.Modules.Identity.Queries.ListMyAccounts;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.SharedKernel.Callers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -42,7 +44,9 @@ public sealed class MeController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAccountsAsync(CancellationToken cancellationToken)
     {
-        var query = new ListMyAccountsQuery(CurrentUser.UserId, CurrentUser.AccountId);
+        var principal = CurrentUser.RequirePrincipal();
+        Guid? accountId = principal is CustomerCaller customer ? customer.AccountId : null;
+        var query = new ListMyAccountsQuery(principal.UserId, accountId);
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<SwitchableAccountDto>>>(query, cancellationToken));
     }
 
@@ -68,7 +72,7 @@ public sealed class MeController : BaseApiController
     {
         command = command with
         {
-            UserId = CurrentUser.UserId,
+            UserId = CurrentUser.RequirePrincipal().UserId,
             SessionId = CallerSessionId,
             IpAddress = ClientIpAddress,
             UserAgent = CallerUserAgent,

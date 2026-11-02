@@ -1,5 +1,6 @@
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Identity.Services;
 
@@ -140,7 +141,9 @@ public sealed class IdentityAuditJournal
         bool succeeded,
         CancellationToken cancellationToken)
     {
-        var name = _currentUser.UserId == actorUserId ? _currentUser.Username : string.Empty;
+        var name = _currentUser.Caller is PrincipalCaller principal && principal.UserId == actorUserId
+            ? principal.Username
+            : string.Empty;
 
         await WriteAsync(actorUserId, name, action, subject, ipAddress, userAgent, succeeded, cancellationToken);
     }

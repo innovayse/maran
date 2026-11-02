@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Extensions;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
 using Maran.Modules.Identity.Services;
@@ -126,7 +127,7 @@ public sealed class RemoveSubUserCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordIdentifiedAsync(
-            _currentUser.UserId,
+            _currentUser.RequirePrincipal().UserId,
             AuditActions.SubUserRemoved,
             user.Username,
             command.IpAddress,
@@ -150,7 +151,7 @@ public sealed class RemoveSubUserCommandHandler
         // The subject is the id the caller named: a refused attempt on somebody else's sub-user still
         // leaves a trace of what was probed.
         await _journal.RecordIdentifiedAsync(
-            _currentUser.UserId,
+            _currentUser.RequirePrincipal().UserId,
             AuditActions.SubUserRemoved,
             command.UserId.ToString("D"),
             command.IpAddress,

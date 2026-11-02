@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Identity.Tests.TestSupport;
 
@@ -56,7 +57,7 @@ public sealed class SubUserWorld : IDisposable
     /// <summary>The guard over <paramref name="caller"/>.</summary>
     /// <param name="caller">Who is asking; defaults to the owner.</param>
     /// <returns>The guard.</returns>
-    public SubUserOwnerGuard Guard(StubCustomerUser? caller = null)
+    public SubUserOwnerGuard Guard(ICurrentUser? caller = null)
     {
         return new SubUserOwnerGuard(Context, caller ?? Caller);
     }

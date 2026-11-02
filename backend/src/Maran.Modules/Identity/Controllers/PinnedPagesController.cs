@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Commands.PinPage;
 using Maran.Modules.Identity.Commands.UnpinPage;
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Extensions;
 using Maran.Modules.Identity.Queries.ListPinnedPages;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -41,7 +42,7 @@ public sealed class PinnedPagesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
     {
-        var query = new ListPinnedPagesQuery(CurrentUser.UserId);
+        var query = new ListPinnedPagesQuery(CurrentUser.RequirePrincipal().UserId);
         return ToActionResult(await _bus.InvokeAsync<Result<PinnedPagesDto>>(query, cancellationToken));
     }
 
@@ -62,7 +63,7 @@ public sealed class PinnedPagesController : BaseApiController
     {
         command = command with
         {
-            UserId = CurrentUser.UserId,
+            UserId = CurrentUser.RequirePrincipal().UserId,
             IpAddress = ClientIpAddress,
             UserAgent = CallerUserAgent,
         };
@@ -79,7 +80,7 @@ public sealed class PinnedPagesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UnpinAsync(string itemKey, CancellationToken cancellationToken)
     {
-        var command = new UnpinPageCommand(itemKey, CurrentUser.UserId, ClientIpAddress, CallerUserAgent);
+        var command = new UnpinPageCommand(itemKey, CurrentUser.RequirePrincipal().UserId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<PinnedPagesDto>>(command, cancellationToken));
     }
 }

@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.EndViewAs;
 using Maran.Modules.Identity.Commands.StartViewAs;
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Extensions;
 using Maran.Modules.Identity.Queries.GetViewAs;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -52,7 +53,7 @@ public sealed class ViewAsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {
-        var query = new GetViewAsQuery(CallerSessionId, CurrentUser.UserId);
+        var query = new GetViewAsQuery(CallerSessionId, CurrentUser.RequirePrincipal().UserId);
         return ToActionResult(await _bus.InvokeAsync<Result<ViewAsStateDto>>(query, cancellationToken));
     }
 
@@ -79,7 +80,7 @@ public sealed class ViewAsController : BaseApiController
     {
         command = command with
         {
-            OperatorUserId = CurrentUser.UserId,
+            OperatorUserId = CurrentUser.RequirePrincipal().UserId,
             OperatorSessionId = CallerSessionId,
             IpAddress = ClientIpAddress,
             UserAgent = CallerUserAgent,
@@ -99,7 +100,7 @@ public sealed class ViewAsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> EndAsync(CancellationToken cancellationToken)
     {
-        var command = new EndViewAsCommand(CallerSessionId, CurrentUser.UserId, ClientIpAddress, CallerUserAgent);
+        var command = new EndViewAsCommand(CallerSessionId, CurrentUser.RequirePrincipal().UserId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

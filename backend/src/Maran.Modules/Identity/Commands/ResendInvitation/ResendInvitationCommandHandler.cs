@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Extensions;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
@@ -116,7 +117,7 @@ public sealed class ResendInvitationCommandHandler
         // "administrator X resent an invitation to customer Y" rather than naming the customer as
         // having verified themselves, which they never did.
         await _journal.RecordIdentifiedAsync(
-            _currentUser.UserId,
+            _currentUser.RequirePrincipal().UserId,
             AuditActions.CustomerInvited,
             invitation.Username,
             command.IpAddress,

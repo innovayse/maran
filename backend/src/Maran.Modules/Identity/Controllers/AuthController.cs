@@ -12,6 +12,7 @@ using Maran.Modules.Identity.Commands.RequestPasswordReset;
 using Maran.Modules.Identity.Commands.ResetPassword;
 using Maran.Modules.Identity.Commands.VerifyTwoFactor;
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Extensions;
 using Maran.Modules.Identity.Mappers;
 using Maran.Modules.Identity.Models;
 using Maran.Sdk.Contracts;
@@ -187,7 +188,7 @@ public sealed class AuthController : BaseApiController
     {
         RefreshCookie.Delete(Response);
 
-        var command = new LogoutEverywhereCommand(CurrentUser.UserId, ClientIpAddress, CallerUserAgent);
+        var command = new LogoutEverywhereCommand(CurrentUser.RequirePrincipal().UserId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
@@ -239,7 +240,7 @@ public sealed class AuthController : BaseApiController
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> BeginTwoFactorEnrolmentAsync(CancellationToken cancellationToken)
     {
-        var command = new BeginTotpEnrolmentCommand(CurrentUser.UserId);
+        var command = new BeginTotpEnrolmentCommand(CurrentUser.RequirePrincipal().UserId);
         return ToActionResult(await _bus.InvokeAsync<Result<TotpEnrolmentDto>>(command, cancellationToken));
     }
 
@@ -260,7 +261,7 @@ public sealed class AuthController : BaseApiController
     {
         command = command with
         {
-            UserId = CurrentUser.UserId,
+            UserId = CurrentUser.RequirePrincipal().UserId,
             IpAddress = ClientIpAddress,
             UserAgent = CallerUserAgent,
         };
@@ -284,7 +285,7 @@ public sealed class AuthController : BaseApiController
     {
         command = command with
         {
-            UserId = CurrentUser.UserId,
+            UserId = CurrentUser.RequirePrincipal().UserId,
             IpAddress = ClientIpAddress,
             UserAgent = CallerUserAgent,
         };
@@ -319,7 +320,7 @@ public sealed class AuthController : BaseApiController
     {
         command = command with
         {
-            UserId = CurrentUser.UserId,
+            UserId = CurrentUser.RequirePrincipal().UserId,
             CurrentSessionId = CallerSessionId,
             IpAddress = ClientIpAddress,
             UserAgent = CallerUserAgent,

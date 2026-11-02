@@ -3,6 +3,7 @@ using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Identity.Services;
@@ -76,10 +77,8 @@ public sealed class DatabaseAuditWriter : IAuditWriter
     public async Task WriteAsync(AuditEntry entry, CancellationToken cancellationToken)
     {
         var correlationId = _correlationIdAccessor.CorrelationId;
-        var impersonator = _currentUser.ActorUserId is { } impersonatorUserId
-            ? new AuditImpersonator(
-                impersonatorUserId,
-                ColumnText.Fit(_currentUser.ActorUsername, AuditEvent.ActorUsernameMaxLength))
+        var impersonator = _currentUser.Caller is PrincipalCaller { ViewedBy: { } viewer }
+            ? new AuditImpersonator(viewer.UserId, ColumnText.Fit(viewer.Username, AuditEvent.ActorUsernameMaxLength))
             : null;
 
         _dbContext.AuditEvents.Add(new AuditEvent(

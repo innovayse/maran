@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Identity.Services;
 
@@ -51,12 +52,11 @@ public sealed class SubUserOwnerGuard
     /// </returns>
     public async Task<Result<Guid>> RequireOwnedAccountAsync(CancellationToken cancellationToken)
     {
-        if (_currentUser.AccountId is not { } accountId)
+        if (_currentUser.Caller is not CustomerCaller { AccountId: var accountId, UserId: var userId })
         {
             return Result<Guid>.Fail(Error.Of(nameof(ErrorMessages.SubUsersOwnerOnly), ErrorType.Forbidden));
         }
 
-        var userId = _currentUser.UserId;
         var owns = await _dbContext.AccountMemberships
             .AsNoTracking()
             .AnyAsync(
