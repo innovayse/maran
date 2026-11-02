@@ -343,13 +343,13 @@ export const createAppRouter = (): Router => {
           // ability to send a reset link.
           { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage, meta: { title: 'app.securityPolicy.heading', adminOnly: true } },
           { path: 'smtp', name: 'smtp-settings', component: SmtpSettingsPage, meta: { title: 'app.smtp.heading', adminOnly: true } },
-          // The panel's own certificate (issue #132), reached from the security policy and placed
-          // under it in the breadcrumb.
+          // The panel's own certificate (issue #132): a page of its own under Settings in the menu
+          // (`navigationTree.ts`, issue #311), which places it in the breadcrumb too.
           {
             path: 'panel-certificate',
             name: 'panel-certificate',
             component: PanelCertificatePage,
-            meta: { title: 'panelCertificate.heading', adminOnly: true, navigationParent: 'security-policy' },
+            meta: { title: 'panelCertificate.heading', adminOnly: true },
           },
           // PHP runtimes are server-wide and installing one is administrators' work, so this sits
           // with the other administrator screens and carries no `meta.module`: a host with no PHP

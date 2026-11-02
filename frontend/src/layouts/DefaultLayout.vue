@@ -54,6 +54,7 @@ import ShellTabBar from '../components/shell/ShellTabBar.vue'
 import { useNavigation } from '../composables/useNavigation'
 import { useLocaleStore } from '../stores/locale'
 import { useModulesStore } from '../stores/modules'
+import { useTasksStore } from '../stores/tasks'
 import { FALLBACK_GROUP } from '../router/navigationTree'
 import { locateNavigation } from '../utils/locateNavigation'
 import { PAGE_EYEBROW_KEY } from '../utils/pageEyebrowKey'
@@ -75,6 +76,7 @@ const { t } = useI18n()
 const route = useRoute()
 const entries = useNavigation()
 const modulesStore = useModulesStore()
+const tasksStore = useTasksStore()
 const localeStore = useLocaleStore()
 
 /** Live match for {@link WIDE_QUERY}; kept so its listener can be removed. */
@@ -226,6 +228,10 @@ onMounted((): void => {
 })
 
 onMounted(ensureCatalogueLoaded)
+
+// The failed-task count is the navigation's one badge (issue #311). Read once per shell; the tasks
+// screen re-reads it itself, and a failure leaves no badge rather than a wrong one.
+onMounted(tasksStore.loadFailures)
 
 // The module names in the navigation and the breadcrumb are the panel's own, localized for the
 // language the catalogue was READ in (issue #221). Switching the language live re-reads it, so the

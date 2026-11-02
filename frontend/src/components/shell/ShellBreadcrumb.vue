@@ -31,6 +31,7 @@ import { useDelayedFlag } from '../../composables/useDelayedFlag'
 import { FALLBACK_GROUP } from '../../router/navigationTree'
 import { locateNavigation } from '../../utils/locateNavigation'
 import { PAGE_HEADING_KEY } from '../../utils/pageHeadingKey'
+import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { NavigationEntry } from '../../types/navigation'
 import type { PageHeading } from '../../types/pageHeading'
 
@@ -109,7 +110,7 @@ const placeholderShown: Readonly<Ref<boolean>> = useDelayedFlag((): boolean => {
  * @returns Its label.
  */
 const entryLabel = (entry: NavigationEntry): string => {
-  return entry.labelKey === null ? (entry.label ?? entry.key) : t(entry.labelKey)
+  return navigationLabelText(entry.label, t)
 }
 
 /**

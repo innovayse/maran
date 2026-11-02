@@ -21,12 +21,18 @@
  */
 import UiIcon from './UiIcon.vue'
 import UiNavLink from './UiNavLink.vue'
+import UiNavPlanned from './UiNavPlanned.vue'
 import type { RouteLocationRaw } from 'vue-router'
 
 /** Props accepted by {@link UiNavSection}. */
 defineProps<{
-  /** The section's landing page, passed to the link. */
-  to: RouteLocationRaw
+  /**
+   * The section's landing page, passed to the link; null while none of its pages is built yet, when
+   * the row is drawn disabled and only its toggle works, so the planned pages can still be shown.
+   */
+  to: RouteLocationRaw | null
+  /** The "coming soon" hint of a section with no landing page, already translated. */
+  plannedHint: string
   /** Whether the current page is one of this section's pages; lights the whole row. */
   current: boolean
   /** Whether the section's submenu is open. */
@@ -66,7 +72,10 @@ const toggle = (): void => {
 
 <template>
   <div class="relative">
-    <UiNavLink :to="to" :active="current" trailing :data-nav-section="section" @click="navigate">
+    <UiNavPlanned v-if="to === null" :hint="plannedHint" trailing :data-nav-section="section">
+      <slot />
+    </UiNavPlanned>
+    <UiNavLink v-else :to="to" :active="current" trailing :data-nav-section="section" @click="navigate">
       <slot />
     </UiNavLink>
     <button

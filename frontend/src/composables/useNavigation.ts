@@ -48,7 +48,8 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       ),
       // The panel reports no plan features to the shell yet, so every item is offered.
       planFeatures: null,
-      badges: { runningTasks: tasksStore.runningCount },
+      // The failed count is read once by the shell (`DefaultLayout`); until it answers there is no badge.
+      badges: { failedTasks: tasksStore.failures.state === 'answered' ? tasksStore.failures.count : 0 },
       hasRoute: (name: string): boolean => {
         return router.hasRoute(name)
       },

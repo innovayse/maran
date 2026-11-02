@@ -28,10 +28,11 @@ test('every top-level entry opens a page whose eyebrow is the group the sidebar 
   await openFullShell(page)
   const nav = mainNavigation(page)
   const links = nav.locator('a:not([data-nav-parent])')
-  const count = await links.count()
   // Twelve top-level items for an administrator (issue #311), three of them planned sections drawn
   // without a link: nine built ones on the full catalogue, the system status link among them.
-  expect(count).toBe(9)
+  // Awaited, not read once: the panel's own items are drawn before the catalogue arrives.
+  await expect(links).toHaveCount(9)
+  const count = await links.count()
 
   for (let index = 0; index < count; index++) {
     const link = links.nth(index)

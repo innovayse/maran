@@ -228,8 +228,8 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         children: [
           page('monitoring-metrics', 'app.nav.children.monitoringMetrics', routed('monitoring'), ADMIN, 'monitoring'),
           page('monitoring-logs', 'app.nav.children.monitoringLogs', planned(null), ADMIN, null),
-          { ...page('tasks', 'tasks.list.heading', routed('tasks'), EVERYONE, 'tasks'), badge: 'runningTasks' },
-          page('audit', 'app.nav.auditJournal', routed('audit'), MANAGERS, null),
+          { ...page('tasks', 'tasks.list.heading', routed('tasks'), EVERYONE, 'tasks'), badge: 'failedTasks' },
+          page('audit', 'app.nav.auditJournal', routed('audit'), ADMIN, null),
         ],
       },
     ],

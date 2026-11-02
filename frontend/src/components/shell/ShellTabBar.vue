@@ -34,6 +34,7 @@ import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { RouteLocationRaw } from 'vue-router'
 import type { NavigationEntry } from '../../types/navigation'
 
@@ -107,7 +108,7 @@ const tabs: ComputedRef<Tab[]> = computed(() => {
       chosen.push({
         entry,
         target: entry.state.target,
-        label: entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey),
+        label: navigationLabelText(entry.label, t),
       })
     }
   }

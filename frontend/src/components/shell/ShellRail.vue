@@ -35,6 +35,7 @@ import UiNavItem from '../ui/UiNavItem.vue'
 import UiNavLink from '../ui/UiNavLink.vue'
 import UiNavPlanned from '../ui/UiNavPlanned.vue'
 import { useCurrentSection } from '../../composables/useCurrentSection'
+import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { NavigationEntry } from '../../types/navigation'
 
 /** Props accepted by {@link ShellRail}. */
@@ -73,7 +74,7 @@ let closeTimer: number | undefined
  * @returns The label to render.
  */
 const labelOf = (entry: NavigationEntry): string => {
-  return entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey)
+  return navigationLabelText(entry.label, t)
 }
 
 /**

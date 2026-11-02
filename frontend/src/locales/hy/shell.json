@@ -60,6 +60,9 @@
         "servers": "Սերվերներ",
         "monitoring": "Մոնիտորինգ",
         "settings": "Կարգավորումներ"
+      },
+      "badges": {
+        "failedTasks": "ձախողված"
       }
     },
     "shell": {

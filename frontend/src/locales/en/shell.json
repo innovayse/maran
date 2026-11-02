@@ -60,6 +60,9 @@
         "servers": "Servers",
         "monitoring": "Monitoring",
         "settings": "Settings"
+      },
+      "badges": {
+        "failedTasks": "failed"
       }
     },
     "shell": {

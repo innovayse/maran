@@ -22,8 +22,10 @@ withDefaults(
     compact?: boolean
     /** Draws the row as a child inside a sidebar submenu: shorter, text only. */
     nested?: boolean
+    /** Leaves room at the row's end for the section toggle `UiNavSection` draws over it. */
+    trailing?: boolean
   }>(),
-  { compact: false, nested: false },
+  { compact: false, nested: false, trailing: false },
 )
 </script>
 
@@ -39,14 +41,14 @@ withDefaults(
         ? 'mx-auto size-9 justify-center'
         : nested
           ? 'w-full px-2.5 py-1 max-lg:py-3'
-          : 'w-full px-2.5 py-1.5 max-lg:py-3'
+          : trailing
+            ? 'w-full py-1.5 pr-9 pl-2.5 max-lg:py-3'
+            : 'w-full px-2.5 py-1.5 max-lg:py-3'
     "
     :title="hint"
   >
-    <span
-      class="flex items-center gap-2.5"
-      :class="compact ? 'flex-none' : 'min-w-min flex-1 [&>span]:min-w-0 [&>span]:line-clamp-2 [&>span]:wrap-normal'"
-    >
+    <!-- The label cluster takes the row's width; the caller's label span wraps itself. -->
+    <span class="flex items-center gap-2.5" :class="compact ? 'flex-none' : 'min-w-0 flex-1'">
       <slot />
     </span>
     <span class="sr-only">{{ hint }}</span>
