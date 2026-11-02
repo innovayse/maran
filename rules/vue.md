@@ -33,6 +33,7 @@ Required configuration, at minimum:
   - `types/<domain>.ts` — flat, camelCase, one domain per file, named after it.
   - `utils/<purpose>.ts` — pure helpers, one purpose per file.
   - `assets/css/main.css` (+ tokens), `assets/css/fonts.css` (the self-hosted faces), `assets/css/motion.css` (the panel-wide reduced-motion rule), `assets/icons/`, `locales/{en,ru,hy}/`, `router/index.ts`.
+  - `router/navigationTree.ts` — the navigation tree, the ONE source of every menu (sidebar, rail, drawer, tab bar, jump-to palette, breadcrumb, eyebrow). Its shape is `NavigationGroupSpec` in `types/navigation.ts`, and that shape is the contract between the menus of every role: the administrator's, reseller's and customer's menus are the same tree filtered by `roles`, never a second tree. A page not built yet is listed as `planned` (with its issue) and drawn disabled; it becomes `available` with its route when the page lands. A menu item never invents a route.
 - A feature's files MUST NOT import from another feature's folders — shared things move down (`components/ui`, `composables`, `utils`, `types/common.ts`), same rule as the backend.
 
 ## Modules in the frontend: one bundle, licence-gated
