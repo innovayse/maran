@@ -84,7 +84,7 @@ public sealed class SmtpMailer : IMailer
     }
 
     /// <inheritdoc />
-    public async Task<Result<bool>> SendAsync(
+    public async Task<Result> SendAsync(
         string recipient,
         string subject,
         string body,
@@ -94,13 +94,13 @@ public sealed class SmtpMailer : IMailer
 
         if (profile is null)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.SmtpNotConfigured), ErrorType.Validation));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.SmtpNotConfigured), ErrorType.Validation));
         }
 
         try
         {
             await DeliverAsync(profile, recipient, subject, body, cancellationToken);
-            return Result<bool>.Ok(true);
+            return Result.Ok();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -118,7 +118,7 @@ public sealed class SmtpMailer : IMailer
             // individually would be a list that silently stops covering the seventh, so the catch
             // stays broad and only the KIND of the answer is decided, by ClassifyFailure.
             LogSendFailed(_logger, recipient, exception);
-            return Result<bool>.Fail(ClassifyFailure(exception));
+            return Result.Fail(ClassifyFailure(exception));
         }
     }
 

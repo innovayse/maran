@@ -35,5 +35,5 @@ public interface IMailer
     /// codes because they need separate audit entries and separate answers to the operator: "you have
     /// not set this up", "your provider said no", and "nothing answered, try again later".
     /// </returns>
-    Task<Result<bool>> SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken);
+    Task<Result> SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken);
 }

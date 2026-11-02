@@ -62,7 +62,7 @@ public sealed class RecordingMailer : IMailer
     public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <inheritdoc />
-    public async Task<Result<bool>> SendAsync(
+    public async Task<Result> SendAsync(
         string recipient,
         string subject,
         string body,
@@ -84,6 +84,6 @@ public sealed class RecordingMailer : IMailer
             await Task.Delay(_delay, CancellationToken.None);
         }
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

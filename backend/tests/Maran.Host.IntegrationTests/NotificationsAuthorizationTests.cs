@@ -157,7 +157,7 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
             fromName = "Maran Panel",
             alertRecipient = "ops@example.com",
         });
-        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
 
         var response = await client.GetAsync("/api/v1/notifications/smtp");
         var payload = await response.Content.ReadAsStringAsync();
