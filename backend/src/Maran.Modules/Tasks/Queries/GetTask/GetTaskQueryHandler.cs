@@ -3,6 +3,7 @@ using Maran.Modules.Tasks.Mappers;
 using Maran.Modules.Tasks.Persistence;
 using Maran.Modules.Tasks.Resources;
 using Maran.Modules.Tasks.Services;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Tasks.Queries.GetTask;
 
@@ -61,6 +62,6 @@ public sealed class GetTaskQueryHandler
         return task is null
             ? Result<PanelTaskDto>.Fail(Error.Of(nameof(ErrorMessages.TaskNotFound), ErrorType.NotFound))
             : Result<PanelTaskDto>.Ok(PanelTaskMapper.From(
-                task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.IsAdmin));
+                task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.Caller is AdministratorCaller));
     }
 }

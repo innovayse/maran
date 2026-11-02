@@ -5,6 +5,7 @@ using Maran.Modules.Tasks.Models;
 using Maran.Modules.Tasks.Options;
 using Maran.Modules.Tasks.Persistence;
 using Maran.Modules.Tasks.Resources;
+using Maran.SharedKernel.Callers;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Tasks.Services;
@@ -134,7 +135,7 @@ public sealed class TaskStreamService
             {
                 lastRevision = task.Revision;
                 var snapshot = PanelTaskMapper.From(
-                    task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.IsAdmin);
+                    task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.Caller is AdministratorCaller);
                 yield return TaskFrame.OfTask(snapshot);
             }
 
