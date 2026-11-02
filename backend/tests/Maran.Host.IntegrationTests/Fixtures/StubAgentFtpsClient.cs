@@ -99,24 +99,24 @@ public sealed class StubAgentFtpsClient : IAgentFtpsClient
     /// <param name="ftpsUsername">The login suffix; ignored.</param>
     /// <param name="password">The new password; ignored, and never recorded.</param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string ftpsUsername,
         SensitiveString password,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Accepts the removal.</summary>
     /// <param name="accountUsername">The owning account's system user name; ignored.</param>
     /// <param name="ftpsUsername">The login suffix; ignored.</param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
-    public Task<Result<bool>> DeleteUserAsync(
+    public Task<Result> DeleteUserAsync(
         string accountUsername,
         string ftpsUsername,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 }

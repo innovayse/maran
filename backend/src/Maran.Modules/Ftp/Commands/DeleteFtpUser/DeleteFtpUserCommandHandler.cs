@@ -74,7 +74,7 @@ public sealed class DeleteFtpUserCommandHandler
     /// <param name="command">Which login to remove.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or <c>FtpUserNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>
-    public async Task<Result<bool>> HandleAsync(DeleteFtpUserCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(DeleteFtpUserCommand command, CancellationToken cancellationToken)
     {
         var ftpUser = await _dbContext.FtpUsers
             .SingleOrDefaultAsync(row => row.Id == command.FtpUserId, cancellationToken);
@@ -126,7 +126,7 @@ public sealed class DeleteFtpUserCommandHandler
         await _journal.RecordSuccessAsync(
             FtpAuditJournal.FtpUserDeleted, name, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Journals a refused delete and returns it as the typed failure.</summary>
@@ -135,7 +135,7 @@ public sealed class DeleteFtpUserCommandHandler
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         DeleteFtpUserCommand command,
         string subject,
         Error error,
@@ -144,6 +144,6 @@ public sealed class DeleteFtpUserCommandHandler
         await _journal.RecordFailureAsync(
             FtpAuditJournal.FtpUserDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }

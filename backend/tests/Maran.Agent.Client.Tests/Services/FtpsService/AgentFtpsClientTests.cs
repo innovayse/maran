@@ -610,7 +610,6 @@ public sealed class AgentFtpsClientTests
         var result = await SetPasswordAsync(stub, NullLogger<AgentFtpsClient>.Instance);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>The password change error payload maps to a failed result with the agent code.</summary>
@@ -688,7 +687,6 @@ public sealed class AgentFtpsClientTests
             .DeleteUserAsync("alice", "files", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>Deletion error payload maps to a failed result with the agent code and no agent text.</summary>
@@ -771,7 +769,7 @@ public sealed class AgentFtpsClientTests
     /// <param name="stub">The transport stub to drive.</param>
     /// <param name="logger">The logger the client writes the agent's text to.</param>
     /// <returns>What the client returned.</returns>
-    private static async Task<Result<bool>> SetPasswordAsync(
+    private static async Task<Result> SetPasswordAsync(
         StubFtpsService stub,
         ILogger<AgentFtpsClient> logger)
     {

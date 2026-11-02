@@ -209,7 +209,7 @@ export const stubCreateFtpUserProblem = async (page: Page, detail: string): Prom
 
 /**
  * Fulfils `POST /api/v1/ftp-users/{id}/password` with a new password, and `DELETE
- * /api/v1/ftp-users/{id}` with a success.
+ * /api/v1/ftp-users/{id}` with an empty 204.
  *
  * Installed AFTER {@link stubFtpUsers} in a spec: Playwright gives priority to the most recently
  * registered route, and these two patterns are the narrower ones.
@@ -219,7 +219,7 @@ export const stubCreateFtpUserProblem = async (page: Page, detail: string): Prom
  */
 export const stubFtpUserActions = async (page: Page, fullName: string): Promise<void> => {
   await page.route(FTP_USER_PATTERN, async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 
   await page.route(FTP_USER_PASSWORD_PATTERN, async (route) => {

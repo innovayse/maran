@@ -148,7 +148,7 @@ public sealed class ResilientAgentFtpsClient : IAgentFtpsClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetPasswordAsync(
+    public async Task<Result> SetPasswordAsync(
         string accountUsername,
         string ftpsUsername,
         SensitiveString password,
@@ -169,7 +169,7 @@ public sealed class ResilientAgentFtpsClient : IAgentFtpsClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteUserAsync(
+    public async Task<Result> DeleteUserAsync(
         string accountUsername,
         string ftpsUsername,
         CancellationToken cancellationToken)

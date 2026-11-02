@@ -99,14 +99,14 @@ public sealed class BarrierFtpsAgent : IAgentFtpsClient
     /// <param name="ftpsUsername">The login suffix; ignored.</param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
     /// <returns>Success.</returns>
-    public Task<Result<bool>> DeleteUserAsync(
+    public Task<Result> DeleteUserAsync(
         string accountUsername,
         string ftpsUsername,
         CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _deleteCalls);
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Not exercised by a login creation.</summary>
@@ -159,7 +159,7 @@ public sealed class BarrierFtpsAgent : IAgentFtpsClient
     /// <param name="password">Ignored.</param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string ftpsUsername,
         SensitiveString password,

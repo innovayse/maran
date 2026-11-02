@@ -232,7 +232,7 @@ public sealed class FtpAuthorizationTests : IAsyncLifetime
 
         var response = await client.DeleteAsync($"/api/v1/ftp-users/{world.OwnFtpUserId}");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         using var scope = factory.Services.CreateScope();
         var ftp = scope.ServiceProvider.GetRequiredService<FtpDbContext>();

@@ -311,7 +311,7 @@ public sealed class CreateFtpUserCommandHandler
     /// <param name="command">The creation being recorded, for the journal's subject.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Success, or the typed failure the customer is answered with.</returns>
-    private async Task<Result<bool>> RecordAsync(
+    private async Task<Result> RecordAsync(
         FtpUser ftpUser,
         string accountUsername,
         int allowance,
@@ -322,7 +322,7 @@ public sealed class CreateFtpUserCommandHandler
         {
             if (await _slotGate.TryTakeAsync(ftpUser, allowance, cancellationToken))
             {
-                return Result<bool>.Ok(true);
+                return Result.Ok();
             }
 
             // The gate refused, which means another creation committed the account's last slot while
@@ -332,7 +332,7 @@ public sealed class CreateFtpUserCommandHandler
             // problem and deleting a login the customer no longer needs is what unblocks them.
             await CompensateAsync(accountUsername, command, cancellationToken);
 
-            return Result<bool>.Fail(await FailedErrorAsync(
+            return Result.Fail(await FailedErrorAsync(
                 command,
                 Error.Of(nameof(ErrorMessages.FtpUserLimitReachedConcurrently), ErrorType.Conflict),
                 cancellationToken));
@@ -352,7 +352,7 @@ public sealed class CreateFtpUserCommandHandler
                 // ITS row owns the login now on the host. Nothing is orphaned, and deleting would
                 // revoke a credential the winner has already been shown and cannot be shown again —
                 // so this is the one post-create failure that must NOT compensate.
-                return Result<bool>.Fail(await FailedErrorAsync(
+                return Result.Fail(await FailedErrorAsync(
                     command, Error.Of(nameof(ErrorMessages.FtpUserNameTaken), ErrorType.Conflict), cancellationToken));
             }
 
@@ -361,7 +361,7 @@ public sealed class CreateFtpUserCommandHandler
             // account's home. It goes.
             await CompensateAsync(accountUsername, command, cancellationToken);
 
-            return Result<bool>.Fail(await FailedErrorAsync(
+            return Result.Fail(await FailedErrorAsync(
                 command,
                 Error.Of(nameof(ErrorMessages.FtpUserProvisioningFailed), ErrorType.Failure),
                 cancellationToken));
