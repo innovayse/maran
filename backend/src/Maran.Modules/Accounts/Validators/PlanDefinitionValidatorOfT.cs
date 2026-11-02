@@ -136,8 +136,8 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
             () =>
             {
                 ceiling.RuleFor(c => ((LimitedResourceCeilingDto)c).Maximum)
-                    .OverridePropertyName(nameof(LimitedResourceCeilingDto.Maximum))
-                    .InclusiveBetween(1, maximum);
+                    .InclusiveBetween(1, maximum)
+                    .OverridePropertyName(nameof(LimitedResourceCeilingDto.Maximum));
             });
     }
 }

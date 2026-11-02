@@ -60,6 +60,6 @@ public sealed record ResourceLimit
     /// <returns>The uncapped limit.</returns>
     public static ResourceLimit Unlimited()
     {
-        return new ResourceLimit(null);
+        return new ResourceLimit(maximum: null);
     }
 }

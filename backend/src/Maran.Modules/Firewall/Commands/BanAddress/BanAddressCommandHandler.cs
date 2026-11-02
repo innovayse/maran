@@ -126,7 +126,7 @@ public sealed class BanAddressCommandHandler
         }
 
         var now = _clock.UtcNow;
-        var expiresAt = ttl is null ? (DateTimeOffset?)null : now + ttl.Value;
+        DateTimeOffset? expiresAt = term is AgentBanTerm.ExpiresAfter expiring ? now + expiring.Duration : null;
 
         var standing = await _dbContext.BanEpisodes
             .Where(episode => episode.IpAddress == subject && episode.LiftedAt == null)

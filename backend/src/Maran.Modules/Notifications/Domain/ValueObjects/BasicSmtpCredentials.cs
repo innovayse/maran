@@ -13,7 +13,7 @@ public sealed record BasicSmtpCredentials(string Username, string Password) : Sm
     /// <summary>Prints the user name only, so a logged or formatted value never carries the password.</summary>
     /// <param name="builder">The builder the generated <c>ToString</c> writes into.</param>
     /// <returns><c>true</c>, because a member was written.</returns>
-    private bool PrintMembers(StringBuilder builder)
+    protected override bool PrintMembers(StringBuilder builder)
     {
         builder.Append("Username = ").Append(Username);
 

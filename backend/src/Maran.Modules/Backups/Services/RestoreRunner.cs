@@ -159,7 +159,7 @@ public sealed class RestoreRunner
     /// An <see cref="UnmeasuredRestoreOutcome"/> carrying that error and no figures: the agent said
     /// nothing, so there is nothing to report; the code is what the caller is meant to read.
     /// </returns>
-    private static RestoreRunOutcome Failure(Error failure)
+    private static UnmeasuredRestoreOutcome Failure(Error failure)
     {
         return new UnmeasuredRestoreOutcome(failure);
     }

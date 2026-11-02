@@ -107,7 +107,7 @@ public sealed class ListBackupsQueryHandler
             var owners = await _accounts.FindIdsByNameAsync(term, cancellationToken);
             backups = backups.Where(backup =>
                 owners.Contains(backup.AccountId)
-                || EF.Functions.ILike(backup.DeletedAccountUsername, pattern, LikePattern.EscapeCharacter));
+                || EF.Functions.ILike(backup.DeletedAccountUsername ?? string.Empty, pattern, LikePattern.EscapeCharacter));
         }
 
         var page = await backups.ToPagedAsync(query, ListBackupsSorts.Map, cancellationToken);

@@ -1,5 +1,4 @@
 using Maran.Modules.Identity.Domain.Entities;
-using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;

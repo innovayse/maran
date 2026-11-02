@@ -108,7 +108,7 @@ public sealed class BackupRunner
     /// <summary>Builds the outcome of a run that produced no usable artifact.</summary>
     /// <param name="failureCode">The machine-stable code naming what went wrong.</param>
     /// <returns>A <see cref="FailedBackupOutcome"/> carrying that code and no artifact figures.</returns>
-    private static BackupRunOutcome Failure(string failureCode)
+    private static FailedBackupOutcome Failure(string failureCode)
     {
         return new FailedBackupOutcome(failureCode);
     }

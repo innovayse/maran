@@ -1,6 +1,6 @@
 using Maran.Agent.Client.Services.PhpService;
-using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Enums;
+using PhpVersionDto = Maran.Modules.Sites.Common.PhpVersionDto;
 using AgentPhpVersionDto = Maran.Agent.Client.Services.PhpService.PhpVersionDto;
 
 namespace Maran.Modules.Sites.Mappers;

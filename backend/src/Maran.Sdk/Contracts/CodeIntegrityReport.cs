@@ -26,7 +26,7 @@ namespace Maran.Sdk.Contracts;
 /// <b>Superseded by <see cref="CodeIntegrityVerdict"/>.</b> This flat shape (an outcome beside a
 /// path list and a reason that each mean something for one outcome only) is kept so the closed
 /// PluginLoader, which builds it, keeps compiling against the Sdk. The panel reads only the verdict:
-/// <see cref="CodeIntegrityReportExtensions.ToVerdict"/> is the one place a report is converted.
+/// <see cref="Maran.Sdk.Extensions.CodeIntegrityReportExtensions.ToVerdict"/> is the one place a report is converted.
 /// </para>
 /// </remarks>
 /// <param name="Outcome">

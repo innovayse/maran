@@ -67,10 +67,11 @@ public sealed class SmtpSettingsConfiguration : IEntityTypeConfiguration<SmtpSet
 
         // Encrypted exactly as the legacy Password column is, with the same converter, so the
         // backfill below can copy ciphertext between the two without ever decrypting it. A null
-        // never reaches the converter: EF stores it as NULL.
+        // never reaches the converter: EF stores it as NULL, which is why the `!` is true (the
+        // converter is declared over non-null strings while this property is nullable).
         builder.Property(settings => settings.BasicPassword)
             .HasMaxLength(EncryptedPasswordMaxLength)
-            .HasConversion(new EncryptedStringConverter(_encryptionService));
+            .HasConversion(new EncryptedStringConverter(_encryptionService)!);
 
         // Expand phase of the contract: the three legacy columns the previous release reads stay
         // mapped (to private properties the entity rewrites on every change) until a later release
@@ -113,10 +114,13 @@ public sealed class SmtpSettingsConfiguration : IEntityTypeConfiguration<SmtpSet
 
         // A user name and password exist exactly when the mode is basic. AuthenticationMode 0 is
         // Anonymous and 1 is Basic (SmtpAuthentication), written as the numbers the column holds.
-        builder.ToTable("SmtpSettings", table => table.HasCheckConstraint(
-            "CK_SmtpSettings_BasicCredentialsOnlyInBasicMode",
-            "(\"AuthenticationMode\" = 0 AND \"BasicUsername\" IS NULL AND \"BasicPassword\" IS NULL) "
-            + "OR (\"AuthenticationMode\" = 1 AND \"BasicUsername\" IS NOT NULL AND \"BasicPassword\" IS NOT NULL)"));
+        builder.ToTable("SmtpSettings", table =>
+        {
+            table.HasCheckConstraint(
+                "CK_SmtpSettings_BasicCredentialsOnlyInBasicMode",
+                "(\"AuthenticationMode\" = 0 AND \"BasicUsername\" IS NULL AND \"BasicPassword\" IS NULL) "
+                + "OR (\"AuthenticationMode\" = 1 AND \"BasicUsername\" IS NOT NULL AND \"BasicPassword\" IS NOT NULL)");
+        });
 
         // BACKFILL (expand phase), to be placed verbatim in the Up method of the migration that adds
         // AuthenticationMode, BasicUsername, BasicPassword and AlertRecipientAddress, AFTER the columns
