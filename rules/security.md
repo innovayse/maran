@@ -88,6 +88,21 @@ So the deferral is permitted only in this exact shape, and it is a debt with a n
 
 A note recording the debt is the minimum, never the discharge of it.
 
+### The one recorded exception: beta pre-releases
+
+The owner may decide, in writing and per release, that a **pre-release** (a `-beta.N` tag published
+as a GitHub pre-release) reaches `main` while second reviews are still OUTSTANDING. It is an owner
+decision, never an author's, and it is bounded:
+
+- It applies to the one release it names. The next release needs its own decision.
+- The release notes and that release's CHANGELOG section say, in plain words, that the second
+  review of the privileged changes is outstanding, so nobody running the release mistakes it for
+  reviewed.
+- The threat notes stay OUTSTANDING. Shipping a beta discharges no review.
+- A stable release is never covered: the second reviewer remains a merge gate for it.
+
+Recorded uses: **1.0.0-beta.4**, approved by the owner on 2026-11-01.
+
 ## Disclosure
 
 `SECURITY.md` at repo root carries the report contact and the promise: acknowledge in 48h, fix-or-mitigation target 14 days for critical. Vulnerabilities are never discussed in public issues before a fix ships.
