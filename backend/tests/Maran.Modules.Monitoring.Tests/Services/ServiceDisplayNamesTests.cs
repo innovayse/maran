@@ -22,8 +22,9 @@ public sealed class ServiceDisplayNamesTests
 {
     /// <summary>Every service a row can carry has a name an operator can read.</summary>
     /// <remarks>
-    /// The whole enum, no exemptions — <c>PhpFpm</c> and <c>Ftp</c> included, because "the agent never reports it today" is a fact about the agent,
-    /// not about what this resolver must be able to answer. A member added to the enum without an
+    /// The whole enum, no exemptions — <c>PhpFpm</c> and <c>Ftp</c> included, because "the agent never
+    /// reports it today" is a fact about the agent, not about what this resolver must be able to
+    /// answer. A member added to the enum without an
     /// entry fails this test by name rather than reaching a card as a constant.
     /// </remarks>
     [Fact]
