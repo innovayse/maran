@@ -92,14 +92,14 @@ test('a customer reaches their tasks under Activity, and the breadcrumb says so'
   await expect(breadcrumbItems(page).nth(1)).toHaveText('Activity')
 })
 
-test('a customer reaches their own account and sessions from My account', async ({ page }) => {
+test('a customer reaches their own signed-in devices from My account', async ({ page }) => {
   await signIn(page)
   await openSection(page, 'My account')
   await expect(mainNavigation(page).getByRole('link', { name: 'Sub-users Coming soon' })).toHaveAttribute(
     'aria-disabled',
     'true',
   )
-  await mainNavigation(page).getByRole('link', { name: 'Sessions', exact: true }).click()
+  await mainNavigation(page).getByRole('link', { name: 'Signed-in devices', exact: true }).click()
   await expect(page).toHaveURL('/settings/sessions')
 })
 
