@@ -48,13 +48,18 @@ export const usePlanLimit = (kind: AccountResourceKind, changed: WatchSource): P
 
   const reached: ComputedRef<boolean> = computed((): boolean => {
     const row = usage.value
-    return row !== null && row.state === 'counted' && row.limitKind === 'limited' && row.used >= row.limit
+    return (
+      row !== null &&
+      row.count.state === 'counted' &&
+      row.limit.kind === 'limited' &&
+      row.count.used >= row.limit.maximum
+    )
   })
 
   const reason: ComputedRef<string | null> = computed((): string | null => {
     const row = usage.value
-    return reached.value && row !== null
-      ? t('planLimit.reached', { kind: t(`accounts.resources.kinds.${kind}`), limit: row.limit })
+    return reached.value && row !== null && row.limit.kind === 'limited'
+      ? t('planLimit.reached', { kind: t(`accounts.resources.kinds.${kind}`), limit: row.limit.maximum })
       : null
   })
 

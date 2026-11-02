@@ -32,7 +32,7 @@ const ACCOUNT: AccountDetail = {
 
 const SUMMARY: AccountResourceSummary = {
   accountId: ACCOUNT.id,
-  resources: [{ kind: 'sites', state: 'counted', used: 2, limitKind: 'limited', limit: 5 }],
+  resources: [{ kind: 'sites', count: { state: 'counted', used: 2 }, limit: { kind: 'limited', maximum: 5 } }],
 }
 
 /** The server's refusal the failure cases answer with. */

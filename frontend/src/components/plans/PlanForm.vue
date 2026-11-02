@@ -25,8 +25,8 @@
  * form does not count anything itself.
  *
  * **Runtime ceilings** (CPU, memory, processes; issue #133) are each a figure or a ticked "No limit"
- * (`PlanCeilingField`), never a zero standing for "none" — the server refuses both a limited zero
- * and an unlimited ceiling carrying a figure. A new plan starts with neither, so the administrator
+ * (`PlanCeilingField`), never a zero standing for "none" — the server refuses a limited zero, and an
+ * unlimited ceiling is sent as a case with no figure at all. A new plan starts with neither, so the administrator
  * decides; a changed ceiling is written to every account on the plan at once.
  *
  * **Features** (issue #316) are one checkbox per feature the panel lists (`PlanFeaturesField`); an

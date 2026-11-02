@@ -2,7 +2,6 @@ using FluentValidation.TestHelper;
 using Maran.Modules.Accounts.Commands.CreatePlan;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
-using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Extensions;
@@ -173,16 +172,6 @@ public sealed class CreatePlanCommandValidatorTests
             ValidCommand() with { CpuQuotaPercent = ResourceCeilingTestValues.Limited(cpu) });
 
         result.ShouldHaveValidationErrorFor("CpuQuotaPercent.Maximum");
-    }
-
-    /// <summary>An unlimited ceiling carrying a figure is refused: one field, one meaning.</summary>
-    [Fact]
-    public async Task An_unlimited_ceiling_carrying_a_figure_is_refused()
-    {
-        var result = await _validator.TestValidateAsync(
-            ValidCommand() with { MemoryMaxMb = new ResourceCeilingDto(ResourceLimitKind.Unlimited, 512) });
-
-        result.ShouldHaveValidationErrorFor("MemoryMaxMb.Maximum");
     }
 
     /// <summary>An absent ceiling is refused rather than read as unlimited.</summary>

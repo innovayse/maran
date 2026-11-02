@@ -65,7 +65,7 @@ public sealed class PlansEndpointTests : IAsyncLifetime
             MaxCronEntries = 3,
             MaxPhpWorkersPerPool = 8,
             CpuQuotaPercent = new { Kind = "limited", Maximum = 150 },
-            MemoryMaxMb = new { Kind = "unlimited", Maximum = 0 },
+            MemoryMaxMb = new { Kind = "unlimited" },
             MaxProcesses = new { Kind = "limited", Maximum = 64 },
             Features = new[] { "mail", "dns", "databases", "cron", "fileTransfer", "backups" },
         };

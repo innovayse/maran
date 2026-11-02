@@ -1,7 +1,6 @@
 using FluentValidation;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
-using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Interfaces;
 using Maran.Modules.Accounts.Resources;
 using Maran.Sdk.Extensions;
@@ -120,27 +119,25 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
     }
 
     /// <summary>
-    /// The rules for one runtime ceiling: a known kind, a figure from 1 to the agent's own bound when
-    /// limited, and no figure at all when unlimited — an unlimited ceiling carrying a figure is refused,
-    /// not ignored (one field, one meaning). Child rules rather than a validator class of its own,
-    /// because the module registers every validator type it finds and this one needs its bound.
+    /// The rules for one runtime ceiling: a figure from 1 to the agent's own bound when limited. An
+    /// unlimited ceiling has no figure to check, because the wire shape carries none. Child rules
+    /// rather than a validator class of its own, because the module registers every validator type
+    /// it finds and this one needs its bound.
     /// </summary>
     /// <param name="ceiling">The child validator for the ceiling.</param>
     /// <param name="maximum">The largest figure the agent accepts for this ceiling.</param>
     private static void CeilingRules(InlineValidator<ResourceCeilingDto> ceiling, int maximum)
     {
-        ceiling.RuleFor(c => c.Kind).IsInEnum();
-        ceiling.RuleFor(c => c.Maximum)
-            .InclusiveBetween(1, maximum)
-            .When(c =>
+        ceiling.When(
+            c =>
             {
-                return c.Kind == ResourceLimitKind.Limited;
-            });
-        ceiling.RuleFor(c => c.Maximum)
-            .Equal(0)
-            .When(c =>
+                return c is LimitedResourceCeilingDto;
+            },
+            () =>
             {
-                return c.Kind == ResourceLimitKind.Unlimited;
+                ceiling.RuleFor(c => ((LimitedResourceCeilingDto)c).Maximum)
+                    .OverridePropertyName(nameof(LimitedResourceCeilingDto.Maximum))
+                    .InclusiveBetween(1, maximum);
             });
     }
 }

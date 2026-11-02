@@ -176,7 +176,7 @@ test('a valid plan is posted as typed and shows up in the list', async ({ page }
       maxCronEntries: 7,
       maxPhpWorkersPerPool: 8,
       cpuQuotaPercent: { kind: 'limited', maximum: 150 },
-      memoryMaxMb: { kind: 'unlimited', maximum: 0 },
+      memoryMaxMb: { kind: 'unlimited' },
       maxProcesses: { kind: 'limited', maximum: 64 },
       // A new plan starts with every feature the panel lists ticked, in the panel's order.
       features: ['mail', 'dns', 'databases', 'cron', 'fileTransfer', 'backups'],
@@ -224,9 +224,9 @@ test('editing a plan starts from its figures and puts the whole plan', async ({ 
     maxFtpUsers: 10,
     maxCronEntries: 20,
     maxPhpWorkersPerPool: 10,
-    cpuQuotaPercent: { kind: 'unlimited', maximum: 0 },
-    memoryMaxMb: { kind: 'unlimited', maximum: 0 },
-    maxProcesses: { kind: 'unlimited', maximum: 0 },
+    cpuQuotaPercent: { kind: 'unlimited' },
+    memoryMaxMb: { kind: 'unlimited' },
+    maxProcesses: { kind: 'unlimited' },
     features: ['mail', 'dns', 'databases', 'cron', 'fileTransfer', 'backups'],
   })
   await expect(

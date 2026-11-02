@@ -1,18 +1,6 @@
 import type { AccountFeatureName } from './accountFeature'
-import type { AccountResourceLimitKind } from './accountResourceSummary'
 import type { ListRequest, Paged } from './list'
-
-/**
- * One runtime ceiling of a plan, mirroring the backend's `ResourceCeilingDto`: CPU, memory or
- * processes an account may use at once (issue #133). "No ceiling" is its own case and never a zero;
- * `maximum` is meaningful only when `kind` is `limited`, and is 0 otherwise.
- */
-export interface PlanCeiling {
-  /** Whether the plan caps this resource at all. */
-  kind: AccountResourceLimitKind
-  /** The cap, in the unit the field it sits in names; 0 when `kind` is `unlimited`. */
-  maximum: number
-}
+import type { ResourceCeiling } from './resourceCeiling'
 
 /**
  * One feature a plan can sell, as the panel lists them (`GET /api/v1/plans/features`). The SPA
@@ -55,11 +43,11 @@ export interface ManagedPlan {
   /** How many php-fpm workers one of an account's pools may run. */
   maxPhpWorkersPerPool: number
   /** The share of CPU time an account may use, in percent of one CPU (200 is two whole cores). */
-  cpuQuotaPercent: PlanCeiling
+  cpuQuotaPercent: ResourceCeiling
   /** The most memory an account's processes may hold together, in megabytes. */
-  memoryMaxMb: PlanCeiling
+  memoryMaxMb: ResourceCeiling
   /** The most processes and threads an account may run at once. */
-  maxProcesses: PlanCeiling
+  maxProcesses: ResourceCeiling
   /** The features the plan sells, by name; an empty list sells none. */
   features: AccountFeatureName[]
   /**
@@ -95,11 +83,11 @@ export interface PlanRequest {
   /** php-fpm workers per pool. */
   maxPhpWorkersPerPool: number
   /** The share of CPU time an account may use, in percent of one CPU (200 is two whole cores). */
-  cpuQuotaPercent: PlanCeiling
+  cpuQuotaPercent: ResourceCeiling
   /** The most memory an account's processes may hold together, in megabytes. */
-  memoryMaxMb: PlanCeiling
+  memoryMaxMb: ResourceCeiling
   /** The most processes and threads an account may run at once. */
-  maxProcesses: PlanCeiling
+  maxProcesses: ResourceCeiling
   /** The features the plan sells, by name; an empty list sells none. Always sent: an edit replaces the set. */
   features: AccountFeatureName[]
 }

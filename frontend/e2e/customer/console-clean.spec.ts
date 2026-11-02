@@ -45,7 +45,7 @@ const OWN_ACCOUNT: MyAccount = {
 
 const OWN_RESOURCES: AccountResourceSummary = {
   accountId: OWN_ACCOUNT.id,
-  resources: [{ kind: 'sites', state: 'counted', used: 1, limitKind: 'limited', limit: 1 }],
+  resources: [{ kind: 'sites', count: { state: 'counted', used: 1 }, limit: { kind: 'limited', maximum: 1 } }],
 }
 
 const MODULES: PanelModule[] = [

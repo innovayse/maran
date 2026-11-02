@@ -1,5 +1,4 @@
 using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Domain.Enums;
 
 namespace Maran.Modules.Accounts.Tests.TestSupport;
 
@@ -7,13 +6,13 @@ namespace Maran.Modules.Accounts.Tests.TestSupport;
 public static class ResourceCeilingTestValues
 {
     /// <summary>"No ceiling", as an administrator sends it.</summary>
-    public static ResourceCeilingDto Unlimited { get; } = new(ResourceLimitKind.Unlimited, 0);
+    public static ResourceCeilingDto Unlimited { get; } = new UnlimitedResourceCeilingDto();
 
     /// <summary>A ceiling at <paramref name="maximum"/>.</summary>
     /// <param name="maximum">The figure.</param>
     /// <returns>The limited wire ceiling.</returns>
     public static ResourceCeilingDto Limited(int maximum)
     {
-        return new ResourceCeilingDto(ResourceLimitKind.Limited, maximum);
+        return new LimitedResourceCeilingDto(maximum);
     }
 }

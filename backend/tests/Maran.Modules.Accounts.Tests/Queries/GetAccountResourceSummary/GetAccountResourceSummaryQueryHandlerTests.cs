@@ -1,5 +1,5 @@
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
-using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.GetAccountResourceSummary;
 using Maran.Modules.Accounts.Services;
@@ -58,16 +58,14 @@ public sealed class GetAccountResourceSummaryQueryHandlerTests : IDisposable
             row =>
             {
                 Assert.Equal(AccountResourceKind.Sites, row.Kind);
-                Assert.Equal(AccountResourceCountState.Counted, row.State);
-                Assert.Equal(7, row.Used);
-                Assert.Equal(ResourceLimitKind.Limited, row.LimitKind);
-                Assert.Equal(10, row.Limit);
+                Assert.Equal(new CountedResourceCountDto(7), row.Count);
+                Assert.Equal(new LimitedResourceCeilingDto(10), row.Limit);
             },
             row =>
             {
                 Assert.Equal(AccountResourceKind.Databases, row.Kind);
-                Assert.Equal(1, row.Used);
-                Assert.Equal(5, row.Limit);
+                Assert.Equal(new CountedResourceCountDto(1), row.Count);
+                Assert.Equal(new LimitedResourceCeilingDto(5), row.Limit);
             });
         Assert.Equal([accountId], sites.Asked);
     }
@@ -83,8 +81,8 @@ public sealed class GetAccountResourceSummaryQueryHandlerTests : IDisposable
             new GetAccountResourceSummaryQuery(accountId), CancellationToken.None);
 
         var row = Assert.Single(result.Value.Resources);
-        Assert.Equal(4, row.Used);
-        Assert.Equal(ResourceLimitKind.Unlimited, row.LimitKind);
+        Assert.Equal(new CountedResourceCountDto(4), row.Count);
+        Assert.Equal(new UnlimitedResourceCeilingDto(), row.Limit);
     }
 
     /// <summary>A kind with no registered counter is left out rather than reported as zero.</summary>
@@ -111,9 +109,8 @@ public sealed class GetAccountResourceSummaryQueryHandlerTests : IDisposable
             new GetAccountResourceSummaryQuery(accountId), CancellationToken.None);
 
         var row = Assert.Single(result.Value.Resources);
-        Assert.Equal(AccountResourceCountState.Unavailable, row.State);
-        Assert.Equal(ResourceLimitKind.Limited, row.LimitKind);
-        Assert.Equal(3, row.Limit);
+        Assert.Equal(new UnavailableResourceCountDto(), row.Count);
+        Assert.Equal(new LimitedResourceCeilingDto(3), row.Limit);
     }
 
     /// <summary>Seeds one account on a plan selling 10 sites, 5 databases, 4 SFTP, 2 FTPS and 3 cron entries.</summary>

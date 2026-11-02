@@ -196,9 +196,9 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
             MaxFtpUsers = 0,
             MaxCronEntries = 5,
             MaxPhpWorkersPerPool = 5,
-            CpuQuotaPercent = new { Kind = "unlimited", Maximum = 0 },
-            MemoryMaxMb = new { Kind = "unlimited", Maximum = 0 },
-            MaxProcesses = new { Kind = "unlimited", Maximum = 0 },
+            CpuQuotaPercent = new { Kind = "unlimited" },
+            MemoryMaxMb = new { Kind = "unlimited" },
+            MaxProcesses = new { Kind = "unlimited" },
         };
 
         var created = await admin.PostAsJsonAsync("/api/v1/plans", withoutFeatures);
@@ -229,9 +229,9 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
             MaxFtpUsers = 0,
             MaxCronEntries = 5,
             MaxPhpWorkersPerPool = 5,
-            CpuQuotaPercent = new { Kind = "unlimited", Maximum = 0 },
-            MemoryMaxMb = new { Kind = "unlimited", Maximum = 0 },
-            MaxProcesses = new { Kind = "unlimited", Maximum = 0 },
+            CpuQuotaPercent = new { Kind = "unlimited" },
+            MemoryMaxMb = new { Kind = "unlimited" },
+            MaxProcesses = new { Kind = "unlimited" },
             Features = features,
         };
     }
