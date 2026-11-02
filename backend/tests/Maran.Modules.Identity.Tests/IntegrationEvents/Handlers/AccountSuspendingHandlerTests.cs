@@ -90,7 +90,7 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
         await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
 
         var user = await _context.Users.SingleAsync(candidate => candidate.AccountId == AccountId);
-        Assert.Equal(UserState.Suspended, user.State);
+        Assert.Equal(UserLifecycle.Suspended, user.Lifecycle);
     }
 
     /// <summary>Suspension leaves an invited login invited, so the unused invitation survives.</summary>
@@ -110,7 +110,7 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
         await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
 
         var stored = await _context.Users.SingleAsync(candidate => candidate.AccountId == AccountId);
-        Assert.Equal(UserState.Invited, stored.State);
+        Assert.Equal(UserLifecycle.InvitedAccountSuspended, stored.Lifecycle);
     }
 
     /// <summary>An account with no login at all is left with nothing to do.</summary>
