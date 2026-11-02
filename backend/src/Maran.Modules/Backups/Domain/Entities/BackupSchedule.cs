@@ -120,7 +120,7 @@ public sealed class BackupSchedule
     }
 
     /// <summary>The stored frequency column; reached only through <see cref="Cadence"/>.</summary>
-    private BackupFrequency Frequency { get; set; }
+    internal BackupFrequency Frequency { get; private set; }
 
     /// <summary>
     /// The stored hour column, in UTC; reached only through <see cref="Cadence"/>.
@@ -130,7 +130,7 @@ public sealed class BackupSchedule
     /// changed underneath a schedule — and because a schedule read back through the API has to mean
     /// the same thing to a panel, a customer and an operator in three time zones.
     /// </remarks>
-    private int HourUtc { get; set; }
+    internal int HourUtc { get; private set; }
 
     /// <summary>The stored weekday column, set only for a weekly cadence.</summary>
     /// <remarks>
@@ -139,7 +139,7 @@ public sealed class BackupSchedule
     /// the BCL type of the same name for every signature inside this class — the collision is silent
     /// and the first thing it breaks is a member declaration that reads perfectly.
     /// </remarks>
-    private DayOfWeek? DayOfWeekUtc { get; set; }
+    internal DayOfWeek? DayOfWeekUtc { get; private set; }
 
     /// <summary>How many successful backups of this account are kept before the oldest are pruned.</summary>
     public int RetainCount { get; private set; }
@@ -150,7 +150,7 @@ public sealed class BackupSchedule
     /// release before this one, which still reads the column, sees the truth after an update is
     /// rolled back. Dropped in the contract phase, a release after the code that reads it is gone.
     /// </remarks>
-    private bool LegacyEnabled { get; set; }
+    internal bool LegacyEnabled { get; private set; }
 
     /// <summary>
     /// The instant the schedule was last switched on, or <c>null</c> while it is switched off. The

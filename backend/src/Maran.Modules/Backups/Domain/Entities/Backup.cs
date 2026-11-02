@@ -96,7 +96,7 @@ public sealed class Backup
     /// Written by <see cref="Completed"/> in step with <see cref="ArtifactSha256"/> and read by
     /// nothing in this release. Dropped in a later release (contract phase).
     /// </remarks>
-    private string LegacySha256 { get; set; }
+    internal string LegacySha256 { get; private set; }
 
     /// <summary>How many database dumps the finished archive contains.</summary>
     public int DatabaseCount { get; private set; }
@@ -115,7 +115,7 @@ public sealed class Backup
     /// Written by <see cref="Failed"/> in step with <see cref="RunFailureCode"/> and read by nothing
     /// in this release. Dropped in a later release (contract phase).
     /// </remarks>
-    private string LegacyFailureCode { get; set; }
+    internal string LegacyFailureCode { get; private set; }
 
     /// <summary>
     /// The system user name of the account this backs up, recorded only once that account has been
@@ -151,7 +151,7 @@ public sealed class Backup
     /// Written by <see cref="Orphan"/> in step with <see cref="DeletedAccountUsername"/> and read by
     /// nothing in this release. Dropped in a later release (contract phase).
     /// </remarks>
-    private string LegacyOrphanedAccountUsername { get; set; }
+    internal string LegacyOrphanedAccountUsername { get; private set; }
 
     /// <summary>Opens the record of a backup that has just been started.</summary>
     /// <param name="id">The identity, which is also the agent's backup id.</param>
