@@ -26,13 +26,13 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
-import FirewallLockoutDialog from '../../components/firewall/FirewallLockoutDialog.vue'
+import FirewallLockoutDialog, { type PendingFirewallChange } from '../../components/firewall/FirewallLockoutDialog.vue'
 import FirewallPresetButtons from '../../components/firewall/FirewallPresetButtons.vue'
 import FirewallRuleForm from '../../components/firewall/FirewallRuleForm.vue'
 import FirewallRulesTable from '../../components/firewall/FirewallRulesTable.vue'
 import { useFirewallStore } from '../../stores/firewall'
 import { isAnySourceRange } from '../../utils/anySourceRange'
-import type { FirewallRule, FirewallRuleChange } from '../../types/firewall'
+import type { FirewallRule } from '../../types/firewall'
 
 const { t } = useI18n()
 const store = useFirewallStore()
@@ -40,14 +40,8 @@ const store = useFirewallStore()
 /** The rule form, so an accepted change can empty the fields it owns. */
 const ruleForm = useTemplateRef<{ reset: () => void }>('ruleForm')
 
-/** The rules awaiting the lockout confirmation, or empty when nothing is. */
-const pendingRules: Ref<FirewallRule[]> = ref([])
-
-/** Which way the pending change goes. */
-const pendingIntent: Ref<FirewallRuleChange> = ref('allow')
-
-/** Whether the pending change came from the raw form, whose fields are emptied once it lands. */
-const pendingFromForm: Ref<boolean> = ref(false)
+/** The change awaiting the lockout confirmation, or `null` when nothing is. */
+const pending: Ref<PendingFirewallChange | null> = ref(null)
 
 /** The success toast's text after a rule was installed, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
@@ -63,20 +57,18 @@ const hasNoRules: ComputedRef<boolean> = computed(() => {
 })
 
 /**
- * Whether the pending removal would leave the host running no rule at all for one of the ports it
- * names — the case the confirmation calls out, because if that port is the SSH port the panel's
+ * Whether removing these rules would leave the host running no rule at all for one of the ports
+ * they name — the case the confirmation calls out, because if that port is the SSH port the panel's
  * unconditional accept comes back and SSH is reachable from every source again.
+ * @param removing The rules about to be removed.
+ * @returns True when at least one named port would be left with no rule.
  */
-const leavesPortsUnruled: ComputedRef<boolean> = computed(() => {
-  if (pendingIntent.value !== 'deny') {
-    return false
-  }
-
+const leavesPortsUnruled = (removing: readonly FirewallRule[]): boolean => {
   // What the host would still be running once the pending removal has been sent. A rule is matched
   // on all three of its values because all three of them ARE the rule — there is no identifier to
   // compare instead.
   const survivors = store.rules.filter((existing) => {
-    return !pendingRules.value.some((removed) => {
+    return !removing.some((removed) => {
       return (
         removed.port === existing.port &&
         removed.protocol === existing.protocol &&
@@ -85,12 +77,12 @@ const leavesPortsUnruled: ComputedRef<boolean> = computed(() => {
     })
   })
 
-  return pendingRules.value.some((pending) => {
+  return removing.some((removed) => {
     return !survivors.some((survivor) => {
-      return survivor.port === pending.port
+      return survivor.port === removed.port
     })
   })
-})
+}
 
 /**
  * Loads every rule the host is running.
@@ -136,9 +128,7 @@ const requestAllow = async (rules: FirewallRule[], fromForm: boolean): Promise<v
     return rule.protocol === 'tcp' && !isAnySourceRange(rule.sourceCidr)
   })
   if (risky) {
-    pendingIntent.value = 'allow'
-    pendingFromForm.value = fromForm
-    pendingRules.value = rules
+    pending.value = { intent: 'allow', rules, fromForm }
     return
   }
 
@@ -155,9 +145,7 @@ const requestDeny = (rules: FirewallRule[]): void => {
   if (rules.length === 0) {
     return
   }
-  pendingIntent.value = 'deny'
-  pendingFromForm.value = false
-  pendingRules.value = rules
+  pending.value = { intent: 'deny', rules, leavesPortsUnruled: leavesPortsUnruled(rules) }
 }
 
 /**
@@ -165,16 +153,17 @@ const requestDeny = (rules: FirewallRule[]): void => {
  * @returns Resolves once it has settled.
  */
 const confirmPending = async (): Promise<void> => {
-  const rules = pendingRules.value
-  const intent = pendingIntent.value
-  const fromForm = pendingFromForm.value
-  pendingRules.value = []
-
-  if (intent === 'allow') {
-    await allow(rules, fromForm)
+  const change = pending.value
+  pending.value = null
+  if (change === null) {
     return
   }
-  await store.denyPorts(rules)
+
+  if (change.intent === 'allow') {
+    await allow(change.rules, change.fromForm)
+    return
+  }
+  await store.denyPorts(change.rules)
 }
 
 /**
@@ -182,7 +171,7 @@ const confirmPending = async (): Promise<void> => {
  * @returns Nothing.
  */
 const cancelPending = (): void => {
-  pendingRules.value = []
+  pending.value = null
 }
 
 /**
@@ -287,14 +276,12 @@ onMounted(refresh)
       </UiCard>
     </UiLoadingRegion>
 
-    <!-- `:open` is bound to a value that really changes, and the dialog is NOT wrapped in a `v-if`:
-         created with the prop already true, `UiModal`s open-watcher never runs, so focus never
-         enters the dialog and Escape never reaches it. It renders nothing while closed. -->
+    <!-- Mounted only while a change waits: its props describe that change and mean nothing
+         otherwise. `UiModal`s open-watcher is `immediate`, so a dialog created already open still
+         takes focus and hears Escape. -->
     <FirewallLockoutDialog
-      :open="pendingRules.length > 0"
-      :intent="pendingIntent"
-      :rules="pendingRules"
-      :leaves-ports-unruled="leavesPortsUnruled"
+      v-if="pending !== null"
+      :change="pending"
       :busy="store.acting"
       @confirm="confirmPending"
       @close="cancelPending"
