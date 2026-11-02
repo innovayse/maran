@@ -30,27 +30,27 @@ public static class CodeIntegrityReportExtensions
         switch (report.Outcome)
         {
             case CodeIntegrityOutcome.Clean:
-            {
-                return new CleanCodeIntegrityVerdict(report.InstalledVersion, report.ObservedAt);
-            }
+                {
+                    return new CleanCodeIntegrityVerdict(report.InstalledVersion, report.ObservedAt);
+                }
 
             case CodeIntegrityOutcome.Drifted:
-            {
-                return new DriftedCodeIntegrityVerdict(report.InstalledVersion, report.DifferingPaths, report.ObservedAt);
-            }
+                {
+                    return new DriftedCodeIntegrityVerdict(report.InstalledVersion, report.DifferingPaths, report.ObservedAt);
+                }
 
             case CodeIntegrityOutcome.Unavailable:
-            {
-                return new UnavailableCodeIntegrityVerdict(
-                    report.InstalledVersion,
-                    report.UnavailableReason ?? string.Empty,
-                    report.ObservedAt);
-            }
+                {
+                    return new UnavailableCodeIntegrityVerdict(
+                        report.InstalledVersion,
+                        report.UnavailableReason ?? string.Empty,
+                        report.ObservedAt);
+                }
 
             default:
-            {
-                throw new ArgumentOutOfRangeException(nameof(report), report.Outcome, "Unknown code-integrity outcome.");
-            }
+                {
+                    throw new ArgumentOutOfRangeException(nameof(report), report.Outcome, "Unknown code-integrity outcome.");
+                }
         }
     }
 }

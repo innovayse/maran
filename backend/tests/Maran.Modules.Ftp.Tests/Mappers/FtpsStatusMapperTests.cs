@@ -1,8 +1,8 @@
 using Maran.Modules.Ftp.Domain.Enums;
 using Maran.Modules.Ftp.Mappers;
 using AgentFtpsCertificate = Maran.Agent.Client.Services.FtpsService.FtpsCertificate;
-using AgentFtpsTlsEnforcement = Maran.Agent.Client.Services.FtpsService.FtpsTlsEnforcement;
 using AgentFtpsStatus = Maran.Agent.Client.Services.FtpsService.FtpsStatusDto;
+using AgentFtpsTlsEnforcement = Maran.Agent.Client.Services.FtpsService.FtpsTlsEnforcement;
 
 namespace Maran.Modules.Ftp.Tests.Mappers;
 

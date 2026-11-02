@@ -172,83 +172,83 @@ public sealed class AlertObserver
         switch (codeIntegrityVerdict)
         {
             case DriftedCodeIntegrityVerdict { DifferingPaths.Count: 0 } malformed:
-            {
-                // A contract violation: a correct comparison never reports Drifted with nothing
-                // named. Never interpreted charitably as Clean, and never treated as Unavailable
-                // either — that case is reserved for "the comparison could not run", not "the
-                // closed side sent a report this repository cannot trust." Logged and otherwise
-                // ignored this round: neither InstalledFilesSubject nor HashListSubject is observed
-                // from it, so it can neither raise nor resolve either alert.
-                await _journal.RecordSystemAsync(
-                    AuditActions.CodeIntegrityReportRejected,
-                    $"version={malformed.InstalledVersion};outcome=Drifted;paths=0",
-                    succeeded: false,
-                    cancellationToken);
-                break;
-            }
+                {
+                    // A contract violation: a correct comparison never reports Drifted with nothing
+                    // named. Never interpreted charitably as Clean, and never treated as Unavailable
+                    // either — that case is reserved for "the comparison could not run", not "the
+                    // closed side sent a report this repository cannot trust." Logged and otherwise
+                    // ignored this round: neither InstalledFilesSubject nor HashListSubject is observed
+                    // from it, so it can neither raise nor resolve either alert.
+                    await _journal.RecordSystemAsync(
+                        AuditActions.CodeIntegrityReportRejected,
+                        $"version={malformed.InstalledVersion};outcome=Drifted;paths=0",
+                        succeeded: false,
+                        cancellationToken);
+                    break;
+                }
 
             case UnavailableCodeIntegrityVerdict unavailable:
-            {
-                var transition = await ObserveAsync(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.HashListSubject,
-                    breaching: true,
-                    observedAt,
-                    cancellationToken);
+                {
+                    var transition = await ObserveAsync(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.HashListSubject,
+                        breaching: true,
+                        observedAt,
+                        cancellationToken);
 
-                pending.Add(new PendingAlert(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.HashListSubject,
-                    AlertEvaluator.HashListSubject,
-                    transition,
-                    unavailable.Reason));
+                    pending.Add(new PendingAlert(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.HashListSubject,
+                        AlertEvaluator.HashListSubject,
+                        transition,
+                        unavailable.Reason));
 
-                // A report that could not run says nothing about whether the files themselves
-                // differ. It must not implicitly resolve an already-open InstalledFilesSubject
-                // episode — that would require an actual Clean comparison, which this round did not
-                // get.
-                break;
-            }
+                    // A report that could not run says nothing about whether the files themselves
+                    // differ. It must not implicitly resolve an already-open InstalledFilesSubject
+                    // episode — that would require an actual Clean comparison, which this round did not
+                    // get.
+                    break;
+                }
 
             case DriftedCodeIntegrityVerdict drifted:
-            {
-                var filesTransition = await ObserveAsync(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.InstalledFilesSubject,
-                    breaching: true,
-                    observedAt,
-                    cancellationToken);
+                {
+                    var filesTransition = await ObserveAsync(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.InstalledFilesSubject,
+                        breaching: true,
+                        observedAt,
+                        cancellationToken);
 
-                pending.Add(new PendingAlert(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.InstalledFilesSubject,
-                    AlertDetailMapper.FormatDifferingPathsAuditSubject(drifted, AlertEvaluator.InstalledFilesSubject),
-                    filesTransition,
-                    AlertDetailMapper.FormatDifferingPathsBody(drifted.DifferingPaths)));
+                    pending.Add(new PendingAlert(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.InstalledFilesSubject,
+                        AlertDetailMapper.FormatDifferingPathsAuditSubject(drifted, AlertEvaluator.InstalledFilesSubject),
+                        filesTransition,
+                        AlertDetailMapper.FormatDifferingPathsBody(drifted.DifferingPaths)));
 
-                await ResolveHashListAsync(pending, observedAt, cancellationToken);
-                break;
-            }
+                    await ResolveHashListAsync(pending, observedAt, cancellationToken);
+                    break;
+                }
 
             case CleanCodeIntegrityVerdict:
-            {
-                var filesTransition = await ObserveAsync(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.InstalledFilesSubject,
-                    breaching: false,
-                    observedAt,
-                    cancellationToken);
+                {
+                    var filesTransition = await ObserveAsync(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.InstalledFilesSubject,
+                        breaching: false,
+                        observedAt,
+                        cancellationToken);
 
-                pending.Add(new PendingAlert(
-                    AlertKind.CodeIntegrityDrifted,
-                    AlertEvaluator.InstalledFilesSubject,
-                    AlertEvaluator.InstalledFilesSubject,
-                    filesTransition,
-                    string.Empty));
+                    pending.Add(new PendingAlert(
+                        AlertKind.CodeIntegrityDrifted,
+                        AlertEvaluator.InstalledFilesSubject,
+                        AlertEvaluator.InstalledFilesSubject,
+                        filesTransition,
+                        string.Empty));
 
-                await ResolveHashListAsync(pending, observedAt, cancellationToken);
-                break;
-            }
+                    await ResolveHashListAsync(pending, observedAt, cancellationToken);
+                    break;
+                }
         }
 
         return pending;
