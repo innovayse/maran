@@ -144,7 +144,7 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     /// <param name="retiredPhpVersion">The pool version to retire, which a compensation leaves empty.</param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
     /// <returns>Success.</returns>
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -160,7 +160,7 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
             _deletedDomains.Add(domain);
         }
 
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Not exercised by a site creation.</summary>
@@ -173,7 +173,7 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     /// <param name="removePreviousPool">Ignored.</param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> ChangePhpVersionAsync(
+    public Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -192,7 +192,7 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     /// <param name="site">Ignored.</param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> EnableAsync(
+    public Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -207,7 +207,7 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     /// <param name="site">Ignored.</param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> DisableAsync(
+    public Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -236,7 +236,7 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     /// <summary>Not exercised by a site creation.</summary>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         throw new NotSupportedException("This double answers site creation and deletion only.");
     }

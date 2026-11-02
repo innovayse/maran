@@ -122,7 +122,7 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
     /// <param name="removePreviousPool">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> ChangePhpVersionAsync(
+    public Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -141,7 +141,7 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
     /// <param name="site">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> EnableAsync(
+    public Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -156,7 +156,7 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
     /// <param name="site">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> DisableAsync(
+    public Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -171,7 +171,7 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
     /// <param name="retiredPhpVersion">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -183,7 +183,7 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
     /// <summary>Not exercised by these tests.</summary>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }

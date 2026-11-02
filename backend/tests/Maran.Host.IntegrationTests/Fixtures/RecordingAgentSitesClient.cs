@@ -36,7 +36,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <param name="retiredPhpVersion">The pool version this removal retires, or the empty string.</param>
     /// <param name="cancellationToken">Unused: nothing here awaits.</param>
     /// <returns>Success, or the configured refusal.</returns>
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -45,8 +45,8 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         Deleted.Add((accountUsername, domain, retiredPhpVersion));
 
         return Task.FromResult(RefuseWith is null
-            ? Result<bool>.Ok(true)
-            : Result<bool>.Fail(Error.Of(RefuseWith, ErrorType.Failure)));
+            ? Result.Ok()
+            : Result.Fail(Error.Of(RefuseWith, ErrorType.Failure)));
     }
 
     /// <summary>Not exercised by these tests; a call would be a test asking the wrong question.</summary>
@@ -101,7 +101,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <param name="removePreviousPool">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> ChangePhpVersionAsync(
+    public Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -120,7 +120,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <param name="site">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> EnableAsync(
+    public Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -135,7 +135,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <param name="site">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> DisableAsync(
+    public Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -147,7 +147,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <summary>Not exercised by these tests.</summary>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }

@@ -627,7 +627,7 @@ public sealed class AgentSitesClientTests
     /// <summary>Calls the production php-version path with fixed arguments.</summary>
     /// <param name="stub">The transport stub to drive.</param>
     /// <returns>What the client returned.</returns>
-    private static async Task<SharedKernel.Results.Result<bool>> ChangePhpVersionAsync(StubSitesService stub)
+    private static async Task<SharedKernel.Results.Result> ChangePhpVersionAsync(StubSitesService stub)
     {
         return await NewClient(stub).ChangePhpVersionAsync(
             "acc1",
