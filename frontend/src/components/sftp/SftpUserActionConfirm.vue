@@ -7,15 +7,7 @@
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiConfirm from '../ui/UiConfirm.vue'
-import type { SftpUser, SftpUserAction } from '../../types/sftpUser'
-
-/** A login and the action the operator started on it; the two are only ever known together. */
-export interface PendingSftpUserAction {
-  /** The login the action is aimed at. */
-  login: SftpUser
-  /** Which action that login is waiting on. */
-  action: SftpUserAction
-}
+import type { PendingSftpUserAction } from '../../types/sftpUser'
 
 /** Props accepted by {@link SftpUserActionConfirm}; the page mounts it only while an action waits. */
 const props = defineProps<{

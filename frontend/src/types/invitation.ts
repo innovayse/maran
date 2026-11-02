@@ -75,7 +75,6 @@ export interface InvitationsApi {
    * already existed. Administrator-only on the server.
    * @param accountId The hosting account whose owner is being (re)invited.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once a new invitation was sent.
    */
-  resend: (accountId: string, signal?: AbortSignal) => Promise<boolean>
+  resend: (accountId: string, signal?: AbortSignal) => Promise<void>
 }

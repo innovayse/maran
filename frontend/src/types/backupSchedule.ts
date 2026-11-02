@@ -113,7 +113,7 @@ export interface BackupSchedule {
  * A scope nobody has configured is an ordinary `200` with `schedule: null` — the first state of every
  * fresh server, not a failure. The panel invents no default, so there is nothing else to show.
  */
-export interface BackupScheduleScope {
+export interface BackupScheduleScopeView {
   /**
    * The schedule recorded for the scope, or `null` when none has ever been saved for it. A recorded
    * schedule that is switched off is present, with `enabled: false`.
@@ -176,7 +176,7 @@ export interface BackupSchedulesApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The scope, holding its schedule or none.
    */
-  get: (accountId: string | null, signal?: AbortSignal) => Promise<BackupScheduleScope>
+  get: (accountId: string | null, signal?: AbortSignal) => Promise<BackupScheduleScopeView>
 
   /**
    * Creates or replaces one schedule and answers with what was stored.

@@ -107,7 +107,6 @@ export interface CertificatesApi {
    * Removes an installed certificate; the site returns to serving plain HTTP.
    * @param id The certificate to remove.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed it.
    */
-  remove: (id: string, signal?: AbortSignal) => Promise<boolean>;
+  remove: (id: string, signal?: AbortSignal) => Promise<void>;
 }

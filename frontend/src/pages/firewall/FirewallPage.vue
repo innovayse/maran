@@ -26,13 +26,13 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
-import FirewallLockoutDialog, { type PendingFirewallChange } from '../../components/firewall/FirewallLockoutDialog.vue'
+import FirewallLockoutDialog from '../../components/firewall/FirewallLockoutDialog.vue'
 import FirewallPresetButtons from '../../components/firewall/FirewallPresetButtons.vue'
 import FirewallRuleForm from '../../components/firewall/FirewallRuleForm.vue'
 import FirewallRulesTable from '../../components/firewall/FirewallRulesTable.vue'
 import { useFirewallStore } from '../../stores/firewall'
 import { isAnySourceRange } from '../../utils/anySourceRange'
-import type { FirewallRule } from '../../types/firewall'
+import type { FirewallRule, PendingFirewallChange } from '../../types/firewall'
 
 const { t } = useI18n()
 const store = useFirewallStore()

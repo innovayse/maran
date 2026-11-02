@@ -52,5 +52,5 @@ export interface ViewAsApi {
   /** Starts viewing as an account's login. */
   start: (request: StartViewAsRequest, signal?: AbortSignal) => Promise<ViewAsSession>
   /** Ends the view-as session the current token belongs to. */
-  stop: (signal?: AbortSignal) => Promise<boolean>
+  stop: (signal?: AbortSignal) => Promise<void>
 }

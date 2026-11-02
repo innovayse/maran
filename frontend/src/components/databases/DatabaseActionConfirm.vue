@@ -12,15 +12,7 @@
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiConfirm from '../ui/UiConfirm.vue'
-import type { Database, DatabaseAction } from '../../types/database'
-
-/** A database and the action the operator started on it; the two are only ever known together. */
-export interface PendingDatabaseAction {
-  /** The database the action is aimed at. */
-  database: Database
-  /** Which action that database is waiting on. */
-  action: DatabaseAction
-}
+import type { PendingDatabaseAction } from '../../types/database'
 
 /** Props accepted by {@link DatabaseActionConfirm}; the page mounts it only while an action waits. */
 const props = defineProps<{

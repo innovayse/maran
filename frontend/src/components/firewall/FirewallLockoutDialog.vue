@@ -28,35 +28,7 @@ import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiModal from '../ui/UiModal.vue'
 import { portRangeLabel } from '../../utils/portRangeLabel'
-import type { FirewallRule } from '../../types/firewall'
-
-/**
- * A rule change waiting on the lockout confirmation. The two arms carry different facts, so each
- * holds only its own: an allow remembers where it came from, a removal remembers what it would
- * leave behind.
- */
-export type PendingFirewallChange =
-  | {
-      /** The change installs rules. */
-      intent: 'allow'
-      /** The rules the change covers, spelled as they will be sent. */
-      rules: readonly FirewallRule[]
-      /** Whether the raw form produced them, whose fields are emptied once the change lands. */
-      fromForm: boolean
-    }
-  | {
-      /** The change removes rules. */
-      intent: 'deny'
-      /** The rules the change covers, spelled as they will be sent. */
-      rules: readonly FirewallRule[]
-      /**
-       * Whether the change would leave the host with no rule at all for one of the ports it names.
-       *
-       * True is the case the plan calls "removing the last one": if that port is the SSH port, the
-       * panel's unconditional accept comes back and SSH is reachable from every source again.
-       */
-      leavesPortsUnruled: boolean
-    }
+import type { FirewallRule, PendingFirewallChange } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallLockoutDialog}; the page mounts it only while a change waits. */
 const props = defineProps<{

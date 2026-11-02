@@ -58,6 +58,9 @@ import type { AdministratorDashboard } from '../types/dashboard'
 import type { QuickAction } from '../types/quickAction'
 import type { LoadingState } from '../types/loading'
 
+/** Which audience the dashboard is drawn for; see {@link view}. */
+type DashboardView = 'pending' | 'pendingServer' | 'server' | 'customer' | 'failed'
+
 const { t } = useI18n()
 const auth = useAuthStore()
 const system = useSystemStore()
@@ -91,15 +94,8 @@ const server: ComputedRef<AdministratorDashboard | null> = computed(() => {
  *   measured, and a stale administrator answer alone would draw empty panels at a customer.
  * - `failed`: the read ended in an error, drawn by the region's own error slot.
  */
-const view: ComputedRef<'pending' | 'pendingServer' | 'server' | 'customer' | 'failed'> = computed(() => {
-  switch (dashboard.loadState) {
-    case 'loading':
-      return isAdmin.value ? 'pendingServer' : 'pending'
-    case 'error':
-      return 'failed'
-    case 'loaded':
-      return server.value === null ? 'customer' : 'server'
-  }
+const view: ComputedRef<DashboardView> = computed(() => {
+  return viewOf(dashboard.loadState)
 })
 
 /** Whether the header's pill is offered: only to somebody shown the server, and only if Accounts is licensed. */
@@ -153,6 +149,25 @@ const permitted = (candidates: QuickAction[]): QuickAction[] => {
   return candidates.filter((candidate) => {
     return candidate.module === null || modules.isEnabled(candidate.module)
   })
+}
+
+/**
+ * Names the audience a read in the given state is drawn for.
+ *
+ * A function rather than a switch inside the computed so a state added to `LoadingState` is a
+ * compile error here (the return type is not satisfied) and not a silent `undefined`.
+ * @param state The dashboard read's state.
+ * @returns The view to draw.
+ */
+const viewOf = (state: LoadingState): DashboardView => {
+  switch (state) {
+    case 'loading':
+      return isAdmin.value ? 'pendingServer' : 'pending'
+    case 'error':
+      return 'failed'
+    case 'loaded':
+      return server.value === null ? 'customer' : 'server'
+  }
 }
 
 /**

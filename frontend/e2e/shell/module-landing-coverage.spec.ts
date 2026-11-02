@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { MODULES_WITHOUT_ITEM, NAVIGATION_TREE } from '../../src/router/navigationTree'
+import type { PanelModule } from '../../src/types/module'
 import type { NavigationPageSpec } from '../../src/types/navigation'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -147,7 +148,7 @@ test('every module the backend composes has a sidebar destination that is not th
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    ...ids.map((name) => {
+    ...ids.map((name): PanelModule => {
       // A distinctive label per module, so a failure names the module rather than a position.
       return { name, displayName: `Module ${name}`, tier: 'included', state: 'enabled' }
     }),

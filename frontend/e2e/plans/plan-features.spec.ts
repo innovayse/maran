@@ -106,7 +106,7 @@ test('the plan form offers the panel own features and a new plan starts with all
   const group = page.getByRole('group', { name: 'Features' })
   await expect(group.getByRole('checkbox')).toHaveCount(PLAN_FEATURE_CHOICES.length)
   for (const choice of PLAN_FEATURE_CHOICES) {
-    await expect(group.getByRole('checkbox', { name: choice.displayName })).toBeChecked()
+    await expect(group.getByRole('checkbox', { name: choice.featureDisplayName })).toBeChecked()
   }
 })
 

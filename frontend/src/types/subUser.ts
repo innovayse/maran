@@ -99,9 +99,8 @@ export interface SubUsersApi {
    * Ends a sub-user's access to the account. Another account's sub-user answers 404.
    * @param id The sub-user to remove.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel ended the access.
    */
-  remove: (id: string, signal?: AbortSignal) => Promise<boolean>
+  remove: (id: string, signal?: AbortSignal) => Promise<void>
 }
 
 /** An action the page offers on a sub-user's row. */

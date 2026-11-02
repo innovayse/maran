@@ -290,9 +290,8 @@ export interface BackupsApi {
    * Deletes a backup's archive and its record. The copy is gone and is not recoverable.
    * @param id The backup to delete.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel deleted it.
    */
-  remove: (id: string, signal?: AbortSignal) => Promise<boolean>
+  remove: (id: string, signal?: AbortSignal) => Promise<void>
 
   /**
    * Replaces an account from one of its backups: its home directory is swapped for the archive's

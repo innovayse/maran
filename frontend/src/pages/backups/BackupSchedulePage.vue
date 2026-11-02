@@ -136,7 +136,9 @@ const frequencyOption: WritableComputedRef<string> = computed({
     return frequency.value ?? ''
   },
   set: (value: string): void => {
-    frequency.value = BACKUP_FREQUENCIES.find((candidate) => candidate === value) ?? null
+    frequency.value = BACKUP_FREQUENCIES.find((candidate) => {
+      return candidate === value
+    }) ?? null
   },
 })
 
@@ -146,7 +148,9 @@ const dayOption: WritableComputedRef<string> = computed({
     return dayOfWeekUtc.value ?? ''
   },
   set: (value: string): void => {
-    dayOfWeekUtc.value = BACKUP_SCHEDULE_DAYS.find((candidate) => candidate === value) ?? null
+    dayOfWeekUtc.value = BACKUP_SCHEDULE_DAYS.find((candidate) => {
+      return candidate === value
+    }) ?? null
   },
 })
 

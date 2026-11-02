@@ -73,12 +73,7 @@ const copied: Ref<boolean> = ref(false)
  * state added to `AccountStatus` has to be answered here rather than read as "not suspended".
  */
 const issuance: ComputedRef<'allowed' | 'refused'> = computed(() => {
-  switch (props.status) {
-    case 'active':
-      return 'allowed'
-    case 'suspended':
-      return 'refused'
-  }
+  return issuanceOf(props.status)
 })
 
 /** The link to show: the panel's own, made absolute against the origin the operator is looking at. */
@@ -104,6 +99,23 @@ const stateText: ComputedRef<string> = computed(() => {
 
   return t(`invitations.state.${status.state}`)
 })
+
+/**
+ * Says whether an account in the given lifecycle state may be issued an invitation.
+ *
+ * A function rather than a switch inside the computed so a state added to `AccountStatus` is a
+ * compile error here and not a silent `undefined`.
+ * @param status The account's lifecycle state.
+ * @returns `allowed` for an active account, `refused` for a suspended one.
+ */
+const issuanceOf = (status: AccountStatus): 'allowed' | 'refused' => {
+  switch (status) {
+    case 'active':
+      return 'allowed'
+    case 'suspended':
+      return 'refused'
+  }
+}
 
 /**
  * Loads the invitation's state for the account the card is showing.
