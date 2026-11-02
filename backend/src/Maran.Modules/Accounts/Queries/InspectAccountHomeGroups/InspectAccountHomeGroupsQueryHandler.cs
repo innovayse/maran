@@ -55,6 +55,6 @@ public sealed class InspectAccountHomeGroupsQueryHandler
         }
 
         return Result<HomeGroupRepairReportDto>.Ok(
-            HomeGroupRepairReportMapper.ToDto(report.Value, isReportOnly: true, _refusalText));
+            HomeGroupRepairReportMapper.ToInspection(report.Value, _refusalText));
     }
 }

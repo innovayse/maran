@@ -18,36 +18,48 @@ namespace Maran.Modules.Accounts.Mappers;
 /// not a judgement.
 /// </para>
 /// <para>
-/// <c>isReportOnly</c> is carried in from the CALLER rather than inferred from the lists, for the same
-/// reason <c>GrantRepairReportMapper</c> does: a repairing pass over a host with nothing to repair
-/// produces exactly the same two empty lists a report-only pass over the same host does.
+/// The CASE is stated by which method the CALLER chose, never inferred from the lists: a repairing
+/// pass over a host with nothing to repair produces exactly the same two empty lists a report-only
+/// pass over the same host does. The agent's census always carries both lists and leaves one of them
+/// empty; each method reads the one its pass fills and drops the other.
 /// </para>
 /// </remarks>
 public static class HomeGroupRepairReportMapper
 {
-    /// <summary>Projects one census onto the wire.</summary>
-    /// <param name="report">What the agent read and did.</param>
-    /// <param name="isReportOnly">Whether the pass that produced <paramref name="report"/> changed nothing.</param>
+    /// <summary>Projects the census of a report-only pass onto the wire.</summary>
+    /// <param name="report">What the agent read; nothing was changed.</param>
     /// <param name="refusalText">Resolver for the two sentences each refusal carries.</param>
-    /// <returns>The report as an administrator's screen reads it.</returns>
-    public static HomeGroupRepairReportDto ToDto(
+    /// <returns>The inspection, carrying the homes a repair would re-group.</returns>
+    public static HomeGroupInspectionReportDto ToInspection(
         AgentHomeGroupRepairReport report,
-        bool isReportOnly,
         HomeGroupRepairRefusalDisplayNames refusalText)
     {
-        return new HomeGroupRepairReportDto(
-            isReportOnly,
+        return new HomeGroupInspectionReportDto(
             report.Examined,
             report.AlreadyCorrect,
-            report.Repaired.Select(ToRepaired).ToList(),
-            report.WouldRepair.Select(ToRepaired).ToList(),
-            report.Refused.Select(home => { return ToRefused(home, refusalText); }).ToList());
+            report.Refused.Select(home => { return ToRefused(home, refusalText); }).ToList(),
+            report.WouldRepair.Select(ToRepairedHome).ToList());
+    }
+
+    /// <summary>Projects the census of a repairing pass onto the wire.</summary>
+    /// <param name="report">What the agent read and did.</param>
+    /// <param name="refusalText">Resolver for the two sentences each refusal carries.</param>
+    /// <returns>The repair, carrying the homes that were re-grouped.</returns>
+    public static HomeGroupRepairedReportDto ToRepaired(
+        AgentHomeGroupRepairReport report,
+        HomeGroupRepairRefusalDisplayNames refusalText)
+    {
+        return new HomeGroupRepairedReportDto(
+            report.Examined,
+            report.AlreadyCorrect,
+            report.Refused.Select(home => { return ToRefused(home, refusalText); }).ToList(),
+            report.Repaired.Select(ToRepairedHome).ToList());
     }
 
     /// <summary>Projects one re-grouped — or would-be-re-grouped — home.</summary>
     /// <param name="home">The agent's row.</param>
     /// <returns>The wire row.</returns>
-    private static RepairedHomeDto ToRepaired(AgentRepairedHome home)
+    private static RepairedHomeDto ToRepairedHome(AgentRepairedHome home)
     {
         return new RepairedHomeDto(home.AccountUsername, home.Home);
     }

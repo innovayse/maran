@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Commands.RepairAccountHomeGroups;
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
@@ -94,9 +95,8 @@ public sealed class RepairAccountHomeGroupsCommandHandlerTests
 
         var result = await handler.HandleAsync(new RepairAccountHomeGroupsCommand(1), CancellationToken.None);
 
-        Assert.False(result.Value.IsReportOnly);
-        Assert.Empty(result.Value.WouldRepair);
-        var repaired = Assert.Single(result.Value.Repaired);
+        var report = Assert.IsType<HomeGroupRepairedReportDto>(result.Value);
+        var repaired = Assert.Single(report.Repaired);
         Assert.Equal("bob", repaired.AccountUsername);
     }
 
@@ -122,9 +122,9 @@ public sealed class RepairAccountHomeGroupsCommandHandlerTests
         var result = await handler.HandleAsync(new RepairAccountHomeGroupsCommand(0), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.False(result.Value.IsReportOnly);
-        Assert.Equal(9u, result.Value.AlreadyCorrect);
-        Assert.Empty(result.Value.Repaired);
+        var report = Assert.IsType<HomeGroupRepairedReportDto>(result.Value);
+        Assert.Equal(9u, report.AlreadyCorrect);
+        Assert.Empty(report.Repaired);
         Assert.Equal([true, false], agent.HomeGroupRepairPasses);
     }
 
