@@ -17,6 +17,13 @@
 export type FtpsDesiredState = 'neverConfigured' | 'on' | 'off'
 
 /**
+ * What the agent found at the certificate path, mirroring the backend's `FtpsCertificateState`:
+ * one fact with three outcomes, not two booleans of which the second only means something when
+ * the first is true.
+ */
+export type FtpsCertificate = 'absent' | 'selfSigned' | 'provided'
+
+/**
  * Whether the panel's intention and the agent's observation agree, and if not in which direction,
  * mirroring the backend's `FtpsAgreement`. Decided on the server; the SPA explains it and never
  * re-derives it.
@@ -98,10 +105,12 @@ export interface FtpsStatus {
    * "encryption is enforced".
    */
   forcedTls: boolean
-  /** Certificate material exists for {@link hostname}; `false` also means "was not asked". */
-  certificatePresent: boolean
-  /** The material is the agent's own self-signed placeholder — every client will warn. */
-  certificateIsSelfSigned: boolean
+  /**
+   * What the agent found for {@link hostname}: no material, the agent's own self-signed placeholder
+   * (every client will warn), or a certificate somebody installed. With no hostname the agent was
+   * asked about nothing and this is `absent`, so read it beside {@link hostname}.
+   */
+  certificate: FtpsCertificate
   /** Where the material lives, or would have to be placed. Operator-facing. */
   certificatePath: string
   /** The control port this panel configures. The number an operator is told to open. */

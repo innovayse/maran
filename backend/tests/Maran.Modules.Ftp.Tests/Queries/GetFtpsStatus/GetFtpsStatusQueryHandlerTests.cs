@@ -35,7 +35,7 @@ public sealed class GetFtpsStatusQueryHandlerTests
         Assert.False(result.Value.ForcedTls);
         Assert.True(result.Value.Running);
         Assert.True(result.Value.ControlPortAnswered);
-        Assert.True(result.Value.CertificatePresent);
+        Assert.Equal(FtpsCertificateState.Provided, result.Value.Certificate);
         Assert.Equal(FtpsDesiredState.On, result.Value.DesiredState);
     }
 

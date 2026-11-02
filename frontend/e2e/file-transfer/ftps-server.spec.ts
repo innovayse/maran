@@ -191,7 +191,7 @@ test('the ports on screen are the ones the server reported, not ones the SPA hol
 
 // Both directions, on the panel as well as in the credential dialog.
 test('the placeholder-certificate line on the server panel follows the status', async ({ page }) => {
-  await openScreen(page, { ...runningFtpsStatus, certificateIsSelfSigned: true }, FTPS_RULES)
+  await openScreen(page, { ...runningFtpsStatus, certificate: 'selfSigned' }, FTPS_RULES)
   await expect(page.getByTestId('ftps-self-signed')).toContainText(
     'The certificate is a placeholder this panel generated.',
   )
@@ -316,7 +316,7 @@ test('the forced-TLS fact is stated in both directions and never as the panel in
 test('a server with no certificate installed says so rather than rendering nothing', async ({
   page,
 }) => {
-  await openScreen(page, { ...runningFtpsStatus, certificatePresent: false, certificatePath: '' }, FTPS_RULES)
+  await openScreen(page, { ...runningFtpsStatus, certificate: 'absent', certificatePath: '' }, FTPS_RULES)
   await expect(SERVER_PANEL(page)).toBeVisible()
   // Counted rather than merely found: every other field in this fixture has a value, so the one
   // dash on the screen is the certificate's. Asserting mere presence would also pass on a screen

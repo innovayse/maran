@@ -52,14 +52,12 @@ namespace Maran.Modules.Ftp.Common;
 /// enforced". A screen that shows this as green while it is <c>false</c> is the exact defect the
 /// field was put on the wire to prevent.
 /// </param>
-/// <param name="CertificatePresent">
-/// Certificate material exists for <paramref name="Hostname"/>. When no hostname is persisted the
-/// agent was asked about nothing, so this is <c>false</c> for "not asked" rather than for "absent" —
-/// which is why a screen reads it together with <paramref name="Hostname"/> and not alone.
-/// </param>
-/// <param name="CertificateIsSelfSigned">
-/// The material is the agent's own self-signed placeholder, read from the marker file beside it.
-/// True means every customer connecting will see their client's certificate warning.
+/// <param name="Certificate">
+/// What the agent found for <paramref name="Hostname"/>: no material, the agent's own self-signed
+/// placeholder (every customer connecting will see their client's certificate warning), or a
+/// certificate somebody installed. When no hostname is persisted the agent was asked about nothing
+/// and this is <c>Absent</c>, which is why a screen reads it together with
+/// <paramref name="Hostname"/> and not alone.
 /// </param>
 /// <param name="CertificatePath">Where the material lives, or would have to be placed. Operator-facing.</param>
 /// <param name="ControlPort">
@@ -80,8 +78,7 @@ public sealed record FtpsStatusDto(
     bool Running,
     bool ControlPortAnswered,
     bool ForcedTls,
-    bool CertificatePresent,
-    bool CertificateIsSelfSigned,
+    FtpsCertificateState Certificate,
     string CertificatePath,
     int ControlPort,
     uint PassivePortMin,

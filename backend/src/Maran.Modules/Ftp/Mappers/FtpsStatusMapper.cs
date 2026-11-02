@@ -1,6 +1,7 @@
 using Maran.Modules.Ftp.Common;
 using Maran.Modules.Ftp.Domain.Enums;
 using Maran.Modules.Ftp.Domain.Policies;
+using AgentFtpsCertificate = Maran.Agent.Client.Services.FtpsService.FtpsCertificate;
 using AgentFtpsStatus = Maran.Agent.Client.Services.FtpsService.FtpsStatusDto;
 
 namespace Maran.Modules.Ftp.Mappers;
@@ -48,12 +49,26 @@ public static class FtpsStatusMapper
             observed.Running,
             observed.ControlPortAnswered,
             observed.ForcedTls,
-            observed.CertificatePresent,
-            observed.CertificateIsSelfSigned,
+            ToCertificateState(observed.Certificate),
             observed.CertificatePath,
             FtpsDefaults.ControlPort,
             observed.PassivePortMin,
             observed.PassivePortMax,
             observed.Ipv4Only);
+    }
+
+    /// <summary>Restates the agent client's certificate fact as the module's own enum.</summary>
+    /// <param name="observed">What the agent client reports.</param>
+    /// <returns>The same outcome in this module's vocabulary.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A client outcome this module has no name for.</exception>
+    private static FtpsCertificateState ToCertificateState(AgentFtpsCertificate observed)
+    {
+        return observed switch
+        {
+            AgentFtpsCertificate.Absent => FtpsCertificateState.Absent,
+            AgentFtpsCertificate.SelfSigned => FtpsCertificateState.SelfSigned,
+            AgentFtpsCertificate.Provided => FtpsCertificateState.Provided,
+            _ => throw new ArgumentOutOfRangeException(nameof(observed), observed, "Unknown FTPS certificate outcome."),
+        };
     }
 }

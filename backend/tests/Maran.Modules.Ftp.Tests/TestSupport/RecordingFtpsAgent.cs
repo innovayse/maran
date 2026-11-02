@@ -28,8 +28,7 @@ public sealed class RecordingFtpsAgent : IAgentFtpsClient
     public FtpsStatusDto NextStatus { get; set; } = new(
         Running: true,
         ControlPortAnswered: true,
-        CertificatePresent: true,
-        CertificateIsSelfSigned: false,
+        Certificate: FtpsCertificate.Provided,
         CertificatePath: "/etc/maran/certificates/ftp.example.test",
         PassivePortMin: 30000,
         PassivePortMax: 30099,

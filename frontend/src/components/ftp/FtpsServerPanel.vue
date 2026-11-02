@@ -332,7 +332,7 @@ const closePorts = (): void => {
     </p>
 
     <p
-      v-if="status.certificateIsSelfSigned"
+      v-if="status.certificate === 'selfSigned'"
       data-testid="ftps-self-signed"
       class="mt-3 text-sm text-text-muted"
     >

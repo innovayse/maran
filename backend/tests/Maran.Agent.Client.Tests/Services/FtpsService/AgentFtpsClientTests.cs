@@ -33,7 +33,7 @@ public sealed class AgentFtpsClientTests
     /// </remarks>
     public static TheoryData<int> StatusFlagPositions()
     {
-        return [0, 1, 2, 3, 4, 5];
+        return [0, 1, 2, 3];
     }
 
     /// <summary>Enable sends every field of the configuration to the agent.</summary>
@@ -89,8 +89,7 @@ public sealed class AgentFtpsClientTests
             new FtpsStatusDto(
                 true,
                 false,
-                true,
-                false,
+                FtpsCertificate.Provided,
                 "/etc/maran/ftps/ftp.example.test",
                 PassiveMin,
                 PassiveMax,
@@ -169,8 +168,7 @@ public sealed class AgentFtpsClientTests
             new FtpsStatusDto(
                 false,
                 false,
-                true,
-                true,
+                FtpsCertificate.SelfSigned,
                 "/etc/maran/ftps/ftp.example.test",
                 PassiveMin,
                 PassiveMax,
@@ -232,7 +230,7 @@ public sealed class AgentFtpsClientTests
     }
 
     /// <summary>Each observed flag lands on its own member of the status shape and on no other.</summary>
-    /// <param name="position">Which of the six boolean facts the agent reported as true.</param>
+    /// <param name="position">Which of the four boolean facts the agent reported as true.</param>
     /// <returns>The asynchronous test.</returns>
     [Theory]
     [MemberData(nameof(StatusFlagPositions))]
@@ -242,10 +240,8 @@ public sealed class AgentFtpsClientTests
         {
             Running = position == 0,
             ControlPortAnswered = position == 1,
-            CertificatePresent = position == 2,
-            CertificateIsSelfSigned = position == 3,
-            Ipv4Only = position == 4,
-            ForcedTls = position == 5,
+            Ipv4Only = position == 2,
+            ForcedTls = position == 3,
         };
         var stub = new StubFtpsService
         {
@@ -261,13 +257,46 @@ public sealed class AgentFtpsClientTests
         [
             status.Running,
             status.ControlPortAnswered,
-            status.CertificatePresent,
-            status.CertificateIsSelfSigned,
             status.Ipv4Only,
             status.ForcedTls,
         ];
         Assert.Equal(1, flags.Count(flag => { return flag; }));
         Assert.True(flags[position]);
+    }
+
+    /// <summary>The wire's two certificate booleans reach the panel as the one outcome they describe.</summary>
+    /// <remarks>
+    /// The self-signed flag is only defined when material is present, so a wire that sets it beside
+    /// "not present" is read as absent: the placeholder marker of a certificate that is not there
+    /// must not turn a missing certificate into a self-signed one.
+    /// </remarks>
+    /// <param name="present">The wire's <c>certificate_present</c>.</param>
+    /// <param name="selfSigned">The wire's <c>certificate_is_self_signed</c>.</param>
+    /// <param name="expected">The outcome the panel is told.</param>
+    /// <returns>The asynchronous test.</returns>
+    [Theory]
+    [InlineData(false, false, FtpsCertificate.Absent)]
+    [InlineData(false, true, FtpsCertificate.Absent)]
+    [InlineData(true, false, FtpsCertificate.Provided)]
+    [InlineData(true, true, FtpsCertificate.SelfSigned)]
+    public async Task The_wire_certificate_flags_reach_the_panel_as_one_outcome(
+        bool present,
+        bool selfSigned,
+        FtpsCertificate expected)
+    {
+        var stub = new StubFtpsService
+        {
+            StatusResponse = new GetFtpsStatusResponse
+            {
+                Ok = new GetFtpsStatusOk { CertificatePresent = present, CertificateIsSelfSigned = selfSigned },
+            },
+        };
+
+        var result = await new AgentFtpsClient(stub, NullLogger<AgentFtpsClient>.Instance)
+            .GetStatusAsync("ftp.example.test", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expected, result.Value!.Certificate);
     }
 
     /// <summary>The status ok payload maps the path and both ends of the passive range.</summary>
@@ -364,8 +393,7 @@ public sealed class AgentFtpsClientTests
             new FtpsStatusDto(
                 true,
                 true,
-                true,
-                false,
+                FtpsCertificate.Provided,
                 "/etc/maran/ftps/ftp.example.test",
                 PassiveMin,
                 PassiveMax,

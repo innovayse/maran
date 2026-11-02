@@ -206,14 +206,13 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
 
     /// <summary>Projects the enable rpc's observation onto the panel's one status shape.</summary>
     /// <param name="ok">The wire payload.</param>
-    /// <returns>The nine facts, unchanged.</returns>
+    /// <returns>The eight facts, unchanged.</returns>
     private static FtpsStatusDto ToStatus(EnableFtpsOk ok)
     {
         return new FtpsStatusDto(
             ok.Running,
             ok.ControlPortAnswered,
-            ok.CertificatePresent,
-            ok.CertificateIsSelfSigned,
+            ToCertificate(ok.CertificatePresent, ok.CertificateIsSelfSigned),
             ok.CertificatePath,
             ok.PassivePortMin,
             ok.PassivePortMax,
@@ -223,14 +222,13 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
 
     /// <summary>Projects the disable rpc's observation onto the panel's one status shape.</summary>
     /// <param name="ok">The wire payload.</param>
-    /// <returns>The nine facts, unchanged.</returns>
+    /// <returns>The eight facts, unchanged.</returns>
     private static FtpsStatusDto ToStatus(DisableFtpsOk ok)
     {
         return new FtpsStatusDto(
             ok.Running,
             ok.ControlPortAnswered,
-            ok.CertificatePresent,
-            ok.CertificateIsSelfSigned,
+            ToCertificate(ok.CertificatePresent, ok.CertificateIsSelfSigned),
             ok.CertificatePath,
             ok.PassivePortMin,
             ok.PassivePortMax,
@@ -240,14 +238,13 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
 
     /// <summary>Projects the status rpc's observation onto the panel's one status shape.</summary>
     /// <param name="ok">The wire payload.</param>
-    /// <returns>The nine facts, unchanged.</returns>
+    /// <returns>The eight facts, unchanged.</returns>
     private static FtpsStatusDto ToStatus(GetFtpsStatusOk ok)
     {
         return new FtpsStatusDto(
             ok.Running,
             ok.ControlPortAnswered,
-            ok.CertificatePresent,
-            ok.CertificateIsSelfSigned,
+            ToCertificate(ok.CertificatePresent, ok.CertificateIsSelfSigned),
             ok.CertificatePath,
             ok.PassivePortMin,
             ok.PassivePortMax,
@@ -257,18 +254,31 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
 
     /// <summary>Projects the TLS-reload rpc's observation onto the panel's one status shape.</summary>
     /// <param name="ok">The wire payload.</param>
-    /// <returns>The nine facts, unchanged.</returns>
+    /// <returns>The eight facts, unchanged.</returns>
     private static FtpsStatusDto ToStatus(ReloadFtpsTlsOk ok)
     {
         return new FtpsStatusDto(
             ok.Running,
             ok.ControlPortAnswered,
-            ok.CertificatePresent,
-            ok.CertificateIsSelfSigned,
+            ToCertificate(ok.CertificatePresent, ok.CertificateIsSelfSigned),
             ok.CertificatePath,
             ok.PassivePortMin,
             ok.PassivePortMax,
             ok.Ipv4Only,
             ok.ForcedTls);
+    }
+
+    /// <summary>Folds the wire's two certificate booleans into the one fact they describe.</summary>
+    /// <param name="present">Certificate material exists for the hostname that was asked about.</param>
+    /// <param name="selfSigned">The material is the agent's own placeholder; meaningless when nothing is present.</param>
+    /// <returns>Absent when nothing is present (whatever the second flag says), else self-signed or provided.</returns>
+    private static FtpsCertificate ToCertificate(bool present, bool selfSigned)
+    {
+        if (!present)
+        {
+            return FtpsCertificate.Absent;
+        }
+
+        return selfSigned ? FtpsCertificate.SelfSigned : FtpsCertificate.Provided;
     }
 }

@@ -1,5 +1,6 @@
 using Maran.Modules.Ftp.Domain.Enums;
 using Maran.Modules.Ftp.Mappers;
+using AgentFtpsCertificate = Maran.Agent.Client.Services.FtpsService.FtpsCertificate;
 using AgentFtpsStatus = Maran.Agent.Client.Services.FtpsService.FtpsStatusDto;
 
 namespace Maran.Modules.Ftp.Tests.Mappers;
@@ -78,17 +79,47 @@ public sealed class FtpsStatusMapperTests
         Assert.Null(status.Hostname);
     }
 
+    /// <summary>Every certificate outcome the agent client reports reaches the screen as the same outcome.</summary>
+    /// <param name="observed">What the agent client reports.</param>
+    /// <param name="expected">What the screen is told.</param>
+    [Theory]
+    [InlineData(AgentFtpsCertificate.Absent, FtpsCertificateState.Absent)]
+    [InlineData(AgentFtpsCertificate.SelfSigned, FtpsCertificateState.SelfSigned)]
+    [InlineData(AgentFtpsCertificate.Provided, FtpsCertificateState.Provided)]
+    public void Every_certificate_outcome_reaches_the_screen_as_the_same_outcome(
+        AgentFtpsCertificate observed,
+        FtpsCertificateState expected)
+    {
+        var status = FtpsStatusMapper.ToDto(
+            Observation(running: true, answered: true, observed), "ftp.example.test", FtpsDesiredState.On);
+
+        Assert.Equal(expected, status.Certificate);
+    }
+
+    /// <summary>A certificate outcome the module has no name for is refused, not rendered as another one.</summary>
+    [Fact]
+    public void A_certificate_outcome_the_module_cannot_name_is_refused()
+    {
+        var unknown = (AgentFtpsCertificate)99;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => FtpsStatusMapper.ToDto(
+            Observation(running: true, answered: true, unknown), "ftp.example.test", FtpsDesiredState.On));
+    }
+
     /// <summary>Builds an agent observation with the two facts the agreement reads.</summary>
     /// <param name="running">Whether the unit is active.</param>
     /// <param name="answered">Whether the control port greeted.</param>
+    /// <param name="certificate">What the agent found at the certificate path; installed material by default.</param>
     /// <returns>An otherwise healthy observation.</returns>
-    private static AgentFtpsStatus Observation(bool running, bool answered)
+    private static AgentFtpsStatus Observation(
+        bool running,
+        bool answered,
+        AgentFtpsCertificate certificate = AgentFtpsCertificate.Provided)
     {
         return new AgentFtpsStatus(
             Running: running,
             ControlPortAnswered: answered,
-            CertificatePresent: true,
-            CertificateIsSelfSigned: false,
+            Certificate: certificate,
             CertificatePath: "/etc/maran/certificates/ftp.example.test",
             PassivePortMin: 30000,
             PassivePortMax: 30099,

@@ -224,7 +224,7 @@ test('the FTPS credential dialog names the panel host and never the customer dom
 test('the placeholder-certificate warning appears only when the status says the certificate is self-signed', async ({
   page,
 }) => {
-  const SELF_SIGNED: FtpsStatus = { ...runningFtpsStatus, certificateIsSelfSigned: true }
+  const SELF_SIGNED: FtpsStatus = { ...runningFtpsStatus, certificate: 'selfSigned' }
   const PLACEHOLDER_SENTENCE = "The server's certificate is a placeholder the panel generated"
 
   await stubSignedIn(page)

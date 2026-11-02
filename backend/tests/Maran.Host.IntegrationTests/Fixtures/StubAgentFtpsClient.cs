@@ -37,8 +37,7 @@ public sealed class StubAgentFtpsClient : IAgentFtpsClient
     private static readonly FtpsStatusDto Observed = new(
         Running: true,
         ControlPortAnswered: true,
-        CertificatePresent: true,
-        CertificateIsSelfSigned: false,
+        Certificate: FtpsCertificate.Provided,
         CertificatePath: "/etc/maran/ssl/panel.example.com/fullchain.pem",
         PassivePortMin: 30_000,
         PassivePortMax: 30_099,

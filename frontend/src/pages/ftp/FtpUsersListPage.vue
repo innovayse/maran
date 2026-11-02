@@ -390,7 +390,7 @@ onBeforeUnmount(store.dismissCredential)
       :password="store.revealedCredential?.password ?? ''"
       :hostname="ftpsServerStore.status?.hostname ?? null"
       :control-port="ftpsServerStore.status?.controlPort ?? null"
-      :certificate-is-self-signed="ftpsServerStore.status?.certificateIsSelfSigned ?? false"
+      :certificate-is-self-signed="ftpsServerStore.status?.certificate === 'selfSigned'"
       @close="store.dismissCredential"
     />
 
