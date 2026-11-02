@@ -18,7 +18,7 @@ public enum AgentHealth
 
     /// <summary>
     /// The agent answered, in a contract revision outside the window this panel drives
-    /// (<see cref="AgentProtoVersionWindow"/>): an upgrade replaced one side and not the other. The only
+    /// (<see cref="Maran.Agent.Client.Services.SystemService.AgentProtoVersionWindow"/>): an upgrade replaced one side and not the other. The only
     /// answer that fails readiness on the agent's account, because traffic sent now would be served by a
     /// panel driving an agent whose answers it may misread.
     /// </summary>
