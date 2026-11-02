@@ -58,8 +58,9 @@ namespace Maran.Modules.Identity.Services;
 /// only <c>UX_Users_AccountId</c>, the partial unique index on <c>User.AccountId</c>, actually
 /// stops the second row. The loser's insert fails with a unique-violation
 /// <see cref="DbUpdateException"/>, which is caught here, the loser's entity is detached, and the
-/// call answers <c>Ok(null)</c>: the winner's request issues its own token, and what the loser does
-/// about that is its caller's decision (a resend answers success; a link request asks again).
+/// call answers <see cref="InvitationAlreadyBeingIssued"/>: the winner's request issues its own token,
+/// and what the loser does about that is its caller's decision (a resend answers success; a link
+/// request asks again).
 /// </para>
 /// </remarks>
 public sealed class InvitationIssuer
@@ -90,11 +91,12 @@ public sealed class InvitationIssuer
     /// <param name="now">The current instant, taken from <see cref="IClock"/> by the caller.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
-    /// The issued invitation; <c>Ok(null)</c> when a concurrent call won the race to create the login
-    /// (see the type's remarks) and nothing was issued here; or a typed refusal — no such account, a
-    /// login that already has a password, or an account that is suspended.
+    /// <see cref="InvitationIssued"/>; <see cref="InvitationAlreadyBeingIssued"/> when a concurrent
+    /// call won the race to create the login (see the type's remarks) and nothing was issued here; or
+    /// a typed refusal — no such account, a login that already has a password, or an account that is
+    /// suspended.
     /// </returns>
-    public async Task<Result<IssuedInvitation?>> IssueAsync(
+    public async Task<Result<InvitationIssueOutcome>> IssueAsync(
         Guid accountId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
@@ -104,7 +106,7 @@ public sealed class InvitationIssuer
         var account = await _accountDirectory.FindAsync(accountId, cancellationToken);
         if (account is null)
         {
-            return Result<IssuedInvitation?>.Fail(
+            return Result<InvitationIssueOutcome>.Fail(
                 Error.Of(nameof(ErrorMessages.InvitationAccountNotFound), ErrorType.NotFound));
         }
 
@@ -113,37 +115,37 @@ public sealed class InvitationIssuer
 
         if (user is null)
         {
-            var created = await CreateMissingLoginAsync(account, now, cancellationToken);
-            if (!created.IsSuccess)
+            var prepared = PrepareMissingLogin(account, now);
+            if (!prepared.IsSuccess)
             {
-                return Result<IssuedInvitation?>.Fail(created.Error!);
+                return Result<InvitationIssueOutcome>.Fail(prepared.Error!);
             }
 
-            if (created.Value is null)
+            user = prepared.Value!;
+            if (!await InsertLoginAsync(user, account.Id, now, cancellationToken))
             {
-                return Result<IssuedInvitation?>.Ok(null);
+                return Result<InvitationIssueOutcome>.Ok(new InvitationAlreadyBeingIssued());
             }
-
-            user = created.Value;
         }
         else if (user.State != UserState.Invited)
         {
-            return Result<IssuedInvitation?>.Fail(
+            return Result<InvitationIssueOutcome>.Fail(
                 Error.Of(nameof(ErrorMessages.InvitationLoginNotPending), ErrorType.Conflict));
         }
         else if (user.IsAccountSuspended)
         {
             // See the type's remarks: a suspended account is offered no way in. The login carries
             // the account's suspension itself (User.Suspend, run by the suspension cascade).
-            return Result<IssuedInvitation?>.Fail(
+            return Result<InvitationIssueOutcome>.Fail(
                 Error.Of(nameof(ErrorMessages.InvitationAccountSuspended), ErrorType.Conflict));
         }
 
         var minted = await MintAsync(user, now, cancellationToken);
 
-        return Result<IssuedInvitation?>.Ok(
-            new IssuedInvitation(
-                user.Username, user.Email, minted.Token, minted.ExpiresAt, account.OwnerLanguage));
+        return Result<InvitationIssueOutcome>.Ok(
+            new InvitationIssued(
+                new IssuedInvitation(
+                    user.Username, user.Email, minted.Token, minted.ExpiresAt, account.OwnerLanguage)));
     }
 
     /// <summary>
@@ -176,30 +178,19 @@ public sealed class InvitationIssuer
     }
 
     /// <summary>
-    /// Creates the account's login exactly as <c>AccountCreatedHandler</c> would have, from the
-    /// account's own directory entry.
+    /// Builds the account's missing login exactly as <c>AccountCreatedHandler</c> would have, from the
+    /// account's own directory entry. Nothing is added to the context or saved.
     /// </summary>
     /// <param name="account">The account whose login is missing, as its directory entry reads.</param>
     /// <param name="now">The current instant, taken from <see cref="IClock"/>.</param>
-    /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>
-    /// <c>InvitationAccountSuspended</c>
-    /// when it is suspended, and then no login is created; <c>Ok(null)</c> when a concurrent call
-    /// already won the race to create its login (see the type's remarks); or the newly created,
-    /// saved login.
-    /// </returns>
-    private async Task<Result<User?>> CreateMissingLoginAsync(
-        AccountSnapshot account,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
+    /// <returns>The login to insert, or <c>InvitationAccountSuspended</c> when the account is suspended.</returns>
+    private static Result<User> PrepareMissingLogin(AccountSnapshot account, DateTimeOffset now)
     {
-        var accountId = account.Id;
-
         if (account.State == AccountState.Suspended)
         {
             // See the type's remarks: a suspended account is offered no way in, and a login created
             // here would be one.
-            return Result<User?>.Fail(Error.Of(nameof(ErrorMessages.InvitationAccountSuspended), ErrorType.Conflict));
+            return Result<User>.Fail(Error.Of(nameof(ErrorMessages.InvitationAccountSuspended), ErrorType.Conflict));
         }
 
         // OwnerEmail is null only for an account that predates the column (Account.OwnerEmail's own
@@ -209,10 +200,27 @@ public sealed class InvitationIssuer
         // address, so it fails loudly rather than issuing an invitation to a fabricated one.
         var ownerEmail = account.OwnerEmail
             ?? throw new InvalidOperationException(
-                $"Account {accountId} has no login and no recorded owner e-mail; it predates " +
+                $"Account {account.Id} has no login and no recorded owner e-mail; it predates " +
                 "Account.OwnerEmail and cannot be recovered by resending an invitation.");
 
-        var user = User.Invite(Guid.NewGuid(), account.Username, ownerEmail, accountId, now);
+        return Result<User>.Ok(User.Invite(Guid.NewGuid(), account.Username, ownerEmail, account.Id, now));
+    }
+
+    /// <summary>Inserts a prepared login with its owner membership, and says whether this call did.</summary>
+    /// <param name="user">The login built by <see cref="PrepareMissingLogin"/>.</param>
+    /// <param name="accountId">The hosting account the login belongs to.</param>
+    /// <param name="now">The current instant, taken from <see cref="IClock"/>.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>
+    /// <c>true</c> when the login was inserted; <c>false</c> when a concurrent call already won the
+    /// race to create it (see the type's remarks).
+    /// </returns>
+    private async Task<bool> InsertLoginAsync(
+        User user,
+        Guid accountId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
         var membership = AccountMembership.Own(Guid.NewGuid(), user.Id, accountId, now);
         _dbContext.Users.Add(user);
         _dbContext.AccountMemberships.Add(membership);
@@ -231,9 +239,9 @@ public sealed class InvitationIssuer
             // rest of the caller keeps using.
             _dbContext.Entry(user).State = EntityState.Detached;
             _dbContext.Entry(membership).State = EntityState.Detached;
-            return Result<User?>.Ok(null);
+            return false;
         }
 
-        return Result<User?>.Ok(user);
+        return true;
     }
 }

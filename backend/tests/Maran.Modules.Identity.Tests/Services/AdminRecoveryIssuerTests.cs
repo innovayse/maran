@@ -69,7 +69,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
         var result = await NewIssuer().IssueAsync("root@example.com", false, "alice", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var issued = result.Value!;
+        var issued = Recovered(result);
         Assert.Equal("root", issued.Username);
         Assert.False(issued.LinkIsRelative);
         Assert.StartsWith(PanelUrl + "/reset-password?token=", issued.Link.Reveal(), StringComparison.Ordinal);
@@ -91,7 +91,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
         var result = await NewIssuer().IssueAsync("ops", false, "alice", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("ops", result.Value!.Username);
+        Assert.Equal("ops", Recovered(result).Username);
     }
 
     /// <summary>With no public address configured the link is root-relative and flagged as such.</summary>
@@ -102,8 +102,9 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
 
         var result = await NewIssuer(string.Empty).IssueAsync("root", false, "alice", CancellationToken.None);
 
-        Assert.True(result.Value!.LinkIsRelative);
-        Assert.StartsWith("/reset-password?token=", result.Value.Link.Reveal(), StringComparison.Ordinal);
+        var recovered = Recovered(result);
+        Assert.True(recovered.LinkIsRelative);
+        Assert.StartsWith("/reset-password?token=", recovered.Link.Reveal(), StringComparison.Ordinal);
     }
 
     /// <summary>An unknown user is refused as not found when administrators exist.</summary>
@@ -152,16 +153,16 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
         Assert.Empty(await _context.PasswordResetTokens.ToListAsync());
     }
 
-    /// <summary>With no administrator at all the answer is a successful null, never a token.</summary>
+    /// <summary>With no administrator at all the answer is the no-administrator case, never a token.</summary>
     [Fact]
-    public async Task With_no_administrator_yet_the_answer_is_null_and_no_token_exists()
+    public async Task With_no_administrator_yet_the_answer_is_the_no_administrator_case_and_no_token_exists()
     {
         await SeedAsync(UserRole.Customer, "shopper");
 
         var result = await NewIssuer().IssueAsync("anyone", false, "alice", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Null(result.Value);
+        Assert.IsType<NoAdministratorExists>(result.Value);
         Assert.Empty(await _context.PasswordResetTokens.ToListAsync());
     }
 
@@ -234,7 +235,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
 
         var result = await NewIssuer().IssueAsync("root", false, "alice", CancellationToken.None);
 
-        Assert.False(result.Value!.TwoFactorCleared);
+        Assert.False(Recovered(result).TwoFactorCleared);
         Assert.True((await _context.Users.SingleAsync()).IsTotpEnabled);
         Assert.Single(await _context.RecoveryCodes.ToListAsync());
     }
@@ -250,7 +251,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
 
         var result = await NewIssuer().IssueAsync("root", true, "alice", CancellationToken.None);
 
-        Assert.True(result.Value!.TwoFactorCleared);
+        Assert.True(Recovered(result).TwoFactorCleared);
         var reloaded = await _context.Users.SingleAsync();
         Assert.False(reloaded.IsTotpEnabled);
         Assert.Null(reloaded.TotpSecret);
@@ -274,7 +275,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
         Assert.Equal(IdentityAuditJournal.OperatorClaimPrefix + "alicebob", entry.UserAgent);
         Assert.True(entry.Succeeded);
 
-        var token = TokenOf(result.Value!);
+        var token = TokenOf(Recovered(result));
         var digest = PasswordResetTokenHasher.Hash(token);
         foreach (var field in new[] { entry.ActorUsername, entry.Action, entry.Subject, entry.IpAddress, entry.UserAgent })
         {
@@ -294,6 +295,15 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
         var entry = Assert.Single(_audit.Written);
         Assert.False(entry.Succeeded);
         Assert.Equal("ghost", entry.Subject);
+    }
+
+    /// <summary>Reads the recovery out of a successful issue, failing the test when it is anything else.</summary>
+    /// <param name="result">What the issuer answered.</param>
+    /// <returns>The issued recovery.</returns>
+    private static IssuedAdminRecovery Recovered(Result<AdminRecoveryOutcome> result)
+    {
+        Assert.True(result.IsSuccess);
+        return Assert.IsType<AdminRecoveryIssued>(result.Value).Recovery;
     }
 
     /// <summary>An <see cref="ICurrentUser"/> double for the console, where nobody is signed in.</summary>

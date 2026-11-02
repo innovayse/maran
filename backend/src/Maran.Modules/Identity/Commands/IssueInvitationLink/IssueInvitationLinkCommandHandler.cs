@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Security;
@@ -115,7 +116,7 @@ public sealed class IssueInvitationLinkCommandHandler
         CancellationToken cancellationToken)
     {
         var issued = await _issuer.IssueAsync(command.AccountId, _clock.UtcNow, cancellationToken);
-        if (issued.IsSuccess && issued.Value is null)
+        if (issued.IsSuccess && issued.Value is InvitationAlreadyBeingIssued)
         {
             // Lost the race to create the login — see the type's remarks. It exists now.
             issued = await _issuer.IssueAsync(command.AccountId, _clock.UtcNow, cancellationToken);
@@ -126,8 +127,10 @@ public sealed class IssueInvitationLinkCommandHandler
             return await RefuseAsync(command, issued.Error!, cancellationToken);
         }
 
-        if (issued.Value is not { } invitation)
+        if (issued.Value is not InvitationIssued { Invitation: var invitation })
         {
+            // Still lost the race on the second ask: the login exists now, so reaching here means the
+            // account vanished between the two asks.
             return await RefuseAsync(
                 command,
                 Error.Of(nameof(Resources.ErrorMessages.InvitationAccountNotFound), ErrorType.NotFound),

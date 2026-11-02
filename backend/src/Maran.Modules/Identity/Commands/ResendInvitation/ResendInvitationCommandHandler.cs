@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Wolverine;
@@ -102,7 +103,7 @@ public sealed class ResendInvitationCommandHandler
             return Result<bool>.Fail(issued.Error!);
         }
 
-        if (issued.Value is not { } invitation)
+        if (issued.Value is not InvitationIssued { Invitation: var invitation })
         {
             // Lost the race to create the login — see the type's remarks. The winner's own
             // request issues and mails its own token, so there is nothing left to do here.

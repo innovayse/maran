@@ -1,6 +1,7 @@
 using Maran.Host.Cli.Enums;
 using Maran.Host.Cli.Interfaces;
 using Maran.Host.Cli.Models;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Services;
 using Maran.SharedKernel.Results;
 
@@ -96,8 +97,7 @@ public sealed class AdminResetPasswordCliCommand : ICliCommand
             return new CliResult(ExitCodeFor(error.Type));
         }
 
-        var issued = result.Value;
-        if (issued is null)
+        if (result.Value is not AdminRecoveryIssued { Recovery: var issued })
         {
             // No administrator exists at all: there is nobody to recover, and the way in is first-run
             // setup. The setup token is never printed here.
