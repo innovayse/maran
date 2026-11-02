@@ -32,16 +32,16 @@ public sealed class SmtpSettingsTests
             "ops@example.net",
             Saved.AddDays(1));
 
-        Assert.Equal("hunter2", settings.Password);
+        Assert.Equal("hunter2", settings.BasicPassword);
         Assert.Equal("smtp.example.net", settings.Host);
         Assert.Equal(465, settings.Port);
         Assert.Equal(SmtpSecurity.ImplicitTls, settings.Security);
         Assert.Equal(Saved.AddDays(1), settings.UpdatedAt);
     }
 
-    /// <summary>Saving an empty password clears it, which is what a relay taking no credentials needs.</summary>
+    /// <summary>Saving a blank user name moves the settings to anonymous mode and leaves no credentials behind.</summary>
     [Fact]
-    public void Saving_an_empty_password_clears_it()
+    public void Saving_a_blank_user_name_clears_the_credentials()
     {
         var settings = Existing();
 
@@ -56,7 +56,9 @@ public sealed class SmtpSettingsTests
             "ops@example.net",
             Saved.AddDays(1));
 
-        Assert.Equal(string.Empty, settings.Password);
+        Assert.Equal(SmtpAuthentication.Anonymous, settings.AuthenticationMode);
+        Assert.Null(settings.BasicUsername);
+        Assert.Null(settings.BasicPassword);
     }
 
     /// <summary>A stored user name reads as credentials carrying it and the stored password.</summary>
@@ -86,6 +88,42 @@ public sealed class SmtpSettingsTests
             Saved.AddDays(1));
 
         Assert.IsType<AnonymousSmtpCredentials>(settings.Credentials);
+    }
+
+    /// <summary>Settings created with a blank user name are anonymous and hold no credentials at all.</summary>
+    [Fact]
+    public void Settings_created_with_a_blank_user_name_are_anonymous_with_no_credentials()
+    {
+        var settings = new SmtpSettings(
+            "127.0.0.1",
+            25,
+            SmtpSecurity.None,
+            string.Empty,
+            string.Empty,
+            "panel@example.com",
+            "Panel",
+            string.Empty,
+            Saved);
+
+        Assert.Equal(SmtpAuthentication.Anonymous, settings.AuthenticationMode);
+        Assert.Null(settings.BasicUsername);
+        Assert.Null(settings.BasicPassword);
+        Assert.Null(settings.AlertRecipientAddress);
+        Assert.IsType<AnonymousSmtpCredentials>(settings.Credentials);
+    }
+
+    /// <summary>Moving from anonymous to basic without typing a password stores an empty one, not a stale one.</summary>
+    [Fact]
+    public void Moving_from_anonymous_to_basic_without_a_password_stores_an_empty_one()
+    {
+        var settings = Existing();
+        settings.Replace("127.0.0.1", 25, SmtpSecurity.None, string.Empty, null, "panel@example.com", "Panel", "ops@example.com", Saved);
+
+        settings.Replace("smtp.example.com", 587, SmtpSecurity.StartTls, "panel", null, "panel@example.com", "Panel", "ops@example.com", Saved);
+
+        var credentials = Assert.IsType<BasicSmtpCredentials>(settings.Credentials);
+        Assert.Equal("panel", credentials.Username);
+        Assert.Equal(string.Empty, credentials.Password);
     }
 
     /// <summary>The basic credentials never print the password when formatted.</summary>
