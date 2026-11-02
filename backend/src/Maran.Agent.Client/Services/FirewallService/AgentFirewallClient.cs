@@ -321,14 +321,18 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
 
     /// <summary>Maps the panel's protocol onto its wire counterpart.</summary>
     /// <param name="protocol">The protocol the caller named.</param>
-    /// <returns>The wire value; an unknown selector becomes the unspecified value the agent refuses.</returns>
+    /// <returns>The wire value.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown for a protocol this mapping does not know: a defect of the panel, never sent on as the
+    /// wire's unspecified value.
+    /// </exception>
     private static Protocol ToWireProtocol(AgentFirewallProtocol protocol)
     {
         return protocol switch
         {
             AgentFirewallProtocol.Tcp => Protocol.Tcp,
             AgentFirewallProtocol.Udp => Protocol.Udp,
-            _ => Protocol.Unspecified,
+            _ => throw new ArgumentOutOfRangeException(nameof(protocol), protocol, "Unknown firewall protocol."),
         };
     }
 

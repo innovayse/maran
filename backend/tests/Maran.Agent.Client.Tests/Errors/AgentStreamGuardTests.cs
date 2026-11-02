@@ -166,8 +166,7 @@ public sealed class AgentStreamGuardTests
             events.Add(item);
         }
 
-        var terminal = Assert.Single(events);
-        Assert.Equal(SiteLogEventKind.Failed, terminal.Kind);
+        var terminal = Assert.IsType<SiteLogFailed>(Assert.Single(events));
         Assert.Equal("AgentUnavailable", terminal.ErrorCode);
     }
 

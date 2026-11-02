@@ -230,6 +230,27 @@ public sealed class AgentFirewallClientTests
         Assert.False(Assert.IsType<AllowPortRequest>(stub.LastAllowRequest).HasPortTo);
     }
 
+    /// <summary>A protocol this panel cannot name is a defect that throws and is never sent as unspecified.</summary>
+    [Fact]
+    public async Task A_protocol_this_panel_cannot_name_throws_and_is_never_sent_as_unspecified()
+    {
+        var stub = StubFirewallService.AcceptingAllow();
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        {
+            await Client(stub).AllowPortAsync(
+                443,
+                null,
+                (AgentFirewallProtocol)99,
+                AnySource,
+                SshPorts,
+                PanelPort,
+                CancellationToken.None);
+        });
+
+        Assert.Null(stub.LastAllowRequest);
+    }
+
     /// <summary>A range that does not end above where it starts is refused here and never sent.</summary>
     [Theory]
     [InlineData(30_000)]

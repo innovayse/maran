@@ -202,52 +202,41 @@ public sealed class SiteLogTailServiceTests
     public async Task A_tail_that_the_agent_ends_normally_is_reported_as_completed()
     {
         var frames = await ReadAsync(
-            new SiteLogEvent(SiteLogEventKind.Line, "hello", true, null),
-            new SiteLogEvent(SiteLogEventKind.Completed, string.Empty, false, null));
+            new SiteLogLine("hello", true),
+            new SiteLogEnded(SiteLogEndKind.Completed));
 
         Assert.Equal(2, frames.Count);
-        Assert.Null(frames[0].EndReason);
-        Assert.Equal("hello", frames[0].Line);
-        Assert.True(frames[0].Historical);
-        Assert.Equal(SiteLogEndReason.Completed, frames[^1].EndReason);
+        var line = Assert.IsType<SiteLogLineFrame>(frames[0]);
+        Assert.Equal("hello", line.Line);
+        Assert.True(line.Historical);
+        Assert.Equal(SiteLogEndReason.Completed, EndOf(frames[^1]).Reason);
     }
 
     /// <summary>Each interrupted ending keeps its own name and is never softened to completed.</summary>
     [Theory]
-    [InlineData(SiteLogEventKind.Dropped, SiteLogEndReason.Dropped)]
-    [InlineData(SiteLogEventKind.Idle, SiteLogEndReason.Idle)]
-    [InlineData(SiteLogEventKind.Cancelled, SiteLogEndReason.Cancelled)]
+    [InlineData(SiteLogEndKind.Dropped, SiteLogEndReason.Dropped)]
+    [InlineData(SiteLogEndKind.Idle, SiteLogEndReason.Idle)]
+    [InlineData(SiteLogEndKind.Cancelled, SiteLogEndReason.Cancelled)]
     public async Task Each_interrupted_ending_keeps_its_own_name_and_is_never_softened_to_completed(
-        SiteLogEventKind kind,
+        SiteLogEndKind kind,
         SiteLogEndReason expected)
     {
         // The reason the agent grew these endings in the first place. Mapped one at a time so a
         // swap between two of them fails naming the pair, rather than passing because the set
         // happens to be the right size.
-        var frames = await ReadAsync(new SiteLogEvent(kind, string.Empty, false, null));
+        var frames = await ReadAsync(new SiteLogEnded(kind));
 
-        Assert.Equal(expected, Assert.Single(frames).EndReason);
-        Assert.NotEqual(SiteLogEndReason.Completed, frames[^1].EndReason);
+        Assert.Equal(expected, EndOf(Assert.Single(frames)).Reason);
+        Assert.NotEqual(SiteLogEndReason.Completed, EndOf(frames[^1]).Reason);
     }
 
     /// <summary>A stream the agent ends without naming a reason is reported as truncated.</summary>
     [Fact]
     public async Task A_stream_the_agent_ends_without_naming_a_reason_is_reported_as_truncated()
     {
-        var frames = await ReadAsync(new SiteLogEvent(SiteLogEventKind.Line, "orphan", false, null));
+        var frames = await ReadAsync(new SiteLogLine("orphan", false));
 
-        Assert.Equal(SiteLogEndReason.Truncated, frames[^1].EndReason);
-    }
-
-    /// <summary>An ending this panel does not recognise is reported as truncated and never as completed.</summary>
-    [Fact]
-    public async Task An_ending_this_panel_does_not_recognise_is_reported_as_truncated_and_never_as_completed()
-    {
-        // A kind added to the agent client and forgotten here. The pessimistic answer is the honest
-        // one: something may be missing, and we cannot say what.
-        var frames = await ReadAsync(new SiteLogEvent((SiteLogEventKind)99, string.Empty, false, null));
-
-        Assert.Equal(SiteLogEndReason.Truncated, Assert.Single(frames).EndReason);
+        Assert.Equal(SiteLogEndReason.Truncated, EndOf(frames[^1]).Reason);
     }
 
     /// <summary>A failed tail carries a resolved sentence and never the raw error code.</summary>
@@ -258,24 +247,11 @@ public sealed class SiteLogTailServiceTests
 
         var frames = await ReadAsync(
             errorText,
-            new SiteLogEvent(SiteLogEventKind.Failed, string.Empty, false, "AgentSystemFailure"));
+            new SiteLogFailed("AgentSystemFailure"));
 
-        Assert.Equal(SiteLogEndReason.Failed, frames[^1].EndReason);
-        Assert.Equal("sentence for AgentSystemFailure", frames[^1].EndMessage);
+        Assert.Equal(SiteLogEndReason.Failed, EndOf(frames[^1]).Reason);
+        Assert.Equal("sentence for AgentSystemFailure", EndOf(frames[^1]).Message);
         Assert.Equal(["AgentSystemFailure"], errorText.Resolved);
-    }
-
-    /// <summary>A failure the agent left unnamed still resolves to a sentence of this modules own.</summary>
-    [Fact]
-    public async Task A_failure_the_agent_left_unnamed_still_resolves_to_a_sentence_of_this_modules_own()
-    {
-        var errorText = new StubErrorTextProvider();
-
-        var frames = await ReadAsync(
-            errorText,
-            new SiteLogEvent(SiteLogEventKind.Failed, string.Empty, false, null));
-
-        Assert.Equal("sentence for SiteLogTailFailed", frames[^1].EndMessage);
     }
 
     /// <summary>A caller who stops watching is told the stream was cancelled and not that it completed.</summary>
@@ -286,8 +262,8 @@ public sealed class SiteLogTailServiceTests
         {
             LogEvents =
             [
-                new SiteLogEvent(SiteLogEventKind.Line, "one", false, null),
-                new SiteLogEvent(SiteLogEventKind.Line, "two", false, null),
+                new SiteLogLine("one", false),
+                new SiteLogLine("two", false),
             ],
         };
 
@@ -307,7 +283,15 @@ public sealed class SiteLogTailServiceTests
         }
 
         Assert.Equal(2, frames.Count);
-        Assert.Equal(SiteLogEndReason.Cancelled, frames[^1].EndReason);
+        Assert.Equal(SiteLogEndReason.Cancelled, EndOf(frames[^1]).Reason);
+    }
+
+    /// <summary>Reads a frame the test expects to be the ending of the stream.</summary>
+    /// <param name="frame">The frame to read.</param>
+    /// <returns>The ending, or a failed assertion when the frame is a line.</returns>
+    private static SiteLogEndFrame EndOf(SiteLogFrame frame)
+    {
+        return Assert.IsType<SiteLogEndFrame>(frame);
     }
 
     /// <summary>Reads a scripted tail to its end with the default error text double.</summary>

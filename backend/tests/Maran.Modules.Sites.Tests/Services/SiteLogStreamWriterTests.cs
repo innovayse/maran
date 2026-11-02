@@ -24,7 +24,7 @@ public sealed class SiteLogStreamWriterTests
     [Fact]
     public async Task A_line_frame_is_written_as_event_data_and_the_blank_line_that_terminates_it()
     {
-        var written = await WriteAsync(SiteLogFrame.OfLine("hello", historical: true));
+        var written = await WriteAsync(new SiteLogLineFrame("hello", true));
 
         Assert.Equal(
             ": open\n\nevent: line\ndata: {\"line\":\"hello\",\"historical\":true}\n\n",
@@ -35,7 +35,7 @@ public sealed class SiteLogStreamWriterTests
     [Fact]
     public async Task An_end_frame_is_written_with_its_reason_and_no_message_when_there_is_none()
     {
-        var written = await WriteAsync(SiteLogFrame.OfEnd(SiteLogEndReason.Dropped, null));
+        var written = await WriteAsync(new SiteLogEndFrame(SiteLogEndReason.Dropped, null));
 
         Assert.Equal(": open\n\nevent: end\ndata: {\"reason\":\"dropped\"}\n\n", written);
     }
@@ -44,7 +44,7 @@ public sealed class SiteLogStreamWriterTests
     [Fact]
     public async Task An_end_frame_carries_its_localized_sentence_when_there_is_one()
     {
-        var written = await WriteAsync(SiteLogFrame.OfEnd(SiteLogEndReason.Failed, "it broke"));
+        var written = await WriteAsync(new SiteLogEndFrame(SiteLogEndReason.Failed, "it broke"));
 
         Assert.Equal(": open\n\nevent: end\ndata: {\"reason\":\"failed\",\"message\":\"it broke\"}\n\n", written);
     }
@@ -58,7 +58,7 @@ public sealed class SiteLogStreamWriterTests
         // the operator's pane.
         var hostile = "a\n\nevent: end\ndata: {\"reason\":\"completed\"}\n\nb\r\"quoted\"";
 
-        var written = await WriteAsync(SiteLogFrame.OfLine(hostile, historical: false));
+        var written = await WriteAsync(new SiteLogLineFrame(hostile, false));
 
         var frames = written.Split("\n\n", StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal(2, frames.Length);

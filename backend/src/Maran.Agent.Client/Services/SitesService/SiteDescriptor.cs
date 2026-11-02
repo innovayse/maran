@@ -45,10 +45,12 @@ public sealed record SiteDescriptor(
 
     /// <summary>Maps the panel's backend kind onto its wire counterpart.</summary>
     /// <param name="backend">The panel-side kind.</param>
-    /// <returns>
-    /// The wire value, or <see cref="SiteBackendType.Unspecified"/> for a kind this mapping does not
-    /// know — which the agent refuses as invalid input rather than acting on a default.
-    /// </returns>
+    /// <returns>The wire value.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown for a kind this mapping does not know. That is a defect of the panel (a member added to
+    /// <see cref="SiteBackendKind"/> without its arm here), and it must not travel as the wire's
+    /// unspecified value for the agent to refuse at a distance.
+    /// </exception>
     internal static SiteBackendType ToWireBackend(SiteBackendKind backend)
     {
         return backend switch
@@ -56,7 +58,7 @@ public sealed record SiteDescriptor(
             SiteBackendKind.Static => SiteBackendType.Static,
             SiteBackendKind.Php => SiteBackendType.Php,
             SiteBackendKind.ReverseProxy => SiteBackendType.ReverseProxy,
-            _ => SiteBackendType.Unspecified,
+            _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, "Unknown site backend kind."),
         };
     }
 }

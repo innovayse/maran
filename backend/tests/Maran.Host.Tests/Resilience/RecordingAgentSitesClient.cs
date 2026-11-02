@@ -181,7 +181,7 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
 
         await AttemptAsync(cancellationToken);
 
-        yield return new SiteLogEvent(SiteLogEventKind.Completed, string.Empty, false, null);
+        yield return new SiteLogEnded(SiteLogEndKind.Completed);
     }
 
     /// <summary>Counts the call, stalls for <see cref="Delay"/>, and fails while failures remain.</summary>
