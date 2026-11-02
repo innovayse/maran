@@ -5,7 +5,7 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
-## 1.0.0-beta.4 — 2026-11-01
+## 1.0.0-beta.4 — 2026-11-02
 
 **Second review outstanding.** Several privileged changes in this pre-release (the agent's root-run operations, account and session handling, the installer's privileged steps, licence and release verification) still carry the second human review that rules/security.md requires, recorded as OUTSTANDING in their threat notes under `docs/superpowers/notes/`. The owner approved shipping this beta to `main` with that review still open on 2026-11-01, as a pre-release exception written into rules/security.md. Run it on servers you can afford to rebuild, and expect the review's findings in a later beta.
 
