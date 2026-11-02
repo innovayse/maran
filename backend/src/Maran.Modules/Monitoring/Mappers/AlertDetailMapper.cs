@@ -66,7 +66,7 @@ public static class AlertDetailMapper
     /// doctrine, in the <c>key=value;key=value</c> shape that same handler established so the
     /// journal reads the same regardless of the panel's active locale.
     /// </returns>
-    public static string FormatDifferingPathsAuditSubject(DriftedCodeIntegrityReport report, string subject)
+    public static string FormatDifferingPathsAuditSubject(DriftedCodeIntegrityVerdict report, string subject)
     {
         var capped = report.DifferingPaths.Take(DifferingPathsAuditCap);
         return $"{subject};version={report.InstalledVersion};count={report.DifferingPaths.Count};paths={string.Join(",", capped)}";

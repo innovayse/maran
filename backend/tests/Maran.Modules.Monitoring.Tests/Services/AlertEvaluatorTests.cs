@@ -386,7 +386,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var report = new DriftedCodeIntegrityReport(
+        var report = new DriftedCodeIntegrityVerdict(
             "1.4.2",
             ["api/Maran.Host", "agent/maran-agent", "frontend/index.html"],
             Start);
@@ -420,7 +420,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var report = new CleanCodeIntegrityReport("1.4.2", Start);
+        var report = new CleanCodeIntegrityVerdict("1.4.2", Start);
 
         for (var observation = 0; observation < 20; observation++)
         {
@@ -448,9 +448,9 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var unavailable = new UnavailableCodeIntegrityReport("1.4.2", "hash list missing", Start);
-        var drifted = new DriftedCodeIntegrityReport("1.4.2", ["api/Maran.Host"], Start);
-        var clean = new CleanCodeIntegrityReport("1.4.2", Start);
+        var unavailable = new UnavailableCodeIntegrityVerdict("1.4.2", "hash list missing", Start);
+        var drifted = new DriftedCodeIntegrityVerdict("1.4.2", ["api/Maran.Host"], Start);
+        var clean = new CleanCodeIntegrityVerdict("1.4.2", Start);
 
         // Raise the hash-list alert first (unavailable), then raise the installed-files alert
         // (drifted) on top of it, in separate rounds — mirroring two independent episodes that can be
@@ -489,7 +489,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var drifted = new DriftedCodeIntegrityReport("1.4.2", ["api/Maran.Host"], Start);
+        var drifted = new DriftedCodeIntegrityVerdict("1.4.2", ["api/Maran.Host"], Start);
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
@@ -523,7 +523,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var malformed = new DriftedCodeIntegrityReport("1.4.2", [], Start);
+        var malformed = new DriftedCodeIntegrityVerdict("1.4.2", [], Start);
 
         await evaluator.EvaluateAsync(null, null, [], null, null, null, malformed, Start, CancellationToken.None);
 
@@ -545,7 +545,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var unavailable = new UnavailableCodeIntegrityReport("1.4.2", "signature verification failed", Start);
+        var unavailable = new UnavailableCodeIntegrityVerdict("1.4.2", "signature verification failed", Start);
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {

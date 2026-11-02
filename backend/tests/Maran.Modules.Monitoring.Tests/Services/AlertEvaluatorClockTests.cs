@@ -120,7 +120,7 @@ public sealed class AlertEvaluatorClockTests
             sftpJailStatus: null,
             quotaStatus: null,
             clockSync: clockSync,
-            codeIntegrityReport: null,
+            codeIntegrityVerdict: null,
             observedAt,
             CancellationToken.None);
     }

@@ -49,7 +49,7 @@ public sealed class AlertObserver
     /// <param name="sftpJailStatus">The sshd SFTP jail block check, or <c>null</c> when unanswered.</param>
     /// <param name="quotaStatus">The account-home quota check, or <c>null</c> when unanswered.</param>
     /// <param name="clockSync">The host clock's synchronisation, or <c>null</c> when unanswered.</param>
-    /// <param name="codeIntegrityReport">The latest code-integrity finding, or <c>null</c> when none arrived.</param>
+    /// <param name="codeIntegrityVerdict">The latest code-integrity finding, or <c>null</c> when none arrived.</param>
     /// <param name="observedAt">When the readings were taken, from the panel's clock.</param>
     /// <param name="cancellationToken">Cancels the reads.</param>
     /// <returns>One entry per observation, in observation order, including those that changed nothing.</returns>
@@ -60,7 +60,7 @@ public sealed class AlertObserver
         AgentSftpJailStatus? sftpJailStatus,
         AgentQuotaEnforceability? quotaStatus,
         AgentClockSyncState? clockSync,
-        CodeIntegrityReport? codeIntegrityReport,
+        CodeIntegrityVerdict? codeIntegrityVerdict,
         DateTimeOffset observedAt,
         CancellationToken cancellationToken)
     {
@@ -169,9 +169,9 @@ public sealed class AlertObserver
                 AlertDetailMapper.FormatClockState(clockSync.Value)));
         }
 
-        switch (codeIntegrityReport)
+        switch (codeIntegrityVerdict)
         {
-            case DriftedCodeIntegrityReport { DifferingPaths.Count: 0 } malformed:
+            case DriftedCodeIntegrityVerdict { DifferingPaths.Count: 0 } malformed:
             {
                 // A contract violation: a correct comparison never reports Drifted with nothing
                 // named. Never interpreted charitably as Clean, and never treated as Unavailable
@@ -187,7 +187,7 @@ public sealed class AlertObserver
                 break;
             }
 
-            case UnavailableCodeIntegrityReport unavailable:
+            case UnavailableCodeIntegrityVerdict unavailable:
             {
                 var transition = await ObserveAsync(
                     AlertKind.CodeIntegrityDrifted,
@@ -210,7 +210,7 @@ public sealed class AlertObserver
                 break;
             }
 
-            case DriftedCodeIntegrityReport drifted:
+            case DriftedCodeIntegrityVerdict drifted:
             {
                 var filesTransition = await ObserveAsync(
                     AlertKind.CodeIntegrityDrifted,
@@ -230,7 +230,7 @@ public sealed class AlertObserver
                 break;
             }
 
-            case CleanCodeIntegrityReport:
+            case CleanCodeIntegrityVerdict:
             {
                 var filesTransition = await ObserveAsync(
                     AlertKind.CodeIntegrityDrifted,
