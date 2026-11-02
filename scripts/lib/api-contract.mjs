@@ -26,8 +26,10 @@
 // Usage (through the dispatcher, which puts the toolchain on PATH):
 //   maran api            check
 //   maran api --accept   record the rendered inventory as the new baseline
+//   maran api --selftest run only the planted controls (every normal run runs them first too)
 
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, dirname, basename, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -139,17 +141,38 @@ const stripComments = (text) =>
   text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
 
 /**
+ * C# sources the self-test plants, by type name. Empty in a real run; consulted before the tree so a
+ * planted contract can be judged by exactly the code that judges the real one.
+ */
+const plantedSources = new Map()
+
+/**
+ * Reads the comment-stripped source that declares a type.
+ * @param {string} typeName The type's name, which is also its file name.
+ * @returns {string|null} The source text, or null when no file or planted source declares the type.
+ */
+const sourceText = (typeName) => {
+  const planted = plantedSources.get(typeName)
+  if (planted !== undefined) return stripComments(planted)
+  const file = csharpByTypeName.get(typeName)
+  return file ? stripComments(readFileSync(file, 'utf8')) : null
+}
+
+/**
  * Parses the primary constructor of a C# record into its parameters.
  * @param {string} typeName The record's name, which is also its file name.
+ * @param {string|null} text The source to look in; the type's own file when omitted.
+ * @param {boolean} allowParameterless Whether `record X;` / `record X : Base;` reads as no members.
+ *   Only a polymorphic case may be that; a bound command with no constructor is still a failure.
  * @returns {{name: string, type: string, attributes: string, hasDefault: boolean}[]|null}
  *   The parameters in declaration order, or null when the type is not a record.
  */
-const readRecordParameters = (typeName) => {
-  const file = csharpByTypeName.get(typeName)
-  if (!file) return null
-  const text = stripComments(readFileSync(file, 'utf8'))
+const readRecordParameters = (typeName, text = sourceText(typeName), allowParameterless = false) => {
+  if (text === null) return null
   const declaration = new RegExp(`\\brecord\\s+${typeName}\\s*\\(`).exec(text)
-  if (!declaration) return null
+  if (!declaration) {
+    return allowParameterless && new RegExp(`\\brecord\\s+${typeName}\\b`).test(text) ? [] : null
+  }
   const open = declaration.index + declaration[0].length - 1
   return splitParameters(balanced(text, open)).map((raw) => {
     const attributes = (raw.match(/\[[^\]]*\]/g) ?? []).join('')
@@ -163,6 +186,30 @@ const readRecordParameters = (typeName) => {
       hasDefault: tail.length > 0,
     }
   })
+}
+
+/**
+ * Reads a polymorphic base: an `abstract record` whose `[JsonDerivedType(typeof(X), "name")]`
+ * attributes state the closed set of cases and whose `[JsonPolymorphic]` names the discriminator.
+ *
+ * A case is a derived record declared in its own file or nested inside the base's file. The
+ * discriminator is `$type` when `TypeDiscriminatorPropertyName` is not stated, which is
+ * System.Text.Json's own default.
+ * @param {string} typeName The base's name, which is also its file name.
+ * @returns {{discriminator: string, cases: {name: string, type: string}[]}|null}
+ *   The discriminator and the cases, or null when the type is not a polymorphic base.
+ */
+const readPolymorphicBase = (typeName) => {
+  const text = sourceText(typeName)
+  if (text === null) return null
+  const declaration = new RegExp(`\\babstract\\s+(?:partial\\s+)?record\\s+${typeName}\\b`).exec(text)
+  if (!declaration) return null
+  const attributes = text.slice(0, declaration.index)
+  const cases = [...attributes.matchAll(/\[JsonDerivedType\(\s*typeof\(\s*([\w.]+)\s*\)\s*,\s*"([^"]*)"\s*\)\]/g)]
+    .map((match) => ({ type: match[1], name: match[2] }))
+  if (cases.length === 0) return null
+  const named = /TypeDiscriminatorPropertyName\s*=\s*"([^"]*)"/.exec(attributes)
+  return { discriminator: named ? named[1] : '$type', cases }
 }
 
 /**
@@ -181,9 +228,8 @@ const readRecordParameters = (typeName) => {
  * @returns {string[]|null} The camelCased member names, or null when the type is not an enum.
  */
 const readEnumMembers = (typeName) => {
-  const file = csharpByTypeName.get(typeName)
-  if (!file) return null
-  const text = stripComments(readFileSync(file, 'utf8'))
+  const text = sourceText(typeName)
+  if (text === null) return null
   const declaration = new RegExp(`\\benum\\s+${typeName}\\b[^{]*\\{`).exec(text)
   if (!declaration) return null
   const body = text.slice(declaration.index + declaration[0].length, text.indexOf('}', declaration.index))
@@ -266,6 +312,23 @@ const csharpWireShape = (rawType, endpoint, depth = 0) => {
   if (bclEnum) return { kind: 'enum', nullable, values: bclEnum }
   const enumValues = readEnumMembers(type)
   if (enumValues) return { kind: 'enum', nullable, values: enumValues }
+  const polymorphic = readPolymorphicBase(type)
+  if (polymorphic) {
+    const cases = polymorphic.cases.map((entry) => {
+      // A case is a top-level record in its own file, or one nested in the base's file
+      // (`QuotaBackingDto.Enforced`); its name is the last segment either way.
+      const caseName = entry.type.split('.').pop()
+      const parameters =
+        readRecordParameters(caseName, sourceText(caseName) ?? sourceText(type), true)
+      if (!parameters) {
+        fail(endpoint, `the polymorphic case '${entry.type}' of '${type}' is not a record this checker can read — ` +
+          'the contract at this member is UNVERIFIED, not agreed.')
+        return { name: entry.name, members: [] }
+      }
+      return { name: entry.name, members: csharpMembers(parameters, endpoint, depth + 1) }
+    })
+    return { kind: 'union', nullable, discriminator: polymorphic.discriminator, cases }
+  }
   const record = readRecordParameters(type)
   if (record) {
     return { kind: 'object', nullable, members: csharpMembers(record, endpoint, depth + 1) }
@@ -352,7 +415,8 @@ const program = ts.createProgram(apiFiles, {
   strict: true,
   noEmit: true,
 })
-const checker = program.getTypeChecker()
+/** The type checker `tsWireShape` reads with; the self-test swaps it for one over a planted program. */
+let checker = program.getTypeChecker()
 
 /**
  * Resolves the URL a call site passes, replacing every interpolated route id with `{}`.
@@ -391,6 +455,54 @@ const resolvePath = (node, constants) => {
 }
 
 /**
+ * Describes a union of object types as a discriminated union, the way the C# side's polymorphic
+ * base is described.
+ *
+ * The discriminator is the one property that every member of the union declares, required, with a
+ * distinct string-literal type in each — that is what makes the union narrowable. A union with none
+ * or with several such properties is not guessed at: it is recorded as a failure, because the
+ * contract at that member would otherwise be reported as agreed without being compared.
+ * @param {object[]} parts The union's object types, nullish members already removed.
+ * @param {boolean} nullable Whether the union also admitted null or undefined.
+ * @param {object} node The expression the type was read at, for symbol resolution.
+ * @param {string} endpoint The endpoint being described, for failure messages.
+ * @param {number} depth Recursion depth guard.
+ * @returns {{kind: string, nullable: boolean, discriminator?: string, cases?: object[]}} The shape.
+ */
+const tsUnionShape = (parts, nullable, node, endpoint, depth) => {
+  const literalOf = (part, name) => {
+    const symbol = part.getProperty(name)
+    if (!symbol || (symbol.getFlags() & ts.SymbolFlags.Optional) !== 0) return null
+    const declared = checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration ?? node)
+    return (declared.flags & ts.TypeFlags.StringLiteral) !== 0 ? declared.value : null
+  }
+  const candidates = parts[0].getProperties().map((symbol) => symbol.getName()).filter((name) => {
+    const values = parts.map((part) => literalOf(part, name))
+    return values.every((value) => value !== null) && new Set(values).size === values.length
+  })
+  if (candidates.length !== 1) {
+    fail(endpoint, `the SPA body member is a union of objects with ${candidates.length === 0 ? 'no' : 'several'} ` +
+      `discriminator${candidates.length === 0 ? '' : ` (${candidates.join(', ')})`} — a string-literal property ` +
+      'distinct in every member is how this check tells the cases apart. The contract at this member is ' +
+      'UNVERIFIED, not agreed.')
+    return { kind: 'unresolved', nullable, typeName: checker.typeToString(checker.getUnionType(parts)) }
+  }
+  const [discriminator] = candidates
+  const cases = parts.map((part) => ({
+    name: literalOf(part, discriminator),
+    members: part
+      .getProperties()
+      .filter((symbol) => symbol.getName() !== discriminator)
+      .map((symbol) => ({
+        name: symbol.getName(),
+        optional: (symbol.getFlags() & ts.SymbolFlags.Optional) !== 0,
+        shape: tsWireShape(checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration ?? node), node, endpoint, depth + 1),
+      })),
+  }))
+  return { kind: 'union', nullable, discriminator, cases }
+}
+
+/**
  * Describes a TypeScript type in the same vocabulary the C# side is described in.
  * @param {object} type The checker's type.
  * @param {object} node The expression the type was read at, for symbol resolution.
@@ -409,6 +521,9 @@ const tsWireShape = (type, node, endpoint, depth = 0) => {
   }
   if (parts.length > 1 && parts.every((t) => (t.flags & ts.TypeFlags.StringLiteral) !== 0)) {
     return { kind: 'enum', nullable, values: parts.map((t) => t.value).sort() }
+  }
+  if (parts.length > 1 && parts.every((t) => (t.flags & ts.TypeFlags.Object) !== 0)) {
+    return tsUnionShape(parts, nullable, node, endpoint, depth)
   }
   if (parts.length !== 1) {
     // A boolean is modelled as `true | false`; anything else that unions is not a wire shape.
@@ -499,6 +614,9 @@ const render = (shape) => {
   if (shape.kind === 'enum') return `enum(${[...shape.values].sort().join('|')})${suffix}`
   if (shape.kind === 'array') return `${render(shape.of)}[]${suffix}`
   if (shape.kind === 'object') return `object${suffix}`
+  if (shape.kind === 'union') {
+    return `union(${shape.discriminator}: ${shape.cases.map((c) => c.name).sort().join('|')})${suffix}`
+  }
   if (shape.kind === 'unresolved') return `unresolved(${shape.typeName})${suffix}`
   return `${shape.kind}${suffix}`
 }
@@ -576,6 +694,8 @@ const compareShape = (endpoint, name, member, sent, lines) => {
       fail(endpoint, `'${name}' holds ${render(expected.of)} in the command and ${render(actual.of)} in the SPA`)
     } else if (expected.of.kind === 'object') {
       compare(endpoint, expected.of.members, actual.of.members, `${name}[].`, lines)
+    } else if (expected.of.kind === 'union') {
+      compareUnion(endpoint, `${name}[]`, expected.of, actual.of, lines)
     } else if (expected.of.kind === 'enum') {
       const a = [...expected.of.values].sort().join('|')
       const b = [...actual.of.values].sort().join('|')
@@ -585,7 +705,150 @@ const compareShape = (endpoint, name, member, sent, lines) => {
   }
   lines.push(`  ${name}: ${render(expected)}`)
   if (expected.kind === 'object') compare(endpoint, expected.members, actual.members, `${name}.`, lines)
+  if (expected.kind === 'union') compareUnion(endpoint, name, expected, actual, lines)
 }
+
+/**
+ * Compares a polymorphic base against a discriminated union: the same discriminator, the same case
+ * names, and per case the same member set.
+ * @param {string} endpoint The verb and path, for failure messages.
+ * @param {string} name The dotted member name.
+ * @param {object} expected The command's union.
+ * @param {object} actual The SPA's union.
+ * @param {string[]} lines Accumulator for the rendered inventory.
+ */
+const compareUnion = (endpoint, name, expected, actual, lines) => {
+  if (expected.discriminator !== actual.discriminator) {
+    fail(endpoint, `'${name}' is told apart by '${expected.discriminator}' in the command and by ` +
+      `'${actual.discriminator}' in the SPA`)
+  }
+  const sentCases = new Map(actual.cases.map((c) => [c.name, c]))
+  for (const entry of expected.cases) {
+    const sent = sentCases.get(entry.name)
+    sentCases.delete(entry.name)
+    if (!sent) {
+      fail(endpoint, `'${name}' case '${entry.name}' exists in the command but the SPA's union has no such case`)
+      continue
+    }
+    compare(endpoint, entry.members, sent.members, `${name}<${entry.name}>.`, lines)
+  }
+  for (const extra of sentCases.values()) {
+    fail(endpoint, `the SPA's '${name}' declares case '${extra.name}', which the command's polymorphic base does not list`)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The self-test: the comparison is judged on planted contracts before it judges the real one
+// ---------------------------------------------------------------------------
+
+/** A polymorphic base whose cases are top-level records, the way `ResourceCeilingDto` is written. */
+const PLANTED_TOP_LEVEL = {
+  SelfCeilingDto: `
+    [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+    [JsonDerivedType(typeof(SelfLimitedDto), "limited")]
+    [JsonDerivedType(typeof(SelfUnlimitedDto), "unlimited")]
+    public abstract record SelfCeilingDto;`,
+  SelfLimitedDto: 'public sealed record SelfLimitedDto(int Maximum) : SelfCeilingDto;',
+  SelfUnlimitedDto: 'public sealed record SelfUnlimitedDto : SelfCeilingDto;',
+  SelfPlanCommand: 'public sealed record SelfPlanCommand(string Name, SelfCeilingDto Cpu);',
+}
+
+/** A polymorphic base whose cases are nested in its own file, the way `QuotaBackingDto` is written. */
+const PLANTED_NESTED = {
+  SelfBackingDto: `
+    [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+    [JsonDerivedType(typeof(SelfBackingDto.Limited), "limited")]
+    [JsonDerivedType(typeof(SelfBackingDto.Unlimited), "unlimited")]
+    public abstract record SelfBackingDto
+    {
+        public sealed record Limited(int Maximum) : SelfBackingDto;
+        public sealed record Unlimited : SelfBackingDto;
+    }`,
+  SelfNestedCommand: 'public sealed record SelfNestedCommand(string Name, SelfBackingDto Cpu);',
+}
+
+const SELF_ACCEPTED = "{ kind: 'limited'; maximum: number } | { kind: 'unlimited' }"
+
+/**
+ * Every planted SPA body, and whether the comparison must accept or refuse it. The first two are
+ * the accepting controls: a gate mutated to refuse every union would pass all the rest.
+ */
+const SELF_CASES = [
+  { label: 'matching union, top-level cases', command: 'SelfPlanCommand', cpu: SELF_ACCEPTED, refuse: null },
+  { label: 'matching union, nested cases', command: 'SelfNestedCommand', cpu: SELF_ACCEPTED, refuse: null },
+  { label: 'discriminator renamed', command: 'SelfPlanCommand', refuse: /told apart by 'kind' in the command and by 'type'/,
+    cpu: "{ type: 'limited'; maximum: number } | { type: 'unlimited' }" },
+  { label: 'case renamed', command: 'SelfPlanCommand', refuse: /case 'limited' exists in the command/,
+    cpu: "{ kind: 'capped'; maximum: number } | { kind: 'unlimited' }" },
+  { label: 'case dropped', command: 'SelfPlanCommand', refuse: /is union\(kind: limited\|unlimited\) in the command and object in the SPA/,
+    cpu: "{ kind: 'limited'; maximum: number }" },
+  { label: 'ambiguous discriminator', command: 'SelfPlanCommand', refuse: /with several discriminator \(kind, tag\)/,
+    cpu: "{ kind: 'limited'; tag: 'a'; maximum: number } | { kind: 'unlimited'; tag: 'b' }" },
+  { label: 'case invented', command: 'SelfNestedCommand', refuse: /declares case 'burst'/,
+    cpu: `${SELF_ACCEPTED} | { kind: 'burst'; maximum: number }` },
+  { label: 'member renamed inside a case', command: 'SelfPlanCommand', refuse: /command member 'cpu<limited>\.maximum'/,
+    cpu: "{ kind: 'limited'; max: number } | { kind: 'unlimited' }" },
+  { label: 'member added to a case', command: 'SelfPlanCommand', refuse: /sends 'cpu<unlimited>\.maximum'/,
+    cpu: "{ kind: 'limited'; maximum: number } | { kind: 'unlimited'; maximum: number }" },
+  { label: 'member retyped inside a case', command: 'SelfNestedCommand', refuse: /'cpu<limited>\.maximum' is number in the command and string/,
+    cpu: "{ kind: 'limited'; maximum: string } | { kind: 'unlimited' }" },
+  { label: 'union flattened to an object', command: 'SelfPlanCommand', refuse: /is union\(kind: limited\|unlimited\) in the command and object in the SPA/,
+    cpu: '{ kind: string; maximum?: number }' },
+]
+
+/**
+ * Runs every planted contract through the real readers and the real comparison.
+ *
+ * Each planted body is a TypeScript type read by the same compiler and the same `tsWireShape` that
+ * read the SPA's; each planted command is C# text read by the same parser that reads the tree. What
+ * the self-test CANNOT see is stated where it is reported: it proves the comparison, not that the
+ * real tree's unions are the ones planted here.
+ * @returns {string[]} One sentence per control that did not behave, empty when all did.
+ */
+const selfTest = () => {
+  const problems = []
+  const realChecker = checker
+  const directory = mkdtempSync(join(tmpdir(), 'api-contract-selftest-'))
+  try {
+    for (const [name, text] of Object.entries({ ...PLANTED_TOP_LEVEL, ...PLANTED_NESTED })) plantedSources.set(name, text)
+    SELF_CASES.forEach((entry, index) => {
+      const file = join(directory, `case${index}.ts`)
+      writeFileSync(file, `export type Body = { name: string; cpu: ${entry.cpu} }\n`)
+      const planted = ts.createProgram([file], { strict: true, noEmit: true, target: ts.ScriptTarget.ESNext })
+      checker = planted.getTypeChecker()
+      const alias = planted.getSourceFile(file).statements.find((node) => ts.isTypeAliasDeclaration(node))
+      const before = failures.length
+      const body = tsWireShape(checker.getTypeFromTypeNode(alias.type), alias, `selftest ${entry.label}`)
+      const members = csharpMembers(readRecordParameters(entry.command), `selftest ${entry.label}`)
+      const produced = []
+      compare(`selftest ${entry.label}`, members, body.members, '', produced)
+      const raised = failures.splice(before)
+      if (entry.refuse === null && raised.length > 0) {
+        problems.push(`accepting control '${entry.label}' was refused: ${raised.join(' / ')}`)
+      } else if (entry.refuse === null && !produced.some((line) => /cpu<limited>\.maximum: number/.test(line))) {
+        // The vacuity guard on the axis that can go blind: an accepted union must have been walked.
+        problems.push(`accepting control '${entry.label}' passed without comparing the cases (${produced.join(' | ')})`)
+      } else if (entry.refuse !== null && !raised.some((line) => entry.refuse.test(line))) {
+        problems.push(`refusing control '${entry.label}' was not refused for the right reason (got: ${raised.join(' / ') || 'nothing'})`)
+      }
+    })
+  } finally {
+    checker = realChecker
+    plantedSources.clear()
+    rmSync(directory, { recursive: true, force: true })
+  }
+  return problems
+}
+
+const selfProblems = selfTest()
+if (selfProblems.length > 0) {
+  console.error('api-contract: THE SELF-TEST FAILED — the comparison does not behave on planted contracts,')
+  console.error('api-contract: so its verdict on the real tree would mean nothing. Nothing was verified.')
+  for (const problem of selfProblems) console.error(`  ${problem}`)
+  process.exit(2)
+}
+console.log(`api-contract: self-test passed — ${SELF_CASES.length} planted union controls (accepting and refusing).`)
+if (process.argv.includes('--selftest')) process.exit(0)
 
 const endpoints = readEndpoints()
 const sites = readCallSites()
@@ -646,6 +909,11 @@ const header = [
   '# listed under "not covered" and their parameters are checked by nobody. Response bodies are',
   '# also out of scope — this is the REQUEST contract only. Endpoints with no SPA caller cannot be',
   '# joined and are listed too.',
+  '#',
+  '# A polymorphic member is rendered `union(<discriminator>: <cases>)` and its cases are listed as',
+  '# `name<case>.member`. It is compared only where the SPA tags the union with one string-literal',
+  '# property and the C# base carries [JsonPolymorphic]/[JsonDerivedType]; any other tagging is a',
+  '# failure, never a guess.',
   '#',
   '# Regenerate with `maran api --accept`, in its own reviewed commit.',
   '',
@@ -713,4 +981,8 @@ console.log(
     `${unchecked.length + uncoveredActions.length} not covered (no JSON body), ${failures.length} failures.`,
 )
 console.log('api-contract: UNOBSERVED HERE — query-string and route binding, and every response body.')
+console.log(
+  'api-contract: UNOBSERVED HERE — a union is described only when the SPA tags it with one string-literal ' +
+    'property and the C# side with [JsonPolymorphic]/[JsonDerivedType]; any other tagging is refused, not guessed.',
+)
 process.exit(exitCode)
