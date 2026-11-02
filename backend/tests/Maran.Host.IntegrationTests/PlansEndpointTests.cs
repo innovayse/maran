@@ -168,7 +168,7 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         Assert.Equal(20_480, editedBody.RootElement.GetProperty("diskQuotaMb").GetInt32());
 
         var deleted = await admin.DeleteAsync($"/api/v1/plans/{id}");
-        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
         Assert.Empty(await ListAsync(admin));
 
         using var scope = factory.Services.CreateScope();

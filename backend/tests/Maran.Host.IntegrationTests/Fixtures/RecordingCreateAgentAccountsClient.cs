@@ -34,13 +34,13 @@ public sealed class RecordingCreateAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> SuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> SuspendAsync(string username, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }
@@ -64,16 +64,16 @@ public sealed class RecordingCreateAgentAccountsClient : IAgentAccountsClient
     /// <param name="limits">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Success.</returns>
-    public Task<Result<bool>> SetResourceLimitsAsync(
+    public Task<Result> SetResourceLimitsAsync(
         string username,
         AccountSliceLimitsDto limits,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }

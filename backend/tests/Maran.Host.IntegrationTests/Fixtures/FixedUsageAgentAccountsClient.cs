@@ -36,7 +36,7 @@ public sealed class FixedUsageAgentAccountsClient : IAgentAccountsClient
     public List<string> RuntimeLimitsSet { get; } = [];
 
     /// <inheritdoc />
-    public Task<Result<bool>> SetResourceLimitsAsync(
+    public Task<Result> SetResourceLimitsAsync(
         string username,
         AccountSliceLimitsDto limits,
         CancellationToken cancellationToken)
@@ -44,14 +44,14 @@ public sealed class FixedUsageAgentAccountsClient : IAgentAccountsClient
         RuntimeLimitsSet.Add(
             $"{username}:{limits.CpuQuotaPercent.Kind}{limits.CpuQuotaPercent.Maximum}/"
             + $"{limits.MemoryMaxMib.Kind}{limits.MemoryMaxMib.Maximum}/{limits.TasksMax.Kind}{limits.TasksMax.Maximum}");
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {
         QuotasSet.Add($"{username}:{quotaBytes}");
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc />
@@ -64,13 +64,13 @@ public sealed class FixedUsageAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> SuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> SuspendAsync(string username, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }

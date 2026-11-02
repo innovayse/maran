@@ -57,18 +57,18 @@ public sealed class FixedObservationAgentAccountsClient : IAgentAccountsClient
     /// <param name="username">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Success.</returns>
-    public Task<Result<bool>> SuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> SuspendAsync(string username, CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Succeeds, as the repaired agent's unsuspend now does on both families.</summary>
     /// <param name="username">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Success.</returns>
-    public Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Answers the one observation this double was given.</summary>
@@ -109,12 +109,12 @@ public sealed class FixedObservationAgentAccountsClient : IAgentAccountsClient
     /// <param name="limits">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Success.</returns>
-    public Task<Result<bool>> SetResourceLimitsAsync(
+    public Task<Result> SetResourceLimitsAsync(
         string username,
         AccountSliceLimitsDto limits,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 
     /// <summary>Not exercised by these tests.</summary>
@@ -122,7 +122,7 @@ public sealed class FixedObservationAgentAccountsClient : IAgentAccountsClient
     /// <param name="quotaBytes">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }

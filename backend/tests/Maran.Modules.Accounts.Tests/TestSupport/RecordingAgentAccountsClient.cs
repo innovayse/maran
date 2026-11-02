@@ -73,7 +73,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> SuspendAsync(string username, CancellationToken cancellationToken)
     {
         Calls.Add($"suspend:{username}");
         var answer = Answer();
@@ -89,7 +89,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
     {
         Calls.Add($"unsuspend:{username}");
         var answer = Answer();
@@ -146,7 +146,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     public Dictionary<string, Error> RuntimeLimitRefusals { get; } = [];
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetResourceLimitsAsync(
+    public Task<Result> SetResourceLimitsAsync(
         string username,
         AccountSliceLimitsDto limits,
         CancellationToken cancellationToken)
@@ -156,19 +156,19 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
             + $"{limits.MemoryMaxMib.Kind}{limits.MemoryMaxMib.Maximum}/{limits.TasksMax.Kind}{limits.TasksMax.Maximum}");
         if (RuntimeLimitRefusals.TryGetValue(username, out var refusal))
         {
-            return Task.FromResult(Result<bool>.Fail(refusal));
+            return Task.FromResult(Result.Fail(refusal));
         }
 
         return Task.FromResult(Answer());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {
         Calls.Add($"quota:{username}:{quotaBytes}");
         if (QuotaRefusals.TryGetValue(username, out var refusal))
         {
-            return Task.FromResult(Result<bool>.Fail(refusal));
+            return Task.FromResult(Result.Fail(refusal));
         }
 
         return Task.FromResult(Answer());
@@ -217,8 +217,8 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <summary>The configured answer for a call returning nothing but success.</summary>
-    private Result<bool> Answer()
+    private Result Answer()
     {
-        return _failure is null ? Result<bool>.Ok(true) : Result<bool>.Fail(_failure);
+        return _failure is null ? Result.Ok() : Result.Fail(_failure);
     }
 }
