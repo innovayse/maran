@@ -39,10 +39,11 @@ export interface Certificate {
   /** When renewal last tried, as an ISO-8601 string, or `null` if it never has. */
   lastRenewalAttemptAt: string | null;
   /**
-   * Machine-stable code of the last renewal failure, or the empty string. A code and never a
-   * sentence: the panel translates it, like every other error code it reports.
+   * Machine-stable code of the last renewal failure, or `null` when the last attempt succeeded or
+   * none has run. A code and never a sentence: the panel translates it, like every other error code
+   * it reports.
    */
-  lastRenewalErrorCode: string;
+  lastRenewalErrorCode: string | null;
   /** How many renewal attempts have failed in a row. */
   consecutiveRenewalFailures: number;
 }

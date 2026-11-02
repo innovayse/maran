@@ -65,10 +65,25 @@ public sealed class Certificate
     public DateTimeOffset? LastRenewalAttemptAt { get; private set; }
 
     /// <summary>
-    /// The machine-stable code of the last renewal failure, or the empty string when the last attempt
+    /// The stored column behind <see cref="LastRenewalFailureCode"/>: the machine-stable code of the
+    /// last renewal failure, or the empty string when the last attempt succeeded or none has run.
+    /// Never the authority's own text.
+    /// </summary>
+    /// <remarks>
+    /// The empty string is a storage spelling of "no failure" kept so the column needs no migration;
+    /// code reads <see cref="LastRenewalFailureCode"/>, where that absence is a <c>null</c> and not a
+    /// value a caller has to know to compare against.
+    /// </remarks>
+    public string LastRenewalErrorCode { get; private set; }
+
+    /// <summary>
+    /// The machine-stable code of the last renewal failure, or <c>null</c> when the last attempt
     /// succeeded or none has run. Never the authority's own text.
     /// </summary>
-    public string LastRenewalErrorCode { get; private set; }
+    public string? LastRenewalFailureCode
+    {
+        get { return LastRenewalErrorCode.Length == 0 ? null : LastRenewalErrorCode; }
+    }
 
     /// <summary>How many renewal attempts have failed in a row. Reset to zero by a success.</summary>
     /// <remarks>

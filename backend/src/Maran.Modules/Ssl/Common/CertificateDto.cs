@@ -17,8 +17,9 @@ namespace Maran.Modules.Ssl.Common;
 /// <param name="IssuedAt">When the panel installed it.</param>
 /// <param name="LastRenewalAttemptAt">When renewal last tried, or null if it never has.</param>
 /// <param name="LastRenewalErrorCode">
-/// The machine-stable code of the last renewal failure, or the empty string. A code, translated by
-/// the panel like every other error code — never a sentence an authority wrote.
+/// The machine-stable code of the last renewal failure, or null when the last attempt succeeded or
+/// none has run. A code, translated by the panel like every other error code — never a sentence an
+/// authority wrote.
 /// </param>
 /// <param name="ConsecutiveRenewalFailures">How many renewal attempts have failed in a row.</param>
 public sealed record CertificateDto(
@@ -29,5 +30,5 @@ public sealed record CertificateDto(
     DateTimeOffset NotAfter,
     DateTimeOffset IssuedAt,
     DateTimeOffset? LastRenewalAttemptAt,
-    string LastRenewalErrorCode,
+    string? LastRenewalErrorCode,
     int ConsecutiveRenewalFailures);

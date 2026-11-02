@@ -45,6 +45,9 @@ public sealed class CertificateConfiguration : IEntityTypeConfiguration<Certific
             .IsRequired()
             .HasMaxLength(64);
 
+        // The typed reading of the column above; it is computed, never stored.
+        builder.Ignore(certificate => certificate.LastRenewalFailureCode);
+
         builder.Property(certificate => certificate.ConsecutiveRenewalFailures)
             .IsRequired();
 

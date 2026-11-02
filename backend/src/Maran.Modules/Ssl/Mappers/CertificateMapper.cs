@@ -24,7 +24,7 @@ public static class CertificateMapper
             certificate.NotAfter,
             certificate.IssuedAt,
             certificate.LastRenewalAttemptAt,
-            certificate.LastRenewalErrorCode,
+            certificate.LastRenewalFailureCode,
             certificate.ConsecutiveRenewalFailures);
     }
 }

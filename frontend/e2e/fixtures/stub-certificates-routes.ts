@@ -166,7 +166,7 @@ export const certificateFor = (
     issuedAt: '2026-08-01T10:00:00Z',
     notAfter: '2026-11-01T10:00:00Z',
     lastRenewalAttemptAt: null,
-    lastRenewalErrorCode: '',
+    lastRenewalErrorCode: null,
     consecutiveRenewalFailures: 0,
   }
 }
