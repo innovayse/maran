@@ -72,7 +72,7 @@ public sealed class LogoutEverywhereAuditTests : IAsyncLifetime
 
         var response = await client.PostAsync("/api/v1/auth/logout-all", content: null);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var userId = await FindUserIdAsync(factory, "customer");
         var entry = Assert.Single(audit.Entries, candidate =>
         {

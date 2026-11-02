@@ -213,7 +213,7 @@ public sealed class AdminResetPasswordCliTests : IAsyncLifetime
 
         var reset = await client.PostAsJsonAsync(
             "/api/v1/auth/reset-password", new { Token = token, NewPassword });
-        Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
 
         var withNew = await client.PostAsJsonAsync(
             "/api/v1/auth/login", new { Username = "admin", Password = NewPassword });

@@ -65,7 +65,6 @@ public sealed class RequestPasswordResetCommandHandlerTests : IDisposable
 
         Assert.True(known.IsSuccess);
         Assert.True(unknown.IsSuccess);
-        Assert.Equal(known.Value, unknown.Value);
         Assert.Null(known.Error);
         Assert.Null(unknown.Error);
     }

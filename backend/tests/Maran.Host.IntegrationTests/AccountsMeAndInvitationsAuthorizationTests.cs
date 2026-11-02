@@ -202,7 +202,7 @@ public sealed class AccountsMeAndInvitationsAuthorizationTests : IAsyncLifetime
         using var client = await SignInAsync(factory, "admin");
         var response = await client.PostAsJsonAsync($"/api/v1/invitations/{accountId}/resend", new { });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();

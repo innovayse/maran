@@ -165,7 +165,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
 
         var removed = await owner.DeleteAsync($"/api/v1/me/sub-users/{memberId}");
 
-        Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await member.GetAsync("/api/v1/sftp-users")).StatusCode);
         using var anonymous = factory.CreateClient();
         var login = await anonymous.PostAsJsonAsync(

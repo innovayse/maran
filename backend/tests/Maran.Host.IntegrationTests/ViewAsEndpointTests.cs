@@ -96,7 +96,7 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
 
         var ended = await viewing.DeleteAsync(Endpoint);
 
-        Assert.Equal(HttpStatusCode.OK, ended.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, ended.StatusCode);
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var adminId = await context.Users.Where(u => u.Username == "admin").Select(u => u.Id).SingleAsync();
@@ -197,7 +197,7 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
         using var viewing = await StartAsync(factory, admin, "acme");
 
-        Assert.Equal(HttpStatusCode.OK, (await viewing.DeleteAsync(Endpoint)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await viewing.DeleteAsync(Endpoint)).StatusCode);
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await viewing.GetAsync(Endpoint)).StatusCode);
         using var state = JsonDocument.Parse(await admin.GetStringAsync(Endpoint));
@@ -226,7 +226,7 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
         using var viewing = await StartAsync(factory, admin, "acme");
 
-        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsync("/api/v1/auth/logout-all", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsync("/api/v1/auth/logout-all", null)).StatusCode);
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await viewing.GetAsync(Endpoint)).StatusCode);
     }
