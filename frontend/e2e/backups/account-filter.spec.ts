@@ -55,7 +55,7 @@ const ALICE_COPY: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
   ownerName: ALICE.name,
-  orphanedAccountUsername: '',
+  orphanedAccountUsername: null,
   status: 'completed',
   kind: 'manual',
   sizeBytes: 1_572_864,
@@ -63,8 +63,8 @@ const ALICE_COPY: Backup = {
   databaseCount: 2,
   startedAt: '2026-09-06T03:00:00Z',
   finishedAt: '2026-09-06T03:04:00Z',
-  failureCode: '',
-  failureDisplayName: '',
+  failureCode: null,
+  failureDisplayName: null,
 }
 
 const BOB_COPY: Backup = { ...ALICE_COPY, id: '33333333-3333-3333-3333-333333333333', accountId: BOB.id, ownerName: BOB.name }

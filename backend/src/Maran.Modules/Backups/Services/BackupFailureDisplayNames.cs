@@ -49,17 +49,17 @@ public sealed class BackupFailureDisplayNames
 
     /// <summary>Names one failure code as an operator reads it.</summary>
     /// <param name="failureCode">
-    /// The machine-stable code recorded on the row, or the empty string when nothing failed.
+    /// The machine-stable code recorded on the row, or <c>null</c> when nothing failed.
     /// </param>
     /// <returns>
-    /// The localized name; the empty string when there is no failure to name, and
+    /// The localized name; <c>null</c> when there is no failure to name, and
     /// <paramref name="failureCode"/> itself when this build carries no entry for it.
     /// </returns>
-    public string Of(string failureCode)
+    public string? Of(string? failureCode)
     {
-        if (string.IsNullOrEmpty(failureCode))
+        if (failureCode is null)
         {
-            return string.Empty;
+            return null;
         }
 
         var localized = _displayNames[KeyPrefix + failureCode];

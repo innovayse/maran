@@ -51,7 +51,7 @@ public sealed class CreateBackupCommandHandlerTests
         Assert.Equal(4096, result.Value.SizeBytes);
         Assert.Equal(new string('b', 64), result.Value.Sha256);
         Assert.Equal(3, result.Value.DatabaseCount);
-        Assert.Equal(string.Empty, result.Value.FailureCode);
+        Assert.Null(result.Value.FailureCode);
 
         var stored = await world.Read().Backups.SingleAsync();
         Assert.Equal(BackupStatus.Completed, stored.Status);
@@ -218,7 +218,7 @@ public sealed class CreateBackupCommandHandlerTests
 
         var stored = await world.Read().Backups.SingleAsync();
         Assert.Equal(BackupStatus.Failed, stored.Status);
-        Assert.Equal("BackupOutcomeUnobserved", stored.FailureCode);
+        Assert.Equal("BackupOutcomeUnobserved", stored.RunFailureCode);
         Assert.Equal(Now, stored.FinishedAt);
     }
 

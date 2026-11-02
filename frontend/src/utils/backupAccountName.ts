@@ -16,5 +16,5 @@ export const backupAccountName = (backup: Backup, placeholder: string): string =
   if (backup.ownerName !== '') {
     return backup.ownerName
   }
-  return backup.orphanedAccountUsername === '' ? placeholder : backup.orphanedAccountUsername
+  return backup.orphanedAccountUsername ?? placeholder
 }

@@ -157,7 +157,7 @@ public sealed class RestoreBackupCommandHandler
         // this moment and a Failed one produced nothing, and the agent refuses an empty expected
         // digest — so this refusal is here rather than left to surface from the agent halfway
         // through the operation that must not be surprising.
-        if (backup.Status != BackupStatus.Completed)
+        if (backup.Status != BackupStatus.Completed || backup.ArtifactSha256 is not { } expectedSha256)
         {
             // The account's name is not established yet on this path, so the trace records the
             // identifier the caller acted on.
@@ -177,7 +177,7 @@ public sealed class RestoreBackupCommandHandler
             // identifier the caller acted on.
             return await RefuseAsync(
                 command,
-                backup.NamesADeletedAccount() ? backup.OrphanedAccountUsername : backup.Id.ToString(),
+                backup.DeletedAccountUsername ?? backup.Id.ToString(),
                 nameof(ErrorMessages.AccountNotFound),
                 ErrorType.NotFound,
                 cancellationToken);
@@ -239,7 +239,7 @@ public sealed class RestoreBackupCommandHandler
             outcome = await _runner.RunAsync(
                 account.Username,
                 backup.Id,
-                backup.Sha256,
+                expectedSha256,
                 allowedDatabases,
                 destination.Value!.Agent,
                 taskId,

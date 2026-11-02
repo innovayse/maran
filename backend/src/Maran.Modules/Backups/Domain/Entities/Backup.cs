@@ -34,6 +34,17 @@ namespace Maran.Modules.Backups.Domain.Entities;
 /// that failed" unrepresentable rather than merely unlikely (rules/csharp.md "Domain models are
 /// rich").
 /// </para>
+/// <para>
+/// <b>A fact that does not exist yet is <c>null</c>, never an empty string.</b>
+/// <see cref="ArtifactSha256"/> exists only for a completed run, <see cref="RunFailureCode"/> only
+/// for a failed one, and <see cref="DeletedAccountUsername"/> only once the account is gone, so each
+/// is nullable and the question "was this recorded?" is answered by the type. The previous release
+/// stored the same three facts as empty strings in the columns <c>Sha256</c>, <c>FailureCode</c>
+/// and <c>OrphanedAccountUsername</c>. Expand-then-contract (rules/architecture.md): those columns
+/// stay mapped (as the private <c>Legacy…</c> properties), are written by the methods below in step
+/// with the new ones, and are read by nothing in this release; they are dropped in a later release,
+/// after the code that read them is gone.
+/// </para>
 /// </remarks>
 public sealed class Backup
 {
@@ -71,14 +82,21 @@ public sealed class Backup
     /// <summary>The finished artifact's size in bytes, or zero while running or after a failure.</summary>
     public long SizeBytes { get; private set; }
 
-    /// <summary>The finished artifact's SHA-256, hex and lowercase; empty until it completes.</summary>
+    /// <summary>The finished artifact's SHA-256, hex and lowercase; <c>null</c> until it completes.</summary>
     /// <remarks>
     /// The panel's copy of the digest, and the value a restore hands back to the agent as what it
     /// expects. Recording it here rather than reading it from the artifact's own sidecar at restore
     /// time is the point: a digest read from beside the bytes it describes proves only that the two
     /// were written together, which is exactly what an attacker who replaced both would arrange.
     /// </remarks>
-    public string Sha256 { get; private set; }
+    public string? ArtifactSha256 { get; private set; }
+
+    /// <summary>The previous release's <c>Sha256</c> column: the digest, or the empty string.</summary>
+    /// <remarks>
+    /// Written by <see cref="Completed"/> in step with <see cref="ArtifactSha256"/> and read by
+    /// nothing in this release. Dropped in a later release (contract phase).
+    /// </remarks>
+    private string LegacySha256 { get; set; }
 
     /// <summary>How many database dumps the finished archive contains.</summary>
     public int DatabaseCount { get; private set; }
@@ -89,12 +107,19 @@ public sealed class Backup
     /// <summary>When the run ended, or <c>null</c> while it is still running.</summary>
     public DateTimeOffset? FinishedAt { get; private set; }
 
-    /// <summary>The machine-stable code of the failure, or the empty string when nothing failed.</summary>
-    public string FailureCode { get; private set; }
+    /// <summary>The machine-stable code of the failure, or <c>null</c> when nothing failed.</summary>
+    public string? RunFailureCode { get; private set; }
+
+    /// <summary>The previous release's <c>FailureCode</c> column: the code, or the empty string.</summary>
+    /// <remarks>
+    /// Written by <see cref="Failed"/> in step with <see cref="RunFailureCode"/> and read by nothing
+    /// in this release. Dropped in a later release (contract phase).
+    /// </remarks>
+    private string LegacyFailureCode { get; set; }
 
     /// <summary>
     /// The system user name of the account this backs up, recorded only once that account has been
-    /// deleted; the empty string for every backup whose account still exists.
+    /// deleted; <c>null</c> for every backup whose account still exists.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -119,7 +144,14 @@ public sealed class Backup
     /// (rules/security.md item 8).
     /// </para>
     /// </remarks>
-    public string OrphanedAccountUsername { get; private set; }
+    public string? DeletedAccountUsername { get; private set; }
+
+    /// <summary>The previous release's <c>OrphanedAccountUsername</c> column: the name, or the empty string.</summary>
+    /// <remarks>
+    /// Written by <see cref="Orphan"/> in step with <see cref="DeletedAccountUsername"/> and read by
+    /// nothing in this release. Dropped in a later release (contract phase).
+    /// </remarks>
+    private string LegacyOrphanedAccountUsername { get; set; }
 
     /// <summary>Opens the record of a backup that has just been started.</summary>
     /// <param name="id">The identity, which is also the agent's backup id.</param>
@@ -141,20 +173,23 @@ public sealed class Backup
         Kind = kind;
         Status = BackupStatus.Running;
         SizeBytes = 0;
-        Sha256 = string.Empty;
+        ArtifactSha256 = null;
+        LegacySha256 = string.Empty;
         DatabaseCount = 0;
         StartedAt = startedAt;
         FinishedAt = null;
-        FailureCode = string.Empty;
-        OrphanedAccountUsername = string.Empty;
+        RunFailureCode = null;
+        LegacyFailureCode = string.Empty;
+        DeletedAccountUsername = null;
+        LegacyOrphanedAccountUsername = string.Empty;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>
     private Backup()
     {
-        Sha256 = string.Empty;
-        FailureCode = string.Empty;
-        OrphanedAccountUsername = string.Empty;
+        LegacySha256 = string.Empty;
+        LegacyFailureCode = string.Empty;
+        LegacyOrphanedAccountUsername = string.Empty;
     }
 
     /// <summary>Records that the agent produced a complete artifact.</summary>
@@ -164,8 +199,8 @@ public sealed class Backup
     /// <param name="finishedAt">The instant the run ended, taken from <see cref="IClock"/>.</param>
     /// <remarks>
     /// Refuses to complete a row that has already reached a terminal state, and refuses one with no
-    /// digest. The second is the load-bearing half: a completed row with an empty
-    /// <see cref="Sha256"/> is a backup the restore path would then have to hand the agent an empty
+    /// digest. The second is the load-bearing half: a completed row with no
+    /// <see cref="ArtifactSha256"/> is a backup the restore path would then have to hand the agent an empty
     /// expected digest for, and the agent refuses that — so the failure would surface at 3 a.m. on
     /// the one operation that must not be surprising, rather than here, where the artifact was
     /// described.
@@ -179,17 +214,19 @@ public sealed class Backup
 
         Status = BackupStatus.Completed;
         SizeBytes = sizeBytes;
-        Sha256 = sha256;
+        ArtifactSha256 = sha256;
+        LegacySha256 = sha256;
         DatabaseCount = databaseCount;
         FinishedAt = finishedAt;
-        FailureCode = string.Empty;
+        RunFailureCode = null;
+        LegacyFailureCode = string.Empty;
     }
 
     /// <summary>Records that the run ended without a usable artifact.</summary>
     /// <param name="failureCode">The machine-stable code of the failure. Never a supplied sentence.</param>
     /// <param name="finishedAt">The instant the run ended, taken from <see cref="IClock"/>.</param>
     /// <remarks>
-    /// Leaves <see cref="SizeBytes"/> and <see cref="Sha256"/> at their initial values rather than
+    /// Leaves <see cref="SizeBytes"/> and <see cref="ArtifactSha256"/> at their initial values rather than
     /// recording whatever partial figures the agent last reported: a size on a failed row reads as
     /// an artifact somebody could restore.
     /// </remarks>
@@ -202,7 +239,8 @@ public sealed class Backup
 
         Status = BackupStatus.Failed;
         FinishedAt = finishedAt;
-        FailureCode = failureCode;
+        RunFailureCode = failureCode;
+        LegacyFailureCode = failureCode;
     }
 
     /// <summary>Whether this backup's artifact may be deleted at the caller's request.</summary>
@@ -235,25 +273,13 @@ public sealed class Backup
     /// </remarks>
     public void Orphan(string accountUsername)
     {
-        if (string.IsNullOrEmpty(accountUsername) || OrphanedAccountUsername.Length > 0)
+        if (string.IsNullOrEmpty(accountUsername) || DeletedAccountUsername is not null)
         {
             return;
         }
 
-        OrphanedAccountUsername = accountUsername;
-    }
-
-    /// <summary>Whether this row's account has been deleted, leaving the row behind on purpose.</summary>
-    /// <returns><c>true</c> once <see cref="Orphan"/> has recorded the deleted account's name.</returns>
-    /// <remarks>
-    /// The one question that decides where a caller reads the account's user name from: the accounts
-    /// directory while the account exists, this row once it does not. It is a method here rather than
-    /// an <c>OrphanedAccountUsername.Length > 0</c> at each call site so that "what makes a row an
-    /// orphan" has one answer, and so that a future second marker cannot be added on one side only.
-    /// </remarks>
-    public bool NamesADeletedAccount()
-    {
-        return OrphanedAccountUsername.Length > 0;
+        DeletedAccountUsername = accountUsername;
+        LegacyOrphanedAccountUsername = accountUsername;
     }
 
     /// <summary>Whether an unattended retention pass may remove this backup.</summary>

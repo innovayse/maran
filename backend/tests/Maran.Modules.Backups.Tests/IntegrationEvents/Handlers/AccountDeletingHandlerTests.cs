@@ -1,5 +1,6 @@
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.ValueObjects;
 using Maran.Modules.Backups.IntegrationEvents.Handlers;
 using Maran.Modules.Backups.Tests.TestSupport;
 using Maran.Sdk.Events;
@@ -231,8 +232,7 @@ public sealed class AccountDeletingHandlerTests
         var kept = Assert.Single(await reading.Backups.IgnoreQueryFilters().ToListAsync());
 
         Assert.Equal(BackupKind.PreDeletion, kept.Kind);
-        Assert.True(kept.NamesADeletedAccount());
-        Assert.Equal("doomed", kept.OrphanedAccountUsername);
+        Assert.Equal("doomed", kept.DeletedAccountUsername);
     }
 
     /// <summary>The deleted account's own backup schedule goes with it.</summary>
@@ -289,6 +289,6 @@ public sealed class AccountDeletingHandlerTests
     /// <returns>The schedule.</returns>
     private static BackupSchedule Schedule(Guid? accountId)
     {
-        return new BackupSchedule(Guid.NewGuid(), accountId, null, BackupFrequency.Daily, 3, null, 7);
+        return new BackupSchedule(Guid.NewGuid(), accountId, null, new DailyBackupCadence(3), 7);
     }
 }

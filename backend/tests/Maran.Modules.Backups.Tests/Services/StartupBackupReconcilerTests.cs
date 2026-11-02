@@ -50,7 +50,7 @@ public sealed class StartupBackupReconcilerTests
 
         var stored = await world.Read().Backups.SingleAsync();
         Assert.Equal(BackupStatus.Failed, stored.Status);
-        Assert.Equal("BackupOutcomeUnobserved", stored.FailureCode);
+        Assert.Equal("BackupOutcomeUnobserved", stored.RunFailureCode);
         Assert.Equal(Now, stored.FinishedAt);
     }
 
@@ -61,7 +61,7 @@ public sealed class StartupBackupReconcilerTests
     /// <remarks>
     /// <para>
     /// The listing carries the artifact's size and its SHA-256, so the row COULD be completed from it.
-    /// It must not be: <c>Backup.Sha256</c> is the panel's independent digest precisely so a restore
+    /// It must not be: <c>Backup.ArtifactSha256</c> is the panel's independent digest precisely so a restore
     /// does not trust one read from beside the bytes it describes, and a row completed here would be
     /// indistinguishable from one the panel observed. The distinct code is what tells an operator
     /// there are bytes on the disk to release.
@@ -84,8 +84,8 @@ public sealed class StartupBackupReconcilerTests
 
         var stored = await world.Read().Backups.SingleAsync();
         Assert.Equal(BackupStatus.Failed, stored.Status);
-        Assert.Equal("BackupArtifactUnvouched", stored.FailureCode);
-        Assert.Equal(string.Empty, stored.Sha256);
+        Assert.Equal("BackupArtifactUnvouched", stored.RunFailureCode);
+        Assert.Null(stored.ArtifactSha256);
         Assert.Equal(0, stored.SizeBytes);
         Assert.Empty(world.Agent.Deletes);
     }
@@ -115,7 +115,7 @@ public sealed class StartupBackupReconcilerTests
         var reclamation = await world.Reconciler.ReconcileAsync(CancellationToken.None);
 
         Assert.Equal(new Models.BackupReclamation(1, 0, 1, 0), reclamation);
-        Assert.Equal("BackupOutcomeUnobserved", (await world.Read().Backups.SingleAsync()).FailureCode);
+        Assert.Equal("BackupOutcomeUnobserved", (await world.Read().Backups.SingleAsync()).RunFailureCode);
     }
 
     /// <summary>An archive belonging to a DIFFERENT backup does not reclaim this row.</summary>
@@ -174,8 +174,8 @@ public sealed class StartupBackupReconcilerTests
 
         var stored = await world.Read().Backups.SingleAsync();
         Assert.Equal(BackupStatus.Completed, stored.Status);
-        Assert.Equal(new string('a', 64), stored.Sha256);
-        Assert.Equal(string.Empty, stored.FailureCode);
+        Assert.Equal(new string('a', 64), stored.ArtifactSha256);
+        Assert.Null(stored.RunFailureCode);
     }
 
     /// <summary>A row the destination could not be asked about is LEFT RUNNING and counted.</summary>

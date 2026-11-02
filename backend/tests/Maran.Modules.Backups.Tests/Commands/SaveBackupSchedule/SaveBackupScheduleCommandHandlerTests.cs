@@ -1,5 +1,6 @@
 using Maran.Modules.Backups.Commands.SaveBackupSchedule;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.ValueObjects;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
 using Maran.Modules.Backups.Tests.TestSupport;
@@ -71,8 +72,67 @@ public sealed class SaveBackupScheduleCommandHandlerTests
         Assert.Equal(first.Value.Id, second.Value.Id);
 
         var stored = Assert.Single(await world.Read().BackupSchedules.IgnoreQueryFilters().ToListAsync());
-        Assert.Equal(5, stored.HourUtc);
+        Assert.Equal(new DailyBackupCadence(5), stored.Cadence);
         Assert.Equal(30, stored.RetainCount);
+    }
+
+    /// <summary>A weekly save stores the weekday inside the cadence and answers with the flat wire shape.</summary>
+    /// <remarks>
+    /// The wire keeps its frequency, weekday and hour fields; the weekday must come back on a weekly
+    /// schedule, and the stored cadence must be the weekly case rather than a daily one.
+    /// </remarks>
+    [Fact]
+    public async Task A_weekly_save_keeps_its_weekday_in_the_cadence_and_on_the_wire()
+    {
+        var world = new World(Guid.NewGuid());
+
+        var result = await world.Handler.HandleAsync(
+            Command(null) with { Frequency = BackupFrequency.Weekly, DayOfWeekUtc = DayOfWeek.Sunday },
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(BackupFrequency.Weekly, result.Value.Frequency);
+        Assert.Equal(DayOfWeek.Sunday, result.Value.DayOfWeekUtc);
+
+        var stored = Assert.Single(await world.Read().BackupSchedules.IgnoreQueryFilters().ToListAsync());
+        Assert.Equal(new WeeklyBackupCadence(DayOfWeek.Sunday, 3), stored.Cadence);
+    }
+
+    /// <summary>A weekly save naming no weekday is refused and nothing is written.</summary>
+    /// <remarks>
+    /// The pair the old shape read quietly as daily. The handler refuses it itself because a command
+    /// dispatched on the bus is not bound by the controller's validation.
+    /// </remarks>
+    [Fact]
+    public async Task A_weekly_save_without_a_weekday_is_refused()
+    {
+        var world = new World(Guid.NewGuid());
+
+        var result = await world.Handler.HandleAsync(
+            Command(null) with { Frequency = BackupFrequency.Weekly }, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("BackupScheduleDayRequired", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        Assert.Empty(await world.Read().BackupSchedules.IgnoreQueryFilters().ToListAsync());
+    }
+
+    /// <summary>A daily save naming a weekday is refused and nothing is written.</summary>
+    /// <remarks>
+    /// The inverse of the weekly refusal: a daily cadence has nowhere to keep a weekday, so a
+    /// silently dropped one would be a form field that did nothing.
+    /// </remarks>
+    [Fact]
+    public async Task A_daily_save_with_a_weekday_is_refused()
+    {
+        var world = new World(Guid.NewGuid());
+
+        var result = await world.Handler.HandleAsync(
+            Command(null) with { DayOfWeekUtc = DayOfWeek.Sunday }, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("BackupScheduleDayNotAllowed", result.Error!.Code);
+        Assert.Empty(await world.Read().BackupSchedules.IgnoreQueryFilters().ToListAsync());
     }
 
     /// <summary>Saving a schedule switched off records no run and answers with no next run.</summary>

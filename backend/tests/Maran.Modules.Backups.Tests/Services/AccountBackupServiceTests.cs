@@ -48,7 +48,7 @@ public sealed class AccountBackupServiceTests
         Assert.Equal(BackupKind.PreDeletion, stored.Kind);
         Assert.Equal(BackupStatus.Completed, stored.Status);
         Assert.Equal(accountId, stored.AccountId);
-        Assert.Equal(new string('c', 64), stored.Sha256);
+        Assert.Equal(new string('c', 64), stored.ArtifactSha256);
     }
 
     /// <summary>A run that produced nothing answers a failure, not a row the caller must inspect.</summary>
@@ -90,7 +90,7 @@ public sealed class AccountBackupServiceTests
 
         Assert.Equal(BackupStatus.Failed, stored.Status);
         Assert.Equal(BackupKind.PreDeletion, stored.Kind);
-        Assert.Equal("BackupStreamDropped", stored.FailureCode);
+        Assert.Equal("BackupStreamDropped", stored.RunFailureCode);
 
         var entry = Assert.Single(world.Audit.Entries);
         Assert.Equal(AuditActions.FinalBackupTaken, entry.Action);

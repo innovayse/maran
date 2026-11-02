@@ -42,7 +42,7 @@ namespace Maran.Modules.Backups.Services;
 /// <para>
 /// <b>What it does NOT do: complete the row.</b> An artifact is present, its size and its SHA-256
 /// are right there in the listing, and writing them onto the row would produce exactly what the
-/// panel would have recorded — and it is refused. <see cref="Backup.Sha256"/>'s own doc states why:
+/// panel would have recorded — and it is refused. <see cref="Backup.ArtifactSha256"/>'s own doc states why:
 /// <i>"a digest read from beside the bytes it describes proves only that the two were written
 /// together, which is exactly what an attacker who replaced both would arrange."</i> A row completed
 /// from a sidecar would be indistinguishable from one the panel observed, and the restore path's
@@ -294,16 +294,16 @@ public sealed class StartupBackupReconciler : BackgroundService
     /// <returns>The account's system user name, or the name the row kept when its account was deleted.</returns>
     /// <remarks>
     /// The row's own stamped name wins for an orphan, because after the account cascade there is
-    /// nowhere else to read it from (<see cref="Backup.NamesADeletedAccount"/>); an account still
+    /// nowhere else to read it from (<see cref="Backup.DeletedAccountUsername"/>); an account still
     /// present answers from the directory, which is the fact's owner. An empty string is the honest
     /// answer for a row whose account is gone and which was never stamped — such a row should not
     /// exist, and inventing a subject for it would put a guess in an append-only journal.
     /// </remarks>
     private static string SubjectOf(Backup backup, IReadOnlyDictionary<Guid, AccountSnapshot> accounts)
     {
-        if (backup.NamesADeletedAccount())
+        if (backup.DeletedAccountUsername is { } deletedAccountUsername)
         {
-            return backup.OrphanedAccountUsername;
+            return deletedAccountUsername;
         }
 
         return accounts.TryGetValue(backup.AccountId, out var account) ? account.Username : string.Empty;

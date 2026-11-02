@@ -97,7 +97,7 @@ const failureName = (backup: Backup): string | null => {
   // Read through a `typeof`: the value comes off the wire, and a panel older than the field sends
   // the key not at all. A screen that threw on the row it exists to explain would be worse.
   const name: unknown = backup.failureDisplayName
-  return typeof name === 'string' && name.length > 0 ? name : null
+  return typeof name === 'string' ? name : null
 }
 
 /**
@@ -144,7 +144,7 @@ const sortBy = (field: string): void => {
       >
         {{ failureName(row) }}
       </span>
-      <span v-if="row.failureCode.length > 0" class="mt-0.5 block font-mono text-xs text-text-muted">
+      <span v-if="row.failureCode !== null" class="mt-0.5 block font-mono text-xs text-text-muted">
         {{ t('backups.list.failureCode', { code: row.failureCode }) }}
       </span>
     </template>

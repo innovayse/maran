@@ -175,8 +175,8 @@ public sealed class ListBackupsQueryHandlerTests
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         var listed = Assert.Single(result.Value.Items);
-        Assert.Equal(string.Empty, listed.FailureCode);
-        Assert.Equal(string.Empty, listed.FailureDisplayName);
+        Assert.Null(listed.FailureCode);
+        Assert.Null(listed.FailureDisplayName);
     }
 
 
@@ -277,7 +277,7 @@ public sealed class ListBackupsQueryHandlerTests
             return backup.Id == liveRow.Id;
         });
         Assert.Equal("cust01", liveBackup.OwnerName);
-        Assert.Equal(string.Empty, liveBackup.OrphanedAccountUsername);
+        Assert.Null(liveBackup.OrphanedAccountUsername);
 
         var orphanBackup = result.Value.Items.Single(backup =>
         {

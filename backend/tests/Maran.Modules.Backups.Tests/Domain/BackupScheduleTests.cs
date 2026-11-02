@@ -1,5 +1,5 @@
 using Maran.Modules.Backups.Domain.Entities;
-using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.ValueObjects;
 
 namespace Maran.Modules.Backups.Tests.Domain;
 
@@ -25,11 +25,28 @@ public sealed class BackupScheduleTests
     {
         var schedule = Daily();
 
-        Assert.False(schedule.Enabled);
         Assert.Null(schedule.EnabledAt);
         Assert.Null(schedule.LastRunAt);
         Assert.Null(schedule.NextRunAt());
         Assert.False(schedule.IsDue(Thursday0400));
+    }
+
+    /// <summary>A schedule reports exactly the cadence it was built with, and a reconfigure replaces it.</summary>
+    /// <remarks>
+    /// The union carries the weekday only on the weekly case: moving a schedule from weekly to daily
+    /// leaves no weekday behind to be misread, and moving it back needs one.
+    /// </remarks>
+    [Fact]
+    public void A_schedule_reports_the_cadence_it_was_given()
+    {
+        var schedule = new BackupSchedule(
+            Guid.NewGuid(), null, null, new WeeklyBackupCadence(DayOfWeek.Sunday, 3), 7);
+
+        Assert.Equal(new WeeklyBackupCadence(DayOfWeek.Sunday, 3), schedule.Cadence);
+
+        schedule.Reconfigure(null, new DailyBackupCadence(5), 7, enabled: false, Thursday0400);
+
+        Assert.Equal(new DailyBackupCadence(5), schedule.Cadence);
     }
 
     /// <summary>A disabled schedule is never due, however long ago its hour passed.</summary>
@@ -52,7 +69,7 @@ public sealed class BackupScheduleTests
     public void Enabling_a_schedule_does_not_make_it_due_at_once()
     {
         var schedule = Daily();
-        schedule.Reconfigure(null, BackupFrequency.Daily, 3, null, 7, enabled: true, Thursday0400);
+        schedule.Reconfigure(null, new DailyBackupCadence(3), 7, enabled: true, Thursday0400);
 
         Assert.Equal(Thursday0400, schedule.EnabledAt);
         Assert.Null(schedule.LastRunAt);
@@ -73,7 +90,7 @@ public sealed class BackupScheduleTests
         var schedule = Enabled(3);
         var afterTheHour = Thursday0400.AddDays(1);
 
-        schedule.Reconfigure(null, BackupFrequency.Daily, 3, null, 7, enabled: true, afterTheHour);
+        schedule.Reconfigure(null, new DailyBackupCadence(3), 7, enabled: true, afterTheHour);
 
         Assert.Equal(Thursday0400, schedule.EnabledAt);
         Assert.Null(schedule.LastRunAt);
@@ -86,7 +103,7 @@ public sealed class BackupScheduleTests
     {
         var schedule = Enabled(3);
 
-        schedule.Reconfigure(null, BackupFrequency.Daily, 3, null, 7, enabled: false, Thursday0400.AddHours(1));
+        schedule.Reconfigure(null, new DailyBackupCadence(3), 7, enabled: false, Thursday0400.AddHours(1));
 
         Assert.Null(schedule.EnabledAt);
         Assert.Null(schedule.NextRunAt());
@@ -104,10 +121,10 @@ public sealed class BackupScheduleTests
     {
         var schedule = Enabled(3);
         schedule.MarkRunStarted(Friday0300);
-        schedule.Reconfigure(null, BackupFrequency.Daily, 3, null, 7, enabled: false, Friday0300.AddHours(2));
+        schedule.Reconfigure(null, new DailyBackupCadence(3), 7, enabled: false, Friday0300.AddHours(2));
 
         var switchedOnAgain = Friday0300.AddDays(3).AddHours(5);
-        schedule.Reconfigure(null, BackupFrequency.Daily, 3, null, 7, enabled: true, switchedOnAgain);
+        schedule.Reconfigure(null, new DailyBackupCadence(3), 7, enabled: true, switchedOnAgain);
 
         Assert.Equal(Friday0300, schedule.LastRunAt);
         Assert.Equal(switchedOnAgain, schedule.EnabledAt);
@@ -173,8 +190,8 @@ public sealed class BackupScheduleTests
     public void A_weekly_schedule_is_not_due_on_another_day()
     {
         var schedule = new BackupSchedule(
-            Guid.NewGuid(), null, null, BackupFrequency.Weekly, 3, DayOfWeek.Sunday, 7);
-        schedule.Reconfigure(null, BackupFrequency.Weekly, 3, DayOfWeek.Sunday, 7, enabled: true, Thursday0400);
+            Guid.NewGuid(), null, null, new WeeklyBackupCadence(DayOfWeek.Sunday, 3), 7);
+        schedule.Reconfigure(null, new WeeklyBackupCadence(DayOfWeek.Sunday, 3), 7, enabled: true, Thursday0400);
 
         // Friday, Saturday: the most recent Sunday occurrence is still behind the switch-on.
         Assert.False(schedule.IsDue(Thursday0400.AddDays(1)));
@@ -254,7 +271,7 @@ public sealed class BackupScheduleTests
     /// <returns>The schedule.</returns>
     private static BackupSchedule Daily()
     {
-        return new BackupSchedule(Guid.NewGuid(), null, null, BackupFrequency.Daily, 3, null, 7);
+        return new BackupSchedule(Guid.NewGuid(), null, null, new DailyBackupCadence(3), 7);
     }
 
     /// <summary>Builds a daily schedule enabled at <see cref="Thursday0400"/>.</summary>
@@ -262,8 +279,8 @@ public sealed class BackupScheduleTests
     /// <returns>The schedule, switched on at the fixture instant.</returns>
     private static BackupSchedule Enabled(int hourUtc)
     {
-        var schedule = new BackupSchedule(Guid.NewGuid(), null, null, BackupFrequency.Daily, hourUtc, null, 7);
-        schedule.Reconfigure(null, BackupFrequency.Daily, hourUtc, null, 7, enabled: true, Thursday0400);
+        var schedule = new BackupSchedule(Guid.NewGuid(), null, null, new DailyBackupCadence(hourUtc), 7);
+        schedule.Reconfigure(null, new DailyBackupCadence(hourUtc), 7, enabled: true, Thursday0400);
 
         return schedule;
     }

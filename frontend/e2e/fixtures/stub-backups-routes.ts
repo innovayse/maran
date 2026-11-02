@@ -17,7 +17,7 @@ const BACKUP_PATTERN = '**/api/v1/backups/*'
  */
 const BACKUP_RULES: PagedRules<Backup> = {
   matches: (backup, term) => {
-    return backup.ownerName.toLowerCase().includes(term) || backup.orphanedAccountUsername.toLowerCase().includes(term)
+    return backup.ownerName.toLowerCase().includes(term) || (backup.orphanedAccountUsername ?? '').toLowerCase().includes(term)
   },
   sorts: {
     startedAt: (backup) => {
@@ -120,7 +120,7 @@ export const stubBackups = async (page: Page, backups: Backup[]): Promise<() => 
         // This stub holds no account catalogue to name the owner from, so it answers as the panel does
         // for an account its directory does not name.
         ownerName: '',
-        orphanedAccountUsername: '',
+        orphanedAccountUsername: null,
         status: 'completed',
         kind: 'manual',
         sizeBytes: 5_242_880,
@@ -128,8 +128,8 @@ export const stubBackups = async (page: Page, backups: Backup[]): Promise<() => 
         databaseCount: 1,
         startedAt: '2026-09-07T09:00:00Z',
         finishedAt: '2026-09-07T09:02:00Z',
-        failureCode: '',
-        failureDisplayName: '',
+        failureCode: null,
+        failureDisplayName: null,
       }
       backups.unshift(created)
       await route.fulfill({

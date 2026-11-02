@@ -1,5 +1,5 @@
 using Maran.Modules.Backups.Domain.Entities;
-using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.ValueObjects;
 using Maran.Modules.Backups.Queries.GetBackupSchedule;
 using Maran.Modules.Backups.Tests.TestSupport;
 
@@ -115,6 +115,6 @@ public sealed class GetBackupScheduleQueryHandlerTests
     /// <returns>The schedule.</returns>
     private static BackupSchedule Schedule(Guid? accountId, int hourUtc)
     {
-        return new BackupSchedule(Guid.NewGuid(), accountId, null, BackupFrequency.Daily, hourUtc, null, 7);
+        return new BackupSchedule(Guid.NewGuid(), accountId, null, new DailyBackupCadence(hourUtc), 7);
     }
 }

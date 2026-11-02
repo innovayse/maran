@@ -58,6 +58,6 @@ public sealed class GetBackupQueryHandler
 
         var ownerNames = await _accounts.NamesOfAsync([backup.AccountId], cancellationToken);
 
-        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.FailureCode)));
+        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.RunFailureCode)));
     }
 }

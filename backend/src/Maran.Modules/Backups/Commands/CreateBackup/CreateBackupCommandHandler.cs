@@ -232,7 +232,7 @@ public sealed class CreateBackupCommandHandler
         // same row cannot label its owner differently.
         var ownerNames = await _accounts.NamesOfAsync([backup.AccountId], cancellationToken);
 
-        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.FailureCode)));
+        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.RunFailureCode)));
     }
 
     /// <summary>Closes out a run whose answer this request will never hear.</summary>
@@ -295,7 +295,7 @@ public sealed class CreateBackupCommandHandler
     /// <para>
     /// <b>Why a lost stream is never COMPLETED from the destination's own listing, on either
     /// path.</b> The listing carries the artifact's size and its SHA-256, so a row could be completed
-    /// from it — and must not be. <see cref="Backup.Sha256"/> is the panel's independently recorded
+    /// from it — and must not be. <see cref="Backup.ArtifactSha256"/> is the panel's independently recorded
     /// digest precisely so that a restore does not trust a digest read from beside the bytes it
     /// describes, and a row completed from the sidecar would be indistinguishable from one the panel
     /// observed. So both paths fail the row; neither invents a provenance.

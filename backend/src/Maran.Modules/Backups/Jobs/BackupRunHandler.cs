@@ -222,7 +222,7 @@ public sealed class BackupRunHandler
 #pragma warning disable RS0030 // unattended sweep with no principal; scoped, it would select nothing, every tick
         return _dbContext.BackupSchedules
             .IgnoreQueryFilters()
-            .Where(schedule => schedule.Enabled)
+            .Where(schedule => schedule.EnabledAt != null)
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
     }

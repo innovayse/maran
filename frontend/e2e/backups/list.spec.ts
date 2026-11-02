@@ -31,7 +31,7 @@ const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
   ownerName: ALICE.name,
-  orphanedAccountUsername: '',
+  orphanedAccountUsername: null,
   status: 'completed',
   kind: 'manual',
   sizeBytes: 1_572_864,
@@ -39,8 +39,8 @@ const COMPLETED: Backup = {
   databaseCount: 2,
   startedAt: '2026-09-06T03:00:00Z',
   finishedAt: '2026-09-06T03:04:00Z',
-  failureCode: '',
-  failureDisplayName: '',
+  failureCode: null,
+  failureDisplayName: null,
 }
 
 /** A run that produced NO artifact. Its `sizeBytes` is zero, which is not a size of zero. */
@@ -48,11 +48,11 @@ const FAILED: Backup = {
   id: '33333333-3333-3333-3333-333333333333',
   accountId: ALICE.id,
   ownerName: ALICE.name,
-  orphanedAccountUsername: '',
+  orphanedAccountUsername: null,
   status: 'failed',
   kind: 'manual',
   sizeBytes: 0,
-  sha256: '',
+  sha256: null,
   databaseCount: 0,
   startedAt: '2026-09-06T04:00:00Z',
   finishedAt: '2026-09-06T04:00:30Z',
@@ -123,8 +123,8 @@ const ORPHANED: Backup = {
   databaseCount: 1,
   startedAt: '2026-09-06T05:00:00Z',
   finishedAt: '2026-09-06T05:00:20Z',
-  failureCode: '',
-  failureDisplayName: '',
+  failureCode: null,
+  failureDisplayName: null,
 }
 
 test('a copy of a deleted account is named by the username preserved on the backup', async ({

@@ -107,14 +107,14 @@ public sealed class ListBackupsQueryHandler
             var owners = await _accounts.FindIdsByNameAsync(term, cancellationToken);
             backups = backups.Where(backup =>
                 owners.Contains(backup.AccountId)
-                || EF.Functions.ILike(backup.OrphanedAccountUsername, pattern, LikePattern.EscapeCharacter));
+                || EF.Functions.ILike(backup.DeletedAccountUsername, pattern, LikePattern.EscapeCharacter));
         }
 
         var page = await backups.ToPagedAsync(query, ListBackupsSorts.Map, cancellationToken);
 
         // One batched, tenant-scoped lookup for every owner on the page, never one per row. A
         // deleted account is absent from it, and its rows say whose they were through
-        // OrphanedAccountUsername instead.
+        // DeletedAccountUsername instead.
         var ownerIds = page.Items
             .Select(backup =>
             {
@@ -129,7 +129,7 @@ public sealed class ListBackupsQueryHandler
         // projected inside it: no expression tree can translate the resolver into SQL.
         return Result<PagedResult<BackupDto>>.Ok(page.Map(backup =>
         {
-            return BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.FailureCode));
+            return BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.RunFailureCode));
         }));
     }
 }

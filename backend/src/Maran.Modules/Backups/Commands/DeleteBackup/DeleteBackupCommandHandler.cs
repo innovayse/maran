@@ -191,9 +191,9 @@ public sealed class DeleteBackupCommandHandler
         Domain.Entities.Backup backup,
         CancellationToken cancellationToken)
     {
-        if (backup.NamesADeletedAccount())
+        if (backup.DeletedAccountUsername is { } deletedAccountUsername)
         {
-            return backup.OrphanedAccountUsername;
+            return deletedAccountUsername;
         }
 
         var account = await _accounts.FindAsync(backup.AccountId, cancellationToken);
