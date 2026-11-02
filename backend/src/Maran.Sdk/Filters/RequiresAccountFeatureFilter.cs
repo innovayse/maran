@@ -85,7 +85,7 @@ public sealed class RequiresAccountFeatureFilter : IAsyncActionFilter
         if (!await _features.IncludesAsync(accountId, _feature, context.HttpContext.RequestAborted))
         {
             var refusal = Error.Of(nameof(ValidationMessages.PlanFeatureNotIncluded), ErrorType.Forbidden);
-            context.Result = Result<bool>.Fail(refusal).ToActionResult(context.HttpContext);
+            context.Result = Result.Fail(refusal).ToActionResult(context.HttpContext);
             return;
         }
 
@@ -96,7 +96,7 @@ public sealed class RequiresAccountFeatureFilter : IAsyncActionFilter
                 _currentUser.UserId, accountId, _feature, context.HttpContext.RequestAborted))
         {
             var refusal = Error.Of(nameof(ValidationMessages.AccountFeatureNotGranted), ErrorType.Forbidden);
-            context.Result = Result<bool>.Fail(refusal).ToActionResult(context.HttpContext);
+            context.Result = Result.Fail(refusal).ToActionResult(context.HttpContext);
             return;
         }
 

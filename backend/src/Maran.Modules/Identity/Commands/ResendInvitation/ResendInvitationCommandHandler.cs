@@ -95,19 +95,19 @@ public sealed class ResendInvitationCommandHandler
     /// Success once the mail is queued — or once a concurrent resend has already queued one, see the
     /// type's remarks — or a typed refusal: no such account, or a login that already has a password.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(ResendInvitationCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(ResendInvitationCommand command, CancellationToken cancellationToken)
     {
         var issued = await _issuer.IssueAsync(command.AccountId, _clock.UtcNow, cancellationToken);
         if (!issued.IsSuccess)
         {
-            return Result<bool>.Fail(issued.Error!);
+            return Result.Fail(issued.Error!);
         }
 
         if (issued.Value is not InvitationIssued { Invitation: var invitation })
         {
             // Lost the race to create the login — see the type's remarks. The winner's own
             // request issues and mails its own token, so there is nothing left to do here.
-            return Result<bool>.Ok(true);
+            return Result.Ok();
         }
 
         // The actor is the ADMINISTRATOR who asked for the resend, not the invited customer the
@@ -129,6 +129,6 @@ public sealed class ResendInvitationCommandHandler
         await _bus.PublishAsync(
             _composer.Compose(invitation.OwnerEmail, invitation.Token.Reveal(), invitation.OwnerLanguage));
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

@@ -8,7 +8,7 @@ namespace Maran.Sdk.Contracts;
 /// <remarks>
 /// <para>
 /// <b>A request with an answer, not an event.</b> It is INVOKED inline and its handler answers
-/// <c>Result&lt;bool&gt;</c>, because the change can be refused for a reason the account owner's
+/// <see cref="Result"/>, because the change can be refused for a reason the account owner's
 /// administrator must read (the address already belongs to another login, <c>EmailTaken</c>) and
 /// Accounts may not reference the module that knows it (rules/architecture.md). Exactly one handler
 /// exists, in Identity; a published event could not carry that refusal back.

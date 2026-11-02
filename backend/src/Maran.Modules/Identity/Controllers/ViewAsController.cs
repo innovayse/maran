@@ -94,12 +94,12 @@ public sealed class ViewAsController : BaseApiController
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> EndAsync(CancellationToken cancellationToken)
     {
         var command = new EndViewAsCommand(CallerSessionId, CurrentUser.UserId, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

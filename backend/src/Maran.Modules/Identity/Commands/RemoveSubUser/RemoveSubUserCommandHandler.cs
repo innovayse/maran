@@ -72,8 +72,8 @@ public sealed class RemoveSubUserCommandHandler
     /// <summary>Removes the sub-user.</summary>
     /// <param name="command">Whom to remove.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns><c>true</c> when the access ended, or a typed refusal.</returns>
-    public async Task<Result<bool>> HandleAsync(RemoveSubUserCommand command, CancellationToken cancellationToken)
+    /// <returns>Success once the access has ended, or a typed refusal.</returns>
+    public async Task<Result> HandleAsync(RemoveSubUserCommand command, CancellationToken cancellationToken)
     {
         var owned = await _guard.RequireOwnedAccountAsync(cancellationToken);
         if (!owned.IsSuccess)
@@ -134,7 +134,7 @@ public sealed class RemoveSubUserCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Journals a refused attempt and answers with the refusal.</summary>
@@ -142,7 +142,7 @@ public sealed class RemoveSubUserCommandHandler
     /// <param name="error">Why it was refused.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> RefuseAsync(
+    private async Task<Result> RefuseAsync(
         RemoveSubUserCommand command,
         Error error,
         CancellationToken cancellationToken)
@@ -158,6 +158,6 @@ public sealed class RemoveSubUserCommandHandler
             succeeded: false,
             cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }

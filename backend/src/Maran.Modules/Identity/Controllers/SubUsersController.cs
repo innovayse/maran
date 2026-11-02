@@ -124,15 +124,15 @@ public sealed class SubUsersController : BaseApiController
     /// <summary>Ends a sub-user's access to the caller's account.</summary>
     /// <param name="id">The sub-user's login id.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns><c>true</c> when the access ended.</returns>
+    /// <returns>204 No Content once the access has ended.</returns>
     [HttpDelete("{id:guid}")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new RemoveSubUserCommand(id, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

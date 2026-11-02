@@ -62,7 +62,7 @@ public sealed class SaveSecurityPolicyCommandHandler
     /// <param name="command">The validated policy.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>Success. The values are the caller's own input; there is nothing to hand back.</returns>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         SaveSecurityPolicyCommand command,
         CancellationToken cancellationToken)
     {
@@ -104,6 +104,6 @@ public sealed class SaveSecurityPolicyCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

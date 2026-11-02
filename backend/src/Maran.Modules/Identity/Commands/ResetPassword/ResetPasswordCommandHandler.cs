@@ -56,7 +56,7 @@ namespace Maran.Modules.Identity.Commands.ResetPassword;
 /// <para>
 /// <b>This does not widen what an unauthenticated caller can learn.</b> The branch happens only
 /// AFTER a valid token has already been matched to a user — both outcomes still return the identical
-/// <c>Result&lt;bool&gt;.Ok(true)</c>, so nobody who does not already hold a live reset token (which
+/// <c>Result.Ok()</c>, so nobody who does not already hold a live reset token (which
 /// itself required knowing an address the request endpoint treats uniformly) can tell an
 /// <c>Invited</c> account from an <c>Active</c> one through this endpoint. See
 /// docs/superpowers/notes/2026-09-25-customer-area-threat-note.md.
@@ -109,7 +109,7 @@ public sealed class ResetPasswordCommandHandler
     /// <param name="command">The token and the new password.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>Success, or the single refusal every unusable token gets.</returns>
-    public async Task<Result<bool>> HandleAsync(ResetPasswordCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(ResetPasswordCommand command, CancellationToken cancellationToken)
     {
         var now = _clock.UtcNow;
         var tokenHash = PasswordResetTokenHasher.Hash(command.Token);
@@ -196,7 +196,7 @@ public sealed class ResetPasswordCommandHandler
                 cancellationToken);
         }
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Records a refused token and returns the one refusal every unusable token gets.</summary>
@@ -210,7 +210,7 @@ public sealed class ResetPasswordCommandHandler
     /// it carries is the user, when the token named a real one, because "somebody presented a spent
     /// reset link for this account" is the entry that matters.
     /// </remarks>
-    private async Task<Result<bool>> RefuseAsync(
+    private async Task<Result> RefuseAsync(
         Guid? userId,
         ResetPasswordCommand command,
         CancellationToken cancellationToken)
@@ -236,6 +236,6 @@ public sealed class ResetPasswordCommandHandler
                 cancellationToken);
         }
 
-        return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.PasswordResetTokenInvalid), ErrorType.Validation));
+        return Result.Fail(Error.Of(nameof(ErrorMessages.PasswordResetTokenInvalid), ErrorType.Validation));
     }
 }

@@ -156,7 +156,7 @@ public sealed class AuthController : BaseApiController
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("logout")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> LogoutAsync(CancellationToken cancellationToken)
     {
         var refreshToken = Request.Cookies[RefreshCookie.Name];
@@ -164,11 +164,11 @@ public sealed class AuthController : BaseApiController
 
         if (string.IsNullOrEmpty(refreshToken))
         {
-            return ToActionResult(Result<bool>.Ok(true));
+            return ToActionResult(Result.Ok());
         }
 
         var command = new LogoutCommand(refreshToken, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>Signs the caller out of every device.</summary>
@@ -181,14 +181,14 @@ public sealed class AuthController : BaseApiController
     [HttpPost("logout-all")]
     [RefusedWhileViewingAs]
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> LogoutEverywhereAsync(CancellationToken cancellationToken)
     {
         RefreshCookie.Delete(Response);
 
         var command = new LogoutEverywhereCommand(CurrentUser.UserId, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>
@@ -274,7 +274,7 @@ public sealed class AuthController : BaseApiController
     [HttpPost("two-factor/disable")]
     [RefusedWhileViewingAs]
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -288,7 +288,7 @@ public sealed class AuthController : BaseApiController
             IpAddress = ClientIpAddress,
             UserAgent = CallerUserAgent,
         };
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>
@@ -308,7 +308,7 @@ public sealed class AuthController : BaseApiController
     [RefusedWhileViewingAs]
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [EnableRateLimiting(RateLimitPolicies.Login)]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -324,7 +324,7 @@ public sealed class AuthController : BaseApiController
             IpAddress = ClientIpAddress,
             UserAgent = CallerUserAgent,
         };
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>
@@ -351,14 +351,14 @@ public sealed class AuthController : BaseApiController
     [HttpPost("forgot-password")]
     [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicies.PasswordReset)]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RequestPasswordResetAsync(
         [FromBody] RequestPasswordResetCommand command,
         CancellationToken cancellationToken)
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>Sets a new password from a reset link, and signs the account out everywhere.</summary>
@@ -373,14 +373,14 @@ public sealed class AuthController : BaseApiController
     [HttpPost("reset-password")]
     [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicies.PasswordReset)]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ResetPasswordAsync(
         [FromBody] ResetPasswordCommand command,
         CancellationToken cancellationToken)
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>Accepts an invitation: sets the first password for a newly created login.</summary>

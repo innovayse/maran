@@ -41,7 +41,7 @@ public sealed class RevokeSessionCommandHandler
     /// "forbidden" on purpose (rules/testing.md): 403 would confirm the id exists, turning the
     /// endpoint into an oracle for enumerating other people's sessions.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(RevokeSessionCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(RevokeSessionCommand command, CancellationToken cancellationToken)
     {
         var session = await _dbContext.Sessions
             .AsNoTracking()
@@ -49,7 +49,7 @@ public sealed class RevokeSessionCommandHandler
 
         if (session is null)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.SessionNotFound), ErrorType.NotFound));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.SessionNotFound), ErrorType.NotFound));
         }
 
         await _sessionService.RevokeAsync(command.SessionId, SessionRevocationReason.Logout, cancellationToken);
@@ -63,6 +63,6 @@ public sealed class RevokeSessionCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

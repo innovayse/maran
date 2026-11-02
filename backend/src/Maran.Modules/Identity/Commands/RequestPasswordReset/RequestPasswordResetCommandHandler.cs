@@ -106,7 +106,7 @@ public sealed class RequestPasswordResetCommandHandler
     /// Always success. "We have sent a link if that address belongs to an account" is the only honest
     /// answer this endpoint can give, and it is the same sentence for everybody.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         RequestPasswordResetCommand command,
         CancellationToken cancellationToken)
     {
@@ -152,7 +152,7 @@ public sealed class RequestPasswordResetCommandHandler
             await _bus.PublishAsync(Compose(user.Email, token));
         }
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Marks every unspent token of one user as used, so only the newest one can be spent.</summary>

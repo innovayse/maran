@@ -53,13 +53,13 @@ public sealed class InvitationsController : BaseApiController
     /// <param name="accountId">The hosting account whose owner is being (re)invited.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{accountId:guid}/resend")]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> ResendAsync(Guid accountId, CancellationToken cancellationToken)
     {
         var command = new ResendInvitationCommand(accountId, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>

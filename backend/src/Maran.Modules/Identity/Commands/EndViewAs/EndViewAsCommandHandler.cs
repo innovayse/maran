@@ -55,7 +55,7 @@ public sealed class EndViewAsCommandHandler
     /// Success, or <c>ViewAsNotViewing</c> (409) when the caller's token is not a live view-as session —
     /// an operator signed in as themselves has nothing to go back from.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(EndViewAsCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(EndViewAsCommand command, CancellationToken cancellationToken)
     {
         var now = _clock.UtcNow;
         var session = await _dbContext.Sessions.SingleOrDefaultAsync(
@@ -64,7 +64,7 @@ public sealed class EndViewAsCommandHandler
 
         if (session is null || !session.IsActive(now) || session.ViewAs is not { } origin)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.ViewAsNotViewing), ErrorType.Conflict));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.ViewAsNotViewing), ErrorType.Conflict));
         }
 
         session.Revoke(now, SessionRevocationReason.ViewAsEnded);
@@ -95,6 +95,6 @@ public sealed class EndViewAsCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

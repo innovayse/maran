@@ -31,7 +31,7 @@ public sealed class LogoutCommandHandler
     /// click, a session an administrator already ended — has still achieved what the user asked
     /// for, and answering with an error would only teach them that signing out sometimes fails.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(LogoutCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(LogoutCommand command, CancellationToken cancellationToken)
     {
         var userId = await _sessionService.RevokeByRefreshTokenAsync(
             command.RefreshToken,
@@ -50,6 +50,6 @@ public sealed class LogoutCommandHandler
                 cancellationToken);
         }
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }
