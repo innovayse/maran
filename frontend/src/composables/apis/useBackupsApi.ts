@@ -85,10 +85,10 @@ export const useBackupsApi = (): BackupsApi => {
    * Deletes a backup's archive and its record.
    * @param id The backup to delete.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel deleted it.
+   * @returns Nothing; the panel answers 204 No Content, and a refusal rejects.
    */
-  const remove = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${BACKUPS_PATH}/${id}`, signal)
+  const remove = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${BACKUPS_PATH}/${id}`, signal)
   }
 
   /**

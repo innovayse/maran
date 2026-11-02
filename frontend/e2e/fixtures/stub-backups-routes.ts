@@ -175,7 +175,7 @@ export const stubBackupsProblem = async (page: Page, detail: string): Promise<vo
 }
 
 /**
- * Fulfils `DELETE /api/v1/backups/{id}` with a success, and counts every request that reaches it.
+ * Fulfils `DELETE /api/v1/backups/{id}` with a 204 No Content, and counts every request that reaches it.
  *
  * The counter is the point rather than a convenience: a confirmation that a spec drives by clicking
  * proves only that a second click exists, where the number of requests that left the page proves
@@ -206,7 +206,7 @@ export const stubBackupDeletion = async (page: Page, backups: Backup[]): Promise
     if (index >= 0) {
       backups.splice(index, 1)
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 
   return (): number => {

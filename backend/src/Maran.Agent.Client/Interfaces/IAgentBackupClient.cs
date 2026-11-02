@@ -95,7 +95,7 @@ public interface IAgentBackupClient
     /// <param name="destination">Where the artifact currently resides.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure. Deleting an artifact that is not there is a not-found failure.</returns>
-    Task<Result<bool>> DeleteAsync(
+    Task<Result> DeleteAsync(
         string accountUsername,
         string backupId,
         AgentBackupDestination destination,

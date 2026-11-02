@@ -323,7 +323,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteAsync(
+    public async Task<Result> DeleteAsync(
         string accountUsername,
         string backupId,
         AgentBackupDestination destination,
@@ -339,10 +339,10 @@ public sealed class AgentBackupClient : IAgentBackupClient
 
         return response.ResultCase switch
         {
-            DeleteBackupResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DeleteBackupResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DeleteBackupResponse.ResultOneofCase.Ok => Result.Ok(),
+            DeleteBackupResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync), SecretOf(destination))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 

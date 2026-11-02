@@ -148,7 +148,7 @@ public sealed class RetentionHandlerTests
         var accountId = Guid.NewGuid();
         var rows = new List<Backup> { Completed(accountId, Origin), Completed(accountId, Origin.AddDays(1)) };
         var world = await World.SeededAsync(
-            accountId, rows, Result<bool>.Fail(Error.Of("BackupNotFound", ErrorType.NotFound)));
+            accountId, rows, Result.Fail(Error.Of("BackupNotFound", ErrorType.NotFound)));
 
         var pruned = await world.Handler.HandleAsync(new RetentionRequested(accountId, 1), CancellationToken.None);
 
@@ -179,7 +179,7 @@ public sealed class RetentionHandlerTests
             .ToList();
 
         var world = await World.SeededAsync(
-            accountId, rows, Result<bool>.Fail(Error.Of("BackupAlreadyRunning", ErrorType.Conflict)));
+            accountId, rows, Result.Fail(Error.Of("BackupAlreadyRunning", ErrorType.Conflict)));
 
         var pruned = await world.Handler.HandleAsync(new RetentionRequested(accountId, 1), CancellationToken.None);
 
@@ -305,7 +305,7 @@ public sealed class RetentionHandlerTests
         /// <summary>Assembles the handler over doubles.</summary>
         /// <param name="accountId">The account the directory knows.</param>
         /// <param name="deleteResult">The answer the agent gives every delete.</param>
-        private World(Guid accountId, Result<bool> deleteResult)
+        private World(Guid accountId, Result deleteResult)
         {
             _database = Guid.NewGuid().ToString();
             _currentUser = FakeCurrentUser.Admin();
@@ -332,9 +332,9 @@ public sealed class RetentionHandlerTests
         public static async Task<World> SeededAsync(
             Guid accountId,
             IReadOnlyList<Backup> rows,
-            Result<bool>? deleteResult = null)
+            Result? deleteResult = null)
         {
-            var world = new World(accountId, deleteResult ?? Result<bool>.Ok(true));
+            var world = new World(accountId, deleteResult ?? Result.Ok());
 
             await using var seed = BackupsTestContext.Create(world._currentUser, world._database);
             seed.Backups.AddRange(rows);

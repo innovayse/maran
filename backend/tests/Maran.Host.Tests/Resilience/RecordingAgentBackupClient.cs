@@ -95,7 +95,7 @@ internal sealed class RecordingAgentBackupClient : IAgentBackupClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteAsync(
+    public async Task<Result> DeleteAsync(
         string accountUsername,
         string backupId,
         AgentBackupDestination destination,
@@ -110,7 +110,7 @@ internal sealed class RecordingAgentBackupClient : IAgentBackupClient
 
         await Task.Yield();
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
