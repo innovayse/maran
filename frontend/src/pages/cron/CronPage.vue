@@ -44,7 +44,7 @@ import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import CronEntriesTable from '../../components/cron/CronEntriesTable.vue'
 import CronEntryForm from '../../components/cron/CronEntryForm.vue'
-import CronEntryOutputDialog from '../../components/cron/CronEntryOutputDialog.vue'
+import CronEntryOutputDialog, { type CronOutputRead } from '../../components/cron/CronEntryOutputDialog.vue'
 import CronEnvironmentEditor from '../../components/cron/CronEnvironmentEditor.vue'
 import CronRunResultDialog from '../../components/cron/CronRunResultDialog.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
@@ -52,6 +52,7 @@ import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useAccountsStore } from '../../stores/accounts'
 import { useCronStore } from '../../stores/cron'
 import { useCronRunsStore } from '../../stores/cronRuns'
+import { cronRunResultOf } from '../../utils/cronRunResultOf'
 import type { CronEntry, CronSchedule } from '../../types/cronEntry'
 import type { CronEnvironmentVariable } from '../../types/cronEnvironmentVariable'
 import { usePlanLimit } from '../../composables/usePlanLimit'
@@ -75,8 +76,8 @@ const editing: Ref<{ entryId: string; schedule: CronSchedule; command: string } 
 /** The success toast's text after an entry was added, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
 
-/** The entry awaiting a removal confirmation, or the empty string when none is. */
-const pendingRemovalId: Ref<string> = ref('')
+/** The entry awaiting a removal confirmation, or `null` when none is. */
+const pendingRemovalId: Ref<string | null> = ref(null)
 
 /** The entry the removal confirmation is open for, or `null` when none is. */
 const pendingEntry: ComputedRef<CronEntry | null> = computed(() => {
@@ -103,6 +104,21 @@ const selectedAccountLabel: ComputedRef<string | undefined> = computed(() => {
 
 /** The name of the first listed account when the screen opened on it, as the choices named it. */
 const firstAccountLabel: Ref<string | undefined> = ref(undefined)
+
+/**
+ * What the last-run dialog is showing, named from the store's four fields: the reading in flight,
+ * a refused read, an entry that answered with no run, or the run itself.
+ */
+const outputRead: ComputedRef<CronOutputRead> = computed(() => {
+  if (store.outputLoading) {
+    return { state: 'loading' }
+  }
+  if (store.outputErrorMessage !== null) {
+    return { state: 'failed', message: store.outputErrorMessage }
+  }
+  // The endpoint answers 200 with no body for an entry that has never run.
+  return store.output === null ? { state: 'neverRan' } : { state: 'ran', output: store.output }
+})
 
 /**
  * Points the screen at the account the URL names (`?account=<id>`, the link the account detail page
@@ -155,7 +171,7 @@ const start = async (): Promise<void> => {
  */
 const changeAccount = async (id: string): Promise<void> => {
   editing.value = null
-  pendingRemovalId.value = ''
+  pendingRemovalId.value = null
   await store.selectAccount(id)
 }
 
@@ -223,7 +239,7 @@ const askRemove = (entryId: string): void => {
  * @returns Nothing.
  */
 const cancelRemove = (): void => {
-  pendingRemovalId.value = ''
+  pendingRemovalId.value = null
 }
 
 /**
@@ -231,11 +247,14 @@ const cancelRemove = (): void => {
  * @returns Resolves once the request has settled.
  */
 const confirmRemove = async (): Promise<void> => {
+  if (pendingRemovalId.value === null) {
+    return
+  }
   await store.remove(pendingRemovalId.value)
 
   // Closed after the request settles rather than before it is sent: the dialog holds the
   // spinner that tells the operator the panel is working.
-  pendingRemovalId.value = ''
+  pendingRemovalId.value = null
 }
 
 /**
@@ -365,7 +384,7 @@ onMounted(start)
     <!-- One dialog for the whole table rather than one per row: only one removal can be awaiting
          an answer, and the menu that opened it is already gone by the time it appears. -->
     <UiConfirm
-      :open="pendingRemovalId.length > 0"
+      :open="pendingRemovalId !== null"
       :title="confirmationTitle"
       :question="t('cron.list.confirmRemove')"
       :confirm-label="t('cron.list.confirm')"
@@ -377,21 +396,18 @@ onMounted(start)
       @confirm="confirmRemove"
     />
 
-    <!-- `:open` is bound to a value that really changes, and the dialog is NOT wrapped in a `v-if`:
-         a component created with `open` already true never runs `UiModal`s open-watcher, so its
-         focus trap sits inert and Escape never reaches the panel. -->
+    <!-- Mounted only while a reading is on show: its prop describes that reading. `UiModal`s
+         open-watcher is `immediate`, so a dialog created already open still takes focus and hears
+         Escape. -->
     <CronEntryOutputDialog
-      :open="store.isOutputOpen"
-      :output="store.output"
-      :loading="store.outputLoading"
-      :error-message="store.outputErrorMessage"
+      v-if="store.isOutputOpen"
+      :read="outputRead"
       @close="store.closeOutput"
     />
 
     <CronRunResultDialog
-      :open="runsStore.isShownOpen"
-      :run="runsStore.shown"
-      :error-message="runsStore.shownErrorMessage"
+      v-if="runsStore.isShownOpen"
+      :result="cronRunResultOf(runsStore.shown, runsStore.shownErrorMessage)"
       @close="runsStore.close"
     />
 

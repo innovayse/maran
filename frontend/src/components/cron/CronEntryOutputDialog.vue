@@ -27,16 +27,36 @@ import { formatUnixTimestamp } from '../../utils/formatUnixTimestamp'
 import { useLocaleStore } from '../../stores/locale'
 import type { CronEntryOutput } from '../../types/cronEntry'
 
-/** Props accepted by {@link CronEntryOutputDialog}. */
+/**
+ * How the last-run reading stands. Four states, each named: a reading in flight, a refused one, an
+ * entry that has never run, and a run with something to show.
+ */
+export type CronOutputRead =
+  | {
+      /** The reading is in flight. */
+      state: 'loading'
+    }
+  | {
+      /** The panel refused the read. */
+      state: 'failed'
+      /** The panel's own already-localized message, shown verbatim. */
+      message: string
+    }
+  | {
+      /** The panel answered that this entry has never run. */
+      state: 'neverRan'
+    }
+  | {
+      /** The entry has run. */
+      state: 'ran'
+      /** What the run left behind. */
+      output: CronEntryOutput
+    }
+
+/** Props accepted by {@link CronEntryOutputDialog}; the caller mounts it only while a reading is on show. */
 const props = defineProps<{
-  /** Whether the dialog is shown; owned by the caller. */
-  open: boolean
-  /** The reading, or `null` for an entry that has never run (or one still being read). */
-  output: CronEntryOutput | null
-  /** True while the reading is in flight. */
-  loading: boolean
-  /** The panel's own already-localized message from a failed read, or `null`. */
-  errorMessage: string | null
+  /** How the reading stands. */
+  read: CronOutputRead
 }>()
 
 /** Events emitted by {@link CronEntryOutputDialog}. */
@@ -51,30 +71,20 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const localeStore = useLocaleStore()
 
-/**
- * Whether the panel answered and reported that this entry has never run.
- *
- * Distinguished from "still loading" and from "the read failed", because the three mean entirely
- * different things to somebody whose job is not firing.
- */
-const hasNeverRun: ComputedRef<boolean> = computed(() => {
-  return !props.loading && props.errorMessage === null && props.output === null
-})
-
-/** The run's output, or `null` when the agent reported none. */
+/** The run's output, or `null` when the agent reported none (or there is no run). */
 const outputText: ComputedRef<string | null> = computed(() => {
-  return props.output?.output ?? null
+  return props.read.state === 'ran' ? props.read.output.output : null
 })
 
 /** The exit code as text, or `null` when the agent reported none. */
 const exitCode: ComputedRef<string | null> = computed(() => {
-  const code = props.output?.lastExitCode
+  const code = props.read.state === 'ran' ? props.read.output.lastExitCode : undefined
   return code === undefined || code === null ? null : String(code)
 })
 
 /** When the run finished, in the operator's language, or `null` when the agent reported none. */
 const lastRunAt: ComputedRef<string | null> = computed(() => {
-  const seconds = props.output?.lastRunAtUnix
+  const seconds = props.read.state === 'ran' ? props.read.output.lastRunAtUnix : undefined
   return seconds === undefined || seconds === null
     ? null
     : formatUnixTimestamp(seconds, localeStore.current)
@@ -91,16 +101,16 @@ const close = (): void => {
 
 <template>
   <UiModal
-    :open="open"
+    :open="true"
     :title="t('cron.output.title')"
     :close-label="t('common.close')"
     @close="close"
   >
-    <UiSpinner v-if="loading" :label="t('cron.output.loading')" />
+    <UiSpinner v-if="read.state === 'loading'" :label="t('cron.output.loading')" />
 
-    <UiAlert v-else-if="errorMessage !== null" variant="error">{{ errorMessage }}</UiAlert>
+    <UiAlert v-else-if="read.state === 'failed'" variant="error">{{ read.message }}</UiAlert>
 
-    <p v-else-if="hasNeverRun" class="text-base text-text-secondary">
+    <p v-else-if="read.state === 'neverRan'" class="text-base text-text-secondary">
       {{ t('cron.output.neverRan') }}
     </p>
 

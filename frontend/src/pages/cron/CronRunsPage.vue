@@ -37,6 +37,7 @@ import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { useCronStore } from '../../stores/cron'
 import { useCronRunsStore } from '../../stores/cronRuns'
+import { cronRunResultOf } from '../../utils/cronRunResultOf'
 import { CRON_RUN_OUTCOMES, type CronRunOutcome, type CronRunSummary } from '../../types/cronRun'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 
@@ -267,9 +268,8 @@ onMounted(async () => {
     </UiFilterSheet>
 
     <CronRunResultDialog
-      :open="store.isShownOpen"
-      :run="store.shown"
-      :error-message="store.shownErrorMessage"
+      v-if="store.isShownOpen"
+      :result="cronRunResultOf(store.shown, store.shownErrorMessage)"
       @close="store.close"
     />
   </section>
