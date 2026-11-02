@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
+import type { LogLevel } from '../../src/types/logLevel'
 import type {
   AccountDiskUsage,
   ChartRange,
@@ -20,6 +21,9 @@ const CLOCK_PATTERN = /\/api\/v1\/monitoring\/clock$/
 
 /** The watched services' states. */
 const SERVICES_PATTERN = /\/api\/v1\/monitoring\/services$/
+
+/** The panel's runtime log level (issue #131). */
+const LOG_LEVEL_PATTERN = /\/api\/v1\/log-level$/
 
 /** The per-account disk figures, with or without the list's query. */
 const ACCOUNTS_DISK_PATTERN = /\/api\/v1\/monitoring\/accounts-disk(\?.*)?$/
@@ -67,6 +71,26 @@ export const STUBBED_HOST_METRICS: HostMetrics = {
   loadAverage5m: 0.4,
   loadAverage15m: 0.3,
 }
+
+/**
+ * The log level a stubbed monitoring screen reports unless a spec passes its own: Information, with
+ * the six levels the panel offers named as its English resources name them.
+ */
+export const STUBBED_LOG_LEVEL: LogLevel = {
+  level: 'information',
+  levelDisplayName: 'Information — the normal level',
+  choices: [
+    { level: 'verbose', levelDisplayName: 'Verbose — everything' },
+    { level: 'debug', levelDisplayName: 'Debug — diagnostic detail' },
+    { level: 'information', levelDisplayName: 'Information — the normal level' },
+    { level: 'warning', levelDisplayName: 'Warning — only what needs attention' },
+    { level: 'error', levelDisplayName: 'Error — only failures' },
+    { level: 'fatal', levelDisplayName: 'Fatal — only failures that stop the panel' },
+  ],
+}
+
+/** Every level the stub was asked to apply, in order, as the raw `level` each change carried. */
+export const logLevelChanges: string[] = []
 
 /** A fixed UTC instant the stubbed buckets are spaced from, so nothing depends on the clock. */
 const BASE_AT = Date.UTC(2026, 8, 1, 0, 0, 0)
@@ -124,7 +148,7 @@ export const stubbedBucket = (index: number, cpuPercent: number): MetricBucket =
 }
 
 /**
- * Fulfils the four monitoring reads.
+ * Fulfils the four monitoring reads and the log level card's read and change.
  *
  * **The chart stub echoes back the range it was ASKED for**, which is what the module does
  * (`MetricsChartDto.Range`) and what the store checks before accepting an answer. A stub that
@@ -138,6 +162,8 @@ export const stubbedBucket = (index: number, cpuPercent: number): MetricBucket =
  * honouring `page`, `pageSize`, `search` and `sort` as the panel does.
  * @param metrics The live host reading reported; {@link STUBBED_HOST_METRICS} by default.
  * @param clock The clock reading reported; {@link STUBBED_CLOCK_SYNC} by default.
+ * @param logLevel The log level reported first; {@link STUBBED_LOG_LEVEL} by default. A change the
+ * stub accepts becomes the level it reports afterwards, as the panel's read-back does.
  * @returns Resolves once the routes are installed.
  */
 export const stubMonitoring = async (
@@ -147,7 +173,32 @@ export const stubMonitoring = async (
   accounts: AccountDiskUsage[],
   metrics: HostMetrics = STUBBED_HOST_METRICS,
   clock: ClockSync = STUBBED_CLOCK_SYNC,
+  logLevel: LogLevel = STUBBED_LOG_LEVEL,
 ): Promise<void> => {
+  let current = logLevel.level
+  await page.route(LOG_LEVEL_PATTERN, async (route: Route) => {
+    if (route.request().method() === 'PUT') {
+      const requested = (route.request().postDataJSON() as { level: LogLevel['level'] }).level
+      logLevelChanges.push(requested)
+      current = requested
+      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      return
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...logLevel,
+        level: current,
+        levelDisplayName:
+          logLevel.choices.find((choice) => {
+            return choice.level === current
+          })?.levelDisplayName ?? current,
+      }),
+    })
+  })
+
   await page.route(CHART_PATTERN, async (route: Route) => {
     const requested = new URL(route.request().url()).searchParams.get('range') ?? ''
     chartRangeRequests.push(requested)

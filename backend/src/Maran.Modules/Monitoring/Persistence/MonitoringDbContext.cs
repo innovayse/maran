@@ -69,6 +69,15 @@ public sealed class MonitoringDbContext : DbContext
         }
     }
 
+    /// <summary>The administrator's stored choice of panel log level; at most one row (issue #131).</summary>
+    public DbSet<LogLevelSetting> LogLevelSettings
+    {
+        get
+        {
+            return Set<LogLevelSetting>();
+        }
+    }
+
     /// <summary>Applies the schema and the entity configurations.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -77,6 +86,7 @@ public sealed class MonitoringDbContext : DbContext
         modelBuilder.ApplyConfiguration(new MetricSampleConfiguration());
         modelBuilder.ApplyConfiguration(new AlertStateConfiguration());
         modelBuilder.ApplyConfiguration(new MetricBucketRowConfiguration());
+        modelBuilder.ApplyConfiguration(new LogLevelSettingConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

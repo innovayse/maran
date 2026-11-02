@@ -195,6 +195,9 @@ backend/
 │   │   ├── Idempotency/                 # Idempotency-Key handling
 │   │   ├── BackgroundServices/ · HealthChecks/ · Authorization/ · Serialization/
 │   │   ├── Seeding/ · Filters/ · Security/ · Properties/
+│   │   ├── Logging/                     # the logger's runtime level: SerilogPanelLogLevelSwitch (the Sdk's
+│   │   │                                 #   IPanelLogLevelSwitch over Serilog's LoggingLevelSwitch) and
+│   │   │                                 #   ConfiguredMinimumLevel (where the switch starts), issue #131
 │   │   ├── Cli/                         # the break-glass console mode (`Maran.Host --cli <verb>`, run as the
 │   │   │                                 #   service account by the root-only `maran` wrapper in
 │   │   │                                 #   installer/cli/): the verb parser and runner, one

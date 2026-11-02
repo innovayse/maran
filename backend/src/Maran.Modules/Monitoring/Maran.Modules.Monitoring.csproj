@@ -43,9 +43,22 @@
     <!-- Resx-backed user-facing message text (rules/csharp.md "The backend owns all
          user-facing message text"), one file per purpose rather than one catch-all: DisplayNames
          for the module's own name, NotificationMessages for the words of the alert mail it asks
-         the Notifications module to send. There is deliberately no ErrorMessages triple: every
-         error code this module used to define was an SMTP one and moved out with the mailer, and
-         a file appears when its purpose does (rules/csharp.md). -->
+         the Notifications module to send, and ErrorMessages for the module's own error codes —
+         today the one a refused log level answers with (issue #131). It is strongly typed so
+         nameof(ErrorMessages.LogLevelUnknown) fails to compile when the key is absent. -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Modules.Monitoring.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ErrorMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ErrorMessages.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
     <EmbeddedResource Update="Resources\DisplayNames.resx">
       <Generator></Generator>
     </EmbeddedResource>

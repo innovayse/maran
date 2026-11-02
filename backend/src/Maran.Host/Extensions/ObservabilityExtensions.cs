@@ -1,6 +1,9 @@
 using System.Globalization;
+using Maran.Host.Logging;
+using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Constants;
 using Serilog;
+using Serilog.Core;
 using Serilog.Events;
 
 namespace Maran.Host.Extensions;
@@ -17,6 +20,14 @@ public static class ObservabilityExtensions
     /// deployment can raise verbosity without a rebuild; the console sink is the default because
     /// systemd captures stdout into the journal.
     /// </summary>
+    /// <remarks>
+    /// The default minimum level is held by a <see cref="LoggingLevelSwitch"/>, started at the
+    /// configured level and registered as <see cref="IPanelLogLevelSwitch"/>, so an administrator
+    /// changes it at runtime (issue #131). The switch is created here, per host build, and is never
+    /// static: two hosts in one process — the integration tests boot many — each get their own. It is
+    /// registered in a command-line run too, where the logger ignores it, so the container answers
+    /// the same set of services in both modes.
+    /// </remarks>
     /// <param name="builder">The host builder to attach logging to.</param>
     /// <param name="commandLineMode">
     /// True for a <c>--cli</c> or <c>--migrate</c> run: the console sink then writes to standard error
@@ -27,6 +38,14 @@ public static class ObservabilityExtensions
     /// <returns>The same builder, for chaining.</returns>
     public static IHostBuilder AddPanelObservability(this IHostBuilder builder, bool commandLineMode = false)
     {
+        var levelSwitch = new LoggingLevelSwitch();
+
+        builder.ConfigureServices((context, services) =>
+        {
+            levelSwitch.MinimumLevel = ConfiguredMinimumLevel.Read(context.Configuration);
+            services.AddSingleton<IPanelLogLevelSwitch>(new SerilogPanelLogLevelSwitch(levelSwitch));
+        });
+
         return builder.UseSerilog((context, configuration) =>
         {
             if (commandLineMode)
@@ -35,7 +54,7 @@ public static class ObservabilityExtensions
                 return;
             }
 
-            ConfigureLogger(context, configuration);
+            ConfigureLogger(context, configuration, levelSwitch);
         });
     }
 
@@ -59,11 +78,19 @@ public static class ObservabilityExtensions
     /// <summary>Builds the logger configuration for a host context.</summary>
     /// <param name="context">The host context, source of configuration.</param>
     /// <param name="configuration">The logger configuration to populate.</param>
-    private static void ConfigureLogger(HostBuilderContext context, LoggerConfiguration configuration)
+    /// <param name="levelSwitch">
+    /// The switch that holds the default minimum level. It replaces the fixed
+    /// <c>MinimumLevel.Information()</c> this method used to apply after reading configuration, which
+    /// silently overrode a configured <c>Default</c> — the Development file's <c>Debug</c> among them.
+    /// </param>
+    private static void ConfigureLogger(
+        HostBuilderContext context,
+        LoggerConfiguration configuration,
+        LoggingLevelSwitch levelSwitch)
     {
         configuration
             .ReadFrom.Configuration(context.Configuration)
-            .MinimumLevel.Information()
+            .MinimumLevel.ControlledBy(levelSwitch)
             // ASP.NET Core's own request logs are replaced by UseSerilogRequestLogging below:
             // one summary line per request instead of three framework lines.
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)

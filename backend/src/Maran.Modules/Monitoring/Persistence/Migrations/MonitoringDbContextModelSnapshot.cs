@@ -58,6 +58,24 @@ namespace Maran.Modules.Monitoring.Persistence.Migrations
                     b.ToTable("AlertStates", "monitoring");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Monitoring.Domain.Entities.LogLevelSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LogLevelSettings", "monitoring");
+                });
+
             modelBuilder.Entity("Maran.Modules.Monitoring.Domain.Entities.MetricSample", b =>
                 {
                     b.Property<long>("Id")
