@@ -33,7 +33,7 @@ public sealed class RecordingFtpsAgent : IAgentFtpsClient
         PassivePortMin: 30000,
         PassivePortMax: 30099,
         Ipv4Only: false,
-        ForcedTls: true);
+        TlsEnforcement: FtpsTlsEnforcement.Enforced);
 
     /// <summary>The failure <see cref="EnableAsync"/> answers with, or null to answer with the observation.</summary>
     public Error? NextEnableError { get; set; }

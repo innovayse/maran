@@ -40,11 +40,14 @@ namespace Maran.Agent.Client.Services.FtpsService;
 /// an IPv6 listening bind. <c>false</c> is the dual-stack default and also what a host with no
 /// configuration yet reports.
 /// </param>
-/// <param name="ForcedTls">
-/// The live configuration still forces TLS on both the control and the data channel. <c>false</c>
-/// is the answer whenever the agent cannot say otherwise — no live configuration, a file it could
-/// not resolve, or an agent predating the field — and that direction is deliberate: an unknown must
-/// never read as "encryption is enforced".
+/// <param name="TlsEnforcement">
+/// Whether the live configuration still forces TLS on both the control and the data channel, in
+/// three outcomes: <see cref="FtpsTlsEnforcement.Enforced"/>, <see cref="FtpsTlsEnforcement.NotEnforced"/>
+/// (the configuration was read and TLS is optional) and <see cref="FtpsTlsEnforcement.NotObserved"/>
+/// (the agent could not read the configuration at all). The last is not a spelling of the middle one:
+/// a screen that says "TLS is not enforced" over a file nobody read has made a claim about the host
+/// that nothing measured. A caller must never treat <see cref="FtpsTlsEnforcement.NotObserved"/> as
+/// <see cref="FtpsTlsEnforcement.Enforced"/>.
 /// </param>
 public sealed record FtpsStatusDto(
     bool Running,
@@ -54,4 +57,4 @@ public sealed record FtpsStatusDto(
     uint PassivePortMin,
     uint PassivePortMax,
     bool Ipv4Only,
-    bool ForcedTls);
+    FtpsTlsEnforcement TlsEnforcement);

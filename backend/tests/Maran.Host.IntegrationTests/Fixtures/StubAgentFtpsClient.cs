@@ -42,7 +42,7 @@ public sealed class StubAgentFtpsClient : IAgentFtpsClient
         PassivePortMin: 30_000,
         PassivePortMax: 30_099,
         Ipv4Only: true,
-        ForcedTls: true);
+        TlsEnforcement: FtpsTlsEnforcement.Enforced);
 
     /// <summary>Reports the fixed observation as though the daemon had been configured and started.</summary>
     /// <param name="hostname">The hostname the daemon would serve; ignored.</param>

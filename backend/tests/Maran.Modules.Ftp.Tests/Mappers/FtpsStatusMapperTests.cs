@@ -1,6 +1,7 @@
 using Maran.Modules.Ftp.Domain.Enums;
 using Maran.Modules.Ftp.Mappers;
 using AgentFtpsCertificate = Maran.Agent.Client.Services.FtpsService.FtpsCertificate;
+using AgentFtpsTlsEnforcement = Maran.Agent.Client.Services.FtpsService.FtpsTlsEnforcement;
 using AgentFtpsStatus = Maran.Agent.Client.Services.FtpsService.FtpsStatusDto;
 
 namespace Maran.Modules.Ftp.Tests.Mappers;
@@ -106,15 +107,52 @@ public sealed class FtpsStatusMapperTests
             Observation(running: true, answered: true, unknown), "ftp.example.test", FtpsDesiredState.On));
     }
 
+    /// <summary>Each TLS enforcement outcome the agent client reports reaches the screen as itself.</summary>
+    /// <remarks>
+    /// Three outcomes, one row each, so a swap of two of them (the quiet one is "not observed" read as
+    /// "not enforced") fails by name. Not observed is the row an unreadable configuration produces.
+    /// </remarks>
+    /// <param name="observed">What the agent client reports.</param>
+    /// <param name="expected">What the screen is told.</param>
+    [Theory]
+    [InlineData(AgentFtpsTlsEnforcement.Enforced, FtpsTlsEnforcement.Enforced)]
+    [InlineData(AgentFtpsTlsEnforcement.NotEnforced, FtpsTlsEnforcement.NotEnforced)]
+    [InlineData(AgentFtpsTlsEnforcement.NotObserved, FtpsTlsEnforcement.NotObserved)]
+    public void Each_tls_enforcement_outcome_reaches_the_screen_as_itself(
+        AgentFtpsTlsEnforcement observed,
+        FtpsTlsEnforcement expected)
+    {
+        var dto = FtpsStatusMapper.ToDto(
+            Observation(running: true, answered: true, tlsEnforcement: observed),
+            "ftp.example.test",
+            FtpsDesiredState.On);
+
+        Assert.Equal(expected, dto.TlsEnforcement);
+    }
+
+    /// <summary>A TLS enforcement outcome the module cannot name is refused.</summary>
+    [Fact]
+    public void A_tls_enforcement_outcome_the_module_cannot_name_is_refused()
+    {
+        var unknown = (AgentFtpsTlsEnforcement)99;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => FtpsStatusMapper.ToDto(
+            Observation(running: true, answered: true, tlsEnforcement: unknown),
+            "ftp.example.test",
+            FtpsDesiredState.On));
+    }
+
     /// <summary>Builds an agent observation with the two facts the agreement reads.</summary>
     /// <param name="running">Whether the unit is active.</param>
     /// <param name="answered">Whether the control port greeted.</param>
     /// <param name="certificate">What the agent found at the certificate path; installed material by default.</param>
+    /// <param name="tlsEnforcement">Whether the live configuration forces TLS; enforced by default.</param>
     /// <returns>An otherwise healthy observation.</returns>
     private static AgentFtpsStatus Observation(
         bool running,
         bool answered,
-        AgentFtpsCertificate certificate = AgentFtpsCertificate.Provided)
+        AgentFtpsCertificate certificate = AgentFtpsCertificate.Provided,
+        AgentFtpsTlsEnforcement tlsEnforcement = AgentFtpsTlsEnforcement.Enforced)
     {
         return new AgentFtpsStatus(
             Running: running,
@@ -124,6 +162,6 @@ public sealed class FtpsStatusMapperTests
             PassivePortMin: 30000,
             PassivePortMax: 30099,
             Ipv4Only: false,
-            ForcedTls: true);
+            TlsEnforcement: tlsEnforcement);
     }
 }

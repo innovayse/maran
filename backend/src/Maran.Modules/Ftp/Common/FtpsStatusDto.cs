@@ -13,7 +13,7 @@ namespace Maran.Modules.Ftp.Common;
 /// configuration the daemon was started against, on the host, by the agent. A status assembled from
 /// the panel's own settings row would agree with the panel by construction: it would report a
 /// healthy daemon on a server where the unit had crashed, and — the case
-/// <see cref="ForcedTls"/> exists for — a green screen on a daemon taking passwords in the clear.
+/// <see cref="TlsEnforcement"/> exists for — a green screen on a daemon taking passwords in the clear.
 /// </para>
 /// <para>
 /// <b>This shape is admin-only, and <see cref="CertificatePath"/> is why it must stay so.</b> It is
@@ -45,12 +45,13 @@ namespace Maran.Modules.Ftp.Common;
 /// LOCAL probe, so "answering here" and "unreachable from the internet" are compatible: nothing in
 /// this module reads a firewall, and a screen must not promise reachability from this field.
 /// </param>
-/// <param name="ForcedTls">
-/// The live configuration still forces TLS on both the control and the data channel.
-/// <c>false</c> whenever the agent could not say otherwise — no live configuration, a file it could
-/// not resolve, an agent predating the field — because an unknown must never read as "encryption is
-/// enforced". A screen that shows this as green while it is <c>false</c> is the exact defect the
-/// field was put on the wire to prevent.
+/// <param name="TlsEnforcement">
+/// Whether the live configuration forces TLS on both the control and the data channel: enforced, not
+/// enforced (the configuration was read and TLS is optional), or not observed (the agent could not
+/// read it). Not observed is a state of its own because an unknown must never read as "encryption is
+/// enforced", and must not be asserted as "encryption is off" either. A screen that shows this as
+/// green unless it is <see cref="FtpsTlsEnforcement.Enforced"/> is the defect the field was put on
+/// the wire to prevent.
 /// </param>
 /// <param name="Certificate">
 /// What the agent found for <paramref name="Hostname"/>: no material, the agent's own self-signed
@@ -77,7 +78,7 @@ public sealed record FtpsStatusDto(
     FtpsAgreement Agreement,
     bool Running,
     bool ControlPortAnswered,
-    bool ForcedTls,
+    FtpsTlsEnforcement TlsEnforcement,
     FtpsCertificateState Certificate,
     string CertificatePath,
     int ControlPort,

@@ -26,14 +26,14 @@ public sealed class AgentFtpsClientTests
     /// <summary>The six boolean facts of a status answer, in the order the contract declares them.</summary>
     /// <returns>One theory row per flag position.</returns>
     /// <remarks>
-    /// Read one flag at a time rather than nine at once, because a mapper that routed
+    /// Read one flag at a time rather than every fact at once, because a mapper that routed
     /// <c>certificate_present</c> into <c>Running</c> would satisfy any assertion that only checked
     /// a mixed pattern where both happened to be true. Here exactly one flag is set on the wire and
     /// exactly one is asserted true in the result, so every misrouting fails on its own row.
     /// </remarks>
     public static TheoryData<int> StatusFlagPositions()
     {
-        return [0, 1, 2, 3];
+        return [0, 1, 2];
     }
 
     /// <summary>Enable sends every field of the configuration to the agent.</summary>
@@ -76,7 +76,7 @@ public sealed class AgentFtpsClientTests
                     PassivePortMin = PassiveMin,
                     PassivePortMax = PassiveMax,
                     Ipv4Only = true,
-                    ForcedTls = false,
+                    TlsEnforcement = TlsEnforcement.NotEnforced,
                 },
             },
         };
@@ -94,7 +94,7 @@ public sealed class AgentFtpsClientTests
                 PassiveMin,
                 PassiveMax,
                 true,
-                false),
+                FtpsTlsEnforcement.NotEnforced),
             result.Value);
     }
 
@@ -154,7 +154,7 @@ public sealed class AgentFtpsClientTests
                     PassivePortMin = PassiveMin,
                     PassivePortMax = PassiveMax,
                     Ipv4Only = false,
-                    ForcedTls = true,
+                    TlsEnforcement = TlsEnforcement.Enforced,
                 },
             },
         };
@@ -173,7 +173,7 @@ public sealed class AgentFtpsClientTests
                 PassiveMin,
                 PassiveMax,
                 false,
-                true),
+                FtpsTlsEnforcement.Enforced),
             result.Value);
     }
 
@@ -241,7 +241,7 @@ public sealed class AgentFtpsClientTests
             Running = position == 0,
             ControlPortAnswered = position == 1,
             Ipv4Only = position == 2,
-            ForcedTls = position == 3,
+            TlsEnforcement = TlsEnforcement.Enforced,
         };
         var stub = new StubFtpsService
         {
@@ -258,7 +258,6 @@ public sealed class AgentFtpsClientTests
             status.Running,
             status.ControlPortAnswered,
             status.Ipv4Only,
-            status.ForcedTls,
         ];
         Assert.Equal(1, flags.Count(flag => { return flag; }));
         Assert.True(flags[position]);
@@ -288,7 +287,12 @@ public sealed class AgentFtpsClientTests
         {
             StatusResponse = new GetFtpsStatusResponse
             {
-                Ok = new GetFtpsStatusOk { CertificatePresent = present, CertificateIsSelfSigned = selfSigned },
+                Ok = new GetFtpsStatusOk
+                {
+                    CertificatePresent = present,
+                    CertificateIsSelfSigned = selfSigned,
+                    TlsEnforcement = TlsEnforcement.Enforced,
+                },
             },
         };
 
@@ -297,6 +301,61 @@ public sealed class AgentFtpsClientTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(expected, result.Value!.Certificate);
+    }
+
+    /// <summary>The wire's TLS enforcement outcome reaches the panel as the same outcome, on every daemon rpc.</summary>
+    /// <remarks>
+    /// Three rows, because "not enforced" and "not observed" are different claims about the host and the
+    /// deprecated boolean beside the enum reads <c>false</c> for both. The status rpc carries the rows;
+    /// the enable, disable and reload rpcs each map the same field and are covered by their own ok tests.
+    /// </remarks>
+    /// <param name="wire">The wire's <c>tls_enforcement</c>.</param>
+    /// <param name="expected">The outcome the panel is told.</param>
+    /// <returns>The asynchronous test.</returns>
+    [Theory]
+    [InlineData(TlsEnforcement.Enforced, FtpsTlsEnforcement.Enforced)]
+    [InlineData(TlsEnforcement.NotEnforced, FtpsTlsEnforcement.NotEnforced)]
+    [InlineData(TlsEnforcement.NotObserved, FtpsTlsEnforcement.NotObserved)]
+    public async Task The_wire_tls_enforcement_reaches_the_panel_as_the_same_outcome(
+        TlsEnforcement wire,
+        FtpsTlsEnforcement expected)
+    {
+        var stub = new StubFtpsService
+        {
+            StatusResponse = new GetFtpsStatusResponse { Ok = new GetFtpsStatusOk { TlsEnforcement = wire } },
+        };
+
+        var result = await new AgentFtpsClient(stub, NullLogger<AgentFtpsClient>.Instance)
+            .GetStatusAsync("ftp.example.test", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expected, result.Value!.TlsEnforcement);
+    }
+
+    /// <summary>A status that states no TLS enforcement is refused, whatever the deprecated boolean says.</summary>
+    /// <remarks>
+    /// The contract's zero value means the agent predates the field. The old <c>forced_tls</c> boolean is
+    /// set to <c>true</c> here on purpose: reading it as a stand-in would certify encryption on an agent
+    /// that never stated it, and the refusal must hold against exactly that temptation.
+    /// </remarks>
+    /// <returns>The asynchronous test.</returns>
+    [Fact]
+    public async Task A_status_that_states_no_tls_enforcement_is_refused_whatever_the_deprecated_boolean_says()
+    {
+        var stub = new StubFtpsService
+        {
+            StatusResponse = new GetFtpsStatusResponse
+            {
+                // The deprecated boolean is set deliberately: the client must not read it.
+                Ok = new GetFtpsStatusOk { Running = true, ForcedTls = true },
+            },
+        };
+
+        var result = await new AgentFtpsClient(stub, NullLogger<AgentFtpsClient>.Instance)
+            .GetStatusAsync("ftp.example.test", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
     /// <summary>The status ok payload maps the path and both ends of the passive range.</summary>
@@ -312,6 +371,7 @@ public sealed class AgentFtpsClientTests
                     CertificatePath = "/etc/maran/ftps/ftp.example.test",
                     PassivePortMin = PassiveMin,
                     PassivePortMax = PassiveMax,
+                    TlsEnforcement = TlsEnforcement.Enforced,
                 },
             },
         };
@@ -348,7 +408,7 @@ public sealed class AgentFtpsClientTests
     /// <remarks>
     /// The direction matters here more than anywhere else in this file: an empty response read as
     /// success would hand the panel a status whose every flag is false, which includes
-    /// <c>ForcedTls = false</c> — a screen saying "encryption is not enforced" about a daemon nobody
+    /// an unstated TLS enforcement — a screen saying "encryption is not enforced" about a daemon nobody
     /// observed. A refusal says the observation failed, which is the true statement.
     /// </remarks>
     [Fact]
@@ -379,7 +439,7 @@ public sealed class AgentFtpsClientTests
                     PassivePortMin = PassiveMin,
                     PassivePortMax = PassiveMax,
                     Ipv4Only = false,
-                    ForcedTls = true,
+                    TlsEnforcement = TlsEnforcement.NotObserved,
                 },
             },
         };
@@ -398,7 +458,7 @@ public sealed class AgentFtpsClientTests
                 PassiveMin,
                 PassiveMax,
                 false,
-                true),
+                FtpsTlsEnforcement.NotObserved),
             result.Value);
     }
 

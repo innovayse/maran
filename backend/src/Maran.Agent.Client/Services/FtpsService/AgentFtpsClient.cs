@@ -84,7 +84,7 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
 
         return response.ResultCase switch
         {
-            EnableFtpsResponse.ResultOneofCase.Ok => Result<FtpsStatusDto>.Ok(ToStatus(response.Ok)),
+            EnableFtpsResponse.ResultOneofCase.Ok => ToStatus(response.Ok),
             EnableFtpsResponse.ResultOneofCase.Error => Result<FtpsStatusDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(EnableAsync))),
             _ => Result<FtpsStatusDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
@@ -98,7 +98,7 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
 
         return response.ResultCase switch
         {
-            DisableFtpsResponse.ResultOneofCase.Ok => Result<FtpsStatusDto>.Ok(ToStatus(response.Ok)),
+            DisableFtpsResponse.ResultOneofCase.Ok => ToStatus(response.Ok),
             DisableFtpsResponse.ResultOneofCase.Error => Result<FtpsStatusDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DisableAsync))),
             _ => Result<FtpsStatusDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
@@ -113,7 +113,7 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
 
         return response.ResultCase switch
         {
-            GetFtpsStatusResponse.ResultOneofCase.Ok => Result<FtpsStatusDto>.Ok(ToStatus(response.Ok)),
+            GetFtpsStatusResponse.ResultOneofCase.Ok => ToStatus(response.Ok),
             GetFtpsStatusResponse.ResultOneofCase.Error => Result<FtpsStatusDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetStatusAsync))),
             _ => Result<FtpsStatusDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
@@ -127,7 +127,7 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
 
         return response.ResultCase switch
         {
-            ReloadFtpsTlsResponse.ResultOneofCase.Ok => Result<FtpsStatusDto>.Ok(ToStatus(response.Ok)),
+            ReloadFtpsTlsResponse.ResultOneofCase.Ok => ToStatus(response.Ok),
             ReloadFtpsTlsResponse.ResultOneofCase.Error => Result<FtpsStatusDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ReloadTlsAsync))),
             _ => Result<FtpsStatusDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
@@ -206,10 +206,10 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
 
     /// <summary>Projects the enable rpc's observation onto the panel's one status shape.</summary>
     /// <param name="ok">The wire payload.</param>
-    /// <returns>The eight facts, unchanged.</returns>
-    private static FtpsStatusDto ToStatus(EnableFtpsOk ok)
+    /// <returns>The nine facts, or <c>AgentInvalidResponse</c> when TLS enforcement is not stated.</returns>
+    private static Result<FtpsStatusDto> ToStatus(EnableFtpsOk ok)
     {
-        return new FtpsStatusDto(
+        return ToStatus(
             ok.Running,
             ok.ControlPortAnswered,
             ToCertificate(ok.CertificatePresent, ok.CertificateIsSelfSigned),
@@ -217,15 +217,15 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
             ok.PassivePortMin,
             ok.PassivePortMax,
             ok.Ipv4Only,
-            ok.ForcedTls);
+            ok.TlsEnforcement);
     }
 
     /// <summary>Projects the disable rpc's observation onto the panel's one status shape.</summary>
     /// <param name="ok">The wire payload.</param>
-    /// <returns>The eight facts, unchanged.</returns>
-    private static FtpsStatusDto ToStatus(DisableFtpsOk ok)
+    /// <returns>The nine facts, or <c>AgentInvalidResponse</c> when TLS enforcement is not stated.</returns>
+    private static Result<FtpsStatusDto> ToStatus(DisableFtpsOk ok)
     {
-        return new FtpsStatusDto(
+        return ToStatus(
             ok.Running,
             ok.ControlPortAnswered,
             ToCertificate(ok.CertificatePresent, ok.CertificateIsSelfSigned),
@@ -233,15 +233,15 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
             ok.PassivePortMin,
             ok.PassivePortMax,
             ok.Ipv4Only,
-            ok.ForcedTls);
+            ok.TlsEnforcement);
     }
 
     /// <summary>Projects the status rpc's observation onto the panel's one status shape.</summary>
     /// <param name="ok">The wire payload.</param>
-    /// <returns>The eight facts, unchanged.</returns>
-    private static FtpsStatusDto ToStatus(GetFtpsStatusOk ok)
+    /// <returns>The nine facts, or <c>AgentInvalidResponse</c> when TLS enforcement is not stated.</returns>
+    private static Result<FtpsStatusDto> ToStatus(GetFtpsStatusOk ok)
     {
-        return new FtpsStatusDto(
+        return ToStatus(
             ok.Running,
             ok.ControlPortAnswered,
             ToCertificate(ok.CertificatePresent, ok.CertificateIsSelfSigned),
@@ -249,15 +249,15 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
             ok.PassivePortMin,
             ok.PassivePortMax,
             ok.Ipv4Only,
-            ok.ForcedTls);
+            ok.TlsEnforcement);
     }
 
     /// <summary>Projects the TLS-reload rpc's observation onto the panel's one status shape.</summary>
     /// <param name="ok">The wire payload.</param>
-    /// <returns>The eight facts, unchanged.</returns>
-    private static FtpsStatusDto ToStatus(ReloadFtpsTlsOk ok)
+    /// <returns>The nine facts, or <c>AgentInvalidResponse</c> when TLS enforcement is not stated.</returns>
+    private static Result<FtpsStatusDto> ToStatus(ReloadFtpsTlsOk ok)
     {
-        return new FtpsStatusDto(
+        return ToStatus(
             ok.Running,
             ok.ControlPortAnswered,
             ToCertificate(ok.CertificatePresent, ok.CertificateIsSelfSigned),
@@ -265,7 +265,67 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
             ok.PassivePortMin,
             ok.PassivePortMax,
             ok.Ipv4Only,
-            ok.ForcedTls);
+            ok.TlsEnforcement);
+    }
+
+    /// <summary>Builds the status from the nine facts the four rpcs share, once.</summary>
+    /// <param name="running">The service manager reports the unit active.</param>
+    /// <param name="controlPortAnswered">A local connect to the control port got a greeting.</param>
+    /// <param name="certificate">What was found at the certificate path.</param>
+    /// <param name="certificatePath">Where the material lives, or would have to be placed.</param>
+    /// <param name="passivePortMin">The lowest passive data port of the live configuration.</param>
+    /// <param name="passivePortMax">The highest passive data port of the live configuration.</param>
+    /// <param name="ipv4Only">The live configuration is the IPv4-only fallback.</param>
+    /// <param name="tlsEnforcement">The wire's TLS enforcement outcome.</param>
+    /// <returns>The status, or <c>AgentInvalidResponse</c> when the wire states no enforcement outcome.</returns>
+    /// <remarks>
+    /// The contract's zero value means the agent predates the field and an unrecognised value means
+    /// it is newer than this panel; the handshake window admits neither, so the answer is refused
+    /// rather than given an outcome it did not state. The deprecated <c>forced_tls</c> boolean is
+    /// never read as a stand-in: it folds "not enforced" and "not observed" into one <c>false</c>,
+    /// which is the very loss the enum exists to end.
+    /// </remarks>
+    private static Result<FtpsStatusDto> ToStatus(
+        bool running,
+        bool controlPortAnswered,
+        FtpsCertificate certificate,
+        string certificatePath,
+        uint passivePortMin,
+        uint passivePortMax,
+        bool ipv4Only,
+        TlsEnforcement tlsEnforcement)
+    {
+        var enforcement = ToEnforcement(tlsEnforcement);
+
+        if (enforcement is null)
+        {
+            return Result<FtpsStatusDto>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
+
+        return Result<FtpsStatusDto>.Ok(new FtpsStatusDto(
+            running,
+            controlPortAnswered,
+            certificate,
+            certificatePath,
+            passivePortMin,
+            passivePortMax,
+            ipv4Only,
+            enforcement.Value));
+    }
+
+    /// <summary>Names the wire's TLS enforcement outcome.</summary>
+    /// <param name="wire">The wire outcome.</param>
+    /// <returns>The outcome, or <c>null</c> for the contract's zero value or one this build does not know.</returns>
+    private static FtpsTlsEnforcement? ToEnforcement(TlsEnforcement wire)
+    {
+        return wire switch
+        {
+            TlsEnforcement.Enforced => FtpsTlsEnforcement.Enforced,
+            TlsEnforcement.NotEnforced => FtpsTlsEnforcement.NotEnforced,
+            TlsEnforcement.NotObserved => FtpsTlsEnforcement.NotObserved,
+            _ => null,
+        };
     }
 
     /// <summary>Folds the wire's two certificate booleans into the one fact they describe.</summary>
