@@ -14,11 +14,11 @@ namespace Maran.Agent.Client.Services.CronService;
 /// <see cref="Error"/> carrying only a code, and the agent's own diagnostic text — which can name
 /// paths under the account's home — is logged rather than returned (rules/security.md item 8).
 ///
-/// Three fields of the cron contract are deprecated and written as zeros by the agent
-/// (<c>CronEntry.last_exit_code</c>, <c>CronEntry.last_run_at_unix</c> and
-/// <c>UpdateCronEntryRequest.enabled</c>). None of them is read or written here, and the panel-side
-/// types have no member for them: a zero copied out of a field the agent never fills is a claim
-/// nobody made, and it reads exactly like a measurement.
+/// <c>CronEntry.last_exit_code</c> and <c>CronEntry.last_run_at_unix</c> are reserved in the contract
+/// (revision 13) and <c>UpdateCronEntryRequest.enabled</c> is deprecated and written as zero by the
+/// agent. None of them is read or written here, and the panel-side types have no member for them: a
+/// zero copied out of a field the agent never fills is a claim nobody made, and it reads exactly like
+/// a measurement. The last run's exit code and time are answered by <c>GetCronEntryOutput</c> alone.
 /// </remarks>
 public sealed class AgentCronClient : IAgentCronClient
 {

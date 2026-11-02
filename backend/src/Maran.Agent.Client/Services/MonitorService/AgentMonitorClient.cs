@@ -14,12 +14,12 @@ namespace Maran.Agent.Client.Services.MonitorService;
 /// <see cref="Error"/> carrying only a code, and the agent's own diagnostic text is logged rather
 /// than returned (rules/security.md item 8).
 ///
-/// Two wire fields are deliberately not projected. <c>ServiceStatus.uptime_seconds</c> and
-/// <c>AccountDiskUsage.quota_bytes</c> are written 0 by the agent, and a 0 copied into a panel type
-/// is indistinguishable from a measurement: "just restarted" and "no quota" are both alarming and
-/// both untrue. The panel owns the quota outright, and nothing needs the uptime.
+/// <c>ServiceStatus.uptime_seconds</c> and <c>AccountDiskUsage.quota_bytes</c> are reserved in the
+/// contract (revision 13) and have no member in the generated types: the agent wrote 0 into both,
+/// and a 0 copied into a panel type is indistinguishable from a measurement. The panel owns the
+/// quota outright, and nothing needs the uptime.
 ///
-/// The third — <c>ServiceStatus.running</c> — IS read, but only where <c>state</c> is absent. See
+/// One deprecated field — <c>ServiceStatus.running</c> — IS read, but only where <c>state</c> is absent. See
 /// <see cref="ToPanelState"/>: everywhere else the boolean is the two-valued reading the tri-state
 /// replaced, and reading it would put every socket-activated unit back in the "stopped" column.
 /// </remarks>

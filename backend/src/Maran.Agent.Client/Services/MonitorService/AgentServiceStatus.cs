@@ -11,11 +11,11 @@ namespace Maran.Agent.Client.Services.MonitorService;
 /// no call here accepts a unit name.
 /// </param>
 /// <remarks>
-/// The wire message also carries the deprecated <c>running</c> boolean and an <c>uptime_seconds</c>
-/// written as 0, and this type has a member for neither. The boolean reports both "stopped" and
-/// "not known" as false — the conflation the three-valued state exists to end — and the client reads
-/// it only to resolve an agent old enough to send no state at all. The uptime is unproduced: the
-/// service manager reports a start timestamp rather than a duration, and turning one into the other
-/// needs a clock reading nobody in this path takes.
+/// The wire message also carries the deprecated <c>running</c> boolean, and this type has no member
+/// for it. The boolean reports both "stopped" and "not known" as false — the conflation the
+/// three-valued state exists to end — and the client reads it only to resolve an agent old enough to
+/// send no state at all. The former <c>uptime_seconds</c> is reserved (contract revision 13): it was
+/// unproduced, because the service manager reports a start timestamp rather than a duration, and
+/// turning one into the other needs a clock reading nobody in this path takes.
 /// </remarks>
 public sealed record AgentServiceStatus(AgentManagedService Service, AgentServiceState State, string Detail);
