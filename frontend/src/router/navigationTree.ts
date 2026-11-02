@@ -130,7 +130,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('site-domains', 'app.nav.children.siteDomains', planned(null), EVERYONE, null),
           page('site-certificates', 'app.nav.children.siteCertificates', planned(null), EVERYONE, null),
           page('site-php', 'app.nav.children.sitePhp', planned(null), CUSTOMER, null),
-          page('php-versions', 'php.title', routed('php-versions'), ADMIN, null),
+          page('php-versions', 'app.nav.phpVersions', routed('php-versions'), ADMIN, null),
         ],
       },
       {
@@ -256,7 +256,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('firewall-rules', 'firewall.rules.heading', routed('firewall'), ADMIN, 'firewall'),
           page('firewall-bans', 'firewall.bans.heading', routed('firewall-bans'), ADMIN, 'firewall'),
           page('firewall-whitelist', 'firewall.whitelist.heading', routed('firewall-whitelist'), ADMIN, 'firewall'),
-          page('security-policy', 'app.securityPolicy.heading', routed('security-policy'), ADMIN, null),
+          page('security-policy', 'app.nav.securityPolicy', routed('security-policy'), ADMIN, null),
         ],
       },
       {

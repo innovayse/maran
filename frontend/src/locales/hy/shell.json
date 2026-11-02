@@ -3,7 +3,9 @@
     "title": "Maran",
     "nav": {
       "ariaLabel": "Հիմնական նավիգացիա",
-      "auditJournal": "Աուդիտի մատյան",
+      "auditJournal": "Աուդիտ",
+      "securityPolicy": "Մուտքի կանոն",
+      "phpVersions": "PHP տարբերակ",
       "plans": "Սակագներ",
       "lockedBadge": "Արգելափակված",
       "groups": {

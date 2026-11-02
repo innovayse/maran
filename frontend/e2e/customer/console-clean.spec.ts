@@ -1,5 +1,6 @@
 import { expect, test, type ConsoleMessage } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
@@ -73,6 +74,7 @@ test('a customer walks their own area with a clean console', async ({ page }) =>
   })
 
   await stubSignedIn(page, CUSTOMER)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
   await stubDashboard(page, WITHHELD_DASHBOARD)

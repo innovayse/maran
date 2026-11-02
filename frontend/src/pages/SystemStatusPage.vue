@@ -49,6 +49,7 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiIcon from '../components/ui/UiIcon.vue'
 import UiLoadingRegion from '../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../components/ui/UiPageHeading.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import { useCallerRole } from '../composables/useCallerRole'
 import { useAuthStore } from '../stores/auth'
 import { useDashboardStore } from '../stores/dashboard'
@@ -227,6 +228,14 @@ onMounted(refresh)
         <!-- While the read is in flight, the figure cards are drawn with their real labels and a
              placeholder for every figure, so the answer lands without moving anything. -->
         <template v-if="view === 'pendingServer'">
+          <!-- The notice is the first thing the answer draws (one line when nothing needs attention),
+               so its slot is held by a notice of the same box with a placeholder line for its text, in a row
+               as tall as one line of that text (`text-sm` at `leading-normal`).
+               Without it every figure below drops by the notice's height at the moment the answer
+               lands. -->
+          <UiAlert variant="info">
+            <div class="flex h-5.25 items-center"><UiSkeleton /></div>
+          </UiAlert>
           <DashboardCountGrid :counts="null" />
           <DashboardResourceCard :resources="null" />
         </template>

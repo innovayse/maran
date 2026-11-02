@@ -7,6 +7,7 @@ import {
   stubBackupSchedules,
 } from '../fixtures/stub-backup-schedule-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { Account } from '../../src/types/account'
 import type { BackupSchedule } from '../../src/types/backupSchedule'
@@ -85,6 +86,7 @@ test('a server with no schedule loads with a clean console and no failed request
 
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   const traffic = await stubBackupSchedules(page, {})

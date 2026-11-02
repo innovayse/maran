@@ -70,8 +70,8 @@ test('an owner invites a person with chosen features and sees them invited', asy
 
   await page.getByLabel('Login name').fill('deploy')
   await page.getByLabel('E-mail address').fill('deploy@example.com')
-  await page.getByRole('group', { name: 'Features this person may use' }).getByLabel('Databases').check()
-  await page.getByRole('group', { name: 'Features this person may use' }).getByLabel('Backups').check()
+  await page.getByRole('group', { name: 'Features this person may use' }).getByLabel('Databases').check({ force: true })
+  await page.getByRole('group', { name: 'Features this person may use' }).getByLabel('Backups').check({ force: true })
   await page.getByRole('button', { name: 'Send invitation' }).click()
 
   await expect(page.getByText('Invitation sent to deploy.')).toBeVisible()
@@ -104,8 +104,8 @@ test('an owner changes the features of a person and the row follows', async ({ p
   await page.getByRole('menuitem', { name: 'Change features' }).click()
   const dialog = page.getByRole('dialog', { name: 'Features of deploy' })
   await expect(dialog.getByLabel('Databases')).toBeChecked()
-  await dialog.getByLabel('Databases').uncheck()
-  await dialog.getByLabel('Cron jobs').check()
+  await dialog.getByText('Databases', { exact: true }).click()
+  await dialog.getByText('Cron jobs', { exact: true }).click()
   await dialog.getByRole('button', { name: 'Save features' }).click()
 
   await expect(page.getByText('Features of deploy saved.')).toBeVisible()

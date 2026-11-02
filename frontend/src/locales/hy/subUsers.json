@@ -43,7 +43,7 @@
       },
       "placeholders": {
         "username": "deploy",
-        "email": "name@example.com"
+        "email": "name{'@'}example.com"
       },
       "hint": "Նրանք կստանան էլ․ նամակ՝ սեփական գաղտնաբառն ընտրելու համար միանգամյա հղումով։ Դուք դա երբեք չեք տեսնի։",
       "submit": "Ուղարկել հրավերը",

@@ -117,7 +117,7 @@ test('unticking a feature leaves it out of the plan that is created', async ({ p
   await page.getByLabel('Plan name').fill('No mail')
   await page.getByLabel('Disk quota (MB)').fill('10240')
   await page.getByLabel('Sites', { exact: true }).fill('10')
-  await page.getByLabel('Databases', { exact: true }).fill('5')
+  await page.getByRole('textbox', { name: 'Databases', exact: true }).fill('5')
   await page.getByLabel('SFTP logins').fill('4')
   await page.getByLabel('FTPS logins').fill('0')
   await page.getByLabel('Cron entries').fill('7')

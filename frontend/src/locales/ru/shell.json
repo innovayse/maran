@@ -4,6 +4,8 @@
     "nav": {
       "ariaLabel": "Основная навигация",
       "auditJournal": "Журнал аудита",
+      "securityPolicy": "Политика входа",
+      "phpVersions": "Версии PHP",
       "plans": "Тарифы",
       "lockedBadge": "Заблокировано",
       "groups": {

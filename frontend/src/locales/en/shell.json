@@ -4,6 +4,8 @@
     "nav": {
       "ariaLabel": "Main navigation",
       "auditJournal": "Audit journal",
+      "securityPolicy": "Security policy",
+      "phpVersions": "PHP versions",
       "plans": "Plans",
       "lockedBadge": "Locked",
       "groups": {

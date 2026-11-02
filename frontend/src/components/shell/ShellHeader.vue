@@ -159,7 +159,7 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
            The field
            is a container of its own so the hint leaves when the field is too narrow for it,
            rather than when the window is. -->
-      <div class="max-w-md min-w-40 flex-[1000_1_0%]" :class="searchSwap.field">
+      <div class="max-w-sm min-w-40 flex-[1000_1_0%]" :class="searchSwap.field">
         <UiButton
           variant="field"
           class="@container w-full"

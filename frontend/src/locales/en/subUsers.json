@@ -43,7 +43,7 @@
       },
       "placeholders": {
         "username": "deploy",
-        "email": "name@example.com"
+        "email": "name{'@'}example.com"
       },
       "hint": "They get an e-mail with a one-time link to choose their own password. You never see it.",
       "submit": "Send invitation",
