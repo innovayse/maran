@@ -19,11 +19,11 @@ export const useServersStore = defineStore("servers", () => {
    * The servers the panel reported, in its order. A read nobody has asked for is `idle`; a refused
    * or unreachable one is `failed` unless a list was already held, which stays (see {@link load}).
    */
-  const read: Ref<Read<Server[]>> = ref({ state: 'idle' });
+  const read: Ref<Read<Server[]>> = ref({ state: "idle" });
 
   /** The servers held; empty before the first successful read. */
   const servers: ComputedRef<Server[]> = computed(() => {
-    return read.value.state === 'loaded' ? read.value.value : [];
+    return read.value.state === "loaded" ? read.value.value : [];
   });
 
   /**
@@ -43,11 +43,11 @@ export const useServersStore = defineStore("servers", () => {
    */
   const load = async (): Promise<void> => {
     try {
-      read.value = { state: 'loaded', value: await api.list() };
+      read.value = { state: "loaded", value: await api.list() };
     } catch (error) {
       // The selector is orientation, not a gate: a failed read is a display state, never a throw.
-      if (read.value.state !== 'loaded') {
-        read.value = { state: 'failed', message: error instanceof ApiError ? error.message : null };
+      if (read.value.state !== "loaded") {
+        read.value = { state: "failed", message: error instanceof ApiError ? error.message : null };
       }
     }
   };
