@@ -8,17 +8,11 @@ namespace Maran.Modules.Cron.Common;
 /// has to read "no status" off an absent number.
 /// </summary>
 /// <remarks>
-/// The constructor is private to this assembly, so <see cref="CronRunExitedDto"/>,
-/// <see cref="CronRunWithoutStatusDto"/> and <see cref="CronRunStoppedDto"/> are the whole set.
+/// <see cref="CronRunExitedDto"/>, <see cref="CronRunWithoutStatusDto"/> and
+/// <see cref="CronRunStoppedDto"/> are the whole set; the derived-type attributes below name them.
 /// </remarks>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(CronRunExitedDto), "exited")]
 [JsonDerivedType(typeof(CronRunWithoutStatusDto), "withoutStatus")]
 [JsonDerivedType(typeof(CronRunStoppedDto), "stopped")]
-public abstract record CronRunEndDto
-{
-    /// <summary>Closes the hierarchy to the three shapes this assembly declares.</summary>
-    private protected CronRunEndDto()
-    {
-    }
-}
+public abstract record CronRunEndDto;
