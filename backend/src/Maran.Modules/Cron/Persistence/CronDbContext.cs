@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Maran.Modules.Cron.Domain.Entities;
 using Maran.Modules.Cron.Persistence.Configurations;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Cron.Persistence;
 
@@ -39,6 +41,45 @@ public sealed class CronDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// True when the caller is an administrator, who sees every account's runs. Read per context
+    /// instance by the tenant filter, which an expression tree cannot express as a type switch.
+    /// </summary>
+    private bool SeesEveryAccount
+    {
+        get
+        {
+            return _currentUser.Caller switch
+            {
+                AdministratorCaller => true,
+                AnonymousCaller => false,
+                CustomerCaller => false,
+                AccountlessCustomerCaller => false,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            };
+        }
+    }
+
+    /// <summary>
+    /// The one account a customer acts for, or null for an administrator, an anonymous caller and a
+    /// customer login with no account selected — none of whom own a row, so the filter shows them none
+    /// through this arm.
+    /// </summary>
+    private Guid? OwnAccountId
+    {
+        get
+        {
+            return _currentUser.Caller switch
+            {
+                CustomerCaller customer => customer.AccountId,
+                AdministratorCaller => null,
+                AnonymousCaller => null,
+                AccountlessCustomerCaller => null,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            };
+        }
+    }
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,7 +90,7 @@ public sealed class CronDbContext : DbContext
         // remembering to filter. An administrator sees everything; a customer's context carries
         // their account id and the filter closes over it.
         modelBuilder.Entity<CronRun>().HasQueryFilter(run =>
-            _currentUser.IsAdmin || run.AccountId == _currentUser.AccountId);
+            SeesEveryAccount || run.AccountId == OwnAccountId);
 
         base.OnModelCreating(modelBuilder);
     }
