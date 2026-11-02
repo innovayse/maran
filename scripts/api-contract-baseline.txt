@@ -10,9 +10,14 @@
 # also out of scope — this is the REQUEST contract only. Endpoints with no SPA caller cannot be
 # joined and are listed too.
 #
+# A polymorphic member is rendered `union(<discriminator>: <cases>)` and its cases are listed as
+# `name<case>.member`. It is compared only where the SPA tags the union with one string-literal
+# property and the C# base carries [JsonPolymorphic]/[JsonDerivedType]; any other tagging is a
+# failure, never a guess.
+#
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 44 endpoints, 145 members
+covered: 44 endpoints, 139 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -148,15 +153,12 @@ POST /api/v1/plans  ->  CreatePlanCommand
   maxFtpUsers: number
   maxCronEntries: number
   maxPhpWorkersPerPool: number
-  cpuQuotaPercent: object
-  cpuQuotaPercent.kind: enum(limited|unlimited)
-  cpuQuotaPercent.maximum: number
-  memoryMaxMb: object
-  memoryMaxMb.kind: enum(limited|unlimited)
-  memoryMaxMb.maximum: number
-  maxProcesses: object
-  maxProcesses.kind: enum(limited|unlimited)
-  maxProcesses.maximum: number
+  cpuQuotaPercent: union(kind: limited|unlimited)
+  cpuQuotaPercent<limited>.maximum: number
+  memoryMaxMb: union(kind: limited|unlimited)
+  memoryMaxMb<limited>.maximum: number
+  maxProcesses: union(kind: limited|unlimited)
+  maxProcesses<limited>.maximum: number
   features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
 PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   name: string
@@ -167,15 +169,12 @@ PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   maxFtpUsers: number
   maxCronEntries: number
   maxPhpWorkersPerPool: number
-  cpuQuotaPercent: object
-  cpuQuotaPercent.kind: enum(limited|unlimited)
-  cpuQuotaPercent.maximum: number
-  memoryMaxMb: object
-  memoryMaxMb.kind: enum(limited|unlimited)
-  memoryMaxMb.maximum: number
-  maxProcesses: object
-  maxProcesses.kind: enum(limited|unlimited)
-  maxProcesses.maximum: number
+  cpuQuotaPercent: union(kind: limited|unlimited)
+  cpuQuotaPercent<limited>.maximum: number
+  memoryMaxMb: union(kind: limited|unlimited)
+  memoryMaxMb<limited>.maximum: number
+  maxProcesses: union(kind: limited|unlimited)
+  maxProcesses<limited>.maximum: number
   features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
 PUT /api/v1/security-policy  ->  SaveSecurityPolicyCommand
   minimumPasswordLength: number
