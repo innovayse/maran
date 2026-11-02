@@ -3,7 +3,8 @@ using Maran.SharedKernel.Constants;
 namespace Maran.Sdk.Extensions;
 
 /// <summary>
-/// Translates <see cref="Result{T}"/> into ASP.NET Core responses: success becomes 200/201, failure
+/// Translates <see cref="Result{T}"/> and the value-less <see cref="Result"/> into ASP.NET Core responses:
+/// success becomes 200/201 (204 for a value-less outcome), failure
 /// becomes an RFC 7807 <see cref="ProblemDetails"/> carrying the machine-stable error code, a
 /// localized message, and the request's correlation id — and nothing else. Never a stack trace, a
 /// path, or tool output (rules/security.md "Secrets"). <see cref="Controllers.BaseApiController"/> is the usual
@@ -63,6 +64,30 @@ public static class ApiResultExtensions
             onFail: error =>
             {
                 return ToProblemResult(error, result.Extension, httpContext);
+            });
+    }
+
+    /// <summary>Translates an outcome that produces no value: 204 No Content, or a problem response.</summary>
+    /// <param name="result">The outcome to translate.</param>
+    /// <param name="httpContext">The current request, used to read the correlation id and resolve <see cref="IErrorTextProvider"/>.</param>
+    /// <remarks>
+    /// Success answers 204 with no body: a delete, a restart or a suspension has nothing to say beyond
+    /// "it happened", and the body used to be the literal <c>true</c> that <c>Result&lt;bool&gt;</c>
+    /// carried without meaning. Failure is translated by the same private routine as the generic path,
+    /// so a status or a problem member can never differ between the two. A non-generic
+    /// <see cref="Result"/> carries no <see cref="ProblemExtension"/>; an operation with facts to
+    /// publish on failure returns <see cref="Result{T}"/>.
+    /// </remarks>
+    public static IActionResult ToActionResult(this Result result, HttpContext httpContext)
+    {
+        return result.Match<IActionResult>(
+            onOk: () =>
+            {
+                return new NoContentResult();
+            },
+            onFail: error =>
+            {
+                return ToProblemResult(error, null, httpContext);
             });
     }
 
