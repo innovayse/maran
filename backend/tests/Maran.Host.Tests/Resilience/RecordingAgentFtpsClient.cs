@@ -14,7 +14,8 @@ namespace Maran.Host.Tests.Resilience;
 internal sealed class RecordingAgentFtpsClient : IAgentFtpsClient
 {
     /// <summary>A status the ok paths return; its content is irrelevant to these tests.</summary>
-    private static readonly FtpsStatusDto Observed = new(true, true, true, false, "/etc/maran/ftps/host", 30000, 30100, false, true);
+    private static readonly FtpsStatusDto Observed = new(
+        true, true, FtpsCertificate.Provided, "/etc/maran/ftps/host", 30000, 30100, false, FtpsTlsEnforcement.Enforced);
 
     /// <summary>How many calls fail with a transport error before one succeeds.</summary>
     public int FailuresBeforeSuccess { get; set; }

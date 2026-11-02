@@ -691,14 +691,14 @@ public sealed class AgentBackupClientTests
 
     /// <summary>The agent's own root-only backup directory.</summary>
     /// <returns>A local destination.</returns>
-    private static AgentBackupDestination Local()
+    private static AgentLocalBackupDestination Local()
     {
         return new AgentLocalBackupDestination();
     }
 
     /// <summary>An object-store destination, which the agent that ships today refuses.</summary>
     /// <returns>An S3 destination carrying credentials.</returns>
-    private static AgentBackupDestination S3()
+    private static AgentS3BackupDestination S3()
     {
         return new AgentS3BackupDestination(
             "accounts/alice",

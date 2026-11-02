@@ -1,6 +1,5 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Accounts.Commands.CreatePlan;
-using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;

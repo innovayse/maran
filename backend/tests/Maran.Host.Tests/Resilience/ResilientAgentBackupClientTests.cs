@@ -145,7 +145,7 @@ public sealed class ResilientAgentBackupClientTests
 
     /// <summary>The agent's own root-only backup directory.</summary>
     /// <returns>A local destination.</returns>
-    private static AgentBackupDestination Local()
+    private static AgentLocalBackupDestination Local()
     {
         return new AgentLocalBackupDestination();
     }

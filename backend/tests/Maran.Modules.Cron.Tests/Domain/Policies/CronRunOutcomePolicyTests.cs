@@ -38,13 +38,22 @@ public sealed class CronRunOutcomePolicyTests
             new CronRunStopped(CronRunLimit.Output),
         ];
         var runs = endings
-            .Select(end => new CronRun(Guid.NewGuid(), Guid.NewGuid(), "e", DateTimeOffset.UnixEpoch, 1, end, "", ""))
+            .Select(end =>
+            {
+                return new CronRun(Guid.NewGuid(), Guid.NewGuid(), "e", DateTimeOffset.UnixEpoch, 1, end, "", "");
+            })
             .ToList();
 
         foreach (var outcome in Enum.GetValues<CronRunOutcome>())
         {
-            var selected = runs.Where(CronRunOutcomePolicy.Matching(outcome).Compile()).Select(run => run.End);
-            var expected = endings.Where(end => CronRunOutcomePolicy.Of(end) == outcome);
+            var selected = runs.Where(CronRunOutcomePolicy.Matching(outcome).Compile()).Select(run =>
+            {
+                return run.End;
+            });
+            var expected = endings.Where(end =>
+            {
+                return CronRunOutcomePolicy.Of(end) == outcome;
+            });
 
             Assert.Equal(expected, selected);
             Assert.NotEmpty(expected);

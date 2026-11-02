@@ -61,7 +61,7 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
     /// </summary>
     /// <remarks>
     /// This is the property the type's own remarks name as the half of a suspension that actually
-    /// matters: blocking <see cref="User.State"/> alone leaves a session issued before the
+    /// matters: blocking <see cref="User.Lifecycle"/> alone leaves a session issued before the
     /// suspension authenticating for the rest of its own lifetime. Removing the
     /// <c>RevokeAllAsync</c> call from the handler must turn this test red — asserting only that the
     /// LOGIN is blocked would not catch that regression, because the login and the session are two

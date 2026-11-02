@@ -2,7 +2,6 @@ using System.Net;
 using System.Text.Json;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.SystemService;
-using Maran.Host.HealthChecks;
 using Maran.SharedKernel.Results;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;

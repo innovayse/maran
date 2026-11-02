@@ -20,6 +20,9 @@ public sealed class HealthWordTests
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
+    /// <summary>The two state members the report carries, in the order they sort.</summary>
+    private static readonly string[] ReportMembers = ["agent", "database"];
+
     /// <summary>Every agent state serializes as the word the scripts match.</summary>
     [Theory]
     [InlineData(AgentHealth.Connected, "connected")]
@@ -54,7 +57,7 @@ public sealed class HealthWordTests
         using var body = JsonDocument.Parse(
             JsonSerializer.Serialize(new PanelHealthReport(AgentHealth.Connected, DatabaseHealth.Reachable), Wire));
 
-        Assert.Equal(new[] { "agent", "database" }, body.RootElement.EnumerateObject().Select(property =>
+        Assert.Equal(ReportMembers, body.RootElement.EnumerateObject().Select(property =>
         {
             return property.Name;
         }).Order().ToArray());

@@ -8,6 +8,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Cron.Controllers;
 using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Domain.ValueObjects;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
@@ -360,7 +361,7 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
     private static CronRun RunOf(Guid accountId, string stdout, string stderr)
     {
         return new CronRun(
-            Guid.NewGuid(), accountId, StubAgentCronClient.EntryId, DateTimeOffset.UnixEpoch, 10, 0, null, stdout, stderr);
+            Guid.NewGuid(), accountId, StubAgentCronClient.EntryId, DateTimeOffset.UnixEpoch, 10, new CronRunExited(0), stdout, stderr);
     }
 
     /// <summary>Boots the host against this class's PostgreSQL, with the agent replaced.</summary>
@@ -438,7 +439,7 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
         // One run of the own account's entry, so the single-run read has something its owner may see.
         var cron = scope.ServiceProvider.GetRequiredService<CronDbContext>();
         cron.CronRuns.Add(new CronRun(
-            SeededRunId, own.Id, StubAgentCronClient.EntryId, now, 10, 0, null, "seeded", string.Empty));
+            SeededRunId, own.Id, StubAgentCronClient.EntryId, now, 10, new CronRunExited(0), "seeded", string.Empty));
         await cron.SaveChangesAsync();
 
         return new SeededWorld(own.Id, stranger.Id);

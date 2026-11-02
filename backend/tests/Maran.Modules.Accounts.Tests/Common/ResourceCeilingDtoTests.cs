@@ -63,8 +63,10 @@ public sealed class ResourceCeilingDtoTests
     {
         // Which exception type the serializer raises is its own business; that it raises one, so the
         // request is answered as unreadable, is the contract.
-        var refusal = Record.Exception(
-            () => JsonSerializer.Deserialize<ResourceCeilingDto>("""{"maximum":512}""", Wire));
+        var refusal = Record.Exception(() =>
+        {
+            return JsonSerializer.Deserialize<ResourceCeilingDto>("""{"maximum":512}""", Wire);
+        });
 
         Assert.NotNull(refusal);
     }
@@ -73,8 +75,10 @@ public sealed class ResourceCeilingDtoTests
     [Fact]
     public void A_ceiling_naming_an_unknown_kind_is_refused()
     {
-        var refusal = Record.Exception(
-            () => JsonSerializer.Deserialize<ResourceCeilingDto>("""{"kind":"sometimes","maximum":1}""", Wire));
+        var refusal = Record.Exception(() =>
+        {
+            return JsonSerializer.Deserialize<ResourceCeilingDto>("""{"kind":"sometimes","maximum":1}""", Wire);
+        });
 
         Assert.NotNull(refusal);
     }

@@ -103,8 +103,11 @@ public sealed class FtpsStatusMapperTests
     {
         var unknown = (AgentFtpsCertificate)99;
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => FtpsStatusMapper.ToDto(
-            Observation(running: true, answered: true, unknown), "ftp.example.test", FtpsDesiredState.On));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            return FtpsStatusMapper.ToDto(
+                Observation(running: true, answered: true, unknown), "ftp.example.test", FtpsDesiredState.On);
+        });
     }
 
     /// <summary>Each TLS enforcement outcome the agent client reports reaches the screen as itself.</summary>
@@ -136,10 +139,13 @@ public sealed class FtpsStatusMapperTests
     {
         var unknown = (AgentFtpsTlsEnforcement)99;
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => FtpsStatusMapper.ToDto(
-            Observation(running: true, answered: true, tlsEnforcement: unknown),
-            "ftp.example.test",
-            FtpsDesiredState.On));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            return FtpsStatusMapper.ToDto(
+                Observation(running: true, answered: true, tlsEnforcement: unknown),
+                "ftp.example.test",
+                FtpsDesiredState.On);
+        });
     }
 
     /// <summary>Builds an agent observation with the two facts the agreement reads.</summary>

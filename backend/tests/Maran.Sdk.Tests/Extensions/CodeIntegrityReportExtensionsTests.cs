@@ -67,7 +67,10 @@ public sealed class CodeIntegrityReportExtensionsTests
     {
         var report = new CodeIntegrityReport((CodeIntegrityOutcome)99, "1.4.2", [], null, Observed);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => report.ToVerdict());
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            return report.ToVerdict();
+        });
     }
 }
 #pragma warning restore CS0618

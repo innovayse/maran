@@ -273,7 +273,7 @@ public sealed class AgentMonitorClientTests
 
         var result = await Client(stub).GetServiceStatusesAsync(CancellationToken.None);
 
-        Assert.True(result.IsFailure);
+        Assert.False(result.IsSuccess);
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 

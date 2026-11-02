@@ -81,7 +81,7 @@ public sealed class AgentSystemClientTests
 
         var result = await client.GetInfoAsync(CancellationToken.None);
 
-        Assert.True(result.IsFailure);
+        Assert.False(result.IsSuccess);
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
