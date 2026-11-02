@@ -4,6 +4,7 @@ using Maran.Agent.Client.Services.SystemService;
 using Maran.Agent.Client.Tests.TestSupport;
 using Maran.Host.Configuration;
 using Maran.Host.HealthChecks;
+using Maran.Host.HealthChecks.Enums;
 using Maran.Host.Resilience;
 using Maran.SharedKernel.Results;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,7 +37,7 @@ public sealed class AgentHealthProbeTests
                 AgentProtoVersionWindow.Maximum,
                 "/var/backups/maran"))));
 
-        Assert.Equal(AgentHealthProbe.Connected, await probe.ProbeAsync());
+        Assert.Equal(AgentHealth.Connected, await probe.ProbeAsync());
     }
 
     /// <summary>An agent that answers with a failure is reported as unavailable.</summary>
@@ -45,7 +46,7 @@ public sealed class AgentHealthProbeTests
     {
         var probe = NewProbe(new StubAgentSystemClient(Result<AgentInfoDto>.Fail(Error.Of("AgentUnavailable", ErrorType.Unavailable))));
 
-        Assert.Equal(AgentHealthProbe.Unavailable, await probe.ProbeAsync());
+        Assert.Equal(AgentHealth.Unavailable, await probe.ProbeAsync());
     }
 
     /// <summary>
@@ -58,7 +59,7 @@ public sealed class AgentHealthProbeTests
         var probe = NewProbe(new StubAgentSystemClient(
             Result<AgentInfoDto>.Fail(Error.Of(AgentProtoVersionWindow.IncompatibleCode, ErrorType.Unavailable))));
 
-        Assert.Equal(AgentHealthProbe.Incompatible, await probe.ProbeAsync());
+        Assert.Equal(AgentHealth.Incompatible, await probe.ProbeAsync());
     }
 
     /// <summary>An unreachable agent is reported as unavailable, never as incompatible (inverse control).</summary>
@@ -70,8 +71,8 @@ public sealed class AgentHealthProbeTests
 
         var answer = await probe.ProbeAsync();
 
-        Assert.Equal(AgentHealthProbe.Unavailable, answer);
-        Assert.NotEqual(AgentHealthProbe.Incompatible, answer);
+        Assert.Equal(AgentHealth.Unavailable, answer);
+        Assert.NotEqual(AgentHealth.Incompatible, answer);
     }
 
     /// <summary>
@@ -87,7 +88,7 @@ public sealed class AgentHealthProbeTests
 
         var answer = await probe.ProbeAsync().WaitAsync(TimeSpan.FromSeconds(15));
 
-        Assert.Equal(AgentHealthProbe.Unavailable, answer);
+        Assert.Equal(AgentHealth.Unavailable, answer);
     }
 
     /// <summary>
@@ -122,7 +123,7 @@ public sealed class AgentHealthProbeTests
         var answer = await probe.ProbeAsync().WaitAsync(TimeSpan.FromSeconds(15));
         started.Stop();
 
-        Assert.Equal(AgentHealthProbe.Unavailable, answer);
+        Assert.Equal(AgentHealth.Unavailable, answer);
 
         // Three attempts of one second each plus two short backoffs: above one timeout, below ten.
         Assert.InRange(started.Elapsed, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10));
@@ -138,7 +139,7 @@ public sealed class AgentHealthProbeTests
 
         var answer = await probe.ProbeAsync().WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.Equal(AgentHealthProbe.Unavailable, answer);
+        Assert.Equal(AgentHealth.Unavailable, answer);
     }
 
     /// <summary>Builds the probe around a stub client and the real named pipeline.</summary>

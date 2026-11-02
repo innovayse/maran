@@ -1,4 +1,5 @@
 using Maran.Host.HealthChecks;
+using Maran.Host.HealthChecks.Enums;
 
 namespace Maran.Host.Tests.HealthChecks;
 /// <summary>Behavioural contract of database health probe.</summary>
@@ -11,7 +12,7 @@ public sealed class DatabaseHealthProbeTests
     {
         var probe = new DatabaseHealthProbe(string.Empty);
 
-        Assert.Equal(DatabaseHealthProbe.NotConfigured, await probe.ProbeAsync());
+        Assert.Equal(DatabaseHealth.NotConfigured, await probe.ProbeAsync());
     }
 
     /// <summary>Probe reports unreachable instead of throwing when the database refuses.</summary>
@@ -23,6 +24,6 @@ public sealed class DatabaseHealthProbeTests
         // broken" rather than "the database is down".
         var probe = new DatabaseHealthProbe("Host=127.0.0.1;Port=1;Database=maran;Username=panel;Timeout=1");
 
-        Assert.Equal(DatabaseHealthProbe.Unreachable, await probe.ProbeAsync());
+        Assert.Equal(DatabaseHealth.Unreachable, await probe.ProbeAsync());
     }
 }

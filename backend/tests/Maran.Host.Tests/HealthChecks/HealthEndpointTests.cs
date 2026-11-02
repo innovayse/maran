@@ -20,16 +20,19 @@ public sealed class HealthEndpointTests : IClassFixture<PanelTestFactory>
         _factory = factory;
     }
 
-    /// <summary>Health endpoint returns ok.</summary>
+    /// <summary>The health summary answers 200 with the agent and database words and no overall status word.</summary>
     [Fact]
-    public async Task Health_endpoint_returns_ok()
+    public async Task The_health_summary_answers_200_with_the_agent_and_database_words_and_no_status_word()
     {
         using var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/health");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("ok", await response.Content.ReadAsStringAsync());
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("not_configured", body.RootElement.GetProperty("database").GetString());
+        Assert.Equal("unavailable", body.RootElement.GetProperty("agent").GetString());
+        Assert.False(body.RootElement.TryGetProperty("status", out _));
     }
 
     /// <summary>Liveness endpoint returns 200 with no dependencies configured at all.</summary>
@@ -70,7 +73,7 @@ public sealed class HealthEndpointTests : IClassFixture<PanelTestFactory>
 
         var status = await AgentStatusAsync(refused);
 
-        Assert.Equal(AgentHealthProbe.Incompatible, status);
+        Assert.Equal("incompatible", status);
     }
 
     /// <summary>An agent inside the window is reported connected on the summary (inverse control).</summary>
@@ -79,7 +82,7 @@ public sealed class HealthEndpointTests : IClassFixture<PanelTestFactory>
     {
         var status = await AgentStatusAsync(new RecordingAgentSystemClient());
 
-        Assert.Equal(AgentHealthProbe.Connected, status);
+        Assert.Equal("connected", status);
     }
 
     /// <summary>Reads the agent word of the <c>/health</c> summary from a host whose agent client is the given stand-in.</summary>
