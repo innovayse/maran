@@ -1,6 +1,7 @@
 using Maran.Modules.Monitoring.Services;
 using Maran.Modules.Monitoring.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Monitoring.Tests.Services;
 
@@ -55,6 +56,7 @@ public sealed class MonitoringAuditJournalTests
     {
         var audit = new RecordingAuditWriter();
         var user = new FakeCurrentUser();
+        var admin = Assert.IsType<AdministratorCaller>(user.Caller);
         var journal = new MonitoringAuditJournal(audit, user);
 
         await journal.RecordRequestAsync(
@@ -66,8 +68,8 @@ public sealed class MonitoringAuditJournalTests
             CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(user.UserId, entry.ActorUserId);
-        Assert.Equal(user.Username, entry.ActorUsername);
+        Assert.Equal(admin.UserId, entry.ActorUserId);
+        Assert.Equal(admin.Username, entry.ActorUsername);
         Assert.Equal("203.0.113.7", entry.IpAddress);
     }
 }
