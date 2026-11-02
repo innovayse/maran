@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Persistence.Configurations;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Sites.Persistence;
 
@@ -56,6 +58,45 @@ public sealed class SitesDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// True when the caller is an administrator, who sees every account's rows. Read per context
+    /// instance by the tenant filter, which an expression tree cannot express as a type switch.
+    /// </summary>
+    private bool SeesEveryAccount
+    {
+        get
+        {
+            return _currentUser.Caller switch
+            {
+                AdministratorCaller => true,
+                AnonymousCaller => false,
+                CustomerCaller => false,
+                AccountlessCustomerCaller => false,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            };
+        }
+    }
+
+    /// <summary>
+    /// The one account a customer acts for, or null for an administrator, an anonymous caller and a
+    /// customer login with no account selected — none of whom own a row, so the filter shows them none
+    /// through this arm.
+    /// </summary>
+    private Guid? OwnAccountId
+    {
+        get
+        {
+            return _currentUser.Caller switch
+            {
+                CustomerCaller customer => customer.AccountId,
+                AdministratorCaller => null,
+                AnonymousCaller => null,
+                AccountlessCustomerCaller => null,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            };
+        }
+    }
+
     /// <summary>Applies the schema, the entity configurations, and the tenant query filter.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -70,13 +111,13 @@ public sealed class SitesDbContext : DbContext
         // still cannot leak. It is also why another tenant's site answers 404 rather than 403 —
         // the row is not found, so there is nothing whose existence a probe could confirm.
         modelBuilder.Entity<Site>().HasQueryFilter(site =>
-            _currentUser.IsAdmin || site.AccountId == _currentUser.AccountId);
+            SeesEveryAccount || site.AccountId == OwnAccountId);
 
         // A claim belongs to whoever owns the site making it, so its scope is read through the
         // required relationship rather than from a second copy of the account id that could
         // disagree with the site's own (rules/security.md item 6: every tenant entity is filtered).
         modelBuilder.Entity<SiteHostname>().HasQueryFilter(hostname =>
-            _currentUser.IsAdmin || hostname.Site.AccountId == _currentUser.AccountId);
+            SeesEveryAccount || hostname.Site.AccountId == OwnAccountId);
 
         base.OnModelCreating(modelBuilder);
     }

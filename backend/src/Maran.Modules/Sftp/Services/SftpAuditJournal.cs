@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Sftp.Services;
 
@@ -87,10 +89,17 @@ public sealed class SftpAuditJournal
         bool succeeded,
         CancellationToken cancellationToken)
     {
+        var (actorId, actorName) = _currentUser.Caller switch
+        {
+            PrincipalCaller principal => (principal.UserId, principal.Username),
+            AnonymousCaller => (Guid.Empty, string.Empty),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: a principal or nobody."),
+        };
+
         await _auditWriter.WriteAsync(
             new AuditEntry(
-                _currentUser.UserId,
-                _currentUser.Username,
+                actorId,
+                actorName,
                 action,
                 subject,
                 ipAddress,
