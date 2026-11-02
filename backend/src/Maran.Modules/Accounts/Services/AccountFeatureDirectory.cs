@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Accounts.Services;
 
@@ -44,7 +46,7 @@ public sealed class AccountFeatureDirectory : IAccountFeatureDirectory
     {
         // The comparison is against the id the caller's own token carries, never against anything on
         // the request, so a forged or guessed account id cannot widen it.
-        if (!_currentUser.IsAdmin && _currentUser.AccountId != accountId)
+        if (!Sees(accountId))
         {
             return false;
         }
@@ -62,5 +64,24 @@ public sealed class AccountFeatureDirectory : IAccountFeatureDirectory
             .SingleOrDefaultAsync(cancellationToken);
 
         return sold is not null && sold.Includes(feature);
+    }
+
+    /// <summary>
+    /// Whether the caller may see the account <paramref name="accountId"/>: an administrator any
+    /// account, a customer only the one their own token names, and nobody else (an anonymous caller,
+    /// a customer login acting for no account) none.
+    /// </summary>
+    /// <param name="accountId">The account asked about.</param>
+    /// <returns>True when the caller's tenant scope includes the account.</returns>
+    private bool Sees(Guid accountId)
+    {
+        return _currentUser.Caller switch
+        {
+            AdministratorCaller => true,
+            CustomerCaller customer => customer.AccountId == accountId,
+            AnonymousCaller => false,
+            AccountlessCustomerCaller => false,
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+        };
     }
 }

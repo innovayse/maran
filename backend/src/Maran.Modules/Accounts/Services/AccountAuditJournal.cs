@@ -1,5 +1,7 @@
 using Maran.Sdk.Contracts;
+using System.Diagnostics;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Accounts.Services;
 
@@ -98,10 +100,17 @@ public sealed class AccountAuditJournal
         bool succeeded,
         CancellationToken cancellationToken)
     {
+        var (actorId, actorName) = _currentUser.Caller switch
+        {
+            PrincipalCaller principal => (principal.UserId, principal.Username),
+            AnonymousCaller => (Guid.Empty, string.Empty),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: a principal or nobody."),
+        };
+
         await _auditWriter.WriteAsync(
             new AuditEntry(
-                _currentUser.UserId,
-                _currentUser.Username,
+                actorId,
+                actorName,
                 action,
                 subject,
                 ipAddress,
