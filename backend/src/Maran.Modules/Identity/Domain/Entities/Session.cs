@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Domain.Policies;
+using Maran.Modules.Identity.Domain.ValueObjects;
 namespace Maran.Modules.Identity.Domain.Entities;
 
 /// <summary>
@@ -65,6 +66,26 @@ public sealed class Session
     /// stay live for the view-as session to be accepted, so signing the operator out ends it too.
     /// </summary>
     public Guid? ActorSessionId { get; private set; }
+
+    /// <summary>
+    /// Who is behind this session when it is a view-as session, or <c>null</c> for the user's own
+    /// sign-in — the one question the stored <see cref="Kind"/>, <see cref="ActorUserId"/> and
+    /// <see cref="ActorSessionId"/> are read together to answer.
+    /// </summary>
+    /// <remarks>
+    /// Derived on every read and never stored. A row whose kind says view-as but whose actor ids are
+    /// missing reads as <c>null</c>, which every caller treats as "not a view-as session" — the
+    /// refusing direction — rather than as an origin of empty ids.
+    /// </remarks>
+    public ViewAsOrigin? ViewAs
+    {
+        get
+        {
+            return Kind == SessionKind.ViewAs && ActorUserId is { } actorUserId && ActorSessionId is { } actorSessionId
+                ? new ViewAsOrigin(actorUserId, actorSessionId)
+                : null;
+        }
+    }
 
     /// <summary>Creates an active session.</summary>
     /// <param name="id">The session's identity; also the <c>sid</c> claim of the access token issued beside it.</param>

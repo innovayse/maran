@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.ValueObjects;
 
 namespace Maran.Modules.Identity.Tests.Domain;
 /// <summary>Behavioural contract of session.</summary>
@@ -78,5 +79,33 @@ public sealed class SessionTests
 
         Assert.Equal(Now.AddMinutes(5), session.RevokedAt);
         Assert.Equal(SessionRevocationReason.Rotated, session.RevocationReason);
+    }
+
+    /// <summary>A user's own session has no view-as origin.</summary>
+    [Fact]
+    public void A_users_own_session_has_no_view_as_origin()
+    {
+        Assert.Null(NewSession().ViewAs);
+    }
+
+    /// <summary>A view-as session names the operator and the operator's own session.</summary>
+    [Fact]
+    public void A_view_as_session_names_the_operator_and_the_operators_own_session()
+    {
+        var actorUserId = Guid.NewGuid();
+        var actorSessionId = Guid.NewGuid();
+
+        var session = Session.StartViewAs(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            actorUserId,
+            actorSessionId,
+            "hash",
+            Now,
+            "203.0.113.7",
+            "Mozilla/5.0");
+
+        Assert.Equal(new ViewAsOrigin(actorUserId, actorSessionId), session.ViewAs);
     }
 }

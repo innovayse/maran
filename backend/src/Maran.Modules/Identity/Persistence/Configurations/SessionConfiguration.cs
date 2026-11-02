@@ -59,6 +59,9 @@ public sealed class SessionConfiguration : IEntityTypeConfiguration<Session>
 
         builder.Property(s => s.ActorSessionId);
 
+        // Derived from the three columns above on every read; never a column of its own.
+        builder.Ignore(s => s.ViewAs);
+
         // Every refresh looks a session up by this hash, so the index is the hot path; unique
         // because two sessions sharing a token hash would make rotation ambiguous.
         builder.HasIndex(s => s.TokenHash).IsUnique().HasDatabaseName("IX_Sessions_TokenHash");

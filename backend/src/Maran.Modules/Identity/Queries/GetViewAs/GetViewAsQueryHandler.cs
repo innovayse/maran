@@ -50,13 +50,13 @@ public sealed class GetViewAsQueryHandler
         if (session is null
             || session.UserId != query.ViewedUserId
             || session.ActiveAccountId is not { } accountId
-            || session.ActorUserId is not { } operatorUserId)
+            || session.ViewAs is not { } origin)
         {
             return Result<ViewAsStateDto>.Ok(new ViewAsStateDto(null));
         }
 
         var viewedName = await UsernameOfAsync(session.UserId, cancellationToken);
-        var operatorName = await UsernameOfAsync(operatorUserId, cancellationToken);
+        var operatorName = await UsernameOfAsync(origin.ActorUserId, cancellationToken);
         var account = await _accountDirectory.FindAsync(accountId, cancellationToken);
 
         var viewing = new ViewingAsDto(

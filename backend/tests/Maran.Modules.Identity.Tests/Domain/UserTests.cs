@@ -182,4 +182,64 @@ public sealed class UserTests
 
         Assert.Equal(accountId, user.AccountId);
     }
+
+    /// <summary>A claimed login reads as active.</summary>
+    [Fact]
+    public void A_claimed_login_reads_as_active()
+    {
+        Assert.Equal(UserLifecycle.Active, NewUser().Lifecycle);
+    }
+
+    /// <summary>An unclaimed invitation reads as invited, and as invited-on-a-suspended-account once suspended.</summary>
+    [Fact]
+    public void An_unclaimed_invitation_reads_as_invited_and_stays_distinguishable_once_its_account_is_suspended()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Guid.NewGuid(), Now);
+        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
+
+        user.Suspend();
+        Assert.Equal(UserLifecycle.InvitedAccountSuspended, user.Lifecycle);
+
+        user.Resume();
+        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
+    }
+
+    /// <summary>A claimed login reads as suspended while its account is, and active again after the resume.</summary>
+    [Fact]
+    public void A_claimed_login_reads_as_suspended_while_its_account_is_and_active_after_the_resume()
+    {
+        var user = NewUser();
+
+        user.Suspend();
+        Assert.Equal(UserLifecycle.Suspended, user.Lifecycle);
+
+        user.Resume();
+        Assert.Equal(UserLifecycle.Active, user.Lifecycle);
+    }
+
+    /// <summary>An invitation accepted during a suspension reads as suspended, not active.</summary>
+    [Fact]
+    public void An_invitation_accepted_during_a_suspension_reads_as_suspended_not_active()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Guid.NewGuid(), Now);
+        user.Suspend();
+
+        user.Activate("hash");
+
+        Assert.Equal(UserLifecycle.Suspended, user.Lifecycle);
+    }
+
+    /// <summary>The enrolled secret is the secret once enrolled and nothing before or after.</summary>
+    [Fact]
+    public void The_enrolled_secret_is_the_secret_once_enrolled_and_nothing_before_or_after()
+    {
+        var user = NewUser();
+        Assert.Null(user.EnrolledTotpSecret);
+
+        user.EnableTotp("SECRET");
+        Assert.Equal("SECRET", user.EnrolledTotpSecret);
+
+        user.DisableTotp();
+        Assert.Null(user.EnrolledTotpSecret);
+    }
 }

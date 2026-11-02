@@ -127,17 +127,18 @@ public sealed class InvitationIssuer
                 return Result<InvitationIssueOutcome>.Ok(new InvitationAlreadyBeingIssued());
             }
         }
-        else if (user.State != UserState.Invited)
+        else if (user.Lifecycle != UserLifecycle.Invited)
         {
+            // The one lifecycle in which an invitation may be (re)issued is a pending one on a live
+            // account. A pending one on a suspended account is refused with its own code (see the
+            // type's remarks: a suspended account is offered no way in); every other lifecycle already
+            // has a password, and a fresh token for it would be a password reset in disguise.
             return Result<InvitationIssueOutcome>.Fail(
-                Error.Of(nameof(ErrorMessages.InvitationLoginNotPending), ErrorType.Conflict));
-        }
-        else if (user.IsAccountSuspended)
-        {
-            // See the type's remarks: a suspended account is offered no way in. The login carries
-            // the account's suspension itself (User.Suspend, run by the suspension cascade).
-            return Result<InvitationIssueOutcome>.Fail(
-                Error.Of(nameof(ErrorMessages.InvitationAccountSuspended), ErrorType.Conflict));
+                Error.Of(
+                    user.Lifecycle == UserLifecycle.InvitedAccountSuspended
+                        ? nameof(ErrorMessages.InvitationAccountSuspended)
+                        : nameof(ErrorMessages.InvitationLoginNotPending),
+                    ErrorType.Conflict));
         }
 
         var minted = await MintAsync(user, now, cancellationToken);

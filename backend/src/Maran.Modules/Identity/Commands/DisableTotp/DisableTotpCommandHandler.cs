@@ -60,12 +60,12 @@ public sealed class DisableTotpCommandHandler
             return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound), ErrorType.NotFound));
         }
 
-        if (!user.IsTotpEnabled || user.TotpSecret is null)
+        if (user.EnrolledTotpSecret is not { } totpSecret)
         {
             return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
         }
 
-        var accepted = _totpService.Verify(user.TotpSecret, command.Code, user.LastTotpWindow, out var window);
+        var accepted = _totpService.Verify(totpSecret, command.Code, user.LastTotpWindow, out var window);
         if (accepted)
         {
             user.RecordTotpWindow(window);

@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Persistence;
 
 namespace Maran.Modules.Identity.Services;
@@ -62,8 +63,7 @@ public sealed class ViewAsSessionVerifier
 
         if (session is null
             || session.UserId != viewedUserId
-            || session.ActorUserId != actorUserId
-            || session.ActorSessionId != actorSessionId)
+            || session.ViewAs != new ViewAsOrigin(actorUserId, actorSessionId))
         {
             return false;
         }

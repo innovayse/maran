@@ -119,6 +119,44 @@ public sealed class User
     /// </summary>
     public bool IsAccountSuspended { get; private set; }
 
+    /// <summary>
+    /// Which of the four real situations this login is in, derived from <see cref="State"/> and
+    /// <see cref="IsAccountSuspended"/>, which together can spell combinations no mutator produces.
+    /// </summary>
+    /// <remarks>
+    /// Derived on every read and never stored, so it cannot disagree with the two columns it comes
+    /// from. A <see cref="UserState.Active"/> login is never reported suspended-for-its-account here:
+    /// <see cref="Suspend"/> moves it to <see cref="UserState.Suspended"/> in the same step.
+    /// </remarks>
+    public UserLifecycle Lifecycle
+    {
+        get
+        {
+            return State switch
+            {
+                UserState.Active => UserLifecycle.Active,
+                UserState.Invited => IsAccountSuspended ? UserLifecycle.InvitedAccountSuspended : UserLifecycle.Invited,
+                UserState.Suspended => UserLifecycle.Suspended,
+                _ => throw new InvalidOperationException($"Unknown user state {State}."),
+            };
+        }
+    }
+
+    /// <summary>
+    /// The enrolled TOTP secret, or <c>null</c> when two-factor is not enrolled — the one question
+    /// "is there a second factor to verify against, and what is it" answered by one value.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IsTotpEnabled"/> and <see cref="TotpSecret"/> are stored as two columns that
+    /// <see cref="EnableTotp"/> and <see cref="DisableTotp"/> keep equal. A caller that needs the
+    /// secret reads it here rather than testing both and trusting neither; a half-enrolled row (flag
+    /// without a secret, or the reverse) reads as not enrolled, which is the refusing direction.
+    /// </remarks>
+    public string? EnrolledTotpSecret
+    {
+        get { return IsTotpEnabled ? TotpSecret : null; }
+    }
+
     /// <summary>Creates a user with two-factor authentication not yet enrolled.</summary>
     /// <param name="id">The user's identity.</param>
     /// <param name="username">The unique login name.</param>

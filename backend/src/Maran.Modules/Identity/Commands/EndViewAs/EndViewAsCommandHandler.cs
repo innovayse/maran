@@ -62,7 +62,7 @@ public sealed class EndViewAsCommandHandler
             s => s.Id == command.SessionId && s.UserId == command.ViewedUserId && s.Kind == SessionKind.ViewAs,
             cancellationToken);
 
-        if (session is null || !session.IsActive(now) || session.ActorUserId is not { } operatorUserId)
+        if (session is null || !session.IsActive(now) || session.ViewAs is not { } origin)
         {
             return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.ViewAsNotViewing), ErrorType.Conflict));
         }
@@ -71,7 +71,7 @@ public sealed class EndViewAsCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var operatorName = await _dbContext.Users
-            .Where(u => u.Id == operatorUserId)
+            .Where(u => u.Id == origin.ActorUserId)
             .Select(u => u.Username)
             .SingleOrDefaultAsync(cancellationToken) ?? string.Empty;
         var viewedName = await _dbContext.Users

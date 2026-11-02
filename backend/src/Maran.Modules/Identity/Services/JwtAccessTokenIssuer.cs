@@ -47,14 +47,15 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
         // Refuse rather than sign: a session of the other kind, or one belonging to somebody else,
         // reaching here is a caller bug, and a token is the one thing that must not be produced on a
         // bug (issue #317).
-        if (session.Kind != SessionKind.ViewAs
+        if (session.ViewAs is not { } origin
             || session.UserId != viewedUser.Id
-            || session.ActorUserId != actor.Id
-            || session.ActorSessionId is not { } actorSessionId
+            || origin.ActorUserId != actor.Id
             || session.ActiveAccountId is not { } viewedAccountId)
         {
             throw new InvalidOperationException("A view-as token was requested for a session that is not a view-as session of these two users.");
         }
+
+        var actorSessionId = origin.ActorSessionId;
 
         var claims = new Dictionary<string, object>
         {

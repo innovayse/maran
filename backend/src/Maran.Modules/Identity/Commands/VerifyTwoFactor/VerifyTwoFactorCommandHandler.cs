@@ -105,13 +105,13 @@ public sealed class VerifyTwoFactorCommandHandler
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
         }
 
-        if (!user.IsTotpEnabled || user.TotpSecret is null)
+        if (user.EnrolledTotpSecret is not { } totpSecret)
         {
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
         }
 
         var usedRecoveryCode = false;
-        if (_totpService.Verify(user.TotpSecret, command.Code, user.LastTotpWindow, out var window))
+        if (_totpService.Verify(totpSecret, command.Code, user.LastTotpWindow, out var window))
         {
             user.RecordTotpWindow(window);
         }
