@@ -307,4 +307,61 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
 
         result.ShouldNotHaveValidationErrorFor(c => c.PlanId);
     }
+
+    /// <summary>A primary domain written with a leading www is refused with its own code.</summary>
+    [Theory]
+    [InlineData("www.acme.example.com")]
+    [InlineData("WWW.acme.example.com")]
+    public async Task A_primary_domain_written_with_a_leading_www_is_refused_with_its_own_code(string domain)
+    {
+        var command = ValidCommand() with { PrimaryDomain = domain };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldHaveValidationErrorFor(c => c.PrimaryDomain)
+            .WithErrorMessage("AccountDomainWwwPrefix");
+    }
+
+    /// <summary>A domain that merely contains www further in is accepted.</summary>
+    [Theory]
+    [InlineData("wwwacme.example.com")]
+    [InlineData("shop.www.example.com")]
+    public async Task A_domain_that_merely_contains_www_further_in_is_accepted(string domain)
+    {
+        var command = ValidCommand() with { PrimaryDomain = domain };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldNotHaveValidationErrorFor(c => c.PrimaryDomain);
+    }
+
+    /// <summary>Every language the panel ships is accepted as the owner's language.</summary>
+    [Theory]
+    [InlineData("en")]
+    [InlineData("ru")]
+    [InlineData("hy")]
+    public async Task Every_language_the_panel_ships_is_accepted_as_the_owners_language(string language)
+    {
+        var command = ValidCommand() with { OwnerLanguage = language };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldNotHaveValidationErrorFor(c => c.OwnerLanguage);
+    }
+
+    /// <summary>An owner language the panel ships no text in is refused with its own code.</summary>
+    [Theory]
+    [InlineData("de")]
+    [InlineData("EN")]
+    [InlineData("")]
+    [InlineData("en\n")]
+    public async Task An_owner_language_the_panel_ships_no_text_in_is_refused_with_its_own_code(string language)
+    {
+        var command = ValidCommand() with { OwnerLanguage = language };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldHaveValidationErrorFor(c => c.OwnerLanguage)
+            .WithErrorMessage("AccountOwnerLanguageUnsupported");
+    }
 }

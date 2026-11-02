@@ -2,6 +2,7 @@
 //! account's systemd slice.
 
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
+use maran_agent_core::utils::account_slice_unit::account_slice_unit;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 
@@ -57,7 +58,7 @@ pub fn set_account_resource_limits<H: SystemHost>(
 ) -> Result<(), AccountError> {
     let account = operations.resolve_managed(name)?;
 
-    let unit = slice_unit(account.uid());
+    let unit = account_slice_unit(account.uid());
     let [cpu, memory, tasks] = limits.property_assignments();
     let program = operations.distro().service_manager();
     let outcome = operations.host().run(
@@ -71,16 +72,6 @@ pub fn set_account_resource_limits<H: SystemHost>(
     }
 
     Err(AccountError::command_failed(program.as_str(), &outcome))
-}
-
-/// The name of the slice systemd places a user's sessions under.
-///
-/// `user-<uid>.slice` is systemd-logind's own fixed naming on every family this
-/// agent supports; it is built from the numeric uid the password database
-/// answered, never from the account name, so nothing a caller spelled reaches
-/// the unit name.
-fn slice_unit(uid: u32) -> String {
-    format!("user-{uid}.slice")
 }
 
 #[cfg(test)]

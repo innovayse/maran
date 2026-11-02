@@ -28,7 +28,9 @@ use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
 use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
-use maran_ops::cron::{CronError, CronHost, CronRunRecord, ProcessCronHost};
+use maran_ops::cron::{
+    CronEnvironment, CronError, CronHost, CronRun, CronRunRecord, ProcessCronHost,
+};
 
 /// How long the first caller waits at the gate for a second one.
 ///
@@ -167,5 +169,14 @@ impl CronHost for GatedCronHost {
         max_bytes: usize,
     ) -> Result<Option<String>, CronError> {
         self.inner.read_output_tail(account, entry, max_bytes)
+    }
+
+    fn run_entry(
+        &self,
+        account: &ManagedAccount,
+        entry: &CronEntryId,
+        environment: &[CronEnvironment],
+    ) -> Result<CronRun, CronError> {
+        self.inner.run_entry(account, entry, environment)
     }
 }

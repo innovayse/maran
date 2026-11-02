@@ -67,6 +67,9 @@ public static class CronAgentErrorTranslator
     /// </summary>
     private const string AgentLimitReachedCode = "AgentLimitReached";
 
+    /// <summary>The Agent.Client code for an account the agent found suspended (issue #158).</summary>
+    private const string AgentAccountSuspendedCode = "AgentAccountSuspended";
+
     /// <summary>
     /// Pre-compiled log delegate for a cron call the agent refused. Source-generated because an
     /// agent that is refusing fails every call at once.
@@ -119,6 +122,7 @@ public static class CronAgentErrorTranslator
             AgentNotFoundCode => Error.Of(nameof(ErrorMessages.CronEntryNotFound), ErrorType.NotFound),
             AgentAlreadyExistsCode => Error.Of(nameof(ErrorMessages.CronEntryAlreadyExists), ErrorType.Conflict),
             AgentLimitReachedCode => Error.Of(nameof(ErrorMessages.CronEntryLimitReachedConcurrently), ErrorType.Conflict),
+            AgentAccountSuspendedCode => Error.Of(nameof(ErrorMessages.CronEntrySuspended), ErrorType.Conflict),
             _ => Error.Of(nameof(ErrorMessages.CronOperationFailed), ErrorType.Failure),
         };
     }

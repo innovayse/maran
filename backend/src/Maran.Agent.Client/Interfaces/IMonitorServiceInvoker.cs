@@ -50,6 +50,12 @@ internal interface IMonitorServiceInvoker
         GetQuotaEnforceabilityRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>GetClockSync</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<GetClockSyncResponse> GetClockSyncAsync(GetClockSyncRequest request, CancellationToken cancellationToken);
+
     /// <summary>Invokes <c>GetServerFingerprintInputs</c> on the agent.</summary>
     /// <param name="request">The empty request the rpc takes.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

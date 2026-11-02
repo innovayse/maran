@@ -48,6 +48,13 @@ service MonitorService {
   // §5, which named this exact gap: no rpc existed to obtain either value).
   rpc GetServerFingerprintInputs(GetServerFingerprintInputsRequest)
       returns (GetServerFingerprintInputsResponse);
+
+  // Reads whether the host's clock is kept in step with a time source, through
+  // `timedatectl show` (issue #150). Two-factor codes, token expiry,
+  // certificate validity and the licence lease all compare against this clock.
+  // Reports the kernel's own synchronised flag — not a measured offset, which
+  // would need an outbound call this agent never makes.
+  rpc GetClockSync(GetClockSyncRequest) returns (GetClockSyncResponse);
 }
 
 message GetHostMetricsRequest {}
@@ -360,4 +367,34 @@ message PrimaryInterfaceStatus {
   // The interface name, e.g. "eth0". Meaningful only when `present` is true.
   // NEVER LOGGED — same reason as `MachineIdStatus.value`.
   string value = 2;
+}
+
+message GetClockSyncRequest {}
+
+message GetClockSyncResponse {
+  oneof result {
+    GetClockSyncOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetClockSyncOk {
+  // What the kernel and the host's synchronisation setup say about the clock.
+  ClockSyncState state = 1;
+}
+
+// Mirrors `ops::monitor::ClockSyncState`
+// (agent/crates/ops/src/monitor/model/clock_sync_state.rs). A reading the
+// agent could not take is an `AgentError`, never one of these values.
+enum ClockSyncState {
+  CLOCK_SYNC_STATE_UNSPECIFIED = 0;
+  // The kernel reports its clock synchronised.
+  CLOCK_SYNC_STATE_SYNCHRONIZED = 1;
+  // A synchronisation service is enabled, but the kernel does not report its
+  // clock synchronised: no time source reached yet, or not for long enough
+  // that the kernel's error estimate passed sixteen seconds.
+  CLOCK_SYNC_STATE_NOT_SYNCHRONIZED = 2;
+  // No synchronisation service is enabled and the clock is not synchronised;
+  // nothing on the host will correct a drift.
+  CLOCK_SYNC_STATE_SYNC_SERVICE_DISABLED = 3;
 }

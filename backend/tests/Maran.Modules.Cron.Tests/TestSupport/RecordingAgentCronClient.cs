@@ -46,6 +46,9 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
     /// <summary>Every run-output read this client was asked for, in order.</summary>
     public List<AgentEntryCall> OutputReads { get; } = [];
 
+    /// <summary>Every <see cref="RunEntryAsync"/> call, in order.</summary>
+    public List<AgentEntryCall> Runs { get; } = [];
+
     /// <summary>Every environment read this client was asked for, as the account user name it named.</summary>
     public List<string> EnvironmentReads { get; } = [];
 
@@ -69,6 +72,9 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
 
     /// <summary>What <see cref="GetEntryOutputAsync"/> answers; "never run" by default.</summary>
     public Result<AgentCronRunOutput?>? GetEntryOutputResult { get; set; }
+
+    /// <summary>What <see cref="RunEntryAsync"/> answers; a quiet successful run by default.</summary>
+    public Result<AgentCronRun>? RunEntryResult { get; set; }
 
     /// <summary>What <see cref="GetEnvironmentAsync"/> answers; no assignments by default.</summary>
     public Result<IReadOnlyList<AgentCronEnvVar>>? GetEnvironmentResult { get; set; }
@@ -165,6 +171,18 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
         // failure — an entry that has not fired yet is not an error, and a double that answered one
         // would let a handler mishandling the distinction pass.
         return Task.FromResult(GetEntryOutputResult ?? Result<AgentCronRunOutput?>.Ok(null));
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<AgentCronRun>> RunEntryAsync(
+        string accountUsername,
+        string entryId,
+        CancellationToken cancellationToken)
+    {
+        Runs.Add(new AgentEntryCall(accountUsername, entryId));
+
+        return Task.FromResult(
+            RunEntryResult ?? Result<AgentCronRun>.Ok(new AgentCronRun(1200, 0, "done\n", string.Empty, null)));
     }
 
     /// <inheritdoc/>

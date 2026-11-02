@@ -45,8 +45,12 @@ use crate::proto::{
 /// process ceilings of an account's systemd slice (issue #133). 9 adds
 /// `InstallPanelCertificate`, `WritePanelChallenge` and `RemovePanelChallenge`,
 /// the panel's own certificate and its HTTP-01 file (issue #132). 10 adds
-/// `SftpService.SetSftpAuthorizedKeys`, an SFTP login's public keys (issue #135).
-const PROTO_VERSION: u32 = 10;
+/// `MonitorService.GetClockSync`, whether the host's clock is synchronised
+/// (issue #150). 11 adds
+/// `CronService.RunCronEntry` and `ERROR_CODE_ACCOUNT_SUSPENDED` (issue #158).
+/// 12 adds `SftpService.SetSftpAuthorizedKeys`, an SFTP login's public keys
+/// (issue #135).
+const PROTO_VERSION: u32 = 12;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

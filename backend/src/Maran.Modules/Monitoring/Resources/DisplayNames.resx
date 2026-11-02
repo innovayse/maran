@@ -39,4 +39,13 @@
   <data name="AccountQuotaNotEnforceableNote">
     <value>Not currently enforced — this is the plan's allowance, but this server cannot back it with a real disk limit right now, so this account may use more. Mount the filesystem with quota accounting and run quotaon to restore enforcement; the panel will not do this for you.</value>
   </data>
+  <data name="ClockSyncSynchronized">
+    <value>The clock is synchronised with a time source.</value>
+  </data>
+  <data name="ClockSyncNotSynchronized">
+    <value>A time synchronisation service is enabled but has not synchronised the clock. Two-factor codes, sign-in sessions and certificates may fail until it does; check that the server can reach a time server.</value>
+  </data>
+  <data name="ClockSyncSyncServiceDisabled">
+    <value>No time synchronisation service is enabled, so nothing corrects the clock if it drifts. Enable systemd-timesyncd or chrony on this server.</value>
+  </data>
 </root>

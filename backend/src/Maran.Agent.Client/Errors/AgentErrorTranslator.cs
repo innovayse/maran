@@ -112,6 +112,7 @@ internal static class AgentErrorTranslator
             ErrorCode.PackageSourceRefused => ErrorType.UpstreamRefused,
             ErrorCode.PackageSourceUnreachable => ErrorType.Unavailable,
             ErrorCode.BelowFreeSpaceFloor => ErrorType.Unavailable,
+            ErrorCode.AccountSuspended => ErrorType.Conflict,
             _ => ErrorType.Failure,
         };
     }
@@ -161,6 +162,11 @@ internal static class AgentErrorTranslator
     /// because the caller's own state is not what refuses, and not a 500, because no fault occurred.
     /// It travels as its own code, <c>AgentBelowFreeSpaceFloor</c>, so a failed backup task reads
     /// "the server is nearly out of disk space" rather than a generic failure.
+    ///
+    /// <see cref="ErrorCode.AccountSuspended"/> is the agent refusing to act for an account the panel
+    /// has suspended (issue #158: a cron entry run by hand). Its kind is <see cref="ErrorType.Conflict"/>
+    /// (409): the request is well formed and the account's own state is what refuses it, exactly as for
+    /// <see cref="ErrorCode.LimitReached"/>, and nothing was started.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -177,6 +183,7 @@ internal static class AgentErrorTranslator
             ErrorCode.PackageSourceRefused => nameof(ErrorMessages.AgentPackageSourceRefused),
             ErrorCode.PackageSourceUnreachable => nameof(ErrorMessages.AgentPackageSourceUnreachable),
             ErrorCode.BelowFreeSpaceFloor => nameof(ErrorMessages.AgentBelowFreeSpaceFloor),
+            ErrorCode.AccountSuspended => nameof(ErrorMessages.AgentAccountSuspended),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

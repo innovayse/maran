@@ -44,6 +44,18 @@ pub fn journal_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/bin/journalctl")
 }
 
+/// Absolute path of the transient-unit starter, for the process-execution
+/// allow-list.
+///
+/// systemd installs `systemd-run` at `/usr/bin/systemd-run` on both families,
+/// beside `systemctl`; it is asked of the adapter all the same, for the reason
+/// [`service_manager`] gives. It starts a customer's cron entry by hand inside
+/// the account's slice (issue #158).
+#[must_use]
+pub fn systemd_run_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/systemd-run")
+}
+
 /// The user the web server runs as.
 ///
 /// Debian's nginx package creates and runs as `www-data`, the distribution's
@@ -354,6 +366,13 @@ pub fn quota_binary() -> AdapterBinary {
 #[must_use]
 pub fn quotaon_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/sbin/quotaon")
+}
+
+/// Absolute path of `timedatectl`, for the process-execution allow-list.
+/// systemd ships it in `/usr/bin` on both families.
+#[must_use]
+pub fn timedatectl_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/timedatectl")
 }
 
 /// Absolute path of `id`, for the process-execution allow-list.

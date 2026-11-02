@@ -75,6 +75,10 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::journal_binary()
     }
 
+    fn systemd_run_binary(&self) -> AdapterBinary {
+        rhel_services::systemd_run_binary()
+    }
+
     fn tar_binary(&self) -> AdapterBinary {
         rhel_services::tar_binary()
     }
@@ -137,6 +141,10 @@ impl DistroAdapter for RhelAdapter {
 
     fn quotaon_binary(&self) -> AdapterBinary {
         rhel_services::quotaon_binary()
+    }
+
+    fn timedatectl_binary(&self) -> AdapterBinary {
+        rhel_services::timedatectl_binary()
     }
 
     fn pkill_binary(&self) -> AdapterBinary {

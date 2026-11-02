@@ -88,6 +88,23 @@ public static class AgentOperationPipeline
     /// <param name="agentOptions">Supplies <see cref="AgentOptions.OperationTimeout"/>.</param>
     public static void Configure(ResiliencePipelineBuilder builder, AgentOptions agentOptions)
     {
+        ArgumentNullException.ThrowIfNull(agentOptions);
+
+        Configure(builder, agentOptions.OperationTimeout);
+    }
+
+    /// <summary>
+    /// Configures the same retry on <paramref name="builder"/> under a timeout of the caller's choosing.
+    /// </summary>
+    /// <param name="builder">The pipeline being built.</param>
+    /// <param name="timeout">How long one attempt may take before it is answered as unavailable.</param>
+    /// <remarks>
+    /// The one place the retry is stated, so a pipeline that needs a longer bound for a call that is
+    /// slow by design — <see cref="AgentCronRunPipeline"/> — changes the timeout and nothing else, and
+    /// cannot drift into retrying a call that was answered.
+    /// </remarks>
+    public static void Configure(ResiliencePipelineBuilder builder, TimeSpan timeout)
+    {
         builder
             .AddRetry(new RetryStrategyOptions
             {
@@ -106,7 +123,7 @@ public static class AgentOperationPipeline
                         return AgentTransportFailure.IsConnectFailure(exception);
                     }),
             })
-            .AddTimeout(agentOptions.OperationTimeout);
+            .AddTimeout(timeout);
     }
 
     /// <summary>

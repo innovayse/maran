@@ -59,7 +59,7 @@ test('creating an account opens its page, where the invitation link is created, 
   const invitation = await stubInvitation(page, ACCOUNT.id, 'pending')
 
   await page.goto('/accounts/new')
-  await page.getByLabel('Name').fill('alpha')
+  await page.getByLabel('Username').fill('alpha')
   await page.getByLabel('Primary domain').fill('alpha.example.com')
   await page.getByRole('combobox', { name: 'Plan', exact: true }).click()
   await page.getByRole('option').first().click()

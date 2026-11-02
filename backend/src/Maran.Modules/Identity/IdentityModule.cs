@@ -106,6 +106,7 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<AuthenticationCompleter>();
         services.AddScoped<ITotpService, TotpService>();
         services.AddScoped<IRecoveryCodeService, RecoveryCodeService>();
+        services.AddScoped<TwoFactorCodeRejection>();
 
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against; see AccountsModule for the full reasoning. Module-internal

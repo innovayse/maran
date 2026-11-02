@@ -36,7 +36,7 @@ public sealed class AlertEvaluatorFreeSpaceFloorTests
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert * 2; observation++)
         {
             await evaluator.EvaluateAsync(
-                null, reading, [], null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+                null, reading, [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
@@ -59,7 +59,7 @@ public sealed class AlertEvaluatorFreeSpaceFloorTests
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert * 2; observation++)
         {
             await evaluator.EvaluateAsync(
-                null, reading, [], null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+                null, reading, [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         Assert.Empty(scopes.Bus.Published);
@@ -77,11 +77,11 @@ public sealed class AlertEvaluatorFreeSpaceFloorTests
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
             await evaluator.EvaluateAsync(
-                null, new FreeSpaceFloorReading(Floor, Floor), [], null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+                null, new FreeSpaceFloorReading(Floor, Floor), [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         await evaluator.EvaluateAsync(
-            null, new FreeSpaceFloorReading(4 * Floor, Floor), [], null, null, null, Start.AddMinutes(30), CancellationToken.None);
+            null, new FreeSpaceFloorReading(4 * Floor, Floor), [], null, null, null, null, Start.AddMinutes(30), CancellationToken.None);
 
         Assert.Equal(2, scopes.Bus.Published.Count);
         Assert.False((await dbContext.AlertStates.SingleAsync()).IsFiring);
@@ -96,7 +96,7 @@ public sealed class AlertEvaluatorFreeSpaceFloorTests
             dbContext, new StubAgentMonitorClient(), new StubAlertRecipientDirectory("ops@example.com"), new RecordingAuditWriter());
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        await evaluator.EvaluateAsync(null, null, [], null, null, null, Start, CancellationToken.None);
+        await evaluator.EvaluateAsync(null, null, [], null, null, null, null, Start, CancellationToken.None);
 
         Assert.Empty(dbContext.AlertStates);
     }

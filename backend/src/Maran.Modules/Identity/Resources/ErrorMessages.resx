@@ -21,6 +21,9 @@
   <data name="InvalidTwoFactorCodeUnauthorized">
     <value>That code is not valid. Check your authenticator app and try again.</value>
   </data>
+  <data name="InvalidTwoFactorCodeClockUnsynchronizedUnauthorized">
+    <value>That code is not valid. The server's clock is not synchronised, which can make correct codes fail — ask the server's administrator to check its time synchronisation.</value>
+  </data>
   <data name="RefreshTokenInvalidUnauthorized">
     <value>Your session has ended. Please sign in again.</value>
   </data>

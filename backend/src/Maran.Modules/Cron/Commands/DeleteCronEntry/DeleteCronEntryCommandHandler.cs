@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Cron.Mappers;
+using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Resources;
 using Maran.Modules.Cron.Services;
 using Maran.Sdk.Contracts;
@@ -30,6 +31,9 @@ public sealed class DeleteCronEntryCommandHandler
     /// <summary>The agent, which owns the crontab — this module's only store.</summary>
     private readonly IAgentCronClient _agent;
 
+    /// <summary>Where the entry's runs started by hand are recorded; they go with the entry.</summary>
+    private readonly CronDbContext _dbContext;
+
     /// <summary>This module's audit journal.</summary>
     private readonly CronAuditJournal _journal;
 
@@ -39,16 +43,19 @@ public sealed class DeleteCronEntryCommandHandler
     /// <summary>Creates the handler.</summary>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="agent">The agent client that removes the entry.</param>
+    /// <param name="dbContext">Where the entry's runs started by hand are recorded.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="logger">Where an agent refusal is reported, by code and entry id only.</param>
     public DeleteCronEntryCommandHandler(
         IAccountDirectory accounts,
         IAgentCronClient agent,
+        CronDbContext dbContext,
         CronAuditJournal journal,
         ILogger<DeleteCronEntryCommandHandler> logger)
     {
         _accounts = accounts;
         _agent = agent;
+        _dbContext = dbContext;
         _journal = journal;
         _logger = logger;
     }
@@ -78,6 +85,15 @@ public sealed class DeleteCronEntryCommandHandler
                     _logger, deleted.Error!, nameof(_agent.DeleteEntryAsync), command.EntryId),
                 cancellationToken);
         }
+
+        // After the agent removed the entry, never before: a refused removal leaves the entry running
+        // and its history readable. The runs belong to an entry that no longer exists, so they go
+        // with it rather than waiting for the account's own deletion.
+        var runs = await _dbContext.CronRuns
+            .Where(run => run.AccountId == account.Id && run.EntryId == command.EntryId)
+            .ToListAsync(cancellationToken);
+        _dbContext.CronRuns.RemoveRange(runs);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
             AuditActions.CronEntryDeleted,

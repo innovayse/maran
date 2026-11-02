@@ -136,6 +136,20 @@ public sealed class ResilientAgentCronClientTests
         Assert.Equal("e1", inner.LastEntryId);
     }
 
+    /// <summary>A run by hand retries a transport failure through its pipeline and forwards both names.</summary>
+    [Fact]
+    public async Task A_run_by_hand_retries_a_transport_failure_through_its_pipeline_and_forwards_both_names()
+    {
+        var inner = new RecordingAgentCronClient { FailuresBeforeSuccess = 1 };
+
+        var result = await Decorate(inner).RunEntryAsync("alice", "e1", default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("alice", inner.LastAccountUsername);
+        Assert.Equal("e1", inner.LastEntryId);
+    }
+
     /// <summary>The environment read retries a transport failure through the pipeline and forwards the account.</summary>
     [Fact]
     public async Task The_environment_read_retries_a_transport_failure_and_forwards_the_account()

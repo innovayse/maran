@@ -126,6 +126,7 @@ const EXPECTED_BINARIES: [(&str, &str); 24] = [
     ("setquota", "/usr/sbin/setquota"),
     ("quota", "/usr/bin/quota"),
     ("quotaon", "/usr/sbin/quotaon"),
+    ("timedatectl", "/usr/bin/timedatectl"),
     ("id", "/usr/bin/id"),
     ("chmod", "/usr/bin/chmod"),
     ("chgrp", "/usr/bin/chgrp"),
@@ -155,6 +156,7 @@ fn actual_binaries() -> [String; 24] {
         RhelAdapter.setquota_binary().to_string(),
         RhelAdapter.quota_binary().to_string(),
         RhelAdapter.quotaon_binary().to_string(),
+        RhelAdapter.timedatectl_binary().to_string(),
         RhelAdapter.id_binary().to_string(),
         RhelAdapter.chmod_binary().to_string(),
         RhelAdapter.chgrp_binary().to_string(),
@@ -222,7 +224,7 @@ fn declared_binary_methods() -> usize {
 
 /// Every program the RHEL adapter lets the agent execute, with the method that names it.
 ///
-/// One entry per `AdapterBinary`-returning method of the trait (28 fixed paths
+/// One entry per `AdapterBinary`-returning method of the trait (29 fixed paths
 /// plus the version-built php-fpm validator). `sh` and the login shell are not
 /// here: they are written somewhere, never executed by the agent, so they stay
 /// plain strings (see the type assertion below).
@@ -232,6 +234,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("nginx", RhelAdapter.nginx_binary()),
         ("service_manager", RhelAdapter.service_manager()),
         ("journal", RhelAdapter.journal_binary()),
+        ("systemd_run", RhelAdapter.systemd_run_binary()),
         ("php_fpm", RhelAdapter.php_fpm_binary(&version)),
         ("openssl", RhelAdapter.openssl_binary()),
         ("tar", RhelAdapter.tar_binary()),
@@ -253,6 +256,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("setquota", RhelAdapter.setquota_binary()),
         ("quota", RhelAdapter.quota_binary()),
         ("quotaon", RhelAdapter.quotaon_binary()),
+        ("timedatectl", RhelAdapter.timedatectl_binary()),
         ("id", RhelAdapter.id_binary()),
         ("chmod", RhelAdapter.chmod_binary()),
         ("chgrp", RhelAdapter.chgrp_binary()),

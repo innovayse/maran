@@ -75,6 +75,10 @@ impl DistroAdapter for DebianAdapter {
         debian_services::journal_binary()
     }
 
+    fn systemd_run_binary(&self) -> AdapterBinary {
+        debian_services::systemd_run_binary()
+    }
+
     fn tar_binary(&self) -> AdapterBinary {
         debian_services::tar_binary()
     }
@@ -137,6 +141,10 @@ impl DistroAdapter for DebianAdapter {
 
     fn quotaon_binary(&self) -> AdapterBinary {
         debian_services::quotaon_binary()
+    }
+
+    fn timedatectl_binary(&self) -> AdapterBinary {
+        debian_services::timedatectl_binary()
     }
 
     fn pkill_binary(&self) -> AdapterBinary {

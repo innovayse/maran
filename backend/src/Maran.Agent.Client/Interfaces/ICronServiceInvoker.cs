@@ -66,6 +66,14 @@ internal interface ICronServiceInvoker
         GetCronEntryOutputRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>RunCronEntry</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<RunCronEntryResponse> RunCronEntryAsync(
+        RunCronEntryRequest request,
+        CancellationToken cancellationToken);
+
     /// <summary>Invokes <c>GetCronEnvironment</c>.</summary>
     /// <param name="request">The wire request.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

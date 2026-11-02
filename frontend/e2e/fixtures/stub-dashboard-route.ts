@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import type { Dashboard, DashboardSection } from '../../src/types/dashboard'
+import type { ClockSync } from '../../src/types/monitoring'
 
 /**
  * A section the panel read, carrying what it answered with.
@@ -12,6 +13,15 @@ export const loaded = <T>(data: T): DashboardSection<T> => {
 
 /** A section the panel could not read: no data at all, never an empty list or a zero. */
 export const UNAVAILABLE: DashboardSection<never> = { state: 'unavailable' }
+
+/**
+ * A clock the panel read and found synchronised, with the sentence its English resources carry: the
+ * attention payload every spec sends unless it is about the clock (issue #150).
+ */
+export const SYNCHRONIZED_CLOCK: DashboardSection<ClockSync> = loaded<ClockSync>({
+  state: 'synchronized',
+  description: 'The clock is synchronised with a time source.',
+})
 
 /**
  * What the panel answers a caller it filled nothing for: a customer. Every section is null, which

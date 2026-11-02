@@ -2,6 +2,7 @@ using FluentValidation;
 using Maran.Modules.Accounts.Domain.Policies;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.SharedKernel.Constants;
 using Maran.SharedKernel.Utilities.Mail;
 using Maran.SharedKernel.Utilities.Network;
 
@@ -65,6 +66,20 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
     private const string NameReservedMessage = nameof(ErrorMessages.AccountNameReserved);
 
     /// <summary>
+    /// The machine code for a primary domain written with a leading <c>www.</c>, delivered the same
+    /// way as <see cref="NameInvalidMessage"/>. The account's primary domain is the bare name; a
+    /// leading <c>www.</c> would make every later decision about the bare and the <c>www</c> host
+    /// start from the wrong one (issue #194).
+    /// </summary>
+    private const string DomainWwwPrefixMessage = nameof(ErrorMessages.AccountDomainWwwPrefix);
+
+    /// <summary>The leading label <see cref="DomainWwwPrefixMessage"/> refuses, compared without regard to case.</summary>
+    private const string WwwPrefix = "www.";
+
+    /// <summary>The machine code for an owner language the panel ships no text in.</summary>
+    private const string OwnerLanguageUnsupportedMessage = nameof(ErrorMessages.AccountOwnerLanguageUnsupported);
+
+    /// <summary>
     /// A storage bound, not a definition of validity — <c>AccountConfiguration</c> maps
     /// <c>Account.OwnerEmail</c> as <c>varchar(256)</c>, narrower than
     /// <see cref="EmailAddressRule.MaximumLength"/>'s full 320. The shared rule has no business
@@ -102,7 +117,16 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
             .NotEmpty()
             .MaximumLength(HostNameRule.MaximumLength)
             .Must(HostNameRule.IsHostName)
-            .WithMessage("PrimaryDomain must be a valid domain name.");
+            .WithMessage("PrimaryDomain must be a valid domain name.")
+            .Must(domain =>
+            {
+                return !domain.StartsWith(WwwPrefix, StringComparison.OrdinalIgnoreCase);
+            })
+            .WithMessage(DomainWwwPrefixMessage);
+
+        RuleFor(command => command.OwnerLanguage)
+            .Must(PanelLanguages.IsSupported)
+            .WithMessage(OwnerLanguageUnsupportedMessage);
 
         RuleFor(command => command.PlanId)
             .NotEmpty()

@@ -12,9 +12,9 @@ public static class CronManifest
 {
     /// <summary>The Cron module's published identity.</summary>
     /// <remarks>
-    /// The id names no PostgreSQL schema, unlike every module shipped before it: this one owns no
-    /// tables (see <see cref="CronModule"/>). The id is still the module's stable machine name, and
-    /// it is what the catalogue and the licence system address it by.
+    /// The id is also the name of the module's PostgreSQL schema, <c>cron</c>, which holds only the
+    /// runs started by hand (issue #158); the entries themselves stay in the account's crontab (see
+    /// <see cref="CronModule"/>).
     /// </remarks>
     public static Manifest Instance { get; } = new(
         Id: "cron",

@@ -24,6 +24,34 @@ public static class DisplayNameExemptions
     public static readonly IReadOnlyList<DisplayNameExemption> Declared =
     [
         new(
+            "Maran.Modules.Cron.Common.CronRunDto",
+            "Outcome",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "cron.runs.outcome.{member}",
+            "A run started by hand succeeded, failed or was stopped: a closed set the history draws as a "
+            + "badge and offers as its one filter (issue #158)."),
+        new(
+            "Maran.Modules.Cron.Common.CronRunDto",
+            "Limit",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "cron.runs.limit.{member}",
+            "The agent's two ceilings, runtime and output: a closed set the result dialog explains in one "
+            + "sentence each (issue #158)."),
+        new(
+            "Maran.Modules.Cron.Common.CronRunSummaryDto",
+            "Outcome",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "cron.runs.outcome.{member}",
+            "A run started by hand succeeded, failed or was stopped: a closed set the history draws as a "
+            + "badge and offers as its one filter (issue #158)."),
+        new(
+            "Maran.Modules.Cron.Common.CronRunSummaryDto",
+            "Limit",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "cron.runs.limit.{member}",
+            "The agent's two ceilings, runtime and output: a closed set the result dialog explains in one "
+            + "sentence each (issue #158)."),
+        new(
             "Maran.Modules.Accounts.Common.AccountDto",
             "Status",
             DisplayNameExemptionKind.SpaOwnedVocabulary,
@@ -165,6 +193,13 @@ public static class DisplayNameExemptions
             "Up, down and not-known are three badge tones as much as three words, and the badge "
             + "must carry text so the tone is never the only thing saying which state it is. The "
             + "service's identity beside it is the opposite case and is named by the backend."),
+        new(
+            "Maran.Modules.Monitoring.Common.ClockSyncDto",
+            "State",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "monitoring.clock.{member}",
+            "The clock card's badge, a tone as much as a word, like ServiceStatusDto.State. The "
+            + "sentence saying what the state means is the backend's, in Description (issue #150)."),
         new(
             "Maran.Modules.Notifications.Common.SmtpSettingsDto",
             "Security",

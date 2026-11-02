@@ -22,8 +22,9 @@
  * container scrolls.
  *
  * One page rather than a list plus a form page: an entry has no detail to open. What its last run
- * left behind is the only thing beyond the row, it costs a privileged read per entry, and it is
- * therefore a dialog opened on demand rather than a column nobody asked for.
+ * left behind costs a privileged read per entry, so it is a dialog opened on demand rather than a
+ * column nobody asked for. "Run now" answers in a dialog too, and the history of the runs started by
+ * hand has its own page (`CronRunsPage`), because it is a server-paged list of its own.
  *
  * **Loading keeps the table's shape.** While an account's crontab is on the way the entries table
  * shows its real header over placeholder rows drawn from its own `columns`, inside a
@@ -31,32 +32,27 @@
  */
 import { computed, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
-import UiBadge from '../../components/ui/UiBadge.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
-import UiDropdown from '../../components/ui/UiDropdown.vue'
-import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
-import UiTable from '../../components/ui/UiTable.vue'
-import type { UiTableColumn } from '../../types/tableColumn'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
+import CronEntriesTable from '../../components/cron/CronEntriesTable.vue'
 import CronEntryForm from '../../components/cron/CronEntryForm.vue'
 import CronEntryOutputDialog from '../../components/cron/CronEntryOutputDialog.vue'
 import CronEnvironmentEditor from '../../components/cron/CronEnvironmentEditor.vue'
+import CronRunResultDialog from '../../components/cron/CronRunResultDialog.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useAccountsStore } from '../../stores/accounts'
 import { useCronStore } from '../../stores/cron'
-import { useLocaleStore } from '../../stores/locale'
-import { formatCronExpression } from '../../utils/cronSchedule'
-import { describeCronSchedule } from '../../utils/describeCronSchedule'
-import { weekdayName } from '../../utils/weekdayName'
+import { useCronRunsStore } from '../../stores/cronRuns'
 import type { CronEntry, CronSchedule } from '../../types/cronEntry'
 import type { CronEnvironmentVariable } from '../../types/cronEnvironmentVariable'
 
@@ -65,7 +61,8 @@ const store = useCronStore()
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { filter: accountListFilter } = useAccountFilter()
 const accountsStore = useAccountsStore()
-const localeStore = useLocaleStore()
+const runsStore = useCronRunsStore()
+const router = useRouter()
 
 /** The form, so an accepted install can empty the field it owns. */
 const form = useTemplateRef<{ reset: () => void }>('form')
@@ -87,18 +84,6 @@ const pendingEntry: ComputedRef<CronEntry | null> = computed(() => {
     }) ?? null
   )
 })
-
-/** The entries table's columns: its header, its cells and its loading placeholder all read this one list. */
-const columns: ComputedRef<UiTableColumn[]> = computed(() => {
-  return [
-    { key: 'schedule', label: t('cron.list.columns.schedule'), kind: 'mono' },
-    { key: 'runs', label: t('cron.list.columns.runs'), kind: 'text', minWidth: '10rem' },
-    { key: 'command', label: t('cron.list.columns.command'), kind: 'code', minWidth: '14rem' },
-    { key: 'state', label: t('cron.list.columns.state'), kind: 'badge' },
-    { key: 'actions', label: t('common.actions'), kind: 'actions' },
-  ]
-})
-
 
 /** The confirmation's accessible name, naming the command that would stop running. */
 const confirmationTitle: ComputedRef<string> = computed(() => {
@@ -252,20 +237,21 @@ const confirmRemove = async (): Promise<void> => {
 }
 
 /**
- * Opens the dialog showing what an entry's last run left behind.
- * @param entryId The entry to read.
- * @returns Resolves once the reading has settled.
+ * Runs an entry now and shows its result; the dialog holds a spinner for as long as the job runs.
+ * @param entry The entry to run.
+ * @returns Resolves once the run has ended or been refused.
  */
-const showOutput = async (entryId: string): Promise<void> => {
-  await store.openOutput(entryId)
+const runNow = async (entry: CronEntry): Promise<void> => {
+  await runsStore.run(entry.entryId, store.accountId)
 }
 
 /**
- * Closes the last-run dialog.
- * @returns Nothing.
+ * Opens the history of the runs started by hand for one entry, on the account the screen shows.
+ * @param entry The entry whose runs to show.
+ * @returns Resolves once the navigation has settled.
  */
-const closeOutput = (): void => {
-  store.closeOutput()
+const openHistory = async (entry: CronEntry): Promise<void> => {
+  await router.push({ name: 'cron-runs', params: { entryId: entry.entryId }, query: { account: store.accountId } })
 }
 
 /**
@@ -275,45 +261,6 @@ const closeOutput = (): void => {
  */
 const saveEnvironment = async (variables: CronEnvironmentVariable[]): Promise<void> => {
   await store.saveEnvironment(variables)
-}
-
-/**
- * Writes one entry's schedule the way a crontab line does.
- * @param entry The entry to describe.
- * @returns The five fields, single-spaced.
- */
-const scheduleText = (entry: CronEntry): string => {
-  return formatCronExpression(entry.schedule)
-}
-
-/**
- * Says when an entry runs in words, for the shapes that have a plain sentence.
- * @param entry The entry to describe.
- * @returns The sentence, or the em dash when the schedule is not one a sentence can carry exactly;
- * the expression beside it is then the whole description.
- */
-const scheduleDescription = (entry: CronEntry): string => {
-  const description = describeCronSchedule(entry.schedule)
-  if (description === null) {
-    return t('common.emptyValue')
-  }
-  switch (description.kind) {
-    case 'everyMinute':
-      return t('cron.describe.everyMinute')
-    case 'everyNMinutes':
-      return t('cron.describe.everyNMinutes', { count: description.minutes }, description.minutes)
-    case 'hourly':
-      return t('cron.describe.hourly', { minute: description.minute })
-    case 'daily':
-      return t('cron.describe.daily', { time: description.time })
-    case 'weekly':
-      return t('cron.describe.weekly', {
-        time: description.time,
-        weekday: weekdayName(description.weekday, localeStore.current),
-      })
-    default:
-      return t('cron.describe.monthly', { time: description.time, day: description.day })
-  }
 }
 
 /**
@@ -351,13 +298,8 @@ onMounted(start)
     </UiPageHeading>
 
     <!-- What needs attention goes first: a write the panel was refused. -->
-    <UiAlert v-if="store.saveErrorMessage !== null" variant="error">
-      {{ store.saveErrorMessage }}
-    </UiAlert>
-
-    <UiAlert v-if="store.actionErrorMessage !== null" variant="error">
-      {{ store.actionErrorMessage }}
-    </UiAlert>
+    <UiAlert v-if="store.saveErrorMessage !== null" variant="error">{{ store.saveErrorMessage }}</UiAlert>
+    <UiAlert v-if="store.actionErrorMessage !== null" variant="error">{{ store.actionErrorMessage }}</UiAlert>
 
     <UiCard>
       <UiSectionHeading
@@ -390,49 +332,18 @@ onMounted(start)
           <template #icon><UiIcon name="clock" size="lg" /></template>
         </UiEmptyState>
 
-        <UiTable
+        <CronEntriesTable
           v-else
-          :caption="t('cron.list.tableCaption')"
-          :columns="columns"
           :rows="store.entries"
-          row-key="entryId"
           :loading="store.loadState === 'loading'"
-        >
-          <template #cell-schedule="{ row }">{{ scheduleText(row) }}</template>
-          <template #cell-runs="{ row }">{{ scheduleDescription(row) }}</template>
-          <!-- The command is shown exactly as the customer wrote it. It can carry a credential, which
-               is why the panel keeps it out of its logs and its audit journal — but it is their own
-               text on their own screen, and masking it would leave them unable to read their job. -->
-          <template #cell-command="{ row }">{{ row.command }}</template>
-          <template #cell-state="{ row }">
-            <UiBadge :variant="row.enabled ? 'success' : 'neutral'">
-              {{ row.enabled ? t('cron.list.enabled') : t('cron.list.disabled') }}
-            </UiBadge>
-          </template>
-          <template #cell-actions="{ row }">
-            <UiDropdown
-              :label="t('common.actions')"
-              :aria-label="t('cron.list.rowActions', { command: row.command })"
-              align="end"
-              variant="bare"
-              :chevron="false"
-            >
-              <template #trigger>
-                <UiIcon name="ellipsis" size="md" />
-              </template>
-              <UiDropdownItem @select="setEnabled(row)">
-                {{ row.enabled ? t('cron.list.disable') : t('cron.list.enable') }}
-              </UiDropdownItem>
-              <UiDropdownItem @select="edit(row)">{{ t('cron.list.edit') }}</UiDropdownItem>
-              <UiDropdownItem @select="showOutput(row.entryId)">
-                {{ t('cron.list.lastOutput') }}
-              </UiDropdownItem>
-              <UiDropdownItem destructive @select="askRemove(row.entryId)">
-                {{ t('cron.list.remove') }}
-              </UiDropdownItem>
-            </UiDropdown>
-          </template>
-        </UiTable>
+          :running-entry-id="runsStore.runningEntryId"
+          @toggle="setEnabled"
+          @edit="edit"
+          @run="runNow"
+          @output="store.openOutput($event.entryId)"
+          @history="openHistory"
+          @remove="askRemove($event.entryId)"
+        />
       </UiLoadingRegion>
     </UiCard>
 
@@ -471,7 +382,14 @@ onMounted(start)
       :output="store.output"
       :loading="store.outputLoading"
       :error-message="store.outputErrorMessage"
-      @close="closeOutput"
+      @close="store.closeOutput"
+    />
+
+    <CronRunResultDialog
+      :open="runsStore.isShownOpen"
+      :run="runsStore.shown"
+      :error-message="runsStore.shownErrorMessage"
+      @close="runsStore.close"
     />
 
     <UiPinnedToast :message="notice" :close-label="t('common.close')" @dismiss="dismissNotice" />

@@ -170,6 +170,27 @@ public interface IAgentCronClient
         string entryId,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Starts one of the account's entries now, as the account, and waits for it (issue #158).
+    /// </summary>
+    /// <param name="accountUsername">System username of the owning account.</param>
+    /// <param name="entryId">The agent's identifier for the entry to run.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// What the run reported — the job's own failure is a value inside it, never a failed result — or a
+    /// typed failure: <c>AgentNotFound</c> for an entry the account does not have,
+    /// <c>AgentAccountSuspended</c> for a suspended account, and nothing was started for either.
+    /// </returns>
+    /// <remarks>
+    /// Not idempotent: every call is a new run of the customer's program. The call lasts as long as the
+    /// run, up to the agent's two-minute ceiling, which is why it is decorated with its own, longer
+    /// timeout and not the operation pipeline's.
+    /// </remarks>
+    Task<Result<AgentCronRun>> RunEntryAsync(
+        string accountUsername,
+        string entryId,
+        CancellationToken cancellationToken);
+
     /// <summary>Reads the environment assignments the agent manages in an account's crontab.</summary>
     /// <param name="accountUsername">System username of the owning account.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

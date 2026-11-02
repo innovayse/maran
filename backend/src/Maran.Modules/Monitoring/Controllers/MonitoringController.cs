@@ -1,5 +1,6 @@
 using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Domain.Enums;
+using Maran.Modules.Monitoring.Queries.GetClockSync;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.GetMetricsChart;
 using Maran.Modules.Monitoring.Queries.ListAccountDiskUsage;
@@ -77,6 +78,23 @@ public sealed class MonitoringController : BaseApiController
         var query = new ListServiceStatusesQuery();
         return ToActionResult(
             await _bus.InvokeAsync<Result<IReadOnlyList<ServiceStatusDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>Reads whether the host's clock is synchronised with a time source, live from the agent.</summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <remarks>
+    /// A failure is the agent's own typed error, never "not synchronised": the interface shows that
+    /// the panel could not find out (issue #150).
+    /// </remarks>
+    [HttpGet("clock")]
+    [ProducesResponseType(typeof(ClockSyncDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetClockAsync(CancellationToken cancellationToken)
+    {
+        var query = new GetClockSyncQuery();
+        return ToActionResult(await _bus.InvokeAsync<Result<ClockSyncDto>>(query, cancellationToken));
     }
 
     /// <summary>Reads the stored samples for a range, bucketed into points a chart can draw.</summary>

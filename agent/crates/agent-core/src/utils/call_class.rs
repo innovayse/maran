@@ -70,6 +70,16 @@ pub enum CallClass {
     /// that takes longer than that to extract is not restored, and the failure
     /// reads as an archiver refusal.
     Bulk,
+    /// A customer's own cron entry started by hand (`systemd-run --wait` of the
+    /// entry's command file, issue #158). The service manager stops the job at
+    /// its own `RuntimeMaxSec` (`ops::cron`'s `RUN_NOW_RUNTIME_CEILING`, 120 s),
+    /// so this deadline only has to outlast that ceiling plus the time
+    /// `systemd-run` needs to report the unit's end. It fires only when the
+    /// client itself is wedged, never because a customer's job was slow. It also
+    /// stays under the panel's own wait for the answer (`AgentCronRunPipeline`,
+    /// 200 s), which stays under the reverse proxy's 300 s. The numbers move
+    /// together: a change to the ceiling is a change here.
+    CronRun,
 }
 
 impl CallClass {
@@ -86,6 +96,7 @@ impl CallClass {
     /// | `PackageInstall` | 2100 s | the install unit's 1800 s + its 90 s stop + slack |
     /// | `Listing` | 3 600 s | `tar --list` of ONE artifact (at most 64 GiB compressed): about 18 MB/s sustained; scales with the artifact ceiling, not the home, and mutates nothing |
     /// | `Bulk` | 43 200 s | a dump or archive of a large account |
+    /// | `CronRun` | 180 s | the job's own 120 s runtime ceiling + the client's report |
     #[must_use]
     pub const fn deadline(self) -> Duration {
         let seconds = match self {
@@ -96,6 +107,7 @@ impl CallClass {
             Self::PackageInstall => 2_100,
             Self::Listing => 3_600,
             Self::Bulk => 43_200,
+            Self::CronRun => 180,
         };
 
         Duration::from_secs(seconds)

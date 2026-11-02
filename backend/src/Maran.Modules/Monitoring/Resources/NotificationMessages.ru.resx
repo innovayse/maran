@@ -88,4 +88,16 @@
   <data name="AlertFreeSpaceFloorApproachingResolvedBody">
     <value>В файловой системе {0} осталось {1} ГиБ — не меньше двух нижних пределов свободного места.</value>
   </data>
+  <data name="AlertClockUnsynchronizedRaisedSubject">
+    <value>Часы сервера не синхронизированы</value>
+  </data>
+  <data name="AlertClockUnsynchronizedRaisedBody">
+    <value>Часы сервера не синхронизированы с источником времени ({1}), и так уже десять проверок подряд. Коды двухфакторной аутентификации, сеансы входа, сертификаты и проверка лицензии зависят от точного времени и при уходе часов отказывают непонятным образом. Включите на этом сервере службу синхронизации времени (systemd-timesyncd или chrony) и убедитесь, что она может связаться с сервером времени.</value>
+  </data>
+  <data name="AlertClockUnsynchronizedResolvedSubject">
+    <value>Часы сервера снова синхронизированы</value>
+  </data>
+  <data name="AlertClockUnsynchronizedResolvedBody">
+    <value>Часы сервера снова синхронизированы с источником времени.</value>
+  </data>
 </root>

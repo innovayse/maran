@@ -1,4 +1,5 @@
 using System.Resources;
+using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -8,15 +9,20 @@ namespace Maran.Modules.Cron;
 /// <summary>
 /// The Cron module's entry point (rules/csharp.md "Canonical backend layout"). Contributes the
 /// module's controllers to the Host's routing and registers its audit journal. Owns the panel's
-/// side of per-account scheduled tasks (spec §11).
+/// side of per-account scheduled tasks (spec §11) and the history of the runs started by hand.
 /// </summary>
 /// <remarks>
-/// <b>It registers no <c>DbContext</c> and owns no PostgreSQL schema, and that is the module's
-/// central design decision rather than a gap.</b> A cron entry lives in the account's own crontab,
-/// which the account can edit directly over SFTP, so a panel table would be a second answer to
-/// "what does this account run" that goes stale the first time the customer edits their crontab —
-/// and the panel's copy is the one an operator would trust. Everything this module reads, it reads
-/// through the agent, and everything it changes, it changes there.
+/// <b>The cron entries are not in a table, and that is the module's central design decision rather
+/// than a gap.</b> A cron entry lives in the account's own crontab, which the account can edit directly
+/// over SFTP, so a panel table would be a second answer to "what does this account run" that goes stale
+/// the first time the customer edits their crontab — and the panel's copy is the one an operator would
+/// trust. Everything this module reads about an entry, it reads through the agent, and everything it
+/// changes, it changes there.
+///
+/// The one table it does own, <c>cron.CronRuns</c> (<see cref="CronDbContext"/>, issue #158), is the
+/// opposite case: the runs an operator or a customer started by hand. The panel is the only party that
+/// knows those happened, so the panel is where they are kept, tenant-filtered like every other
+/// customer row.
 ///
 /// Two consequences worth stating where a reader meets the module: the plan's entry allowance is
 /// counted against what the agent reports rather than against rows here (<c>Commands/CreateCronEntry</c>),
@@ -26,6 +32,9 @@ namespace Maran.Modules.Cron;
 /// </remarks>
 public sealed class CronModule : IPanelModule
 {
+    /// <summary>The connection string every module context reads.</summary>
+    private const string ConnectionStringName = "Panel";
+
     /// <summary>The embedded resource base name of <c>Resources/ErrorMessages*.resx</c>.</summary>
     private const string ErrorMessagesResourceBaseName = "Maran.Modules.Cron.Resources.ErrorMessages";
 
@@ -53,7 +62,14 @@ public sealed class CronModule : IPanelModule
     /// <inheritdoc />
     public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        // No AddDbContext and no connection string read: this module has no persistence of its own.
+        var connectionString = configuration.GetConnectionString(ConnectionStringName) ?? string.Empty;
+
+        // Scoped: the context is per request, and its tenant filter closes over that request's caller.
+        services.AddDbContext<CronDbContext>(options =>
+        {
+            options.UseNpgsql(connectionString);
+        });
+
         // Scoped, because the journal reads the request's own ICurrentUser for the entry's actor.
         services.AddScoped<CronAuditJournal>();
 

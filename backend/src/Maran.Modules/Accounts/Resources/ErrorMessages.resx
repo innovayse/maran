@@ -27,6 +27,12 @@
   <data name="AccountDomainTaken">
     <value>This domain is already used by another account.</value>
   </data>
+  <data name="AccountDomainWwwPrefix">
+    <value>Enter the primary domain without "www.", for example example.com.</value>
+  </data>
+  <data name="AccountOwnerLanguageUnsupported">
+    <value>Choose the owner's language from the list: English, Russian or Armenian.</value>
+  </data>
   <data name="PlanNotFound">
     <value>This plan could not be found.</value>
   </data>

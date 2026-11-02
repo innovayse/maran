@@ -27,7 +27,9 @@
       "confirm": "Remove task",
       "working": "Working…",
       "rowActions": "Actions for {command}",
-      "created": "Scheduled task added."
+      "created": "Scheduled task added.",
+      "runNow": "Run now",
+      "history": "Run history"
     },
     "schedule": {
       "legend": "Schedule",
@@ -108,6 +110,41 @@
       "daily": "Every day at {time}",
       "weekly": "Every {weekday} at {time}",
       "monthly": "On day {day} of every month at {time}"
+    },
+    "runs": {
+      "heading": "Run history",
+      "note": "Runs started by hand from the panel, newest twenty per task. Scheduled runs are under \"Last run\".",
+      "back": "Scheduled tasks",
+      "tableCaption": "Runs started by hand",
+      "resultTitle": "Run result",
+      "running": "Running the task as the account. This can take up to two minutes.",
+      "view": "Output",
+      "stdout": "Standard output",
+      "stderr": "Standard error",
+      "searchLabel": "Search output",
+      "searchPlaceholder": "Text the output contains",
+      "searchClear": "Clear search",
+      "emptyTitle": "No runs yet",
+      "emptyDescription": "Use \"Run now\" on the scheduled tasks screen to run this task by hand.",
+      "noResultsTitle": "No runs match",
+      "noResultsDescription": "Change the search or the filters.",
+      "columns": {
+        "startedAt": "Started",
+        "outcome": "Outcome",
+        "duration": "Duration"
+      },
+      "filters": {
+        "outcome": "Outcome"
+      },
+      "outcome": {
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "stopped": "Stopped"
+      },
+      "limit": {
+        "runtime": "The run reached the two-minute limit and was stopped.",
+        "output": "The run printed more than 64 KiB on one stream and was stopped; its output was not kept."
+      }
     }
   }
 }

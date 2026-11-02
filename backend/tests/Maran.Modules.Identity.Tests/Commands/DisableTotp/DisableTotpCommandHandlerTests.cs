@@ -72,7 +72,8 @@ public sealed class DisableTotpCommandHandlerTests : IDisposable
             _context,
             new TotpService(_clock),
             new RecoveryCodeService(_context, new Argon2idPasswordHasher(), _clock),
-            new IdentityAuditJournal(new RecordingAuditWriter(), new StubCurrentUser()));
+            new IdentityAuditJournal(new RecordingAuditWriter(), new StubCurrentUser()),
+            new TwoFactorCodeRejection(new StubClockSyncStatus()));
     }
 
     /// <summary>Stores a customer, with or without a second factor.</summary>

@@ -2,6 +2,7 @@ using System.Globalization;
 using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Resources;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Constants;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
@@ -43,11 +44,45 @@ public sealed class InvitationMailComposer
         _options = options.Value;
     }
 
-    /// <summary>Renders the invitation message, already localized, ready to hand to the panel's mail queue.</summary>
+    /// <summary>Renders the invitation message in the owner's language, ready to hand to the panel's mail queue.</summary>
+    /// <remarks>
+    /// The language is the OWNER's, never the request's: an invitation is written while an
+    /// administrator's request is being served, and that request's culture says what the
+    /// administrator reads, not what the owner does (issue #194). Both cultures are switched for the
+    /// duration of this synchronous call and restored before it returns, so nothing after it in the
+    /// administrator's request is answered in the owner's language. An unsupported value — a row
+    /// written before the language was validated — is rendered in English rather than refused,
+    /// because the mail is a recovery path and must not fail on a stored preference.
+    /// </remarks>
     /// <param name="recipient">The invited user's own stored address.</param>
     /// <param name="token">The plaintext invitation token. It exists here, in the message, and nowhere else.</param>
+    /// <param name="language">The owner's language, one of <see cref="PanelLanguages.Supported"/>.</param>
     /// <returns>The message to publish as <see cref="SendMailRequested"/>.</returns>
-    public SendMailRequested Compose(string recipient, string token)
+    public SendMailRequested Compose(string recipient, string token, string language)
+    {
+        var ownerCulture = CultureInfo.GetCultureInfo(
+            PanelLanguages.IsSupported(language) ? language : PanelLanguages.English);
+        var requestCulture = CultureInfo.CurrentCulture;
+        var requestUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = ownerCulture;
+            CultureInfo.CurrentUICulture = ownerCulture;
+            return Render(recipient, token);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = requestCulture;
+            CultureInfo.CurrentUICulture = requestUiCulture;
+        }
+    }
+
+    /// <summary>Renders the message in whatever culture is current.</summary>
+    /// <param name="recipient">The invited user's own stored address.</param>
+    /// <param name="token">The plaintext invitation token.</param>
+    /// <returns>The message to publish as <see cref="SendMailRequested"/>.</returns>
+    private SendMailRequested Render(string recipient, string token)
     {
         var instruction = string.IsNullOrWhiteSpace(_options.PanelUrl)
             ? string.Format(CultureInfo.CurrentCulture, _templates["InvitationTokenOnly"], token)

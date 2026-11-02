@@ -69,6 +69,9 @@
   <data name="BackupFailureAgentBelowFreeSpaceFloor">
     <value>На сервере почти закончилось место на диске</value>
   </data>
+  <data name="BackupFailureAgentAccountSuspended">
+    <value>Аккаунт приостановлен</value>
+  </data>
   <data name="BackupFailureAgentLimitReached">
     <value>Лимит тарифа по этому аккаунту уже был исчерпан</value>
   </data>

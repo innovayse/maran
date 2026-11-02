@@ -9,10 +9,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- No Microsoft.EntityFrameworkCore.InMemory, unlike every other module's test project:
-         the Cron module has no DbContext to stand up, because the account's crontab is the
-         record. What the other modules seed into an in-memory database, these tests script on
-         the agent double instead. -->
+    <!-- Microsoft.EntityFrameworkCore.InMemory: the module's one table, the runs started by hand
+         (issue #158). The entries themselves are still scripted on the agent double, because the
+         account's crontab is their record. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />

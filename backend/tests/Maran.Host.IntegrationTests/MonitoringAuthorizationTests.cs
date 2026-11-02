@@ -62,6 +62,7 @@ public sealed class MonitoringAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/monitoring/metrics" },
             { "GET", "/api/v1/monitoring/services" },
             { "GET", "/api/v1/monitoring/chart" },
+            { "GET", "/api/v1/monitoring/clock" },
             // The route this fixture matters most on: behind it is IAccountDirectory.ListAsync,
             // which applies no tenant scope at all, so the admin policy is the only thing keeping a
             // customer from every other tenant's system user name and plan allowances.
@@ -229,6 +230,29 @@ public sealed class MonitoringAuthorizationTests : IAsyncLifetime
         Assert.DoesNotContain("WebServer", payload, StringComparison.Ordinal);
         Assert.DoesNotContain("Running", payload, StringComparison.Ordinal);
         Assert.DoesNotContain("Unknown", payload, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The clock's state reaches the wire in the panel's camelCase spelling with its explanation
+    /// beside it (issue #150).
+    /// </summary>
+    [Fact]
+    public async Task The_clock_state_reaches_the_wire_with_its_explanation()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/clock");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadAsStringAsync();
+        Assert.Contains("\"state\":\"synchronized\"", payload, StringComparison.Ordinal);
+        Assert.Contains(
+            "\"description\":\"The clock is synchronised with a time source.\"",
+            payload,
+            StringComparison.Ordinal);
     }
 
 

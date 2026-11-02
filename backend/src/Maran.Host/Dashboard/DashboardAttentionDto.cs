@@ -1,3 +1,5 @@
+using Maran.Modules.Monitoring.Common;
+
 namespace Maran.Host.Dashboard;
 
 /// <summary>What on this server is asking to be looked at.</summary>
@@ -25,8 +27,14 @@ namespace Maran.Host.Dashboard;
 /// <param name="FailedBackups">Backups whose last run failed.</param>
 /// <param name="BannedAddresses">Addresses the firewall is currently refusing.</param>
 /// <param name="FailedTasks">Panel tasks that ended in failure.</param>
+/// <param name="Clock">
+/// Whether the host's clock is synchronised with a time source (issue #150). Not a count: the SPA
+/// names it when it is anything but synchronised, and names it as unchecked when the agent could
+/// not be asked — never as synchronised.
+/// </param>
 public sealed record DashboardAttentionDto(
     DashboardSection<int> CertificatesExpiringSoon,
     DashboardSection<int> FailedBackups,
     DashboardSection<int> BannedAddresses,
-    DashboardSection<int> FailedTasks);
+    DashboardSection<int> FailedTasks,
+    DashboardSection<ClockSyncDto> Clock);

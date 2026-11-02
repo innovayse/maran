@@ -34,7 +34,7 @@ public sealed class AccountCreatedHandlerTests : IDisposable
 
     private static AccountCreated Created()
     {
-        return new AccountCreated(AccountId, "owner-one", "owner@example.com");
+        return new AccountCreated(AccountId, "owner-one", "owner@example.com", "en");
     }
 
     private AccountCreatedHandler NewHandler(string panelUrl = "")

@@ -45,6 +45,10 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
                 true,
                 Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified));
 
+    /// <summary>What a request for the clock's synchronisation is answered with.</summary>
+    public Result<AgentClockSyncState> ClockSync { get; set; } =
+        Result<AgentClockSyncState>.Ok(AgentClockSyncState.Synchronized);
+
     /// <summary>What <see cref="GetServerFingerprintAsync"/> answers.</summary>
     /// <remarks>
     /// Both halves null by default: a fixture that has not been told which machine it is on should
@@ -85,6 +89,12 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     public Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult(QuotaEnforceability);
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<AgentClockSyncState>> GetClockSyncAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(ClockSync);
     }
 
     /// <inheritdoc/>

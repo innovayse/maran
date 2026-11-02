@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.SharedKernel.Constants;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Accounts.Persistence.Configurations;
@@ -40,6 +41,15 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         // rows this migration could not touch.
         builder.Property(a => a.OwnerEmail)
             .HasMaxLength(256);
+
+        // Required with a database default: every account that predates the column was created by
+        // a panel that wrote its invitation in English unless the administrator's own language said
+        // otherwise, and English is the one language every installation ships, so it is the honest
+        // value to give a row nobody recorded a language for (issue #194).
+        builder.Property(a => a.OwnerLanguage)
+            .IsRequired()
+            .HasMaxLength(8)
+            .HasDefaultValue(PanelLanguages.English);
 
         builder.Property(a => a.CreatedAt)
             .IsRequired();

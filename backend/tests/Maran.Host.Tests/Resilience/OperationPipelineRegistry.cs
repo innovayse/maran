@@ -11,7 +11,8 @@ namespace Maran.Host.Tests.Resilience;
 /// enough to assert against.
 /// </summary>
 /// <remarks>
-/// The pipeline is configured through <see cref="AgentOperationPipeline.Configure"/>, not hand-rolled
+/// The pipeline is configured through
+/// <see cref="AgentOperationPipeline.Configure(ResiliencePipelineBuilder, AgentOptions)"/>, not hand-rolled
 /// in the test: a decorator that is wired to a pipeline the production code never builds proves
 /// nothing about production.
 /// </remarks>
@@ -26,6 +27,14 @@ internal static class OperationPipelineRegistry
         services.AddResiliencePipeline(AgentOperationPipeline.Name, builder =>
         {
             AgentOperationPipeline.Configure(builder, new AgentOptions { OperationTimeoutSeconds = seconds });
+        });
+
+        // The run-by-hand pipeline carries the same retry under the same short timeout, so a decorator
+        // that holds both is tested under one bound. Its own production timeout is pinned by
+        // AgentCronRunPipelineTests, not here.
+        services.AddResiliencePipeline(AgentCronRunPipeline.Name, builder =>
+        {
+            AgentOperationPipeline.Configure(builder, TimeSpan.FromSeconds(seconds));
         });
 
         return services.BuildServiceProvider().GetRequiredService<ResiliencePipelineProvider<string>>();

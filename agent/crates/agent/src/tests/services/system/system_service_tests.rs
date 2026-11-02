@@ -85,13 +85,14 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // filesystem into used, reserved and available (issue #77); revision 7
     // adds the free-space floor's error code and figure (issue #148); revision 8
     // adds `SetAccountResourceLimits` (issue #133); revision 9 adds the panel's own
-    // certificate rpcs (issue #132); revision 10 adds `SetSftpAuthorizedKeys` (issue
-    // #135). The panel's
+    // certificate rpcs (issue #132); revision 10 adds `GetClockSync`
+    // (issue #150); revision 11 adds `RunCronEntry` (issue #158); revision 12
+    // adds `SetSftpAuthorizedKeys` (issue #135). The panel's
     // `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 10);
+    assert_eq!(info.proto_version, 12);
 }
 
 #[tokio::test]
@@ -128,7 +129,9 @@ const REVISIONS: &[(u32, u64)] = &[
     (7, 0xb283_18aa_a02e_4f4e),
     (8, 0xd31a_75ce_b42d_6396),
     (9, 0x5e80_6a10_6744_3e8c),
-    (10, 0xf09c_2af9_02a2_169e),
+    (10, 0x6158_aa3d_0a72_3aca),
+    (11, 0xdb27_e25a_498b_4086),
+    (12, 0xaee3_8cde_9457_4a26),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

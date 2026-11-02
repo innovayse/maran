@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { setPersistedLocale } from './fixtures/set-locale'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { loaded, stubDashboard, UNAVAILABLE } from './fixtures/stub-dashboard-route'
+import { loaded, stubDashboard, UNAVAILABLE, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import type { Dashboard } from '../src/types/dashboard'
@@ -35,6 +35,7 @@ const dashboardWith = (count: number): Dashboard => {
       failedBackups: loaded(count),
       bannedAddresses: loaded(count),
       failedTasks: loaded(count),
+      clock: SYNCHRONIZED_CLOCK,
     },
     recentAudit: loaded([]),
   }

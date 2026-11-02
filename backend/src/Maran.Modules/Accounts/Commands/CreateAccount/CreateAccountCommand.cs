@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Maran.SharedKernel.Constants;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Maran.Modules.Accounts.Commands.CreateAccount;
@@ -24,6 +25,12 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// own remarks for why a second copy is the deliberate choice: it is what lets an administrator
 /// resend an invitation for an account whose login was never successfully created.
 /// </param>
+/// <param name="OwnerLanguage">
+/// The owner's language, one of <see cref="PanelLanguages.Supported"/>; the owner's invitation is
+/// written in it (issue #194). Optional on the wire and English when left out, so a caller that
+/// predates the field keeps the behaviour it had, minus the creator's own language leaking into the
+/// owner's mail.
+/// </param>
 /// <param name="IpAddress">
 /// The caller's address, recorded in the audit journal. Read from the connection by the controller
 /// and never bound from the request: <c>JsonIgnore</c> keeps it out of the JSON body — a
@@ -43,5 +50,6 @@ public sealed record CreateAccountCommand(
     string PrimaryDomain,
     Guid PlanId,
     string OwnerEmail,
+    string OwnerLanguage = PanelLanguages.English,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");

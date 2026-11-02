@@ -57,6 +57,14 @@ internal sealed class GrpcMonitorServiceInvoker : IMonitorServiceInvoker
     }
 
     /// <inheritdoc/>
+    public async Task<GetClockSyncResponse> GetClockSyncAsync(
+        GetClockSyncRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.GetClockSyncAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<GetServerFingerprintInputsResponse> GetServerFingerprintInputsAsync(
         GetServerFingerprintInputsRequest request,
         CancellationToken cancellationToken)

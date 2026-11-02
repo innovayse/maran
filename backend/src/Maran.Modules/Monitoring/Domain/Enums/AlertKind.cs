@@ -54,4 +54,13 @@ public enum AlertKind
     /// is an absolute room the operator configured, and on a large disk the two fire days apart.
     /// </summary>
     FreeSpaceFloorApproaching = 6,
+
+    /// <summary>
+    /// The kernel does not report the host's clock synchronised with a time source (issue #150):
+    /// no synchronisation service is enabled, or the one enabled has not disciplined the clock for
+    /// long enough that the kernel stopped vouching for it. Two-factor codes, token expiry,
+    /// certificate validity and the licence lease all read this clock, and each fails in its own
+    /// confusing way when it is wrong.
+    /// </summary>
+    ClockUnsynchronized = 7,
 }

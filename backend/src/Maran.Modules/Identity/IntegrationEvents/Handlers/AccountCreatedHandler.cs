@@ -152,6 +152,6 @@ public sealed class AccountCreatedHandler
 
         // Published, not invoked. The send happens in the Notifications module, on its own — see the
         // type's remarks.
-        await _bus.PublishAsync(_composer.Compose(user.Email, token));
+        await _bus.PublishAsync(_composer.Compose(user.Email, token, message.OwnerLanguage));
     }
 }

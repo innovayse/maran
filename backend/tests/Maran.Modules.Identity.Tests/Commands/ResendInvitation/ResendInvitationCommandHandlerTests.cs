@@ -50,6 +50,7 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
 
     private async Task<User> SeedInvitedUserAsync()
     {
+        _accountDirectory.Add(AccountId, "owner-one", maxFtpUsers: 1);
         var user = User.Invite(Guid.NewGuid(), "owner-one", "owner@example.com", AccountId, Now);
         _context.Users.Add(user);
         await _context.SaveChangesAsync();

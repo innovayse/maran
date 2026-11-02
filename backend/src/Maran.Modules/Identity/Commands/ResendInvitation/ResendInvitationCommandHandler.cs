@@ -125,7 +125,8 @@ public sealed class ResendInvitationCommandHandler
 
         // Published, not invoked, for the same reason AccountCreatedHandler publishes rather than
         // sends: the credential lives in the Notifications module, out of this module's reach.
-        await _bus.PublishAsync(_composer.Compose(invitation.OwnerEmail, invitation.Token.Reveal()));
+        await _bus.PublishAsync(
+            _composer.Compose(invitation.OwnerEmail, invitation.Token.Reveal(), invitation.OwnerLanguage));
 
         return Result<bool>.Ok(true);
     }

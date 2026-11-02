@@ -176,6 +176,13 @@ pub trait DistroAdapter: Send + Sync {
     /// journal; this is the program that reads it back.
     fn journal_binary(&self) -> AdapterBinary;
 
+    /// Absolute path of `systemd-run`, for the process-execution allow-list.
+    ///
+    /// It is how a customer's cron entry is started by hand (issue #158): the
+    /// service manager runs the entry as the account, inside the account's
+    /// `user-<uid>.slice`, under a runtime ceiling it enforces itself.
+    fn systemd_run_binary(&self) -> AdapterBinary;
+
     /// Absolute path of `tar`, for the process-execution allow-list.
     ///
     /// A backup archive is `tar` told which compressor to run, by the absolute
@@ -504,6 +511,13 @@ pub trait DistroAdapter: Send + Sync {
     /// this agent's (rules/architecture.md; the reasoning is repeated at the
     /// call site rather than here, so it is read where the risk is).
     fn quotaon_binary(&self) -> AdapterBinary;
+
+    /// Absolute path of `timedatectl`, for the process-execution allow-list.
+    ///
+    /// Only `timedatectl show` is ever run against it, to read whether the
+    /// kernel clock is synchronised (issue #150). Nothing in this crate sets
+    /// the time, the time zone or the synchronisation service.
+    fn timedatectl_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `id`, for the process-execution allow-list.
     ///

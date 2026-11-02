@@ -31,6 +31,11 @@ public static class ResilienceExtensions
             AgentOperationPipeline.Configure(builder, agentOptions);
         });
 
+        services.AddResiliencePipeline(AgentCronRunPipeline.Name, (builder, _) =>
+        {
+            AgentCronRunPipeline.Configure(builder);
+        });
+
         // The outbound pipeline for certificate authorities, attached to the named ACME HttpClient
         // rather than resolved by hand. A named client that carries its own pipeline cannot be
         // obtained ungoverned: the module asks the factory for "acme" and gets the policy with it.

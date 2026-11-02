@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { loaded, stubDashboard } from './fixtures/stub-dashboard-route'
+import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import { stubMonitoring } from './fixtures/stub-monitoring-routes'
@@ -56,6 +56,7 @@ const dashboardWith = (metrics: HostMetrics): Dashboard => {
       failedBackups: loaded(0),
       bannedAddresses: loaded(0),
       failedTasks: loaded(0),
+      clock: SYNCHRONIZED_CLOCK,
     },
     recentAudit: loaded([]),
   }

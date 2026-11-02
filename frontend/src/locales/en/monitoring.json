@@ -57,6 +57,12 @@
       "reserved": "Reserved for the system",
       "available": "Available",
       "summary": "Disk: {used} in use, {reserved} reserved for the system, {available} available, of {total}"
+    },
+    "clock": {
+      "title": "Clock",
+      "synchronized": "Synchronised",
+      "notSynchronized": "Not synchronised",
+      "syncServiceDisabled": "No time synchronisation"
     }
   }
 }

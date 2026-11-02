@@ -1,4 +1,6 @@
 using Maran.Modules.Cron.Commands.DeleteCronEntry;
+using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Services;
 using Maran.Modules.Cron.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -57,6 +59,36 @@ public sealed class DeleteCronEntryCommandHandlerTests
         Assert.Equal("CronEntryNotFound", result.Error!.Code);
     }
 
+    /// <summary>A removal takes the entry's runs with it and leaves every other entry's.</summary>
+    [Fact]
+    public async Task A_removal_takes_the_entrys_runs_with_it_and_leaves_every_other_entrys()
+    {
+        var world = new World();
+        const string OtherEntry = "9f1a5b7c-0d2e-4a6b-8c9d-0e1f2a3b4c5d";
+        world.Database.CronRuns.Add(Run(EntryId));
+        world.Database.CronRuns.Add(Run(OtherEntry));
+        await world.Database.SaveChangesAsync();
+
+        await world.HandleAsync();
+
+        var left = Assert.Single(world.Database.CronRuns);
+        Assert.Equal(OtherEntry, left.EntryId);
+    }
+
+    /// <summary>A refused removal keeps the entry's runs, because the entry is still there.</summary>
+    [Fact]
+    public async Task A_refused_removal_keeps_the_entrys_runs()
+    {
+        var world = new World();
+        world.Database.CronRuns.Add(Run(EntryId));
+        await world.Database.SaveChangesAsync();
+        world.Agent.DeleteEntryResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+
+        await world.HandleAsync();
+
+        Assert.Single(world.Database.CronRuns);
+    }
+
     /// <summary>A removal is journalled with the entry id.</summary>
     [Fact]
     public async Task A_removal_is_journalled_with_the_entry_id()
@@ -89,6 +121,14 @@ public sealed class DeleteCronEntryCommandHandlerTests
         Assert.Equal(EntryId, entry.Subject);
     }
 
+    /// <summary>A recorded run of <paramref name="entryId"/> under the owner's account.</summary>
+    /// <param name="entryId">The entry the run belongs to.</param>
+    /// <returns>The run.</returns>
+    private static CronRun Run(string entryId)
+    {
+        return new CronRun(Guid.NewGuid(), AccountId, entryId, DateTimeOffset.UnixEpoch, 10, 0, null, "ok", string.Empty);
+    }
+
     /// <summary>Everything one removal test needs, wired the way the Host wires it.</summary>
     private sealed class World
     {
@@ -101,6 +141,9 @@ public sealed class DeleteCronEntryCommandHandlerTests
         /// <summary>Every line the handler logged, rendered as a sink would write it.</summary>
         public CapturingLogger<DeleteCronEntryCommandHandler> Logger { get; } = new();
 
+        /// <summary>The module's table, where the entry's runs started by hand are kept.</summary>
+        public CronDbContext Database { get; }
+
         /// <summary>The handler under test.</summary>
         public DeleteCronEntryCommandHandler Handler { get; }
 
@@ -108,9 +151,11 @@ public sealed class DeleteCronEntryCommandHandlerTests
         public World()
         {
             var currentUser = FakeCurrentUser.Customer(AccountId);
+            Database = InMemoryCronDatabase.Open(Guid.NewGuid().ToString(), currentUser);
             Handler = new DeleteCronEntryCommandHandler(
                 new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)),
                 Agent,
+                Database,
                 new CronAuditJournal(Audit, currentUser),
                 Logger);
         }

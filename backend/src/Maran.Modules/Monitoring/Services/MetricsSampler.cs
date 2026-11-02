@@ -140,6 +140,9 @@ public sealed class MetricsSampler : BackgroundService
         var quotaEnforceability = await agent.GetQuotaEnforceabilityAsync(cancellationToken);
         var quotaStatus = quotaEnforceability.IsSuccess ? quotaEnforceability.Value : null;
 
+        var clockReading = await agent.GetClockSyncAsync(cancellationToken);
+        AgentClockSyncState? clockSync = clockReading.IsSuccess ? clockReading.Value : null;
+
         // No code-integrity report here: that finding arrives from the closed PluginLoader through
         // ICodeIntegrityReportSink on its own schedule (docs/superpowers/plans/2026-09-19-maran-code-
         // integrity.md Task 2/3), never through this per-minute agent-metrics round. Passing null is
@@ -151,6 +154,7 @@ public sealed class MetricsSampler : BackgroundService
             services,
             sftpJailStatus,
             quotaStatus,
+            clockSync,
             codeIntegrityReport: null,
             observedAt,
             cancellationToken);

@@ -194,6 +194,21 @@ export interface AccountDiskUsage {
   note: string | null
 }
 
+/**
+ * Whether the host's clock is synchronised with a time source (issue #150): the kernel's own
+ * verdict, so a clock left drifting shows up as `notSynchronized` once the kernel stops vouching
+ * for it.
+ */
+export type ClockSyncState = 'synchronized' | 'notSynchronized' | 'syncServiceDisabled'
+
+/** The host clock's synchronisation, as the panel reads it live from the agent. */
+export interface ClockSync {
+  /** The machine state, for branching; never shown as text. */
+  state: ClockSyncState
+  /** What the state means for this server, already localized by the backend and shown verbatim. */
+  description: string
+}
+
 /** The monitoring endpoints this SPA calls, as `useMonitoringApi` implements them. */
 export interface MonitoringApi {
   /**
@@ -226,4 +241,11 @@ export interface MonitoringApi {
    * @returns The page the panel answered, with the total that matched.
    */
   listAccountDiskUsage: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<AccountDiskUsage>>
+
+  /**
+   * Reads whether the host's clock is synchronised with a time source, live from the agent.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The state with the backend's explanation of it.
+   */
+  getClockSync: (signal?: AbortSignal) => Promise<ClockSync>
 }

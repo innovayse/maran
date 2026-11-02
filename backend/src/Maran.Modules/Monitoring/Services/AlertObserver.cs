@@ -48,6 +48,7 @@ public sealed class AlertObserver
     /// <param name="services">The service statuses the agent reported, which may be an empty list.</param>
     /// <param name="sftpJailStatus">The sshd SFTP jail block check, or <c>null</c> when unanswered.</param>
     /// <param name="quotaStatus">The account-home quota check, or <c>null</c> when unanswered.</param>
+    /// <param name="clockSync">The host clock's synchronisation, or <c>null</c> when unanswered.</param>
     /// <param name="codeIntegrityReport">The latest code-integrity finding, or <c>null</c> when none arrived.</param>
     /// <param name="observedAt">When the readings were taken, from the panel's clock.</param>
     /// <param name="cancellationToken">Cancels the reads.</param>
@@ -58,6 +59,7 @@ public sealed class AlertObserver
         IReadOnlyList<AgentServiceStatus> services,
         AgentSftpJailStatus? sftpJailStatus,
         AgentQuotaEnforceability? quotaStatus,
+        AgentClockSyncState? clockSync,
         CodeIntegrityReport? codeIntegrityReport,
         DateTimeOffset observedAt,
         CancellationToken cancellationToken)
@@ -148,6 +150,23 @@ public sealed class AlertObserver
                 AlertEvaluator.AccountHomeFilesystemSubject,
                 transition,
                 AlertDetailMapper.FormatReason(quotaStatus.Reason)));
+        }
+
+        if (clockSync is not null)
+        {
+            var transition = await ObserveAsync(
+                AlertKind.ClockUnsynchronized,
+                AlertEvaluator.SystemClockSubject,
+                clockSync != AgentClockSyncState.Synchronized,
+                observedAt,
+                cancellationToken);
+
+            pending.Add(new PendingAlert(
+                AlertKind.ClockUnsynchronized,
+                AlertEvaluator.SystemClockSubject,
+                AlertEvaluator.SystemClockSubject,
+                transition,
+                AlertDetailMapper.FormatClockState(clockSync.Value)));
         }
 
         if (codeIntegrityReport is not null)

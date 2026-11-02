@@ -19,6 +19,7 @@
 //! `BoundExceeded`) are public; the files marked private below are the core's own
 //! parts and are not a surface.
 
+pub mod account_slice_unit;
 pub mod apply_child_environment;
 pub mod available_bytes;
 pub mod bound_exceeded;

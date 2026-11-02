@@ -1,5 +1,5 @@
 import type { AuditEvent } from './audit'
-import type { HostMetrics, ServiceStatus } from './monitoring'
+import type { ClockSync, HostMetrics, ServiceStatus } from './monitoring'
 
 /**
  * One section of the landing screen, mirroring the backend's `DashboardSection<T>`: either the data a
@@ -54,6 +54,11 @@ export interface DashboardAttention {
   bannedAddresses: DashboardSection<number>
   /** Panel tasks that ended in failure. */
   failedTasks: DashboardSection<number>
+  /**
+   * Whether the host's clock is synchronised (issue #150). Not a count: it needs attention when it
+   * is anything but synchronised, and is unchecked — never synchronised — when it could not be read.
+   */
+  clock: DashboardSection<ClockSync>
 }
 
 /**

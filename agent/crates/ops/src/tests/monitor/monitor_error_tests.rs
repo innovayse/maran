@@ -41,3 +41,17 @@ fn a_bound_is_not_a_program_that_never_ran() {
         MonitorError::program_unavailable()
     );
 }
+
+/// An unreadable clock answer is its own failure, not a service manager that never ran.
+#[test]
+fn an_unreadable_clock_state_is_not_a_program_that_never_ran() {
+    assert_ne!(
+        MonitorError::ClockStateUnavailable,
+        MonitorError::program_unavailable()
+    );
+    assert!(
+        MonitorError::ClockStateUnavailable
+            .to_string()
+            .contains("clock synchronisation")
+    );
+}

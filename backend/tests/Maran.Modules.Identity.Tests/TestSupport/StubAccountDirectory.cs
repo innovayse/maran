@@ -24,8 +24,14 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <param name="username">The account's Linux system user name.</param>
     /// <param name="maxFtpUsers">How many FTPS logins the account's plan allows.</param>
     /// <param name="state">Whether the account is in service or suspended.</param>
+    /// <param name="ownerLanguage">The owner's language, which an invitation for the account is written in.</param>
     /// <returns>The snapshot that was registered, so a test can assert against the same values.</returns>
-    public AccountSnapshot Add(Guid accountId, string username, int maxFtpUsers, AccountState state = AccountState.Active)
+    public AccountSnapshot Add(
+        Guid accountId,
+        string username,
+        int maxFtpUsers,
+        AccountState state = AccountState.Active,
+        string ownerLanguage = "en")
     {
         var snapshot = new AccountSnapshot(
             accountId,
@@ -38,7 +44,8 @@ public sealed class StubAccountDirectory : IAccountDirectory
             DiskQuotaMb: 1024,
             State: state,
             MaxFtpUsers: maxFtpUsers,
-            OwnerEmail: $"{username}@example.com");
+            OwnerEmail: $"{username}@example.com",
+            OwnerLanguage: ownerLanguage);
 
         _accounts[accountId] = snapshot;
         return snapshot;

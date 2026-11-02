@@ -132,6 +132,12 @@ export interface CreateAccountRequest {
    * invitation would be addressed to.
    */
   ownerEmail: string
+  /**
+   * The owner's language, one of the languages the panel ships (`en`, `ru`,
+   * `hy`); the owner's invitation is written in it. The server refuses any
+   * other value.
+   */
+  ownerLanguage: string
 }
 
 /**

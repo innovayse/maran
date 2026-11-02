@@ -25,6 +25,7 @@ import FirewallPage from '../pages/firewall/FirewallPage.vue'
 import FirewallBansPage from '../pages/firewall/FirewallBansPage.vue'
 import FirewallWhitelistPage from '../pages/firewall/FirewallWhitelistPage.vue'
 import CronPage from '../pages/cron/CronPage.vue'
+import CronRunsPage from '../pages/cron/CronRunsPage.vue'
 import TasksPage from '../pages/tasks/TasksPage.vue'
 import MonitoringPage from '../pages/monitoring/MonitoringPage.vue'
 import AuthLayout from '../layouts/AuthLayout.vue'
@@ -224,12 +225,20 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
-        // One route, for the same reason as `/databases`: a cron entry has no detail to open. The
-        // row IS the entry, and the one thing beyond it — what its last run left behind — costs a
-        // privileged read per entry, so it is a dialog opened on demand rather than a page.
+        // A cron entry has no detail to open: the row IS the entry, and what its last run left behind
+        // costs a privileged read per entry, so it is a dialog opened on demand. The history of the runs
+        // started by hand is the one page beyond the list, because it is a server-paged list of its own.
         path: '/cron',
         component: DefaultLayout,
-        children: [{ path: '', name: 'cron', component: CronPage, meta: { module: 'cron', title: 'cron.list.heading' } }],
+        children: [
+          { path: '', name: 'cron', component: CronPage, meta: { module: 'cron', title: 'cron.list.heading' } },
+          {
+            path: ':entryId/runs',
+            name: 'cron-runs',
+            component: CronRunsPage,
+            meta: { module: 'cron', title: 'cron.runs.heading' },
+          },
+        ],
       },
       {
         // One route: a task's detail is a live stream, which belongs beside the row it came from

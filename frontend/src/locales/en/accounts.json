@@ -32,7 +32,9 @@
       "fields": {
         "primaryDomain": "Primary domain",
         "plan": "Plan",
-        "ownerEmail": "Owner email"
+        "ownerEmail": "Owner email",
+        "username": "Username",
+        "ownerLanguage": "Owner language"
       },
       "placeholders": {
         "name": "example",
@@ -42,16 +44,32 @@
       },
       "submit": "Create account",
       "errors": {
-        "nameRequired": "Name is required.",
-        "nameInvalid": "Name must be a lowercase, Linux-username-safe identifier (letters, digits, underscore, starting with a letter, 3-30 characters).",
+        "nameRequired": "Username is required.",
+        "nameInvalid": "Username must be a lowercase, Linux-username-safe identifier (letters, digits, underscore, starting with a letter, 3-30 characters).",
         "primaryDomainRequired": "Primary domain is required.",
         "primaryDomainInvalid": "Primary domain must be a valid domain name.",
         "planRequired": "Choose a plan.",
         "ownerEmailRequired": "Owner email is required.",
-        "ownerEmailInvalid": "Owner email must be a valid email address."
+        "ownerEmailInvalid": "Owner email must be a valid email address.",
+        "primaryDomainWww": "Enter the primary domain without \"www.\"."
       },
       "planOption": "{name} — {disk}, {count} site | {name} — {disk}, {count} sites",
-      "created": "Account {account} created."
+      "created": "Account {account} created.",
+      "hints": {
+        "primaryDomain": "Without \"www.\", for example example.com.",
+        "username": "The account's system user. Filled in from the domain until you change it.",
+        "ownerLanguage": "The owner's invitation is written in this language."
+      },
+      "summary": {
+        "title": "What will be created",
+        "subtitle": "Creating the account sets up the following on this server.",
+        "items": {
+          "systemUser": "A system user named after the username, which owns everything the account holds.",
+          "home": "A home directory for that user, with the plan's disk quota on it.",
+          "limits": "The plan's CPU, memory and process limits on everything the user runs.",
+          "login": "The owner's panel login, and an invitation mailed to the owner email so they set their own password."
+        }
+      }
     },
     "detail": {
       "heading": "Account",

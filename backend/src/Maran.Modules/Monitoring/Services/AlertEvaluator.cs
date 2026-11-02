@@ -92,6 +92,13 @@ public sealed class AlertEvaluator
     /// <remarks>See <see cref="InstalledFilesSubject"/> for why this is a subject of its own.</remarks>
     public const string HashListSubject = "hash-list";
 
+    /// <summary>The subject recorded and mailed about for the host's system clock.</summary>
+    /// <remarks>
+    /// There is exactly one clock to watch, so this is a constant, the same reason
+    /// <see cref="RootFilesystemSubject"/> is.
+    /// </remarks>
+    public const string SystemClockSubject = "system-clock";
+
     /// <summary>The module's database context, which owns the alert rows.</summary>
     private readonly MonitoringDbContext _dbContext;
 
@@ -153,6 +160,11 @@ public sealed class AlertEvaluator
     /// <paramref name="sftpJailStatus"/> does: a check the agent could not answer is not evidence
     /// about the answer, and an alert built on it would teach an operator to ignore the alert.
     /// </param>
+    /// <param name="clockSync">
+    /// What the agent found when it read whether the host's clock is synchronised, or <c>null</c>
+    /// when that call did not succeed. A <c>null</c> advances nothing and resets nothing, for the
+    /// same reason a <c>null</c> <paramref name="sftpJailStatus"/> does.
+    /// </param>
     /// <param name="codeIntegrityReport">
     /// The closed PluginLoader's latest finding about whether the panel's installed files match the
     /// release's signed hash list, or <c>null</c> when nothing has reported this round. A
@@ -168,6 +180,7 @@ public sealed class AlertEvaluator
         IReadOnlyList<AgentServiceStatus> services,
         AgentSftpJailStatus? sftpJailStatus,
         AgentQuotaEnforceability? quotaStatus,
+        AgentClockSyncState? clockSync,
         CodeIntegrityReport? codeIntegrityReport,
         DateTimeOffset observedAt,
         CancellationToken cancellationToken)
@@ -178,6 +191,7 @@ public sealed class AlertEvaluator
             services,
             sftpJailStatus,
             quotaStatus,
+            clockSync,
             codeIntegrityReport,
             observedAt,
             cancellationToken);

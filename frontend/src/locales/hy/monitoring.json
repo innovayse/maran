@@ -57,6 +57,12 @@
       "reserved": "Համակարգի համար պահուստավորված",
       "available": "Հասանելի",
       "summary": "Սկավառակ՝ օգտագործված {used}, համակարգի համար պահուստավորված {reserved}, հասանելի {available}, ընդհանուր {total}"
+    },
+    "clock": {
+      "title": "Ժամացույց",
+      "synchronized": "Համաժամեցված է",
+      "notSynchronized": "Համաժամեցված չէ",
+      "syncServiceDisabled": "Ժամանակի համաժամեցում չկա"
     }
   }
 }

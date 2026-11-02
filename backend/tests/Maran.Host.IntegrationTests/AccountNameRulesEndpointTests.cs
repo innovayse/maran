@@ -124,6 +124,63 @@ public sealed class AccountNameRulesEndpointTests : IAsyncLifetime
         Assert.Equal(0, await StoredAccountsAsync(factory, name));
     }
 
+    /// <summary>
+    /// A primary domain written with a leading <c>www.</c> and an owner language the panel ships no
+    /// text in are each refused at the API with their own code, and neither reaches the agent
+    /// (issue #194).
+    /// </summary>
+    /// <param name="primaryDomain">The primary domain to ask for.</param>
+    /// <param name="ownerLanguage">The owner's language to ask for.</param>
+    /// <param name="code">The refusal expected.</param>
+    [Theory]
+    [InlineData("www.acme.example.com", "en", "AccountDomainWwwPrefix")]
+    [InlineData("acme.example.com", "de", "AccountOwnerLanguageUnsupported")]
+    public async Task A_www_domain_or_an_unshipped_owner_language_is_refused_and_never_handed_to_the_agent(
+        string primaryDomain, string ownerLanguage, string code)
+    {
+        var agent = new RecordingCreateAgentAccountsClient();
+        await using var factory = CreateFactory(agent);
+        var (client, planId) = await SignedInWithAPlanAsync(factory);
+        using var admin = client;
+
+        var response = await admin.PostAsJsonAsync("/api/v1/accounts", new
+        {
+            Name = "acme",
+            PrimaryDomain = primaryDomain,
+            PlanId = planId,
+            OwnerEmail = "owner@example.com",
+            OwnerLanguage = ownerLanguage,
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(code, await CodeOfAsync(response));
+        Assert.Empty(agent.Created);
+    }
+
+    /// <summary>The owner's language chosen on the form is what the account row stores.</summary>
+    [Fact]
+    public async Task The_owners_language_chosen_on_the_form_is_what_the_account_row_stores()
+    {
+        var agent = new RecordingCreateAgentAccountsClient();
+        await using var factory = CreateFactory(agent);
+        var (client, planId) = await SignedInWithAPlanAsync(factory);
+        using var admin = client;
+
+        var response = await admin.PostAsJsonAsync("/api/v1/accounts", new
+        {
+            Name = "acme",
+            PrimaryDomain = "acme.example.com",
+            PlanId = planId,
+            OwnerEmail = "owner@example.com",
+            OwnerLanguage = "ru",
+        });
+
+        Assert.NotEqual(HttpStatusCode.BadRequest, response.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
+        Assert.Equal("ru", (await context.Accounts.SingleAsync(account => account.Name == "acme")).OwnerLanguage);
+    }
+
     /// <summary>Posts a creation request.</summary>
     /// <param name="admin">A signed-in administrator's client.</param>
     /// <param name="name">The account name to ask for.</param>

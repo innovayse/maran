@@ -3,7 +3,7 @@ import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { loaded, stubDashboard } from '../fixtures/stub-dashboard-route'
+import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -99,7 +99,7 @@ const DASHBOARD: Dashboard = {
     sites: loaded(2),
     databases: loaded(3),
   },
-  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), bannedAddresses: loaded(0), failedTasks: loaded(0) },
+  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), bannedAddresses: loaded(0), failedTasks: loaded(0), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([]),
 }
 

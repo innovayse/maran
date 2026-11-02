@@ -7,6 +7,8 @@ using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Cron.Controllers;
+using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
@@ -43,6 +45,9 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
     private const string Password = "correct horse battery staple";
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
+    /// <summary>The run the own account's history is seeded with, so its single read has a row to find.</summary>
+    private static readonly Guid SeededRunId = Guid.Parse("cccccccc-0000-4000-8000-000000000003");
+
     /// <summary>Every route the two cron controllers declare.</summary>
     /// <remarks>
     /// EVERY one of them is tenant-scoped, which is unlike the other modules' fixtures and is why
@@ -74,6 +79,11 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
             ("PUT", "/api/v1/cron-entries/{entryId}"),
             ("POST", "/api/v1/cron-entries/{entryId}/enabled"),
             ("GET", "/api/v1/cron-entries/{entryId}/output"),
+            ("POST", "/api/v1/cron-entries/{entryId}/runs"),
+            ("GET", "/api/v1/cron-entries/{entryId}/runs"),
+            ("GET", "/api/v1/cron-entries/{entryId}/runs/{runId}"),
+
+            // Last: removing the entry removes its runs, so a run route after it would find none.
             ("DELETE", "/api/v1/cron-entries/{entryId}"),
             ("GET", "/api/v1/cron-environment"),
             ("PUT", "/api/v1/cron-environment"),
@@ -218,6 +228,59 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
         Assert.Empty(agent.AddressedAccounts);
     }
 
+    /// <summary>The run history's search matches either stream literally, on PostgreSQL.</summary>
+    [Fact]
+    public async Task The_run_history_search_matches_either_stream_literally()
+    {
+        // The search is an ILIKE the module's unit tests cannot run, so it is asserted here, on the
+        // database it ships against. "50%" must match only the text "50%", not every run printing "50".
+        var agent = new StubAgentCronClient();
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var cron = scope.ServiceProvider.GetRequiredService<CronDbContext>();
+            cron.CronRuns.AddRange(
+                RunOf(world.OwnAccountId, "progress 50% done", string.Empty),
+                RunOf(world.OwnAccountId, "progress 50 done", string.Empty),
+                RunOf(world.OwnAccountId, string.Empty, "fatal: 50% of disk"));
+            await cron.SaveChangesAsync();
+        }
+
+        using var client = await SignInAsync(factory, "customer");
+        var response = await client.GetAsync(
+            $"/api/v1/cron-entries/{StubAgentCronClient.EntryId}/runs?accountId={world.OwnAccountId}&search=50%25");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(2, body.RootElement.GetProperty("total").GetInt32());
+    }
+
+    /// <summary>A run by hand is recorded and appears at the head of the entry's history.</summary>
+    [Fact]
+    public async Task A_run_by_hand_is_recorded_and_heads_the_entrys_history()
+    {
+        var agent = new StubAgentCronClient();
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var ran = await client.PostAsJsonAsync(
+            $"/api/v1/cron-entries/{StubAgentCronClient.EntryId}/runs", new { accountId = world.OwnAccountId });
+        using var run = JsonDocument.Parse(await ran.Content.ReadAsStringAsync());
+        var listed = await client.GetAsync(
+            $"/api/v1/cron-entries/{StubAgentCronClient.EntryId}/runs?accountId={world.OwnAccountId}");
+        using var page = JsonDocument.Parse(await listed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, ran.StatusCode);
+        Assert.Equal("succeeded", run.RootElement.GetProperty("outcome").GetString());
+        var first = page.RootElement.GetProperty("items")[0];
+        Assert.Equal(run.RootElement.GetProperty("id").GetGuid(), first.GetProperty("id").GetGuid());
+        Assert.False(first.TryGetProperty("stdout", out _), "the history row carries no output");
+    }
+
     /// <summary>Every cron route on both controllers is covered by the idor fixture.</summary>
     /// <remarks>
     /// The fixture above is a hand-written list, and a hand-written list of routes goes stale the
@@ -229,6 +292,7 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
     {
         var declared = ControllerRoutes.Declared<CronEntriesController>()
             .Concat(ControllerRoutes.Declared<CronEnvironmentController>())
+            .Concat(ControllerRoutes.Declared<CronRunsController>())
             .ToList();
         Assert.NotEmpty(declared);
 
@@ -280,11 +344,23 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
             $"These routes did not answer {(int)expected}: " + string.Join("; ", wrong));
     }
 
-    /// <summary>Substitutes the stub's entry id into a route template.</summary>
+    /// <summary>Substitutes the stub's entry id and the seeded run's id into a route template.</summary>
     /// <param name="path">The route template.</param>
     private static string Substitute(string path)
     {
-        return path.Replace("{entryId}", StubAgentCronClient.EntryId, StringComparison.Ordinal);
+        return path
+            .Replace("{entryId}", StubAgentCronClient.EntryId, StringComparison.Ordinal)
+            .Replace("{runId}", SeededRunId.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>A recorded run of the stub's entry under <paramref name="accountId"/>.</summary>
+    /// <param name="accountId">The owner.</param>
+    /// <param name="stdout">What it printed to standard output.</param>
+    /// <param name="stderr">What it printed to standard error.</param>
+    private static CronRun RunOf(Guid accountId, string stdout, string stderr)
+    {
+        return new CronRun(
+            Guid.NewGuid(), accountId, StubAgentCronClient.EntryId, DateTimeOffset.UnixEpoch, 10, 0, null, stdout, stderr);
     }
 
     /// <summary>Boots the host against this class's PostgreSQL, with the agent replaced.</summary>
@@ -320,9 +396,8 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
 
     /// <summary>Applies every migration this fixture needs, the way the installer does before first boot.</summary>
     /// <remarks>
-    /// Identity and Accounts only, and no cron context: this module owns no schema, so there is
-    /// nothing of its own to migrate. Its rows live in an account's crontab, which the agent double
-    /// stands in for.
+    /// Identity, Accounts and the module's own context, which holds only the runs started by hand. The
+    /// entries live in an account's crontab, which the agent double stands in for.
     /// </remarks>
     /// <param name="factory">The booted host.</param>
     private static async Task MigrateAsync(WebApplicationFactory<Program> factory)
@@ -330,6 +405,7 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<CronDbContext>().Database.MigrateAsync();
     }
 
     /// <summary>Seeds two accounts and their users.</summary>
@@ -357,6 +433,12 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
         customer.AssignAccount(own.Id);
         identity.Users.Add(customer);
         await identity.SaveChangesAsync();
+
+        // One run of the own account's entry, so the single-run read has something its owner may see.
+        var cron = scope.ServiceProvider.GetRequiredService<CronDbContext>();
+        cron.CronRuns.Add(new CronRun(
+            SeededRunId, own.Id, StubAgentCronClient.EntryId, now, 10, 0, null, "seeded", string.Empty));
+        await cron.SaveChangesAsync();
 
         return new SeededWorld(own.Id, stranger.Id);
     }
@@ -414,6 +496,11 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
     /// <param name="accountId">The account to name in the body.</param>
     private static JsonContent BodyFor(string path, Guid accountId)
     {
+        if (path.EndsWith("/runs", StringComparison.Ordinal))
+        {
+            return JsonContent.Create(new { accountId });
+        }
+
         if (path.EndsWith("/enabled", StringComparison.Ordinal))
         {
             return JsonContent.Create(new { accountId, enabled = true });
