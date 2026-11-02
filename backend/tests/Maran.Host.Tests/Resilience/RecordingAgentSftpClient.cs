@@ -49,7 +49,7 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetPasswordAsync(
+    public async Task<Result> SetPasswordAsync(
         string accountUsername,
         string sftpUsername,
         SensitiveString password,
@@ -61,7 +61,7 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
@@ -78,7 +78,7 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteAsync(
+    public async Task<Result> DeleteAsync(
         string accountUsername,
         string sftpUsername,
         CancellationToken cancellationToken)
@@ -88,7 +88,7 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Counts the call and applies whichever misbehaviour the test asked for.</summary>

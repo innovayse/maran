@@ -56,7 +56,7 @@ public interface IAgentSftpClient
     /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure — <c>AgentNotFound</c> when there is no such login.</returns>
-    Task<Result<bool>> SetPasswordAsync(
+    Task<Result> SetPasswordAsync(
         string accountUsername,
         string sftpUsername,
         SensitiveString password,
@@ -72,7 +72,7 @@ public interface IAgentSftpClient
     /// home is bind-mounted inside it, and removing a login means revoking a key rather than
     /// deleting what it opened.
     /// </remarks>
-    Task<Result<bool>> DeleteAsync(
+    Task<Result> DeleteAsync(
         string accountUsername,
         string sftpUsername,
         CancellationToken cancellationToken);

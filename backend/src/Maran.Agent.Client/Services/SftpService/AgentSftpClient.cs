@@ -76,7 +76,7 @@ public sealed class AgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetPasswordAsync(
+    public async Task<Result> SetPasswordAsync(
         string accountUsername,
         string sftpUsername,
         SensitiveString password,
@@ -92,15 +92,15 @@ public sealed class AgentSftpClient : IAgentSftpClient
 
         return response.ResultCase switch
         {
-            SetSftpPasswordResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetSftpPasswordResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetSftpPasswordResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetSftpPasswordResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetPasswordAsync), password)),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteAsync(
+    public async Task<Result> DeleteAsync(
         string accountUsername,
         string sftpUsername,
         CancellationToken cancellationToken)
@@ -114,10 +114,10 @@ public sealed class AgentSftpClient : IAgentSftpClient
 
         return response.ResultCase switch
         {
-            DeleteSftpUserResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DeleteSftpUserResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DeleteSftpUserResponse.ResultOneofCase.Ok => Result.Ok(),
+            DeleteSftpUserResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 

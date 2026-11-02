@@ -53,7 +53,7 @@ public sealed class DeleteSftpUserCommandHandlerTests
         // into a customer's home that nobody in the panel can see and nobody can now revoke — and
         // the customer asked for exactly that access to end.
         var world = await WorldAsync();
-        world.Agent.DeleteResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.DeleteResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.DeleteAsync(world.OwnSftpUserId);
 
@@ -171,7 +171,7 @@ public sealed class DeleteSftpUserCommandHandlerTests
 
         /// <summary>Runs the handler with the usual audit context.</summary>
         /// <param name="sftpUserId">Which login to remove.</param>
-        public async Task<Result<bool>> DeleteAsync(Guid sftpUserId)
+        public async Task<Result> DeleteAsync(Guid sftpUserId)
         {
             return await Handler.HandleAsync(
                 new DeleteSftpUserCommand(sftpUserId, "203.0.113.7", "tests"),

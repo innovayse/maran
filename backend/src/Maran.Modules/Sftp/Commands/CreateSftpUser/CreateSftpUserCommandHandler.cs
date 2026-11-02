@@ -276,7 +276,7 @@ public sealed class CreateSftpUserCommandHandler
     /// <param name="command">The creation being recorded, for the journal's subject.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Success, or the typed failure the customer is answered with.</returns>
-    private async Task<Result<bool>> RecordAsync(
+    private async Task<Result> RecordAsync(
         SftpUser sftpUser,
         string accountUsername,
         int allowance,
@@ -287,7 +287,7 @@ public sealed class CreateSftpUserCommandHandler
         {
             if (await _slotGate.TryTakeAsync(sftpUser, allowance, cancellationToken))
             {
-                return Result<bool>.Ok(true);
+                return Result.Ok();
             }
 
             // The gate refused, which means another creation committed the account's last slot while
@@ -297,7 +297,7 @@ public sealed class CreateSftpUserCommandHandler
             // problem and deleting a login the customer no longer needs is what unblocks them.
             await CompensateAsync(accountUsername, command, cancellationToken);
 
-            return Result<bool>.Fail(await FailedErrorAsync(
+            return Result.Fail(await FailedErrorAsync(
                 command,
                 Error.Of(nameof(ErrorMessages.SftpUserLimitReachedConcurrently), ErrorType.Conflict),
                 cancellationToken));
@@ -318,7 +318,7 @@ public sealed class CreateSftpUserCommandHandler
                 // revoke a credential the winner has already been shown and cannot be shown again —
                 // so this is the one post-create failure that must NOT compensate. The caller is
                 // told the name is taken, which is true.
-                return Result<bool>.Fail(await FailedErrorAsync(
+                return Result.Fail(await FailedErrorAsync(
                     command, Error.Of(nameof(ErrorMessages.SftpUserNameTaken), ErrorType.Conflict), cancellationToken));
             }
 
@@ -327,7 +327,7 @@ public sealed class CreateSftpUserCommandHandler
             // account's home. It goes.
             await CompensateAsync(accountUsername, command, cancellationToken);
 
-            return Result<bool>.Fail(await FailedErrorAsync(
+            return Result.Fail(await FailedErrorAsync(
                     command, Error.Of(nameof(ErrorMessages.SftpUserProvisioningFailed), ErrorType.Failure), cancellationToken));
         }
     }
