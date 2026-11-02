@@ -48,7 +48,7 @@ import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import DatabaseCreateForm from '../../components/databases/DatabaseCreateForm.vue'
 import DatabaseCreatedDialog from '../../components/databases/DatabaseCreatedDialog.vue'
-import DatabaseActionConfirm from '../../components/databases/DatabaseActionConfirm.vue'
+import DatabaseActionConfirm, { type PendingDatabaseAction } from '../../components/databases/DatabaseActionConfirm.vue'
 import DatabasesTable from '../../components/databases/DatabasesTable.vue'
 import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
@@ -87,11 +87,8 @@ const form = useTemplateRef<{ reset: () => void }>('form')
 /** The success toast's text after a create, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
 
-/** The database whose action is awaiting confirmation, or `null` when none is. */
-const pending: Ref<Database | null> = ref(null)
-
-/** Which action that database is waiting on. */
-const pendingAction: Ref<DatabaseAction> = ref('drop')
+/** The database and the action awaiting confirmation, or `null` when none is. */
+const pending: Ref<PendingDatabaseAction | null> = ref(null)
 
 /** Whether the filter sheet is open. */
 const filtersOpen: Ref<boolean> = ref(false)
@@ -174,8 +171,7 @@ const create = async (request: CreateDatabaseRequest): Promise<void> => {
  * @returns Nothing.
  */
 const ask = (database: Database, action: DatabaseAction): void => {
-  pending.value = database
-  pendingAction.value = action
+  pending.value = { database, action }
 }
 
 /**
@@ -194,8 +190,8 @@ const confirm = async (): Promise<void> => {
   if (pending.value === null) {
     return
   }
-  const id = pending.value.id
-  const action = pendingAction.value
+  const { database, action } = pending.value
+  const id = database.id
 
   const dropped = action === 'drop' ? await store.remove(id) : false
   if (action === 'resetPassword') {
@@ -372,24 +368,19 @@ onBeforeUnmount(dismissCredential)
     </UiFilterSheet>
 
     <DatabaseActionConfirm
-      :database="pending"
-      :action="pendingAction"
+      v-if="pending !== null"
+      :pending="pending"
       :acting="store.acting"
       @close="cancel"
       @confirm="confirm"
     />
 
-    <!-- `:open` is bound to a value that really changes, and the dialog is NOT wrapped in a
-         `v-if`. With `v-if` plus a literal `:open="true"` the component was created with the prop
-         already true, so `UiModal`s open-watcher never ran: focus never entered the dialog, the
-         focus trap sat inert, Escape never reached the panel, and focus was never restored on
-         close. It looked correct on screen and was unusable from the keyboard. `UiModal` renders
-         nothing of its own while closed, so there is no cost to leaving it mounted. -->
+    <!-- Mounted only while a credential is held: its props are that credential and mean nothing
+         otherwise. `UiModal`s open-watcher is `immediate`, so a dialog created already open still
+         takes focus and hears Escape. -->
     <DatabaseCreatedDialog
-      :open="store.revealedCredential !== null"
-      :database-full-name="store.revealedCredential?.databaseFullName ?? null"
-      :db-user-name="store.revealedCredential?.dbUserName ?? ''"
-      :password="store.revealedCredential?.password ?? ''"
+      v-if="store.revealedCredential !== null"
+      :credential="store.revealedCredential"
       @close="dismissCredential"
     />
     <UiPinnedToast :message="notice" :close-label="t('common.close')" @dismiss="dismissNotice" />
