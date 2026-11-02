@@ -79,10 +79,15 @@ namespace Maran.Modules.Ssl.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LastRenewalAttemptAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("LastRenewalErrorCode")
-                        .IsRequired()
+                    b.Property<string>("LastRenewalFailureCode")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LegacyRenewalErrorCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("LastRenewalErrorCode");
 
                     b.Property<DateTimeOffset>("NotAfter")
                         .HasColumnType("timestamp with time zone");
