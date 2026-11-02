@@ -85,7 +85,7 @@ public sealed class Certificate
     /// this column after an update is rolled back, so it is kept mapped and in step. The contract
     /// phase, a release later, removes this property and its column together.
     /// </remarks>
-    private string LegacyRenewalErrorCode { get; set; }
+    public string LegacyRenewalErrorCode { get; private set; }
 
     /// <summary>How many renewal attempts have failed in a row. Reset to zero by a success.</summary>
     /// <remarks>

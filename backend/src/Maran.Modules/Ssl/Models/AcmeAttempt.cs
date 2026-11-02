@@ -17,15 +17,15 @@ namespace Maran.Modules.Ssl.Models;
 /// </remarks>
 public abstract record AcmeAttempt
 {
+    /// <summary>The response body as text. Never returned to a caller on the failure path.</summary>
+    public string Body { get; }
+
     /// <summary>Closes the hierarchy to the three attempts this module declares.</summary>
     /// <param name="body">The response body as text.</param>
     private protected AcmeAttempt(string body)
     {
         Body = body;
     }
-
-    /// <summary>The response body as text. Never returned to a caller on the failure path.</summary>
-    public string Body { get; }
 
     /// <summary>Converts the attempt into the result its caller returns.</summary>
     /// <returns>The body on success; on failure a code, never the authority's own text.</returns>
