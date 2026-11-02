@@ -20,7 +20,7 @@
  * Scheduled tasks are absent, and the backend's `DashboardCountsDto` carries the reason: the Cron
  * module keeps no table, so a server-wide count would be one privileged agent call per account.
  *
- * **While the counts are on their way** (`loading`, no `counts`), the tiles are drawn already, one
+ * **While the counts are on their way** (`counts` is `null`), the tiles are drawn already, one
  * per entry of {@link TILES}, with their real icons, labels and links, and the figure draws a
  * placeholder in its own line, so the counts land without moving anything.
  */
@@ -51,10 +51,8 @@ interface CountTile extends TileSpec {
 
 /** Props accepted by {@link DashboardCountGrid}. */
 const props = defineProps<{
-  /** The counts, as the panel answered them; absent only while `loading`. */
-  counts?: DashboardCounts
-  /** Whether the counts are still on their way; see the component note. */
-  loading?: boolean
+  /** The counts, as the panel answered them; `null` is the one state in which they are still on their way. */
+  counts: DashboardCounts | null
 }>()
 
 /**
@@ -97,7 +95,7 @@ const tiles: ComputedRef<CountTile[]> = computed(() => {
         <!-- While loading, the placeholder sits in the figure's own line, which gives it the
              figure's height. -->
         <span class="mt-3.5 block font-display text-2xl leading-none font-black @xl:text-3xl">
-          <span v-if="loading" class="inline-flex w-12 align-middle">
+          <span v-if="counts === null" class="inline-flex w-12 align-middle">
             <UiSkeleton shape="line" size="lg" />
           </span>
           <template v-else-if="tile.value !== undefined">{{

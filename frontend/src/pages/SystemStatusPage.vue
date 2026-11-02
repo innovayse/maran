@@ -207,8 +207,8 @@ onMounted(refresh)
         <!-- While the read is in flight, the figure cards are drawn with their real labels and a
              placeholder for every figure, so the answer lands without moving anything. -->
         <template v-if="view === 'pendingServer'">
-          <DashboardCountGrid loading />
-          <DashboardResourceCard loading />
+          <DashboardCountGrid :counts="null" />
+          <DashboardResourceCard :resources="null" />
         </template>
 
         <!-- Below the verdict, and only for a caller the panel filled the sections for. -->
