@@ -45,7 +45,7 @@ public sealed class StubAgentFirewallClient : IAgentFirewallClient
     public List<string> Unbans { get; } = [];
 
     /// <summary>What every mutating call answers; success unless a test says otherwise.</summary>
-    public Result<bool> MutationResult { get; set; } = Result<bool>.Ok(true);
+    public Result MutationResult { get; set; } = Result.Ok();
 
     /// <summary>The rules the listing reports.</summary>
     public IReadOnlyList<AgentFirewallRule> Rules { get; set; } = [];
@@ -61,7 +61,7 @@ public sealed class StubAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> AllowPortAsync(
+    public Task<Result> AllowPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -76,7 +76,7 @@ public sealed class StubAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> DenyPortAsync(
+    public Task<Result> DenyPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -91,14 +91,14 @@ public sealed class StubAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
+    public Task<Result> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
     {
         Bans.Add(address);
         return Task.FromResult(MutationResult);
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> UnbanAsync(string address, CancellationToken cancellationToken)
+    public Task<Result> UnbanAsync(string address, CancellationToken cancellationToken)
     {
         Unbans.Add(address);
         return Task.FromResult(MutationResult);

@@ -116,7 +116,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> AllowPortAsync(
+    public async Task<Result> AllowPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -130,7 +130,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
             ?? RefuseUnusableHostPorts(nameof(AllowPortAsync), sshPorts, panelPort);
         if (refusal is not null)
         {
-            return Result<bool>.Fail(refusal);
+            return Result.Fail(refusal);
         }
 
         var request = new AllowPortRequest
@@ -155,15 +155,15 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
 
         return response.ResultCase switch
         {
-            AllowPortResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            AllowPortResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            AllowPortResponse.ResultOneofCase.Ok => Result.Ok(),
+            AllowPortResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(AllowPortAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DenyPortAsync(
+    public async Task<Result> DenyPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -177,7 +177,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
             ?? RefuseUnusableHostPorts(nameof(DenyPortAsync), sshPorts, panelPort);
         if (refusal is not null)
         {
-            return Result<bool>.Fail(refusal);
+            return Result.Fail(refusal);
         }
 
         var request = new DenyPortRequest
@@ -202,15 +202,15 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
 
         return response.ResultCase switch
         {
-            DenyPortResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DenyPortResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DenyPortResponse.ResultOneofCase.Ok => Result.Ok(),
+            DenyPortResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DenyPortAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
+    public async Task<Result> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
     {
         var request = new BanAddressRequest
         {
@@ -237,7 +237,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
                         + "is refused rather than rounded into a different ban",
                         null);
 
-                    return Result<bool>.Fail(
+                    return Result.Fail(
                         Error.Of(nameof(ErrorMessages.AgentInvalidInput), ErrorType.Validation));
                 }
 
@@ -252,25 +252,25 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
 
         return response.ResultCase switch
         {
-            BanAddressResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            BanAddressResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            BanAddressResponse.ResultOneofCase.Ok => Result.Ok(),
+            BanAddressResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(BanAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> UnbanAsync(string address, CancellationToken cancellationToken)
+    public async Task<Result> UnbanAsync(string address, CancellationToken cancellationToken)
     {
         var request = new UnbanAddressRequest { Address = address };
         var response = await _invoker.UnbanAddressAsync(request, cancellationToken);
 
         return response.ResultCase switch
         {
-            UnbanAddressResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            UnbanAddressResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            UnbanAddressResponse.ResultOneofCase.Ok => Result.Ok(),
+            UnbanAddressResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(UnbanAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 

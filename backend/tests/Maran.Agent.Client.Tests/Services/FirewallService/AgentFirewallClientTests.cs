@@ -535,7 +535,6 @@ public sealed class AgentFirewallClientTests
         var result = await AllowAsync(StubFirewallService.AcceptingAllow());
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>The allow error payload maps to a failed result with the agent code.</summary>
@@ -659,7 +658,6 @@ public sealed class AgentFirewallClientTests
         var result = await DenyAsync(StubFirewallService.AcceptingDeny());
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>The deny error payload maps to a failed result with the agent code.</summary>
@@ -923,7 +921,7 @@ public sealed class AgentFirewallClientTests
     /// <summary>Calls the production allow path with fixed, valid arguments.</summary>
     /// <param name="stub">The transport stub to drive.</param>
     /// <returns>What the client returned.</returns>
-    private static async Task<SharedKernel.Results.Result<bool>> AllowAsync(StubFirewallService stub)
+    private static async Task<SharedKernel.Results.Result> AllowAsync(StubFirewallService stub)
     {
         return await Client(stub).AllowPortAsync(
             443,
@@ -938,7 +936,7 @@ public sealed class AgentFirewallClientTests
     /// <summary>Calls the production deny path with fixed, valid arguments.</summary>
     /// <param name="stub">The transport stub to drive.</param>
     /// <returns>What the client returned.</returns>
-    private static async Task<SharedKernel.Results.Result<bool>> DenyAsync(StubFirewallService stub)
+    private static async Task<SharedKernel.Results.Result> DenyAsync(StubFirewallService stub)
     {
         return await Client(stub).DenyPortAsync(
             3306,

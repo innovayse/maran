@@ -75,7 +75,7 @@ public interface IAgentFirewallClient
     /// Success, or a typed failure — <c>AgentAlreadyExists</c> when an identical rule is already
     /// installed.
     /// </returns>
-    Task<Result<bool>> AllowPortAsync(
+    Task<Result> AllowPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -102,7 +102,7 @@ public interface IAgentFirewallClient
     /// <param name="panelPort">The public port the panel is reachable on, refused when zero.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure. Denying a port that is not allowed is a no-op success.</returns>
-    Task<Result<bool>> DenyPortAsync(
+    Task<Result> DenyPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -131,13 +131,13 @@ public interface IAgentFirewallClient
     /// primitive for a string the panel composes. The Firewall module keeps the reason in its own
     /// row instead.
     /// </remarks>
-    Task<Result<bool>> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken);
+    Task<Result> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken);
 
     /// <summary>Lifts a ban.</summary>
     /// <param name="address">The IPv4 or IPv6 address to unban.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure — <c>AgentNotFound</c> when there was no active ban.</returns>
-    Task<Result<bool>> UnbanAsync(string address, CancellationToken cancellationToken);
+    Task<Result> UnbanAsync(string address, CancellationToken cancellationToken);
 
     /// <summary>Lists the bans currently in force.</summary>
     /// <param name="cancellationToken">Cancellation for the call.</param>
