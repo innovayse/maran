@@ -75,11 +75,11 @@ const props = defineProps<{
   id: string
 }>()
 
-/** The lifecycle action awaiting a yes/no answer, or `null` when none is. */
-type PendingAction = 'suspend' | 'reactivate' | null
-
-/** The edit dialog that is open, or `null` when none is. */
-type OpenEdit = 'plan' | 'ownerEmail' | null
+/**
+ * The one dialog that is open over the page, or `null` when none is. The five are mutually
+ * exclusive, so they share one value: two questions can never be asked at once.
+ */
+type AccountDialog = 'suspend' | 'reactivate' | 'delete' | 'plan' | 'ownerEmail' | null
 
 const { t } = useI18n()
 const router = useRouter()
@@ -88,14 +88,8 @@ const localeStore = useLocaleStore()
 const authStore = useAuthStore()
 const viewAsStore = useViewAsStore()
 
-/** Which action the operator has started and is being asked to confirm. */
-const pending: Ref<PendingAction> = ref(null)
-
-/** Whether the deletion dialog is open. */
-const deleting: Ref<boolean> = ref(false)
-
-/** Which edit dialog is open. */
-const editingField: Ref<OpenEdit> = ref(null)
+/** Which dialog the operator has opened: a confirmation, the deletion, or one of the two edits. */
+const dialog: Ref<AccountDialog> = ref(null)
 
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
@@ -113,21 +107,21 @@ const isLoading: ComputedRef<boolean> = computed(() => {
 /** The confirmation's title, naming the account and what would be done to it. */
 const confirmationTitle: ComputedRef<string> = computed(() => {
   const account = accountsStore.selected?.name ?? ''
-  return pending.value === 'suspend'
+  return dialog.value === 'suspend'
     ? t('accounts.detail.confirmSuspendTitle', { account })
     : t('accounts.detail.confirmReactivateTitle', { account })
 })
 
 /** The confirm button's label, naming the action rather than a bare "Confirm" (#218). */
 const confirmationLabel: ComputedRef<string> = computed(() => {
-  return pending.value === 'suspend'
+  return dialog.value === 'suspend'
     ? t('accounts.detail.confirmSuspendAction')
     : t('accounts.detail.confirmReactivateAction')
 })
 
 /** The consequence the confirmation asks the operator to weigh. */
 const confirmationText: ComputedRef<string> = computed(() => {
-  return pending.value === 'suspend'
+  return dialog.value === 'suspend'
     ? t('accounts.detail.confirmSuspend')
     : t('accounts.detail.confirmReactivate')
 })
@@ -137,8 +131,8 @@ const confirmationText: ComputedRef<string> = computed(() => {
  * @param action The action the operator clicked.
  * @returns Nothing; the page switches to its confirming state.
  */
-const ask = (action: Exclude<PendingAction, null>): void => {
-  pending.value = action
+const ask = (action: 'suspend' | 'reactivate'): void => {
+  dialog.value = action
 }
 
 /**
@@ -146,7 +140,7 @@ const ask = (action: Exclude<PendingAction, null>): void => {
  * @returns Nothing; the page returns to its normal state.
  */
 const cancel = (): void => {
-  pending.value = null
+  dialog.value = null
 }
 
 /**
@@ -158,7 +152,7 @@ const cancel = (): void => {
  * @returns Resolves once the request has settled.
  */
 const confirm = async (): Promise<void> => {
-  const action = pending.value
+  const action = dialog.value
 
   if (action === 'suspend') {
     await accountsStore.suspend(props.id)
@@ -166,25 +160,16 @@ const confirm = async (): Promise<void> => {
     await accountsStore.reactivate(props.id)
   }
 
-  pending.value = null
+  dialog.value = null
 }
 
 /**
- * Opens the deletion dialog, clearing any confirmation still on screen so two
+ * Opens the deletion dialog, replacing any dialog still on screen so two
  * questions are never being asked at once.
  * @returns Nothing.
  */
 const askDelete = (): void => {
-  pending.value = null
-  deleting.value = true
-}
-
-/**
- * Closes the deletion dialog without deleting anything.
- * @returns Nothing.
- */
-const cancelDelete = (): void => {
-  deleting.value = false
+  dialog.value = 'delete'
 }
 
 /**
@@ -202,26 +187,17 @@ const remove = async (): Promise<void> => {
     return
   }
 
-  deleting.value = false
+  dialog.value = null
   await router.push({ name: 'accounts' })
 }
 
 /**
- * Opens one of the two edit dialogs, clearing any confirmation still on screen.
+ * Opens one of the two edit dialogs, replacing any dialog still on screen.
  * @param field Which edit to open.
  * @returns Nothing.
  */
-const openEdit = (field: Exclude<OpenEdit, null>): void => {
-  pending.value = null
-  editingField.value = field
-}
-
-/**
- * Closes the open edit dialog without a change.
- * @returns Nothing.
- */
-const closeEdit = (): void => {
-  editingField.value = null
+const openEdit = (field: 'plan' | 'ownerEmail'): void => {
+  dialog.value = field
 }
 
 /**
@@ -229,8 +205,8 @@ const closeEdit = (): void => {
  * @returns Nothing.
  */
 const editSaved = (): void => {
-  notice.value = editingField.value === 'plan' ? t('accounts.edit.planSaved') : t('accounts.edit.ownerEmailSaved')
-  editingField.value = null
+  notice.value = dialog.value === 'plan' ? t('accounts.edit.planSaved') : t('accounts.edit.ownerEmailSaved')
+  dialog.value = null
 }
 
 /**
@@ -317,12 +293,10 @@ onMounted(async () => {
           <AccountDetailsCard
             class="lg:col-span-2"
             :account="accountsStore.selected"
-            :loading="isLoading"
             :locale="localeStore.current"
           />
           <AccountActionsCard
             :status="accountsStore.selected?.status ?? null"
-            :loading="isLoading"
             @suspend="ask('suspend')"
             @reactivate="ask('reactivate')"
             @edit-plan="openEdit('plan')"
@@ -338,7 +312,7 @@ onMounted(async () => {
     <AccountResourcesCard v-if="accountsStore.selectedState !== 'error' && !isMissing" :read="accountsStore.resourceSummary" />
 
     <template v-if="accountsStore.selectedState === 'loaded' && accountsStore.selected !== null">
-      <AccountInvitationCard :account-id="id" :suspended="accountsStore.selected.status === 'suspended'" />
+      <AccountInvitationCard :account-id="id" :status="accountsStore.selected.status" />
 
       <!-- `:open` is bound to a value that really changes, and this dialog needs no `v-if`: it has
            no props that are only valid while it is open, and `UiModal` renders nothing while
@@ -346,7 +320,7 @@ onMounted(async () => {
            `accountsStore.selected`, which is nullable — so it is mounted with `v-if` at the moment
            it opens, and `UiModal`s open-watcher is `immediate` so that case works too. -->
       <UiConfirm
-        :open="pending !== null"
+        :open="dialog === 'suspend' || dialog === 'reactivate'"
         :title="confirmationTitle"
         :question="confirmationText"
         :confirm-label="confirmationLabel"
@@ -354,7 +328,7 @@ onMounted(async () => {
         :close-label="t('common.close')"
         :acting="accountsStore.acting"
         :acting-label="t('accounts.detail.working')"
-        :destructive="pending === 'suspend'"
+        :destructive="dialog === 'suspend'"
         @close="cancel"
         @confirm="confirm"
       />
@@ -362,17 +336,17 @@ onMounted(async () => {
       <!-- Mounted only while open, for the same reason as the deletion dialog below: `account` is
            required and `accountsStore.selected` is nullable. -->
       <AccountPlanDialog
-        v-if="editingField === 'plan'"
+        v-if="dialog === 'plan'"
         :open="true"
         :account="accountsStore.selected"
-        @close="closeEdit"
+        @close="cancel"
         @saved="editSaved"
       />
       <AccountOwnerEmailDialog
-        v-if="editingField === 'ownerEmail'"
+        v-if="dialog === 'ownerEmail'"
         :open="true"
         :account="accountsStore.selected"
-        @close="closeEdit"
+        @close="cancel"
         @saved="editSaved"
       />
 
@@ -380,10 +354,10 @@ onMounted(async () => {
            dialog is created with `open` already true, which `UiModal`s immediate open-watcher
            handles (focus enters, Escape reaches it, focus returns to the button that opened it). -->
       <AccountDeleteDialog
-        v-if="deleting"
-        :open="deleting"
+        v-if="dialog === 'delete'"
+        :open="true"
         :account="accountsStore.selected"
-        @close="cancelDelete"
+        @close="cancel"
         @confirmed="remove"
       />
     </template>

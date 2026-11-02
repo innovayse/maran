@@ -15,11 +15,9 @@ import UiSkeleton from '../ui/UiSkeleton.vue'
 import type { AccountStatus } from '../../types/account'
 
 /** Props accepted by {@link AccountActionsCard}. */
-defineProps<{
-  /** The account's lifecycle state, or `null` while it has not been read. */
+const props = defineProps<{
+  /** The account's lifecycle state; `null` is the one state in which it is still on its way. */
   status: AccountStatus | null
-  /** Whether the account is still on its way, so no action is offered yet. */
-  loading: boolean
 }>()
 
 /** Events emitted by {@link AccountActionsCard}; the page owns every dialog they open. */
@@ -59,9 +57,9 @@ const { t } = useI18n()
     <UiSectionHeading :title="t('common.actions')" />
     <!-- Which actions apply depends on the account's status, so none is offered before it
          is known; a placeholder holds the row. -->
-    <UiSkeleton v-if="loading" shape="block" />
+    <UiSkeleton v-if="props.status === null" shape="block" />
     <div v-else class="flex flex-wrap items-center gap-2">
-      <UiButton v-if="status === 'active'" variant="secondary" @click="emit('suspend')">
+      <UiButton v-if="props.status === 'active'" variant="secondary" @click="emit('suspend')">
         {{ t('accounts.detail.suspend') }}
       </UiButton>
       <UiButton v-else variant="secondary" @click="emit('reactivate')">
@@ -76,7 +74,7 @@ const { t } = useI18n()
     </div>
     <!-- Deletion sits apart, under a rule: it is the one action that cannot be undone, and it
          must not read as a sibling of the two above it. -->
-    <div v-if="!loading" class="border-t border-border-subtle pt-4">
+    <div v-if="props.status !== null" class="border-t border-border-subtle pt-4">
       <UiButton variant="destructive" @click="emit('delete')">
         {{ t('common.delete') }}
       </UiButton>
