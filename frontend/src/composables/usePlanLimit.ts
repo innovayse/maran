@@ -1,4 +1,4 @@
-import { computed, onMounted, watch, type ComputedRef } from 'vue'
+import { computed, onMounted, watch, type ComputedRef, type WatchSource } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCallerRole } from './useCallerRole'
 import { useAccountsStore } from '../stores/accounts'
@@ -25,10 +25,10 @@ export interface PlanLimit {
  * The summary is read on mount and again whenever `changed` reports a new value, so a create or a
  * delete that moves the count moves the state with it.
  * @param kind The resource the page creates.
- * @param changed A getter whose value changes after the page's list is re-read (its rows).
+ * @param changed A source whose value changes after the page's list is re-read (its rows ref).
  * @returns The limit state for that resource.
  */
-export const usePlanLimit = (kind: AccountResourceKind, changed: () => unknown): PlanLimit => {
+export const usePlanLimit = (kind: AccountResourceKind, changed: WatchSource): PlanLimit => {
   const { t } = useI18n()
   const { isCustomer } = useCallerRole()
   const accountsStore = useAccountsStore()
