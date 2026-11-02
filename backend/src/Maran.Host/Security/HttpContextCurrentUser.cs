@@ -13,11 +13,12 @@ namespace Maran.Host.Security;
 /// <b>Three outcomes, and a refusal for everything else.</b> A request with no authenticated
 /// principal (or no request at all, as in background work) is an <see cref="AnonymousCaller"/>. An
 /// authenticated principal whose role claim is exactly <c>Admin</c> is an
-/// <see cref="AdministratorCaller"/>; exactly <c>Customer</c> with a readable account claim, a
-/// <see cref="CustomerCaller"/>. An authenticated principal that is none of these — an unknown or
-/// missing role, an unreadable user id, a customer with no readable account, a view-as marker with
-/// no readable operator — is NOT folded into one of the three: it raises
-/// <see cref="UnrecognisedPrincipalException"/>.
+/// <see cref="AdministratorCaller"/>; exactly <c>Customer</c> with an account claim, a
+/// <see cref="CustomerCaller"/>, and without one an <see cref="AccountlessCustomerCaller"/> (the
+/// issuer omits the claim for a customer with no memberships, so its absence is a state, not damage).
+/// An authenticated principal that is none of these — an unknown or missing role, an unreadable user
+/// id, an account claim that is present but not an id, a view-as marker with no readable operator —
+/// is NOT folded into one of them: it raises <see cref="UnrecognisedPrincipalException"/>.
 /// </para>
 /// <para>
 /// <b>Why that refuses and does not degrade.</b> Degrading to anonymous would grant nothing, but it
@@ -76,9 +77,15 @@ public sealed class HttpContextCurrentUser : ICurrentUser
                 throw new UnrecognisedPrincipalException("The token carries no recognised role.");
             }
 
-            if (!Guid.TryParse(principal.FindFirst(PanelClaimTypes.AccountId)?.Value, out var accountId))
+            var accountClaim = principal.FindFirst(PanelClaimTypes.AccountId)?.Value;
+            if (accountClaim is null)
             {
-                throw new UnrecognisedPrincipalException("The customer token carries no readable account.");
+                return new AccountlessCustomerCaller(userId, username, viewedBy);
+            }
+
+            if (!Guid.TryParse(accountClaim, out var accountId))
+            {
+                throw new UnrecognisedPrincipalException("The customer token carries an unreadable account.");
             }
 
             return new CustomerCaller(userId, username, accountId, viewedBy);
