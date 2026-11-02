@@ -122,8 +122,7 @@ public sealed class AccountSuspensionCascadeTests
 
         await new AccountSuspendingHandler(agent).HandleAsync(message, CancellationToken.None);
 
-        Assert.True(message.Report.SessionCullReported);
-        Assert.Equal(2u, message.Report.SessionsEnded);
+        Assert.Equal(new SessionCullEnded(2u), message.Report.SessionCull);
     }
 
     /// <summary>
@@ -143,8 +142,7 @@ public sealed class AccountSuspensionCascadeTests
 
         await new AccountSuspendingHandler(agent).HandleAsync(message, CancellationToken.None);
 
-        Assert.True(message.Report.SessionCullReported);
-        Assert.Null(message.Report.SessionsEnded);
+        Assert.Equal(new SessionCullReportedWithoutCount(), message.Report.SessionCull);
     }
 
     /// <summary>
@@ -167,8 +165,7 @@ public sealed class AccountSuspensionCascadeTests
             await new AccountSuspendingHandler(agent).HandleAsync(message, CancellationToken.None);
         });
 
-        Assert.False(message.Report.SessionCullReported);
-        Assert.Null(message.Report.SessionsEnded);
+        Assert.Equal(new SessionCullNotReported(), message.Report.SessionCull);
     }
 
     /// <summary>A refusal from the agent aborts the suspension instead of being swallowed.</summary>

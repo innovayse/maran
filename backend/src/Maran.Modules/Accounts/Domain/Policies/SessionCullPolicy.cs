@@ -25,12 +25,13 @@ namespace Maran.Modules.Accounts.Domain.Policies;
 /// worded apart because only one of them means the cull may never have been attempted.
 /// </para>
 /// <para>
-/// <b>How absence is recognised, and why it is not an inference here.</b> Two presence signals, both
-/// structural. <see cref="AccountSuspensionCascadeReport.SessionCullReported"/> is written by the
-/// subscriber that performs the cull and by nothing else, so an unanswered cascade cannot look like an
-/// answered one. <see cref="AccountSuspensionCascadeReport.SessionsEnded"/> is <c>null</c> exactly
-/// when the wire's <c>optional uint32 sessions_ended</c> was absent, so an agent that counted nothing
-/// cannot look like one that predates the field. Contrast <see cref="UnmanagedLoginPolicy"/>, which
+/// <b>How absence is recognised, and why it is not an inference here.</b> Both signals are
+/// structural, and both are carried by the type of the reading rather than by a flag.
+/// <see cref="AccountSuspensionCascadeReport.SessionCull"/> is <see cref="SessionCullNotReported"/>
+/// until the subscriber that performs the cull writes it, and by nothing else, so an unanswered
+/// cascade cannot look like an answered one. The reading is <see cref="SessionCullReportedWithoutCount"/>
+/// exactly when the wire's <c>optional uint32 sessions_ended</c> was absent, so an agent that counted
+/// nothing cannot look like one that predates the field. Contrast <see cref="UnmanagedLoginPolicy"/>, which
 /// has to INFER that its count was measured from an unrelated field of the same answer because that
 /// field is a bare <c>uint32</c> — and which therefore reads the commonest account as unknown for
 /// ever. The wire field this policy reads was made <c>optional</c> so that the same price would not be
@@ -61,24 +62,20 @@ public static class SessionCullPolicy
     /// </returns>
     public static string Describe(AccountSuspensionCascadeReport report)
     {
-        if (!report.SessionCullReported)
+        return report.SessionCull switch
         {
-            return "the panel asked the host to end the account's open transfer sessions, and no "
-                + "module reported having done so, so this line cannot say that any were ended; ";
-        }
-
-        if (report.SessionsEnded is not { } ended)
-        {
-            return "a suspension also ends the account's open transfer sessions, and the host's answer "
-                + "carried no count of them, so this line cannot say how many were ended, or that any "
-                + "were; ";
-        }
-
-        return ended == 0
-            ? "a suspension also ends the account's open transfer sessions, and the host found none of "
-                + "this account's to end; "
-            : $"a suspension also ends the account's open transfer sessions, and the host ended {ended} "
-                + "of them, cutting whatever they were transferring and leaving any partial file in the "
-                + "account's home; ";
+            SessionCullNotReported => "the panel asked the host to end the account's open transfer sessions, and no "
+                + "module reported having done so, so this line cannot say that any were ended; ",
+            SessionCullReportedWithoutCount => "a suspension also ends the account's open transfer sessions, and "
+                + "the host's answer carried no count of them, so this line cannot say how many were ended, or "
+                + "that any were; ",
+            SessionCullEnded { Count: 0 } => "a suspension also ends the account's open transfer sessions, and the "
+                + "host found none of this account's to end; ",
+            SessionCullEnded ended => $"a suspension also ends the account's open transfer sessions, and the host "
+                + $"ended {ended.Count} of them, cutting whatever they were transferring and leaving any partial "
+                + "file in the account's home; ",
+            _ => throw new InvalidOperationException(
+                "The cascade report holds a session-cull reading this policy does not know."),
+        };
     }
 }

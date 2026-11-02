@@ -68,7 +68,7 @@ public sealed record AccountSuspending(Guid AccountId, string Username)
     /// </para>
     /// <para>
     /// It does not make the event a call, and a subscriber is never obliged to write: an untouched
-    /// report is a reading of its own (<see cref="AccountSuspensionCascadeReport.SessionCullReported"/>),
+    /// report is a reading of its own (<see cref="SessionCullNotReported"/>),
     /// which is what keeps the paragraph above true — a subscriber that does not exist cannot throw,
     /// and now it cannot be mistaken for one that acted either. A non-positional property so that it
     /// is not part of the message's identity: a collector is not a value.

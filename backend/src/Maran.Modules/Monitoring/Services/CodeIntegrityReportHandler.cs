@@ -72,12 +72,12 @@ public sealed partial class CodeIntegrityReportHandler : ICodeIntegrityReportSin
             // Per ICodeIntegrityReportSink's own contract: the caller is a closed, foreign component
             // that cannot itself react to an exception meaningfully. Logged here, on this side of the
             // boundary, rather than allowed to propagate into PluginLoader's AssemblyLoadContext.
-            LogReportFailed(_logger, report.InstalledVersion, report.Outcome, ex);
+            LogReportFailed(_logger, report.InstalledVersion, report.GetType().Name, ex);
         }
     }
 
     [LoggerMessage(
         Level = LogLevel.Error,
-        Message = "Failed to record a code-integrity report for version {InstalledVersion} (outcome {Outcome}).")]
-    private static partial void LogReportFailed(ILogger logger, string installedVersion, CodeIntegrityOutcome outcome, Exception exception);
+        Message = "Failed to record a code-integrity report for version {InstalledVersion} (report {ReportCase}).")]
+    private static partial void LogReportFailed(ILogger logger, string installedVersion, string reportCase, Exception exception);
 }
