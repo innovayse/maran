@@ -101,8 +101,8 @@ const expectNamedAnswer = async (dialog: Locator, action: string): Promise<void>
 
 test('every confirmation names its action on the button that performs it', async ({ page }) => {
   await signIn(page, [
-    { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-    { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
+    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+    { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
   ])
   await stubSites(page, [])
   await stubSiteDetail(page, SITE)
@@ -129,8 +129,8 @@ test('every confirmation names its action on the button that performs it', async
 
 test('an accepted SFTP login empties the create form, so the same submit is not invited twice', async ({ page }) => {
   await signIn(page, [
-    { name: 'sftp', displayName: 'File transfer', tier: 'included', isEnabled: true },
-    { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
+    { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
+    { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
   ])
   await stubSftpUsers(page, [])
   await page.goto('/file-transfer/sftp')
@@ -151,8 +151,8 @@ test('an accepted SFTP login empties the create form, so the same submit is not 
 
 test('an accepted backup and an accepted ban each empty their form', async ({ page }) => {
   await signIn(page, [
-    { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
-    { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
+    { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+    { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
   ])
   await stubBackups(page, [])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
@@ -176,7 +176,7 @@ test('an accepted backup and an accepted ban each empty their form', async ({ pa
 for (const width of [1440, 390]) {
   test(`at ${width}px the way back from a site is an underlined link to the list`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
-    await signIn(page, [{ name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true }])
+    await signIn(page, [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }])
     await stubSites(page, [])
     await stubSiteDetail(page, SITE)
     await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
@@ -190,7 +190,7 @@ for (const width of [1440, 390]) {
 }
 
 test('a backup an operator took by hand reads "Manual" in the history', async ({ page }) => {
-  await signIn(page, [{ name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true }])
+  await signIn(page, [{ name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' }])
   await stubBackups(page, [{ ...MANUAL_BACKUP }])
   await page.goto('/backups')
 
@@ -200,7 +200,7 @@ test('a backup an operator took by hand reads "Manual" in the history', async ({
 })
 
 test('the upgrade screen names a module by its display name, never by its id', async ({ page }) => {
-  await signIn(page, [{ name: 'mail', displayName: 'Mail', tier: 'business', isEnabled: false }])
+  await signIn(page, [{ name: 'mail', displayName: 'Mail', tier: 'business', state: 'locked' }])
   await page.goto('/upgrade/mail')
 
   await expect(page.getByText('The "Mail" module is not included in your current licence.')).toBeVisible()

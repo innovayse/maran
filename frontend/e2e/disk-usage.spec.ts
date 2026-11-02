@@ -14,7 +14,7 @@ import type { HostMetrics } from '../src/types/monitoring'
 // once showed size minus available as "in use", 12.7 GiB where df said 7.7. These specs hold the
 // three labelled figures on both screens that draw the disk, and the sum they must make.
 
-const LICENSED: PanelModule[] = [{ name: 'monitoring', displayName: 'Monitoring', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' }]
 
 /** The figures the issue measured on an ext4 root: 97.9 GiB, 7.7 used, ~4.9 reserved for root. */
 const EXT4: HostMetrics = {
@@ -47,7 +47,7 @@ const XFS: HostMetrics = {
  */
 const dashboardWith = (metrics: HostMetrics): Dashboard => {
   return {
-    isAdministrator: true,
+    audience: 'administrator',
     resources: loaded(metrics),
     services: loaded([]),
     counts: { accounts: loaded(0), sites: loaded(0), databases: loaded(0) },

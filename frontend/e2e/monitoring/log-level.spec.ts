@@ -8,7 +8,7 @@ import type { PanelModule } from '../../src/types/module'
 // The panel's runtime log level on the monitoring screen (issue #131): the card shows what the
 // panel's logger is writing at, and applying another level asks the panel and reads the answer back.
 
-const LICENSED: PanelModule[] = [{ name: 'monitoring', displayName: 'Monitoring', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' }]
 
 /**
  * Opens the monitoring screen as a signed-in administrator with every read stubbed.

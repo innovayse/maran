@@ -17,7 +17,7 @@ import type { PanelModule } from '../../src/types/module'
  * boundary inside the card. Measured on geometry, never on a class name.
  */
 
-const LICENSED: PanelModule[] = [{ name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' }]
 
 /** An inspection report: the census card then carries the long "inspected" badge. */
 const REPORT: GrantRepairReport = {

@@ -13,7 +13,7 @@ import type { Site } from '../../src/types/site'
 // nothing.
 
 const LICENSED_SITES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
 ]
 
 const PHONE = { width: 390, height: 844 }

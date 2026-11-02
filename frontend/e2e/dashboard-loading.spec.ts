@@ -6,7 +6,7 @@ import {
   type RegionLoadingScenario,
 } from './fixtures/expect-region-loading'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { loaded, stubDashboard, stubDashboardProblem } from './fixtures/stub-dashboard-route'
+import { loaded, stubDashboard, stubDashboardProblem, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import type { Dashboard } from '../src/types/dashboard'
@@ -16,15 +16,15 @@ import type { PanelModule } from '../src/types/module'
 // tiles are drawn with their real labels and a placeholder for every figure.
 
 const LICENSED: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
 ]
 
-// No attention notice: it is drawn above the counts once the answer is in, and is not part of
-// what this spec measures.
+// Every attention source read and clear: the notice is drawn above the counts once the answer is in
+// (as the all-clear sentence), and is not part of what this spec measures.
 const DASHBOARD: Dashboard = {
-  isAdministrator: true,
+  audience: 'administrator',
   resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 * 1024 * 1024,
@@ -45,7 +45,13 @@ const DASHBOARD: Dashboard = {
     sites: loaded(7),
     databases: loaded(4),
   },
-  attention: null,
+  attention: {
+    certificatesExpiringSoon: loaded(0),
+    failedBackups: loaded(0),
+    bannedAddresses: loaded(0),
+    failedTasks: loaded(0),
+    clock: SYNCHRONIZED_CLOCK,
+  },
   recentAudit: loaded([]),
 }
 

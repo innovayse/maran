@@ -15,7 +15,7 @@ import type { PanelModule } from '../../src/types/module'
 // The firewall's three tables while their lists are on the way (#243), each on its own page: the
 // rules whole, the bans and the whitelist one server page at a time.
 
-const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' }]
 
 const BAN: Ban = {
   id: '00000000-0000-0000-0000-0000000000b1',

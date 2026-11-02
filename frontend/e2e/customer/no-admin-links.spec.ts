@@ -46,9 +46,9 @@ const CUSTOMER: AuthenticatedUser = {
 
 /** The modules the visited screens belong to. */
 const MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
 ]
 
 /** Every link name a customer must not be offered, on any of the screens below. */

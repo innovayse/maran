@@ -7,7 +7,7 @@ import type { FirewallRule } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
+  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
 ]
 
 // The passive data range an FTPS host needs, which is the reason a rule learned to name more than

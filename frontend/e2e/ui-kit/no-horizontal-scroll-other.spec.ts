@@ -193,7 +193,7 @@ const LOCKED_MODULES: PanelModule[] = [
     displayName: 'Backups and disaster recovery for every hosted account',
     tier: 'addOn',
     tierDisplayName: 'Professional add-on tier',
-    isEnabled: false,
+    state: 'locked',
   },
 ]
 

@@ -23,8 +23,8 @@ import type { PanelModule } from '../../src/types/module'
 // then the feedback a switch owes.
 
 const LICENSED: PanelModule[] = [
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', isEnabled: true },
-  { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
+  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
+  { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

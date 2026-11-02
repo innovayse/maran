@@ -50,7 +50,7 @@ const MODULES: PanelModule[] = [
   'redis',
   'memcached',
 ].map((name) => {
-  return { name, displayName: `Module ${name}`, tier: 'included', isEnabled: true }
+  return { name, displayName: `Module ${name}`, tier: 'included', state: 'enabled' }
 })
 
 /**

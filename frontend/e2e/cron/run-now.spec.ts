@@ -10,7 +10,7 @@ import type { CronEntry } from '../../src/types/cronEntry'
 import type { CronRun, CronRunSummary } from '../../src/types/cronRun'
 import type { PanelModule } from '../../src/types/module'
 
-const LICENSED: PanelModule[] = [{ name: 'cron', displayName: 'Scheduled tasks', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' }]
 
 const ALICE: Account = {
   id: '22222222-2222-2222-2222-222222222222',

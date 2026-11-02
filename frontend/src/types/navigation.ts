@@ -1,6 +1,6 @@
 import type { RouteLocationRaw } from 'vue-router'
 import type { AccountFeatureName } from './accountFeature'
-import type { PanelModule } from './module'
+import type { ModuleState, PanelModule } from './module'
 
 /**
  * Glyph a navigation entry is drawn with. A closed union of the icons the shell draws: the module
@@ -154,9 +154,6 @@ export interface NavigationBadge {
   count: number
 }
 
-/** Whether the licence lets the caller into an installed module. */
-export type NavigationModuleAccess = 'enabled' | 'locked'
-
 /**
  * What the panel reported about the plan features of the signed-in caller. The unreported arm
  * carries no set at all, so nothing can mistake "not reported" for "a plan with no features".
@@ -180,7 +177,7 @@ export interface NavigationContext {
   /** The module catalogue as the panel reported it, in its order. */
   catalogue: readonly PanelModule[]
   /** Module machine name to how the licence stands; a module absent here is not installed. */
-  modules: ReadonlyMap<string, NavigationModuleAccess>
+  modules: ReadonlyMap<string, ModuleState>
   /**
    * The caller's plan features. While the panel does not report them every item is offered, since
    * hiding is advice and errs permissive.

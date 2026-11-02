@@ -49,11 +49,11 @@ const OWN_RESOURCES: AccountResourceSummary = {
 }
 
 const MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
-  { name: 'cron', displayName: 'Cron', tier: 'included', isEnabled: true },
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+  { name: 'cron', displayName: 'Cron', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
 ]
 
 const CUSTOMER_PAGES = ['/', '/sites', '/databases', '/backups', '/cron', '/tasks', '/my-account', '/accounts']

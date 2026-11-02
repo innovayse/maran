@@ -9,7 +9,7 @@ import type { PanelModule } from '../../src/types/module'
 import type { SiteLimits } from '../../src/types/site'
 
 const LICENSED_SITES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
 ]
 
 const OWNER: Account = {

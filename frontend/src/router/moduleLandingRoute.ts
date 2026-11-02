@@ -17,7 +17,7 @@
  * below, so the panel told an operator that the Notifications module was not covered by their
  * licence and, in the next sentence, that its licence tier was "included in the distribution" —
  * selling, in one breath, what it had just called bundled. `GET /api/v1/modules` reported it
- * `included` and `isEnabled`, and its screen worked the whole time.
+ * `included` and `enabled`, and its screen worked the whole time.
  *
  * Adding a key would fix that module and nothing else, so the class is closed by a check
  * instead: `e2e/shell/module-landing-coverage.spec.ts` reads the module ids the backend actually

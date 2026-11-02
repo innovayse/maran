@@ -7,7 +7,7 @@ import type { ClockSync } from '../../src/types/monitoring'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', isEnabled: true },
+  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
 ]
 
 /** The sentence the panel sends for a clock whose sync service has not synchronised it. */

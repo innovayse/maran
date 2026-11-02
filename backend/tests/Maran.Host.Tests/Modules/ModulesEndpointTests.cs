@@ -159,7 +159,8 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         });
         Assert.Equal("included", module.GetProperty("tier").GetString());
         Assert.Equal("Included", module.GetProperty("tierDisplayName").GetString());
-        Assert.True(module.GetProperty("isEnabled").GetBoolean());
+        Assert.Equal("enabled", module.GetProperty("state").GetString());
+        Assert.False(module.TryGetProperty("isEnabled", out _));
         Assert.False(string.IsNullOrWhiteSpace(module.GetProperty("displayName").GetString()));
     }
 

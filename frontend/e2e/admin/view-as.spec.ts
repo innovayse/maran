@@ -56,9 +56,9 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
-    { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-    { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
+    { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+    { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
   ])
   await stubAccounts(page, [ACME])
   await stubInvitation(page, ACME.id, 'accepted')

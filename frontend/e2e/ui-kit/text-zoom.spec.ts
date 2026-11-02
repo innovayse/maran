@@ -40,7 +40,7 @@ const MIN_TITLE_WIDTH = 200
 
 /** Every module, so no screen is gated. */
 const MODULES: PanelModule[] = ['accounts', 'sites', 'databases', 'backups', 'monitoring', 'tasks'].map((name) => {
-  return { name, displayName: name, tier: 'included', isEnabled: true }
+  return { name, displayName: name, tier: 'included', state: 'enabled' }
 })
 
 const ACCOUNT: Account = {
@@ -80,7 +80,7 @@ const BACKUP: Backup = {
 }
 
 const DASHBOARD: Dashboard = {
-  isAdministrator: true,
+  audience: 'administrator',
   resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 ** 3,

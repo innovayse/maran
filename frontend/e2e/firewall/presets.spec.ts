@@ -7,7 +7,7 @@ import type { FirewallRule } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
+  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
 ]
 
 /** One rule-change request the page sent, recorded well enough to assert on exactly. */

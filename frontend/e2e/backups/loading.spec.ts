@@ -19,7 +19,7 @@ import type { PanelModule } from '../../src/types/module'
 
 // The backups table and the destinations screen while their reads are on the way (#243).
 
-const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' }]
 
 const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',

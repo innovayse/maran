@@ -23,7 +23,7 @@ const CUSTOMER: AuthenticatedUser = {
 
 /** The one module the customer's own account reaches in these specs. */
 const CUSTOMER_MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
 ]
 
 /**

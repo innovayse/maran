@@ -165,6 +165,8 @@ backend/
 │   │   ├── Modules/                     # what only the composition root knows about the module set.
 │   │   │                                 #   ModuleRegistry.cs (explicit list — no assembly scanning),
 │   │   │                                 #   ModulesEndpoint.cs + ModuleDto.cs (GET /api/v1/modules),
+│   │   │                                 #   ModuleStateResolver.cs (the one place a module's
+│   │   │                                 #   Enabled/Locked state is decided; its enum is Enums/),
 │   │   │                                 #   AgentCapabilityGuard.cs (refuses at composition time to
 │   │   │                                 #   load a module reaching past the agent capabilities its
 │   │   │                                 #   Manifest declares — one door to the only root process,

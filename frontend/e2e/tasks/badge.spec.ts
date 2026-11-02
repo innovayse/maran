@@ -15,7 +15,7 @@ import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
 
 const LICENSED: PanelModule[] = [
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', isEnabled: true },
+  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
 ]
 
 /**

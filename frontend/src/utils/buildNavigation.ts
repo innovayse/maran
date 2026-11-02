@@ -173,14 +173,14 @@ const catalogueEntries = (context: NavigationContext): NavigationEntry[] => {
   return context.catalogue.flatMap((module): NavigationEntry[] => {
     // A module without an item of its own still shows while the licence does not permit it: a
     // locked module stays visible and leads to its upgrade page, rather than hiding the product.
-    if (TREE_MODULES.has(module.name) || (module.isEnabled && MODULES_WITHOUT_ITEM.has(module.name))) {
+    if (TREE_MODULES.has(module.name) || (module.state === 'enabled' && MODULES_WITHOUT_ITEM.has(module.name))) {
       return []
     }
     const landing = moduleLandingRoute(module.name)
-    if (module.isEnabled && landing === NO_LANDING_ROUTE) {
+    if (module.state === 'enabled' && landing === NO_LANDING_ROUTE) {
       return []
     }
-    const reachable = module.isEnabled && typeof landing === 'string' && context.hasRoute(landing)
+    const reachable = module.state === 'enabled' && typeof landing === 'string' && context.hasRoute(landing)
     return [
       {
         key: module.name,

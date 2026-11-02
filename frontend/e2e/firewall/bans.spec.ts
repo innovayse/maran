@@ -8,7 +8,7 @@ import type { Ban } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
+  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
 ]
 
 /** The instant the fake clock is installed at: shortly before the one every assertion is written against. */

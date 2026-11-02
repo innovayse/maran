@@ -24,19 +24,14 @@ export const SYNCHRONIZED_CLOCK: DashboardSection<ClockSync> = loaded<ClockSync>
 })
 
 /**
- * What the panel answers a caller it filled nothing for: a customer. Every section is null, which
- * means "not for this caller" and nothing else; a section that could not be read is {@link UNAVAILABLE}.
+ * What the panel answers a caller it filled nothing for: a customer. The shape has no section at
+ * all; a section that could not be read is {@link UNAVAILABLE}, on an administrator's answer.
  *
  * Exported so a spec asserting "nothing of the server's state is drawn" says what it means with the
  * payload the panel really sends, rather than with a hand-built object that could drift from it.
  */
 export const WITHHELD_DASHBOARD: Dashboard = {
-  isAdministrator: false,
-  resources: null,
-  services: null,
-  counts: null,
-  attention: null,
-  recentAudit: null,
+  audience: 'customer',
 }
 
 /**

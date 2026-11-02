@@ -14,7 +14,7 @@ import type { PanelModule } from '../../src/types/module'
 // The installed PHP versions while the list is on the way (#243): drawn from the table's own
 // column schema. The screen belongs to the sites module, so its spec lives beside the sites list's.
 
-const LICENSED: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }]
 
 /** The PHP versions read; the screen's only request of its own. */
 const PHP_VERSIONS = '**/api/v1/sites/php-versions'

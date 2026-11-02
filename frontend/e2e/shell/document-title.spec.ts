@@ -39,7 +39,7 @@ test('the accounts list has its own title', async ({ page }) => {
   await stubSignedIn(page)
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
 
   await page.goto('/accounts')

@@ -9,8 +9,8 @@ import type { PanelModule } from '../../src/types/module'
 
 /** A catalogue whose firewall pages hold the one entry the query below picks out. */
 const MODULES: PanelModule[] = [
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
+  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
 ]
 
 /**

@@ -7,7 +7,7 @@ import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
+  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
 ]
 
 // A signed-in customer, whose `accountId` is what an administrator does not have. The role guard

@@ -10,11 +10,11 @@ import type { Backup } from '../../src/types/backup'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
+  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
   // A module the navigation tree does not name, so the sidebar draws it in the fallback group with
   // the neutral glyph: the control a chosen icon is told apart from.
-  { name: 'reports', displayName: 'Reports', tier: 'included', isEnabled: true },
+  { name: 'reports', displayName: 'Reports', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

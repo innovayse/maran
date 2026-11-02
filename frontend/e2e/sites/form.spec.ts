@@ -8,7 +8,7 @@ import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED_SITES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
 ]
 
 const OWNER: Account = {

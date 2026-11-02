@@ -15,8 +15,8 @@ import type { SftpUser } from '../../src/types/sftpUser'
 // total, and the SPA filters nothing.
 
 const LICENSED: PanelModule[] = [
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', isEnabled: true },
-  { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
+  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
+  { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

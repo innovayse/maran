@@ -17,7 +17,7 @@ import type { PanelModule } from '../../src/types/module'
 // The cron entries while an account's crontab is on the way (#243): drawn from the table's own
 // column schema.
 
-const LICENSED: PanelModule[] = [{ name: 'cron', displayName: 'Scheduled tasks', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' }]
 
 const ALICE: Account = {
   id: '22222222-2222-2222-2222-222222222222',

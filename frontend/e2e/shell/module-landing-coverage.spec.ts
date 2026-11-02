@@ -31,7 +31,7 @@ import { setPersistedLocale } from '../fixtures/set-locale'
 // registered, with nobody having remembered anything.
 //
 // UNOBSERVED HERE: this reads the C# that BUILDS the catalogue, not an HTTP response from a running
-// panel. It therefore cannot see a licence making a module `isEnabled: false` (which is what the
+// panel. It therefore cannot see a licence making a module `state: 'locked'` (which is what the
 // upgrade wall is honestly for), nor a `Manifest.Id` computed at runtime rather than written as a
 // literal — the parse below refuses a manifest it cannot read a literal id out of, rather than
 // silently dropping the module from the list it checks.
@@ -149,9 +149,9 @@ test('every module the backend composes has a sidebar destination that is not th
   await stubModules(page, [
     ...ids.map((name) => {
       // A distinctive label per module, so a failure names the module rather than a position.
-      return { name, displayName: `Module ${name}`, tier: 'included', isEnabled: true }
+      return { name, displayName: `Module ${name}`, tier: 'included', state: 'enabled' }
     }),
-    { name: UNKNOWN_MODULE, displayName: `Module ${UNKNOWN_MODULE}`, tier: 'included', isEnabled: true },
+    { name: UNKNOWN_MODULE, displayName: `Module ${UNKNOWN_MODULE}`, tier: 'included', state: 'enabled' },
   ])
 
   await page.goto('/')
@@ -221,7 +221,7 @@ test('the notifications module reaches the outgoing-mail screen from the Setting
       displayName: 'Уведомления',
       tierDisplayName: 'Входит в поставку',
       tier: 'included',
-      isEnabled: true,
+      state: 'enabled',
     },
   ])
 

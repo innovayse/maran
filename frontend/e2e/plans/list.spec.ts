@@ -11,7 +11,7 @@ import type { PanelModule } from '../../src/types/module'
 
 /** The accounts module licensed, which is what owns plans. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
 ]
 
 /**

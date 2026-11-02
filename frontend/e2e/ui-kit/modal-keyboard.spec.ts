@@ -91,7 +91,7 @@ test('the account-deletion dialog takes focus, closes on Escape, and gives focus
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'accounts', displayName: 'Аккаунты', tier: 'included', isEnabled: true },
+    { name: 'accounts', displayName: 'Аккаунты', tier: 'included', state: 'enabled' },
   ])
   await stubInvitation(page, ALICE.id, 'pending')
   await page.route(`**/api/v1/accounts/${ALICE.id}`, async (route) => {
@@ -124,7 +124,7 @@ test('the backup-restore dialog takes focus, closes on Escape, and gives focus b
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'backups', displayName: 'Резервные копии', tier: 'included', isEnabled: true },
+    { name: 'backups', displayName: 'Резервные копии', tier: 'included', state: 'enabled' },
   ])
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])

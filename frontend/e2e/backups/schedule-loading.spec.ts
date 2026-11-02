@@ -19,7 +19,7 @@ test.use({ timezoneId: 'UTC' })
 
 const SCHEDULES_PATTERN = '**/api/v1/backup-schedules*'
 
-const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true }]
+const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' }]
 
 /**
  * A configured host-wide schedule, so no "nothing is scheduled" warning lands above the form when

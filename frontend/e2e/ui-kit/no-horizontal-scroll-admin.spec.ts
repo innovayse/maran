@@ -81,7 +81,7 @@ const MODULES: PanelModule[] = [
   'monitoring',
   'tasks',
 ].map((name) => {
-  return { name, displayName: name, tier: 'included', isEnabled: true }
+  return { name, displayName: name, tier: 'included', state: 'enabled' }
 })
 
 // Long on purpose: the longest value a customer is plausibly to type, with no break opportunity
@@ -139,7 +139,7 @@ const SERVICES: ServiceStatus[] = [
 ]
 
 const DASHBOARD: Dashboard = {
-  isAdministrator: true,
+  audience: 'administrator',
   resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 * 1024 * 1024,

@@ -22,7 +22,7 @@ const ACCOUNT: Account = {
   createdAt: '2026-08-30T09:00:00+00:00',
 }
 
-const MODULES: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }]
+const MODULES: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }]
 
 /**
  * Stubs the shell and the accounts list.

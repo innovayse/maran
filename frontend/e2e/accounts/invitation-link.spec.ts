@@ -33,7 +33,7 @@ const ACCOUNT: Account = {
 const openDetailWith = async (page: Page, state: InvitationState): Promise<InvitationStub> => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })
   })
@@ -49,7 +49,7 @@ test('creating an account opens its page, where the invitation link is created, 
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
   await stubPlans(page)
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {

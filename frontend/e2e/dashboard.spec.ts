@@ -15,9 +15,9 @@ import type { Dashboard } from '../src/types/dashboard'
 import type { PanelModule } from '../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
-  { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
 ]
 
 /** A customer, who must be shown the health verdict and no part of the server's state. */
@@ -33,7 +33,7 @@ const CUSTOMER: AuthenticatedUser = {
 // distinct from each other and from the attention numbers, the percentage is not round, and every
 // attention row is non-zero so that all four are drawn.
 const FULL: Dashboard = {
-  isAdministrator: true,
+  audience: 'administrator',
   resources: loaded({
     cpuPercent: 37.4,
     memoryUsedBytes: 3 * 1024 * 1024 * 1024,

@@ -26,7 +26,7 @@ import type { SiteDetail } from '../../src/types/site'
 // The site page while it is on the way (#243): the details card keeps its terms over placeholder
 // values, and the SSL tab holds one certificate card with its real labels while the list loads.
 
-const LICENSED_SITES: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true }]
+const LICENSED_SITES: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }]
 
 const SITE: SiteDetail = {
   id: CERTIFICATE_SITE_ID,

@@ -19,7 +19,7 @@ const LOCKED_IN_RUSSIAN: PanelModule[] = [
     displayName: 'Резервные копии',
     tier: 'addOn',
     tierDisplayName: 'Дополнительный модуль',
-    isEnabled: false,
+    state: 'locked',
   },
 ]
 
@@ -48,7 +48,7 @@ test('a catalogue that names no tier shows no tier sentence rather than the cons
   await stubHealthy(page)
   // A panel older than `tierDisplayName` answers exactly like this. The screen must degrade to
   // saying nothing about the tier — showing the machine value would be the original defect again.
-  await stubModules(page, [{ name: 'backups', displayName: 'Резервные копии', tier: 'planGated', isEnabled: false }])
+  await stubModules(page, [{ name: 'backups', displayName: 'Резервные копии', tier: 'planGated', state: 'locked' }])
 
   await page.goto('/upgrade/backups')
 
@@ -62,7 +62,7 @@ test('the English upgrade page names the tier in the backend words it was given'
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'backups', displayName: 'Backups', tier: 'addOn', tierDisplayName: 'Add-on', isEnabled: false },
+    { name: 'backups', displayName: 'Backups', tier: 'addOn', tierDisplayName: 'Add-on', state: 'locked' },
   ])
 
   await page.goto('/upgrade/backups')

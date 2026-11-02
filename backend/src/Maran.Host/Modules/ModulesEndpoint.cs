@@ -10,7 +10,7 @@ namespace Maran.Host.Modules;
 /// </summary>
 public static class ModulesEndpoint
 {
-    /// <summary>Maps <c>GET /api/v1/modules</c>, listing modules with their licence state.</summary>
+    /// <summary>Maps <c>GET /api/v1/modules</c>, listing modules with their state.</summary>
     /// <param name="endpoints">The endpoint route builder to map onto.</param>
     /// <returns>The same builder, for chaining.</returns>
     public static IEndpointRouteBuilder MapModuleCatalogue(this IEndpointRouteBuilder endpoints)
@@ -29,10 +29,10 @@ public static class ModulesEndpoint
     }
 
     /// <summary>
-    /// Describes every composed module the caller is allowed to be offered. Until the Licensing
-    /// module lands there is nothing to disable, so every entry reports an enabled state of true;
-    /// tier and display name already come from each module's own <c>Manifest</c>, so wiring real
-    /// licence data later only changes <c>IsEnabled</c>, not the contract.
+    /// Describes every composed module the caller is allowed to be offered. Tier and display name
+    /// come from each module's own <c>Manifest</c>; the state comes from
+    /// <see cref="ModuleStateResolver"/>, the one place that decides it, so wiring real licence data
+    /// later changes that resolver and not the contract.
     /// </summary>
     /// <remarks>
     /// The <see cref="ModuleAudience.AdministratorOnly"/> filter below is presentation, not
@@ -61,7 +61,7 @@ public static class ModulesEndpoint
                                 module.Manifest.Tier,
                                 tierDisplayNames.Of(module.Manifest.Tier),
                                 errorTextProvider.Resolve(module.Manifest.DisplayNameKey),
-                                IsEnabled: true,
+                                ModuleStateResolver.Of(module.Manifest.Tier),
                                 module.Manifest.AgentCapabilities);
             })
             .ToList();

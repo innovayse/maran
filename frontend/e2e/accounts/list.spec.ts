@@ -12,7 +12,7 @@ import type { PanelModule } from '../../src/types/module'
 
 /** Catalogue every spec here starts from: the accounts module licensed, so the route is reachable. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
 ]
 
 const PHONE = { width: 390, height: 844 }

@@ -12,7 +12,7 @@ import type { PanelModule } from '../src/types/module'
 // ("1 задач завершились с ошибкой") is caught by either half.
 
 const LICENSED: PanelModule[] = [
-  { name: 'accounts', displayName: 'Аккаунты', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Аккаунты', tier: 'included', state: 'enabled' },
 ]
 
 /**
@@ -22,7 +22,7 @@ const LICENSED: PanelModule[] = [
  */
 const dashboardWith = (count: number): Dashboard => {
   return {
-    isAdministrator: true,
+    audience: 'administrator',
     resources: UNAVAILABLE,
     services: loaded([]),
     counts: {

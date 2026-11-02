@@ -18,12 +18,12 @@ import type { PanelModule } from '../../src/types/module'
 
 /** The accounts module, which licenses the plans screen. */
 const ACCOUNTS_LICENSED: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
 ]
 
 /** The databases module, whose list carries a row actions menu. */
 const DATABASES_LICENSED: PanelModule[] = [
-  { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
+  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
 ]
 
 /** The owner the database rows need. */

@@ -14,7 +14,7 @@ import type { PanelModule } from '../../src/types/module'
 
 /** Catalogue every spec here starts from: the accounts module licensed, which is what owns plans. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
 ]
 
 /** Starter has three accounts on it, so it is the plan whose edits and deletion reach customers. */

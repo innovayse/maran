@@ -7,7 +7,8 @@ import { useNavigationBadgesStore } from '../stores/navigationBadges'
 import { useTasksStore } from '../stores/tasks'
 import { buildNavigation } from '../utils/buildNavigation'
 import { useNavigationRole } from './useNavigationRole'
-import type { NavigationEntry, NavigationModuleAccess, NavigationPlanFeatures } from '../types/navigation'
+import type { ModuleState } from '../types/module'
+import type { NavigationEntry, NavigationPlanFeatures } from '../types/navigation'
 
 /**
  * The shell's navigation for the signed-in caller, built from the navigation tree
@@ -56,8 +57,8 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       role: role.value,
       catalogue: modulesStore.modules,
       modules: new Map(
-        modulesStore.modules.map((module): [string, NavigationModuleAccess] => {
-          return [module.name, module.isEnabled ? 'enabled' : 'locked']
+        modulesStore.modules.map((module): [string, ModuleState] => {
+          return [module.name, module.state]
         }),
       ),
       planFeatures: planFeatures.value,
