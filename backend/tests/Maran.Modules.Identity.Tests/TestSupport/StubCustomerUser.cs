@@ -13,13 +13,12 @@ public sealed class StubCustomerUser : ICurrentUser
     /// <param name="userId">The login's id.</param>
     /// <param name="username">The login name.</param>
     /// <param name="accountId">
-    /// The account the sign-in is acting for; null for a login acting for none, which owns nothing and so
-    /// is an anonymous caller.
+    /// The account the sign-in is acting for; null for a login acting for none, which owns nothing.
     /// </param>
     public StubCustomerUser(Guid userId, string username, Guid? accountId)
     {
         Caller = accountId is { } account
             ? new CustomerCaller(userId, username, account)
-            : AnonymousCaller.Instance;
+            : new AccountlessCustomerCaller(userId, username);
     }
 }

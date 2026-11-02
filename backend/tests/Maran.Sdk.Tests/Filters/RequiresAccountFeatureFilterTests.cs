@@ -186,7 +186,7 @@ public sealed class RequiresAccountFeatureFilterTests
             }
             else
             {
-                Caller = AnonymousCaller.Instance;
+                Caller = new AccountlessCustomerCaller(Id, "caller");
             }
         }
     }

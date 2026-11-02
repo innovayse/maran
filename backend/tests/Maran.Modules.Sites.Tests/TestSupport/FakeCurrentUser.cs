@@ -36,8 +36,9 @@ public sealed class FakeCurrentUser : ICurrentUser
     }
 
     /// <summary>
-    /// Picks the caller kind the arguments describe: an administrator, a customer, or — for a
-    /// non-administrator that owns no account — anonymous, which owns nothing a tenant filter shows.
+    /// Picks the caller kind the arguments describe: an administrator, a customer acting for an
+    /// account, or — for a non-administrator with no account — a customer who owns nothing, which is
+    /// what a tenant filter must show no row.
     /// </summary>
     /// <param name="userId">The panel user id.</param>
     /// <param name="accountId">The owning account for a customer, or null.</param>
@@ -51,6 +52,8 @@ public sealed class FakeCurrentUser : ICurrentUser
             return new AdministratorCaller(userId, username);
         }
 
-        return accountId is { } account ? new CustomerCaller(userId, username, account) : AnonymousCaller.Instance;
+        return accountId is { } account
+            ? new CustomerCaller(userId, username, account)
+            : new AccountlessCustomerCaller(userId, username);
     }
 }
