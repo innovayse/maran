@@ -89,7 +89,7 @@ const openWith = async (page: Page, sites: Site[]): Promise<() => readonly URL[]
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   const requests = await stubSites(page, sites)
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   return requests
 }
 

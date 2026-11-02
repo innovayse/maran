@@ -149,7 +149,7 @@ test('a customer takes a backup of their own account without a picker', async ({
 test('a customer creates a site on their own account without a picker', async ({ page }) => {
   const accountsCalls = await signInCustomer(page)
   await stubSites(page, [])
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 
   await page.goto('/sites/new')
   await expect(page.getByRole('textbox', { name: 'Domain' })).toBeVisible()

@@ -130,7 +130,7 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubPlans(page, THREE_PLANS)
   await stubAccounts(page, [ACCOUNT])
   await stubSites(page, [SITE])
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   await stubBackups(page, [BACKUP])
   await stubBackupSchedules(page, {})
   await stubBackupDestinations(page, [])

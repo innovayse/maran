@@ -1,4 +1,6 @@
+using Maran.Agent.Client.Services.PhpService;
 using Maran.Modules.Sites.Common;
+using Maran.Modules.Sites.Domain.Enums;
 using AgentPhpVersionDto = Maran.Agent.Client.Services.PhpService.PhpVersionDto;
 
 namespace Maran.Modules.Sites.Mappers;
@@ -25,8 +27,23 @@ public static class PhpVersionMapper
         return versions
             .Select(version =>
             {
-                return new PhpVersionDto(version.Version, version.IsDefault);
+                return new PhpVersionDto(version.Version, ToDefaultStatus(version.DefaultStatus));
             })
             .ToList();
+    }
+
+    /// <summary>Restates the agent client's default status as the panel's, one answer for one answer.</summary>
+    /// <param name="status">The agent client's status.</param>
+    /// <returns>The panel's status with the same meaning; "not known" stays "not known".</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The agent client added a status this mapper does not know.</exception>
+    private static PhpDefaultStatus ToDefaultStatus(AgentPhpDefaultStatus status)
+    {
+        return status switch
+        {
+            AgentPhpDefaultStatus.Default => PhpDefaultStatus.Default,
+            AgentPhpDefaultStatus.NotDefault => PhpDefaultStatus.NotDefault,
+            AgentPhpDefaultStatus.Unknown => PhpDefaultStatus.Unknown,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unknown PHP default status."),
+        };
     }
 }

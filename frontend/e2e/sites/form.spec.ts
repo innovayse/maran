@@ -32,8 +32,8 @@ const stubFormDependencies = async (page: Page): Promise<void> => {
   await stubModules(page, LICENSED_SITES)
   await stubAccounts(page, [OWNER])
   await stubPhpVersions(page, [
-    { version: '8.2', isDefault: false },
-    { version: '8.3', isDefault: true },
+    { version: '8.2', defaultStatus: 'notDefault' },
+    { version: '8.3', defaultStatus: 'default' },
   ])
 }
 

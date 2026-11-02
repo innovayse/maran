@@ -456,8 +456,8 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubSites(page, [SITE])
   await stubSiteDetail(page, SITE_DETAIL)
   await stubPhpVersions(page, [
-    { version: '8.2', isDefault: false },
-    { version: '8.3', isDefault: true },
+    { version: '8.2', defaultStatus: 'notDefault' },
+    { version: '8.3', defaultStatus: 'default' },
   ])
   await stubOpenSiteLogStream(page)
   await stubCertificates(page, [certificateFor(LONG_DOMAIN, 'acme')])

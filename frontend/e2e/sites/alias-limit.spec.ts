@@ -32,7 +32,7 @@ const stubForm = async (page: Page, limits: SiteLimits | null): Promise<void> =>
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubAccounts(page, [OWNER])
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   await stubSites(page, [])
   await stubSiteLimits(page, limits)
 }

@@ -54,7 +54,7 @@ public sealed class PhpVersionInstallEndpointTests : IAsyncLifetime
     public async Task Installing_a_version_that_is_not_installed_answers_ok_without_the_socket_directory()
     {
         var agent = new ScriptedAgentPhpClient(
-            [new PhpVersionDto("8.3", SocketDirectory, true)],
+            [new PhpVersionDto("8.3", SocketDirectory, AgentPhpDefaultStatus.Default)],
             [
                 new PhpInstallEvent(PhpInstallEventKind.Progress, 50, "downloading", "8.4", null),
                 new PhpInstallEvent(PhpInstallEventKind.Installed, 100, "done", "8.4", null),
@@ -79,7 +79,7 @@ public sealed class PhpVersionInstallEndpointTests : IAsyncLifetime
     [Fact]
     public async Task Installing_a_version_that_is_already_installed_answers_ok_and_installs_nothing()
     {
-        var agent = new ScriptedAgentPhpClient([new PhpVersionDto("8.3", SocketDirectory, true)], []);
+        var agent = new ScriptedAgentPhpClient([new PhpVersionDto("8.3", SocketDirectory, AgentPhpDefaultStatus.Default)], []);
 
         var (status, body, audit) = await InstallAsync(agent, "8.3");
 
@@ -107,7 +107,7 @@ public sealed class PhpVersionInstallEndpointTests : IAsyncLifetime
         HttpStatusCode expected)
     {
         var agent = new ScriptedAgentPhpClient(
-            [new PhpVersionDto("8.3", SocketDirectory, true)],
+            [new PhpVersionDto("8.3", SocketDirectory, AgentPhpDefaultStatus.Default)],
             [new PhpInstallEvent(PhpInstallEventKind.Failed, 0, string.Empty, string.Empty, Error.Of(code, kind))]);
 
         var (status, body, audit) = await InstallAsync(agent, "8.4");

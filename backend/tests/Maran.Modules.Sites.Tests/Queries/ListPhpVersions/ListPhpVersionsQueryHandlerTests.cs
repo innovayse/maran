@@ -1,3 +1,4 @@
+using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Queries.ListPhpVersions;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.SharedKernel.Results;
@@ -37,20 +38,20 @@ public sealed class ListPhpVersionsQueryHandlerTests
         {
             return property.Name;
         });
-        Assert.Equal(["Version", "IsDefault"], properties);
+        Assert.Equal(["Version", "DefaultStatus"], properties);
     }
 
-    /// <summary>An unknown default stays unknown rather than becoming false.</summary>
+    /// <summary>An unknown default stays unknown rather than becoming not-default.</summary>
     [Fact]
-    public async Task An_unknown_default_stays_unknown_rather_than_becoming_false()
+    public async Task An_unknown_default_stays_unknown_rather_than_becoming_not_default()
     {
-        // Null and false are different answers: the agent does not currently establish the host's
-        // default CLI PHP, and "not known" must not render as "not the default".
+        // Unknown and not-default are different answers: the agent does not currently establish the
+        // host's default CLI PHP, and "not known" must not render as "not the default".
         var handler = new ListPhpVersionsQueryHandler(new RecordingAgentPhpClient("8.3"));
 
         var result = await handler.HandleAsync(new ListPhpVersionsQuery(), CancellationToken.None);
 
-        Assert.Null(result.Value[0].IsDefault);
+        Assert.Equal(PhpDefaultStatus.Unknown, result.Value[0].DefaultStatus);
     }
 
     /// <summary>An agent that cannot answer is a failure not an empty list.</summary>

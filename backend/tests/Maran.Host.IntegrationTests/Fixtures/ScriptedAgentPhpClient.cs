@@ -53,7 +53,7 @@ public sealed class ScriptedAgentPhpClient : IAgentPhpClient
         {
             if (change.Kind == PhpInstallEventKind.Installed)
             {
-                _installed.Add(new PhpVersionDto(version, $"/run/php/{version}", null));
+                _installed.Add(new PhpVersionDto(version, $"/run/php/{version}", AgentPhpDefaultStatus.Unknown));
             }
 
             yield return change;

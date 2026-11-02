@@ -30,7 +30,7 @@ public sealed class RecordingAgentPhpClient : IAgentPhpClient
     {
         _installed = versions.Select(version =>
         {
-            return new PhpVersionDto(version, $"/run/php/{version}", IsDefault: null);
+            return new PhpVersionDto(version, $"/run/php/{version}", AgentPhpDefaultStatus.Unknown);
         }).ToList();
     }
 
@@ -92,7 +92,7 @@ public sealed class RecordingAgentPhpClient : IAgentPhpClient
             if (change.Kind == PhpInstallEventKind.Installed && _appearsAfterInstall is not null)
             {
                 _installed.Add(
-                    new PhpVersionDto(_appearsAfterInstall, $"/run/php/{_appearsAfterInstall}", IsDefault: null));
+                    new PhpVersionDto(_appearsAfterInstall, $"/run/php/{_appearsAfterInstall}", AgentPhpDefaultStatus.Unknown));
             }
 
             yield return change;

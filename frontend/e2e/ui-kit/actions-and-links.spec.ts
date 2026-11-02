@@ -106,7 +106,7 @@ test('every confirmation names its action on the button that performs it', async
   ])
   await stubSites(page, [])
   await stubSiteDetail(page, SITE)
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   await stubFirewall(page, { rules: [], bans: [{ ...BAN }], whitelist: [{ ...EXEMPTION }] })
 
   await page.goto(`/sites/${SITE.id}`)
@@ -179,7 +179,7 @@ for (const width of [1440, 390]) {
     await signIn(page, [{ name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true }])
     await stubSites(page, [])
     await stubSiteDetail(page, SITE)
-    await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+    await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
     await page.goto(`/sites/${SITE.id}`)
 
     const back = page.getByRole('link', { name: 'Back to sites' })

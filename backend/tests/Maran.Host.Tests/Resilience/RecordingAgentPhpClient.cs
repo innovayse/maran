@@ -30,7 +30,7 @@ internal sealed class RecordingAgentPhpClient : IAgentPhpClient
 
         await Task.Yield();
 
-        return Result<IReadOnlyList<PhpVersionDto>>.Ok([new PhpVersionDto("8.3", "/run/php", null)]);
+        return Result<IReadOnlyList<PhpVersionDto>>.Ok([new PhpVersionDto("8.3", "/run/php", AgentPhpDefaultStatus.Unknown)]);
     }
 
     /// <inheritdoc/>

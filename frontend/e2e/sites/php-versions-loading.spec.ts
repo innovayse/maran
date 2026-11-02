@@ -37,7 +37,7 @@ const signIn = async (page: Page): Promise<void> => {
 const PHP_VERSIONS_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
-    await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+    await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   },
   stubFailure: async (page) => {
     await signIn(page)

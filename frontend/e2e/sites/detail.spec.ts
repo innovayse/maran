@@ -36,8 +36,8 @@ const stubDetailDependencies = async (page: Page): Promise<void> => {
   await stubSites(page, [])
   await stubSiteDetail(page, SITE)
   await stubPhpVersions(page, [
-    { version: '8.2', isDefault: false },
-    { version: '8.3', isDefault: true },
+    { version: '8.2', defaultStatus: 'notDefault' },
+    { version: '8.3', defaultStatus: 'default' },
   ])
 }
 

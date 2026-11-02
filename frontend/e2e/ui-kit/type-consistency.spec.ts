@@ -71,7 +71,7 @@ const stubSiteScreens = async (page: Page): Promise<void> => {
   await stubAccounts(page, [ACCOUNT])
   await stubSites(page, [])
   await stubSiteDetail(page, SITE)
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 }
 
 for (const width of [1440, 390]) {

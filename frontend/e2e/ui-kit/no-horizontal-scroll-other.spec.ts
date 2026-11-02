@@ -164,9 +164,9 @@ const POLICY: SecurityPolicy = {
 
 /** Installed PHP runtimes, one of them the default and one of unknown default state. */
 const PHP_VERSIONS: PhpVersion[] = [
-  { version: '8.4', isDefault: true },
-  { version: '8.3', isDefault: false },
-  { version: '8.2', isDefault: null },
+  { version: '8.4', defaultStatus: 'default' },
+  { version: '8.3', defaultStatus: 'notDefault' },
+  { version: '8.2', defaultStatus: 'unknown' },
 ]
 
 /** The customer's own account, with a plan name long enough to wrap and a suspended-free state. */

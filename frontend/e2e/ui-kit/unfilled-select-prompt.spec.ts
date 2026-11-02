@@ -79,7 +79,7 @@ test('the account pickers of every create form prompt for a choice instead of st
   await stubFtpsServer(page, runningFtpsStatus)
   await stubBackups(page, [])
   await stubSites(page, [])
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 
   for (const path of ['/databases', '/file-transfer/sftp', '/file-transfer/ftps', '/backups', '/sites/new']) {
     await page.goto(path)
@@ -110,7 +110,7 @@ test('the account pickers of every create form are named after the account in Ar
   await stubFtpsServer(page, runningFtpsStatus)
   await stubBackups(page, [])
   await stubSites(page, [])
-  await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
+  await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 
   for (const path of ['/databases', '/file-transfer/sftp', '/file-transfer/ftps', '/backups', '/sites/new']) {
     await page.goto(path)
@@ -126,8 +126,8 @@ test('the PHP version picker prompts for a choice instead of standing blank', as
   await stubAccounts(page, [ALICE])
   await stubSites(page, [])
   await stubPhpVersions(page, [
-    { version: '8.2', isDefault: false },
-    { version: '8.3', isDefault: true },
+    { version: '8.2', defaultStatus: 'notDefault' },
+    { version: '8.3', defaultStatus: 'default' },
   ])
 
   await page.goto('/sites/new')
