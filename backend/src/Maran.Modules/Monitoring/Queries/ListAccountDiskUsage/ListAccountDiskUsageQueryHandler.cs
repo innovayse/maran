@@ -72,10 +72,10 @@ public sealed class ListAccountDiskUsageQueryHandler
     private readonly IAccountDirectory _accounts;
 
     /// <summary>
-    /// The localized text explaining why a row's <see cref="AccountDiskUsageDto.Enforceable"/> is
-    /// false. Read here rather than left to the SPA to invent, per rules/architecture.md ("the
-    /// backend owns the data, the SPA renders it") — a raw boolean gives the reader no idea what to
-    /// do about it.
+    /// The localized text explaining a row's <see cref="AccountDiskUsageDto.Backing"/> when it is not
+    /// enforced or not known. Read here rather than left to the SPA to invent, per
+    /// rules/architecture.md ("the backend owns the data, the SPA renders it") — a bare state gives
+    /// the reader no idea what to do about it.
     /// </summary>
     private readonly IStringLocalizer<DisplayNames> _text;
 
@@ -136,19 +136,18 @@ public sealed class ListAccountDiskUsageQueryHandler
         // enforceability plan: a future layout where accounts split across
         // filesystems must not have to widen the wire contract again). A
         // failed read here is NOT folded into the whole listing's failure:
-        // the panel must still show what it can measure, and default to the
-        // SAFE reading — "assume not enforceable" — rather than silently
-        // claiming a limit is backed by a kernel it never actually asked.
+        // the panel must still show what it can measure. It is not folded into
+        // "not enforceable" either: that would assert a finding the agent never
+        // made. The rows say the backing could not be determined, and no row
+        // claims a limit is backed by a kernel nobody actually asked.
         var enforceability = await _agent.GetQuotaEnforceabilityAsync(cancellationToken);
-        var enforceable = enforceability is { IsSuccess: true, Value.IsEnforceable: true };
-
-        var note = enforceable ? null : _text["AccountQuotaNotEnforceableNote"].Value;
+        var backing = ToBacking(enforceability);
 
         var usedByUsername = ByUsername(measured.Value);
 
         return Result<PagedResult<AccountDiskUsageDto>>.Ok(page.Map(account =>
         {
-            return ToRow(account, usedByUsername, enforceable, note);
+            return ToRow(account, usedByUsername, backing);
         }));
     }
 
@@ -174,20 +173,39 @@ public sealed class ListAccountDiskUsageQueryHandler
         return usedByUsername;
     }
 
+    /// <summary>Turns the agent's enforceability reading into the backing every row of the page carries.</summary>
+    /// <param name="enforceability">What the agent answered, or the failure that stood in for an answer.</param>
+    /// <returns>
+    /// Enforced when the agent said so; not enforced, with its sentence, when the agent said the
+    /// filesystem cannot; unmeasured, with its own sentence, when there was no usable answer.
+    /// </returns>
+    private QuotaBackingDto ToBacking(Result<AgentQuotaEnforceability> enforceability)
+    {
+        if (!enforceability.IsSuccess)
+        {
+            return new QuotaBackingDto.Unmeasured(_text["AccountQuotaUnmeasuredNote"].Value);
+        }
+
+        if (enforceability.Value is AgentQuotaEnforceability.NotEnforceable)
+        {
+            return new QuotaBackingDto.NotEnforced(_text["AccountQuotaNotEnforceableNote"].Value);
+        }
+
+        return new QuotaBackingDto.Enforced();
+    }
+
     /// <summary>Builds one account's row from its snapshot and whatever the agent measured for it.</summary>
     /// <param name="account">The account, as the Accounts module described it.</param>
     /// <param name="usedByUsername">The agent's measurements, indexed by user name.</param>
-    /// <param name="enforceable">
+    /// <param name="backing">
     /// Whether the filesystem holding hosting accounts' homes can currently enforce a quota — see
-    /// <see cref="AccountDiskUsageDto.Enforceable"/>.
+    /// <see cref="AccountDiskUsageDto.Backing"/>. One value shared by every row.
     /// </param>
-    /// <param name="note">The localized explanation shared by every row — see <see cref="AccountDiskUsageDto.Note"/>.</param>
     /// <returns>The row.</returns>
     private static AccountDiskUsageDto ToRow(
         AccountSnapshot account,
         Dictionary<string, ulong> usedByUsername,
-        bool enforceable,
-        string? note)
+        QuotaBackingDto backing)
     {
         // NULL, not zero, and the nullable type is the whole reason this method exists. An account
         // the agent did not measure — because the agent was down, or because a rename left the
@@ -203,8 +221,7 @@ public sealed class ListAccountDiskUsageQueryHandler
             account.Username,
             usedBytes,
             ToQuotaBytes(account.DiskQuotaMb),
-            enforceable,
-            note);
+            backing);
     }
 
     /// <summary>Converts a plan's allowance from the megabytes it is stored in to bytes.</summary>

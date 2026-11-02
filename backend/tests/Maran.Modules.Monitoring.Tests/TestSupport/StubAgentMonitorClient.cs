@@ -38,7 +38,7 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
 
     /// <summary>What <see cref="GetSftpJailStatusAsync"/> answers.</summary>
     public Result<AgentSftpJailStatus> SftpJailStatus { get; set; } =
-        Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus(false, []));
+        Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus.Intact());
 
     /// <summary>How many times quota enforceability was asked for.</summary>
     public int QuotaEnforceabilityCalls { get; private set; }
@@ -46,7 +46,7 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     /// <summary>What <see cref="GetQuotaEnforceabilityAsync"/> answers.</summary>
     public Result<AgentQuotaEnforceability> QuotaEnforceability { get; set; } =
         Result<AgentQuotaEnforceability>.Ok(
-            new AgentQuotaEnforceability(true, Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified));
+            new AgentQuotaEnforceability.Enforceable());
 
     /// <summary>How many times the clock's synchronisation was asked for.</summary>
     public int ClockSyncCalls { get; private set; }

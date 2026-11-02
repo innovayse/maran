@@ -180,7 +180,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
         Calls.Add($"usage:{username}");
         var used = UsedBytes.GetValueOrDefault(username, DefaultUsedBytes);
         return Task.FromResult(_failure is null
-            ? Result<AccountUsageDto>.Ok(new AccountUsageDto(used, 4096, AccountQuotaState.Enforced, QuotaUnenforceableReason.Unspecified))
+            ? Result<AccountUsageDto>.Ok(new AccountUsageDto(used, new AccountQuota.Enforced(4096)))
             : Result<AccountUsageDto>.Fail(_failure));
     }
 

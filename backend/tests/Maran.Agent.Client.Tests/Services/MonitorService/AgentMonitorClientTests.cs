@@ -307,9 +307,9 @@ public sealed class AgentMonitorClientTests
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
-    /// <summary>An intact block maps to a finding with no drift and nothing missing.</summary>
+    /// <summary>An intact block maps to the intact case, which carries nothing missing.</summary>
     [Fact]
-    public async Task An_intact_block_maps_to_a_finding_with_no_drift()
+    public async Task An_intact_block_maps_to_the_intact_case()
     {
         var stub = new StubMonitorService
         {
@@ -322,8 +322,7 @@ public sealed class AgentMonitorClientTests
         var result = await Client(stub).GetSftpJailStatusAsync(CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.False(result.Value.IsDrifted);
-        Assert.Empty(result.Value.Missing);
+        Assert.IsType<AgentSftpJailStatus.Intact>(result.Value);
         Assert.NotNull(stub.LastSftpJailStatusRequest);
     }
 
@@ -346,30 +345,138 @@ public sealed class AgentMonitorClientTests
         var result = await Client(stub).GetSftpJailStatusAsync(CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value.IsDrifted);
-        Assert.Equal(["forcecommand internal-sftp", "x11forwarding no"], result.Value.Missing);
+        var drifted = Assert.IsType<AgentSftpJailStatus.Drifted>(result.Value);
+        Assert.Equal(["forcecommand internal-sftp", "x11forwarding no"], drifted.Missing);
     }
 
     /// <summary>
-    /// An agent too old, or too new, to send a state this build recognises is read as drifted —
-    /// never as intact — because the safe direction for a state this client cannot positively
-    /// confirm is the one that gets an operator's attention.
+    /// An agent too old, or too new, to send a state this build recognises is refused as an invalid
+    /// reply — never read as intact, and never as drifted with nothing missing, which would raise an
+    /// alert about a finding nobody made.
     /// </summary>
-    [Fact]
-    public async Task An_unspecified_state_is_read_as_drifted_and_never_as_intact()
+    /// <param name="state">The wire state this build has no name for.</param>
+    [Theory]
+    [InlineData(SftpJailState.Unspecified)]
+    [InlineData((SftpJailState)99)]
+    public async Task A_state_this_build_cannot_name_is_refused_rather_than_read_as_either_case(SftpJailState state)
     {
         var stub = new StubMonitorService
         {
             SftpJailStatusResponse = new GetSftpJailStatusResponse
             {
-                Ok = new GetSftpJailStatusOk { State = SftpJailState.Unspecified },
+                Ok = new GetSftpJailStatusOk { State = state },
             },
         };
 
         var result = await Client(stub).GetSftpJailStatusAsync(CancellationToken.None);
 
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
+    /// <summary>An enforceable filesystem maps to the enforceable case, which carries no reason.</summary>
+    [Fact]
+    public async Task An_enforceable_filesystem_maps_to_the_enforceable_case()
+    {
+        var stub = new StubMonitorService
+        {
+            QuotaEnforceabilityResponse = new GetQuotaEnforceabilityResponse
+            {
+                Ok = new GetQuotaEnforceabilityOk { Enforceability = QuotaEnforceability.Enforceable },
+            },
+        };
+
+        var result = await Client(stub).GetQuotaEnforceabilityAsync(CancellationToken.None);
+
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value.IsDrifted);
+        Assert.IsType<AgentQuotaEnforceability.Enforceable>(result.Value);
+        Assert.NotNull(stub.LastQuotaEnforceabilityRequest);
+    }
+
+    /// <summary>Each named reason a filesystem cannot enforce a quota maps to its own panel reason.</summary>
+    /// <param name="wire">The reason on the wire.</param>
+    /// <param name="expected">The panel reason it must become.</param>
+    [Theory]
+    [InlineData(
+        QuotaEnforceabilityReason.MountedWithoutQuotaAccounting,
+        Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.MountedWithoutQuotaAccounting)]
+    [InlineData(
+        QuotaEnforceabilityReason.AccountingNotEnabled,
+        Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.AccountingNotEnabled)]
+    public async Task A_filesystem_that_cannot_enforce_a_quota_keeps_the_reason_the_agent_gave(
+        QuotaEnforceabilityReason wire,
+        Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason expected)
+    {
+        var stub = new StubMonitorService
+        {
+            QuotaEnforceabilityResponse = new GetQuotaEnforceabilityResponse
+            {
+                Ok = new GetQuotaEnforceabilityOk
+                {
+                    Enforceability = QuotaEnforceability.NotEnforceable,
+                    Reason = wire,
+                },
+            },
+        };
+
+        var result = await Client(stub).GetQuotaEnforceabilityAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var notEnforceable = Assert.IsType<AgentQuotaEnforceability.NotEnforceable>(result.Value);
+        Assert.Equal(expected, notEnforceable.Reason);
+    }
+
+    /// <summary>
+    /// An agent that predates the field, or is newer than this build, sends an enforceability this
+    /// panel cannot name; the reply is refused rather than read as enforceable (a limit nothing backs)
+    /// or as not enforceable (an alert about a fact nobody measured).
+    /// </summary>
+    /// <param name="enforceability">The wire value this build has no name for.</param>
+    [Theory]
+    [InlineData(QuotaEnforceability.Unspecified)]
+    [InlineData((QuotaEnforceability)99)]
+    public async Task An_enforceability_this_build_cannot_name_is_refused(QuotaEnforceability enforceability)
+    {
+        var stub = new StubMonitorService
+        {
+            QuotaEnforceabilityResponse = new GetQuotaEnforceabilityResponse
+            {
+                Ok = new GetQuotaEnforceabilityOk { Enforceability = enforceability },
+            },
+        };
+
+        var result = await Client(stub).GetQuotaEnforceabilityAsync(CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
+    /// <summary>
+    /// A NOT_ENFORCEABLE finding whose reason is absent or unknown is refused: the reason is part of
+    /// the finding, and no placeholder reason exists to stand in for it.
+    /// </summary>
+    /// <param name="reason">The unusable wire reason.</param>
+    [Theory]
+    [InlineData(QuotaEnforceabilityReason.Unspecified)]
+    [InlineData((QuotaEnforceabilityReason)99)]
+    public async Task A_not_enforceable_finding_without_a_nameable_reason_is_refused(QuotaEnforceabilityReason reason)
+    {
+        var stub = new StubMonitorService
+        {
+            QuotaEnforceabilityResponse = new GetQuotaEnforceabilityResponse
+            {
+                Ok = new GetQuotaEnforceabilityOk
+                {
+                    Enforceability = QuotaEnforceability.NotEnforceable,
+                    Reason = reason,
+                },
+            },
+        };
+
+        var result = await Client(stub).GetQuotaEnforceabilityAsync(CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
     /// <summary>The SFTP jail error payload maps to a failed result with the agent code.</summary>

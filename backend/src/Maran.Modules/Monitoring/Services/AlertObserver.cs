@@ -123,7 +123,7 @@ public sealed class AlertObserver
             var transition = await ObserveAsync(
                 AlertKind.SftpJailDrifted,
                 AlertEvaluator.SftpJailSubject,
-                sftpJailStatus.IsDrifted,
+                sftpJailStatus is AgentSftpJailStatus.Drifted,
                 observedAt,
                 cancellationToken);
 
@@ -132,7 +132,7 @@ public sealed class AlertObserver
                 AlertEvaluator.SftpJailSubject,
                 AlertEvaluator.SftpJailSubject,
                 transition,
-                AlertDetailMapper.FormatMissing(sftpJailStatus.Missing)));
+                AlertDetailMapper.FormatMissing(sftpJailStatus)));
         }
 
         if (quotaStatus is not null)
@@ -140,7 +140,7 @@ public sealed class AlertObserver
             var transition = await ObserveAsync(
                 AlertKind.QuotaNotEnforceable,
                 AlertEvaluator.AccountHomeFilesystemSubject,
-                !quotaStatus.IsEnforceable,
+                quotaStatus is AgentQuotaEnforceability.NotEnforceable,
                 observedAt,
                 cancellationToken);
 
@@ -149,7 +149,7 @@ public sealed class AlertObserver
                 AlertEvaluator.AccountHomeFilesystemSubject,
                 AlertEvaluator.AccountHomeFilesystemSubject,
                 transition,
-                AlertDetailMapper.FormatReason(quotaStatus.Reason)));
+                AlertDetailMapper.FormatReason(quotaStatus)));
         }
 
         if (clockSync is not null)

@@ -114,8 +114,7 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
 
         return response.ResultCase switch
         {
-            GetSftpJailStatusResponse.ResultOneofCase.Ok => Result<AgentSftpJailStatus>.Ok(
-                ToJailStatus(response.Ok)),
+            GetSftpJailStatusResponse.ResultOneofCase.Ok => ToJailStatus(response.Ok),
             GetSftpJailStatusResponse.ResultOneofCase.Error => Result<AgentSftpJailStatus>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetSftpJailStatusAsync))),
             _ => Result<AgentSftpJailStatus>.Fail(
@@ -133,8 +132,7 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
 
         return response.ResultCase switch
         {
-            GetQuotaEnforceabilityResponse.ResultOneofCase.Ok => Result<AgentQuotaEnforceability>.Ok(
-                ToQuotaEnforceability(response.Ok)),
+            GetQuotaEnforceabilityResponse.ResultOneofCase.Ok => ToQuotaEnforceability(response.Ok),
             GetQuotaEnforceabilityResponse.ResultOneofCase.Error => Result<AgentQuotaEnforceability>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetQuotaEnforceabilityAsync))),
             _ => Result<AgentQuotaEnforceability>.Fail(
@@ -214,38 +212,81 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
 
     /// <summary>Projects the wire finding onto the panel's own.</summary>
     /// <param name="ok">The success payload of <c>GetQuotaEnforceability</c>.</param>
-    /// <returns>Whether the filesystem can enforce a quota, and why not when it cannot.</returns>
+    /// <returns>
+    /// Whether the filesystem can enforce a quota, and why not when it cannot — or
+    /// <c>AgentInvalidResponse</c> when the wire states neither.
+    /// </returns>
     /// <remarks>
-    /// UNSPECIFIED and any unrecognised value are both read as NOT enforceable, never as
-    /// enforceable — the same safe direction <see cref="ToJailStatus"/> takes for its own unmapped
-    /// state: the panel must never display a limit it cannot back up over a value it merely failed
-    /// to recognise.
+    /// Written out rather than cast. UNSPECIFIED means the agent predates the field, and an
+    /// unrecognised value means it is newer than this panel; the handshake window admits neither.
+    /// Such a reply says nothing, so it is refused as a failed read: the caller already treats a
+    /// failed read as "no evidence either way" (see <see cref="IAgentMonitorClient"/>), which is the
+    /// honest reading, whereas answering "enforceable" would display a limit nothing backs and
+    /// answering "not enforceable" would raise an alert about a fact nobody measured. The same goes
+    /// for a NOT_ENFORCEABLE finding whose reason the panel cannot name: the reason is part of the
+    /// finding, so a finding without one is not a finding.
     /// </remarks>
-    private static AgentQuotaEnforceability ToQuotaEnforceability(GetQuotaEnforceabilityOk ok)
+    private static Result<AgentQuotaEnforceability> ToQuotaEnforceability(GetQuotaEnforceabilityOk ok)
     {
-        var reason = Enum.IsDefined(
-            typeof(Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason),
-            (int)ok.Reason)
-            ? (Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason)(int)ok.Reason
-            : Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified;
+        switch (ok.Enforceability)
+        {
+            case QuotaEnforceability.Enforceable:
+                return Result<AgentQuotaEnforceability>.Ok(new AgentQuotaEnforceability.Enforceable());
+            case QuotaEnforceability.NotEnforceable:
+                return ToNotEnforceable(ok.Reason);
+            default:
+                return Result<AgentQuotaEnforceability>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
+    }
 
-        return new AgentQuotaEnforceability(ok.Enforceability == QuotaEnforceability.Enforceable, reason);
+    /// <summary>Names the reason the agent gave for a filesystem that cannot enforce a quota.</summary>
+    /// <param name="reason">The wire reason.</param>
+    /// <returns>The finding, or <c>AgentInvalidResponse</c> when the wire names no reason this panel knows.</returns>
+    private static Result<AgentQuotaEnforceability> ToNotEnforceable(QuotaEnforceabilityReason reason)
+    {
+        switch (reason)
+        {
+            case QuotaEnforceabilityReason.MountedWithoutQuotaAccounting:
+                return Result<AgentQuotaEnforceability>.Ok(
+                    new AgentQuotaEnforceability.NotEnforceable(
+                        AccountsService.QuotaUnenforceableReason.MountedWithoutQuotaAccounting));
+            case QuotaEnforceabilityReason.AccountingNotEnabled:
+                return Result<AgentQuotaEnforceability>.Ok(
+                    new AgentQuotaEnforceability.NotEnforceable(
+                        AccountsService.QuotaUnenforceableReason.AccountingNotEnabled));
+            default:
+                return Result<AgentQuotaEnforceability>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
     }
 
     /// <summary>Projects the wire finding onto the panel's own.</summary>
     /// <param name="ok">The success payload of <c>GetSftpJailStatus</c>.</param>
-    /// <returns>Whether the block is intact, and what is missing when it is not.</returns>
+    /// <returns>
+    /// Whether the block is intact, and what is missing when it is not — or <c>AgentInvalidResponse</c>
+    /// when the wire states neither.
+    /// </returns>
     /// <remarks>
-    /// Written out rather than cast, for the same reason <see cref="ToPanelService"/> is: a value
-    /// this build has no name for — an agent newer than this panel sending a third state — must not
-    /// silently become a member the switch below never intended. UNSPECIFIED and any unrecognised
-    /// value are both read as drifted, never as intact: the safe direction for a state this client
-    /// cannot positively confirm is the one that gets an operator's attention rather than the one
-    /// that stays quiet.
+    /// Written out rather than cast, for the same reason <see cref="ToPanelState"/> is: a value this
+    /// build has no name for — UNSPECIFIED from an agent that predates the field, or a third state
+    /// from one newer than this panel — must not silently become a member the switch below never
+    /// intended. It is refused as a failed read instead of being read as drifted: a failed read
+    /// advances no alert, whereas "drifted" with an empty list of what is missing would raise one
+    /// about a finding nobody made.
     /// </remarks>
-    private static AgentSftpJailStatus ToJailStatus(GetSftpJailStatusOk ok)
+    private static Result<AgentSftpJailStatus> ToJailStatus(GetSftpJailStatusOk ok)
     {
-        return new AgentSftpJailStatus(ok.State != SftpJailState.Intact, [.. ok.Missing]);
+        switch (ok.State)
+        {
+            case SftpJailState.Intact:
+                return Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus.Intact());
+            case SftpJailState.Drifted:
+                return Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus.Drifted([.. ok.Missing]));
+            default:
+                return Result<AgentSftpJailStatus>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
     }
 
     /// <summary>Projects the wire snapshot onto the panel's own.</summary>

@@ -189,7 +189,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var drifted = new AgentSftpJailStatus(true, ["forcecommand internal-sftp"]);
+        var drifted = new AgentSftpJailStatus.Drifted(["forcecommand internal-sftp"]);
 
         for (var observation = 0; observation < 20; observation++)
         {
@@ -215,8 +215,8 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var drifted = new AgentSftpJailStatus(true, ["forcecommand internal-sftp"]);
-        var intact = new AgentSftpJailStatus(false, []);
+        var drifted = new AgentSftpJailStatus.Drifted(["forcecommand internal-sftp"]);
+        var intact = new AgentSftpJailStatus.Intact();
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
@@ -270,7 +270,7 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var unenforceable = new AgentQuotaEnforceability(false, QuotaUnenforceableReason.AccountingNotEnabled);
+        var unenforceable = new AgentQuotaEnforceability.NotEnforceable(QuotaUnenforceableReason.AccountingNotEnabled);
 
         for (var observation = 0; observation < 20; observation++)
         {
@@ -296,8 +296,8 @@ public sealed class AlertEvaluatorTests
         using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
         var evaluator = scopes.Resolve<AlertEvaluator>();
 
-        var unenforceable = new AgentQuotaEnforceability(false, QuotaUnenforceableReason.AccountingNotEnabled);
-        var enforceable = new AgentQuotaEnforceability(true, QuotaUnenforceableReason.Unspecified);
+        var unenforceable = new AgentQuotaEnforceability.NotEnforceable(QuotaUnenforceableReason.AccountingNotEnabled);
+        var enforceable = new AgentQuotaEnforceability.Enforceable();
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {

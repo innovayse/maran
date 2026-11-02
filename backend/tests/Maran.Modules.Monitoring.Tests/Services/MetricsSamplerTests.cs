@@ -166,7 +166,7 @@ public sealed class MetricsSamplerTests
         var agent = new StubAgentMonitorClient
         {
             SftpJailStatus = Result<AgentSftpJailStatus>.Ok(
-                new AgentSftpJailStatus(true, ["forcecommand internal-sftp"])),
+                new AgentSftpJailStatus.Drifted(["forcecommand internal-sftp"])),
         };
         var clock = new FakeClock();
         var audit = new RecordingAuditWriter();

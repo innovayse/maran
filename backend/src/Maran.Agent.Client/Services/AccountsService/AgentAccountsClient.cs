@@ -286,22 +286,73 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
 
         return response.ResultCase switch
         {
-#pragma warning disable CS0612 // QuotaBytes is deprecated on the wire but still read as the legacy mirror.
-            GetAccountUsageResponse.ResultOneofCase.Ok => Result<AccountUsageDto>.Ok(
-                new AccountUsageDto(
-                    response.Ok.UsedBytes,
-                    response.Ok.QuotaBytes,
-                    Enum.IsDefined(typeof(AccountQuotaState), (int)response.Ok.QuotaState)
-                        ? (AccountQuotaState)(int)response.Ok.QuotaState
-                        : AccountQuotaState.Unspecified,
-                    Enum.IsDefined(typeof(QuotaUnenforceableReason), (int)response.Ok.QuotaUnenforceableReason)
-                        ? (QuotaUnenforceableReason)(int)response.Ok.QuotaUnenforceableReason
-                        : QuotaUnenforceableReason.Unspecified)),
-#pragma warning restore CS0612
+            GetAccountUsageResponse.ResultOneofCase.Ok => ToUsage(response.Ok),
             GetAccountUsageResponse.ResultOneofCase.Error => Result<AccountUsageDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetUsageAsync))),
             _ => Result<AccountUsageDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
+    }
+
+    /// <summary>Projects the wire usage reading onto the panel's own.</summary>
+    /// <param name="ok">The success payload of <c>GetAccountUsage</c>.</param>
+    /// <returns>The usage with its quota case, or <c>AgentInvalidResponse</c> for a quota it cannot name.</returns>
+    /// <remarks>
+    /// The quota is written out case by case rather than cast. UNSPECIFIED means the agent predates
+    /// the field and an unrecognised value means it is newer than this panel; the handshake window
+    /// admits neither, and a reading that says nothing about the quota is refused rather than given
+    /// a case it did not state — in particular the deprecated byte figure, which is zero for two of
+    /// the three real cases, is never read as a stand-in.
+    /// </remarks>
+    private static Result<AccountUsageDto> ToUsage(GetAccountUsageOk ok)
+    {
+        var quota = ToQuota(ok);
+
+        if (!quota.IsSuccess)
+        {
+            return Result<AccountUsageDto>.Fail(quota.Error!);
+        }
+
+        return Result<AccountUsageDto>.Ok(new AccountUsageDto(ok.UsedBytes, quota.Value));
+    }
+
+    /// <summary>Names the quota case the agent reported.</summary>
+    /// <param name="ok">The success payload of <c>GetAccountUsage</c>.</param>
+    /// <returns>The case, or <c>AgentInvalidResponse</c> when the wire states none this panel can name.</returns>
+    private static Result<AccountQuota> ToQuota(GetAccountUsageOk ok)
+    {
+        switch (ok.QuotaState)
+        {
+            case QuotaState.Enforced:
+#pragma warning disable CS0612 // QuotaBytes is deprecated on the wire; for an enforced quota it is still the figure.
+                return Result<AccountQuota>.Ok(new AccountQuota.Enforced(ok.QuotaBytes));
+#pragma warning restore CS0612
+            case QuotaState.EnforceableButUnset:
+                return Result<AccountQuota>.Ok(new AccountQuota.EnforceableButUnset());
+            case QuotaState.NotEnforceable:
+                return ToNotEnforceable(ok.QuotaUnenforceableReason);
+            default:
+                return Result<AccountQuota>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
+    }
+
+    /// <summary>Names the reason the agent gave for a quota it cannot enforce.</summary>
+    /// <param name="reason">The wire reason.</param>
+    /// <returns>The case, or <c>AgentInvalidResponse</c> when the wire names no reason this panel knows.</returns>
+    private static Result<AccountQuota> ToNotEnforceable(Maran.Agent.V1.QuotaUnenforceableReason reason)
+    {
+        switch (reason)
+        {
+            case Maran.Agent.V1.QuotaUnenforceableReason.MountedWithoutQuotaAccounting:
+                return Result<AccountQuota>.Ok(
+                    new AccountQuota.NotEnforceable(QuotaUnenforceableReason.MountedWithoutQuotaAccounting));
+            case Maran.Agent.V1.QuotaUnenforceableReason.AccountingNotEnabled:
+                return Result<AccountQuota>.Ok(
+                    new AccountQuota.NotEnforceable(QuotaUnenforceableReason.AccountingNotEnabled));
+            default:
+                return Result<AccountQuota>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
     }
 
     /// <inheritdoc/>

@@ -29,7 +29,7 @@ public sealed class FixedUsageAgentAccountsClient : IAgentAccountsClient
     public Task<Result<AccountUsageDto>> GetUsageAsync(string username, CancellationToken cancellationToken)
     {
         return Task.FromResult(Result<AccountUsageDto>.Ok(
-            new AccountUsageDto(_usedBytes, 0, AccountQuotaState.Enforced, QuotaUnenforceableReason.Unspecified)));
+            new AccountUsageDto(_usedBytes, new AccountQuota.Enforced(4096))));
     }
 
     /// <summary>Every runtime-ceiling push, as <c>username:cpu/memory/processes</c>, in order.</summary>
