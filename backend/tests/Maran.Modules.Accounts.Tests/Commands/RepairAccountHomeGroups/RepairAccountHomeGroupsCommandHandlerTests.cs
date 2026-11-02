@@ -95,8 +95,8 @@ public sealed class RepairAccountHomeGroupsCommandHandlerTests
 
         var result = await handler.HandleAsync(new RepairAccountHomeGroupsCommand(1), CancellationToken.None);
 
-        var report = Assert.IsType<HomeGroupRepairedReportDto>(result.Value);
-        var repaired = Assert.Single(report.Repaired);
+        var work = Assert.IsType<HomeGroupRepairAppliedDto>(result.Value.Work);
+        var repaired = Assert.Single(work.Homes);
         Assert.Equal("bob", repaired.AccountUsername);
     }
 
@@ -122,9 +122,8 @@ public sealed class RepairAccountHomeGroupsCommandHandlerTests
         var result = await handler.HandleAsync(new RepairAccountHomeGroupsCommand(0), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var report = Assert.IsType<HomeGroupRepairedReportDto>(result.Value);
-        Assert.Equal(9u, report.AlreadyCorrect);
-        Assert.Empty(report.Repaired);
+        Assert.Equal(9u, result.Value.AlreadyCorrect);
+        Assert.Empty(Assert.IsType<HomeGroupRepairAppliedDto>(result.Value.Work).Homes);
         Assert.Equal([true, false], agent.HomeGroupRepairPasses);
     }
 

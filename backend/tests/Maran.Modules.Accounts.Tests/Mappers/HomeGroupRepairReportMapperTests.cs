@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Resources;
@@ -14,35 +15,41 @@ namespace Maran.Modules.Accounts.Tests.Mappers;
 /// <summary>
 /// Behavioural contract of <see cref="HomeGroupRepairReportMapper"/>: the kind of pass is the method
 /// the caller chose, so a report-only pass and a repairing pass over the same census are different
-/// shapes, each carrying only the list its pass fills.
+/// shapes of the report's work, each carrying only the list its pass fills.
 /// </summary>
 public sealed class HomeGroupRepairReportMapperTests
 {
-    /// <summary>A report-only census becomes an inspection carrying the homes a repair would re-group.</summary>
+    /// <summary>A report-only census becomes a preview carrying the homes a repair would re-group.</summary>
     [Fact]
-    public void A_report_only_census_becomes_an_inspection_carrying_the_homes_a_repair_would_regroup()
+    public void A_report_only_census_becomes_a_preview_carrying_the_homes_a_repair_would_regroup()
     {
         var census = new AgentHomeGroupRepairReport(
-            3, 1, [], [new AgentRepairedHome("alice", "/home/alice")], [new AgentRefusedHome("carol", "/home/carol", "OwnerMismatch")]);
+            3,
+            1,
+            [],
+            [new AgentRepairedHome("alice", "/home/alice")],
+            [new AgentRefusedHome("carol", "/home/carol", "OwnerMismatch")]);
 
-        var dto = HomeGroupRepairReportMapper.ToInspection(census, RefusalText());
+        var dto = HomeGroupRepairReportMapper.ToPreview(census, RefusalText());
 
         Assert.Equal(3u, dto.Examined);
         Assert.Equal(1u, dto.AlreadyCorrect);
-        Assert.Equal("alice", Assert.Single(dto.WouldRepair).AccountUsername);
+        var work = Assert.IsType<HomeGroupRepairPreviewDto>(dto.Work);
+        Assert.Equal("alice", Assert.Single(work.Homes).AccountUsername);
         Assert.Equal("carol", Assert.Single(dto.Refused).AccountUsername);
     }
 
-    /// <summary>A repairing census becomes a repair carrying the homes that were re-grouped.</summary>
+    /// <summary>A repairing census becomes an applied report carrying the homes that were re-grouped.</summary>
     [Fact]
-    public void A_repairing_census_becomes_a_repair_carrying_the_homes_that_were_regrouped()
+    public void A_repairing_census_becomes_an_applied_report_carrying_the_homes_that_were_regrouped()
     {
         var census = new AgentHomeGroupRepairReport(
             2, 1, [new AgentRepairedHome("bob", "/home/bob")], [], []);
 
-        var dto = HomeGroupRepairReportMapper.ToRepaired(census, RefusalText());
+        var dto = HomeGroupRepairReportMapper.ToApplied(census, RefusalText());
 
-        Assert.Equal("bob", Assert.Single(dto.Repaired).AccountUsername);
+        var work = Assert.IsType<HomeGroupRepairAppliedDto>(dto.Work);
+        Assert.Equal("bob", Assert.Single(work.Homes).AccountUsername);
         Assert.Empty(dto.Refused);
     }
 
@@ -52,11 +59,25 @@ public sealed class HomeGroupRepairReportMapperTests
     {
         var census = new AgentHomeGroupRepairReport(9, 9, [], [], []);
 
-        HomeGroupRepairReportDto inspected = HomeGroupRepairReportMapper.ToInspection(census, RefusalText());
-        HomeGroupRepairReportDto repaired = HomeGroupRepairReportMapper.ToRepaired(census, RefusalText());
+        var previewed = HomeGroupRepairReportMapper.ToPreview(census, RefusalText());
+        var applied = HomeGroupRepairReportMapper.ToApplied(census, RefusalText());
 
-        Assert.IsType<HomeGroupInspectionReportDto>(inspected);
-        Assert.IsType<HomeGroupRepairedReportDto>(repaired);
+        Assert.IsType<HomeGroupRepairPreviewDto>(previewed.Work);
+        Assert.IsType<HomeGroupRepairAppliedDto>(applied.Work);
+    }
+
+    /// <summary>The report's work carries its kind on the wire, which is what tells the two passes apart.</summary>
+    [Fact]
+    public void The_reports_work_carries_its_kind_on_the_wire()
+    {
+        var census = new AgentHomeGroupRepairReport(1, 1, [], [], []);
+        var wire = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+        var previewed = JsonSerializer.Serialize(HomeGroupRepairReportMapper.ToPreview(census, RefusalText()), wire);
+        var applied = JsonSerializer.Serialize(HomeGroupRepairReportMapper.ToApplied(census, RefusalText()), wire);
+
+        Assert.Contains("\"work\":{\"kind\":\"preview\"", previewed, StringComparison.Ordinal);
+        Assert.Contains("\"work\":{\"kind\":\"applied\"", applied, StringComparison.Ordinal);
     }
 
     /// <summary>Builds a real localizer over this module's own embedded resources.</summary>

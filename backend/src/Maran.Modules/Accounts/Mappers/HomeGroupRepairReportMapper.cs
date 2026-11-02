@@ -29,31 +29,31 @@ public static class HomeGroupRepairReportMapper
     /// <summary>Projects the census of a report-only pass onto the wire.</summary>
     /// <param name="report">What the agent read; nothing was changed.</param>
     /// <param name="refusalText">Resolver for the two sentences each refusal carries.</param>
-    /// <returns>The inspection, carrying the homes a repair would re-group.</returns>
-    public static HomeGroupInspectionReportDto ToInspection(
+    /// <returns>The report, whose work lists the homes a repair would re-group.</returns>
+    public static HomeGroupRepairReportDto ToPreview(
         AgentHomeGroupRepairReport report,
         HomeGroupRepairRefusalDisplayNames refusalText)
     {
-        return new HomeGroupInspectionReportDto(
+        return new HomeGroupRepairReportDto(
             report.Examined,
             report.AlreadyCorrect,
-            report.Refused.Select(home => { return ToRefused(home, refusalText); }).ToList(),
-            report.WouldRepair.Select(ToRepairedHome).ToList());
+            new HomeGroupRepairPreviewDto(report.WouldRepair.Select(ToRepairedHome).ToList()),
+            report.Refused.Select(home => { return ToRefused(home, refusalText); }).ToList());
     }
 
     /// <summary>Projects the census of a repairing pass onto the wire.</summary>
     /// <param name="report">What the agent read and did.</param>
     /// <param name="refusalText">Resolver for the two sentences each refusal carries.</param>
-    /// <returns>The repair, carrying the homes that were re-grouped.</returns>
-    public static HomeGroupRepairedReportDto ToRepaired(
+    /// <returns>The report, whose work lists the homes that were re-grouped.</returns>
+    public static HomeGroupRepairReportDto ToApplied(
         AgentHomeGroupRepairReport report,
         HomeGroupRepairRefusalDisplayNames refusalText)
     {
-        return new HomeGroupRepairedReportDto(
+        return new HomeGroupRepairReportDto(
             report.Examined,
             report.AlreadyCorrect,
-            report.Refused.Select(home => { return ToRefused(home, refusalText); }).ToList(),
-            report.Repaired.Select(ToRepairedHome).ToList());
+            new HomeGroupRepairAppliedDto(report.Repaired.Select(ToRepairedHome).ToList()),
+            report.Refused.Select(home => { return ToRefused(home, refusalText); }).ToList());
     }
 
     /// <summary>Projects one re-grouped — or would-be-re-grouped — home.</summary>
