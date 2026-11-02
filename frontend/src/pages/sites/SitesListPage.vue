@@ -36,7 +36,7 @@
  * when there is one the list opens with an amber notice saying how many. The count is the panel's,
  * across every page of the account the list is narrowed to, never a count of the rows on screen.
  */
-import { computed, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, toRef, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
@@ -70,6 +70,7 @@ import { formatDate } from '../../utils/formatDate'
 import { takeFlashNotice } from '../../utils/flashNotice'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { Site, SiteBackendType, SiteStatus } from '../../types/site'
+import { usePlanLimit } from '../../composables/usePlanLimit'
 
 /** What can serve a site, mirroring the `SiteBackendType` union the panel serializes. */
 const BACKEND_TYPES: readonly SiteBackendType[] = ['static', 'php', 'reverseProxy']
@@ -83,6 +84,8 @@ const phpVersionsStore = usePhpVersionsStore()
 const localeStore = useLocaleStore()
 const labels = useListLabels()
 const { isAdmin, isCustomer } = useCallerRole()
+/** Whether the plan still allows another site (issue #312); advice, the endpoint enforces. */
+const { reached: planLimitReached, reason: planLimitReason } = usePlanLimit('sites', toRef(store, 'sites'))
 const { picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { spec: accountSpec, name: accountFilterName } = useAccountFilter()
 
@@ -282,9 +285,11 @@ watch(
         <!-- PHP versions are an administrator's server setting; hidden from a customer as
              presentation only, the endpoint refuses them on its own (rules/security.md). -->
         <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'php-versions' }">{{ t('sites.list.phpVersionsLink') }}</UiButton>
-        <UiButton :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
+        <UiButton v-if="!planLimitReached" :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
       </template>
     </UiPageHeading>
+
+    <UiAlert v-if="planLimitReason !== null" variant="info">{{ planLimitReason }}</UiAlert>
 
     <UiAlert v-if="store.disabledCount.state === 'counted' && store.disabledCount.count > 0" variant="warning">
       {{ t('sites.list.disabledNotice', { count: store.disabledCount.count }, store.disabledCount.count) }}
@@ -299,7 +304,7 @@ watch(
       :description="t('sites.list.emptyDescription')"
     >
       <template #icon><UiIcon name="earth" /></template>
-      <UiButton :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
+      <UiButton v-if="!planLimitReached" :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
     </UiEmptyState>
 
     <UiCard v-else>

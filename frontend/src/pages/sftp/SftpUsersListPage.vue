@@ -21,7 +21,7 @@
  * **The password is shown once.** A create or a reset answers with it, the dialog shows it, and
  * leaving the page forgets it: the store's copy is cleared on unmount.
  */
-import { computed, onBeforeUnmount, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, ref, toRef, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -49,12 +49,15 @@ import { useServerTable } from '../../composables/useServerTable'
 import { useSftpStore } from '../../stores/sftp'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { CreateSftpUserRequest, SftpUser, SftpUserAction } from '../../types/sftpUser'
+import { usePlanLimit } from '../../composables/usePlanLimit'
 
 
 const { t } = useI18n()
 const store = useSftpStore()
 const labels = useListLabels()
 const { isAdmin, isCustomer } = useCallerRole()
+/** Whether the plan still allows another SFTP login (issue #312); advice, the endpoint enforces. */
+const { reached: planLimitReached, reason: planLimitReason } = usePlanLimit('sftpLogins', toRef(store, 'sftpUsers'))
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { spec: accountSpec, name: accountFilterName } = useAccountFilter()
 
@@ -213,7 +216,9 @@ onBeforeUnmount(store.dismissCredential)
     <UiAlert v-if="store.createErrorMessage !== null" variant="error">{{ store.createErrorMessage }}</UiAlert>
     <UiAlert v-if="store.actionErrorMessage !== null" variant="error">{{ store.actionErrorMessage }}</UiAlert>
 
+    <UiAlert v-if="planLimitReason !== null" variant="info">{{ planLimitReason }}</UiAlert>
     <SftpUserCreateForm
+      v-if="!planLimitReached"
       ref="form"
       :account-picker="accountPicker"
       :fixed-account-id="fixedAccountId"

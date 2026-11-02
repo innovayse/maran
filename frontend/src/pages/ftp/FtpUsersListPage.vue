@@ -20,7 +20,7 @@
  * **A refusal is not a failure, and this screen does not pretend to tell them apart**: the wire
  * carries no code for "the account is busy", so the backend's sentence is rendered verbatim.
  */
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, toRef, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -53,6 +53,7 @@ import { useFtpUsersStore } from '../../stores/ftpUsers'
 import { useFtpsServerStore } from '../../stores/ftpsServer'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { CreateFtpUserRequest, FtpUser, FtpUserAction } from '../../types/ftpUser'
+import { usePlanLimit } from '../../composables/usePlanLimit'
 
 
 const { t } = useI18n()
@@ -61,6 +62,8 @@ const ftpsServerStore = useFtpsServerStore()
 const firewallStore = useFirewallStore()
 const labels = useListLabels()
 const { isAdmin, isCustomer } = useCallerRole()
+/** Whether the plan still allows another FTPS login (issue #312); advice, the endpoint enforces. */
+const { reached: planLimitReached, reason: planLimitReason } = usePlanLimit('ftpLogins', toRef(store, 'ftpUsers'))
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { spec: accountSpec, name: accountFilterName } = useAccountFilter()
 
@@ -261,7 +264,9 @@ onBeforeUnmount(store.dismissCredential)
       @close-ports="ftps.closePorts"
     />
 
+    <UiAlert v-if="planLimitReason !== null" variant="info">{{ planLimitReason }}</UiAlert>
     <FtpUserCreateForm
+      v-if="!planLimitReached"
       ref="form"
       :account-picker="accountPicker"
       :fixed-account-id="fixedAccountId"
