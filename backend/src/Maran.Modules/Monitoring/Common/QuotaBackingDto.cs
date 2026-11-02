@@ -11,8 +11,9 @@ namespace Maran.Modules.Monitoring.Common;
 /// This is issue #29's own fix: the panel showed the same bare number whether or not anything
 /// backed it, which made an unenforced paid limit undetectable by construction until the disk
 /// filled. The three cases are three different facts: the agent said the filesystem enforces quotas
-/// (<see cref="Enforced"/>), the agent said it does not (<see cref="NotEnforced"/>), and the panel
-/// could not find out (<see cref="Unmeasured"/>). The last must not be folded into the second: a
+/// (<see cref="EnforcedQuotaBackingDto"/>), the agent said it does not
+/// (<see cref="NotEnforcedQuotaBackingDto"/>), and the panel could not find out
+/// (<see cref="UnmeasuredQuotaBackingDto"/>). The last must not be folded into the second: a
 /// sentence asserting the filesystem is not enforcing, shown for an agent that merely failed to
 /// answer, states a fact nobody measured.
 /// </para>
@@ -24,29 +25,7 @@ namespace Maran.Modules.Monitoring.Common;
 /// </para>
 /// </remarks>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "state")]
-[JsonDerivedType(typeof(QuotaBackingDto.Enforced), "enforced")]
-[JsonDerivedType(typeof(QuotaBackingDto.NotEnforced), "notEnforced")]
-[JsonDerivedType(typeof(QuotaBackingDto.Unmeasured), "unmeasured")]
-public abstract record QuotaBackingDto
-{
-    /// <summary>
-    /// The filesystem holding this account's home is tracking quota accounting right now, so the
-    /// allowance is backed by a kernel-enforced limit and there is nothing to explain.
-    /// </summary>
-    public sealed record Enforced : QuotaBackingDto;
-
-    /// <summary>
-    /// The agent reported that the filesystem cannot enforce a quota right now. The allowance is
-    /// real — it is still the plan the customer paid for — but nothing on the server refuses a write
-    /// past it.
-    /// </summary>
-    /// <param name="Note">The localized explanation of what is wrong and what restores enforcement.</param>
-    public sealed record NotEnforced(string Note) : QuotaBackingDto;
-
-    /// <summary>
-    /// The panel could not find out whether the filesystem enforces a quota: the agent's answer did
-    /// not arrive or could not be read. Neither "enforced" nor "not enforced" is claimed.
-    /// </summary>
-    /// <param name="Note">The localized statement that enforcement could not be determined.</param>
-    public sealed record Unmeasured(string Note) : QuotaBackingDto;
-}
+[JsonDerivedType(typeof(EnforcedQuotaBackingDto), "enforced")]
+[JsonDerivedType(typeof(NotEnforcedQuotaBackingDto), "notEnforced")]
+[JsonDerivedType(typeof(UnmeasuredQuotaBackingDto), "unmeasured")]
+public abstract record QuotaBackingDto;

@@ -183,15 +183,15 @@ public sealed class ListAccountDiskUsageQueryHandler
     {
         if (!enforceability.IsSuccess)
         {
-            return new QuotaBackingDto.Unmeasured(_text["AccountQuotaUnmeasuredNote"].Value);
+            return new UnmeasuredQuotaBackingDto(_text["AccountQuotaUnmeasuredNote"].Value);
         }
 
         if (enforceability.Value is AgentQuotaEnforceability.NotEnforceable)
         {
-            return new QuotaBackingDto.NotEnforced(_text["AccountQuotaNotEnforceableNote"].Value);
+            return new NotEnforcedQuotaBackingDto(_text["AccountQuotaNotEnforceableNote"].Value);
         }
 
-        return new QuotaBackingDto.Enforced();
+        return new EnforcedQuotaBackingDto();
     }
 
     /// <summary>Builds one account's row from its snapshot and whatever the agent measured for it.</summary>

@@ -238,7 +238,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
         var row = Assert.Single(result.Value.Items);
-        Assert.IsType<QuotaBackingDto.Enforced>(row.Backing);
+        Assert.IsType<EnforcedQuotaBackingDto>(row.Backing);
     }
 
     /// <summary>
@@ -263,7 +263,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
         var row = Assert.Single(result.Value.Items);
-        var backing = Assert.IsType<QuotaBackingDto.NotEnforced>(row.Backing);
+        var backing = Assert.IsType<NotEnforcedQuotaBackingDto>(row.Backing);
         Assert.Equal("AccountQuotaNotEnforceableNote", backing.Note);
     }
 
@@ -298,7 +298,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         Assert.All(result.Value.Items, row =>
         {
-            Assert.IsType<QuotaBackingDto.NotEnforced>(row.Backing);
+            Assert.IsType<NotEnforcedQuotaBackingDto>(row.Backing);
         });
     }
 
@@ -325,7 +325,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
 
         Assert.True(result.IsSuccess);
         var row = Assert.Single(result.Value.Items);
-        var backing = Assert.IsType<QuotaBackingDto.Unmeasured>(row.Backing);
+        var backing = Assert.IsType<UnmeasuredQuotaBackingDto>(row.Backing);
         Assert.Equal("AccountQuotaUnmeasuredNote", backing.Note);
     }
 
@@ -351,7 +351,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
         var row = Assert.Single(result.Value.Items);
-        Assert.IsType<QuotaBackingDto.Unmeasured>(row.Backing);
+        Assert.IsType<UnmeasuredQuotaBackingDto>(row.Backing);
     }
 
     /// <summary>Builds the handler over an agent that measured one thing and a panel that knows another.</summary>
