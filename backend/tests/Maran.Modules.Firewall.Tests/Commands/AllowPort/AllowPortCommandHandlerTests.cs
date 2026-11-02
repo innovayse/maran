@@ -110,7 +110,7 @@ public sealed class AllowPortCommandHandlerTests
     public async Task An_allow_the_agent_refuses_is_journalled_as_a_failure_and_returns_its_code()
     {
         var world = new World();
-        world.Agent.AllowResult = Result<bool>.Fail(Error.Of("AgentAlreadyExists", ErrorType.Conflict));
+        world.Agent.AllowResult = Result.Fail(Error.Of("AgentAlreadyExists", ErrorType.Conflict));
 
         var result = await world.AllowAsync(8080);
 
@@ -128,7 +128,7 @@ public sealed class AllowPortCommandHandlerTests
         // must pass it through unchanged; telling an API caller they submitted bad details would
         // send them to check a request that was perfectly good.
         var world = new World();
-        world.Agent.AllowResult = Result<bool>.Fail(Error.Of("AgentFirewallPortsMisconfigured", ErrorType.Failure));
+        world.Agent.AllowResult = Result.Fail(Error.Of("AgentFirewallPortsMisconfigured", ErrorType.Failure));
 
         var result = await world.AllowAsync(8080);
 
@@ -163,7 +163,7 @@ public sealed class AllowPortCommandHandlerTests
         /// <param name="protocol">The protocol the rule applies to.</param>
         /// <param name="sourceCidr">The source range to allow from.</param>
         /// <param name="portTo">The range's upper bound, or null for a single port.</param>
-        public async Task<Result<bool>> AllowAsync(
+        public async Task<Result> AllowAsync(
             int port,
             AgentFirewallProtocol protocol = AgentFirewallProtocol.Tcp,
             string sourceCidr = "0.0.0.0/0",

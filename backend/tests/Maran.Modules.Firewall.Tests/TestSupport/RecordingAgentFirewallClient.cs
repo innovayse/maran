@@ -39,16 +39,16 @@ public sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     public int BanListings { get; private set; }
 
     /// <summary>What <see cref="BanAsync"/> answers; success unless a test says otherwise.</summary>
-    public Result<bool> BanResult { get; set; } = Result<bool>.Ok(true);
+    public Result BanResult { get; set; } = Result.Ok();
 
     /// <summary>What <see cref="UnbanAsync"/> answers.</summary>
-    public Result<bool> UnbanResult { get; set; } = Result<bool>.Ok(true);
+    public Result UnbanResult { get; set; } = Result.Ok();
 
     /// <summary>What <see cref="AllowPortAsync"/> answers.</summary>
-    public Result<bool> AllowResult { get; set; } = Result<bool>.Ok(true);
+    public Result AllowResult { get; set; } = Result.Ok();
 
     /// <summary>What <see cref="DenyPortAsync"/> answers.</summary>
-    public Result<bool> DenyResult { get; set; } = Result<bool>.Ok(true);
+    public Result DenyResult { get; set; } = Result.Ok();
 
     /// <summary>What <see cref="ListRulesAsync"/> answers.</summary>
     public Result<IReadOnlyList<AgentFirewallRule>> RulesResult { get; set; } =
@@ -72,7 +72,7 @@ public sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> AllowPortAsync(
+    public Task<Result> AllowPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -86,7 +86,7 @@ public sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> DenyPortAsync(
+    public Task<Result> DenyPortAsync(
         int port,
         int? portTo,
         AgentFirewallProtocol protocol,
@@ -100,18 +100,18 @@ public sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
+    public Task<Result> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
     {
         Bans.Add(new AgentBanCall(address, term));
 
         return Task.FromResult(
             AddressesThatFailToBan.Contains(address)
-                ? Result<bool>.Fail(Error.Of("AgentInvalidInput", ErrorType.Validation))
+                ? Result.Fail(Error.Of("AgentInvalidInput", ErrorType.Validation))
                 : BanResult);
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> UnbanAsync(string address, CancellationToken cancellationToken)
+    public Task<Result> UnbanAsync(string address, CancellationToken cancellationToken)
     {
         Unbans.Add(address);
         return Task.FromResult(UnbanResult);

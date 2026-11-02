@@ -227,7 +227,7 @@ public sealed class BruteForceDetectedHandlerTests
         // while every packet from it arrives — and the reconciler would go on re-applying a ban
         // that has never once existed.
         var world = await WorldAsync();
-        world.Agent.BanResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.BanResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         await world.HandleAsync("203.0.113.7");
 

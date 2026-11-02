@@ -84,7 +84,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         var response = await client.PostAsJsonAsync(
             "/api/v1/firewall/rules", new { port = 8080, protocol = 1, sourceCidr = "0.0.0.0/0" });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal([22, 2200, 2222], agent.SshPorts);
         Assert.Equal(8443, agent.PanelPort);
     }
@@ -106,7 +106,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
             "/api/v1/firewall/rules",
             new { port = 30000, portTo = 30099, protocol = 1, sourceCidr = "0.0.0.0/0" });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal((30000, 30099), agent.RulePorts);
     }
 
@@ -127,7 +127,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         var response = await client.DeleteAsync(
             "/api/v1/firewall/rules?port=30000&portTo=30099&protocol=1&sourceCidr=0.0.0.0%2F0");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal((30000, 30099), agent.RulePorts);
     }
 
@@ -147,7 +147,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         var response = await client.DeleteAsync(
             "/api/v1/firewall/rules?port=8080&protocol=1&sourceCidr=0.0.0.0%2F0");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal((8080, (int?)null), agent.RulePorts);
     }
 
@@ -195,7 +195,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         // unmentioned.
         var agent = new StubAgentFirewallClient
         {
-            MutationResult = SharedKernel.Results.Result<bool>.Fail(
+            MutationResult = SharedKernel.Results.Result.Fail(
                 SharedKernel.Results.Error.Of("AgentFirewallPortsMisconfigured", SharedKernel.Results.ErrorType.Failure)),
         };
         await using var factory = CreateFactory(agent);
@@ -225,7 +225,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         var response = await client.PostAsJsonAsync(
             "/api/v1/firewall/bans", new { address = "203.0.113.7", durationMinutes = 60 });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(["203.0.113.7"], agent.Bans);
 
         using var scope = factory.Services.CreateScope();

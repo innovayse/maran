@@ -103,7 +103,7 @@ public sealed class StartupBanReconcilerTests
         // The agent and the panel are separate units with no ordering guarantee across a reboot, so
         // the first pass finding nothing listening is expected rather than exceptional.
         using var world = World(Timed("203.0.113.7", Now.AddHours(-1), Now.AddHours(1)));
-        world.Agent.BanResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.BanResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         Assert.False(await world.Reconciler.ReconcileAsync(CancellationToken.None));
     }

@@ -55,7 +55,7 @@ public sealed class AllowPortCommandHandler
     /// <param name="command">Which port, protocol and source range to allow.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or the agent's own typed failure — <c>AgentAlreadyExists</c> for a duplicate rule.</returns>
-    public async Task<Result<bool>> HandleAsync(AllowPortCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(AllowPortCommand command, CancellationToken cancellationToken)
     {
         var options = _options.Value;
         var subject = FirewallRuleSubject.Describe(
@@ -82,7 +82,7 @@ public sealed class AllowPortCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<bool>.Fail(allowed.Error!);
+            return Result.Fail(allowed.Error!);
         }
 
         await _journal.RecordSuccessAsync(
@@ -92,6 +92,6 @@ public sealed class AllowPortCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

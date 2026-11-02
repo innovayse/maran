@@ -66,7 +66,7 @@ public sealed class FirewallRulesController : BaseApiController
     /// <param name="command">The port, protocol and source range to allow.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -77,14 +77,14 @@ public sealed class FirewallRulesController : BaseApiController
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>Closes a port that was opened, matching the source range the allow was scoped to.</summary>
     /// <param name="command">The port, protocol and source range to stop allowing.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -94,6 +94,6 @@ public sealed class FirewallRulesController : BaseApiController
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

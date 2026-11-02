@@ -62,7 +62,7 @@ public sealed class FirewallBansController : BaseApiController
     /// <param name="command">The address to ban and how long for.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -72,7 +72,7 @@ public sealed class FirewallBansController : BaseApiController
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 
     /// <summary>Lifts every ban in force for one address.</summary>
@@ -84,7 +84,7 @@ public sealed class FirewallBansController : BaseApiController
     /// between the browser and here.
     /// </remarks>
     [HttpDelete]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -94,6 +94,6 @@ public sealed class FirewallBansController : BaseApiController
         CancellationToken cancellationToken)
     {
         var command = new UnbanAddressCommand(address ?? string.Empty, ClientIpAddress, CallerUserAgent);
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

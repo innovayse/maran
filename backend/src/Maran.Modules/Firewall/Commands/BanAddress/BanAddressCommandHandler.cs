@@ -85,7 +85,7 @@ public sealed class BanAddressCommandHandler
     /// <param name="command">Which address to ban, and for how long.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or <c>BanAddressInvalid</c>, or the agent's own typed failure.</returns>
-    public async Task<Result<bool>> HandleAsync(BanAddressCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(BanAddressCommand command, CancellationToken cancellationToken)
     {
         if (!IpAddressNormalizer.TryNormalize(command.Address, out var address))
         {
@@ -96,7 +96,7 @@ public sealed class BanAddressCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.BanAddressInvalid), ErrorType.Validation));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.BanAddressInvalid), ErrorType.Validation));
         }
 
         if (IPAddress.IsLoopback(address))
@@ -108,7 +108,7 @@ public sealed class BanAddressCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.BanAddressLoopback), ErrorType.Validation));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.BanAddressLoopback), ErrorType.Validation));
         }
 
         var subject = address.ToString();
@@ -122,7 +122,7 @@ public sealed class BanAddressCommandHandler
             await _journal.RecordFailureAsync(
                 AuditActions.AddressBanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-            return Result<bool>.Fail(banned.Error!);
+            return Result.Fail(banned.Error!);
         }
 
         var now = _clock.UtcNow;
@@ -164,6 +164,6 @@ public sealed class BanAddressCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.AddressBanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

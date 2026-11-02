@@ -57,7 +57,7 @@ public sealed class DenyPortCommandHandlerTests
     public async Task A_deny_the_agent_refuses_is_journalled_as_a_failure()
     {
         var world = new World();
-        world.Agent.DenyResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.DenyResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.DenyAsync(8080);
 
@@ -108,7 +108,7 @@ public sealed class DenyPortCommandHandlerTests
         /// <param name="protocol">The protocol the rule applies to.</param>
         /// <param name="sourceCidr">The source range the allow was scoped to.</param>
         /// <param name="portTo">The range's upper bound, or null for a single port.</param>
-        public async Task<Result<bool>> DenyAsync(
+        public async Task<Result> DenyAsync(
             int port,
             AgentFirewallProtocol protocol = AgentFirewallProtocol.Tcp,
             string sourceCidr = "0.0.0.0/0",

@@ -68,7 +68,7 @@ public sealed class UnbanAddressCommandHandler
     /// <param name="command">Which address to let back in.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or <c>BanAddressInvalid</c>, <c>BanNotFound</c>, or the agent's typed failure.</returns>
-    public async Task<Result<bool>> HandleAsync(UnbanAddressCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(UnbanAddressCommand command, CancellationToken cancellationToken)
     {
         if (!IpAddressNormalizer.TryNormalize(command.Address, out var address))
         {
@@ -79,7 +79,7 @@ public sealed class UnbanAddressCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.BanAddressInvalid), ErrorType.Validation));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.BanAddressInvalid), ErrorType.Validation));
         }
 
         var subject = address.ToString();
@@ -99,7 +99,7 @@ public sealed class UnbanAddressCommandHandler
             await _journal.RecordFailureAsync(
                 AuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.BanNotFound), ErrorType.NotFound));
+            return Result.Fail(Error.Of(nameof(ErrorMessages.BanNotFound), ErrorType.NotFound));
         }
 
         var lifted = await _agent.UnbanAsync(subject, cancellationToken);
@@ -108,7 +108,7 @@ public sealed class UnbanAddressCommandHandler
             await _journal.RecordFailureAsync(
                 AuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-            return Result<bool>.Fail(lifted.Error!);
+            return Result.Fail(lifted.Error!);
         }
 
         foreach (var episode in inForce)
@@ -121,6 +121,6 @@ public sealed class UnbanAddressCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }

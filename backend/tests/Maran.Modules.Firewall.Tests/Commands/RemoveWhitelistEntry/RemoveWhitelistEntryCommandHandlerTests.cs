@@ -224,7 +224,7 @@ public sealed class RemoveWhitelistEntryCommandHandlerTests
         /// <summary>Runs the handler once, on its own context, the way a request does.</summary>
         /// <param name="entryId">The row to remove.</param>
         /// <param name="from">The address the request arrives from.</param>
-        public async Task<Result<bool>> RemoveAsync(Guid entryId, string from = Elsewhere)
+        public async Task<Result> RemoveAsync(Guid entryId, string from = Elsewhere)
         {
             using var context = FirewallTestContext.Create(_store);
             var handler = new RemoveWhitelistEntryCommandHandler(

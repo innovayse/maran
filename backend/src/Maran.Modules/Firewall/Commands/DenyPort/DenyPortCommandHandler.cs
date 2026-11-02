@@ -46,7 +46,7 @@ public sealed class DenyPortCommandHandler
     /// <param name="command">Which port, protocol and source range to stop allowing.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success — denying a port that is not allowed is a no-op success — or the agent's typed failure.</returns>
-    public async Task<Result<bool>> HandleAsync(DenyPortCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(DenyPortCommand command, CancellationToken cancellationToken)
     {
         var options = _options.Value;
         var subject = FirewallRuleSubject.Describe(
@@ -73,7 +73,7 @@ public sealed class DenyPortCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<bool>.Fail(denied.Error!);
+            return Result.Fail(denied.Error!);
         }
 
         await _journal.RecordSuccessAsync(
@@ -83,6 +83,6 @@ public sealed class DenyPortCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 }
