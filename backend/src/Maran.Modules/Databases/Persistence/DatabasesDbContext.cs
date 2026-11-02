@@ -1,5 +1,6 @@
 using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Persistence.Configurations;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Databases.Persistence;
 
@@ -42,6 +43,30 @@ public sealed class DatabasesDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// Whether the current principal is a server administrator, whom no tenant filter narrows. Read
+    /// from the context at query time, so each request's own caller decides.
+    /// </summary>
+    private bool IsAdministrator
+    {
+        get
+        {
+            return _currentUser.Caller is AdministratorCaller;
+        }
+    }
+
+    /// <summary>
+    /// The account the current principal acts for, or null for an administrator, an anonymous caller
+    /// and a customer acting for no account — none of whom owns a row.
+    /// </summary>
+    private Guid? TenantAccountId
+    {
+        get
+        {
+            return _currentUser.Caller is CustomerCaller customer ? customer.AccountId : null;
+        }
+    }
+
     /// <summary>Applies the schema, the entity configuration, and the tenant query filter.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -53,7 +78,7 @@ public sealed class DatabasesDbContext : DbContext
         // remembering to filter. An administrator sees everything; a customer's context carries
         // their account id and the filter closes over it.
         modelBuilder.Entity<Database>().HasQueryFilter(database =>
-            _currentUser.IsAdmin || database.AccountId == _currentUser.AccountId);
+            IsAdministrator || database.AccountId == TenantAccountId);
 
         base.OnModelCreating(modelBuilder);
     }
