@@ -9,7 +9,8 @@ namespace Maran.Agent.Client.Interfaces;
 /// domain.
 /// </summary>
 /// <remarks>
-/// Every unary method returns a <see cref="Result{T}"/> rather than throwing: a site that already
+/// Every unary method returns a <see cref="Result{T}"/> (or a bare <see cref="Result"/> when there is
+/// nothing to hand back) rather than throwing: a site that already
 /// exists, or one the agent cannot find, is an answer the caller acts on, not an exception
 /// (rules/csharp.md "Errors: Result, not exceptions"). An agent that cannot be reached at all is
 /// answered the same way, as <c>AgentUnavailable</c>, by the resilience decorator the Host registers
@@ -61,7 +62,7 @@ public interface IAgentSitesClient
     /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> ChangePhpVersionAsync(
+    Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -77,7 +78,7 @@ public interface IAgentSitesClient
     /// <param name="site">What the site is, so the restored vhost is the site's own again.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> EnableAsync(
+    Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -89,7 +90,7 @@ public interface IAgentSitesClient
     /// <param name="site">What the site is, so the suspended vhost keeps its aliases and log paths.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> DisableAsync(
+    Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -106,7 +107,7 @@ public interface IAgentSitesClient
     /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
-    Task<Result<bool>> DeleteAsync(
+    Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -144,5 +145,5 @@ public interface IAgentSitesClient
     /// account name and no domain, and a caller must have already established that it may act on every
     /// site it changed. Idempotent: reloading with nothing pending is a no-op success.
     /// </remarks>
-    Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken);
+    Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken);
 }

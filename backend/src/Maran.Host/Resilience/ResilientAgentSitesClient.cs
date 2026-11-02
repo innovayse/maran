@@ -71,7 +71,7 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> ChangePhpVersionAsync(
+    public Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -96,7 +96,7 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> EnableAsync(
+    public Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -109,7 +109,7 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DisableAsync(
+    public Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -122,7 +122,7 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DeleteAsync(
+    public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -135,7 +135,7 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
         {
@@ -152,6 +152,30 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
         CancellationToken cancellationToken)
     {
         return _inner.TailLogAsync(accountUsername, domain, logSource, historyLines, cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs one call that answers with no value through the pipeline, carrying the caller's
+    /// cancellation into it.
+    /// </summary>
+    /// <param name="call">The call to make.</param>
+    /// <param name="cancellationToken">The caller's cancellation token.</param>
+    /// <returns>
+    /// What the call returned, once the pipeline has finished with it, or the typed failure a
+    /// transport failure is answered with.
+    /// </returns>
+    private async Task<Result> ExecuteAsync(
+        Func<CancellationToken, Task<Result>> call,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state(token);
+            },
+            call,
+            cancellationToken);
     }
 
     /// <summary>Runs one call through the pipeline, carrying the caller's cancellation into it.</summary>

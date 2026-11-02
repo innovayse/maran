@@ -84,7 +84,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> ChangePhpVersionAsync(
+    public async Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -112,15 +112,15 @@ public sealed class AgentSitesClient : IAgentSitesClient
 
         return response.ResultCase switch
         {
-            UpdateSitePhpVersionResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            UpdateSitePhpVersionResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            UpdateSitePhpVersionResponse.ResultOneofCase.Ok => Result.Ok(),
+            UpdateSitePhpVersionResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ChangePhpVersionAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> EnableAsync(
+    public async Task<Result> EnableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -136,15 +136,15 @@ public sealed class AgentSitesClient : IAgentSitesClient
 
         return response.ResultCase switch
         {
-            EnableSiteResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            EnableSiteResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            EnableSiteResponse.ResultOneofCase.Ok => Result.Ok(),
+            EnableSiteResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(EnableAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DisableAsync(
+    public async Task<Result> DisableAsync(
         string accountUsername,
         string domain,
         SiteDescriptor site,
@@ -160,15 +160,15 @@ public sealed class AgentSitesClient : IAgentSitesClient
 
         return response.ResultCase switch
         {
-            DisableSiteResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DisableSiteResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DisableSiteResponse.ResultOneofCase.Ok => Result.Ok(),
+            DisableSiteResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DisableAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteAsync(
+    public async Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
@@ -184,24 +184,24 @@ public sealed class AgentSitesClient : IAgentSitesClient
 
         return response.ResultCase switch
         {
-            DeleteSiteResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DeleteSiteResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DeleteSiteResponse.ResultOneofCase.Ok => Result.Ok(),
+            DeleteSiteResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public async Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         var response = await _invoker.ReloadWebServerAsync(new ReloadWebServerRequest(), cancellationToken);
 
         return response.ResultCase switch
         {
-            ReloadWebServerResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            ReloadWebServerResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            ReloadWebServerResponse.ResultOneofCase.Ok => Result.Ok(),
+            ReloadWebServerResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ReloadWebServerAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
