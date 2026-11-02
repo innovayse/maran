@@ -108,8 +108,7 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
 
         return response.ResultCase switch
         {
-            GetAccountSuspensionStateResponse.ResultOneofCase.Ok => Result<AccountSuspensionStateDto>.Ok(
-                ToSuspensionState(response.Ok)),
+            GetAccountSuspensionStateResponse.ResultOneofCase.Ok => ToSuspensionState(response.Ok),
             GetAccountSuspensionStateResponse.ResultOneofCase.Error => Result<AccountSuspensionStateDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetSuspensionStateAsync))),
             _ => Result<AccountSuspensionStateDto>.Fail(
@@ -119,15 +118,31 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
 
     /// <summary>Projects the wire suspension observation onto the panel's own.</summary>
     /// <param name="ok">The success payload of <c>GetAccountSuspensionState</c>.</param>
-    /// <returns>The observation, with no wire default left in it.</returns>
-    private static AccountSuspensionStateDto ToSuspensionState(GetAccountSuspensionStateOk ok)
+    /// <returns>
+    /// The observation, with no wire default left in it, or <c>AgentInvalidResponse</c> when a vhost's
+    /// fact states no serving outcome this panel can name.
+    /// </returns>
+    private static Result<AccountSuspensionStateDto> ToSuspensionState(GetAccountSuspensionStateOk ok)
     {
-        return new AccountSuspensionStateDto(
+        var sites = new List<SiteSuspensionFactDto>(ok.Sites.Count);
+
+        foreach (var site in ok.Sites)
+        {
+            var serving = ToServing(site.Serving);
+
+            if (serving is null)
+            {
+                return Result<AccountSuspensionStateDto>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+            }
+
+            sites.Add(new SiteSuspensionFactDto(site.Domain, serving.Value));
+        }
+
+        return Result<AccountSuspensionStateDto>.Ok(new AccountSuspensionStateDto(
             ToLoginPasswordState(ok.LoginPasswordState, ok.LoginLocked),
             ok.SitesDirectoryReadable,
-            ok.Sites
-                .Select(site => { return new SiteSuspensionFactDto(site.Domain, site.ServingStub); })
-                .ToList(),
+            sites,
             ok.CronEntriesTotal,
             ok.CronEntriesSuspended,
             ok.CronForeignLines,
@@ -147,7 +162,26 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
                         ToProtocol(login.Protocol));
                 })
                 .ToList(),
-            ToUnmanagedLoginCount(ok));
+            ToUnmanagedLoginCount(ok)));
+    }
+
+    /// <summary>Names what a vhost was observed to serve.</summary>
+    /// <param name="serving">The wire outcome.</param>
+    /// <returns>
+    /// The outcome, or <c>null</c> for the contract's zero value or a value this build has never
+    /// heard of: the first means the agent predates the field and the second that it is newer, the
+    /// handshake window admits neither, and the deprecated <c>serving_stub</c> boolean is never read
+    /// as a stand-in because it cannot say "could not compare".
+    /// </returns>
+    private static SiteServing? ToServing(Maran.Agent.V1.SiteServing serving)
+    {
+        return serving switch
+        {
+            Maran.Agent.V1.SiteServing.Stub => SiteServing.Stub,
+            Maran.Agent.V1.SiteServing.NotStub => SiteServing.NotStub,
+            Maran.Agent.V1.SiteServing.Unobservable => SiteServing.Unobservable,
+            _ => null,
+        };
     }
 
     /// <summary>Names what the account's own shadow password field holds.</summary>

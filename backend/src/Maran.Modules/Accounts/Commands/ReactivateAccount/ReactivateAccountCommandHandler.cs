@@ -228,7 +228,8 @@ public sealed class ReactivateAccountCommandHandler
     /// The readable-directory condition is checked here for the same reason it is checked on the way
     /// in: an unreadable directory produces an empty site list, and an empty list would satisfy "no
     /// vhost is still the stub" by having looked at nothing. A blind answer is never an observation
-    /// in either direction.
+    /// in either direction, and that includes a single vhost the agent could not compare
+    /// (<see cref="SiteServing.Unobservable"/>), which is refused here exactly as it is on the way in.
     /// </remarks>
     private static string? StillStopped(AccountSuspensionStateDto state)
     {
@@ -238,8 +239,19 @@ public sealed class ReactivateAccountCommandHandler
                 + "would mean 'it did not look' and not 'nothing is stubbed'";
         }
 
+        var unobservable = state.Sites
+            .Where(site => { return site.Serving == SiteServing.Unobservable; })
+            .Select(site => { return site.Domain; })
+            .OrderBy(domain => { return domain; }, StringComparer.Ordinal)
+            .ToList();
+
+        if (unobservable.Count > 0)
+        {
+            return $"these vhosts could not be compared with the suspension page: {string.Join(", ", unobservable)}";
+        }
+
         var stubbed = state.Sites
-            .Where(site => { return site.ServingStub; })
+            .Where(site => { return site.Serving == SiteServing.Stub; })
             .Select(site => { return site.Domain; })
             .OrderBy(domain => { return domain; }, StringComparer.Ordinal)
             .ToList();

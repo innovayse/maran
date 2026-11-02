@@ -299,14 +299,16 @@ public sealed class SuspendAccountCommandHandler
         }
 
         var serving = state.Sites
-            .Where(site => { return !site.ServingStub; })
+            .Where(site => { return site.Serving != SiteServing.Stub; })
             .Select(site => { return site.Domain; })
             .OrderBy(domain => { return domain; }, StringComparer.Ordinal)
             .ToList();
 
         if (serving.Count > 0)
         {
-            return $"these vhosts are not the suspended one: {string.Join(", ", serving)}";
+            // Both NotStub and Unobservable land here: a vhost whose comparison could not be made
+            // is not an observation of the suspended page, so a suspension is never certified over it.
+            return $"these vhosts are not observed serving the suspended one: {string.Join(", ", serving)}";
         }
 
         if (CanStillAuthenticate(state))

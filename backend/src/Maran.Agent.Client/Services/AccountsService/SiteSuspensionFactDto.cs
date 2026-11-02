@@ -8,11 +8,10 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// comparing against the weaker of the two.
 /// </remarks>
 /// <param name="Domain">The site's primary domain, as the vhost's file name spells it.</param>
-/// <param name="ServingStub">
-/// <c>true</c> only when the vhost on disk is byte for byte what the suspended template renders for
-/// this site. The agent also answers <c>false</c> when it could not render the comparison text at
-/// all — an unresolvable document root, a <c>server_name</c> line it could not read — so
-/// unobservable arrives here as "not stubbed", which refuses a suspension rather than certifying
-/// one.
+/// <param name="Serving">
+/// What the vhost serves. <see cref="SiteServing.Unobservable"/> is a state of its own and not a
+/// spelling of <see cref="SiteServing.NotStub"/>: a caller attesting a suspension refuses on both,
+/// and a caller attesting a restart refuses on both, but only the first of the two tells the
+/// operator that nothing was compared.
 /// </param>
-public sealed record SiteSuspensionFactDto(string Domain, bool ServingStub);
+public sealed record SiteSuspensionFactDto(string Domain, SiteServing Serving);

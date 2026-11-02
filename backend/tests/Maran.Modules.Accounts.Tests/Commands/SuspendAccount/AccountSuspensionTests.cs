@@ -208,8 +208,33 @@ public sealed class AccountSuspensionTests : IDisposable
         _agent.SuspensionState = new AccountSuspensionStateDto(
             AccountLoginPasswordState.Usable,
             true,
-            [new SiteSuspensionFactDto("stubbed.example.com", true),
-             new SiteSuspensionFactDto("serving.example.com", false)],
+            [new SiteSuspensionFactDto("stubbed.example.com", SiteServing.Stub),
+             new SiteSuspensionFactDto("serving.example.com", SiteServing.NotStub)],
+            0,
+            0,
+            0,
+            [], new MeasuredUnmanagedLogins(0));
+
+        var result = await SuspendAsync(_agent, new StubMessageBus(), account.Id);
+
+        Assert.Equal("AccountSuspensionNotObserved", result.Error!.Code);
+        Assert.Equal(AccountStatus.Active, (await _context.Accounts.SingleAsync()).Status);
+    }
+
+    /// <summary>A suspension is refused when the agent could not compare one vhost with the suspended page.</summary>
+    /// <remarks>
+    /// An unobservable vhost is not a site serving its own content, and it is not the stub either: the
+    /// attestation refuses on it exactly as it refuses on a vhost that is plainly serving. Its inverse
+    /// control is <see cref="Suspending_an_active_account_moves_it_into_suspension"/>.
+    /// </remarks>
+    [Fact]
+    public async Task A_suspension_is_refused_when_the_agent_could_not_compare_one_vhost()
+    {
+        var account = await SeedAsync();
+        _agent.SuspensionState = new AccountSuspensionStateDto(
+            AccountLoginPasswordState.Usable,
+            true,
+            [new SiteSuspensionFactDto("blind.example.com", SiteServing.Unobservable)],
             0,
             0,
             0,
@@ -268,7 +293,25 @@ public sealed class AccountSuspensionTests : IDisposable
         await SuspendAsync(_agent, new StubMessageBus(), account.Id);
         _agent.SuspensionState = _agent.SuspensionState with
         {
-            Sites = [new SiteSuspensionFactDto("still-stubbed.example.com", true)],
+            Sites = [new SiteSuspensionFactDto("still-stubbed.example.com", SiteServing.Stub)],
+        };
+
+        var result = await ReactivateAsync(_agent, new StubMessageBus(), account.Id);
+
+        Assert.Equal("AccountResumptionNotObserved", result.Error!.Code);
+        Assert.Equal(AccountStatus.Suspended, (await _context.Accounts.SingleAsync()).Status);
+    }
+
+    /// <summary>A reactivation is refused when the agent could not compare one vhost with the suspended page.</summary>
+    /// <remarks>A blind answer is never an observation of a restart; the inverse control is the successful reactivation.</remarks>
+    [Fact]
+    public async Task A_reactivation_is_refused_when_the_agent_could_not_compare_one_vhost()
+    {
+        var account = await SeedAsync();
+        await SuspendAsync(_agent, new StubMessageBus(), account.Id);
+        _agent.SuspensionState = _agent.SuspensionState with
+        {
+            Sites = [new SiteSuspensionFactDto("blind.example.com", SiteServing.Unobservable)],
         };
 
         var result = await ReactivateAsync(_agent, new StubMessageBus(), account.Id);

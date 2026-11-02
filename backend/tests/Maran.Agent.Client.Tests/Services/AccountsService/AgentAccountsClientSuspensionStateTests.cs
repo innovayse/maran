@@ -1,6 +1,8 @@
 using Maran.Agent.Client.Services.AccountsService;
 using Maran.Agent.V1;
 using Microsoft.Extensions.Logging.Abstractions;
+using PanelSiteServing = Maran.Agent.Client.Services.AccountsService.SiteServing;
+using WireSiteServing = Maran.Agent.V1.SiteServing;
 
 namespace Maran.Agent.Client.Tests.Services.AccountsService;
 
@@ -35,8 +37,9 @@ public sealed class AgentAccountsClientSuspensionStateTests
                     SitesDirectoryReadable = true,
                     Sites =
                     {
-                        new SiteSuspensionFact { Domain = "a.example.com", ServingStub = true },
-                        new SiteSuspensionFact { Domain = "b.example.com", ServingStub = false },
+                        new SiteSuspensionFact { Domain = "a.example.com", Serving = WireSiteServing.Stub },
+                        new SiteSuspensionFact { Domain = "b.example.com", Serving = WireSiteServing.NotStub },
+                        new SiteSuspensionFact { Domain = "c.example.com", Serving = WireSiteServing.Unobservable },
                     },
                     CronEntriesTotal = 7,
                     CronEntriesSuspended = 5,
@@ -68,8 +71,12 @@ public sealed class AgentAccountsClientSuspensionStateTests
         Assert.Equal(AccountLoginPasswordState.Absent, state.LoginPasswordState);
         Assert.True(state.SitesDirectoryReadable);
         Assert.Equal(
-            [("a.example.com", true), ("b.example.com", false)],
-            state.Sites.Select(site => { return (site.Domain, site.ServingStub); }));
+            [
+                ("a.example.com", PanelSiteServing.Stub),
+                ("b.example.com", PanelSiteServing.NotStub),
+                ("c.example.com", PanelSiteServing.Unobservable),
+            ],
+            state.Sites.Select(site => { return (site.Domain, site.Serving); }));
         Assert.Equal(7u, state.CronEntriesTotal);
         Assert.Equal(5u, state.CronEntriesSuspended);
         Assert.Equal(3u, state.CronForeignLines);
@@ -322,6 +329,33 @@ public sealed class AgentAccountsClientSuspensionStateTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentNotFound", result.Error!.Code);
+    }
+
+    /// <summary>A vhost fact stating no serving outcome is refused as an invalid response.</summary>
+    /// <remarks>
+    /// The contract's zero value means the agent predates the field; the deprecated boolean is never
+    /// read as a stand-in because it cannot say "could not compare". Its inverse control is
+    /// <see cref="Every_field_of_the_hosts_answer_lands_in_its_own_place"/>, where every outcome is stated.
+    /// </remarks>
+    [Fact]
+    public async Task A_vhost_fact_without_a_serving_outcome_is_refused_as_an_invalid_response()
+    {
+        var stub = new StubAccountsService
+        {
+            SuspensionStateResponse = new GetAccountSuspensionStateResponse
+            {
+                Ok = new GetAccountSuspensionStateOk
+                {
+                    SitesDirectoryReadable = true,
+                    Sites = { new SiteSuspensionFact { Domain = "a.example.com" } },
+                },
+            },
+        };
+
+        var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
     /// <summary>Asks the client about one wire answer and returns the mapped observation.</summary>
