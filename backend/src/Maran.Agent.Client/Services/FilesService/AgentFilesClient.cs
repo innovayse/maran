@@ -81,7 +81,7 @@ public sealed class AgentFilesClient : IAgentFilesClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteEntryAsync(
+    public async Task<Result> DeleteEntryAsync(
         string accountUsername,
         string path,
         bool recursive,
@@ -97,10 +97,10 @@ public sealed class AgentFilesClient : IAgentFilesClient
 
         return response.ResultCase switch
         {
-            DeleteEntryResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DeleteEntryResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DeleteEntryResponse.ResultOneofCase.Ok => Result.Ok(),
+            DeleteEntryResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteEntryAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 }

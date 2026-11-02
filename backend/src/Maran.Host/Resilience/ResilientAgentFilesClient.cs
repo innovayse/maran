@@ -47,7 +47,7 @@ public sealed class ResilientAgentFilesClient : IAgentFilesClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteEntryAsync(
+    public async Task<Result> DeleteEntryAsync(
         string accountUsername,
         string path,
         bool recursive,

@@ -127,13 +127,11 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
         string token,
         CancellationToken cancellationToken)
     {
-        var deleted = await _files.DeleteEntryAsync(
+        return await _files.DeleteEntryAsync(
             site.AccountUsername,
             ChallengePath(domain, token),
             recursive: false,
             cancellationToken);
-
-        return deleted.IsSuccess ? Result.Ok() : Result.Fail(deleted.Error!);
     }
 
     /// <summary>Writes the file into the site's document root, as the owning account.</summary>

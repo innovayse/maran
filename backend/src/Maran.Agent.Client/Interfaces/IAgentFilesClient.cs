@@ -37,7 +37,7 @@ public interface IAgentFilesClient
     /// <param name="recursive">Whether a non-empty directory may be removed with its contents.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure — including <c>AgentNotFound</c> for a path already gone.</returns>
-    Task<Result<bool>> DeleteEntryAsync(
+    Task<Result> DeleteEntryAsync(
         string accountUsername,
         string path,
         bool recursive,

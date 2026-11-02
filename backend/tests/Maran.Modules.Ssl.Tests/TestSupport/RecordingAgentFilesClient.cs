@@ -41,13 +41,13 @@ public sealed class RecordingAgentFilesClient : IAgentFilesClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> DeleteEntryAsync(
+    public Task<Result> DeleteEntryAsync(
         string accountUsername,
         string path,
         bool recursive,
         CancellationToken cancellationToken)
     {
         Deletes.Add((accountUsername, path, recursive));
-        return Task.FromResult(Result<bool>.Ok(true));
+        return Task.FromResult(Result.Ok());
     }
 }
