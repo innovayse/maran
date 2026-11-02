@@ -83,14 +83,14 @@ export const stubCronEntriesProblem = async (page: Page, detail: string): Promis
 }
 
 /**
- * Fulfils the single-entry endpoint: the rewrite and the removal both answer `true`, which is what
- * the module's `Result<bool>` translates to.
+ * Fulfils the single-entry endpoint: the rewrite and the removal both answer an empty 204, which is
+ * what the module's non-generic `Result` translates to.
  * @param page The Playwright page whose network the route is installed on.
  * @returns Resolves once the route is installed.
  */
 export const stubCronEntryMutations = async (page: Page): Promise<void> => {
   await page.route(ENTRY_PATTERN, async (route: Route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 }
 
@@ -101,7 +101,7 @@ export const stubCronEntryMutations = async (page: Page): Promise<void> => {
  */
 export const stubCronEntryEnabled = async (page: Page): Promise<void> => {
   await page.route(ENABLED_PATTERN, async (route: Route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 }
 
@@ -142,7 +142,7 @@ export const stubCronEnvironment = async (
 ): Promise<void> => {
   await page.route(ENVIRONMENT_PATTERN, async (route: Route) => {
     if (route.request().method() === 'PUT') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
 

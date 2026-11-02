@@ -68,7 +68,7 @@ public sealed class CronEnvironmentController : BaseApiController
     /// <param name="command">The owning account and the complete new set.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -78,6 +78,6 @@ public sealed class CronEnvironmentController : BaseApiController
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

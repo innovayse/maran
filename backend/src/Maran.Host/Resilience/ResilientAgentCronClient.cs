@@ -77,7 +77,7 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> UpdateEntryAsync(
+    public async Task<Result> UpdateEntryAsync(
         string accountUsername,
         string entryId,
         AgentCronSchedule schedule,
@@ -100,7 +100,7 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteEntryAsync(
+    public async Task<Result> DeleteEntryAsync(
         string accountUsername,
         string entryId,
         CancellationToken cancellationToken)
@@ -116,7 +116,7 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetAccountSuspendedAsync(
+    public async Task<Result> SetAccountSuspendedAsync(
         string accountUsername,
         bool suspended,
         CancellationToken cancellationToken)
@@ -133,7 +133,7 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetEntryEnabledAsync(
+    public async Task<Result> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,
         bool enabled,
@@ -205,7 +205,7 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetEnvironmentAsync(
+    public async Task<Result> SetEnvironmentAsync(
         string accountUsername,
         IReadOnlyList<AgentCronEnvVar> variables,
         CancellationToken cancellationToken)

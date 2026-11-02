@@ -98,7 +98,7 @@ public sealed class AgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> UpdateEntryAsync(
+    public async Task<Result> UpdateEntryAsync(
         string accountUsername,
         string entryId,
         AgentCronSchedule schedule,
@@ -120,15 +120,15 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            UpdateCronEntryResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            UpdateCronEntryResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            UpdateCronEntryResponse.ResultOneofCase.Ok => Result.Ok(),
+            UpdateCronEntryResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(UpdateEntryAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteEntryAsync(
+    public async Task<Result> DeleteEntryAsync(
         string accountUsername,
         string entryId,
         CancellationToken cancellationToken)
@@ -142,15 +142,15 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            DeleteCronEntryResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DeleteCronEntryResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DeleteCronEntryResponse.ResultOneofCase.Ok => Result.Ok(),
+            DeleteCronEntryResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteEntryAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetEntryEnabledAsync(
+    public async Task<Result> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,
         bool enabled,
@@ -166,15 +166,15 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            SetCronEntryEnabledResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetCronEntryEnabledResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetCronEntryEnabledResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetCronEntryEnabledResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetEntryEnabledAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetAccountSuspendedAsync(
+    public async Task<Result> SetAccountSuspendedAsync(
         string accountUsername,
         bool suspended,
         CancellationToken cancellationToken)
@@ -188,10 +188,10 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            SetAccountCronSuspendedResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetAccountCronSuspendedResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetAccountCronSuspendedResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetAccountCronSuspendedResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetAccountSuspendedAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -255,7 +255,7 @@ public sealed class AgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetEnvironmentAsync(
+    public async Task<Result> SetEnvironmentAsync(
         string accountUsername,
         IReadOnlyList<AgentCronEnvVar> variables,
         CancellationToken cancellationToken)
@@ -274,10 +274,10 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            SetCronEnvironmentResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetCronEnvironmentResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetCronEnvironmentResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetCronEnvironmentResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetEnvironmentAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 

@@ -175,7 +175,7 @@ public sealed class CronAuthorizationTests : IAsyncLifetime
         foreach (var (method, path) in Endpoints())
         {
             var response = await SendAsync(client, method, path, world.OwnAccountId);
-            if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Created))
+            if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Created or HttpStatusCode.NoContent))
             {
                 refused.Add($"{method} {path} answered {(int)response.StatusCode}");
             }

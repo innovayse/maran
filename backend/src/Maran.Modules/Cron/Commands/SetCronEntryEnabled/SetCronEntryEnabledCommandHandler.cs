@@ -58,7 +58,7 @@ public sealed class SetCronEntryEnabledCommandHandler
     /// <returns>
     /// Success — or <c>AccountNotFound</c>, <c>CronEntryNotFound</c>, or <c>CronOperationFailed</c>.
     /// </returns>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         SetCronEntryEnabledCommand command,
         CancellationToken cancellationToken)
     {
@@ -86,7 +86,7 @@ public sealed class SetCronEntryEnabledCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Journals a refused switch and returns it as the typed failure.</summary>
@@ -94,7 +94,7 @@ public sealed class SetCronEntryEnabledCommandHandler
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         SetCronEntryEnabledCommand command,
         Error error,
         CancellationToken cancellationToken)
@@ -106,6 +106,6 @@ public sealed class SetCronEntryEnabledCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }

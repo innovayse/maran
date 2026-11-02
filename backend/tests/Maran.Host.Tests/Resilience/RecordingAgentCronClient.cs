@@ -74,7 +74,7 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> UpdateEntryAsync(
+    public async Task<Result> UpdateEntryAsync(
         string accountUsername,
         string entryId,
         AgentCronSchedule schedule,
@@ -88,11 +88,11 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DeleteEntryAsync(
+    public async Task<Result> DeleteEntryAsync(
         string accountUsername,
         string entryId,
         CancellationToken cancellationToken)
@@ -102,11 +102,11 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetAccountSuspendedAsync(
+    public async Task<Result> SetAccountSuspendedAsync(
         string accountUsername,
         bool suspended,
         CancellationToken cancellationToken)
@@ -115,11 +115,11 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetEntryEnabledAsync(
+    public async Task<Result> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,
         bool enabled,
@@ -131,7 +131,7 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
@@ -175,7 +175,7 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetEnvironmentAsync(
+    public async Task<Result> SetEnvironmentAsync(
         string accountUsername,
         IReadOnlyList<AgentCronEnvVar> variables,
         CancellationToken cancellationToken)
@@ -185,7 +185,7 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Counts the call and applies whichever misbehaviour the test asked for.</summary>

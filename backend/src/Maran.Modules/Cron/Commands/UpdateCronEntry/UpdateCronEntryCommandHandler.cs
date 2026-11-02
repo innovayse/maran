@@ -70,7 +70,7 @@ public sealed class UpdateCronEntryCommandHandler
     /// entry echoed back here could only guess at that flag — and a guess of "enabled" would tell a
     /// customer their disabled job is live again. The listing is the one thing that knows.
     /// </remarks>
-    public async Task<Result<bool>> HandleAsync(
+    public async Task<Result> HandleAsync(
         UpdateCronEntryCommand command,
         CancellationToken cancellationToken)
     {
@@ -102,7 +102,7 @@ public sealed class UpdateCronEntryCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>Journals a refused update and returns it as the typed failure.</summary>
@@ -110,7 +110,7 @@ public sealed class UpdateCronEntryCommandHandler
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         UpdateCronEntryCommand command,
         Error error,
         CancellationToken cancellationToken)
@@ -122,6 +122,6 @@ public sealed class UpdateCronEntryCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }
