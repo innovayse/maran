@@ -1,4 +1,5 @@
 using Maran.Modules.Notifications.Domain.Enums;
+using Maran.Modules.Notifications.Domain.ValueObjects;
 
 namespace Maran.Modules.Notifications.Domain.Entities;
 
@@ -77,6 +78,31 @@ public sealed class SmtpSettings
 
     /// <summary>When these settings were last saved.</summary>
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>How the panel presents itself to the mail server.</summary>
+    /// <remarks>
+    /// The typed reading of <see cref="Username"/> and <see cref="Password"/>: an empty user name is
+    /// the stored spelling of "this server takes no credentials", and it is turned into a case here
+    /// so that no sender has to remember to test for it.
+    /// </remarks>
+    public SmtpCredentials Credentials
+    {
+        get
+        {
+            return Username.Length == 0
+                ? new AnonymousSmtpCredentials()
+                : new BasicSmtpCredentials(Username, Password);
+        }
+    }
+
+    /// <summary>
+    /// The operator's address for alert mail, or <c>null</c> when none is set (the stored column is
+    /// blank).
+    /// </summary>
+    public string? AlertRecipientAddress
+    {
+        get { return string.IsNullOrWhiteSpace(AlertRecipient) ? null : AlertRecipient; }
+    }
 
     /// <summary>Creates the panel's mail settings for the first time.</summary>
     /// <param name="host">Host name or address of the mail server.</param>

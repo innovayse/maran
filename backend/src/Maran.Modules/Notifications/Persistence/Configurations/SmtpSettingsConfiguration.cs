@@ -84,5 +84,9 @@ public sealed class SmtpSettingsConfiguration : IEntityTypeConfiguration<SmtpSet
 
         builder.Property(settings => settings.UpdatedAt)
             .IsRequired();
+
+        // Typed readings of the Username/Password and AlertRecipient columns above; computed, never stored.
+        builder.Ignore(settings => settings.Credentials);
+        builder.Ignore(settings => settings.AlertRecipientAddress);
     }
 }

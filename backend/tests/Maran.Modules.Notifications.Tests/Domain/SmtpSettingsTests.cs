@@ -1,5 +1,6 @@
 using Maran.Modules.Notifications.Domain.Entities;
 using Maran.Modules.Notifications.Domain.Enums;
+using Maran.Modules.Notifications.Domain.ValueObjects;
 
 namespace Maran.Modules.Notifications.Tests.Domain;
 
@@ -56,6 +57,66 @@ public sealed class SmtpSettingsTests
             Saved.AddDays(1));
 
         Assert.Equal(string.Empty, settings.Password);
+    }
+
+    /// <summary>A stored user name reads as credentials carrying it and the stored password.</summary>
+    [Fact]
+    public void A_stored_user_name_reads_as_basic_credentials()
+    {
+        var credentials = Assert.IsType<BasicSmtpCredentials>(Existing().Credentials);
+
+        Assert.Equal("panel", credentials.Username);
+        Assert.Equal("hunter2", credentials.Password);
+    }
+
+    /// <summary>An empty stored user name reads as anonymous credentials, whatever else is stored.</summary>
+    [Fact]
+    public void An_empty_user_name_reads_as_anonymous_credentials()
+    {
+        var settings = Existing();
+        settings.Replace(
+            "127.0.0.1",
+            25,
+            SmtpSecurity.None,
+            string.Empty,
+            password: string.Empty,
+            "panel@example.net",
+            "Panel",
+            "ops@example.net",
+            Saved.AddDays(1));
+
+        Assert.IsType<AnonymousSmtpCredentials>(settings.Credentials);
+    }
+
+    /// <summary>The basic credentials never print the password when formatted.</summary>
+    [Fact]
+    public void Basic_credentials_never_print_the_password_when_formatted()
+    {
+        var text = Existing().Credentials.ToString();
+
+        Assert.Contains("panel", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("hunter2", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A blank stored alert recipient reads as no address, and a set one as itself.</summary>
+    [Fact]
+    public void A_blank_alert_recipient_reads_as_no_address()
+    {
+        var settings = Existing();
+        Assert.Equal("ops@example.com", settings.AlertRecipientAddress);
+
+        settings.Replace(
+            "smtp.example.com",
+            587,
+            SmtpSecurity.StartTls,
+            "panel",
+            password: null,
+            "panel@example.com",
+            "Panel",
+            "  ",
+            Saved.AddDays(1));
+
+        Assert.Null(settings.AlertRecipientAddress);
     }
 
     /// <summary>The row's key is the fixed singleton id, which is what makes a second row impossible.</summary>
