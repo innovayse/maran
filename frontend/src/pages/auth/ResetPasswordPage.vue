@@ -57,6 +57,17 @@ const token: ComputedRef<string> = computed(() => {
 })
 
 /**
+ * Which of the screen's three faces is showing: the password changed, a link that carried no token
+ * (which can only be refused, so no form is offered), or the form.
+ */
+const phase: ComputedRef<'done' | 'missingToken' | 'form'> = computed(() => {
+  if (done.value) {
+    return 'done'
+  }
+  return token.value === '' ? 'missingToken' : 'form'
+})
+
+/**
  * Sets the new password.
  *
  * The two entries are compared here because that is a fact about this form rather
@@ -83,7 +94,7 @@ const submit = async (): Promise<void> => {
       :subtitle="t('app.passwordReset.resetSubtitle')"
     />
 
-    <div v-if="done" class="flex flex-col gap-5">
+    <div v-if="phase === 'done'" class="flex flex-col gap-5">
       <UiAlert variant="success">{{ t('app.passwordReset.resetDone') }}</UiAlert>
       <UiButton class="w-full justify-center" :to="{ name: 'login' }">
         {{ t('app.passwordReset.backToSignIn') }}
@@ -93,7 +104,7 @@ const submit = async (): Promise<void> => {
 
     <!-- No token in the link: the request could only be refused, so the state is stated instead
          of a form that is certain to fail. -->
-    <div v-else-if="token === ''" class="flex flex-col gap-5">
+    <div v-else-if="phase === 'missingToken'" class="flex flex-col gap-5">
       <UiAlert variant="warning">
         <p class="font-semibold">{{ t('app.passwordReset.missingTokenTitle') }}</p>
         <p class="mt-1">{{ t('app.passwordReset.missingTokenBody') }}</p>
