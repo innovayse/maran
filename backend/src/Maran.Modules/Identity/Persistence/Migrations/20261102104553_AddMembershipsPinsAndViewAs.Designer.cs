@@ -325,13 +325,6 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.Property<DateTimeOffset>("IssuedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasDefaultValue("Own");
-
                     b.Property<string>("RevocationReason")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");

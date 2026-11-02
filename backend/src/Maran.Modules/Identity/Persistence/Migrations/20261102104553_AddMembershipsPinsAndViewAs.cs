@@ -32,15 +32,6 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                 type: "uuid",
                 nullable: true);
 
-            migrationBuilder.AddColumn<string>(
-                name: "Kind",
-                schema: "identity",
-                table: "Sessions",
-                type: "character varying(16)",
-                maxLength: 16,
-                nullable: false,
-                defaultValue: "Own");
-
             migrationBuilder.AddColumn<Guid>(
                 name: "ImpersonatorUserId",
                 schema: "identity",
@@ -160,11 +151,6 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
             migrationBuilder.DropColumn(
                 name: "ActorUserId",
-                schema: "identity",
-                table: "Sessions");
-
-            migrationBuilder.DropColumn(
-                name: "Kind",
                 schema: "identity",
                 table: "Sessions");
 

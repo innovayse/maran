@@ -81,13 +81,6 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<Guid?>("ImpersonatorUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ImpersonatorUsername")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
                     b.Property<string>("IpAddress")
                         .IsRequired()
                         .HasMaxLength(45)
@@ -302,12 +295,6 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.Property<Guid?>("ActiveAccountId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("ActorSessionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ActorUserId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -320,20 +307,6 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasColumnType("character varying(45)");
 
                     b.Property<DateTimeOffset>("IssuedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasDefaultValue("Own");
-
-                    b.Property<string>("RevocationReason")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<DateTimeOffset?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("TokenHash")
@@ -402,19 +375,36 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.Property<int>("FailedLoginAttempts")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("IsAccountSuspended")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<bool>("IsTotpEnabled")
-                        .HasColumnType("boolean");
-
                     b.Property<DateTimeOffset?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<long?>("LastTotpWindow")
                         .HasColumnType("bigint");
+
+                    b.Property<bool>("LegacyAccountSuspended")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsAccountSuspended");
+
+                    b.Property<string>("LegacyState")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Active")
+                        .HasColumnName("State");
+
+                    b.Property<bool>("LegacyTotpEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsTotpEnabled");
+
+                    b.Property<string>("Lifecycle")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Active");
 
                     b.Property<DateTimeOffset?>("LockedUntil")
                         .HasColumnType("timestamp with time zone");
@@ -428,13 +418,6 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasDefaultValue("Active");
 
                     b.Property<string>("TotpSecret")
                         .HasMaxLength(256)
@@ -471,6 +454,34 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_AccountMemberships_Users_UserId");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AuditEvent", b =>
+                {
+                    b.OwnsOne("Maran.Modules.Identity.Domain.ValueObjects.AuditImpersonator", "Impersonator", b1 =>
+                        {
+                            b1.Property<Guid>("AuditEventId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<Guid>("UserId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("ImpersonatorUserId");
+
+                            b1.Property<string>("Username")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("ImpersonatorUsername");
+
+                            b1.HasKey("AuditEventId");
+
+                            b1.ToTable("AuditEvents", "identity");
+
+                            b1.WithOwner()
+                                .HasForeignKey("AuditEventId");
+                        });
+
+                    b.Navigation("Impersonator");
                 });
 
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.InvitationToken", b =>
@@ -521,6 +532,54 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_Sessions_Users_UserId");
+
+                    b.OwnsOne("Maran.Modules.Identity.Domain.ValueObjects.SessionRevocation", "Revocation", b1 =>
+                        {
+                            b1.Property<Guid>("SessionId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<DateTimeOffset>("At")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("RevokedAt");
+
+                            b1.Property<string>("Reason")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("RevocationReason");
+
+                            b1.HasKey("SessionId");
+
+                            b1.ToTable("Sessions", "identity");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SessionId");
+                        });
+
+                    b.OwnsOne("Maran.Modules.Identity.Domain.ValueObjects.ViewAsOrigin", "ViewAs", b1 =>
+                        {
+                            b1.Property<Guid>("SessionId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<Guid>("ActorSessionId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("ActorSessionId");
+
+                            b1.Property<Guid>("ActorUserId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("ActorUserId");
+
+                            b1.HasKey("SessionId");
+
+                            b1.ToTable("Sessions", "identity");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SessionId");
+                        });
+
+                    b.Navigation("Revocation");
+
+                    b.Navigation("ViewAs");
                 });
 #pragma warning restore 612, 618
         }
