@@ -22,6 +22,7 @@ import { useRouter } from 'vue-router'
 import UiModal from '../ui/UiModal.vue'
 import UiSearchInput from '../ui/UiSearchInput.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { NavigationEntry } from '../../types/navigation'
 
 /** Props accepted by {@link ShellCommandPalette}. */
@@ -104,7 +105,7 @@ const activeOptionId: ComputedRef<string | undefined> = computed(() => {
  * @returns The label to render and to search against.
  */
 const entryLabel = (entry: NavigationEntry): string => {
-  return entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey)
+  return navigationLabelText(entry.label, t)
 }
 
 /**

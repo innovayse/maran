@@ -74,6 +74,9 @@
         "settings": "Настройки",
         "activity": "Активность",
         "account": "Мой аккаунт"
+      },
+      "badges": {
+        "failedTasks": "с ошибкой"
       }
     },
     "shell": {

@@ -22,13 +22,15 @@ withDefaults(
     compact?: boolean
     /** Draws the row as a child inside a sidebar submenu: shorter, text only. */
     nested?: boolean
+    /** Leaves room at the row's end for the section toggle `UiNavSection` draws over it. */
+    trailing?: boolean
     /**
      * Draws the row as a phone tab-bar cell: icon over a short label, in the same box as the bar's
      * links (issue #312, the customer's Mail tab until mail lands).
      */
     tab?: boolean
   }>(),
-  { compact: false, nested: false, tab: false },
+  { compact: false, nested: false, trailing: false, tab: false },
 )
 </script>
 
@@ -43,23 +45,18 @@ withDefaults(
       tab
         ? 'm-0.5 min-w-0 justify-center text-center text-xs leading-tight font-semibold'
         : compact
-          ? 'mx-auto size-9 justify-center gap-2.5 text-sm font-medium'
+          ? 'mx-auto size-9 justify-center text-sm font-medium'
           : nested
-            ? 'w-full gap-2.5 px-2.5 py-1 text-sm font-medium max-lg:py-3'
-            : 'w-full gap-2.5 px-2.5 py-1.5 text-sm font-medium max-lg:py-3'
+            ? 'w-full px-2.5 py-1 text-sm font-medium max-lg:py-3'
+            : trailing
+              ? 'w-full py-1.5 pr-9 pl-2.5 text-sm font-medium max-lg:py-3'
+              : 'w-full px-2.5 py-1.5 text-sm font-medium max-lg:py-3'
     "
     :title="hint"
   >
-    <span
-      class="flex items-center"
-      :class="
-        tab
-          ? 'flex-col gap-1'
-          : compact
-            ? 'flex-none gap-2.5'
-            : 'min-w-min flex-1 gap-2.5 [&>span]:min-w-0 [&>span]:line-clamp-2 [&>span]:wrap-normal'
-      "
-    >
+    <!-- The label cluster takes the row's width; the caller's label span wraps itself. A tab cell
+         stacks its icon over its label instead. -->
+    <span class="flex items-center" :class="tab ? 'flex-col gap-1' : compact ? 'flex-none gap-2.5' : 'min-w-0 flex-1 gap-2.5'">
       <slot />
     </span>
     <span class="sr-only">{{ hint }}</span>

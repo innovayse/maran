@@ -68,14 +68,11 @@ import { readStoredKeys } from '../../utils/readStoredKeys'
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import UiBadge from '../ui/UiBadge.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
-import UiNavLink from '../ui/UiNavLink.vue'
-import UiNavPlanned from '../ui/UiNavPlanned.vue'
-import UiNavSection from '../ui/UiNavSection.vue'
+import ShellSidebarEntry from './ShellSidebarEntry.vue'
 import ShellUserBlock from './ShellUserBlock.vue'
 import { groupNavigation } from '../../utils/groupNavigation'
 import { useCurrentSection } from '../../composables/useCurrentSection'
@@ -125,15 +122,6 @@ const scroller: Ref<HTMLElement | null> = ref(null)
 const groups: ComputedRef<NavigationGroup[]> = computed(() => {
   return groupNavigation(props.entries)
 })
-
-/**
- * Text drawn for an entry: the shell's own entries carry an i18n key, modules a backend label.
- * @param entry The entry to name.
- * @returns The label to render.
- */
-const labelOf = (entry: NavigationEntry): string => {
-  return entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey)
-}
 
 /**
  * Answers whether a section is open.
@@ -306,64 +294,14 @@ useRevealCurrentRow(scroller, (): readonly NavigationEntry[] => {
           </p>
           <ul class="flex flex-col gap-0.5" :aria-labelledby="`nav-group-${group.key}`">
             <UiNavItem v-for="entry in group.entries" :key="entry.key">
-              <UiNavPlanned v-if="entry.state.kind === 'planned'" :hint="t('app.nav.plannedHint')">
-                <UiIcon :name="entry.icon" size="md" />
-                <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
-              </UiNavPlanned>
-
-              <UiNavLink
-                v-else-if="entry.children.length === 0"
-                :to="entry.state.target"
-                :locked="entry.state.kind === 'locked'"
-                @click="navigate"
-              >
-                <UiIcon :name="entry.icon" size="md" />
-                <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
-                <template v-if="entry.state.kind === 'locked' || entry.badge !== null" #badge>
-                  <UiBadge>{{ entry.state.kind === 'locked' ? t('app.nav.lockedBadge') : entry.badge }}</UiBadge>
-                </template>
-              </UiNavLink>
-
-              <template v-else>
-                <UiNavSection
-                  :to="entry.state.target"
-                  :current="holdsCurrentRoute(entry)"
-                  :open="isOpen(entry.key)"
-                  :section="entry.key"
-                  :controls="`nav-section-${entry.key}`"
-                  :toggle-label="t('app.nav.expandSection', { name: labelOf(entry) })"
-                  @navigate="chooseSection(entry.key)"
-                  @toggle="toggle(entry.key)"
-                >
-                  <UiIcon :name="entry.icon" size="md" />
-                  <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
-                </UiNavSection>
-                <ul
-                  v-if="isOpen(entry.key)"
-                  :id="`nav-section-${entry.key}`"
-                  class="mt-0.5 ml-4.5 flex flex-col gap-0.5 border-l border-border-subtle pl-1.5"
-                  :aria-label="labelOf(entry)"
-                >
-                  <UiNavItem v-for="child in entry.children" :key="child.key">
-                    <UiNavPlanned v-if="child.state.kind === 'planned'" :hint="t('app.nav.plannedHint')" nested>
-                      <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
-                    </UiNavPlanned>
-                    <UiNavLink
-                      v-else
-                      :to="child.state.target"
-                      :locked="child.state.kind === 'locked'"
-                      nested
-                      :data-nav-parent="entry.key"
-                      @click="navigate"
-                    >
-                      <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
-                      <template v-if="child.state.kind === 'locked' || child.badge !== null" #badge>
-                        <UiBadge>{{ child.state.kind === 'locked' ? t('app.nav.lockedBadge') : child.badge }}</UiBadge>
-                      </template>
-                    </UiNavLink>
-                  </UiNavItem>
-                </ul>
-              </template>
+              <ShellSidebarEntry
+                :entry="entry"
+                :open="isOpen(entry.key)"
+                :current="holdsCurrentRoute(entry)"
+                @navigate="navigate"
+                @choose="chooseSection(entry.key)"
+                @toggle="toggle(entry.key)"
+              />
             </UiNavItem>
           </ul>
         </UiNavItem>

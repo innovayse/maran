@@ -240,8 +240,8 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         children: [
           page('monitoring-metrics', 'app.nav.children.monitoringMetrics', routed('monitoring'), ADMIN, 'monitoring'),
           page('monitoring-logs', 'app.nav.children.monitoringLogs', planned(null), ADMIN, null),
-          { ...page('tasks', 'tasks.list.heading', routed('tasks'), MANAGERS, 'tasks'), badge: 'runningTasks' },
-          page('audit', 'app.nav.auditJournal', routed('audit'), MANAGERS, null),
+          { ...page('tasks', 'tasks.list.heading', routed('tasks'), MANAGERS, 'tasks'), badge: 'failedTasks' },
+          page('audit', 'app.nav.auditJournal', routed('audit'), ADMIN, null),
         ],
       },
     ],
@@ -278,7 +278,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.activity',
         icon: 'listChecks',
         children: [
-          { ...page('activity-tasks', 'tasks.list.heading', routed('tasks'), CUSTOMER, 'tasks'), badge: 'runningTasks' },
+          { ...page('activity-tasks', 'tasks.list.heading', routed('tasks'), CUSTOMER, 'tasks'), badge: 'failedTasks' },
           page('site-logs', 'app.nav.children.siteLogs', planned(152), CUSTOMER, null),
         ],
       },

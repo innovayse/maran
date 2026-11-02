@@ -67,6 +67,12 @@ test('a page not built yet is shown disabled, with a coming-soon hint and no lin
   await expect(dns).toHaveAttribute('title', 'Coming soon')
   await expect(dns).not.toHaveAttribute('href', /.*/)
 
+  // A section with nothing built yet still opens, and every page in it is disabled.
+  await openSection(page, 'DNS')
+  for (const name of ['Zones', 'Templates', 'Nameservers']) {
+    await expect(nav.getByRole('link', { name: `${name} Coming soon` })).toHaveAttribute('aria-disabled', 'true')
+  }
+
   // A planned page inside a usable section sits beside its built siblings.
   await openSection(page, 'Accounts')
   await expect(nav.getByRole('link', { name: 'Resellers Coming soon' })).toHaveAttribute('aria-disabled', 'true')
@@ -133,4 +139,15 @@ test('on a phone the drawer opens each section as an accordion', async ({ page }
 
   await expect(page).toHaveURL('/firewall/bans')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('the background tasks item shows how many tasks failed', async ({ page }) => {
+  await openFullShell(page)
+  // Installed after the shell's catch-all so it wins; the shell reads the count once, on load.
+  await page.route(/\/api\/v1\/tasks\/failed-count(\?.*)?$/, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '3' })
+  })
+  await page.reload()
+  await openSection(page, 'Monitoring')
+  await expect(mainNavigation(page).getByRole('link', { name: 'Background tasks 3 failed' })).toBeVisible()
 })

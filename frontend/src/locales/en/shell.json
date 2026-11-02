@@ -74,6 +74,9 @@
         "settings": "Settings",
         "activity": "Activity",
         "account": "My account"
+      },
+      "badges": {
+        "failedTasks": "failed"
       }
     },
     "shell": {

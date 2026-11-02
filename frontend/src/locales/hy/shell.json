@@ -74,6 +74,9 @@
         "settings": "Կարգավորումներ",
         "activity": "Գործունեություն",
         "account": "Իմ հաշիվը"
+      },
+      "badges": {
+        "failedTasks": "ձախողված"
       }
     },
     "shell": {

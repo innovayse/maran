@@ -58,8 +58,8 @@ export type NavigationAvailability =
 
 /** A live count the shell can draw beside an item. Only counts the shell already holds are listed. */
 export type NavigationBadgeKind =
-  /** Background tasks running now, from the task tray stream the app bar keeps open. */
-  'runningTasks'
+  /** Background tasks that failed, as the panel counts them (`GET /api/v1/tasks/failed-count`). */
+  'failedTasks'
 
 /** Who may see an item, and what the panel must have for it to be usable. */
 export interface NavigationGate {
@@ -136,6 +136,14 @@ export type NavigationEntryState =
   /** A page not built yet: drawn disabled, with no destination at all. */
   | { kind: 'planned'; issue: number | null }
 
+/** A live count drawn beside an entry, with what it counts so it can be announced. */
+export interface NavigationBadge {
+  /** What the count is of. */
+  kind: NavigationBadgeKind
+  /** The count; always above zero, since a zero is not drawn. */
+  count: number
+}
+
 /** What the shell knows about the caller and the panel when it builds the navigation. */
 export interface NavigationContext {
   /** The signed-in caller's role. */
@@ -159,6 +167,13 @@ export interface NavigationContext {
   hasRoute: (name: string) => boolean
 }
 
+/** The text an entry is drawn with. */
+export type NavigationLabel =
+  /** An i18n key of the SPA's own chrome: every item of the tree. */
+  | { kind: 'key'; key: string }
+  /** Text the panel supplied, already localized: a catalogue module the tree does not know. */
+  | { kind: 'text'; text: string }
+
 /**
  * One entry in the authenticated shell's navigation, as `utils/buildNavigation.ts` builds it from
  * the tree for the signed-in role.
@@ -170,17 +185,12 @@ export interface NavigationEntry {
   groupKey: string
   /** Where the entry leads, or that it leads nowhere yet. */
   state: NavigationEntryState
-  /**
-   * i18n key of the label, for every entry of the tree. Null only for a module the tree does not
-   * know, which carries the panel's own localized {@link label} instead.
-   */
-  labelKey: string | null
-  /** Label the panel supplied, already localized; set only when {@link labelKey} is null. */
-  label: string | null
+  /** The text the entry is drawn with. */
+  label: NavigationLabel
   /** Glyph the entry is drawn with. */
   icon: NavigationIcon
   /** The live count to draw beside the entry, or null when there is none to show. */
-  badge: number | null
+  badge: NavigationBadge | null
   /**
    * The section's pages, drawn as a collapsible submenu. One level deep. Empty for a link, for a
    * section left with one page (drawn as that page's link), and for every child.

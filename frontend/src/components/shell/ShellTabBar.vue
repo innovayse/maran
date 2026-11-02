@@ -40,6 +40,7 @@ import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiNavPlanned from '../ui/UiNavPlanned.vue'
 import { useNavigationRole } from '../../composables/useNavigationRole'
+import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { RouteLocationRaw } from 'vue-router'
 import type { NavigationEntry } from '../../types/navigation'
 
@@ -146,7 +147,7 @@ const tabs: ComputedRef<Tab[]> = computed(() => {
         kind: 'open',
         entry,
         target: entry.state.target,
-        label: entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey),
+        label: navigationLabelText(entry.label, t),
       })
     }
   }

@@ -86,14 +86,14 @@ const pageEntry = (
     return null
   }
   const count = page.badge === null ? 0 : context.badges[page.badge]
+  const badge = page.badge !== null && count > 0 ? { kind: page.badge, count } : null
   return {
     key: page.key,
     groupKey,
     state,
-    labelKey: page.labelKey,
-    label: null,
+    label: { kind: 'key', key: page.labelKey },
     icon,
-    badge: count > 0 ? count : null,
+    badge,
     children: [],
   }
 }
@@ -104,15 +104,14 @@ const pageEntry = (
  * @param children The section's offered pages, in order.
  * @returns The section row's state.
  */
-const sectionStateOf = (children: readonly NavigationEntry[]): NavigationEntryState => {
+const sectionStateOf = (children: readonly [NavigationEntry, ...NavigationEntry[]]): NavigationEntryState => {
   const open = children.find((child): boolean => {
     return child.state.kind === 'open'
   })
   const locked = children.find((child): boolean => {
     return child.state.kind === 'locked'
   })
-  const first = children[0]
-  return open?.state ?? locked?.state ?? first?.state ?? { kind: 'planned', issue: null }
+  return open?.state ?? locked?.state ?? children[0].state
 }
 
 /**
@@ -131,26 +130,30 @@ const nodeEntries = (node: NavigationNodeSpec, groupKey: string, context: Naviga
     const entry = pageEntry(child, groupKey, node.icon, context)
     return entry === null ? [] : [entry]
   })
-  if (children.length === 0) {
+  const [first, ...rest] = children
+  if (first === undefined) {
     return []
   }
-  const state = sectionStateOf(children)
-  const badge = children.reduce((sum, child): number => {
-    return sum + (child.badge ?? 0)
-  }, 0)
-  // A submenu needs a page it leads to and a second one beside it: a section left with one page
-  // is that page under the section's name, and a section with nothing usable is one row, locked or
-  // planned, rather than a list of doors that all lead to the same wall.
-  const submenu = children.length > 1 && state.kind === 'open'
+  const state = sectionStateOf([first, ...rest])
+  // The section repeats its badged page's count, so it is seen with the submenu closed. The tree
+  // gives a section at most one badged page, so there is nothing to add up.
+  const badge =
+    children.find((child): boolean => {
+      return child.badge !== null
+    })?.badge ?? null
+  // A submenu needs a second page: a section left with one page is that page under the section's
+  // name. A section whose usable pages are all locked is one row to its upgrade page rather than a
+  // list of doors to the same wall. A section with nothing built yet still opens, every page in it
+  // drawn disabled, so the menu shows what is coming.
+  const submenu = children.length > 1 && state.kind !== 'locked'
   return [
     {
       key: node.key,
       groupKey,
       state,
-      labelKey: node.labelKey,
-      label: null,
+      label: { kind: 'key', key: node.labelKey },
       icon: node.icon,
-      badge: badge > 0 ? badge : null,
+      badge,
       children: submenu ? children : [],
     },
   ]
@@ -182,8 +185,7 @@ const catalogueEntries = (context: NavigationContext): NavigationEntry[] => {
           reachable && typeof landing === 'string'
             ? { kind: 'open', target: { name: landing } }
             : { kind: 'locked', target: upgradeOf(module.name) },
-        labelKey: null,
-        label: module.displayName ?? module.name,
+        label: { kind: 'text', text: module.displayName ?? module.name },
         icon: 'grid',
         badge: null,
         children: [],
