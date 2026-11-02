@@ -485,8 +485,7 @@ const stubPanel = async (page: Page): Promise<void> => {
       username: LONG_ACCOUNT,
       usedBytes: 3 * 1024 * 1024 * 1024,
       quotaBytes: 2 * 1024 * 1024 * 1024,
-      enforceable: true,
-      note: null,
+      backing: { state: 'enforced' },
     },
   ])
 }

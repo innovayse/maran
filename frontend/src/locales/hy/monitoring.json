@@ -40,6 +40,7 @@
       "notMeasured": "Չափված չէ",
       "noQuota": "Սահմանաչափ գրանցված չէ",
       "notEnforcedBadge": "Չի կիրառվում",
+      "unmeasuredBadge": "Չստուգված",
       "ratio": "{used} {quota}-ից",
       "ratioNotEnforced": "{used}, սահմանաչափը չի կիրառվում",
       "meterLabel": "{username}-ի սահմանաչափից զբաղեցված սկավառակը",

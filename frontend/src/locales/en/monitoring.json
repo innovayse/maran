@@ -40,6 +40,7 @@
       "notMeasured": "Not measured",
       "noQuota": "No allowance recorded",
       "notEnforcedBadge": "Not enforced",
+      "unmeasuredBadge": "Not checked",
       "ratio": "{used} of {quota}",
       "ratioNotEnforced": "{used}, allowance not enforced",
       "meterLabel": "Disk used of the allowance for {username}",
