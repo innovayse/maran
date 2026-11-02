@@ -39,6 +39,24 @@
   <data name="AccountQuotaNotEnforceableNote">
     <value>Ներկայում չի կիրառվում. սա տարիֆի սահմանաչափն է, բայց այս սերվերը այժմ չի կարող այն ապահովել սկավառակի իրական սահմանափակմամբ, այնպես որ հաշիվը կարող է օգտագործել ավելի շատ։ Կիրառումը վերականգնելու համար մոնտավորեք ֆայլային համակարգը քվոտաների հաշվառմամբ և գործարկեք quotaon. վահանակը դա ձեզ փոխարեն չի անելու։</value>
   </data>
+  <data name="LogLevelVerbose">
+    <value>Մանրամասն — ամեն ինչ</value>
+  </data>
+  <data name="LogLevelDebug">
+    <value>Վրիպազերծում — ախտորոշիչ մանրամասներ</value>
+  </data>
+  <data name="LogLevelInformation">
+    <value>Տեղեկություն — սովորական մակարդակ</value>
+  </data>
+  <data name="LogLevelWarning">
+    <value>Զգուշացում — միայն այն, ինչ ուշադրություն է պահանջում</value>
+  </data>
+  <data name="LogLevelError">
+    <value>Սխալ — միայն խափանումներ</value>
+  </data>
+  <data name="LogLevelFatal">
+    <value>Ճակատագրական — միայն վահանակը կանգնեցնող խափանումներ</value>
+  </data>
   <data name="ClockSyncSynchronized">
     <value>Ժամացույցը համաժամեցված է ժամանակի աղբյուրի հետ։</value>
   </data>

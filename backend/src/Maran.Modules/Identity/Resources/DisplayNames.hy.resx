@@ -204,6 +204,9 @@
   <data name="AuditActionSmtpSettingsSaved">
     <value>Պահպանվեցին փոստի կարգավորումները</value>
   </data>
+  <data name="AuditActionPanelLogLevelChanged">
+    <value>Փոխվեց վահանակի մատյանի մակարդակը</value>
+  </data>
   <data name="AuditActionTestMailSent">
     <value>Ուղարկվեց փորձնական նամակ</value>
   </data>

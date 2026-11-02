@@ -822,6 +822,10 @@ remove_logs() {
   # and nothing an operator put there under another name. It carries `missingok` exactly like
   # maran-sites, so leaving it would be the same silent daily rule pointing at nothing.
   rm -f /etc/logrotate.d/maran-panel
+  # The installer's own transcript, /var/log/maran/install.log (issue #131). Removed by the literal
+  # that installed it (MARAN_INSTALL_LOGROTATE_DEST in installer/lib/41-log-retention.sh), for the
+  # same reason as the two above.
+  rm -f /etc/logrotate.d/maran-install
 
   # One prompt for the whole tree, all three parts of it: the root-owned parent (install.log and
   # the panel vhost's nginx logs), the panel-owned /var/log/maran/panel the API may have been

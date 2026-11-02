@@ -326,6 +326,12 @@ public static class AuditActions
     /// <summary>The panel's outgoing mail settings were saved. The password is never part of the entry.</summary>
     public const string SmtpSettingsSaved = "SmtpSettingsSaved";
 
+    /// <summary>
+    /// An administrator changed the panel's log level at runtime. The subject names the level before
+    /// and after, so the journal answers "why did the logs go quiet" on its own (issue #131).
+    /// </summary>
+    public const string PanelLogLevelChanged = "PanelLogLevelChanged";
+
     /// <summary>A test message was sent to the administrator who asked for it.</summary>
     public const string TestMailSent = "TestMailSent";
 
