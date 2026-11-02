@@ -54,6 +54,7 @@ import { useAuthStore } from '../stores/auth'
 import { useDashboardStore } from '../stores/dashboard'
 import { useModulesStore } from '../stores/modules'
 import { useSystemStore } from '../stores/system'
+import type { AdministratorDashboard } from '../types/dashboard'
 import type { QuickAction } from '../types/quickAction'
 import type { LoadingState } from '../types/loading'
 
@@ -74,15 +75,20 @@ const headingState: ComputedRef<LoadingState> = computed(() => {
   return system.healthState === 'loading' ? 'loading' : 'loaded'
 })
 
+/** The administrator's sections once the read has arrived, or `null` for a customer's answer or a read still on its way. */
+const server: ComputedRef<AdministratorDashboard | null> = computed(() => {
+  return dashboard.loadState === 'loaded' ? dashboard.administrator : null
+})
+
 /**
  * Which audience the dashboard is drawn for, from the read's state and who the panel says the caller is.
  * - `pendingServer`: the read is in flight for a session that says it administers the server, so the
  *   figure cards are held with placeholders. A customer, who will not be shown the server, gets no
  *   placeholders (`pending`).
  * - `server` / `customer`: the panel answered and decided which sections the caller sees. That
- *   decision is the panel's; this is the SPA agreeing with it, which is advice and not enforcement
- *   (rules/vue.md). A loaded read alone would draw zeros nobody measured, and `isAdministrator`
- *   alone would draw empty panels at a customer.
+ *   decision is the panel's, carried by the answer's `audience`; this is the SPA agreeing with it,
+ *   which is advice and not enforcement (rules/vue.md). A loaded read alone would draw zeros nobody
+ *   measured, and a stale administrator answer alone would draw empty panels at a customer.
  * - `failed`: the read ended in an error, drawn by the region's own error slot.
  */
 const view: ComputedRef<'pending' | 'pendingServer' | 'server' | 'customer' | 'failed'> = computed(() => {
@@ -92,7 +98,7 @@ const view: ComputedRef<'pending' | 'pendingServer' | 'server' | 'customer' | 'f
     case 'error':
       return 'failed'
     case 'loaded':
-      return dashboard.isAdministrator ? 'server' : 'customer'
+      return server.value === null ? 'customer' : 'server'
   }
 })
 
@@ -166,10 +172,9 @@ onMounted(refresh)
 <template>
   <section class="flex w-full flex-col gap-6">
     <!-- Healthy: the backend answered at all, and the heading's subtitle says exactly that. It does
-         not interpolate the answer's `status` field: that is an English machine token, which would
-         sit inside a translated sentence, and on success it can only ever be the literal `ok`
-         (`/health` constructs its report with it). A degraded state, if the panel ever reports one,
-         needs a branch of its own with its own translated sentence, not a raw field shown to a
+         not interpolate any word of the answer: `agent` and `database` are English machine tokens,
+         which would sit inside a translated sentence. A degraded state, if the panel ever reports
+         one, needs a branch of its own with its own translated sentence, not a raw field shown to a
          customer. While the check is on its way the subtitle holds a placeholder line. -->
     <UiLoadingRegion :state="headingState">
       <div class="flex flex-col gap-6">
@@ -212,30 +217,24 @@ onMounted(refresh)
         </template>
 
         <!-- Below the verdict, and only for a caller the panel filled the sections for. -->
-        <template v-else-if="view === 'server'">
+        <template v-else-if="server !== null">
           <!-- Each section says whether the panel could read it. One the agent or a module could not
                answer is drawn as "could not be read" in its own place, never as an empty list or a
                zero (issue #248), and the panel isolates it on its own side — so the rest of the screen
                stays up instead of going dark together. The attention notice is first: the one thing
                that needs looking at goes above everything else. -->
-          <DashboardAttentionList v-if="dashboard.attention !== null" :attention="dashboard.attention" />
+          <DashboardAttentionList :attention="server.attention" />
 
-          <DashboardCountGrid v-if="dashboard.counts !== null" :counts="dashboard.counts" />
+          <DashboardCountGrid :counts="server.counts" />
 
-          <template v-if="dashboard.resources !== null">
-            <DashboardResourceCard v-if="dashboard.resources.state === 'loaded'" :resources="dashboard.resources.data" />
-            <DashboardUnavailableCard
-              v-else
-              :title="t('app.status.resources.title')"
-              :message="t('app.status.resources.unavailable')"
-            />
-          </template>
-
-          <DashboardServicesCard
-            v-if="dashboard.services !== null"
-            :services="dashboard.services"
-            :links-to-monitoring="linksToMonitoring"
+          <DashboardResourceCard v-if="server.resources.state === 'loaded'" :resources="server.resources.data" />
+          <DashboardUnavailableCard
+            v-else
+            :title="t('app.status.resources.title')"
+            :message="t('app.status.resources.unavailable')"
           />
+
+          <DashboardServicesCard :services="server.services" :links-to-monitoring="linksToMonitoring" />
 
           <!-- Two columns only when the CONTENT PANEL is wide enough for two readable cards (`@3xl`,
                48rem of container width), not when the viewport is: under a large system font the
@@ -249,8 +248,7 @@ onMounted(refresh)
               />
 
               <DashboardRecentAudit
-                v-if="dashboard.recentAudit !== null"
-                :entries="dashboard.recentAudit"
+                :entries="server.recentAudit"
                 :class="{ '@3xl:col-span-2': quickActions.length === 0 }"
               />
             </div>

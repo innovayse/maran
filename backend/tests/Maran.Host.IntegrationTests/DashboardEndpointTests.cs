@@ -98,9 +98,8 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
     /// <remarks>
     /// 200 and deliberately not 403: this is the panel's landing route for everyone, and the health
     /// verdict it also carries must still reach a customer. The refusal is in the CONTENTS, and it
-    /// is asserted as JSON null per section rather than as an absent property or an empty list — the
-    /// SPA relies on null meaning "not for you" and nothing else, and a missing property would be a
-    /// different contract.
+    /// is the shape: the customer audience carries no section member at all, rather than a null or an
+    /// empty list per section, so there is no section the SPA could mistake for a read that failed.
     /// </remarks>
     [Fact]
     public async Task A_signed_in_customer_is_given_no_part_of_the_servers_state()
@@ -116,12 +115,13 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var root = body.RootElement;
 
-        Assert.False(root.GetProperty("isAdministrator").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("resources").ValueKind);
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("counts").ValueKind);
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("attention").ValueKind);
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("services").ValueKind);
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("recentAudit").ValueKind);
+        Assert.Equal("customer", root.GetProperty("audience").GetString());
+        Assert.False(root.TryGetProperty("isAdministrator", out _));
+        Assert.False(root.TryGetProperty("resources", out _));
+        Assert.False(root.TryGetProperty("counts", out _));
+        Assert.False(root.TryGetProperty("attention", out _));
+        Assert.False(root.TryGetProperty("services", out _));
+        Assert.False(root.TryGetProperty("recentAudit", out _));
     }
 
     /// <summary>
@@ -147,7 +147,8 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var root = body.RootElement;
 
-        Assert.True(root.GetProperty("isAdministrator").GetBoolean());
+        Assert.Equal("administrator", root.GetProperty("audience").GetString());
+        Assert.False(root.TryGetProperty("isAdministrator", out _));
 
         var counts = root.GetProperty("counts");
         Assert.Equal(JsonValueKind.Object, counts.ValueKind);

@@ -33,8 +33,8 @@ namespace Maran.Host.Dashboard;
 /// here later inherits that rule or it does not go in.
 /// </para>
 /// <para>
-/// A non-administrator receives the shape with every administrator-only section null. That is not
-/// an oversight: a customer's own landing screen is the client zone, which is issue #49's subject,
+/// A non-administrator receives <see cref="CustomerDashboardDto"/>, which has no section at all.
+/// That is not an oversight: a customer's own landing screen is the client zone, which is issue #49's subject,
 /// and a second one invented here is a thing that issue would then have to undo.
 /// </para>
 /// <para>
@@ -76,7 +76,9 @@ public static class DashboardEndpoint
                 CancellationToken cancellationToken) =>
             {
                 var logger = loggers.CreateLogger(typeof(DashboardEndpoint));
-                return Results.Ok(await DescribeAsync(bus, logger, currentUser, clock, cancellationToken));
+                // Declared as the union's base: only then does the serializer write `audience`.
+                return Results.Ok<DashboardDto>(
+                    await DescribeAsync(bus, logger, currentUser, clock, cancellationToken));
             })
             // Authenticated, never anonymous: /api/v1/modules may be read by anybody because it
             // describes what this build composed, while this route describes what the server holds.
@@ -104,13 +106,7 @@ public static class DashboardEndpoint
         // route refuses anyway — and a customer both read false here.
         if (!currentUser.IsAdmin)
         {
-            return new DashboardDto(
-                IsAdministrator: false,
-                Resources: null,
-                Services: null,
-                Counts: null,
-                Attention: null,
-                RecentAudit: null);
+            return new CustomerDashboardDto();
         }
 
         // Together rather than one after another: they are one screen, and eleven sequential
@@ -140,8 +136,7 @@ public static class DashboardEndpoint
             attention,
             audit);
 
-        return new DashboardDto(
-            IsAdministrator: true,
+        return new AdministratorDashboardDto(
             Resources: await resources,
             Services: await services,
 
