@@ -334,7 +334,7 @@ export const stubManagedPlans = async (
         return
       }
       plans.splice(index, 1)
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
 

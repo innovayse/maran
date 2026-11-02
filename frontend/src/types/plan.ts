@@ -144,7 +144,7 @@ export interface PlansApi {
    * Deletes a plan; refused while any account is on it.
    * @param id The plan to delete.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the plan was deleted.
+   * @returns Resolves once the plan was deleted; the panel answers 204 with no body.
    */
-  remove: (id: string, signal?: AbortSignal) => Promise<boolean>
+  remove: (id: string, signal?: AbortSignal) => Promise<void>
 }

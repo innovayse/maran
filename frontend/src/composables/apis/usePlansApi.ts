@@ -77,10 +77,10 @@ export const usePlansApi = (): PlansApi => {
    * Deletes a plan.
    * @param id The plan to delete.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the plan was deleted.
+   * @returns Resolves once the plan was deleted; the panel answers 204 with no body.
    */
-  const remove = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${PLANS_PATH}/${id}`, signal)
+  const remove = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${PLANS_PATH}/${id}`, signal)
   }
 
   return { list, features, get, create, update, remove }
