@@ -107,9 +107,12 @@ fn a_sidecar_naming_an_unknown_version_is_refused_even_though_it_parses() {
 
     let error = read_sidecar(&path).expect_err("an unknown version is refused");
 
-    assert_eq!(error, UnreadableReason::UnknownVersion {
+    assert_eq!(
+        error,
+        UnreadableReason::UnknownVersion {
             version: Some(unknown)
-        });
+        }
+    );
 }
 
 /// JSON that never parses at all is `Corrupt`, not `UnknownVersion` — there is

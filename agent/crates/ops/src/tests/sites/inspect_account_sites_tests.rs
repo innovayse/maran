@@ -205,7 +205,7 @@ fn a_site_stubbed_under_a_name_that_is_reserved_today_is_still_reported_as_stubb
     let observed = inspect_account_sites(&host, &account()).unwrap();
 
     let reserved = observed
-        .sites
+        .sites()
         .iter()
         .find(|site| site.domain == "host.local")
         .expect("the reserved-name vhost is listed");
@@ -215,7 +215,7 @@ fn a_site_stubbed_under_a_name_that_is_reserved_today_is_still_reported_as_stubb
         "a reserved stem must still be recognised as the suspended render"
     );
     let ordinary = observed
-        .sites
+        .sites()
         .iter()
         .find(|site| site.domain == "example.com")
         .expect("the ordinary vhost is listed");

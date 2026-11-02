@@ -7,8 +7,8 @@
 
 use maran_templates::nftables::nftables_allow::NftablesAllow;
 use maran_templates::nftables::nftables_allow_source::NftablesAllowSource;
-use maran_templates::nftables::nftables_network::NftablesNetwork;
 use maran_templates::nftables::nftables_bans_table::NftablesBansTable;
+use maran_templates::nftables::nftables_network::NftablesNetwork;
 use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 use maran_templates::nftables::nftables_ruleset::NftablesRuleset;
 use maran_templates::nftables::nftables_ssh_port::NftablesSshPort;

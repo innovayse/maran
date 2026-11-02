@@ -7,8 +7,8 @@ use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::SiteCertificate;
 use crate::ssl::certificate_state::certificate_state;
-use crate::ssl::model::certificate_installation::CertificateInstallation;
 use crate::ssl::fake_ssl_host::{FakeSslHost, matching_material};
+use crate::ssl::model::certificate_installation::CertificateInstallation;
 use crate::ssl::self_signed_marker::self_signed_marker;
 use crate::ssl::ssl_op_error::SslOpError;
 
@@ -30,7 +30,10 @@ fn material_with_a_marker_beside_it_is_reported_as_a_placeholder() {
 
     let state = certificate_state(&host, &domain()).unwrap();
 
-    assert_eq!(state.installation, CertificateInstallation::SelfSignedPlaceholder);
+    assert_eq!(
+        state.installation,
+        CertificateInstallation::SelfSignedPlaceholder
+    );
 }
 
 #[test]
@@ -123,7 +126,10 @@ fn a_marker_holding_content_the_agent_never_wrote_is_still_the_agents_own_fact()
 
     let state = certificate_state(&host, &domain()).unwrap();
 
-    assert_eq!(state.installation, CertificateInstallation::SelfSignedPlaceholder);
+    assert_eq!(
+        state.installation,
+        CertificateInstallation::SelfSignedPlaceholder
+    );
 }
 
 #[test]

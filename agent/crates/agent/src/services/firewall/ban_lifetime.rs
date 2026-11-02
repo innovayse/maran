@@ -34,7 +34,8 @@ pub fn ban_lifetime(
     match term {
         Some(Term::Permanent(_)) => Ok(None),
         Some(Term::ExpiresAfterSeconds(0)) => Err(invalid_input(
-            "a timed ban must last at least one second; send `permanent` for a ban that never expires",
+            "a timed ban must last at least one second; send `permanent` for a ban that never expires"
+                .to_owned(),
         )),
         Some(Term::ExpiresAfterSeconds(seconds)) => {
             Ok(Some(Duration::from_secs(u64::from(*seconds))))
