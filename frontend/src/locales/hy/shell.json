@@ -56,7 +56,8 @@
         "backupsRestore": "Վերականգնում",
         "siteLogs": "Կայքերի մատյաններ",
         "subUsers": "Ենթաօգտատերեր",
-        "sshKeys": "SSH բանալիներ"
+        "sshKeys": "SSH բանալիներ",
+        "dnsMyZones": "Իմ գոտիները"
       },
       "plannedHint": "Շուտով",
       "items": {

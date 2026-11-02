@@ -56,7 +56,8 @@
         "backupsRestore": "Restore",
         "siteLogs": "Site logs",
         "subUsers": "Sub-users",
-        "sshKeys": "SSH keys"
+        "sshKeys": "SSH keys",
+        "dnsMyZones": "My zones"
       },
       "plannedHint": "Coming soon",
       "items": {

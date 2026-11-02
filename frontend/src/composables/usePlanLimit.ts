@@ -2,7 +2,7 @@ import { computed, onMounted, watch, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCallerRole } from './useCallerRole'
 import { useAccountsStore } from '../stores/accounts'
-import type { AccountResourceKind } from '../types/accountResourceSummary'
+import type { AccountResourceKind, AccountResourceUsage } from '../types/accountResourceSummary'
 
 /** What {@link usePlanLimit} hands a list page. */
 export interface PlanLimit {
@@ -34,24 +34,24 @@ export const usePlanLimit = (kind: AccountResourceKind, changed: () => unknown):
   const accountsStore = useAccountsStore()
 
   /** The usage row for {@link kind}, when the summary is loaded and counted it. */
-  const usage = computed(() => {
+  const usage: ComputedRef<AccountResourceUsage | null> = computed((): AccountResourceUsage | null => {
     const read = accountsStore.mineResourceSummary
     if (!isCustomer.value || read.state !== 'loaded') {
       return null
     }
     return (
-      read.summary.resources.find((candidate) => {
+      read.summary.resources.find((candidate): boolean => {
         return candidate.kind === kind
       }) ?? null
     )
   })
 
-  const reached = computed((): boolean => {
+  const reached: ComputedRef<boolean> = computed((): boolean => {
     const row = usage.value
     return row !== null && row.state === 'counted' && row.limitKind === 'limited' && row.used >= row.limit
   })
 
-  const reason = computed((): string | null => {
+  const reason: ComputedRef<string | null> = computed((): string | null => {
     const row = usage.value
     return reached.value && row !== null
       ? t('planLimit.reached', { kind: t(`accounts.resources.kinds.${kind}`), limit: row.limit })

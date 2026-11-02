@@ -134,7 +134,8 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.dns',
         icon: 'globe',
         children: [
-          page('dns-zones', 'app.nav.children.dnsZones', planned(178), EVERYONE, null),
+          page('dns-zones', 'app.nav.children.dnsZones', planned(178), MANAGERS, null),
+          page('dns-my-zones', 'app.nav.children.dnsMyZones', planned(178), CUSTOMER, null),
           page('dns-templates', 'app.nav.children.dnsTemplates', planned(178), MANAGERS, null),
           page('dns-nameservers', 'app.nav.children.dnsNameservers', planned(178), MANAGERS, null),
         ],
@@ -278,7 +279,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         icon: 'listChecks',
         children: [
           { ...page('activity-tasks', 'tasks.list.heading', routed('tasks'), CUSTOMER, 'tasks'), badge: 'runningTasks' },
-          page('site-logs', 'app.nav.children.siteLogs', planned(129), CUSTOMER, null),
+          page('site-logs', 'app.nav.children.siteLogs', planned(152), CUSTOMER, null),
         ],
       },
       {
@@ -287,8 +288,9 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.account',
         icon: 'user',
         children: [
+          // Profile and language live on the account page and in the account menu, so the schema's one
+          // "Profile & language" item is the account page itself (issue #312).
           page('account-overview', 'app.shell.menu.myAccount', routed('my-account'), CUSTOMER, null),
-          page('account-profile', 'app.profile.heading', routed('profile'), CUSTOMER, null),
           page('account-two-factor', 'app.twoFactor.heading', routed('two-factor'), CUSTOMER, null),
           page('account-sessions', 'app.sessions.heading', routed('sessions'), CUSTOMER, null),
           page('account-sub-users', 'app.nav.children.subUsers', planned(315), CUSTOMER, null),

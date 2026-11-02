@@ -56,7 +56,8 @@
         "backupsRestore": "Восстановление",
         "siteLogs": "Логи сайтов",
         "subUsers": "Пользователи",
-        "sshKeys": "SSH-ключи"
+        "sshKeys": "SSH-ключи",
+        "dnsMyZones": "Мои зоны"
       },
       "plannedHint": "Скоро",
       "items": {
