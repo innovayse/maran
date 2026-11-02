@@ -2,6 +2,7 @@ using Maran.Sdk.Contracts;
 using Maran.Sdk.Extensions;
 using Maran.Sdk.Interfaces;
 using Maran.Sdk.Resources;
+using Maran.SharedKernel.Callers;
 using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace Maran.Sdk.Filters;
@@ -12,7 +13,7 @@ namespace Maran.Sdk.Filters;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Who it applies to.</b> A caller whose token names an account (<see cref="ICurrentUser.AccountId"/>).
+/// <b>Who it applies to.</b> A caller whose token names an account (a <see cref="CustomerCaller"/>).
 /// An administrator is unaffected, with or without an account id: the plan limits what a customer is
 /// SOLD, not what the person running the server may do. A caller with no account is passed on to the
 /// handler, which answers "no account" in its own words.
@@ -76,11 +77,13 @@ public sealed class RequiresAccountFeatureFilter : IAsyncActionFilter
     /// <returns>A task that completes when the action has run or the refusal has been set.</returns>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        if (_currentUser.IsAdmin || _currentUser.AccountId is not { } accountId)
+        if (_currentUser.Caller is not CustomerCaller customer)
         {
             await next();
             return;
         }
+
+        var accountId = customer.AccountId;
 
         if (!await _features.IncludesAsync(accountId, _feature, context.HttpContext.RequestAborted))
         {
@@ -93,7 +96,7 @@ public sealed class RequiresAccountFeatureFilter : IAsyncActionFilter
         // it to THIS person? An owner always has it; a team member only when it was granted, whatever
         // the menu offers. See IAccountMemberGrants for why a person with no standing is refused.
         if (!await _grants.PermitsAsync(
-                _currentUser.UserId, accountId, _feature, context.HttpContext.RequestAborted))
+                customer.UserId, accountId, _feature, context.HttpContext.RequestAborted))
         {
             var refusal = Error.Of(nameof(ValidationMessages.AccountFeatureNotGranted), ErrorType.Forbidden);
             context.Result = Result.Fail(refusal).ToActionResult(context.HttpContext);

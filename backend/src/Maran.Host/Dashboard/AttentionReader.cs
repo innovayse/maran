@@ -21,7 +21,8 @@ namespace Maran.Host.Dashboard;
 /// <para>
 /// <b>Authorization is the caller's, and it comes first.</b> Every source is a query whose own HTTP
 /// surface is administrators-only, dispatched on the bus where that policy does not apply. A caller
-/// confirms <see cref="ICurrentUser.IsAdmin"/> BEFORE calling this, exactly as the dashboard does.
+/// confirms <see cref="ICurrentUser.Caller"/> is an
+/// <see cref="Maran.SharedKernel.Callers.AdministratorCaller"/> BEFORE calling this, exactly as the dashboard does.
 /// </para>
 /// </remarks>
 public static class AttentionReader

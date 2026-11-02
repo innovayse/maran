@@ -1,4 +1,5 @@
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Host.Modules;
 
@@ -22,7 +23,7 @@ public static class ModulesEndpoint
             // Anonymous: the SPA reads the catalogue to build its navigation before anyone has
             // signed in, and to know whether a login screen is even the right thing to show. The
             // list names the modules installed on this server and nothing about its data. An
-            // unauthenticated caller reads ICurrentUser.IsAdmin as false (fail closed), so it sees
+            // unauthenticated caller is not an AdministratorCaller (fail closed), so it sees
             // the same, customer-shaped list a signed-in customer does.
             .AllowAnonymous();
         return endpoints;
@@ -42,7 +43,7 @@ public static class ModulesEndpoint
     /// </remarks>
     /// <param name="errorTextProvider">Resolves each module's <c>Manifest.DisplayNameKey</c> in the current request culture.</param>
     /// <param name="tierDisplayNames">Resolves each module's licence tier into the words an operator reads.</param>
-    /// <param name="currentUser">The caller, whose <see cref="ICurrentUser.IsAdmin"/> decides whether administrator-only modules are included.</param>
+    /// <param name="currentUser">The caller, whose <see cref="ICurrentUser.Caller"/> being an <see cref="AdministratorCaller"/> decides whether administrator-only modules are included.</param>
     /// <returns>One descriptor per compiled-in module addressed to this caller, in registration order.</returns>
     private static List<ModuleDto> DescribeModules(
         IErrorTextProvider errorTextProvider,
@@ -52,7 +53,7 @@ public static class ModulesEndpoint
         return ModuleRegistry.All
             .Where(module =>
             {
-                return currentUser.IsAdmin || module.Manifest.Audience == ModuleAudience.Everyone;
+                return currentUser.Caller is AdministratorCaller || module.Manifest.Audience == ModuleAudience.Everyone;
             })
             .Select(module =>
             {

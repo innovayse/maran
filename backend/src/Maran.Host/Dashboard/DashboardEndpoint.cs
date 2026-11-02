@@ -7,6 +7,7 @@ using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 using Maran.Modules.Sites.Queries.CountSites;
+using Maran.SharedKernel.Callers;
 using Wolverine;
 
 namespace Maran.Host.Dashboard;
@@ -28,7 +29,7 @@ namespace Maran.Host.Dashboard;
 /// Dispatching <see cref="CountAccountsQuery"/> from here therefore runs a query whose HTTP surface
 /// is administrators-only with no policy in the way, so this endpoint supplies the decision itself:
 /// the route requires a signed-in caller, and every server-wide section is read only after
-/// <see cref="ICurrentUser.IsAdmin"/> is confirmed true. The check comes BEFORE any dispatch, not
+/// <see cref="ICurrentUser.Caller"/> is confirmed to be an <see cref="AdministratorCaller"/>. The check comes BEFORE any dispatch, not
 /// after — a response filtered on the way out would already have read the data. Any section added
 /// here later inherits that rule or it does not go in.
 /// </para>
@@ -102,9 +103,9 @@ public static class DashboardEndpoint
         IClock clock,
         CancellationToken cancellationToken)
     {
-        // Before any dispatch. ICurrentUser fails closed, so an unauthenticated caller — which this
-        // route refuses anyway — and a customer both read false here.
-        if (!currentUser.IsAdmin)
+        // Before any dispatch. An unauthenticated caller — which this route refuses anyway — and a
+        // customer are both not an AdministratorCaller.
+        if (currentUser.Caller is not AdministratorCaller)
         {
             return new CustomerDashboardDto();
         }

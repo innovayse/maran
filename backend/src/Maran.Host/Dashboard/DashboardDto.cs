@@ -8,8 +8,8 @@ namespace Maran.Host.Dashboard;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Who gets which shape is decided on the server</b>, by <c>ICurrentUser.IsAdmin</c>, which fails
-/// closed: an administrator receives <see cref="AdministratorDashboardDto"/> with every section, and
+/// <b>Who gets which shape is decided on the server</b>, by whether <c>ICurrentUser.Caller</c> is an
+/// <c>AdministratorCaller</c>, which fails closed: an administrator receives <see cref="AdministratorDashboardDto"/> with every section, and
 /// everyone else receives <see cref="CustomerDashboardDto"/>, which has no section at all. The shape
 /// replaced one record carrying an <c>isAdministrator</c> flag beside five nullable sections, which
 /// allowed combinations no code path produced (the flag true with null sections, false with data) and

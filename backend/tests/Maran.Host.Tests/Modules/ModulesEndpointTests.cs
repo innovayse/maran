@@ -104,8 +104,8 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
     /// The catalogue hides administrator-only modules from a caller who is not an administrator.
     /// </summary>
     /// <remarks>
-    /// This client is anonymous, and <see cref="Maran.SharedKernel.Interfaces.ICurrentUser.IsAdmin"/>
-    /// reads false for one — the same answer a signed-in customer gets. Presentation only: an
+    /// This client is anonymous, and <see cref="Maran.SharedKernel.Interfaces.ICurrentUser.Caller"/>
+    /// is an <c>AnonymousCaller</c>, not an administrator — the same answer a signed-in customer gets. Presentation only: an
     /// administrator-only module missing here is not thereby protected, its own endpoints are
     /// (<see cref="ModulesEndpoint"/>).
     /// </remarks>
