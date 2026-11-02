@@ -1,5 +1,6 @@
 using Maran.Modules.Cron.Common;
 using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Domain.Policies;
 using Maran.Modules.Cron.Mappers;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Resources;
@@ -54,7 +55,7 @@ public sealed class ListCronRunsQueryHandler
 
         if (query.Outcome is { } outcome)
         {
-            runs = runs.Where(run => run.Outcome == outcome);
+            runs = runs.Where(CronRunOutcomePolicy.Matching(outcome));
         }
 
         if (!query.Search.IsNone)

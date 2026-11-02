@@ -1,3 +1,4 @@
+using Maran.Modules.Cron.Domain.Entities;
 using Maran.Modules.Cron.Domain.Enums;
 using Maran.Modules.Cron.Domain.Policies;
 using Maran.Modules.Cron.Domain.ValueObjects;
@@ -22,5 +23,31 @@ public sealed class CronRunOutcomePolicyTests
     {
         Assert.Equal(CronRunOutcome.Stopped, CronRunOutcomePolicy.Of(new CronRunStopped(CronRunLimit.Runtime)));
         Assert.Equal(CronRunOutcome.Stopped, CronRunOutcomePolicy.Of(new CronRunStopped(CronRunLimit.Output)));
+    }
+
+    /// <summary>The stored-end filter selects exactly the runs whose outcome the policy decides.</summary>
+    [Fact]
+    public void The_stored_end_filter_agrees_with_the_policy_for_every_ending()
+    {
+        CronRunEnd[] endings =
+        [
+            new CronRunExited(0),
+            new CronRunExited(1),
+            new CronRunEndedWithoutStatus(),
+            new CronRunStopped(CronRunLimit.Runtime),
+            new CronRunStopped(CronRunLimit.Output),
+        ];
+        var runs = endings
+            .Select(end => new CronRun(Guid.NewGuid(), Guid.NewGuid(), "e", DateTimeOffset.UnixEpoch, 1, end, "", ""))
+            .ToList();
+
+        foreach (var outcome in Enum.GetValues<CronRunOutcome>())
+        {
+            var selected = runs.Where(CronRunOutcomePolicy.Matching(outcome).Compile()).Select(run => run.End);
+            var expected = endings.Where(end => CronRunOutcomePolicy.Of(end) == outcome);
+
+            Assert.Equal(expected, selected);
+            Assert.NotEmpty(expected);
+        }
     }
 }

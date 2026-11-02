@@ -6,11 +6,10 @@ namespace Maran.Modules.Cron.Domain.ValueObjects;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The run's row keeps this in the columns it already has — <c>ExitCode</c>, <c>Limit</c> — and the
-/// entity restores the case from them: a ceiling means <see cref="CronRunStopped"/>, otherwise a
-/// status means <see cref="CronRunExited"/>, otherwise <see cref="CronRunEndedWithoutStatus"/>. The
-/// third case is told from the second by an absent status alone, which is why neither column carries
-/// a placeholder.
+/// The run's row keeps the case as a stored kind (<c>EndKind</c>) beside the one nullable column
+/// that case carries — <c>EndExitCode</c> for <see cref="CronRunExited"/>, <c>EndLimit</c> for
+/// <see cref="CronRunStopped"/>, neither for <see cref="CronRunEndedWithoutStatus"/> — and the entity
+/// restores it from them, so no column carries a placeholder.
 /// </para>
 /// <para>
 /// The constructor is private to this assembly, so the three cases are the whole set.

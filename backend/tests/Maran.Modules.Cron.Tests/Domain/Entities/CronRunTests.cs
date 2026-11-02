@@ -13,8 +13,9 @@ public sealed class CronRunTests
     {
         var run = Record(new CronRunStopped(CronRunLimit.Output));
 
-        Assert.Null(run.ExitCode);
-        Assert.Equal(CronRunLimit.Output, run.Limit);
+        Assert.Equal(CronRunEndKind.Stopped, run.EndKind);
+        Assert.Null(run.EndExitCode);
+        Assert.Equal(CronRunLimit.Output, run.EndLimit);
         Assert.Equal(new CronRunStopped(CronRunLimit.Output), run.End);
         Assert.Equal(CronRunOutcome.Stopped, run.Outcome);
     }
@@ -25,8 +26,9 @@ public sealed class CronRunTests
     {
         var run = Record(new CronRunExited(0));
 
-        Assert.Equal(0, run.ExitCode);
-        Assert.Null(run.Limit);
+        Assert.Equal(CronRunEndKind.Exited, run.EndKind);
+        Assert.Equal(0, run.EndExitCode);
+        Assert.Null(run.EndLimit);
         Assert.Equal(new CronRunExited(0), run.End);
         Assert.Equal(CronRunOutcome.Succeeded, run.Outcome);
     }
@@ -37,8 +39,9 @@ public sealed class CronRunTests
     {
         var run = Record(new CronRunEndedWithoutStatus());
 
-        Assert.Null(run.ExitCode);
-        Assert.Null(run.Limit);
+        Assert.Equal(CronRunEndKind.WithoutStatus, run.EndKind);
+        Assert.Null(run.EndExitCode);
+        Assert.Null(run.EndLimit);
         Assert.Equal(new CronRunEndedWithoutStatus(), run.End);
         Assert.Equal(CronRunOutcome.Failed, run.Outcome);
     }
