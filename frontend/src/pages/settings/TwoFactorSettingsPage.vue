@@ -63,6 +63,12 @@ import { useTwoFactorStore } from '../../stores/twoFactor'
 import type { TotpEnrolment } from '../../types/auth'
 
 /**
+ * Where the Turn off question stands: not asked, waiting for the answer to the confirmation
+ * dialog, or answered yes and with the server.
+ */
+type DisableStep = 'idle' | 'confirming' | 'sending'
+
+/**
  * Where the caller's second factor stands, and therefore which ONE flow the page renders.
  *
  * A discriminated union rather than a name plus loose refs, so the data a state needs travels
@@ -76,14 +82,15 @@ import type { TotpEnrolment } from '../../types/auth'
  * - `enrolling`: a secret has been handed out and not yet confirmed.
  * - `enrolled`: the factor is on; the page says so and offers Turn off. `recoveryCodes` holds the
  *   codes only right after a confirmation in this tab — the backend keeps hashes, so they can never
- *   be shown again — and is `null` otherwise.
+ *   be shown again — and is `null` otherwise. `disable` is where the Turn off question stands,
+ *   which only this state can ask: {@link DisableStep}.
  */
 type TwoFactorState =
   | { kind: 'loading' }
   | { kind: 'unavailable' }
   | { kind: 'notEnrolled' }
   | { kind: 'enrolling'; enrolment: TotpEnrolment }
-  | { kind: 'enrolled'; recoveryCodes: string[] | null }
+  | { kind: 'enrolled'; recoveryCodes: string[] | null; disable: DisableStep }
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -100,11 +107,15 @@ const enrolCode: Ref<string> = ref('')
 /** The code being typed to turn the factor off. */
 const disableCode: Ref<string> = ref('')
 
-/** Whether the user has asked to turn the factor off and is being asked to confirm. */
-const confirmingDisable: Ref<boolean> = ref(false)
+/** Whether the confirmation dialog for turning the factor off is on screen. */
+const confirmingDisable: ComputedRef<boolean> = computed(() => {
+  return state.value.kind === 'enrolled' && state.value.disable !== 'idle'
+})
 
 /** Whether the confirmed request to turn the factor off is with the server. */
-const disabling: Ref<boolean> = ref(false)
+const disabling: ComputedRef<boolean> = computed(() => {
+  return state.value.kind === 'enrolled' && state.value.disable === 'sending'
+})
 
 /**
  * Whether the page is shown as the steered-enrolment screen, i.e. inside the auth layout. Read
@@ -151,7 +162,7 @@ const loadState = async (): Promise<void> => {
     return
   }
 
-  state.value = profile.isTwoFactorEnabled ? { kind: 'enrolled', recoveryCodes: null } : { kind: 'notEnrolled' }
+  state.value = profile.isTwoFactorEnabled ? { kind: 'enrolled', recoveryCodes: null, disable: 'idle' } : { kind: 'notEnrolled' }
 }
 
 /**
@@ -187,7 +198,7 @@ const confirmEnrolment = async (): Promise<void> => {
 
   const codes = await twoFactorStore.confirmTwoFactorEnrolment(state.value.enrolment.secret, enrolCode.value)
   if (codes !== null) {
-    state.value = { kind: 'enrolled', recoveryCodes: codes.codes }
+    state.value = { kind: 'enrolled', recoveryCodes: codes.codes, disable: 'idle' }
     enrolCode.value = ''
   }
 }
@@ -197,7 +208,9 @@ const confirmEnrolment = async (): Promise<void> => {
  * @returns Nothing; the confirmation dialog opens.
  */
 const askToDisable = (): void => {
-  confirmingDisable.value = true
+  if (state.value.kind === 'enrolled') {
+    state.value = { ...state.value, disable: 'confirming' }
+  }
 }
 
 /**
@@ -205,8 +218,8 @@ const askToDisable = (): void => {
  * @returns Nothing; the dialog closes and the typed code stays where it was.
  */
 const cancelDisable = (): void => {
-  if (!disabling.value) {
-    confirmingDisable.value = false
+  if (state.value.kind === 'enrolled' && state.value.disable === 'confirming') {
+    state.value = { ...state.value, disable: 'idle' }
   }
 }
 
@@ -216,15 +229,18 @@ const cancelDisable = (): void => {
  * @returns Resolves once the request has settled.
  */
 const disable = async (): Promise<void> => {
-  disabling.value = true
-  try {
-    if (await twoFactorStore.disableTwoFactor(disableCode.value)) {
-      disableCode.value = ''
-      state.value = { kind: 'notEnrolled' }
-    }
-  } finally {
-    disabling.value = false
-    confirmingDisable.value = false
+  if (state.value.kind !== 'enrolled') {
+    return
+  }
+
+  state.value = { ...state.value, disable: 'sending' }
+  const turnedOff = await twoFactorStore.disableTwoFactor(disableCode.value)
+  if (turnedOff) {
+    disableCode.value = ''
+    state.value = { kind: 'notEnrolled' }
+  } else if (state.value.kind === 'enrolled') {
+    // A refusal is rendered by the page underneath, in the alert; the dialog closes either way.
+    state.value = { ...state.value, disable: 'idle' }
   }
 }
 

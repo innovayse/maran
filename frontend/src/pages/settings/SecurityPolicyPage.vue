@@ -102,11 +102,11 @@ void policyStore.load()
     </UiPageHeading>
 
     <!-- A refused save; a refused read is the region's own error below. -->
-    <UiAlert v-if="policyStore.loadState === 'loaded' && policyStore.errorMessage !== null" variant="error">
-      {{ policyStore.errorMessage }}
+    <UiAlert v-if="policyStore.submitMessage !== null" variant="error">
+      {{ policyStore.submitMessage }}
     </UiAlert>
 
-    <UiAlert v-if="policyStore.saved" variant="success">
+    <UiAlert v-if="policyStore.submission.state === 'done'" variant="success">
       {{ t('app.securityPolicy.saved') }}
     </UiAlert>
 
@@ -114,7 +114,7 @@ void policyStore.load()
          there is one submit and no per-panel save that could write half of it. -->
     <UiLoadingRegion :state="policyStore.loadState">
       <template #error>
-        <UiAlert variant="error">{{ policyStore.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+        <UiAlert variant="error">{{ policyStore.loadMessage ?? t('app.status.unreachable') }}</UiAlert>
       </template>
       <UiForm :loading="policyStore.loadState === 'loading'" @submit="submit">
         <div class="flex flex-col gap-4">

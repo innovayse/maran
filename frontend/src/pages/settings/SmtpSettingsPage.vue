@@ -166,8 +166,8 @@ void smtpStore.load()
          the confirmations, which are good news and can wait a line. -->
     <div class="mb-4 flex flex-col gap-3 empty:hidden">
       <!-- A refused save or test send; a refused read is the region's own error below. -->
-      <UiAlert v-if="smtpStore.loadState === 'loaded' && smtpStore.errorMessage !== null" variant="error">
-        {{ smtpStore.errorMessage }}
+      <UiAlert v-if="smtpStore.submitMessage !== null" variant="error">
+        {{ smtpStore.submitMessage }}
       </UiAlert>
 
       <UiAlert v-if="smtpStore.saved" variant="success">{{ t('app.smtp.saved') }}</UiAlert>
@@ -177,7 +177,7 @@ void smtpStore.load()
 
     <UiLoadingRegion :state="smtpStore.loadState">
       <template #error>
-        <UiAlert variant="error">{{ smtpStore.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+        <UiAlert variant="error">{{ smtpStore.loadMessage ?? t('app.status.unreachable') }}</UiAlert>
       </template>
       <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         <UiForm :loading="smtpStore.loadState === 'loading'" @submit="submit">

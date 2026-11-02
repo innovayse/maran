@@ -3,7 +3,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useFavouritesApi } from '../composables/apis/useFavouritesApi'
 import { ApiError } from '../composables/useApi'
 import type { Favourites, FavouritePage } from '../types/favourite'
-import type { LoadingState } from '../types/loading'
+import type { Read, Submission } from '../types/loading'
 
 /**
  * Owns the signed-in person's pinned pages. The server keeps the keys, per user; this store keeps
@@ -13,17 +13,15 @@ import type { LoadingState } from '../types/loading'
 export const useFavouritesStore = defineStore('favourites', () => {
   const api = useFavouritesApi()
 
-  /** The pins as last reported, lowest position first. */
-  const items: Ref<FavouritePage[]> = ref([])
+  /**
+   * The pins and the limit as the panel last reported them. A pin list nobody has asked for is
+   * `idle`, and one that is on its way is `loading`, so the limit is never a guessed number or a
+   * `null` standing in for "not answered yet".
+   */
+  const read: Ref<Read<Favourites>> = ref({ state: 'idle' })
 
-  /** The most pages one person may pin as the panel reported it, or null before the first answer. */
-  const limit: Ref<number | null> = ref(null)
-
-  /** Where the last read stands. */
-  const loadState: Ref<LoadingState> = ref('loading')
-
-  /** Backend-localized message from the last refused read or change, rendered verbatim. */
-  const errorMessage: Ref<string | null> = ref(null)
+  /** Where the last pin or unpin stands; the toggles ignore presses while it is `sending`. */
+  const change: Ref<Submission> = ref({ state: 'idle' })
 
   /**
    * The user whose pins are held, or null when none are asked for yet. Kept so that a second person
@@ -31,8 +29,24 @@ export const useFavouritesStore = defineStore('favourites', () => {
    */
   const ownerId: Ref<string | null> = ref(null)
 
-  /** True while a pin or unpin is on its way; the toggles ignore presses until it settles. */
-  const changing: Ref<boolean> = ref(false)
+  /** The pins as last reported, lowest position first; none until the panel has answered. */
+  const items: ComputedRef<FavouritePage[]> = computed(() => {
+    return read.value.state === 'loaded' ? read.value.value.items : []
+  })
+
+  /** Backend-localized message from the last refused read or change, rendered verbatim. */
+  const errorMessage: ComputedRef<string | null> = computed(() => {
+    if (read.value.state === 'failed') {
+      return read.value.message
+    }
+
+    return change.value.state === 'failed' ? change.value.message : null
+  })
+
+  /** True while a pin or unpin is on its way. */
+  const changing: ComputedRef<boolean> = computed(() => {
+    return change.value.state === 'sending'
+  })
 
   /** The pinned keys, in the order the list is drawn. */
   const keys: ComputedRef<string[]> = computed(() => {
@@ -43,35 +57,23 @@ export const useFavouritesStore = defineStore('favourites', () => {
 
   /** Whether the person already holds as many pins as the panel allows. Advice: the server decides. */
   const isFull: ComputedRef<boolean> = computed(() => {
-    return limit.value !== null && items.value.length >= limit.value
+    return read.value.state === 'loaded' && read.value.value.items.length >= read.value.value.limit
   })
-
-  /**
-   * Replaces the held list with one the panel reported.
-   * @param favourites The pins and the limit.
-   * @returns Nothing.
-   */
-  const apply = (favourites: Favourites): void => {
-    items.value = favourites.items
-    limit.value = favourites.limit
-  }
 
   /**
    * Reads the caller's pins.
    *
-   * Failures are captured into `errorMessage` rather than thrown: the shell renders without
+   * Failures are captured into the read rather than thrown: the shell renders without
    * favourites, and a pin list that cannot be read is a display state.
    * @returns Resolves once the request settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loadState.value = 'loading'
-    errorMessage.value = null
+    read.value = { state: 'loading' }
+    change.value = { state: 'idle' }
     try {
-      apply(await api.list())
-      loadState.value = 'loaded'
+      read.value = { state: 'loaded', value: await api.list() }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-      loadState.value = 'error'
+      read.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
     }
   }
 
@@ -88,8 +90,7 @@ export const useFavouritesStore = defineStore('favourites', () => {
     // Claimed before the request is awaited, so a second caller in the same tick sees it taken; the
     // previous person's pins are dropped now, not when the answer arrives.
     ownerId.value = userId
-    items.value = []
-    limit.value = null
+    read.value = { state: 'idle' }
     await load()
   }
 
@@ -99,10 +100,8 @@ export const useFavouritesStore = defineStore('favourites', () => {
    */
   const clear = (): void => {
     ownerId.value = null
-    items.value = []
-    limit.value = null
-    loadState.value = 'loading'
-    errorMessage.value = null
+    read.value = { state: 'idle' }
+    change.value = { state: 'idle' }
   }
 
   /**
@@ -121,21 +120,19 @@ export const useFavouritesStore = defineStore('favourites', () => {
    * @returns True when the change was made; false when the panel refused it (the reason is in `errorMessage`).
    */
   const toggle = async (itemKey: string): Promise<boolean> => {
-    if (changing.value) {
+    if (change.value.state === 'sending') {
       return false
     }
-    changing.value = true
-    errorMessage.value = null
+    change.value = { state: 'sending' }
     try {
-      apply(isPinned(itemKey) ? await api.unpin(itemKey) : await api.pin({ itemKey }))
+      read.value = { state: 'loaded', value: isPinned(itemKey) ? await api.unpin(itemKey) : await api.pin({ itemKey }) }
+      change.value = { state: 'done' }
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      change.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
       return false
-    } finally {
-      changing.value = false
     }
   }
 
-  return { items, limit, loadState, errorMessage, changing, keys, isFull, ensureLoaded, clear, isPinned, toggle }
+  return { items, errorMessage, changing, keys, isFull, ensureLoaded, clear, isPinned, toggle }
 })

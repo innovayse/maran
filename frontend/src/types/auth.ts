@@ -60,6 +60,39 @@ export interface AuthenticatedSession {
 }
 
 /**
+ * Who, if anyone, this browser is signed in as: one value instead of a token, a user and two flags
+ * that must agree. Only the arms that hold a token carry one, so nothing can read a token that a
+ * sign-in still owed a second factor for.
+ */
+export type AuthSession =
+  | {
+      /** Nobody is signed in. */
+      state: 'signedOut'
+    }
+  | {
+      /** The password was right and a second factor is still owed; there is no token yet. */
+      state: 'awaitingSecondFactor'
+      /** The username whose sign-in is waiting. */
+      username: string
+    }
+  | {
+      /** Signed in, but the panel requires a second factor this person has not enrolled: the token reaches only enrolment. */
+      state: 'enrolmentRequired'
+      /** The signed access token. */
+      accessToken: string
+      /** Who is signed in. */
+      user: AuthenticatedUser
+    }
+  | {
+      /** Fully signed in. */
+      state: 'signedIn'
+      /** The signed access token. */
+      accessToken: string
+      /** Who is signed in. */
+      user: AuthenticatedUser
+    }
+
+/**
  * The body of a sign-in or refresh. There is deliberately no refresh token here:
  * it lives in an httpOnly cookie the page's JavaScript cannot read.
  *

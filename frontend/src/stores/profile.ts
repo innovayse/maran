@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useAuthApi } from '../composables/apis/useAuthApi'
 import { useProfileApi } from '../composables/apis/useProfileApi'
 import { ApiError } from '../composables/useApi'
 import type { ChangePasswordRequest } from '../types/auth'
-import type { LoadingState } from '../types/loading'
+import type { LoadingState, Read, Submission } from '../types/loading'
 import type { Profile } from '../types/profile'
+import { loadingStateOf } from '../utils/loadingStateOf'
 
 /**
  * Owns the signed-in person's own profile. The profile screen reads state from here
@@ -15,20 +16,36 @@ export const useProfileStore = defineStore('profile', () => {
   const api = useProfileApi()
   const authApi = useAuthApi()
 
+  /** The read of the profile: on its way, arrived, or refused. */
+  const read: Ref<Read<Profile>> = ref({ state: 'loading' })
+
+  /** Where the last password change stands. */
+  const passwordChange: Ref<Submission> = ref({ state: 'idle' })
+
   /** The profile as last loaded, or `null` before it has loaded or after a failure. */
-  const profile: Ref<Profile | null> = ref(null)
+  const profile: ComputedRef<Profile | null> = computed(() => {
+    return read.value.state === 'loaded' ? read.value.value : null
+  })
 
   /** Backend-localized message from the last failed read, rendered verbatim. */
-  const errorMessage: Ref<string | null> = ref(null)
+  const errorMessage: ComputedRef<string | null> = computed(() => {
+    return read.value.state === 'failed' ? read.value.message : null
+  })
 
-  /** Where the last read stands: on its way, arrived, or refused. */
-  const loadState: Ref<LoadingState> = ref('loading')
+  /** Where the last read stands, in the words the loading region understands. */
+  const loadState: ComputedRef<LoadingState> = computed(() => {
+    return loadingStateOf(read.value)
+  })
 
   /** True while a password change is on its way. */
-  const passwordSaving: Ref<boolean> = ref(false)
+  const passwordSaving: ComputedRef<boolean> = computed(() => {
+    return passwordChange.value.state === 'sending'
+  })
 
   /** Backend-localized message from the last refused password change, rendered verbatim. */
-  const passwordErrorMessage: Ref<string | null> = ref(null)
+  const passwordErrorMessage: ComputedRef<string | null> = computed(() => {
+    return passwordChange.value.state === 'failed' ? passwordChange.value.message : null
+  })
 
   /**
    * Reads the caller's profile.
@@ -39,15 +56,11 @@ export const useProfileStore = defineStore('profile', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    profile.value = null
-    loadState.value = 'loading'
-    errorMessage.value = null
+    read.value = { state: 'loading' }
     try {
-      profile.value = await api.get()
-      loadState.value = 'loaded'
+      read.value = { state: 'loaded', value: await api.get() }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-      loadState.value = 'error'
+      read.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
     }
   }
 
@@ -62,19 +75,17 @@ export const useProfileStore = defineStore('profile', () => {
    * @returns True when the password was changed; false when the panel refused.
    */
   const changePassword = async (request: ChangePasswordRequest): Promise<boolean> => {
-    passwordSaving.value = true
-    passwordErrorMessage.value = null
+    passwordChange.value = { state: 'sending' }
     try {
       await authApi.changePassword(request)
     } catch (error) {
-      passwordErrorMessage.value = error instanceof ApiError ? error.message : null
+      passwordChange.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
       return false
-    } finally {
-      passwordSaving.value = false
     }
+    passwordChange.value = { state: 'done' }
 
     try {
-      profile.value = await api.get()
+      read.value = { state: 'loaded', value: await api.get() }
     } catch {
       // The change itself succeeded; a stale session count is not worth reporting it as failed.
     }
