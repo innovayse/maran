@@ -500,7 +500,8 @@
 # Then, same day, the suite was split at the 800-line test-file trigger: sftp_on_a_real_host
 # 14 -> 9 IGNORED and the new sftp_suspension_on_a_real_host at 5 IGNORED — the same 14 tests,
 # names unchanged (`cargo test --test <suite>` listing 9 and 5).
-rust	maran_agent [unittests src/lib.rs]	451	0	0
+# RE-MEASURED 2026-11-02 (issue #323, bool/sentinel state refactors): edited by hand from the gate run (backend 21 targets 5748 passed; rust 36 targets 3021 passed / 156 ignored; spa 183 targets 1204 passed). Every changed row takes the measured value; Databases.Tests 129->128 is intended (the empty-string refusal reason test cannot exist once the reason is an enum); new spa rows: view-as, account-selector, sub-users, plan-features, favourites, navigation-badges, server-selector (#313-#320). CI re-measures every row.
+rust	maran_agent [unittests src/lib.rs]	469	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -522,9 +523,9 @@ rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	9
 rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	0	5
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
-rust	maran_agent_core [unittests src/lib.rs]	555	0	0
+rust	maran_agent_core [unittests src/lib.rs]	557	0	0
 rust	maran_distro [unittests src/lib.rs]	79	0	0
-rust	maran_ops [unittests src/lib.rs]	1802	0	1
+rust	maran_ops [unittests src/lib.rs]	1831	0	1
 rust	maran_templates [unittests src/lib.rs]	13	0	0
 rust	golden_test [tests/golden_test.rs]	23	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
@@ -545,26 +546,26 @@ rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processe
 # 3/3 alone at load 12. New spa row accounts/form-options.spec.ts 5.
 # RE-KEYED 2026-11-01 (issue #289, perf off the PR path): edited by hand. Maran.Host.IntegrationTests.dll 833 is now two
 # rows: 814 (main part) + 19 (`[PerformanceBudget]` part, ListPerformanceBudgetTests); `--list-tests` lists 833.
-backend	Maran.Agent.Client.Tests.dll	387	0	0
-backend	Maran.SharedKernel.Tests.dll	349	0	0
-backend	Maran.Modules.Identity.Tests.dll	379	0	0
+backend	Maran.Agent.Client.Tests.dll	449	0	0
+backend	Maran.SharedKernel.Tests.dll	353	0	0
+backend	Maran.Modules.Identity.Tests.dll	532	0	0
 backend	Maran.Modules.Sftp.Tests.dll	104	0	0
-backend	Maran.Modules.Notifications.Tests.dll	53	0	0
+backend	Maran.Modules.Notifications.Tests.dll	59	0	0
 backend	Maran.Modules.Tasks.Tests.dll	109	0	0
-backend	Maran.Modules.Ftp.Tests.dll	169	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	106	0	0
-backend	Maran.Modules.Backups.Tests.dll	247	0	0
+backend	Maran.Modules.Ftp.Tests.dll	178	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	136	0	0
+backend	Maran.Modules.Backups.Tests.dll	253	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	286	0	0
-backend	Maran.Modules.Cron.Tests.dll	190	0	0
-backend	Maran.Modules.Accounts.Tests.dll	541	0	0
-backend	Maran.Modules.Databases.Tests.dll	129	0	0
+backend	Maran.Modules.Cron.Tests.dll	223	0	0
+backend	Maran.Modules.Accounts.Tests.dll	575	0	0
+backend	Maran.Modules.Databases.Tests.dll	128	0	0
 backend	Maran.Modules.Ssl.Tests.dll	250	0	0
-backend	Maran.Sdk.Tests.dll	274	0	0
-backend	Maran.Modules.Sites.Tests.dll	275	0	0
-backend	Maran.ArchitectureTests.dll	91	0	0
-backend	Maran.Host.Tests.dll	423	0	0
-backend	Maran.Host.IntegrationTests.dll	822	0	0
+backend	Maran.Sdk.Tests.dll	337	0	0
+backend	Maran.Modules.Sites.Tests.dll	277	0	0
+backend	Maran.ArchitectureTests.dll	93	0	0
+backend	Maran.Host.Tests.dll	466	0	0
+backend	Maran.Host.IntegrationTests.dll	870	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
 # RAISED 2026-11-01 (issue #149, accessibility): edited by hand. Three new spa rows from e2e/accessibility/:
 # axe-scan 11 (5 screens x 2 themes + the planted-violation control), document-language 2, reduced-motion 2.
@@ -620,7 +621,7 @@ spa	cron/entries.spec.ts	7	0	0
 spa	cron/environment.spec.ts	5	0	0
 spa	cron/loading.spec.ts	3	0	0
 spa	cron/raw-refusal.spec.ts	4	0	0
-spa	cron/run-now.spec.ts	2	0	0
+spa	cron/run-now.spec.ts	3	0	0
 spa	cron/schedule.spec.ts	2	0	0
 spa	customer-area.spec.ts	2	0	0
 spa	customer/console-clean.spec.ts	1	0	0
@@ -669,7 +670,7 @@ spa	golden-path/account-to-ssl.spec.ts	0	0	1
 spa	monitoring/clock-sync.spec.ts	2	0	0
 spa	monitoring/log-level.spec.ts	3	0	0
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
-spa	monitoring/monitoring.spec.ts	14	0	0
+spa	monitoring/monitoring.spec.ts	15	0	0
 spa	plans/list.spec.ts	6	0	0
 spa	plans/loading.spec.ts	3	0	0
 spa	plans/plan-form-loading.spec.ts	3	0	0
@@ -749,6 +750,13 @@ spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/type-consistency.spec.ts	7	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	4	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0
+spa	admin/view-as.spec.ts	3	0	0
+spa	customer/account-selector.spec.ts	5	0	0
+spa	customer/sub-users.spec.ts	7	0	0
+spa	plans/plan-features.spec.ts	5	0	0
+spa	shell/favourites.spec.ts	7	0	0
+spa	shell/navigation-badges.spec.ts	6	0	0
+spa	shell/server-selector.spec.ts	4	0	0
 # RE-MEASURED 2026-11-02 (issue #131, install log rotation and runtime panel log level): edited by hand.
 # Maran.Host.Tests.dll 414->423 (+9); Maran.Host.IntegrationTests.dll +5 (817->822 after merging dev with #150);
 # Maran.Modules.Monitoring.Tests.dll 95->106; Maran.Sdk.Tests.dll +1 (273->274 after the merge, the LogLevelUnknown
