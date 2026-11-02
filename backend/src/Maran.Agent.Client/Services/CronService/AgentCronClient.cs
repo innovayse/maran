@@ -229,17 +229,7 @@ public sealed class AgentCronClient : IAgentCronClient
 
         return response.ResultCase switch
         {
-            RunCronEntryResponse.ResultOneofCase.Ok => Result<AgentCronRun>.Ok(new AgentCronRun(
-                (long)Math.Min(response.Ok.DurationMs, long.MaxValue),
-                response.Ok.HasExitCode ? response.Ok.ExitCode : null,
-                response.Ok.Stdout,
-                response.Ok.Stderr,
-                response.Ok.Limit switch
-                {
-                    CronRunLimit.Runtime => AgentCronRunLimit.Runtime,
-                    CronRunLimit.Output => AgentCronRunLimit.Output,
-                    _ => null,
-                })),
+            RunCronEntryResponse.ResultOneofCase.Ok => ToRun(response.Ok),
             RunCronEntryResponse.ResultOneofCase.Error => Result<AgentCronRun>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(RunEntryAsync))),
             _ => Result<AgentCronRun>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
@@ -289,6 +279,41 @@ public sealed class AgentCronClient : IAgentCronClient
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetEnvironmentAsync))),
             _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
+    }
+
+    /// <summary>Projects the wire run onto the panel's, resolving how it ended.</summary>
+    /// <param name="ok">The success payload of <c>RunCronEntry</c>.</param>
+    /// <returns>The run, or <c>AgentInvalidResponse</c> when the wire names a ceiling this build does not know.</returns>
+    /// <remarks>
+    /// The wire's zero ceiling is the contract's own spelling of "none stopped it" (<c>cron.proto</c>), so it
+    /// is not an unknown here: it means the program ended on its own, with the status the wire carries or
+    /// with none. A ceiling this build has no name for is an agent newer than the panel and is refused
+    /// rather than read as a run that ended by itself.
+    /// </remarks>
+    private static Result<AgentCronRun> ToRun(RunCronEntryOk ok)
+    {
+        AgentCronRunEnd end;
+        switch (ok.Limit)
+        {
+            case CronRunLimit.Runtime:
+                end = new AgentCronRunStopped(AgentCronRunLimit.Runtime);
+                break;
+            case CronRunLimit.Output:
+                end = new AgentCronRunStopped(AgentCronRunLimit.Output);
+                break;
+            case CronRunLimit.Unspecified:
+                end = ok.HasExitCode ? new AgentCronRunExited(ok.ExitCode) : new AgentCronRunWithoutStatus();
+                break;
+            default:
+                return Result<AgentCronRun>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+        }
+
+        return Result<AgentCronRun>.Ok(new AgentCronRun(
+            (long)Math.Min(ok.DurationMs, long.MaxValue),
+            end,
+            ok.Stdout,
+            ok.Stderr));
     }
 
     /// <summary>Maps the panel's schedule onto its wire counterpart.</summary>

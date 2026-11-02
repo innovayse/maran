@@ -1,4 +1,5 @@
 using Maran.Modules.Cron.Domain.Enums;
+using Maran.Modules.Cron.Domain.ValueObjects;
 
 namespace Maran.Modules.Cron.Domain.Policies;
 
@@ -10,17 +11,19 @@ namespace Maran.Modules.Cron.Domain.Policies;
 /// </remarks>
 public static class CronRunOutcomePolicy
 {
-    /// <summary>The outcome of a run that exited with <paramref name="exitCode"/> or hit <paramref name="limit"/>.</summary>
-    /// <param name="exitCode">The program's status, or null when it reported none.</param>
-    /// <param name="limit">The ceiling that stopped it, or null when it ended on its own.</param>
+    /// <summary>The outcome of a run that ended as <paramref name="end"/> says.</summary>
+    /// <param name="end">How the run ended.</param>
     /// <returns>The outcome the history shows.</returns>
-    public static CronRunOutcome Of(int? exitCode, CronRunLimit? limit)
+    /// <exception cref="ArgumentOutOfRangeException">An ending this policy has no rule for.</exception>
+    public static CronRunOutcome Of(CronRunEnd end)
     {
-        if (limit is not null)
+        return end switch
         {
-            return CronRunOutcome.Stopped;
-        }
-
-        return exitCode == 0 ? CronRunOutcome.Succeeded : CronRunOutcome.Failed;
+            CronRunStopped => CronRunOutcome.Stopped,
+            CronRunExited { ExitCode: 0 } => CronRunOutcome.Succeeded,
+            CronRunExited => CronRunOutcome.Failed,
+            CronRunEndedWithoutStatus => CronRunOutcome.Failed,
+            _ => throw new ArgumentOutOfRangeException(nameof(end), end, "Unknown cron run ending."),
+        };
     }
 }

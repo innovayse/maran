@@ -1,4 +1,5 @@
 using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Domain.ValueObjects;
 using Maran.Modules.Cron.IntegrationEvents.Handlers;
 using Maran.Modules.Cron.Tests.TestSupport;
 using Maran.Sdk.Events;
@@ -33,6 +34,6 @@ public sealed class AccountDeletingHandlerTests
     /// <returns>The run.</returns>
     private static CronRun Run(Guid accountId)
     {
-        return new CronRun(Guid.NewGuid(), accountId, "e", DateTimeOffset.UnixEpoch, 1, 0, null, "", "");
+        return new CronRun(Guid.NewGuid(), accountId, "e", DateTimeOffset.UnixEpoch, 1, new CronRunExited(0), "", "");
     }
 }

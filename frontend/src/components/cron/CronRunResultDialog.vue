@@ -76,8 +76,11 @@ const streams: ComputedRef<{ key: string; label: string; text: string }[]> = com
 
 /** Why a stopped run was stopped, or `null` for a run that ended on its own. */
 const limitNote: ComputedRef<string | null> = computed(() => {
-  const limit = props.result.state === 'done' ? props.result.run.limit : null
-  return limit === null ? null : t(`cron.runs.limit.${limit}`)
+  if (props.result.state !== 'done') {
+    return null
+  }
+  const end = props.result.run.end
+  return end.kind === 'stopped' ? t(`cron.runs.limit.${end.limit}`) : null
 })
 
 /**
@@ -105,7 +108,7 @@ const close = (): void => {
           <CronRunOutcomeBadge :outcome="result.run.outcome" />
         </UiDescriptionItem>
         <UiDescriptionItem :term="t('cron.output.exitCode')" mono>
-          <span data-testid="cron-run-exit-code">{{ result.run.exitCode ?? t('cron.output.notReported') }}</span>
+          <span data-testid="cron-run-exit-code">{{ result.run.end.kind === 'exited' ? result.run.end.exitCode : t('cron.output.notReported') }}</span>
         </UiDescriptionItem>
         <UiDescriptionItem :term="t('cron.runs.columns.duration')" mono>
           {{ formatSeconds(result.run.durationMilliseconds, localeStore.current) }}

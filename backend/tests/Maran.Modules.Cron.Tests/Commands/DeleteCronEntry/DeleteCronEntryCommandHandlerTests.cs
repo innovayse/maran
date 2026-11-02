@@ -1,5 +1,6 @@
 using Maran.Modules.Cron.Commands.DeleteCronEntry;
 using Maran.Modules.Cron.Domain.Entities;
+using Maran.Modules.Cron.Domain.ValueObjects;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Services;
 using Maran.Modules.Cron.Tests.TestSupport;
@@ -126,7 +127,7 @@ public sealed class DeleteCronEntryCommandHandlerTests
     /// <returns>The run.</returns>
     private static CronRun Run(string entryId)
     {
-        return new CronRun(Guid.NewGuid(), AccountId, entryId, DateTimeOffset.UnixEpoch, 10, 0, null, "ok", string.Empty);
+        return new CronRun(Guid.NewGuid(), AccountId, entryId, DateTimeOffset.UnixEpoch, 10, new CronRunExited(0), "ok", string.Empty);
     }
 
     /// <summary>Everything one removal test needs, wired the way the Host wires it.</summary>

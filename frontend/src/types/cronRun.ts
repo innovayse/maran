@@ -12,6 +12,34 @@ export const CRON_RUN_OUTCOMES: readonly CronRunOutcome[] = ['succeeded', 'faile
 /** The agent's ceiling that stopped a run, mirroring the backend's `CronRunLimit`. */
 export type CronRunLimit = 'runtime' | 'output'
 
+/** The program ended on its own and returned a status. */
+export interface CronRunExited {
+  /** Discriminator. */
+  kind: 'exited'
+  /** The program's exit status; 0 is the status of a successful run. */
+  exitCode: number
+}
+
+/** The program ended on its own but reported no status of its own, because it died of a signal. */
+export interface CronRunWithoutStatus {
+  /** Discriminator. */
+  kind: 'withoutStatus'
+}
+
+/** One of the agent's ceilings stopped the run, so it has no status. */
+export interface CronRunStopped {
+  /** Discriminator. */
+  kind: 'stopped'
+  /** The ceiling that stopped it. */
+  limit: CronRunLimit
+}
+
+/**
+ * How a run ended in detail, mirroring the backend's `CronRunEndDto`: exactly one of three shapes,
+ * told apart by `kind`, so a status never sits beside a ceiling.
+ */
+export type CronRunEnd = CronRunExited | CronRunWithoutStatus | CronRunStopped
+
 /** One row of an entry's run history: everything about a run except what it printed. */
 export interface CronRunSummary {
   /** The run's identity. */
@@ -22,11 +50,9 @@ export interface CronRunSummary {
   startedAt: string
   /** How long the run took, in milliseconds, measured by the agent. */
   durationMilliseconds: number
-  /** The program's exit status, or `null` when a ceiling stopped it or it reported none. */
-  exitCode: number | null
-  /** The ceiling that stopped the run, or `null` when it ended on its own. */
-  limit: CronRunLimit | null
-  /** How the run ended. */
+  /** How the run ended in detail. */
+  end: CronRunEnd
+  /** The verdict on it, for the badge and the filter. */
   outcome: CronRunOutcome
 }
 

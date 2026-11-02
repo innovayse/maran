@@ -36,7 +36,7 @@ public sealed class AgentCronClientRunTests
         var result = await Client(stub).RunEntryAsync("alice", "e1", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new AgentCronRun(1500, 3, "out", "err", null), result.Value);
+        Assert.Equal(new AgentCronRun(1500, new AgentCronRunExited(3), "out", "err"), result.Value);
     }
 
     /// <summary>A stopped run carries its ceiling and no status rather than a zero that reads as success.</summary>
@@ -53,8 +53,71 @@ public sealed class AgentCronClientRunTests
 
         var result = await Client(stub).RunEntryAsync("alice", "e1", CancellationToken.None);
 
-        Assert.Null(result.Value.ExitCode);
-        Assert.Equal(AgentCronRunLimit.Runtime, result.Value.Limit);
+        Assert.Equal(new AgentCronRunStopped(AgentCronRunLimit.Runtime), result.Value.End);
+    }
+
+    /// <summary>A run with neither a status nor a ceiling is reported as ended without a status, not as an exit of zero.</summary>
+    [Fact]
+    public async Task A_run_with_neither_a_status_nor_a_ceiling_ended_without_a_status()
+    {
+        var stub = new StubCronService
+        {
+            RunResponse = new RunCronEntryResponse { Ok = new RunCronEntryOk { DurationMs = 10 } },
+        };
+
+        var result = await Client(stub).RunEntryAsync("alice", "e1", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new AgentCronRunWithoutStatus(), result.Value.End);
+    }
+
+    /// <summary>A zero status the program returned is an exit, not the absence of one.</summary>
+    [Fact]
+    public async Task A_zero_status_the_program_returned_is_an_exit()
+    {
+        var stub = new StubCronService
+        {
+            RunResponse = new RunCronEntryResponse { Ok = new RunCronEntryOk { DurationMs = 10, ExitCode = 0 } },
+        };
+
+        var result = await Client(stub).RunEntryAsync("alice", "e1", CancellationToken.None);
+
+        Assert.Equal(new AgentCronRunExited(0), result.Value.End);
+    }
+
+    /// <summary>A ceiling outranks a status the wire also carries.</summary>
+    [Fact]
+    public async Task A_ceiling_outranks_a_status_the_wire_also_carries()
+    {
+        var stub = new StubCronService
+        {
+            RunResponse = new RunCronEntryResponse
+            {
+                Ok = new RunCronEntryOk { DurationMs = 10, ExitCode = 1, Limit = CronRunLimit.Output },
+            },
+        };
+
+        var result = await Client(stub).RunEntryAsync("alice", "e1", CancellationToken.None);
+
+        Assert.Equal(new AgentCronRunStopped(AgentCronRunLimit.Output), result.Value.End);
+    }
+
+    /// <summary>A ceiling this build has no name for is refused, not read as a run that ended by itself.</summary>
+    [Fact]
+    public async Task A_ceiling_this_build_cannot_name_is_refused()
+    {
+        var stub = new StubCronService
+        {
+            RunResponse = new RunCronEntryResponse
+            {
+                Ok = new RunCronEntryOk { DurationMs = 10, ExitCode = 0, Limit = (CronRunLimit)99 },
+            },
+        };
+
+        var result = await Client(stub).RunEntryAsync("alice", "e1", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
     /// <summary>A suspended account maps to its own conflict code.</summary>

@@ -159,7 +159,7 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<AgentCronRun>.Ok(new AgentCronRun(0, 0, string.Empty, string.Empty, null));
+        return Result<AgentCronRun>.Ok(new AgentCronRun(0, new AgentCronRunExited(0), string.Empty, string.Empty));
     }
 
     /// <inheritdoc/>

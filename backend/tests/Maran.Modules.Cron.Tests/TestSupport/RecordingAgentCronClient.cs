@@ -182,7 +182,7 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
         Runs.Add(new AgentEntryCall(accountUsername, entryId));
 
         return Task.FromResult(
-            RunEntryResult ?? Result<AgentCronRun>.Ok(new AgentCronRun(1200, 0, "done\n", string.Empty, null)));
+            RunEntryResult ?? Result<AgentCronRun>.Ok(new AgentCronRun(1200, new AgentCronRunExited(0), "done\n", string.Empty)));
     }
 
     /// <inheritdoc/>

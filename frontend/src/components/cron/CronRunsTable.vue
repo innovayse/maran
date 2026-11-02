@@ -65,7 +65,7 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   >
     <template #cell-startedAt="{ row }">{{ formatIsoTimestamp(row.startedAt, localeStore.current) }}</template>
     <template #cell-outcome="{ row }"><CronRunOutcomeBadge :outcome="row.outcome" /></template>
-    <template #cell-exitCode="{ row }">{{ row.exitCode ?? t('common.emptyValue') }}</template>
+    <template #cell-exitCode="{ row }">{{ row.end.kind === 'exited' ? row.end.exitCode : t('common.emptyValue') }}</template>
     <template #cell-duration="{ row }">{{ formatSeconds(row.durationMilliseconds, localeStore.current) }}</template>
     <template #cell-actions="{ row }">
       <UiButton variant="secondary" @click="emit('view', row)">{{ t('cron.runs.view') }}</UiButton>

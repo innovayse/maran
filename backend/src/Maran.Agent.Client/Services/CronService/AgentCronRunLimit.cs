@@ -2,8 +2,8 @@ namespace Maran.Agent.Client.Services.CronService;
 
 /// <summary>
 /// The ceiling that stopped a cron entry run by hand. A run that reached none carries no value of this
-/// type at all (<see cref="AgentCronRun.Limit"/> is null), so "no ceiling" is never a member that could
-/// sit beside an exit status it contradicts.
+/// type at all (it is not an <see cref="AgentCronRunStopped"/>), so "no ceiling" is never a member that
+/// could sit beside an exit status it contradicts.
 /// </summary>
 public enum AgentCronRunLimit
 {

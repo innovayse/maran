@@ -34,8 +34,7 @@ const FAILED: CronRun = {
   entryId: NIGHTLY.entryId,
   startedAt: '2026-11-01T09:00:00Z',
   durationMilliseconds: 1500,
-  exitCode: 2,
-  limit: null,
+  end: { kind: 'exited', exitCode: 2 },
   outcome: 'failed',
   stdout: 'cleaning\n',
   stderr: 'permission denied\n',
@@ -46,19 +45,29 @@ const SUCCEEDED: CronRunSummary = {
   entryId: NIGHTLY.entryId,
   startedAt: '2026-11-01T08:00:00Z',
   durationMilliseconds: 900,
-  exitCode: 0,
-  limit: null,
+  end: { kind: 'exited', exitCode: 0 },
   outcome: 'succeeded',
 }
 
-const openCronPage = async (page: Page): Promise<void> => {
+const STOPPED: CronRun = {
+  id: '55555555-5555-4555-8555-555555555555',
+  entryId: NIGHTLY.entryId,
+  startedAt: '2026-11-01T10:00:00Z',
+  durationMilliseconds: 120000,
+  end: { kind: 'stopped', limit: 'runtime' },
+  outcome: 'stopped',
+  stdout: '',
+  stderr: '',
+}
+
+const openCronPage = async (page: Page, run: CronRun = FAILED): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubCronEntries(page, [NIGHTLY])
   await stubCronEnvironment(page, [])
-  await stubCronRuns(page, FAILED, [FAILED, SUCCEEDED])
+  await stubCronRuns(page, run, [FAILED, SUCCEEDED])
   await page.goto('/cron')
   await expect(page.getByRole('heading', { level: 1, name: 'Scheduled tasks' })).toBeVisible()
 }
@@ -73,6 +82,17 @@ test('Run now shows the run that failed, with both streams and its exit code', a
   await expect(dialog.getByText('Failed')).toBeVisible()
   await expect(dialog.getByTestId('cron-run-exit-code')).toHaveText('2')
   await expect(dialog.getByRole('region', { name: 'Standard error' })).toHaveText('permission denied')
+})
+
+test('Run now shows a stopped run with its reason and no exit status', async ({ page }) => {
+  await openCronPage(page, STOPPED)
+
+  await page.getByRole('button', { name: `Actions for ${NIGHTLY.command}` }).click()
+  await page.getByRole('menuitem', { name: 'Run now' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Run result' })
+  await expect(dialog.getByText('The run reached the two-minute limit and was stopped.')).toBeVisible()
+  await expect(dialog.getByTestId('cron-run-exit-code')).toHaveText('Not reported')
 })
 
 test('Run history lists the runs and narrows them by outcome through the filter sheet', async ({ page }) => {

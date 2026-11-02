@@ -4,6 +4,7 @@ using Maran.Modules.Cron.Common;
 using Maran.Modules.Cron.Domain.Entities;
 using Maran.Modules.Cron.Domain.Enums;
 using Maran.Modules.Cron.Domain.Policies;
+using Maran.Modules.Cron.Domain.ValueObjects;
 using Maran.Modules.Cron.Mappers;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Resources;
@@ -117,8 +118,7 @@ public sealed class RunCronEntryCommandHandler
             command.EntryId,
             startedAt,
             ran.Value.DurationMilliseconds,
-            ran.Value.ExitCode,
-            LimitOf(ran.Value.Limit),
+            EndOf(ran.Value.End),
             ran.Value.Stdout,
             ran.Value.Stderr);
 
@@ -140,16 +140,19 @@ public sealed class RunCronEntryCommandHandler
         return Result<CronRunDto>.Ok(CronRunMapper.From(run));
     }
 
-    /// <summary>The module's own name for the agent's ceiling.</summary>
-    /// <param name="limit">The ceiling the agent reported, or null.</param>
-    /// <returns>The same ceiling in the module's vocabulary, or null.</returns>
-    private static CronRunLimit? LimitOf(AgentCronRunLimit? limit)
+    /// <summary>The module's own name for how the agent says the run ended.</summary>
+    /// <param name="end">How the agent reported the run ended.</param>
+    /// <returns>The same ending in the module's vocabulary.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">An ending this module has no name for.</exception>
+    private static CronRunEnd EndOf(AgentCronRunEnd end)
     {
-        return limit switch
+        return end switch
         {
-            AgentCronRunLimit.Runtime => CronRunLimit.Runtime,
-            AgentCronRunLimit.Output => CronRunLimit.Output,
-            _ => null,
+            AgentCronRunExited exited => new CronRunExited(exited.ExitCode),
+            AgentCronRunWithoutStatus => new CronRunEndedWithoutStatus(),
+            AgentCronRunStopped { Limit: AgentCronRunLimit.Runtime } => new CronRunStopped(CronRunLimit.Runtime),
+            AgentCronRunStopped { Limit: AgentCronRunLimit.Output } => new CronRunStopped(CronRunLimit.Output),
+            _ => throw new ArgumentOutOfRangeException(nameof(end), end, "Unknown cron run ending."),
         };
     }
 

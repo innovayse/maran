@@ -1,5 +1,6 @@
 using Maran.Modules.Cron.Domain.Enums;
 using Maran.Modules.Cron.Domain.Policies;
+using Maran.Modules.Cron.Domain.ValueObjects;
 
 namespace Maran.Modules.Cron.Domain.Entities;
 
@@ -16,9 +17,9 @@ namespace Maran.Modules.Cron.Domain.Entities;
 /// </para>
 /// <para>
 /// Immutable: a run that happened does not change, so the entity has no method that changes it, and
-/// <see cref="Outcome"/> is decided once, by <see cref="CronRunOutcomePolicy"/>, from the two fields it
-/// summarises — stored so the history can filter on it, and unable to disagree with them because
-/// nothing writes either afterwards.
+/// <see cref="Outcome"/> is decided once, by <see cref="CronRunOutcomePolicy"/>, from <see cref="End"/> —
+/// stored so the history can filter on it, and unable to disagree with it because nothing writes
+/// either afterwards.
 /// </para>
 /// <para>
 /// The output is the customer's own text returned to its owner. It is never written to a log line or
@@ -45,13 +46,19 @@ public sealed class CronRun
     /// <summary>How long the run took, measured by the agent, in milliseconds.</summary>
     public long DurationMilliseconds { get; private set; }
 
-    /// <summary>The program's exit status, or null when a ceiling stopped it or it reported none.</summary>
+    /// <summary>
+    /// The column holding the program's exit status: set only for a run that exited with one, null for
+    /// a run a ceiling stopped and for one that reported none. Read the case through <see cref="End"/>.
+    /// </summary>
     public int? ExitCode { get; private set; }
 
-    /// <summary>The ceiling that stopped the run, or null when it ended on its own.</summary>
+    /// <summary>
+    /// The column holding the ceiling that stopped the run: set only for a stopped run. Read the case
+    /// through <see cref="End"/>.
+    /// </summary>
     public CronRunLimit? Limit { get; private set; }
 
-    /// <summary>How the run ended, decided once from <see cref="ExitCode"/> and <see cref="Limit"/>.</summary>
+    /// <summary>How the run ended, decided once from <see cref="End"/> and stored so the history can filter on it.</summary>
     public CronRunOutcome Outcome { get; private set; }
 
     /// <summary>What the program wrote to standard output, as the agent returned it.</summary>
@@ -60,14 +67,32 @@ public sealed class CronRun
     /// <summary>What the program wrote to standard error, as the agent returned it.</summary>
     public string Stderr { get; private set; }
 
+    /// <summary>How the run ended, restored from <see cref="ExitCode"/> and <see cref="Limit"/>; not a column of its own.</summary>
+    public CronRunEnd End
+    {
+        get
+        {
+            if (Limit is { } limit)
+            {
+                return new CronRunStopped(limit);
+            }
+
+            if (ExitCode is { } exitCode)
+            {
+                return new CronRunExited(exitCode);
+            }
+
+            return new CronRunEndedWithoutStatus();
+        }
+    }
+
     /// <summary>Records one run.</summary>
     /// <param name="id">The row's identity.</param>
     /// <param name="accountId">The account whose entry ran.</param>
     /// <param name="entryId">The agent's identifier for the entry.</param>
     /// <param name="startedAt">When the panel started the run.</param>
     /// <param name="durationMilliseconds">How long the run took.</param>
-    /// <param name="exitCode">The program's status, or null.</param>
-    /// <param name="limit">The ceiling that stopped it, or null.</param>
+    /// <param name="end">How the run ended.</param>
     /// <param name="stdout">Its standard output.</param>
     /// <param name="stderr">Its standard error.</param>
     public CronRun(
@@ -76,8 +101,7 @@ public sealed class CronRun
         string entryId,
         DateTimeOffset startedAt,
         long durationMilliseconds,
-        int? exitCode,
-        CronRunLimit? limit,
+        CronRunEnd end,
         string stdout,
         string stderr)
     {
@@ -86,9 +110,9 @@ public sealed class CronRun
         EntryId = entryId;
         StartedAt = startedAt;
         DurationMilliseconds = durationMilliseconds;
-        ExitCode = limit is null ? exitCode : null;
-        Limit = limit;
-        Outcome = CronRunOutcomePolicy.Of(ExitCode, limit);
+        ExitCode = (end as CronRunExited)?.ExitCode;
+        Limit = (end as CronRunStopped)?.Limit;
+        Outcome = CronRunOutcomePolicy.Of(end);
         Stdout = stdout;
         Stderr = stderr;
     }

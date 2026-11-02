@@ -19,6 +19,9 @@ public sealed class CronRunConfiguration : IEntityTypeConfiguration<CronRun>
         builder.Property(run => run.DurationMilliseconds).IsRequired();
         builder.Property(run => run.Outcome).IsRequired();
 
+        // How the run ended is restored from ExitCode and Limit; it is not a column of its own.
+        builder.Ignore(run => run.End);
+
         // Unbounded text: the agent caps each stream at 64 KiB before the panel ever sees it, so the
         // bound is the agent's and a column length here would only be a second, drifting copy of it.
         builder.Property(run => run.Stdout).IsRequired();

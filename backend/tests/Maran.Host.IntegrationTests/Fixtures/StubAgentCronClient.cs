@@ -133,7 +133,7 @@ public sealed class StubAgentCronClient : IAgentCronClient
         AddressedAccounts.Add(accountUsername);
 
         return Task.FromResult(Result<AgentCronRun>.Ok(
-            new AgentCronRun(1200, 0, "done", string.Empty, null)));
+            new AgentCronRun(1200, new AgentCronRunExited(0), "done", string.Empty)));
     }
 
     /// <inheritdoc/>
