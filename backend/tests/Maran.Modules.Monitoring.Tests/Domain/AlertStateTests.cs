@@ -32,7 +32,7 @@ public sealed class AlertStateTests
             return transition == AlertTransition.Raised;
         });
         Assert.Equal(AlertTransition.Raised, transitions[AlertState.BreachesBeforeAlert - 1]);
-        Assert.True(state.IsFiring);
+        Assert.Equal(AlertPhase.Firing, state.Phase);
         Assert.Equal(Start.AddMinutes(AlertState.BreachesBeforeAlert - 1), state.RaisedAt);
     }
 
@@ -47,7 +47,7 @@ public sealed class AlertStateTests
             Assert.Equal(AlertTransition.None, state.Observe(breaching: true, Start.AddMinutes(observation)));
         }
 
-        Assert.False(state.IsFiring);
+        Assert.Equal(AlertPhase.Pending, state.Phase);
         Assert.Null(state.RaisedAt);
     }
 
@@ -63,7 +63,7 @@ public sealed class AlertStateTests
             Assert.Equal(AlertTransition.None, state.Observe(breaching, Start.AddMinutes(observation)));
         }
 
-        Assert.False(state.IsFiring);
+        Assert.Equal(AlertPhase.Healthy, state.Phase);
     }
 
     /// <summary>Returning to health closes the open episode once, and staying healthy closes nothing further.</summary>
@@ -79,7 +79,7 @@ public sealed class AlertStateTests
 
         Assert.Equal(AlertTransition.Resolved, state.Observe(breaching: false, Start.AddMinutes(10)));
         Assert.Equal(AlertTransition.None, state.Observe(breaching: false, Start.AddMinutes(11)));
-        Assert.False(state.IsFiring);
+        Assert.Equal(AlertPhase.Healthy, state.Phase);
         Assert.Null(state.RaisedAt);
     }
 

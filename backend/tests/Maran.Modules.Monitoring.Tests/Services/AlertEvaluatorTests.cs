@@ -470,8 +470,8 @@ public sealed class AlertEvaluatorTests
         var installedFiles = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.InstalledFilesSubject);
         var hashList = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.HashListSubject);
 
-        Assert.False(installedFiles.IsFiring);
-        Assert.False(hashList.IsFiring);
+        Assert.NotEqual(AlertPhase.Firing, installedFiles.Phase);
+        Assert.NotEqual(AlertPhase.Firing, hashList.Phase);
     }
 
     /// <summary>An unanswered round (no report at all) neither raises nor resolves an open code-integrity episode.</summary>
@@ -497,14 +497,14 @@ public sealed class AlertEvaluatorTests
         }
 
         var beforeUnanswered = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.InstalledFilesSubject);
-        Assert.True(beforeUnanswered.IsFiring);
+        Assert.Equal(AlertPhase.Firing, beforeUnanswered.Phase);
         var consecutiveBefore = beforeUnanswered.ConsecutiveBreaches;
         var publishedBefore = scopes.Bus.Published.Count;
 
         await evaluator.EvaluateAsync(null, null, [], null, null, null, null, Start.AddMinutes(30), CancellationToken.None);
 
         var afterUnanswered = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.InstalledFilesSubject);
-        Assert.True(afterUnanswered.IsFiring);
+        Assert.Equal(AlertPhase.Firing, afterUnanswered.Phase);
         Assert.Equal(consecutiveBefore, afterUnanswered.ConsecutiveBreaches);
         Assert.Equal(publishedBefore, scopes.Bus.Published.Count);
     }
@@ -558,7 +558,7 @@ public sealed class AlertEvaluatorTests
         });
 
         var hashList = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.HashListSubject);
-        Assert.True(hashList.IsFiring);
+        Assert.Equal(AlertPhase.Firing, hashList.Phase);
 
         var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
         Assert.Contains("signature verification failed", mail.Body);

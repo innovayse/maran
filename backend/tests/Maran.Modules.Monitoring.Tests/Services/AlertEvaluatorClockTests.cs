@@ -40,7 +40,7 @@ public sealed class AlertEvaluatorClockTests
         var row = await dbContext.AlertStates.SingleAsync();
         Assert.Equal(AlertKind.ClockUnsynchronized, row.Kind);
         Assert.Equal(AlertEvaluator.SystemClockSubject, row.Subject);
-        Assert.True(row.IsFiring);
+        Assert.Equal(AlertPhase.Firing, row.Phase);
     }
 
     /// <summary>A synchronised clock never raises: the inverse control.</summary>
@@ -75,7 +75,7 @@ public sealed class AlertEvaluatorClockTests
         await EvaluateAsync(evaluator, AgentClockSyncState.Synchronized, Start.AddMinutes(30));
 
         Assert.Equal(2, scopes.Bus.Published.Count);
-        Assert.False((await dbContext.AlertStates.SingleAsync()).IsFiring);
+        Assert.NotEqual(AlertPhase.Firing, (await dbContext.AlertStates.SingleAsync()).Phase);
     }
 
     /// <summary>A round in which the clock could not be read observes nothing at all.</summary>
