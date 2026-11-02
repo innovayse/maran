@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.FirewallService;
 using Maran.Modules.Firewall.Commands.BanAddress;
 using Maran.Modules.Firewall.Domain.Entities;
 using Maran.Modules.Firewall.Domain.Enums;
@@ -54,7 +55,7 @@ public sealed class BanAddressCommandHandlerTests
 
         await world.BanAsync("203.0.113.7", durationMinutes: null);
 
-        Assert.Null(Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.Permanent(), Assert.Single(world.Agent.Bans).Term);
         Assert.Null(Assert.Single(await world.EpisodesAsync()).ExpiresAt);
     }
 

@@ -91,7 +91,7 @@ public sealed class StubAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> BanAsync(string address, TimeSpan? ttl, CancellationToken cancellationToken)
+    public Task<Result<bool>> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
     {
         Bans.Add(address);
         return Task.FromResult(MutationResult);

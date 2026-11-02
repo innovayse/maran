@@ -100,9 +100,9 @@ public sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc />
-    public Task<Result<bool>> BanAsync(string address, TimeSpan? ttl, CancellationToken cancellationToken)
+    public Task<Result<bool>> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
     {
-        Bans.Add(new AgentBanCall(address, ttl));
+        Bans.Add(new AgentBanCall(address, term));
 
         return Task.FromResult(
             AddressesThatFailToBan.Contains(address)

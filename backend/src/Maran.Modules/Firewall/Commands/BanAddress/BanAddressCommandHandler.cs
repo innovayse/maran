@@ -1,5 +1,6 @@
 using System.Net;
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.FirewallService;
 using Maran.Modules.Firewall.Domain.Entities;
 using Maran.Modules.Firewall.Domain.Enums;
 using Maran.Modules.Firewall.Domain.Policies;
@@ -111,11 +112,11 @@ public sealed class BanAddressCommandHandler
         }
 
         var subject = address.ToString();
-        var ttl = command.DurationMinutes is null
-            ? (TimeSpan?)null
-            : TimeSpan.FromMinutes(command.DurationMinutes.Value);
+        AgentBanTerm term = command.DurationMinutes is null
+            ? new AgentBanTerm.Permanent()
+            : new AgentBanTerm.ExpiresAfter(TimeSpan.FromMinutes(command.DurationMinutes.Value));
 
-        var banned = await _agent.BanAsync(subject, ttl, cancellationToken);
+        var banned = await _agent.BanAsync(subject, term, cancellationToken);
         if (!banned.IsSuccess)
         {
             await _journal.RecordFailureAsync(

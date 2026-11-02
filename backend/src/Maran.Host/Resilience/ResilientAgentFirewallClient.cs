@@ -123,15 +123,15 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> BanAsync(string address, TimeSpan? ttl, CancellationToken cancellationToken)
+    public async Task<Result<bool>> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken)
     {
         return await AgentOperationPipeline.ExecuteAsync(
             _pipeline,
             async (state, token) =>
             {
-                return await state.Client.BanAsync(state.Address, state.Ttl, token);
+                return await state.Client.BanAsync(state.Address, state.Term, token);
             },
-            (Client: _inner, Address: address, Ttl: ttl),
+            (Client: _inner, Address: address, Term: term),
             cancellationToken);
     }
 

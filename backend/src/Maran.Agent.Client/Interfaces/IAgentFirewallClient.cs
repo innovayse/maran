@@ -113,12 +113,12 @@ public interface IAgentFirewallClient
 
     /// <summary>Bans an address: every packet from it is dropped until the ban is lifted or expires.</summary>
     /// <param name="address">The IPv4 or IPv6 address to ban.</param>
-    /// <param name="ttl">
-    /// How long the ban lasts, or null for a ban that lasts until somebody lifts it. The wire
-    /// carries whole seconds, so a fraction is dropped: 90.7 seconds installs a 90-second ban, and
-    /// never a longer one. A duration UNDER one second is refused rather than truncated, because it
-    /// would arrive as the zero the contract spells "permanent"; so are a negative duration and one
-    /// longer than the field can hold.
+    /// <param name="term">
+    /// How long the ban lasts: <see cref="AgentBanTerm.Permanent"/> until somebody lifts it, or
+    /// <see cref="AgentBanTerm.ExpiresAfter"/> a fixed time. The wire carries whole seconds, so a
+    /// fraction is dropped: 90.7 seconds installs a 90-second ban, and never a longer one. A
+    /// duration UNDER one second is refused rather than truncated to a zero the contract does not
+    /// accept; so are a negative duration and one longer than the field can hold.
     /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>
@@ -131,7 +131,7 @@ public interface IAgentFirewallClient
     /// primitive for a string the panel composes. The Firewall module keeps the reason in its own
     /// row instead.
     /// </remarks>
-    Task<Result<bool>> BanAsync(string address, TimeSpan? ttl, CancellationToken cancellationToken);
+    Task<Result<bool>> BanAsync(string address, AgentBanTerm term, CancellationToken cancellationToken);
 
     /// <summary>Lifts a ban.</summary>
     /// <param name="address">The IPv4 or IPv6 address to unban.</param>

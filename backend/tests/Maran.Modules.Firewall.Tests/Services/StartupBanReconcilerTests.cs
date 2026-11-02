@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.FirewallService;
 using Maran.Modules.Firewall.Domain.Entities;
 using Maran.Modules.Firewall.Domain.Enums;
 using Maran.Modules.Firewall.Persistence;
@@ -40,7 +41,7 @@ public sealed class StartupBanReconcilerTests
 
         await world.Reconciler.ReconcileAsync(CancellationToken.None);
 
-        Assert.Equal(TimeSpan.FromHours(1), Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(1)), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>An expired episode is not re banned.</summary>
@@ -92,7 +93,7 @@ public sealed class StartupBanReconcilerTests
 
         await world.Reconciler.ReconcileAsync(CancellationToken.None);
 
-        Assert.Null(Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.Permanent(), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>A pass the agent refuses reports failure so it can be retried.</summary>
@@ -285,7 +286,7 @@ public sealed class StartupBanReconcilerTests
 
         Assert.True(await world.Reconciler.ReconcileAsync(CancellationToken.None));
 
-        Assert.Null(Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.Permanent(), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>The longest of two timed episodes on one address is what is restored.</summary>
@@ -298,7 +299,7 @@ public sealed class StartupBanReconcilerTests
 
         Assert.True(await world.Reconciler.ReconcileAsync(CancellationToken.None));
 
-        Assert.Equal(TimeSpan.FromHours(12), Assert.Single(world.Agent.Bans).Ttl);
+        Assert.Equal(new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(12)), Assert.Single(world.Agent.Bans).Term);
     }
 
     /// <summary>Two addresses are still re applied separately.</summary>
@@ -317,11 +318,11 @@ public sealed class StartupBanReconcilerTests
         Assert.Equal(2, world.Agent.Bans.Count);
         Assert.Contains(world.Agent.Bans, ban =>
         {
-            return ban.Address == "203.0.113.7" && ban.Ttl == TimeSpan.FromMinutes(15);
+            return ban.Address == "203.0.113.7" && ban.Term == new AgentBanTerm.ExpiresAfter(TimeSpan.FromMinutes(15));
         });
         Assert.Contains(world.Agent.Bans, ban =>
         {
-            return ban.Address == "198.51.100.9" && ban.Ttl == TimeSpan.FromHours(3);
+            return ban.Address == "198.51.100.9" && ban.Term == new AgentBanTerm.ExpiresAfter(TimeSpan.FromHours(3));
         });
     }
 
