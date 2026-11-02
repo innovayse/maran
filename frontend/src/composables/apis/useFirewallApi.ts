@@ -75,20 +75,20 @@ export const useFirewallApi = (): FirewallApi => {
    * Opens a port, scoped to one source range.
    * @param rule The port, protocol and source range to allow.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel installed the rule.
+   * @returns Resolves once the panel installed the rule; the answer is an empty 204.
    */
-  const allowPort = (rule: FirewallRule, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(RULES_PATH, rule, signal)
+  const allowPort = (rule: FirewallRule, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(RULES_PATH, rule, signal)
   }
 
   /**
    * Closes a port that was opened, matching the source range the allow was scoped to.
    * @param rule The rule to remove, spelled exactly as the listing reported it.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed the rule.
+   * @returns Resolves once the panel removed the rule; the answer is an empty 204.
    */
-  const denyPort = (rule: FirewallRule, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${RULES_PATH}?${ruleQuery(rule)}`, signal)
+  const denyPort = (rule: FirewallRule, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${RULES_PATH}?${ruleQuery(rule)}`, signal)
   }
 
   /**
@@ -106,21 +106,21 @@ export const useFirewallApi = (): FirewallApi => {
    * Bans an address, for a duration or until somebody lifts it.
    * @param request The address to ban and how long for.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel placed the ban.
+   * @returns Resolves once the panel placed the ban; the answer is an empty 204.
    */
-  const banAddress = (request: BanAddressRequest, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(BANS_PATH, request, signal)
+  const banAddress = (request: BanAddressRequest, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(BANS_PATH, request, signal)
   }
 
   /**
    * Lifts every ban in force for one address.
    * @param address The address to let back in.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel lifted the ban.
+   * @returns Resolves once the panel lifted the ban; the answer is an empty 204.
    */
-  const unbanAddress = (address: string, signal?: AbortSignal): Promise<boolean> => {
+  const unbanAddress = (address: string, signal?: AbortSignal): Promise<void> => {
     const query = new URLSearchParams({ address }).toString()
-    return api.delete<boolean>(`${BANS_PATH}?${query}`, signal)
+    return api.delete<void>(`${BANS_PATH}?${query}`, signal)
   }
 
   /**
@@ -151,10 +151,10 @@ export const useFirewallApi = (): FirewallApi => {
    * Removes an exemption, so the automatic bans may reach the range again.
    * @param id The row to remove.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Whether the panel removed the row.
+   * @returns Resolves once the panel removed the row; the answer is an empty 204.
    */
-  const removeWhitelistEntry = (id: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.delete<boolean>(`${WHITELIST_PATH}/${id}`, signal)
+  const removeWhitelistEntry = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${WHITELIST_PATH}/${id}`, signal)
   }
 
   return {

@@ -105,9 +105,9 @@ const isSameRule = (left: FirewallRule, right: FirewallRule): boolean => {
  * The rules are answered whole, as the panel answers them; the bans and the whitelist are answered
  * one page at a time, honouring `page`, `pageSize`, `search` and `sort`.
  *
- * The writes answer exactly what the module answers: the rules endpoints and the unban answer a
- * bare `true`, and the whitelist create answers `201` with the row it made — the identity a later
- * removal has to name.
+ * The writes answer exactly what the module answers: the rules and bans endpoints and the whitelist
+ * removal answer an empty `204`, and the whitelist create answers `201` with the row it made — the
+ * identity a later removal has to name.
  * @param page The Playwright page whose network the routes are installed on.
  * @param state The three lists the stub reports, mutated in place by the writes.
  * @returns Resolves once every route is installed.
@@ -119,7 +119,7 @@ export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<
     if (request.method() === 'POST') {
       const submitted = request.postDataJSON() as FirewallRule
       state.rules.push(submitted)
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
 
@@ -136,7 +136,7 @@ export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<
       state.rules = state.rules.filter((rule) => {
         return !isSameRule(rule, removed)
       })
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
 
@@ -165,7 +165,7 @@ export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<
         },
         ...state.bans,
       ]
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
 
@@ -174,7 +174,7 @@ export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<
       state.bans = state.bans.filter((ban) => {
         return ban.ipAddress !== address
       })
-      await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      await route.fulfill({ status: 204 })
       return
     }
 
@@ -217,7 +217,7 @@ export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<
     state.whitelist = state.whitelist.filter((entry) => {
       return entry.id !== id
     })
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 }
 
