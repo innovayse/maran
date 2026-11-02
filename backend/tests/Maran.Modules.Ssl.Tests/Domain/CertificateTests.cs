@@ -60,7 +60,6 @@ public sealed class CertificateTests
         certificate.RenewalFailed("AcmeValidationFailed", Now.AddDays(1));
 
         Assert.Equal(2, certificate.ConsecutiveRenewalFailures);
-        Assert.Equal("AcmeValidationFailed", certificate.LastRenewalErrorCode);
         Assert.Equal("AcmeValidationFailed", certificate.LastRenewalFailureCode);
         Assert.Equal(Now.AddDays(1), certificate.LastRenewalAttemptAt);
 
@@ -79,7 +78,6 @@ public sealed class CertificateTests
         certificate.Renewed(Now.AddDays(90), Now.AddDays(2));
 
         Assert.Equal(0, certificate.ConsecutiveRenewalFailures);
-        Assert.Equal(string.Empty, certificate.LastRenewalErrorCode);
         Assert.Null(certificate.LastRenewalFailureCode);
         Assert.Equal(Now.AddDays(90), certificate.NotAfter);
         Assert.Equal(Now.AddDays(2), certificate.IssuedAt);
@@ -92,7 +90,6 @@ public sealed class CertificateTests
         var certificate = SslTestContext.Certificate(Guid.NewGuid(), "g.example.com", Now.AddDays(90));
 
         Assert.Null(certificate.LastRenewalAttemptAt);
-        Assert.Equal(string.Empty, certificate.LastRenewalErrorCode);
         Assert.Null(certificate.LastRenewalFailureCode);
         Assert.Equal(0, certificate.ConsecutiveRenewalFailures);
     }

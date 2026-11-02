@@ -41,12 +41,24 @@ public sealed class CertificateConfiguration : IEntityTypeConfiguration<Certific
 
         // An error CODE, so the column is short by design. Widening it is how an authority's own
         // sentence — and the material it quoted — would end up in this table (rules/security.md).
-        builder.Property(certificate => certificate.LastRenewalErrorCode)
-            .IsRequired()
+        // Nullable: null is "the last attempt succeeded or none has run".
+        builder.Property(certificate => certificate.LastRenewalFailureCode)
             .HasMaxLength(64);
 
-        // The typed reading of the column above; it is computed, never stored.
-        builder.Ignore(certificate => certificate.LastRenewalFailureCode);
+        // Expand phase: the previous release's non-null column for the same fact ("" meaning no
+        // failure) stays mapped and is written by the same entity methods, so a rolled-back update
+        // still reads a truthful value. A later release drops it together with the entity property.
+        // The backfill that fills the new column from it lives in the AddCertificateFailureCode
+        // migration, as exactly this statement:
+        //
+        //   // raw-sql: copy the legacy empty-string spelling of "no failure" into the nullable column.
+        //   UPDATE ssl."Certificates"
+        //   SET "LastRenewalFailureCode" = NULLIF("LastRenewalErrorCode", '')
+        //   WHERE "LastRenewalFailureCode" IS NULL;
+        builder.Property<string>("LegacyRenewalErrorCode")
+            .HasColumnName("LastRenewalErrorCode")
+            .IsRequired()
+            .HasMaxLength(64);
 
         builder.Property(certificate => certificate.ConsecutiveRenewalFailures)
             .IsRequired();

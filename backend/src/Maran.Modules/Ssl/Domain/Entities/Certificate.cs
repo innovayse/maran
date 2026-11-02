@@ -65,25 +65,27 @@ public sealed class Certificate
     public DateTimeOffset? LastRenewalAttemptAt { get; private set; }
 
     /// <summary>
-    /// The stored column behind <see cref="LastRenewalFailureCode"/>: the machine-stable code of the
-    /// last renewal failure, or the empty string when the last attempt succeeded or none has run.
-    /// Never the authority's own text.
-    /// </summary>
-    /// <remarks>
-    /// The empty string is a storage spelling of "no failure" kept so the column needs no migration;
-    /// code reads <see cref="LastRenewalFailureCode"/>, where that absence is a <c>null</c> and not a
-    /// value a caller has to know to compare against.
-    /// </remarks>
-    public string LastRenewalErrorCode { get; private set; }
-
-    /// <summary>
     /// The machine-stable code of the last renewal failure, or <c>null</c> when the last attempt
     /// succeeded or none has run. Never the authority's own text.
     /// </summary>
-    public string? LastRenewalFailureCode
-    {
-        get { return LastRenewalErrorCode.Length == 0 ? null : LastRenewalErrorCode; }
-    }
+    /// <remarks>
+    /// Stored in a nullable column, so "no failure" is the absence of a value and not a string a
+    /// reader has to know to compare against. It replaces <see cref="LegacyRenewalErrorCode"/>,
+    /// which stays written beside it until a later release drops that column.
+    /// </remarks>
+    public string? LastRenewalFailureCode { get; private set; }
+
+    /// <summary>
+    /// The previous release's column for the same fact: the failure code, or the empty string for
+    /// "no failure". Written by the same methods as <see cref="LastRenewalFailureCode"/> and never
+    /// read by this release.
+    /// </summary>
+    /// <remarks>
+    /// Expand phase of expand-then-contract (rules/architecture.md): the previous release still reads
+    /// this column after an update is rolled back, so it is kept mapped and in step. The contract
+    /// phase, a release later, removes this property and its column together.
+    /// </remarks>
+    private string LegacyRenewalErrorCode { get; set; }
 
     /// <summary>How many renewal attempts have failed in a row. Reset to zero by a success.</summary>
     /// <remarks>
@@ -118,7 +120,8 @@ public sealed class Certificate
         NotAfter = notAfter;
         IssuedAt = issuedAt;
         LastRenewalAttemptAt = null;
-        LastRenewalErrorCode = string.Empty;
+        LastRenewalFailureCode = null;
+        LegacyRenewalErrorCode = string.Empty;
         ConsecutiveRenewalFailures = 0;
     }
 
@@ -126,7 +129,7 @@ public sealed class Certificate
     private Certificate()
     {
         Domain = string.Empty;
-        LastRenewalErrorCode = string.Empty;
+        LegacyRenewalErrorCode = string.Empty;
     }
 
     /// <summary>Replaces the installed material with newly issued material.</summary>
@@ -139,7 +142,8 @@ public sealed class Certificate
         NotAfter = notAfter;
         IssuedAt = renewedAt;
         LastRenewalAttemptAt = renewedAt;
-        LastRenewalErrorCode = string.Empty;
+        LastRenewalFailureCode = null;
+        LegacyRenewalErrorCode = string.Empty;
         ConsecutiveRenewalFailures = 0;
     }
 
@@ -154,7 +158,8 @@ public sealed class Certificate
     public void RenewalFailed(string errorCode, DateTimeOffset attemptedAt)
     {
         LastRenewalAttemptAt = attemptedAt;
-        LastRenewalErrorCode = errorCode;
+        LastRenewalFailureCode = errorCode;
+        LegacyRenewalErrorCode = errorCode;
         ConsecutiveRenewalFailures += 1;
     }
 
