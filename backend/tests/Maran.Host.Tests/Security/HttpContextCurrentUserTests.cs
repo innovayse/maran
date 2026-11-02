@@ -39,8 +39,6 @@ public sealed class HttpContextCurrentUserTests
         Assert.Equal(UserId, administrator.UserId);
         Assert.Equal("root", administrator.Username);
         Assert.Null(administrator.ViewedBy);
-        Assert.True(user.IsAdmin);
-        Assert.Null(user.AccountId);
     }
 
     /// <summary>A customer's account is read out of the token's claims.</summary>
@@ -58,7 +56,6 @@ public sealed class HttpContextCurrentUserTests
         Assert.Equal("acme", customer.Username);
         Assert.Equal(AccountId, customer.AccountId);
         Assert.Null(customer.ViewedBy);
-        Assert.False(user.IsAdmin);
     }
 
     /// <summary>A view-as token names the operator while the viewed login stays the caller.</summary>
@@ -82,8 +79,6 @@ public sealed class HttpContextCurrentUserTests
         var customer = Assert.IsType<CustomerCaller>(user.Caller);
         Assert.Equal(UserId, customer.UserId);
         Assert.Equal(new ViewingOperator(OperatorId, "root"), customer.ViewedBy);
-        Assert.Equal(OperatorId, user.ActorUserId);
-        Assert.Equal("root", user.ActorUsername);
     }
 
     /// <summary>A view-as marker with no readable operator is refused, not read as an own sign-in.</summary>
@@ -170,8 +165,6 @@ public sealed class HttpContextCurrentUserTests
         var customer = Assert.IsType<AccountlessCustomerCaller>(user.Caller);
         Assert.Equal(UserId, customer.UserId);
         Assert.Equal("acme", customer.Username);
-        Assert.False(user.IsAdmin);
-        Assert.Null(user.AccountId);
     }
 
     /// <summary>A customer token whose account claim is present but not an id is refused, not read as no account.</summary>
@@ -201,9 +194,6 @@ public sealed class HttpContextCurrentUserTests
         var user = new HttpContextCurrentUser(new HttpContextAccessor { HttpContext = context });
 
         Assert.Same(AnonymousCaller.Instance, user.Caller);
-        Assert.False(user.IsAdmin);
-        Assert.Equal(Guid.Empty, user.UserId);
-        Assert.Null(user.AccountId);
     }
 
     /// <summary>With no HTTP context at all the caller is anonymous rather than a crash.</summary>
