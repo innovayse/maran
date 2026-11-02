@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using Maran.SharedKernel.Callers;
 
-namespace Maran.Modules.Identity.Extensions;
+namespace Maran.Modules.Identity.Domain.Policies;
 
-/// <summary>Reads the signed-in principal out of an <see cref="ICurrentUser"/> for code that only runs signed in.</summary>
-public static class CurrentUserExtensions
+/// <summary>The rule that an operation only runs for a signed-in caller, and the principal it then acts as.</summary>
+public static class SignedInCallerPolicy
 {
     /// <summary>
     /// The signed-in principal of the current request: an administrator or a customer, with the
@@ -18,14 +18,17 @@ public static class CurrentUserExtensions
     /// refuses it, so reaching this anonymously is a wiring defect; it stops the request instead of
     /// acting as a user whose id is <see cref="Guid.Empty"/>.
     /// </exception>
-    public static PrincipalCaller RequirePrincipal(this ICurrentUser currentUser)
+    public static PrincipalCaller Require(ICurrentUser currentUser)
     {
+        // Every case is named so that a fifth Caller subtype is a deliberate edit here, not a silent fall-through.
         return currentUser.Caller switch
         {
-            PrincipalCaller principal => principal,
+            AdministratorCaller administrator => administrator,
+            CustomerCaller customer => customer,
+            AccountlessCustomerCaller accountless => accountless,
             AnonymousCaller => throw new InvalidOperationException(
                 "This operation requires a signed-in caller, and the request is anonymous."),
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: a principal or nobody."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: one of its four cases."),
         };
     }
 }

@@ -1,12 +1,12 @@
-using Maran.Modules.Identity.Extensions;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
-namespace Maran.Modules.Identity.Tests.Extensions;
+namespace Maran.Modules.Identity.Tests.Domain.Policies;
 
-/// <summary>Behavioural contract of <see cref="CurrentUserExtensions"/>: the signed-in principal, or a refusal.</summary>
-public sealed class CurrentUserExtensionsTests
+/// <summary>Behavioural contract of <see cref="SignedInCallerPolicy"/>: the signed-in principal, or a refusal.</summary>
+public sealed class SignedInCallerPolicyTests
 {
     /// <summary>An administrator is handed back as the principal it is.</summary>
     [Fact]
@@ -14,7 +14,7 @@ public sealed class CurrentUserExtensionsTests
     {
         var id = Guid.NewGuid();
 
-        var principal = new StubCurrentUser(id, "root").RequirePrincipal();
+        var principal = SignedInCallerPolicy.Require(new StubCurrentUser(id, "root"));
 
         Assert.IsType<AdministratorCaller>(principal);
         Assert.Equal(id, principal.UserId);
@@ -26,7 +26,7 @@ public sealed class CurrentUserExtensionsTests
     {
         var id = Guid.NewGuid();
 
-        var principal = new StubCustomerUser(id, "acme", Guid.NewGuid()).RequirePrincipal();
+        var principal = SignedInCallerPolicy.Require(new StubCustomerUser(id, "acme", Guid.NewGuid()));
 
         Assert.IsType<CustomerCaller>(principal);
         Assert.Equal(id, principal.UserId);
@@ -38,7 +38,7 @@ public sealed class CurrentUserExtensionsTests
     {
         var id = Guid.NewGuid();
 
-        var principal = new StubCustomerUser(id, "acme", null).RequirePrincipal();
+        var principal = SignedInCallerPolicy.Require(new StubCustomerUser(id, "acme", null));
 
         Assert.IsType<AccountlessCustomerCaller>(principal);
         Assert.Equal(id, principal.UserId);
@@ -50,7 +50,9 @@ public sealed class CurrentUserExtensionsTests
     {
         var operatorId = Guid.NewGuid();
 
-        var principal = new ViewingAsCurrentUser(Guid.NewGuid(), "acme", operatorId, "root").RequirePrincipal();
+        var viewing = new ViewingAsCurrentUser(Guid.NewGuid(), "acme", operatorId, "root");
+
+        var principal = SignedInCallerPolicy.Require(viewing);
 
         Assert.Equal(operatorId, principal.ViewedBy!.UserId);
     }
@@ -61,7 +63,10 @@ public sealed class CurrentUserExtensionsTests
     {
         var anonymous = new AnonymousCurrentUser();
 
-        Assert.Throws<InvalidOperationException>(() => anonymous.RequirePrincipal());
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            SignedInCallerPolicy.Require(anonymous);
+        });
     }
 
     /// <summary>An <see cref="ICurrentUser"/> double for a request nobody signed in to.</summary>
