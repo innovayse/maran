@@ -75,38 +75,30 @@ const headingState: ComputedRef<LoadingState> = computed(() => {
 })
 
 /**
- * Whether the dashboard sections should be drawn.
- *
- * Both halves are required. A loaded read alone would draw zeros nobody measured on the first paint,
- * and `isAdministrator` alone would draw empty panels at a customer. The panel decided the second
- * one; this is the SPA agreeing with it, which is advice and not enforcement (rules/vue.md).
+ * Which audience the dashboard is drawn for, from the read's state and who the panel says the caller is.
+ * - `pendingServer`: the read is in flight for a session that says it administers the server, so the
+ *   figure cards are held with placeholders. A customer, who will not be shown the server, gets no
+ *   placeholders (`pending`).
+ * - `server` / `customer`: the panel answered and decided which sections the caller sees. That
+ *   decision is the panel's; this is the SPA agreeing with it, which is advice and not enforcement
+ *   (rules/vue.md). A loaded read alone would draw zeros nobody measured, and `isAdministrator`
+ *   alone would draw empty panels at a customer.
+ * - `failed`: the read ended in an error, drawn by the region's own error slot.
  */
-const showsServerDetail: ComputedRef<boolean> = computed(() => {
-  return dashboard.loadState === 'loaded' && dashboard.isAdministrator
-})
-
-/**
- * Whether the customer's card of shortcuts should be drawn: the panel answered, and answered that
- * the caller is not an administrator. The mirror of {@link showsServerDetail}, so exactly one of the
- * two is ever true and a caller is never shown both or neither once the read has settled.
- */
-const showsCustomerArea: ComputedRef<boolean> = computed(() => {
-  return dashboard.loadState === 'loaded' && !dashboard.isAdministrator
-})
-
-/**
- * Whether the figure cards are held with placeholders while the dashboard is read. Only for a
- * caller whose session says they administer the server: the panel's own answer decides what is
- * drawn once it is in, and a customer, who will not be shown the server, is not shown its
- * placeholders either.
- */
-const holdsServerDetail: ComputedRef<boolean> = computed(() => {
-  return dashboard.loadState === 'loading' && isAdmin.value
+const view: ComputedRef<'pending' | 'pendingServer' | 'server' | 'customer' | 'failed'> = computed(() => {
+  switch (dashboard.loadState) {
+    case 'loading':
+      return isAdmin.value ? 'pendingServer' : 'pending'
+    case 'error':
+      return 'failed'
+    case 'loaded':
+      return dashboard.isAdministrator ? 'server' : 'customer'
+  }
 })
 
 /** Whether the header's pill is offered: only to somebody shown the server, and only if Accounts is licensed. */
 const offersNewAccount: ComputedRef<boolean> = computed(() => {
-  return showsServerDetail.value && modules.isEnabled('accounts')
+  return view.value === 'server' && modules.isEnabled('accounts')
 })
 
 /** Whether the services card links on to the monitoring screen. */
@@ -214,13 +206,13 @@ onMounted(refresh)
       <div class="flex flex-col gap-6">
         <!-- While the read is in flight, the figure cards are drawn with their real labels and a
              placeholder for every figure, so the answer lands without moving anything. -->
-        <template v-if="holdsServerDetail">
+        <template v-if="view === 'pendingServer'">
           <DashboardCountGrid loading />
           <DashboardResourceCard loading />
         </template>
 
         <!-- Below the verdict, and only for a caller the panel filled the sections for. -->
-        <template v-else-if="showsServerDetail">
+        <template v-else-if="view === 'server'">
           <!-- Each section says whether the panel could read it. One the agent or a module could not
                answer is drawn as "could not be read" in its own place, never as an empty list or a
                zero (issue #248), and the panel isolates it on its own side — so the rest of the screen
@@ -267,7 +259,7 @@ onMounted(refresh)
 
         <!-- A customer is shown their own shortcuts and nothing of the server. The card is drawn only if
              it has a row: an empty panel under a heading reads as a failed load. -->
-        <div v-else-if="showsCustomerArea && customerActions.length > 0" class="@container">
+        <div v-else-if="view === 'customer' && customerActions.length > 0" class="@container">
           <div class="grid gap-4 @3xl:grid-cols-2">
             <DashboardQuickActions :title="t('app.status.customerArea.title')" :actions="customerActions" />
           </div>
