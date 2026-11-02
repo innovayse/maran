@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -63,11 +64,26 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         // does not materialise complex types, and an owned value is split into this same table either
         // way. Every column is named here, because the provider's default (RuntimeLimits_Cpu..._Kind)
         // would put an implementation detail into a schema an operator reads with psql.
+        //
+        // Each ceiling is three columns while the change from "zero means unlimited" is in its expand
+        // phase (rules/architecture.md): the nullable figure the code reads (null is no cap), and the
+        // two columns of the previous release, which the value still writes and nothing reads, so a
+        // panel rolled back to that release finds its ceilings where it looks. The old pair is dropped
+        // in a later release.
+        //
+        // Backfill, run by the migration that adds the three nullable columns (quoted identifiers,
+        // rules/csharp.md "Database naming"; raw SQL is approved with the `// raw-sql:` comment there):
+        //   UPDATE accounts."Plans" SET
+        //     "CpuQuotaPercentCeiling" = CASE WHEN "CpuLimitKind" = 'Limited' THEN "CpuQuotaPercent" END,
+        //     "MemoryMaxMbCeiling"     = CASE WHEN "MemoryLimitKind" = 'Limited' THEN "MemoryMaxMb" END,
+        //     "MaxProcessesCeiling"    = CASE WHEN "ProcessLimitKind" = 'Limited' THEN "MaxProcesses" END;
+        // The CASE has no ELSE, so an unlimited ceiling (and its stored zero) becomes NULL. The Down
+        // method drops the three columns only; the old pair was never touched.
         builder.OwnsOne(p => p.RuntimeLimits, limits =>
         {
-            MapCeiling(limits, l => l.CpuQuotaPercent, "CpuLimitKind", "CpuQuotaPercent");
-            MapCeiling(limits, l => l.MemoryMaxMb, "MemoryLimitKind", "MemoryMaxMb");
-            MapCeiling(limits, l => l.MaxProcesses, "ProcessLimitKind", "MaxProcesses");
+            MapCeiling(limits, l => l.CpuQuotaPercent, "CpuQuotaPercentCeiling", "CpuLimitKind", "CpuQuotaPercent");
+            MapCeiling(limits, l => l.MemoryMaxMb, "MemoryMaxMbCeiling", "MemoryLimitKind", "MemoryMaxMb");
+            MapCeiling(limits, l => l.MaxProcesses, "MaxProcessesCeiling", "ProcessLimitKind", "MaxProcesses");
         });
         builder.Navigation(p => p.RuntimeLimits).IsRequired();
 
@@ -79,21 +95,30 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         builder.HasIndex(p => p.DisplayNameKey).IsUnique().HasDatabaseName("IX_Plans_DisplayNameKey");
     }
 
-    /// <summary>Maps one runtime ceiling onto its two columns of the plan's own table.</summary>
+    /// <summary>Maps one runtime ceiling onto its three columns of the plan's own table.</summary>
     /// <param name="limits">The owned runtime limits being configured.</param>
     /// <param name="ceiling">Which of the three ceilings.</param>
-    /// <param name="kindColumn">The column holding whether the ceiling is set, as its enum name.</param>
-    /// <param name="maximumColumn">The column holding the figure; zero when unlimited.</param>
+    /// <param name="ceilingColumn">The nullable column the code reads: the cap, or null when there is none.</param>
+    /// <param name="legacyKindColumn">The previous release's column for whether the ceiling is set; written, never read.</param>
+    /// <param name="legacyMaximumColumn">The previous release's column for the figure, zero when unlimited; written, never read.</param>
     private static void MapCeiling(
         OwnedNavigationBuilder<Plan, RuntimeLimits> limits,
         Expression<Func<RuntimeLimits, ResourceLimit?>> ceiling,
-        string kindColumn,
-        string maximumColumn)
+        string ceilingColumn,
+        string legacyKindColumn,
+        string legacyMaximumColumn)
     {
         limits.OwnsOne(ceiling, owned =>
         {
-            owned.Property(l => l.Kind).HasColumnName(kindColumn).HasConversion<string>().HasMaxLength(16).IsRequired();
-            owned.Property(l => l.Maximum).HasColumnName(maximumColumn).IsRequired();
+            owned.Property(l => l.Maximum).HasColumnName(ceilingColumn);
+
+            // Field-only properties: the value derives both from its cap and exposes neither.
+            owned.Property<ResourceLimitKind>("_legacyKind")
+                .HasColumnName(legacyKindColumn)
+                .HasConversion<string>()
+                .HasMaxLength(16)
+                .IsRequired();
+            owned.Property<int>("_legacyMaximum").HasColumnName(legacyMaximumColumn).IsRequired();
         });
         limits.Navigation(ceiling).IsRequired();
     }

@@ -14,7 +14,7 @@ namespace Maran.Modules.Accounts.Domain.ValueObjects;
 /// </para>
 /// <para>
 /// <b>"No ceiling" is a case, never a number.</b> Each is a <see cref="ResourceLimit"/>, whose
-/// <see cref="Enums.ResourceLimitKind.Unlimited"/> is stated on purpose; a limited one must be
+/// <see cref="ResourceLimit.Unlimited"/> is stated on purpose; a limited one must be
 /// positive, because a ceiling of zero is not a smaller allowance but an account that cannot run at
 /// all. A plan that existed before these ceilings did reads as unlimited on all three, which is
 /// exactly what the host enforced for it.
@@ -81,7 +81,7 @@ public sealed record RuntimeLimits
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="limit"/> is limited at zero.</exception>
     private static void GuardPositive(ResourceLimit limit, string name)
     {
-        if (limit.Kind == Enums.ResourceLimitKind.Limited && limit.Maximum == 0)
+        if (limit.Maximum == 0)
         {
             throw new ArgumentOutOfRangeException(name, limit.Maximum, "A limited runtime ceiling must be positive.");
         }

@@ -9,9 +9,9 @@ namespace Maran.Modules.Accounts.Common;
 /// </summary>
 /// <remarks>
 /// The constructor is private to this assembly, so <see cref="LimitedResourceCeilingDto"/> and
-/// <see cref="UnlimitedResourceCeilingDto"/> are the whole set. The panel's stored ceiling still
-/// keeps a kind beside a figure that is zero when uncapped (a persisted shape), and
-/// <see cref="Mappers.RuntimeLimitsMapper"/> is the one place that pair becomes this union.
+/// <see cref="UnlimitedResourceCeilingDto"/> are the whole set. The stored ceiling has the same two
+/// cases (a nullable figure, null when uncapped), and <see cref="Mappers.RuntimeLimitsMapper"/> is
+/// the one place the two are restated into each other.
 /// </remarks>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(LimitedResourceCeilingDto), "limited")]
