@@ -268,7 +268,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
         Assert.Equal(6, features.RootElement.GetArrayLength());
         Assert.All(features.RootElement.EnumerateArray(), feature =>
         {
-            Assert.False(string.IsNullOrWhiteSpace(feature.GetProperty("label").GetString()));
+            Assert.False(string.IsNullOrWhiteSpace(feature.GetProperty("featureDisplayName").GetString()));
         });
     }
 

@@ -62,8 +62,8 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
 const featureNames = (row: SubUser): string => {
   const names = row.features.map((id) => {
     return props.features.find((feature) => {
-      return feature.id === id
-    })?.label ?? id
+      return feature.feature === id
+    })?.featureDisplayName ?? id
   })
   return names.length === 0 ? t('subUsers.noFeatures') : names.join(', ')
 }

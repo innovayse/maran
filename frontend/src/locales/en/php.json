@@ -7,9 +7,11 @@
       "caption": "PHP versions installed on this server",
       "version": "Version",
       "default": "The host's default",
-      "defaultYes": "Yes",
-      "defaultNo": "No",
-      "defaultUnknown": "Not established"
+      "defaultStatus": {
+        "default": "Yes",
+        "notDefault": "No",
+        "unknown": "Not established"
+      }
     },
     "empty": {
       "title": "No PHP version is installed",

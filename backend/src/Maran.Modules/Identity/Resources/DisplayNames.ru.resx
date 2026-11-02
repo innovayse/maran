@@ -311,13 +311,19 @@
     <value>Базы данных</value>
   </data>
   <data name="AccountFeatureCron">
-    <value>Задания cron</value>
+    <value>Планировщик задач</value>
   </data>
   <data name="AccountFeatureFileTransfer">
     <value>Передача файлов (SFTP и FTPS)</value>
   </data>
   <data name="AccountFeatureBackups">
     <value>Резервные копии</value>
+  </data>
+  <data name="MembershipRoleOwner">
+    <value>Владелец</value>
+  </data>
+  <data name="MembershipRoleMember">
+    <value>Участник команды</value>
   </data>
   <data name="AuditActionViewAsStarted">
     <value>Начат просмотр от имени аккаунта</value>

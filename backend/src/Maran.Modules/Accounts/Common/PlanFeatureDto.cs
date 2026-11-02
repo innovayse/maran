@@ -8,5 +8,5 @@ namespace Maran.Modules.Accounts.Common;
 /// <c>features</c> list and the customer's own <c>features</c> list hold, and what the form sends
 /// back.
 /// </param>
-/// <param name="DisplayName">The feature's name resolved server-side for the request's culture.</param>
-public sealed record PlanFeatureDto(AccountFeature Feature, string DisplayName);
+/// <param name="FeatureDisplayName">The feature's name resolved server-side for the request's culture.</param>
+public sealed record PlanFeatureDto(AccountFeature Feature, string FeatureDisplayName);

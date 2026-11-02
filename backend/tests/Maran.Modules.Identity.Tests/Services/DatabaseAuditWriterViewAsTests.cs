@@ -37,7 +37,7 @@ public sealed class DatabaseAuditWriterViewAsTests : IDisposable
 
         var stored = await _fixture.Context.AuditEvents.SingleAsync();
         Assert.Equal(viewedId, stored.ActorUserId);
-        Assert.Equal(operatorId, stored.Impersonator?.UserId);
+        Assert.Equal(operatorId, stored.Impersonator?.OperatorId);
         Assert.Equal("root-admin", stored.Impersonator?.Username);
     }
 

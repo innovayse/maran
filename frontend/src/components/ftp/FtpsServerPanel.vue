@@ -213,9 +213,9 @@ const serviceText: ComputedRef<string> = computed(() => {
  */
 const tlsEnforcementText: ComputedRef<string> = computed(() => {
   const texts: Record<FtpsTlsEnforcement, string> = {
-    enforced: t('ftp.server.states.tlsEnforced'),
-    notEnforced: t('ftp.server.states.tlsNotEnforced'),
-    notObserved: t('ftp.server.states.tlsNotObserved'),
+    enforced: t('ftp.server.tlsEnforcement.enforced'),
+    notEnforced: t('ftp.server.tlsEnforcement.notEnforced'),
+    notObserved: t('ftp.server.tlsEnforcement.notObserved'),
   }
   return texts[props.status.tlsEnforcement]
 })

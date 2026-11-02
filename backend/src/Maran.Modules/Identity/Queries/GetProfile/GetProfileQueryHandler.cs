@@ -3,6 +3,7 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Extensions;
+using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Identity.Queries.GetProfile;
 
@@ -15,13 +16,18 @@ public sealed class GetProfileQueryHandler
     /// <summary>The panel's clock, deciding which sessions are still live.</summary>
     private readonly IClock _clock;
 
+    /// <summary>Names the caller's role on the account for the request's culture.</summary>
+    private readonly IStringLocalizer<DisplayNames> _displayNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="clock">The panel's clock.</param>
-    public GetProfileQueryHandler(IdentityDbContext dbContext, IClock clock)
+    /// <param name="displayNames">Names the caller's role on the account for the request's culture.</param>
+    public GetProfileQueryHandler(IdentityDbContext dbContext, IClock clock, IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
         _clock = clock;
+        _displayNames = displayNames;
     }
 
     /// <summary>Returns the caller's profile.</summary>
@@ -65,6 +71,7 @@ public sealed class GetProfileQueryHandler
             {
                 access = new AccountAccessDto(
                     membership.Role,
+                    _displayNames["MembershipRole" + membership.Role].Value,
                     AccountFeature.All.Members()
                         .Where(feature =>
                         {

@@ -466,7 +466,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                             b1.Property<Guid>("AuditEventId")
                                 .HasColumnType("uuid");
 
-                            b1.Property<Guid>("UserId")
+                            b1.Property<Guid>("OperatorId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("ImpersonatorUserId");
 

@@ -85,10 +85,12 @@
       "states": {
         "running": "Running",
         "stopped": "Stopped",
-        "tlsEnforced": "TLS required for logins and transfers",
-        "tlsNotEnforced": "TLS is optional: logins and transfers can travel unencrypted",
-        "tlsNotObserved": "Not observed: the configuration could not be read",
         "notAnswering": "Not answering"
+      },
+      "tlsEnforcement": {
+        "enforced": "TLS required for logins and transfers",
+        "notEnforced": "TLS is optional: logins and transfers can travel unencrypted",
+        "notObserved": "Not observed: the configuration could not be read"
       },
       "ipv4Only": "This host has no IPv6 address, so the daemon is bound to IPv4 only.",
       "selfSigned": "The certificate is a placeholder this panel generated. Every client will warn until a real one is issued for this host name.",

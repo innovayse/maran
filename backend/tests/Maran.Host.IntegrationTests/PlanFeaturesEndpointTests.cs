@@ -171,8 +171,8 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
             }));
         Assert.All(rows, row =>
         {
-            Assert.False(string.IsNullOrWhiteSpace(row.GetProperty("displayName").GetString()));
-            Assert.DoesNotContain("AccountFeature", row.GetProperty("displayName").GetString(), StringComparison.Ordinal);
+            Assert.False(string.IsNullOrWhiteSpace(row.GetProperty("featureDisplayName").GetString()));
+            Assert.DoesNotContain("AccountFeature", row.GetProperty("featureDisplayName").GetString(), StringComparison.Ordinal);
         });
     }
 

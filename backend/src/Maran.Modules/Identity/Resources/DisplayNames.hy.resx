@@ -311,13 +311,19 @@
     <value>Տվյալների բազաներ</value>
   </data>
   <data name="AccountFeatureCron">
-    <value>Cron առաջադրանքներ</value>
+    <value>Պլանավորիչ</value>
   </data>
   <data name="AccountFeatureFileTransfer">
     <value>Ֆայլերի փոխանցում (SFTP և FTPS)</value>
   </data>
   <data name="AccountFeatureBackups">
-    <value>Կրկնօրինակներ</value>
+    <value>Պահուստներ</value>
+  </data>
+  <data name="MembershipRoleOwner">
+    <value>Սեփականատեր</value>
+  </data>
+  <data name="MembershipRoleMember">
+    <value>Թիմի անդամ</value>
   </data>
   <data name="AuditActionViewAsStarted">
     <value>Սկսվեց դիտումը հաշվի անունից</value>

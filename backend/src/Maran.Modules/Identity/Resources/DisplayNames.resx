@@ -310,13 +310,19 @@
     <value>Databases</value>
   </data>
   <data name="AccountFeatureCron">
-    <value>Cron jobs</value>
+    <value>Scheduled tasks</value>
   </data>
   <data name="AccountFeatureFileTransfer">
     <value>File transfer (SFTP and FTPS)</value>
   </data>
   <data name="AccountFeatureBackups">
     <value>Backups</value>
+  </data>
+  <data name="MembershipRoleOwner">
+    <value>Owner</value>
+  </data>
+  <data name="MembershipRoleMember">
+    <value>Team member</value>
   </data>
   <data name="AuditActionViewAsStarted">
     <value>Started viewing as an account</value>

@@ -55,7 +55,7 @@ const toggle = (feature: AccountFeatureName, ticked: boolean): void => {
         v-for="choice in choices"
         :key="choice.feature"
         :model-value="selected.includes(choice.feature)"
-        :label="choice.displayName"
+        :label="choice.featureDisplayName"
         @update:model-value="(ticked: boolean) => toggle(choice.feature, ticked)"
       />
     </template>

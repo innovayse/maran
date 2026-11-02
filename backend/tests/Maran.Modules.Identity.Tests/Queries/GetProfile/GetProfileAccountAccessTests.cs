@@ -18,7 +18,7 @@ public sealed class GetProfileAccountAccessTests : IDisposable
 
     private GetProfileQueryHandler NewHandler()
     {
-        return new GetProfileQueryHandler(_world.Context, _world.Clock);
+        return new GetProfileQueryHandler(_world.Context, _world.Clock, IdentityTestContext.DisplayNameResources());
     }
 
     /// <summary>An owner is told they own the account and may use every feature.</summary>
@@ -30,6 +30,7 @@ public sealed class GetProfileAccountAccessTests : IDisposable
 
         var access = result.Value.AccountAccess!;
         Assert.Equal(MembershipRole.Owner, access.Role);
+        Assert.Equal("Owner", access.RoleDisplayName);
         Assert.Equal(AccountFeature.All, access.Features.Aggregate(AccountFeature.None, (set, feature) => { return set | feature; }));
     }
 
@@ -44,6 +45,7 @@ public sealed class GetProfileAccountAccessTests : IDisposable
 
         var access = result.Value.AccountAccess!;
         Assert.Equal(MembershipRole.Member, access.Role);
+        Assert.Equal("Team member", access.RoleDisplayName);
         Assert.Equal([AccountFeature.Cron, AccountFeature.Backups], access.Features);
     }
 

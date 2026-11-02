@@ -20,10 +20,10 @@ const INVITED_ID = '99999999-9999-4999-8999-999999999999'
 
 /** The features the panel offers, as it would label them in English. */
 export const stubbedFeatures: GrantableFeature[] = [
-  { id: 'mail', label: 'Mail' },
-  { id: 'databases', label: 'Databases' },
-  { id: 'cron', label: 'Cron jobs' },
-  { id: 'backups', label: 'Backups' },
+  { feature: 'mail', featureDisplayName: 'Mail' },
+  { feature: 'databases', featureDisplayName: 'Databases' },
+  { feature: 'cron', featureDisplayName: 'Cron jobs' },
+  { feature: 'backups', featureDisplayName: 'Backups' },
 ]
 
 /** How the sub-users endpoint searches and sorts, as the panel does: login and address. */

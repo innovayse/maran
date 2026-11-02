@@ -35,7 +35,7 @@ const { t } = useI18n()
 const toggle = (id: AccountFeatureName, ticked: boolean): void => {
   const next = props.features
     .map((feature) => {
-      return feature.id
+      return feature.feature
     })
     .filter((candidate) => {
       return candidate === id ? ticked : props.modelValue.includes(candidate)
@@ -48,10 +48,10 @@ const toggle = (id: AccountFeatureName, ticked: boolean): void => {
   <div role="group" :aria-label="t('subUsers.features.groupLabel')" class="flex flex-col gap-1">
     <UiCheckbox
       v-for="feature in features"
-      :key="feature.id"
-      :model-value="modelValue.includes(feature.id)"
-      :label="feature.label"
-      @update:model-value="toggle(feature.id, $event)"
+      :key="feature.feature"
+      :model-value="modelValue.includes(feature.feature)"
+      :label="feature.featureDisplayName"
+      @update:model-value="toggle(feature.feature, $event)"
     />
   </div>
 </template>

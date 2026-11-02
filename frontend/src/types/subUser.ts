@@ -35,10 +35,10 @@ export interface SubUser {
 
 /** One feature an owner may give a sub-user, with its name in the interface language. */
 export interface GrantableFeature {
-  /** The feature's id, sent back in a request to grant it. */
-  id: AccountFeatureName
+  /** The feature's name on the wire, sent back in a request to grant it. */
+  feature: AccountFeatureName
   /** What the feature is called on screen, already localized by the panel. */
-  label: string
+  featureDisplayName: string
 }
 
 /** Request body for `POST /api/v1/me/sub-users`, binding the backend's `InviteSubUserCommand`. */

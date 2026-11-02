@@ -36,11 +36,11 @@ public sealed class ListGrantableFeaturesQueryHandlerTests : IDisposable
                 AccountFeature.FileTransfer,
                 AccountFeature.Backups,
             ],
-            result.Value.Select(feature => { return feature.Id; }));
+            result.Value.Select(feature => { return feature.Feature; }));
         Assert.All(result.Value, feature =>
         {
-            Assert.False(string.IsNullOrWhiteSpace(feature.Label));
-            Assert.DoesNotContain("AccountFeature", feature.Label, StringComparison.Ordinal);
+            Assert.False(string.IsNullOrWhiteSpace(feature.FeatureDisplayName));
+            Assert.DoesNotContain("AccountFeature", feature.FeatureDisplayName, StringComparison.Ordinal);
         });
     }
 

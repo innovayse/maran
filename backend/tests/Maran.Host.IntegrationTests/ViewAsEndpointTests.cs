@@ -110,7 +110,7 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
 
         Assert.Equal(adminId, stopped.ActorUserId);
         Assert.Contains("acme", stopped.Subject, StringComparison.Ordinal);
-        Assert.Equal(adminId, stopped.Impersonator?.UserId);
+        Assert.Equal(adminId, stopped.Impersonator?.OperatorId);
         Assert.Equal("admin", stopped.Impersonator?.Username);
     }
 

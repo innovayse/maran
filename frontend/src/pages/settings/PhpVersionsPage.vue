@@ -76,11 +76,11 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
 const defaultLabel = (status: PhpDefaultStatus): string => {
   switch (status) {
     case 'default':
-      return t('php.table.defaultYes')
+      return t('php.table.defaultStatus.default')
     case 'notDefault':
-      return t('php.table.defaultNo')
+      return t('php.table.defaultStatus.notDefault')
     case 'unknown':
-      return t('php.table.defaultUnknown')
+      return t('php.table.defaultStatus.unknown')
   }
 }
 

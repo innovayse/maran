@@ -121,6 +121,6 @@ public sealed class GetProfileQueryHandlerTests : IDisposable
     /// <returns>The handler.</returns>
     private GetProfileQueryHandler NewHandler()
     {
-        return new GetProfileQueryHandler(_context, _clock);
+        return new GetProfileQueryHandler(_context, _clock, IdentityTestContext.DisplayNameResources());
     }
 }

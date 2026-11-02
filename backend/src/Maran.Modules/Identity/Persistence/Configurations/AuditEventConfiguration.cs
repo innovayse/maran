@@ -54,7 +54,7 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         // the name (the old constructor nulled the name only when the id was null).
         builder.OwnsOne(e => e.Impersonator, impersonator =>
         {
-            impersonator.Property(i => i.UserId)
+            impersonator.Property(i => i.OperatorId)
                 .HasColumnName("ImpersonatorUserId")
                 .IsRequired();
 

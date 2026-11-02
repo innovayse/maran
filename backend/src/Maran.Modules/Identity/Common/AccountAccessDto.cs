@@ -12,8 +12,12 @@ namespace Maran.Modules.Identity.Common;
 /// use; every gated endpoint asks the same question itself on each call.
 /// </remarks>
 /// <param name="Role">Whether the person owns the account or is a team member of it.</param>
+/// <param name="RoleDisplayName">What that role is called, resolved for the request's culture.</param>
 /// <param name="Features">
 /// The single features the person may use. For an owner, every feature (an owner is not restricted by
 /// grants; the account's plan is the only bound); for a member, the features the owner gave them.
 /// </param>
-public sealed record AccountAccessDto(MembershipRole Role, IReadOnlyList<AccountFeature> Features);
+public sealed record AccountAccessDto(
+    MembershipRole Role,
+    string RoleDisplayName,
+    IReadOnlyList<AccountFeature> Features);

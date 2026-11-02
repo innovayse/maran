@@ -28,7 +28,7 @@ public sealed class ListPlanFeaturesQueryHandlerTests
         Assert.Equal("name of FileTransfer", result.Value!.Single(row =>
         {
             return row.Feature == AccountFeature.FileTransfer;
-        }).DisplayName);
+        }).FeatureDisplayName);
         Assert.DoesNotContain(result.Value!, row =>
         {
             return row.Feature is AccountFeature.None or AccountFeature.All;

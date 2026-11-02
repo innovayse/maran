@@ -11,7 +11,7 @@ export interface PlanFeatureChoice {
   /** The feature's name on the wire (`mail`, `fileTransfer`, ...), as plans and the customer's account list it. */
   feature: AccountFeatureName
   /** The feature's name, already in the request's language. */
-  displayName: string
+  featureDisplayName: string
 }
 
 /**

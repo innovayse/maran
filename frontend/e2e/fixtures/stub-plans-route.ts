@@ -134,12 +134,12 @@ export const THREE_PLANS: Plan[] = [
  * text the page must render, not as constants the page owns.
  */
 export const PLAN_FEATURE_CHOICES: PlanFeatureChoice[] = [
-  { feature: 'mail', displayName: 'Mail' },
-  { feature: 'dns', displayName: 'DNS' },
-  { feature: 'databases', displayName: 'Databases' },
-  { feature: 'cron', displayName: 'Scheduled tasks' },
-  { feature: 'fileTransfer', displayName: 'File transfer (SFTP and FTPS)' },
-  { feature: 'backups', displayName: 'Backups' },
+  { feature: 'mail', featureDisplayName: 'Mail' },
+  { feature: 'dns', featureDisplayName: 'DNS' },
+  { feature: 'databases', featureDisplayName: 'Databases' },
+  { feature: 'cron', featureDisplayName: 'Scheduled tasks' },
+  { feature: 'fileTransfer', featureDisplayName: 'File transfer (SFTP and FTPS)' },
+  { feature: 'backups', featureDisplayName: 'Backups' },
 ]
 
 /** Every feature name, the set a plan that predates features sells. */
