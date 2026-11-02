@@ -1,3 +1,4 @@
+import type { AccountFeatureName } from './accountFeature'
 import type { AccountResourceLimitKind } from './accountResourceSummary'
 import type { ListRequest, Paged } from './list'
 
@@ -20,7 +21,7 @@ export interface PlanCeiling {
  */
 export interface PlanFeatureChoice {
   /** The feature's name on the wire (`mail`, `fileTransfer`, ...), as plans and the customer's account list it. */
-  feature: string
+  feature: AccountFeatureName
   /** The feature's name, already in the request's language. */
   displayName: string
 }
@@ -60,7 +61,7 @@ export interface ManagedPlan {
   /** The most processes and threads an account may run at once. */
   maxProcesses: PlanCeiling
   /** The features the plan sells, by name; an empty list sells none. */
-  features: string[]
+  features: AccountFeatureName[]
   /**
    * How many accounts are on this plan right now. The server counts them so the screen never has
    * to fetch every account to learn it: it is what tells an administrator that an edit reaches
@@ -100,7 +101,7 @@ export interface PlanRequest {
   /** The most processes and threads an account may run at once. */
   maxProcesses: PlanCeiling
   /** The features the plan sells, by name; an empty list sells none. Always sent: an edit replaces the set. */
-  features: string[]
+  features: AccountFeatureName[]
 }
 
 /**

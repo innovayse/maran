@@ -170,6 +170,13 @@ const readRecordParameters = (typeName) => {
  *
  * The Host registers `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)`, so an enum crosses as
  * its camelCased member name.
+ *
+ * **A `[Flags]` enum is read as its single flags.** Its zero member and its composite members
+ * (`None`, `All`) name SETS, not values: a list of them crosses the wire one flag per element, and
+ * the command's validator refuses a set or `None` as an element. Counting them would make the
+ * contract claim the panel accepts `"all"` where it answers 400, and force the SPA to type a value
+ * it must never send. A single flag is a member initialised by a lone shift (`1L << 3`) or a power
+ * of two.
  * @param {string} typeName The enum's name, which is also its file name.
  * @returns {string[]|null} The camelCased member names, or null when the type is not an enum.
  */
@@ -180,10 +187,20 @@ const readEnumMembers = (typeName) => {
   const declaration = new RegExp(`\\benum\\s+${typeName}\\b[^{]*\\{`).exec(text)
   if (!declaration) return null
   const body = text.slice(declaration.index + declaration[0].length, text.indexOf('}', declaration.index))
+  const isFlags = /\[Flags\][\s\w]*$/.test(text.slice(0, declaration.index))
+  // `1L << 3` or a plain power of two; anything else in a [Flags] enum (0, `A | B`) names a set.
+  const isSingleFlag = (initializer) => {
+    if (/^\d+L?\s*<<\s*\d+$/.test(initializer)) return true
+    if (!/^\d+L?$/.test(initializer)) return false
+    const value = BigInt(initializer.replace(/L$/, ''))
+    return value > 0n && (value & (value - 1n)) === 0n
+  }
   return body
     .split(',')
-    .map((entry) => entry.split('=')[0].trim())
-    .filter((entry) => /^[A-Za-z_]\w*$/.test(entry))
+    .map((entry) => entry.split('='))
+    .filter(([name]) => /^[A-Za-z_]\w*$/.test(name.trim()))
+    .filter(([, initializer]) => !isFlags || isSingleFlag((initializer ?? '').trim()))
+    .map(([name]) => name.trim())
     .map((entry) => entry[0].toLowerCase() + entry.slice(1))
 }
 

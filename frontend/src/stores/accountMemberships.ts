@@ -34,7 +34,7 @@ export const useAccountMembershipsStore = defineStore('accountMemberships', () =
   const active: ComputedRef<AccountMembership | null> = computed(() => {
     return (
       items.value.find((item): boolean => {
-        return item.isActive
+        return item.isCurrent
       }) ?? null
     )
   })

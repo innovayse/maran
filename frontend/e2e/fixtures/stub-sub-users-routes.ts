@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
+import type { AccountFeatureName } from '../../src/types/accountFeature'
 import type { ChangeSubUserFeaturesRequest, GrantableFeature, InviteSubUserRequest, SubUser } from '../../src/types/subUser'
 
 /** The collection endpoint the list and the invite form both talk to, with or without a query. */
@@ -51,7 +52,7 @@ const SUB_USER_RULES: PagedRules<SubUser> = {
  * @param state Whether they have accepted their invitation.
  * @returns The row.
  */
-export const subUserRow = (username: string, features: string[], state: SubUser['state'] = 'active'): SubUser => {
+export const subUserRow = (username: string, features: AccountFeatureName[], state: SubUser['state'] = 'active'): SubUser => {
   return {
     id: `00000000-0000-4000-8000-${username.padStart(12, '0').slice(-12)}`,
     username,

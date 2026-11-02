@@ -12,6 +12,7 @@
  */
 import UiCheckbox from '../ui/UiCheckbox.vue'
 import type { LoadingState } from '../../types/loading'
+import type { AccountFeatureName } from '../../types/accountFeature'
 import type { PlanFeatureChoice } from '../../types/plan'
 
 /** Props accepted by {@link PlanFeaturesField}. */
@@ -23,7 +24,7 @@ defineProps<{
   /** Where the read of the choices stands. */
   state: LoadingState
   /** The features currently ticked, by name. */
-  selected: readonly string[]
+  selected: readonly AccountFeatureName[]
   /** The sentence shown while the choices are on their way. */
   loadingText: string
   /** The sentence shown when the choices could not be read. */
@@ -33,7 +34,7 @@ defineProps<{
 /** Events emitted by {@link PlanFeaturesField}. */
 const emit = defineEmits<{
   /** Fired when the administrator ticks or clears one feature, carrying its name and the new state. */
-  (e: 'toggle', feature: string, ticked: boolean): void
+  (e: 'toggle', feature: AccountFeatureName, ticked: boolean): void
 }>()
 
 /**
@@ -42,7 +43,7 @@ const emit = defineEmits<{
  * @param ticked Whether the box is now ticked.
  * @returns Nothing; re-emits synchronously.
  */
-const toggle = (feature: string, ticked: boolean): void => {
+const toggle = (feature: AccountFeatureName, ticked: boolean): void => {
   emit('toggle', feature, ticked)
 }
 </script>

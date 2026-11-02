@@ -11,6 +11,9 @@ public sealed class ListPinnedPagesQueryHandlerTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The keys after the sites list and the dashboard were pinned, in pin order.</summary>
+    private static readonly string[] SitesListThenDashboard = { "sites-list", "dashboard" };
+
     private readonly IdentityDbContext _context = IdentityTestContext.Create();
     private readonly Guid _owner = Guid.NewGuid();
     private readonly Guid _other = Guid.NewGuid();
@@ -37,7 +40,10 @@ public sealed class ListPinnedPagesQueryHandlerTests : IAsyncLifetime
         var result = await new ListPinnedPagesQueryHandler(_context)
             .HandleAsync(new ListPinnedPagesQuery(_owner), CancellationToken.None);
 
-        Assert.Equal(new[] { "sites-list", "dashboard" }, result.Value!.Items.Select(item => item.ItemKey));
+        Assert.Equal(SitesListThenDashboard, result.Value!.Items.Select(item =>
+        {
+            return item.ItemKey;
+        }));
         Assert.Equal(PinnedPagePolicy.MaxPinsPerUser, result.Value.Limit);
     }
 

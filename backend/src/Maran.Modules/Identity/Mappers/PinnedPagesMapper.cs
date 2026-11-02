@@ -18,9 +18,18 @@ public static class PinnedPagesMapper
         ArgumentNullException.ThrowIfNull(pins);
 
         var items = pins
-            .OrderBy(pin => pin.Position)
-            .ThenBy(pin => pin.ItemKey, StringComparer.Ordinal)
-            .Select(pin => new PinnedPageDto(pin.ItemKey, pin.Position))
+            .OrderBy(pin =>
+            {
+                return pin.Position;
+            })
+            .ThenBy(pin =>
+            {
+                return pin.ItemKey;
+            }, StringComparer.Ordinal)
+            .Select(pin =>
+            {
+                return new PinnedPageDto(pin.ItemKey, pin.Position);
+            })
             .ToList();
 
         return new PinnedPagesDto(items, PinnedPagePolicy.MaxPinsPerUser);

@@ -7,6 +7,7 @@ import { useNavigationBadgesStore } from '../stores/navigationBadges'
 import { useTasksStore } from '../stores/tasks'
 import { buildNavigation } from '../utils/buildNavigation'
 import { useNavigationRole } from './useNavigationRole'
+import type { AccountFeatureName } from '../types/accountFeature'
 import type { NavigationEntry } from '../types/navigation'
 
 /**
@@ -29,7 +30,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
   // in. An administrator owns none and is never asked. A failed read leaves the features unknown,
   // which offers every item: hiding is advice, and the endpoints refuse regardless.
   watch(
-    () => authStore.user?.accountId ?? null,
+    () => {return authStore.user?.accountId ?? null},
     (accountId) => {
       if (accountId !== null) {
         void accountsStore.loadMine()
@@ -43,7 +44,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
    * administrator, a read still on its way or failed, and an account read left over from somebody
    * who signed in before (its id is not this caller's).
    */
-  const planFeatures = computed<ReadonlySet<string> | null>(() => {
+  const planFeatures = computed<ReadonlySet<AccountFeatureName> | null>(() => {
     const mine = accountsStore.mine
     if (mine === null || mine.id !== authStore.user?.accountId || mine.plan.features === undefined) {
       return null

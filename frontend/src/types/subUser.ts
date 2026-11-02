@@ -1,3 +1,4 @@
+import type { AccountFeatureName } from './accountFeature'
 import type { ListRequest, Paged } from './list'
 
 /**
@@ -24,7 +25,7 @@ export interface SubUser {
    * The gated features they may use, one id per feature (`databases`, `fileTransfer`). The ids are
    * the panel's; the SPA keeps no list of them and labels them from {@link GrantableFeature}.
    */
-  features: string[]
+  features: AccountFeatureName[]
   /** When the owner added them, as an ISO-8601 string. */
   createdAt: string
   /** Their most recent sign-in as an ISO-8601 string, or `null` before the first. */
@@ -34,7 +35,7 @@ export interface SubUser {
 /** One feature an owner may give a sub-user, with its name in the interface language. */
 export interface GrantableFeature {
   /** The feature's id, sent back in a request to grant it. */
-  id: string
+  id: AccountFeatureName
   /** What the feature is called on screen, already localized by the panel. */
   label: string
 }
@@ -46,13 +47,13 @@ export interface InviteSubUserRequest {
   /** The address the invitation is mailed to. */
   email: string
   /** The feature ids the person may use; may be empty. */
-  features: string[]
+  features: AccountFeatureName[]
 }
 
 /** Request body for `PUT /api/v1/me/sub-users/{id}/features`, binding `ChangeSubUserGrantsCommand`. */
 export interface ChangeSubUserFeaturesRequest {
   /** The complete new set of feature ids. */
-  features: string[]
+  features: AccountFeatureName[]
 }
 
 /**

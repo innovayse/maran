@@ -70,7 +70,7 @@ const sync = async (userId: string | undefined): Promise<void> => {
  * @returns Resolves once the switch was refused, or immediately before the page unloads.
  */
 const choose = async (account: AccountMembership): Promise<void> => {
-  if (account.isActive) {
+  if (account.isCurrent) {
     return
   }
   if (await store.switchTo(account.accountId)) {
@@ -109,7 +109,7 @@ watch(
       <UiDropdownItem
         v-for="account in store.items"
         :key="account.accountId"
-        :checked="account.isActive"
+        :checked="account.isCurrent"
         @select="choose(account)"
       >
         {{ account.name }}

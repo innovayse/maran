@@ -176,6 +176,44 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
         });
     }
 
+    /// <summary>A plan body that leaves the features out is refused with 400 on create and on edit, and nothing changes.</summary>
+    [Fact]
+    public async Task A_plan_body_without_features_is_refused_on_create_and_on_edit()
+    {
+        await using var factory = EndpointHarness.CreateFactory(_pg);
+        await EndpointHarness.MigrateAsync(factory);
+        await EndpointHarness.SeedAdministratorAsync(factory);
+        var plan = Plan.Define(Guid.NewGuid(), "NoDb", 5_120, 5, 2, 3, 0, 5, 5, AccountFeature.Cron);
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "olive", plan);
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+        var withoutFeatures = new
+        {
+            Name = "Fresh",
+            DiskQuotaMb = 5_120,
+            MaxSites = 5,
+            MaxDatabases = 2,
+            MaxSftpUsers = 3,
+            MaxFtpUsers = 0,
+            MaxCronEntries = 5,
+            MaxPhpWorkersPerPool = 5,
+            CpuQuotaPercent = new { Kind = "unlimited", Maximum = 0 },
+            MemoryMaxMb = new { Kind = "unlimited", Maximum = 0 },
+            MaxProcesses = new { Kind = "unlimited", Maximum = 0 },
+        };
+
+        var created = await admin.PostAsJsonAsync("/api/v1/plans", withoutFeatures);
+        var edited = await admin.PutAsJsonAsync($"/api/v1/plans/{planId}", withoutFeatures);
+
+        Assert.Equal(HttpStatusCode.BadRequest, created.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, edited.StatusCode);
+        var read = await admin.GetAsync($"/api/v1/plans/{planId}");
+        using var body = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        Assert.Equal(["cron"], body.RootElement.GetProperty("features").EnumerateArray().Select(feature =>
+        {
+            return feature.GetString();
+        }));
+    }
+
     /// <summary>A plan body that changes nothing but the features it states.</summary>
     /// <param name="name">The plan's name.</param>
     /// <param name="features">The features to state, as JSON values.</param>

@@ -14,7 +14,7 @@ public sealed class ViewAsBoundaryHandlerTests
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
     }
 
-    private static HttpContext Request(bool refused)
+    private static DefaultHttpContext Request(bool refused)
     {
         var context = new DefaultHttpContext();
         var metadata = refused

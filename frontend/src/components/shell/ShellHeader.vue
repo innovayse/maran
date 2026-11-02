@@ -68,9 +68,12 @@ import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import ShellAccountSelector from './ShellAccountSelector.vue'
 import ShellAvatar from './ShellAvatar.vue'
 import ShellBreadcrumb from './ShellBreadcrumb.vue'
+import ShellFavourites from './ShellFavourites.vue'
 import ShellLocaleSwitcher from './ShellLocaleSwitcher.vue'
+import ShellServerSelector from './ShellServerSelector.vue'
 import ShellTasksBadge from './ShellTasksBadge.vue'
 import ShellThemeSwitcher from './ShellThemeSwitcher.vue'
 import ShellWordmark from './ShellWordmark.vue'
@@ -201,6 +204,9 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
         <!-- Background work in flight, on every screen. It is a view of the tasks store rather
              than a fetch of its own, which is what lets it move the moment a task's stream
              reports a change — no navigation, no reload. It draws nothing while nothing runs. -->
+        <ShellServerSelector />
+        <ShellAccountSelector />
+        <ShellFavourites :entries="entries" />
         <ShellTasksBadge />
         <!-- Below `sm` the theme menu lives in the drawer's head instead (see the doc comment).
              The wrapper hides this copy with `display: none`, which also removes it from the

@@ -29,7 +29,7 @@ export interface MembershipsState {
  */
 const rows = (state: MembershipsState): AccountMembership[] => {
   return state.accounts.map((account): AccountMembership => {
-    return { ...account, isActive: account.accountId === state.activeAccountId }
+    return { ...account, isCurrent: account.accountId === state.activeAccountId }
   })
 }
 

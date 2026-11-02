@@ -48,9 +48,9 @@ public interface IPlanDefinition
     ResourceCeilingDto MaxProcesses { get; }
 
     /// <summary>
-    /// The features the plan sells, or <c>null</c> when the request does not state them. Not stated
-    /// means "leave it as it is": every feature for a plan being created, the plan's current set for
-    /// one being edited. A client that predates the feature set keeps working unchanged.
+    /// The features the plan sells, always stated in full: creating a plan sells exactly these, and
+    /// editing one replaces its set with these. An empty list sells none. There is no "not stated"
+    /// reading; a request that leaves the list out is refused.
     /// </summary>
-    IReadOnlyList<AccountFeature>? Features { get; }
+    IReadOnlyList<AccountFeature> Features { get; }
 }

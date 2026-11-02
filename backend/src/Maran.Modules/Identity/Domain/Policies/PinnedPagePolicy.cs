@@ -69,7 +69,10 @@ public static class PinnedPagePolicy
     {
         ArgumentNullException.ThrowIfNull(existing);
 
-        if (existing.Any(pin => pin.ItemKey == itemKey))
+        if (existing.Any(pin =>
+        {
+            return pin.ItemKey == itemKey;
+        }))
         {
             return PinAdmission.AlreadyPinned;
         }
@@ -84,6 +87,9 @@ public static class PinnedPagePolicy
     {
         ArgumentNullException.ThrowIfNull(existing);
 
-        return existing.Count == 0 ? 0 : existing.Max(pin => pin.Position) + 1;
+        return existing.Count == 0 ? 0 : existing.Max(pin =>
+        {
+            return pin.Position;
+        }) + 1;
     }
 }

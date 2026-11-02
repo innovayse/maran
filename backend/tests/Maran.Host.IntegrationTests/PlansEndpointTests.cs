@@ -67,6 +67,7 @@ public sealed class PlansEndpointTests : IAsyncLifetime
             CpuQuotaPercent = new { Kind = "limited", Maximum = 150 },
             MemoryMaxMb = new { Kind = "unlimited", Maximum = 0 },
             MaxProcesses = new { Kind = "limited", Maximum = 64 },
+            Features = new[] { "mail", "dns", "databases", "cron", "fileTransfer", "backups" },
         };
     }
 

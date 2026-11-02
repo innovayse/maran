@@ -88,7 +88,7 @@ public sealed class CreatePlanCommandHandler
             command.MaxFtpUsers,
             command.MaxCronEntries,
             command.MaxPhpWorkersPerPool,
-            command.Features?.ToSet() ?? AccountFeature.All);
+            command.Features.ToSet());
         plan.ChangeRuntimeLimits(RuntimeLimitsMapper.ToDomain(command));
 
         _dbContext.Plans.Add(plan);

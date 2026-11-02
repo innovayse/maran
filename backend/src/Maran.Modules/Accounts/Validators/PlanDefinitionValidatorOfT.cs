@@ -87,17 +87,15 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
 
         // Each stated feature must name exactly one feature: the JSON converter also accepts a number
         // or a comma-joined name, which can arrive as a set, as None or as a value nothing defines.
-        // A list left out is not an error; the handler reads it as "not stated".
+        // The list is required: a request that leaves it out binds to null and is refused here, since
+        // no reading of "not stated" exists. An empty list is stated and sells no feature.
+        RuleFor(command => command.Features).NotNull();
         RuleForEach(command => command.Features)
             .Must(feature =>
             {
                 return feature.IsFeature();
             })
-            .WithMessage(nameof(ErrorMessages.PlanFeatureUnknown))
-            .When(command =>
-            {
-                return command.Features is not null;
-            });
+            .WithMessage(nameof(ErrorMessages.PlanFeatureUnknown));
 
         // A ceiling the caller left out binds to null; NotNull answers that before the child rules
         // read it, so an absent ceiling is refused rather than read as "unlimited".

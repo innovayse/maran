@@ -3,6 +3,7 @@
  * different domain from a customer's hosting account (`types/account.ts`), which an administrator
  * does not have.
  */
+import type { AccountFeatureName } from './accountFeature'
 import type { UserRole } from './auth'
 
 /** The signed-in person's profile, as `GET /api/v1/profile` reports it. */
@@ -30,7 +31,7 @@ export interface AccountAccess {
   /** `owner` is not restricted by grants; `member` may use only {@link AccountAccess.features}. */
   role: 'owner' | 'member'
   /** The single feature ids the person may use there; for an owner, every feature. */
-  features: string[]
+  features: AccountFeatureName[]
 }
 
 /** Public surface of the profile API composable. */

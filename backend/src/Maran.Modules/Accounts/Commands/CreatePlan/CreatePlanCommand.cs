@@ -27,8 +27,8 @@ namespace Maran.Modules.Accounts.Commands.CreatePlan;
 /// <param name="MemoryMaxMb">The most memory the account's processes may hold together, in megabytes, or no ceiling.</param>
 /// <param name="MaxProcesses">The most processes and threads the account may run at once, or no ceiling.</param>
 /// <param name="Features">
-/// The features the plan sells, by name. Left out, the plan sells every feature; an empty list sells
-/// none.
+/// The features the plan sells, by name: the full set, always stated. An empty list sells none; a
+/// request that leaves it out is refused rather than read as "every feature".
 /// </param>
 /// <param name="IpAddress">The caller's address, recorded in the audit journal. Never bound from the request.</param>
 /// <param name="UserAgent">The caller's user agent, recorded in the audit journal. Never bound from the request.</param>
@@ -44,6 +44,6 @@ public sealed record CreatePlanCommand(
     ResourceCeilingDto CpuQuotaPercent,
     ResourceCeilingDto MemoryMaxMb,
     ResourceCeilingDto MaxProcesses,
-    IReadOnlyList<AccountFeature>? Features = null,
+    IReadOnlyList<AccountFeature> Features,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "") : IPlanDefinition;

@@ -14,6 +14,9 @@ public sealed class UnpinPageCommandHandlerTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The keys of a person left holding only the dashboard.</summary>
+    private static readonly string[] DashboardOnly = { "dashboard" };
+
     private readonly IdentityDbContext _context = IdentityTestContext.Create();
     private readonly RecordingAuditWriter _audit = new();
     private readonly Guid _owner = Guid.NewGuid();
@@ -49,7 +52,10 @@ public sealed class UnpinPageCommandHandlerTests : IAsyncLifetime
             new UnpinPageCommand("sites-list", _owner, "203.0.113.7", "agent"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { "dashboard" }, result.Value!.Items.Select(item => item.ItemKey));
+        Assert.Equal(DashboardOnly, result.Value!.Items.Select(item =>
+        {
+            return item.ItemKey;
+        }));
         Assert.Equal(2, await _context.PinnedPages.CountAsync());
         var entry = Assert.Single(_audit.Written);
         Assert.Equal(AuditActions.PageUnpinned, entry.Action);

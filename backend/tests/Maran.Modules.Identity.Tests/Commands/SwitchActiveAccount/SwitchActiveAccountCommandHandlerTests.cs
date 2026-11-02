@@ -1,7 +1,6 @@
 using Maran.Modules.Identity.Commands.SwitchActiveAccount;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
-using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
@@ -56,7 +55,7 @@ public sealed class SwitchActiveAccountCommandHandlerTests : IAsyncLifetime
             _context, _clock, new OptionsWrapper<JwtOptions>(new JwtOptions { RefreshTokenDays = 14 }));
     }
 
-    private IAccessTokenIssuer NewIssuer()
+    private JwtAccessTokenIssuer NewIssuer()
     {
         var options = new OptionsWrapper<JwtOptions>(new JwtOptions
         {

@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
+import type { AccountFeatureName } from '../../src/types/accountFeature'
 import type { Plan } from '../../src/types/account'
 import type { ManagedPlan, PlanFeatureChoice, PlanRequest } from '../../src/types/plan'
 
@@ -142,7 +143,7 @@ export const PLAN_FEATURE_CHOICES: PlanFeatureChoice[] = [
 ]
 
 /** Every feature name, the set a plan that predates features sells. */
-const EVERY_FEATURE: string[] = PLAN_FEATURE_CHOICES.map((choice) => {
+const EVERY_FEATURE: AccountFeatureName[] = PLAN_FEATURE_CHOICES.map((choice) => {
   return choice.feature
 })
 

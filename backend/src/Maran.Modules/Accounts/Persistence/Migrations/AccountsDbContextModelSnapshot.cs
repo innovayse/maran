@@ -90,6 +90,9 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<long>("Features")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("MaxCronEntries")
                         .HasColumnType("integer");
 

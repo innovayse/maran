@@ -16,6 +16,7 @@ import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import SubUserFeaturePicker from './SubUserFeaturePicker.vue'
+import type { AccountFeatureName } from '../../types/accountFeature'
 import type { GrantableFeature, InviteSubUserRequest } from '../../types/subUser'
 
 /**
@@ -53,7 +54,7 @@ const username: Ref<string> = ref('')
 const email: Ref<string> = ref('')
 
 /** The ticked feature ids. */
-const selected: Ref<string[]> = ref([])
+const selected: Ref<AccountFeatureName[]> = ref([])
 
 /** Whether a submit has been attempted, so nothing turns red before the owner has tried. */
 const submitted: Ref<boolean> = ref(false)

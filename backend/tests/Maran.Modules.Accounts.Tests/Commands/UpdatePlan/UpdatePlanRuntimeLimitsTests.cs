@@ -4,6 +4,8 @@ using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -113,6 +115,6 @@ public sealed class UpdatePlanRuntimeLimitsTests : IDisposable
     private UpdatePlanCommand Edit(Common.ResourceCeilingDto cpu, Common.ResourceCeilingDto memory)
     {
         return new UpdatePlanCommand(
-            "Agency", 10_240, 10, 5, 4, 2, 3, 8, cpu, memory, ResourceCeilingTestValues.Unlimited, null, _plan.Id, "203.0.113.7", "unit-tests");
+            "Agency", 10_240, 10, 5, 4, 2, 3, 8, cpu, memory, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), _plan.Id, "203.0.113.7", "unit-tests");
     }
 }

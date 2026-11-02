@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Sdk.Contracts;
@@ -18,6 +19,9 @@ namespace Maran.Host.IntegrationTests;
 [Collection(SharedDatabase.Name)]
 public sealed class ActiveAccountEndpointTests : IAsyncLifetime
 {
+    /// <summary>The names of the two accounts the fixture's person owns, oldest first.</summary>
+    private static readonly string[] OwnedAccountNames = { "acme", "globex" };
+
     /// <summary>This test's own database on the assembly's shared PostgreSQL server.</summary>
     private readonly TestDatabase _pg;
 
@@ -52,8 +56,14 @@ public sealed class ActiveAccountEndpointTests : IAsyncLifetime
 
         var rows = await ReadAccountsAsync(client);
 
-        Assert.Equal(new[] { "acme", "globex" }, rows.Select(row => row.Name));
-        Assert.Equal("acme", Assert.Single(rows, row => row.IsActive).Name);
+        Assert.Equal(OwnedAccountNames, rows.Select(row =>
+        {
+            return row.Name;
+        }));
+        Assert.Equal("acme", Assert.Single(rows, row =>
+        {
+            return row.IsCurrent;
+        }).Name);
     }
 
     /// <summary>Switching to the second owned account follows through to the tenant data and is journalled.</summary>
@@ -62,7 +72,10 @@ public sealed class ActiveAccountEndpointTests : IAsyncLifetime
     {
         await using var factory = await BootAsync();
         using var client = await EndpointHarness.SignInAsync(factory, "olive");
-        var globex = (await ReadAccountsAsync(client)).Single(row => row.Name == "globex").AccountId;
+        var globex = (await ReadAccountsAsync(client)).Single(row =>
+        {
+            return row.Name == "globex";
+        }).AccountId;
         Assert.Equal("acme.example.com", await PrimaryDomainAsync(client));
 
         var response = await client.PostAsJsonAsync("/api/v1/me/active-account", new { AccountId = globex });
@@ -75,9 +88,15 @@ public sealed class ActiveAccountEndpointTests : IAsyncLifetime
 
         // The tenant read follows the account claim of the NEW token, with no sign-out in between.
         Assert.Equal("globex.example.com", await PrimaryDomainAsync(client));
-        Assert.Equal("globex", Assert.Single(await ReadAccountsAsync(client), row => row.IsActive).Name);
+        Assert.Equal("globex", Assert.Single(await ReadAccountsAsync(client), row =>
+        {
+            return row.IsCurrent;
+        }).Name);
 
-        var entry = Assert.Single(_audit.Entries, candidate => candidate.Action == AuditActions.ActiveAccountSwitched);
+        var entry = Assert.Single(_audit.Entries, candidate =>
+        {
+            return candidate.Action == AuditActions.ActiveAccountSwitched;
+        });
         Assert.Equal(globex.ToString(), entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -94,7 +113,10 @@ public sealed class ActiveAccountEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal("acme.example.com", await PrimaryDomainAsync(client));
-        var entry = Assert.Single(_audit.Entries, candidate => candidate.Action == AuditActions.ActiveAccountSwitched);
+        var entry = Assert.Single(_audit.Entries, candidate =>
+        {
+            return candidate.Action == AuditActions.ActiveAccountSwitched;
+        });
         Assert.False(entry.Succeeded);
     }
 
@@ -150,10 +172,13 @@ public sealed class ActiveAccountEndpointTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await client.GetStringAsync("/api/v1/me/accounts"));
 
         return body.RootElement.EnumerateArray()
-            .Select(row => new AccountRow(
-                row.GetProperty("accountId").GetGuid(),
-                row.GetProperty("name").GetString()!,
-                row.GetProperty("isActive").GetBoolean()))
+            .Select(row =>
+            {
+                return new AccountRow(
+                                row.GetProperty("accountId").GetGuid(),
+                                row.GetProperty("name").GetString()!,
+                                row.GetProperty("isCurrent").GetBoolean());
+            })
             .ToList();
     }
 
@@ -188,6 +213,6 @@ public sealed class ActiveAccountEndpointTests : IAsyncLifetime
     /// <summary>One row of the account list, as the endpoint answers it.</summary>
     /// <param name="AccountId">The account's identity.</param>
     /// <param name="Name">The account's name.</param>
-    /// <param name="IsActive">Whether the token names this account.</param>
-    private sealed record AccountRow(Guid AccountId, string Name, bool IsActive);
+    /// <param name="IsCurrent">Whether the token names this account.</param>
+    private sealed record AccountRow(Guid AccountId, string Name, bool IsCurrent);
 }

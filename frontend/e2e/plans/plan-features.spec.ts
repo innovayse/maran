@@ -6,6 +6,7 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { MANAGED_PLANS, PLAN_FEATURE_CHOICES, stubManagedPlans, type PlanRequests } from '../fixtures/stub-plans-route'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
+import type { AccountFeatureName } from '../../src/types/accountFeature'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 
@@ -17,7 +18,7 @@ import type { AuthenticatedUser } from '../../src/types/auth'
 const STARTER = MANAGED_PLANS[0]
 
 /** The feature names the panel lists, in its order. */
-const EVERY_FEATURE: string[] = PLAN_FEATURE_CHOICES.map((choice) => {
+const EVERY_FEATURE: AccountFeatureName[] = PLAN_FEATURE_CHOICES.map((choice) => {
   return choice.feature
 })
 
@@ -35,7 +36,7 @@ const CUSTOMER: AuthenticatedUser = {
  * @param features The feature names the plan includes.
  * @returns The account the panel would report for the customer.
  */
-const accountOn = (features: string[]): MyAccount => {
+const accountOn = (features: AccountFeatureName[]): MyAccount => {
   return {
     id: '11111111-1111-1111-1111-111111111111',
     name: 'olive',
@@ -74,7 +75,7 @@ const openPlans = async (page: Page): Promise<PlanRequests> => {
  * @param features The feature names the customer's plan includes.
  * @returns Resolves once the page has been opened.
  */
-const openAsCustomer = async (page: Page, features: string[]): Promise<void> => {
+const openAsCustomer = async (page: Page, features: AccountFeatureName[]): Promise<void> => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)

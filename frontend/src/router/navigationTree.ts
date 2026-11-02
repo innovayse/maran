@@ -15,6 +15,7 @@
  * Offering an item is advice: every endpoint behind a page enforces the caller's role on its own.
  */
 
+import type { AccountFeatureName } from '../types/accountFeature'
 import type {
   NavigationAvailability,
   NavigationGroupSpec,
@@ -58,7 +59,7 @@ const page = (
   availability: NavigationAvailability,
   roles: readonly NavigationRole[],
   module: string | null,
-  planFeature: string | null = null,
+  planFeature: AccountFeatureName | null = null,
 ): NavigationPageSpec => {
   return { key, labelKey, availability, roles, module, planFeature, badge: null }
 }

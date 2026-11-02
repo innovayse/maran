@@ -4,6 +4,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -69,7 +70,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
     /// <param name="planId">The plan to edit; <see cref="_plan"/> unless a test aims elsewhere.</param>
     private UpdatePlanCommand Same(Guid? planId = null)
     {
-        return new("Agency", 10_240, 10, 5, 4, 2, 3, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, null, planId ?? _plan.Id, "203.0.113.7", "unit-tests");
+        return new("Agency", 10_240, 10, 5, 4, 2, 3, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), planId ?? _plan.Id, "203.0.113.7", "unit-tests");
     }
 
     /// <summary>Puts an account on <see cref="_plan"/> and returns its name.</summary>
@@ -195,7 +196,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         var result = await NewHandler().HandleAsync(
-            new("Starter", 5_120, 6, 2, 3, 0, 5, 5, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, shipped.Id, "203.0.113.7", "unit-tests"), CancellationToken.None);
+            new("Starter", 5_120, 6, 2, 3, 0, 5, 5, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), shipped.Id, "203.0.113.7", "unit-tests"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         var stored = await ReloadAsync(shipped.Id);
@@ -215,7 +216,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         await NewHandler().HandleAsync(
-            new("Entry", 5_120, 5, 2, 3, 0, 5, 5, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, shipped.Id, "203.0.113.7", "unit-tests"), CancellationToken.None);
+            new("Entry", 5_120, 5, 2, 3, 0, 5, 5, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), shipped.Id, "203.0.113.7", "unit-tests"), CancellationToken.None);
 
         Assert.Equal("PlanStarterName -> Entry", Assert.Single(_audit.Entries).Subject);
         Assert.Equal("Entry", (await ReloadAsync(shipped.Id)).Name);

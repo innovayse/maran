@@ -18,6 +18,18 @@ public sealed class PinnedPagesEndpointTests : IAsyncLifetime
     /// <summary>The route of the endpoint under test.</summary>
     private const string Endpoint = "/api/v1/me/pinned-pages";
 
+    /// <summary>The pinned keys after the sites list and the dashboard were pinned, in pin order.</summary>
+    private static readonly string[] SitesListThenDashboard = { "sites-list", "dashboard" };
+
+    /// <summary>The pinned keys of a person who holds only the dashboard.</summary>
+    private static readonly string[] DashboardOnly = { "dashboard" };
+
+    /// <summary>The pinned keys of a person who holds only the backups list.</summary>
+    private static readonly string[] BackupsListOnly = { "backups-list" };
+
+    /// <summary>The pinned keys of a person who holds only the sites list.</summary>
+    private static readonly string[] SitesListOnly = { "sites-list" };
+
     /// <summary>This test's own database on the assembly's shared PostgreSQL server.</summary>
     private readonly TestDatabase _pg;
 
@@ -57,19 +69,31 @@ public sealed class PinnedPagesEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync(Endpoint, new { ItemKey = "sites-list" })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync(Endpoint, new { ItemKey = "dashboard" })).StatusCode);
 
-        Assert.Equal(new[] { "sites-list", "dashboard" }, await KeysAsync(client));
+        Assert.Equal(SitesListThenDashboard, await KeysAsync(client));
 
         var removal = await client.DeleteAsync($"{Endpoint}/sites-list");
 
         Assert.Equal(HttpStatusCode.OK, removal.StatusCode);
-        Assert.Equal(new[] { "dashboard" }, await KeysAsync(client));
+        Assert.Equal(DashboardOnly, await KeysAsync(client));
         Assert.Equal(
             new[] { AuditActions.PagePinned, AuditActions.PagePinned, AuditActions.PageUnpinned },
-            audit.Entries.Where(entry => entry.Action is AuditActions.PagePinned or AuditActions.PageUnpinned)
-                .Select(entry => entry.Action));
+            audit.Entries.Where(entry =>
+            {
+                return entry.Action is AuditActions.PagePinned or AuditActions.PageUnpinned;
+            })
+                .Select(entry =>
+                {
+                    return entry.Action;
+                }));
         Assert.All(
-            audit.Entries.Where(entry => entry.Action is AuditActions.PagePinned or AuditActions.PageUnpinned),
-            entry => Assert.True(entry.Succeeded));
+            audit.Entries.Where(entry =>
+            {
+                return entry.Action is AuditActions.PagePinned or AuditActions.PageUnpinned;
+            }),
+            entry =>
+            {
+                Assert.True(entry.Succeeded);
+            });
     }
 
     /// <summary>Another person's pins are invisible and unpinning their key answers 404 without touching it.</summary>
@@ -88,7 +112,7 @@ public sealed class PinnedPagesEndpointTests : IAsyncLifetime
 
         Assert.Empty(await KeysAsync(alice));
         Assert.Equal(HttpStatusCode.NotFound, (await alice.DeleteAsync($"{Endpoint}/backups-list")).StatusCode);
-        Assert.Equal(new[] { "backups-list" }, await KeysAsync(bob));
+        Assert.Equal(BackupsListOnly, await KeysAsync(bob));
     }
 
     /// <summary>An administrator pins too, and a duplicate, a malformed key and a ninth pin are refused with their codes.</summary>
@@ -135,7 +159,7 @@ public sealed class PinnedPagesEndpointTests : IAsyncLifetime
 
         await alice.PostAsJsonAsync(Endpoint, new { ItemKey = "sites-list", UserId = Guid.NewGuid() });
 
-        Assert.Equal(new[] { "sites-list" }, await KeysAsync(alice));
+        Assert.Equal(SitesListOnly, await KeysAsync(alice));
         Assert.Empty(await KeysAsync(admin));
     }
 
@@ -147,7 +171,10 @@ public sealed class PinnedPagesEndpointTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await client.GetStringAsync(Endpoint));
 
         return body.RootElement.GetProperty("items").EnumerateArray()
-            .Select(item => item.GetProperty("itemKey").GetString()!)
+            .Select(item =>
+            {
+                return item.GetProperty("itemKey").GetString()!;
+            })
             .ToList();
     }
 }

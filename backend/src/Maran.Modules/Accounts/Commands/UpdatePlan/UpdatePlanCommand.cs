@@ -32,8 +32,9 @@ namespace Maran.Modules.Accounts.Commands.UpdatePlan;
 /// <param name="MemoryMaxMb">The most memory the account's processes may hold together, in megabytes, or no ceiling.</param>
 /// <param name="MaxProcesses">The most processes and threads the account may run at once, or no ceiling.</param>
 /// <param name="Features">
-/// The features the plan sells, by name. Left out, the plan keeps the set it has; an empty list
-/// removes every feature.
+/// The features the plan sells, by name: the full set, always stated, which replaces the plan's
+/// current one. An empty list removes every feature; a request that leaves it out is refused rather
+/// than read as "unchanged".
 /// </param>
 /// <param name="PlanId">
 /// The plan being edited, established by the server from the route and stamped by the action. Never
@@ -54,7 +55,7 @@ public sealed record UpdatePlanCommand(
     ResourceCeilingDto CpuQuotaPercent,
     ResourceCeilingDto MemoryMaxMb,
     ResourceCeilingDto MaxProcesses,
-    IReadOnlyList<AccountFeature>? Features = null,
+    IReadOnlyList<AccountFeature> Features,
     [property: JsonIgnore][property: BindNever][BindNever] Guid PlanId = default,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "") : IPlanDefinition;

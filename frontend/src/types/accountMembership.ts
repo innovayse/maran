@@ -11,7 +11,7 @@ export interface AccountMembership {
   /** The account's name, shown as the selector's label. */
   name: string
   /** Whether the current sign-in is acting for this account. */
-  isActive: boolean
+  isCurrent: boolean
 }
 
 /** The body of `POST /api/v1/me/active-account`. */

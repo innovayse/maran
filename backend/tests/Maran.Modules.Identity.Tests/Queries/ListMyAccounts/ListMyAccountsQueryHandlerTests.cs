@@ -10,6 +10,9 @@ public sealed class ListMyAccountsQueryHandlerTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The names of the two accounts the person owns, in listing order.</summary>
+    private static readonly string[] BlogAndShop = { "blog", "shop" };
+
     private readonly IdentityDbContext _context = IdentityTestContext.Create();
     private readonly StubAccountNameDirectory _names = new();
 
@@ -45,9 +48,18 @@ public sealed class ListMyAccountsQueryHandlerTests : IDisposable
         var result = await NewHandler().HandleAsync(new ListMyAccountsQuery(userId, shop), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { "blog", "shop" }, result.Value.Select(row => row.Name));
-        Assert.False(result.Value.Single(row => row.AccountId == blog).IsActive);
-        Assert.True(result.Value.Single(row => row.AccountId == shop).IsActive);
+        Assert.Equal(BlogAndShop, result.Value.Select(row =>
+        {
+            return row.Name;
+        }));
+        Assert.False(result.Value.Single(row =>
+        {
+            return row.AccountId == blog;
+        }).IsCurrent);
+        Assert.True(result.Value.Single(row =>
+        {
+            return row.AccountId == shop;
+        }).IsCurrent);
     }
 
     /// <summary>Another login's accounts are neither listed nor even asked about.</summary>
@@ -60,7 +72,10 @@ public sealed class ListMyAccountsQueryHandlerTests : IDisposable
 
         var result = await NewHandler().HandleAsync(new ListMyAccountsQuery(userId, mine), CancellationToken.None);
 
-        Assert.Equal(new[] { mine }, result.Value.Select(row => row.AccountId));
+        Assert.Equal(new[] { mine }, result.Value.Select(row =>
+        {
+            return row.AccountId;
+        }));
         Assert.DoesNotContain(theirs, _names.Asked);
     }
 
@@ -75,6 +90,9 @@ public sealed class ListMyAccountsQueryHandlerTests : IDisposable
 
         var result = await NewHandler().HandleAsync(new ListMyAccountsQuery(userId, mine), CancellationToken.None);
 
-        Assert.Equal(new[] { mine }, result.Value.Select(row => row.AccountId));
+        Assert.Equal(new[] { mine }, result.Value.Select(row =>
+        {
+            return row.AccountId;
+        }));
     }
 }

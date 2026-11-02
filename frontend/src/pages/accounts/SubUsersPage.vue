@@ -33,6 +33,7 @@ import SubUsersTable from '../../components/sub-users/SubUsersTable.vue'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { useSubUsersStore } from '../../stores/subUsers'
+import type { AccountFeatureName } from '../../types/accountFeature'
 import type { ListLoad, ListRequest } from '../../types/list'
 import type { InviteSubUserRequest, SubUser, SubUserAction } from '../../types/subUser'
 
@@ -110,7 +111,7 @@ const ask = (row: SubUser, action: SubUserAction): void => {
  * @param featureIds The complete new set of feature ids.
  * @returns Resolves once the request has settled.
  */
-const saveFeatures = async (featureIds: string[]): Promise<void> => {
+const saveFeatures = async (featureIds: AccountFeatureName[]): Promise<void> => {
   const target = editing.value
   if (target === null) {
     return

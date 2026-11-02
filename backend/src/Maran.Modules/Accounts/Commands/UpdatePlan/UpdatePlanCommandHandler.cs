@@ -194,13 +194,10 @@ public sealed class UpdatePlanCommandHandler
 
         plan.ChangeRuntimeLimits(runtimeLimits);
 
-        // Not stated means unchanged; a stated list replaces the set, and a change is journalled
-        // beside the rest of the edit so an operator can see who removed a feature from a plan.
+        // The stated list replaces the set, and a change is journalled beside the rest of the edit
+        // so an operator can see who removed a feature from a plan.
         var featuresBefore = plan.Features;
-        if (command.Features is not null)
-        {
-            plan.ChangeFeatures(command.Features.ToSet());
-        }
+        plan.ChangeFeatures(command.Features.ToSet());
 
         plan.ChangeLimits(
             command.DiskQuotaMb,

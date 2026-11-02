@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Identity.Tests.Services;
 

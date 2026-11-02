@@ -36,6 +36,21 @@ namespace Maran.Host.IntegrationTests;
 [Collection(SharedDatabase.Name)]
 public sealed class SubUsersEndpointTests : IAsyncLifetime
 {
+    /// <summary>The grant list naming only the databases feature.</summary>
+    private static readonly string[] DatabasesFeatures = { "databases" };
+
+    /// <summary>The grant list naming only the file transfer feature.</summary>
+    private static readonly string[] FileTransferFeatures = { "fileTransfer" };
+
+    /// <summary>The grant list naming only the backups feature.</summary>
+    private static readonly string[] BackupsFeatures = { "backups" };
+
+    /// <summary>The grant list naming only the cron feature.</summary>
+    private static readonly string[] CronFeatures = { "cron" };
+
+    /// <summary>The grant list naming a feature the panel does not have.</summary>
+    private static readonly string[] UnknownFeatures = { "root" };
+
     /// <summary>This test's own database on the assembly's shared PostgreSQL server.</summary>
     private readonly TestDatabase _pg;
 
@@ -70,7 +85,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
 
         var invited = await owner.PostAsJsonAsync(
             "/api/v1/me/sub-users",
-            new { Username = "deploy", Email = "deploy@example.com", Features = new[] { "databases" } });
+            new { Username = "deploy", Email = "deploy@example.com", Features = DatabasesFeatures });
 
         Assert.Equal(HttpStatusCode.Created, invited.StatusCode);
         using (var body = JsonDocument.Parse(await invited.Content.ReadAsStringAsync()))
@@ -132,7 +147,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, (await member.GetAsync("/api/v1/sftp-users")).StatusCode);
 
         var changed = await owner.PutAsJsonAsync(
-            $"/api/v1/me/sub-users/{memberId}/features", new { Features = new[] { "fileTransfer" } });
+            $"/api/v1/me/sub-users/{memberId}/features", new { Features = FileTransferFeatures });
 
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await member.GetAsync("/api/v1/sftp-users")).StatusCode);
@@ -170,7 +185,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
         using var rival = await EndpointHarness.SignInAsync(factory, "owner-b");
 
         var change = await rival.PutAsJsonAsync(
-            $"/api/v1/me/sub-users/{memberId}/features", new { Features = new[] { "backups" } });
+            $"/api/v1/me/sub-users/{memberId}/features", new { Features = BackupsFeatures });
         var remove = await rival.DeleteAsync($"/api/v1/me/sub-users/{memberId}");
         var list = await rival.GetAsync("/api/v1/me/sub-users");
 
@@ -226,7 +241,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
             new { Username = "fresh", Email = "owner-b@example.com", Features = Array.Empty<string>() });
         var unknownFeature = await owner.PostAsJsonAsync(
             "/api/v1/me/sub-users",
-            new { Username = "fresh", Email = "fresh@example.com", Features = new[] { "root" } });
+            new { Username = "fresh", Email = "fresh@example.com", Features = UnknownFeatures });
 
         Assert.Equal(HttpStatusCode.Conflict, takenName.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, takenAddress.StatusCode);
@@ -265,10 +280,10 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
         using var owner = await EndpointHarness.SignInAsync(factory, "owner-a");
         var invited = await owner.PostAsJsonAsync(
             "/api/v1/me/sub-users",
-            new { Username = "deploy", Email = "deploy@example.com", Features = new[] { "cron" } });
+            new { Username = "deploy", Email = "deploy@example.com", Features = CronFeatures });
         using var body = JsonDocument.Parse(await invited.Content.ReadAsStringAsync());
         var id = body.RootElement.GetProperty("id").GetGuid();
-        await owner.PutAsJsonAsync($"/api/v1/me/sub-users/{id}/features", new { Features = new[] { "backups" } });
+        await owner.PutAsJsonAsync($"/api/v1/me/sub-users/{id}/features", new { Features = BackupsFeatures });
         await owner.DeleteAsync($"/api/v1/me/sub-users/{id}");
         await owner.DeleteAsync($"/api/v1/me/sub-users/{Guid.NewGuid()}");
 
@@ -358,7 +373,10 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
         SentMail? mail = null;
         while (mail is null && waited.Elapsed < TimeSpan.FromSeconds(30))
         {
-            mail = _mailer.Sent.FirstOrDefault(candidate => candidate.Recipient == recipient);
+            mail = _mailer.Sent.FirstOrDefault(candidate =>
+            {
+                return candidate.Recipient == recipient;
+            });
             if (mail is null)
             {
                 await Task.Delay(50);

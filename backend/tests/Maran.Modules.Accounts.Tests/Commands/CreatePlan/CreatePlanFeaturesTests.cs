@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreatePlan;
@@ -33,17 +34,17 @@ public sealed class CreatePlanFeaturesTests : IDisposable
         Assert.Equal(AccountFeature.Dns | AccountFeature.Cron, (await _dbContext.Plans.SingleAsync()).Features);
     }
 
-    /// <summary>A plan created without a list sells every feature, as every plan did before the set existed.</summary>
+    /// <summary>A plan created with every feature stated sells the full set.</summary>
     [Fact]
-    public async Task A_plan_created_without_a_list_sells_every_feature()
+    public async Task A_plan_created_with_every_feature_stated_sells_the_full_set()
     {
-        var result = await NewHandler().HandleAsync(Command(null), CancellationToken.None);
+        var result = await NewHandler().HandleAsync(Command(AccountFeature.All.Members()), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(AccountFeature.All, (await _dbContext.Plans.SingleAsync()).Features);
     }
 
-    /// <summary>The validator refuses a value that is not exactly one feature and accepts a missing list.</summary>
+    /// <summary>The validator refuses a value that is not exactly one feature and refuses a missing list.</summary>
     [Theory]
     [InlineData(0L)]
     [InlineData(3L)]
@@ -55,7 +56,7 @@ public sealed class CreatePlanFeaturesTests : IDisposable
 
         var refused = await validator.ValidateAsync(Command([(AccountFeature)raw]));
         var accepted = await validator.ValidateAsync(Command([AccountFeature.Mail]));
-        var missing = await validator.ValidateAsync(Command(null));
+        var missing = await validator.ValidateAsync(Command(null!));
 
         Assert.False(refused.IsValid);
         Assert.Contains(refused.Errors, error =>
@@ -63,7 +64,7 @@ public sealed class CreatePlanFeaturesTests : IDisposable
             return error.ErrorMessage == "PlanFeatureUnknown";
         });
         Assert.True(accepted.IsValid);
-        Assert.True(missing.IsValid);
+        Assert.False(missing.IsValid);
     }
 
     /// <summary>Builds the handler over this test's context.</summary>
@@ -78,9 +79,9 @@ public sealed class CreatePlanFeaturesTests : IDisposable
     }
 
     /// <summary>Builds a creation request stating these features.</summary>
-    /// <param name="features">The features to state, or <c>null</c> for none stated.</param>
+    /// <param name="features">The features to state; a test passes <c>null!</c> to stand for a request that left them out.</param>
     /// <returns>The command.</returns>
-    private static CreatePlanCommand Command(IReadOnlyList<AccountFeature>? features)
+    private static CreatePlanCommand Command(IReadOnlyList<AccountFeature> features)
     {
         return new(
             "Agency", 10_240, 10, 5, 4, 2, 3, 8,

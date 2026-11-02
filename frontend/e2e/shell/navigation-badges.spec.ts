@@ -85,7 +85,7 @@ test('the mail queue and the updates have no badge and the shell never asks for 
   // Neither page has a figure, so neither row announces one and no request is made for one.
   await expect(nav.getByRole('link', { name: /in the mail queue|updates available/ })).toHaveCount(0)
   // Only the panel's API is judged: the dev server's own module URLs are not requests for a figure.
-  expect(requests.filter((url) => url.includes('/api/v1/') && /queue|updates/.test(url))).toEqual([])
+  expect(requests.filter((url) => {return url.includes('/api/v1/') && /queue|updates/.test(url)})).toEqual([])
 })
 
 test('a customer is never shown, and never asks for, the server-wide figure', async ({ page }) => {
@@ -99,5 +99,5 @@ test('a customer is never shown, and never asks for, the server-wide figure', as
   await page.goto('/')
   await expect(mainNavigation(page).getByRole('link', { name: 'System status', exact: true })).toBeVisible()
 
-  expect(requests.filter((url) => ATTENTION_COUNT.test(url))).toEqual([])
+  expect(requests.filter((url) => {return ATTENTION_COUNT.test(url)})).toEqual([])
 })

@@ -7,6 +7,7 @@
  */
 import { useI18n } from 'vue-i18n'
 import UiCheckbox from '../ui/UiCheckbox.vue'
+import type { AccountFeatureName } from '../../types/accountFeature'
 import type { GrantableFeature } from '../../types/subUser'
 
 /** Props accepted by {@link SubUserFeaturePicker}. */
@@ -14,13 +15,13 @@ const props = defineProps<{
   /** Every feature the owner may give, in the panel's order. */
   features: GrantableFeature[]
   /** The ids currently ticked. */
-  modelValue: string[]
+  modelValue: AccountFeatureName[]
 }>()
 
 /** Events emitted by {@link SubUserFeaturePicker}. */
 const emit = defineEmits<{
   /** The ticked ids changed. */
-  (e: 'update:modelValue', value: string[]): void
+  (e: 'update:modelValue', value: AccountFeatureName[]): void
 }>()
 
 const { t } = useI18n()
@@ -31,7 +32,7 @@ const { t } = useI18n()
  * @param ticked Whether it is now ticked.
  * @returns Nothing; emits synchronously.
  */
-const toggle = (id: string, ticked: boolean): void => {
+const toggle = (id: AccountFeatureName, ticked: boolean): void => {
   const next = props.features
     .map((feature) => {
       return feature.id

@@ -1,10 +1,11 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import type { AccountFeatureName } from '../types/accountFeature'
 import type { ManagedPlan, PlanFeatureChoice } from '../types/plan'
 
 /** What {@link usePlanFeatures} hands the plan form. */
 export interface PlanFeatures {
   /** The features currently ticked, by name, in the order the panel lists them. */
-  selected: ComputedRef<string[]>
+  selected: ComputedRef<AccountFeatureName[]>
   /**
    * Whether the set can be sent as it stands. An edit always can: it starts from the plan's own set
    * and sends it back unchanged if the panel's list never arrived. A new plan can only once the
@@ -12,7 +13,7 @@ export interface PlanFeatures {
    */
   isReady: ComputedRef<boolean>
   /** Ticks or clears one feature. */
-  toggle: (feature: string, ticked: boolean) => void
+  toggle: (feature: AccountFeatureName, ticked: boolean) => void
 }
 
 /**
@@ -31,17 +32,17 @@ export const usePlanFeatures = (
   choices: () => PlanFeatureChoice[] | null,
 ): PlanFeatures => {
   /** The administrator's own set once they have toggled a box; `null` while the form is untouched. */
-  const touched: Ref<string[] | null> = ref(null)
+  const touched: Ref<AccountFeatureName[] | null> = ref(null)
 
   /** The panel's feature names in the panel's order. */
-  const offered: ComputedRef<string[]> = computed(() => {
+  const offered: ComputedRef<AccountFeatureName[]> = computed(() => {
     return (choices() ?? []).map((choice) => {
       return choice.feature
     })
   })
 
   /** The ticked set: the administrator's own once they toggled, else the plan's, else every offered feature. */
-  const selected: ComputedRef<string[]> = computed(() => {
+  const selected: ComputedRef<AccountFeatureName[]> = computed(() => {
     return touched.value ?? plan?.features ?? offered.value
   })
 
@@ -57,7 +58,7 @@ export const usePlanFeatures = (
    * @param ticked Whether the box is now ticked.
    * @returns Nothing.
    */
-  const toggle = (feature: string, ticked: boolean): void => {
+  const toggle = (feature: AccountFeatureName, ticked: boolean): void => {
     const others = selected.value.filter((name) => {
       return name !== feature
     })

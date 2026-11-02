@@ -10,6 +10,7 @@ import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiModal from '../ui/UiModal.vue'
 import SubUserFeaturePicker from './SubUserFeaturePicker.vue'
+import type { AccountFeatureName } from '../../types/accountFeature'
 import type { GrantableFeature, SubUser } from '../../types/subUser'
 
 /** Props accepted by {@link SubUserFeaturesDialog}. */
@@ -27,13 +28,13 @@ const emit = defineEmits<{
   /** The owner abandoned the change. */
   (e: 'close'): void
   /** The owner saved; carries the complete new set of feature ids. */
-  (e: 'save', features: string[]): void
+  (e: 'save', features: AccountFeatureName[]): void
 }>()
 
 const { t } = useI18n()
 
 /** The ticks in progress. */
-const selected: Ref<string[]> = ref([])
+const selected: Ref<AccountFeatureName[]> = ref([])
 
 /**
  * Reports the ticks as the new set.

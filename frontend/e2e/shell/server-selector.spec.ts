@@ -23,8 +23,26 @@ const stubPanel = async (page: Page, role: "admin" | "customer", servers: Server
   return stubServers(page, servers);
 };
 
-test("an administrator sees the local server named in the app bar", async ({ page }) => {
-  await stubPanel(page, "admin", [LOCAL_SERVER]);
+/**
+ * A second server, as fleet mode (issue #180) will report one. The panel cannot report it today; the
+ * stub stands in so the display that fleet mode needs is exercised before the fleet exists.
+ */
+const SECOND_SERVER: Server = { kind: "local", kindDisplayName: "This server (local)", hostName: "node-2.example.com" };
+
+test("with one server there is nothing to select, so no selector is drawn", async ({ page }) => {
+  const requested = await stubPanel(page, "admin", [LOCAL_SERVER]);
+
+  await page.goto("/");
+
+  // The list WAS read (the count below), so the absence is the single-server rule and not a read
+  // that never happened; the two-server case below proves the same banner can carry the selector.
+  await expect(page.getByRole("banner")).toBeVisible();
+  await expect.poll(requested).toBeGreaterThan(0);
+  await expect(page.getByTestId("shell-server-selector")).toHaveCount(0);
+});
+
+test("with two servers an administrator sees the current one named in the app bar", async ({ page }) => {
+  await stubPanel(page, "admin", [LOCAL_SERVER, SECOND_SERVER]);
 
   await page.goto("/");
 
@@ -33,20 +51,8 @@ test("an administrator sees the local server named in the app bar", async ({ pag
   await expect(selector).toContainText("panel.example.com");
 });
 
-test("with one server the selector is a display, not a menu", async ({ page }) => {
-  await stubPanel(page, "admin", [LOCAL_SERVER]);
-
-  await page.goto("/");
-
-  const selector = page.getByTestId("shell-server-selector");
-  await expect(selector).toBeVisible();
-  // One server leaves nothing to choose, so nothing in it is a control.
-  await expect(selector.getByRole("button")).toHaveCount(0);
-  await expect(selector.getByRole("menu")).toHaveCount(0);
-});
-
-test("a panel with no configured host name shows the kind instead of a made-up name", async ({ page }) => {
-  await stubPanel(page, "admin", [{ ...LOCAL_SERVER, hostName: null }]);
+test("a server with no configured host name shows the kind instead of a made-up name", async ({ page }) => {
+  await stubPanel(page, "admin", [{ ...LOCAL_SERVER, hostName: null }, SECOND_SERVER]);
 
   await page.goto("/");
 

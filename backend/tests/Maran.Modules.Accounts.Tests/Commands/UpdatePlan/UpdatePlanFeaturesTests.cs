@@ -11,7 +11,7 @@ namespace Maran.Modules.Accounts.Tests.Commands.UpdatePlan;
 
 /// <summary>
 /// How a plan edit treats the feature set (issue #316): a stated list replaces it, a missing list
-/// leaves it alone, and a change is journalled so an operator can see who took a feature away.
+/// is refused, and a change is journalled so an operator can see who took a feature away.
 /// </summary>
 public sealed class UpdatePlanFeaturesTests : IDisposable
 {
@@ -67,18 +67,17 @@ public sealed class UpdatePlanFeaturesTests : IDisposable
         Assert.Equal(AccountFeature.None, (await _dbContext.Plans.AsNoTracking().SingleAsync()).Features);
     }
 
-    /// <summary>A missing list leaves the set as it is, so a client that predates features removes nothing.</summary>
+    /// <summary>A missing list is refused by the validator: there is no reading of "not stated".</summary>
     [Fact]
-    public async Task A_missing_list_leaves_the_set_as_it_is()
+    public async Task A_missing_list_is_refused_by_the_validator()
     {
-        _plan.ChangeFeatures(AccountFeature.Cron);
-        await _dbContext.SaveChangesAsync();
+        var verdict = await new UpdatePlanCommandValidator().ValidateAsync(Edit(null!));
 
-        var result = await NewHandler().HandleAsync(Edit(null) with { MaxSites = 11 }, CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(AccountFeature.Cron, (await _dbContext.Plans.AsNoTracking().SingleAsync()).Features);
-        Assert.Equal("Agency", Assert.Single(_audit.Entries).Subject);
+        Assert.False(verdict.IsValid);
+        Assert.Contains(verdict.Errors, error =>
+        {
+            return error.PropertyName == nameof(UpdatePlanCommand.Features);
+        });
     }
 
     /// <summary>A change of features is journalled with the set before and after.</summary>
@@ -119,9 +118,9 @@ public sealed class UpdatePlanFeaturesTests : IDisposable
     }
 
     /// <summary>Builds an edit of the plan that changes nothing but the features it states.</summary>
-    /// <param name="features">The features to state, or <c>null</c> for none stated.</param>
+    /// <param name="features">The features to state; a test passes <c>null!</c> to stand for a request that left them out.</param>
     /// <returns>The command.</returns>
-    private UpdatePlanCommand Edit(IReadOnlyList<AccountFeature>? features)
+    private UpdatePlanCommand Edit(IReadOnlyList<AccountFeature> features)
     {
         return new UpdatePlanCommand(
             "Agency", 10_240, 10, 5, 4, 2, 3, 8,

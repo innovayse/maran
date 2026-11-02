@@ -1,4 +1,5 @@
 import type { RouteLocationRaw } from 'vue-router'
+import type { AccountFeatureName } from './accountFeature'
 import type { PanelModule } from './module'
 
 /**
@@ -85,7 +86,7 @@ export interface NavigationGate {
    * signed-in account's plan features where the panel reports them; while it does not, the item is
    * offered (advice errs permissive, rules/security.md).
    */
-  planFeature: string | null
+  planFeature: AccountFeatureName | null
 }
 
 /** One page in the navigation tree. */
@@ -165,7 +166,7 @@ export interface NavigationContext {
    * The caller's plan features, or null while the panel does not report them; null offers every
    * item, since hiding is advice and errs permissive.
    */
-  planFeatures: ReadonlySet<string> | null
+  planFeatures: ReadonlySet<AccountFeatureName> | null
   /**
    * The live counts the shell holds, per badge kind. A partial map and not a total one: a kind is
    * present exactly when the panel answered with a real count, and absent when it was not asked,

@@ -4,6 +4,8 @@ using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreatePlan;
 
@@ -21,7 +23,7 @@ public sealed class CreatePlanCommandValidatorTests
     /// <summary>Builds a command that satisfies every rule, so a single field can be broken per test.</summary>
     private static CreatePlanCommand ValidCommand()
     {
-        return new("Agency", 10_240, 10, 5, 5, 0, 0, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, IpAddress: "203.0.113.7", UserAgent: "unit-tests");
+        return new("Agency", 10_240, 10, 5, 5, 0, 0, 8, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), IpAddress: "203.0.113.7", UserAgent: "unit-tests");
     }
 
     /// <summary>A fully valid command passes every rule.</summary>

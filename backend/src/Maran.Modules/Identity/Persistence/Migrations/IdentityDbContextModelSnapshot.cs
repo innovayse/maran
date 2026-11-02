@@ -23,6 +23,41 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AccountMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Grants")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("IX_AccountMemberships_AccountId");
+
+                    b.HasIndex("UserId", "AccountId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AccountMemberships_UserId_AccountId");
+
+                    b.ToTable("AccountMemberships", "identity");
+                });
+
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AuditEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -43,6 +78,13 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasColumnType("character varying(64)");
 
                     b.Property<string>("CorrelationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("ImpersonatorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ImpersonatorUsername")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
@@ -172,6 +214,35 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("PasswordResetTokens", "identity");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.PinnedPage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ItemKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("PinnedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ItemKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PinnedPages_UserId_ItemKey");
+
+                    b.ToTable("PinnedPages", "identity");
+                });
+
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.RecoveryCode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -228,6 +299,15 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ActiveAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -241,6 +321,13 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("IssuedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Own");
 
                     b.Property<string>("RevocationReason")
                         .HasMaxLength(32)
@@ -376,6 +463,16 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("Users", "identity");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AccountMembership", b =>
+                {
+                    b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_AccountMemberships_Users_UserId");
+                });
+
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.InvitationToken", b =>
                 {
                     b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
@@ -394,6 +491,16 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_PasswordResetTokens_Users_UserId");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.PinnedPage", b =>
+                {
+                    b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_PinnedPages_Users_UserId");
                 });
 
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.RecoveryCode", b =>

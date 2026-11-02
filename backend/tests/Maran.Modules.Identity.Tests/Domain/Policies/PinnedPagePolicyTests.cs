@@ -12,7 +12,10 @@ public sealed class PinnedPagePolicyTests
     private static List<PinnedPage> Pins(Guid user, int count)
     {
         return Enumerable.Range(0, count)
-            .Select(index => new PinnedPage(Guid.NewGuid(), user, $"page-{index}", index, Now))
+            .Select(index =>
+            {
+                return new PinnedPage(Guid.NewGuid(), user, $"page-{index}", index, Now);
+            })
             .ToList();
     }
 
@@ -91,6 +94,9 @@ public sealed class PinnedPagePolicyTests
     [Fact]
     public void A_pin_cannot_be_created_with_an_invalid_key()
     {
-        Assert.Throws<ArgumentException>(() => new PinnedPage(Guid.NewGuid(), Guid.NewGuid(), "Bad Key", 0, Now));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return new PinnedPage(Guid.NewGuid(), Guid.NewGuid(), "Bad Key", 0, Now);
+        });
     }
 }

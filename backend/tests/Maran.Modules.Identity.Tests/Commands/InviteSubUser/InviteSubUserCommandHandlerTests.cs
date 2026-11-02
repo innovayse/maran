@@ -4,6 +4,7 @@ using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Utilities.Tokens;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;

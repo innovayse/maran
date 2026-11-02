@@ -1,3 +1,4 @@
+import type { AccountFeatureName } from './accountFeature'
 import type { AccountResourceSummary } from './accountResourceSummary'
 import type { ListLoad, ListRequest, Paged } from './list'
 
@@ -168,7 +169,7 @@ export interface MyAccountPlan {
    * stubbed one in a spec, a panel older than this bundle) reads as "not reported" and the menu
    * offers every item, the permissive default of the navigation (`NavigationContext.planFeatures`).
    */
-  features?: string[]
+  features?: AccountFeatureName[]
 }
 
 /**

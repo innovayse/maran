@@ -2,11 +2,12 @@
 /**
  * The app bar's server selector: which server every screen is addressing (issue #319).
  *
- * **Today it is a labelled display, not a menu.** The panel manages one server, the machine it runs
- * on, so there is nothing to choose between and a dropdown with one entry would be a control that
- * cannot do anything. It shows the current server with an accessible name that says what it is
- * ("Current server: panel.example.com"). When fleet mode (issue #180) gives the panel a second
- * server, this is the component that grows the menu; the data already arrives as a list.
+ * **With one server it draws nothing.** The panel manages one server today, the machine it runs on,
+ * so there is nothing to choose between, and a selector with one entry would be a control that
+ * cannot do anything (review of issue #319). From two servers on — fleet mode, issue #180 — it shows
+ * the current server with an accessible name that says what it is ("Current server:
+ * panel.example.com"); the menu that switches between them lands with #180, together with the
+ * backend's switch and its audit. The data already arrives as a list, so nothing here changes shape.
  *
  * **Administrators only.** The list is operator knowledge and the endpoint refuses a customer, so
  * a customer's shell neither draws this nor asks for it. That check is presentation: the backend
@@ -32,6 +33,11 @@ const { t } = useI18n()
 const store = useServersStore()
 const locale = useLocaleStore()
 const { isAdmin } = useCallerRole()
+
+/** Whether there is more than one server, so that there is something to select between. */
+const hasChoice: ComputedRef<boolean> = computed(() => {
+  return store.servers.length > 1
+})
 
 /** What the current server is called: its host name, or the kind when the panel has no name for it. */
 const name: ComputedRef<string | null> = computed(() => {
@@ -62,7 +68,7 @@ watch(
 
 <template>
   <div
-    v-if="isAdmin && name !== null"
+    v-if="isAdmin && hasChoice && name !== null"
     role="group"
     data-testid="shell-server-selector"
     class="flex h-control min-w-0 shrink-0 items-center gap-2 rounded-control px-2 text-text-secondary"

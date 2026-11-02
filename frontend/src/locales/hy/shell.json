@@ -76,7 +76,10 @@
         "account": "Իմ հաշիվը"
       },
       "badges": {
-        "failedTasks": "ձախողված"
+        "failedTasks": "ձախողված",
+        "needsAttention": "պահանջում է ուշադրություն",
+        "mailQueue": "փոստի հերթում",
+        "availableUpdates": "հասանելի թարմացումներ"
       }
     },
     "shell": {

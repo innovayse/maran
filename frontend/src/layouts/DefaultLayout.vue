@@ -51,6 +51,7 @@ import ShellHeader from '../components/shell/ShellHeader.vue'
 import ShellRail from '../components/shell/ShellRail.vue'
 import ShellSidebar from '../components/shell/ShellSidebar.vue'
 import ShellTabBar from '../components/shell/ShellTabBar.vue'
+import ShellViewingAsBanner from '../components/shell/ShellViewingAsBanner.vue'
 import { useNavigation } from '../composables/useNavigation'
 import { useNavigationRole } from '../composables/useNavigationRole'
 import { useLocaleStore } from '../stores/locale'
@@ -328,6 +329,7 @@ onBeforeUnmount((): void => {
         >
           <!-- RouterView, not a slot: this layout is a route component with child routes, so the
                page for the active child renders here. A <slot/> would silently render nothing. -->
+          <ShellViewingAsBanner class="mb-4" />
           <RouterView />
         </main>
       </div>

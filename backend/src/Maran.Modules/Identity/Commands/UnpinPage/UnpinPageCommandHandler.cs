@@ -41,7 +41,10 @@ public sealed class UnpinPageCommandHandler
             .Where(pin => pin.UserId == command.UserId)
             .ToListAsync(cancellationToken);
 
-        var pin = pins.SingleOrDefault(candidate => candidate.ItemKey == command.ItemKey);
+        var pin = pins.SingleOrDefault(candidate =>
+        {
+            return candidate.ItemKey == command.ItemKey;
+        });
         if (pin is null)
         {
             return Result<PinnedPagesDto>.Fail(
@@ -60,6 +63,9 @@ public sealed class UnpinPageCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<PinnedPagesDto>.Ok(PinnedPagesMapper.From(pins.Where(candidate => candidate != pin)));
+        return Result<PinnedPagesDto>.Ok(PinnedPagesMapper.From(pins.Where(candidate =>
+        {
+            return candidate != pin;
+        })));
     }
 }

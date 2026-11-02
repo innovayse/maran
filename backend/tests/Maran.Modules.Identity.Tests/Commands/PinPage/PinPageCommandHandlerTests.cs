@@ -15,6 +15,15 @@ public sealed class PinPageCommandHandlerTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The keys of a person who holds only the accounts list.</summary>
+    private static readonly string[] AccountsListOnly = { "accounts-list" };
+
+    /// <summary>The keys after the sites list and the dashboard were pinned, in pin order.</summary>
+    private static readonly string[] SitesListThenDashboard = { "sites-list", "dashboard" };
+
+    /// <summary>The keys of a person whose only surviving pin is the first generated page.</summary>
+    private static readonly string[] FirstPageOnly = { "page-0" };
+
     private readonly IdentityDbContext _context = IdentityTestContext.Create();
     private readonly RecordingAuditWriter _audit = new();
     private readonly Guid _owner = Guid.NewGuid();
@@ -52,7 +61,10 @@ public sealed class PinPageCommandHandlerTests : IAsyncLifetime
         var result = await NewHandler().HandleAsync(Pin("accounts-list"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { "accounts-list" }, result.Value!.Items.Select(item => item.ItemKey));
+        Assert.Equal(AccountsListOnly, result.Value!.Items.Select(item =>
+        {
+            return item.ItemKey;
+        }));
         Assert.Equal(PinnedPagePolicy.MaxPinsPerUser, result.Value.Limit);
         var stored = await _context.PinnedPages.SingleAsync();
         Assert.Equal(_owner, stored.UserId);
@@ -69,7 +81,10 @@ public sealed class PinPageCommandHandlerTests : IAsyncLifetime
         await NewHandler().HandleAsync(Pin("sites-list"), CancellationToken.None);
         var result = await NewHandler().HandleAsync(Pin("dashboard"), CancellationToken.None);
 
-        Assert.Equal(new[] { "sites-list", "dashboard" }, result.Value!.Items.Select(item => item.ItemKey));
+        Assert.Equal(SitesListThenDashboard, result.Value!.Items.Select(item =>
+        {
+            return item.ItemKey;
+        }));
     }
 
     /// <summary>Pinning the same page twice is a conflict and writes nothing more.</summary>
@@ -117,6 +132,9 @@ public sealed class PinPageCommandHandlerTests : IAsyncLifetime
         var result = await NewHandler().HandleAsync(Pin("page-0"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { "page-0" }, result.Value!.Items.Select(item => item.ItemKey));
+        Assert.Equal(FirstPageOnly, result.Value!.Items.Select(item =>
+        {
+            return item.ItemKey;
+        }));
     }
 }
