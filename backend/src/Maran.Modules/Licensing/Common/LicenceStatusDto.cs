@@ -1,3 +1,5 @@
+using Maran.Modules.Licensing.Domain.Enums;
+
 namespace Maran.Modules.Licensing.Common;
 
 /// <summary>
@@ -5,30 +7,41 @@ namespace Maran.Modules.Licensing.Common;
 /// administrator reads it.
 /// </summary>
 /// <param name="State">
-/// <c>"Valid"</c>, <c>"Absent"</c> or <c>"Refused"</c> — the discriminator naming which of the other
+/// <see cref="LicenceStateKind.Valid"/>, <see cref="LicenceStateKind.Absent"/> or
+/// <see cref="LicenceStateKind.Refused"/> — the discriminator naming which of the other
 /// fields is populated. Never a bare boolean: an operator with no licence and an operator with a
 /// forged one need different remedies, and collapsing the two into one flag is the exact trap
 /// <c>Domain.Enums.LicenceStatus</c>'s own remarks were written to prevent.
 /// </param>
 /// <param name="LicenceId">
 /// The installed licence's own opaque identifier (spec §228's <c>id</c> field), present only when
-/// <paramref name="State"/> is <c>"Valid"</c>. Innovayse's own issued identifier, not a secret and not
-/// derived from anything on this server.
+/// <paramref name="State"/> is <see cref="LicenceStateKind.Valid"/>. Innovayse's own issued
+/// identifier, not a secret and not derived from anything on this server.
 /// </param>
-/// <param name="Tier">The plan tier the licence carries, present only when <paramref name="State"/> is <c>"Valid"</c>.</param>
-/// <param name="Modules">The module ids the licence unlocks, present only when <paramref name="State"/> is <c>"Valid"</c>.</param>
-/// <param name="Expiry">The instant the licence lapses, present only when <paramref name="State"/> is <c>"Valid"</c>.</param>
+/// <param name="Tier">
+/// The plan tier the licence carries, present only when <paramref name="State"/> is
+/// <see cref="LicenceStateKind.Valid"/>.
+/// </param>
+/// <param name="Modules">
+/// The module ids the licence unlocks, present only when <paramref name="State"/> is
+/// <see cref="LicenceStateKind.Valid"/>.
+/// </param>
+/// <param name="Expiry">
+/// The instant the licence lapses, present only when <paramref name="State"/> is
+/// <see cref="LicenceStateKind.Valid"/>.
+/// </param>
 /// <param name="RefusalReason">
-/// The specific, actionable reason (<c>Malformed</c>, <c>SignatureInvalid</c>, <c>Expired</c>,
-/// <c>ProductMismatch</c>, or <c>FingerprintMismatch</c> — see the remark on that last member for why
-/// it can never actually appear here), present only when <paramref name="State"/> is <c>"Refused"</c>.
+/// The specific, actionable reason (<see cref="Domain.Enums.LicenceRefusalReason"/>; see the remark on
+/// its <c>FingerprintMismatch</c> member for why that one can never actually appear here), present
+/// only when <paramref name="State"/> is <see cref="LicenceStateKind.Refused"/>.
 /// </param>
 /// <param name="Sentence">
 /// The operator-facing sentence for whatever <paramref name="State"/> is, in the caller's own
 /// language — the same text <c>Services.LicenceStatusDisplayNames.SentenceFor</c> logs at startup.
 /// </param>
 /// <param name="Advice">
-/// What the operator can do about it, present only when <paramref name="State"/> is <c>"Refused"</c>.
+/// What the operator can do about it, present only when <paramref name="State"/> is
+/// <see cref="LicenceStateKind.Refused"/>.
 /// </param>
 /// <param name="StateDisplayName">
 /// <paramref name="State"/>'s short, localized label (rules/architecture.md "The backend owns the
@@ -65,12 +78,12 @@ namespace Maran.Modules.Licensing.Common;
 /// </para>
 /// </remarks>
 public sealed record LicenceStatusDto(
-    string State,
+    LicenceStateKind State,
     string? LicenceId,
     string? Tier,
     IReadOnlyList<string>? Modules,
     DateTimeOffset? Expiry,
-    string? RefusalReason,
+    LicenceRefusalReason? RefusalReason,
     string Sentence,
     string? Advice,
     string StateDisplayName,

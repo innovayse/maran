@@ -1,4 +1,5 @@
 using Maran.Modules.Licensing.Commands.InstallLicence;
+using Maran.Modules.Licensing.Domain.Enums;
 using Maran.Modules.Licensing.Interfaces;
 using Maran.Modules.Licensing.Options;
 using Maran.Modules.Licensing.Services;
@@ -106,7 +107,7 @@ public sealed class InstallLicenceCommandHandlerTests : IDisposable
         var result = await handler.HandleAsync(CommandFor(envelope), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("Valid", result.Value!.State);
+        Assert.Equal(LicenceStateKind.Valid, result.Value!.State);
         Assert.Equal("lic-first", result.Value.LicenceId);
         Assert.Equal(envelope, await File.ReadAllTextAsync(LicenceFilePath));
 

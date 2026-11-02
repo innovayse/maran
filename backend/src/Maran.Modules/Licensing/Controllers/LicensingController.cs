@@ -37,7 +37,7 @@ namespace Maran.Modules.Licensing.Controllers;
 /// <c>VerifyAsync</c> is typed to never throw and to never produce anything but the three-state
 /// result — this controller adds no <c>try/catch</c> and no exception-to-error mapping of its own, so
 /// there is no second path here for a future edit to forget to guard. An unlicensed install answers
-/// this endpoint normally, with <c>State: "Absent"</c> and 200 OK — never an error and never a 4xx,
+/// this endpoint normally, with a state of <c>absent</c> and 200 OK — never an error and never a 4xx,
 /// exactly as an ordinary first-run state should read.
 /// </para>
 /// <para>

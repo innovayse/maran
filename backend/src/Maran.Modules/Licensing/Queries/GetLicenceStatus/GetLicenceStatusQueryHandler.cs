@@ -90,7 +90,7 @@ public sealed class GetLicenceStatusQueryHandler
         {
             case LicenceStatus.Valid valid:
                 return new LicenceStatusDto(
-                    State: "Valid",
+                    State: LicenceStateKind.Valid,
                     LicenceId: valid.Licence.Id.Value,
                     Tier: valid.Licence.Tier,
                     Modules: valid.Licence.Modules,
@@ -98,12 +98,12 @@ public sealed class GetLicenceStatusQueryHandler
                     RefusalReason: null,
                     Sentence: _displayNames.SentenceFor(status),
                     Advice: null,
-                    StateDisplayName: _displayNames.StateNameFor("Valid"),
+                    StateDisplayName: _displayNames.StateNameFor(LicenceStateKind.Valid),
                     RefusalReasonDisplayName: null);
 
             case LicenceStatus.Absent:
                 return new LicenceStatusDto(
-                    State: "Absent",
+                    State: LicenceStateKind.Absent,
                     LicenceId: null,
                     Tier: null,
                     Modules: null,
@@ -111,21 +111,21 @@ public sealed class GetLicenceStatusQueryHandler
                     RefusalReason: null,
                     Sentence: _displayNames.SentenceFor(status),
                     Advice: null,
-                    StateDisplayName: _displayNames.StateNameFor("Absent"),
+                    StateDisplayName: _displayNames.StateNameFor(LicenceStateKind.Absent),
                     RefusalReasonDisplayName: null);
 
             case LicenceStatus.Refused refused:
                 return new LicenceStatusDto(
-                    State: "Refused",
+                    State: LicenceStateKind.Refused,
                     LicenceId: null,
                     Tier: null,
                     Modules: null,
                     Expiry: null,
-                    RefusalReason: refused.Reason.ToString(),
+                    RefusalReason: refused.Reason,
                     Sentence: _displayNames.SentenceFor(status),
                     Advice: _displayNames.AdviceFor(refused.Reason),
-                    StateDisplayName: _displayNames.StateNameFor("Refused"),
-                    RefusalReasonDisplayName: _displayNames.ReasonNameFor(refused.Reason.ToString()));
+                    StateDisplayName: _displayNames.StateNameFor(LicenceStateKind.Refused),
+                    RefusalReasonDisplayName: _displayNames.ReasonNameFor(refused.Reason));
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(status), status, "Unknown LicenceStatus case.");

@@ -132,7 +132,7 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("Absent", body.RootElement.GetProperty("state").GetString());
+        Assert.Equal("absent", body.RootElement.GetProperty("state").GetString());
 
         // The response never carries a signature or a fingerprint — nothing on this build's Licence
         // or LicenceRefusalReason types has either shape to leak, so this checks the literal wire

@@ -298,7 +298,7 @@ public sealed class InstallLicenceCommandHandler
     private LicenceStatusDto ToDto(LicenceStatus.Valid valid)
     {
         return new LicenceStatusDto(
-            State: "Valid",
+            State: LicenceStateKind.Valid,
             LicenceId: valid.Licence.Id.Value,
             Tier: valid.Licence.Tier,
             Modules: valid.Licence.Modules,
@@ -310,7 +310,7 @@ public sealed class InstallLicenceCommandHandler
             // operator who just uploaded a file would read as reassurance it does not warrant.
             Sentence: _displayNames.InstalledSentence(),
             Advice: null,
-            StateDisplayName: _displayNames.StateNameFor("Valid"),
+            StateDisplayName: _displayNames.StateNameFor(LicenceStateKind.Valid),
             RefusalReasonDisplayName: null);
     }
 }

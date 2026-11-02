@@ -109,9 +109,9 @@ public sealed class LicenceStatusDisplayNamesTests
         using var _ = new CultureScope("ru");
         var text = LicensingTestContext.StatusText();
 
-        Assert.Equal("Лицензия установлена", text.StateNameFor("Valid"));
-        Assert.Equal("Лицензия не установлена", text.StateNameFor("Absent"));
-        Assert.Equal("Лицензия не принята", text.StateNameFor("Refused"));
+        Assert.Equal("Лицензия установлена", text.StateNameFor(LicenceStateKind.Valid));
+        Assert.Equal("Лицензия не установлена", text.StateNameFor(LicenceStateKind.Absent));
+        Assert.Equal("Лицензия не принята", text.StateNameFor(LicenceStateKind.Refused));
     }
 
     /// <summary>Every wire refusal reason has a real, specific short label in every language.</summary>
@@ -122,22 +122,42 @@ public sealed class LicenceStatusDisplayNamesTests
         using var _ = new CultureScope("ru");
         var text = LicensingTestContext.StatusText();
 
-        Assert.Equal("Файл лицензии не читается", text.ReasonNameFor("Malformed"));
-        Assert.Equal("Подпись лицензии не совпадает", text.ReasonNameFor("SignatureInvalid"));
-        Assert.Equal("Срок действия лицензии истёк", text.ReasonNameFor("Expired"));
-        Assert.Equal("Лицензия выпущена для другого продукта", text.ReasonNameFor("ProductMismatch"));
-        Assert.Equal("Лицензия выпущена для другого сервера", text.ReasonNameFor("FingerprintMismatch"));
+        Assert.Equal("Файл лицензии не читается", text.ReasonNameFor(LicenceRefusalReason.Malformed));
+        Assert.Equal("Подпись лицензии не совпадает", text.ReasonNameFor(LicenceRefusalReason.SignatureInvalid));
+        Assert.Equal("Срок действия лицензии истёк", text.ReasonNameFor(LicenceRefusalReason.Expired));
+        Assert.Equal("Лицензия выпущена для другого продукта", text.ReasonNameFor(LicenceRefusalReason.ProductMismatch));
+        Assert.Equal("Лицензия выпущена для другого сервера", text.ReasonNameFor(LicenceRefusalReason.FingerprintMismatch));
     }
 
-    /// <summary>An unrecognized wire value degrades to itself rather than to an empty string or a resource key.</summary>
+    /// <summary>Every wire state and every wire refusal reason has a label in every language, walked not sampled.</summary>
     [Fact]
-    public void An_unrecognized_wire_value_falls_back_to_itself()
+    public void Every_wire_state_and_refusal_reason_has_a_label_in_every_language()
     {
-        using var _ = new CultureScope("ru");
-        var text = LicensingTestContext.StatusText();
+        var problems = new List<string>();
+        foreach (var culture in Cultures)
+        {
+            using var _ = new CultureScope(culture);
+            var text = LicensingTestContext.StatusText();
 
-        Assert.Equal("SomeFutureState", text.StateNameFor("SomeFutureState"));
-        Assert.Equal("SomeFutureReason", text.ReasonNameFor("SomeFutureReason"));
+            foreach (var state in Enum.GetValues<LicenceStateKind>())
+            {
+                if (string.Equals(text.StateNameFor(state), "LicenceState" + state, StringComparison.Ordinal))
+                {
+                    problems.Add($"State '{state}' has no label in {culture}; the screen would print its key.");
+                }
+            }
+
+            foreach (var reason in Enum.GetValues<LicenceRefusalReason>())
+            {
+                if (string.Equals(text.ReasonNameFor(reason), "LicenceRefusal" + reason, StringComparison.Ordinal))
+                {
+                    problems.Add($"Reason '{reason}' has no label in {culture}; the screen would print its key.");
+                }
+            }
+        }
+
+        Assert.Empty(problems);
+        Assert.Equal(3, Enum.GetValues<LicenceStateKind>().Length);
     }
 
     /// <summary>Absent's own sentence does not read as an error — the ordinary-state requirement.</summary>
