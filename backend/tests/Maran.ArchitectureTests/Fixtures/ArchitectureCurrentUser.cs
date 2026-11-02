@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.ArchitectureTests.Fixtures;
@@ -16,14 +17,8 @@ namespace Maran.ArchitectureTests.Fixtures;
 public sealed class ArchitectureCurrentUser : ICurrentUser
 {
     /// <inheritdoc />
-    public Guid UserId { get; } = Guid.Empty;
-
-    /// <inheritdoc />
-    public string Username { get; } = string.Empty;
-
-    /// <inheritdoc />
-    public Guid? AccountId { get; } = Guid.Empty;
-
-    /// <inheritdoc />
-    public bool IsAdmin { get; }
+    public Caller Caller { get; } = new CustomerCaller(
+        new Guid("00000000-0000-4000-8000-00000000a4c1"),
+        "architecture",
+        new Guid("00000000-0000-4000-8000-00000000a4c2"));
 }

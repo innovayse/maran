@@ -1,6 +1,7 @@
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Filters;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -25,7 +26,7 @@ public sealed class RequiresAccountFeatureFilterTests
     [Fact]
     public async Task A_customer_whose_plan_includes_the_feature_reaches_the_action()
     {
-        var run = await RunAsync(new Caller(AccountId, false), included: true);
+        var run = await RunAsync(new RequestCaller(AccountId, false), included: true);
 
         Assert.True(run.ActionRan);
         Assert.Null(run.Context.Result);
@@ -35,7 +36,7 @@ public sealed class RequiresAccountFeatureFilterTests
     [Fact]
     public async Task A_person_who_was_not_given_the_feature_is_refused_whatever_the_plan_includes()
     {
-        var run = await RunAsync(new Caller(AccountId, false), included: true, permitted: false);
+        var run = await RunAsync(new RequestCaller(AccountId, false), included: true, permitted: false);
 
         Assert.False(run.ActionRan);
         var refusal = Assert.IsType<ObjectResult>(run.Context.Result);
@@ -48,7 +49,7 @@ public sealed class RequiresAccountFeatureFilterTests
     [Fact]
     public async Task The_plan_refusal_comes_before_the_person_is_asked()
     {
-        var run = await RunAsync(new Caller(AccountId, false), included: false, permitted: false);
+        var run = await RunAsync(new RequestCaller(AccountId, false), included: false, permitted: false);
 
         var problem = Assert.IsType<ProblemDetails>(Assert.IsType<ObjectResult>(run.Context.Result).Value);
         Assert.Equal("PlanFeatureNotIncluded", problem.Extensions["code"]);
@@ -59,18 +60,18 @@ public sealed class RequiresAccountFeatureFilterTests
     [Fact]
     public async Task The_person_is_asked_about_their_own_identity_account_and_feature()
     {
-        var caller = new Caller(AccountId, false);
+        var caller = new RequestCaller(AccountId, false);
 
         var run = await RunAsync(caller, included: true, feature: AccountFeature.Backups);
 
-        Assert.Equal((caller.UserId, AccountId, AccountFeature.Backups), Assert.Single(run.Grants.Asked));
+        Assert.Equal((caller.Id, AccountId, AccountFeature.Backups), Assert.Single(run.Grants.Asked));
     }
 
     /// <summary>A customer whose plan lacks the feature is refused with 403 and a coded problem, and the action never runs.</summary>
     [Fact]
     public async Task A_customer_whose_plan_lacks_the_feature_is_refused_and_the_action_never_runs()
     {
-        var run = await RunAsync(new Caller(AccountId, false), included: false);
+        var run = await RunAsync(new RequestCaller(AccountId, false), included: false);
 
         Assert.False(run.ActionRan);
         var refusal = Assert.IsType<ObjectResult>(run.Context.Result);
@@ -83,7 +84,7 @@ public sealed class RequiresAccountFeatureFilterTests
     [Fact]
     public async Task The_filter_asks_about_the_callers_own_account_and_its_own_feature()
     {
-        var run = await RunAsync(new Caller(AccountId, false), included: true, AccountFeature.Backups);
+        var run = await RunAsync(new RequestCaller(AccountId, false), included: true, AccountFeature.Backups);
 
         Assert.Equal((AccountId, AccountFeature.Backups), Assert.Single(run.Directory.Asked));
     }
@@ -92,7 +93,7 @@ public sealed class RequiresAccountFeatureFilterTests
     [Fact]
     public async Task An_administrator_is_never_refused_and_the_directory_is_not_asked()
     {
-        var run = await RunAsync(new Caller(null, true), included: false);
+        var run = await RunAsync(new RequestCaller(null, true), included: false);
 
         Assert.True(run.ActionRan);
         Assert.Empty(run.Directory.Asked);
@@ -103,7 +104,7 @@ public sealed class RequiresAccountFeatureFilterTests
     [Fact]
     public async Task A_caller_with_no_account_is_passed_on_to_the_handler()
     {
-        var run = await RunAsync(new Caller(null, false), included: false);
+        var run = await RunAsync(new RequestCaller(null, false), included: false);
 
         Assert.True(run.ActionRan);
         Assert.Empty(run.Directory.Asked);
@@ -127,7 +128,7 @@ public sealed class RequiresAccountFeatureFilterTests
     /// <param name="permitted"></param>
     /// <returns>What happened.</returns>
     private static async Task<FilterRun> RunAsync(
-        Caller caller,
+        RequestCaller caller,
         bool included,
         AccountFeature feature = AccountFeature.Databases,
         bool permitted = true)
@@ -162,27 +163,31 @@ public sealed class RequiresAccountFeatureFilterTests
         bool ActionRan);
 
     /// <summary>A caller with a fixed identity.</summary>
-    private sealed class Caller : ICurrentUser
+    private sealed class RequestCaller : ICurrentUser
     {
-        /// <inheritdoc />
-        public Guid UserId { get; } = Guid.NewGuid();
+        /// <summary>The caller's panel user id.</summary>
+        public Guid Id { get; } = Guid.NewGuid();
 
         /// <inheritdoc />
-        public string Username { get; } = "caller";
-
-        /// <inheritdoc />
-        public Guid? AccountId { get; }
-
-        /// <inheritdoc />
-        public bool IsAdmin { get; }
+        public Caller Caller { get; }
 
         /// <summary>Creates the caller.</summary>
         /// <param name="accountId">The account the token names, or <c>null</c>.</param>
         /// <param name="isAdmin">Whether the caller is an administrator.</param>
-        public Caller(Guid? accountId, bool isAdmin)
+        public RequestCaller(Guid? accountId, bool isAdmin)
         {
-            AccountId = accountId;
-            IsAdmin = isAdmin;
+            if (isAdmin)
+            {
+                Caller = new AdministratorCaller(Id, "caller");
+            }
+            else if (accountId is { } account)
+            {
+                Caller = new CustomerCaller(Id, "caller", account);
+            }
+            else
+            {
+                Caller = AnonymousCaller.Instance;
+            }
         }
     }
 

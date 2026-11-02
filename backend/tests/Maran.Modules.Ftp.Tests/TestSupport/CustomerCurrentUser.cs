@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Ftp.Tests.TestSupport;
@@ -14,34 +15,12 @@ namespace Maran.Modules.Ftp.Tests.TestSupport;
 public sealed class CustomerCurrentUser : ICurrentUser
 {
     /// <inheritdoc />
-    public Guid UserId { get; }
-
-    /// <inheritdoc />
-    public string Username
-    {
-        get
-        {
-            return "customer";
-        }
-    }
-
-    /// <inheritdoc />
-    public Guid? AccountId { get; }
-
-    /// <inheritdoc />
-    public bool IsAdmin
-    {
-        get
-        {
-            return false;
-        }
-    }
+    public Caller Caller { get; }
 
     /// <summary>Creates a customer principal owning one account.</summary>
     /// <param name="accountId">The account this customer owns, and the only one they may see.</param>
     public CustomerCurrentUser(Guid accountId)
     {
-        UserId = Guid.NewGuid();
-        AccountId = accountId;
+        Caller = new CustomerCaller(Guid.NewGuid(), "customer", accountId);
     }
 }

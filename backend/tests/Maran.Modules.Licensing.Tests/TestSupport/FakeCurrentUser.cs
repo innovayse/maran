@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Licensing.Tests.TestSupport;
@@ -6,25 +7,15 @@ namespace Maran.Modules.Licensing.Tests.TestSupport;
 public sealed class FakeCurrentUser : ICurrentUser
 {
     /// <inheritdoc />
-    public Guid UserId { get; }
-
-    /// <inheritdoc />
-    public string Username { get; }
-
-    /// <inheritdoc />
-    public Guid? AccountId { get; }
-
-    /// <inheritdoc />
-    public bool IsAdmin { get; }
+    public Caller Caller { get; }
 
     /// <summary>Creates a principal.</summary>
     /// <param name="isAdmin">Whether the principal is a server administrator.</param>
     /// <param name="username">The login name the audit journal records.</param>
     public FakeCurrentUser(bool isAdmin, string username = "tester")
     {
-        UserId = Guid.NewGuid();
-        Username = username;
-        AccountId = isAdmin ? null : Guid.NewGuid();
-        IsAdmin = isAdmin;
+        Caller = isAdmin
+            ? new AdministratorCaller(Guid.NewGuid(), username)
+            : new CustomerCaller(Guid.NewGuid(), username, Guid.NewGuid());
     }
 }

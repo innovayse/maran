@@ -6,6 +6,7 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
@@ -309,22 +310,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
     /// <summary>An <see cref="ICurrentUser"/> double for the console, where nobody is signed in.</summary>
     private sealed class NoPrincipalCurrentUser : ICurrentUser
     {
-        /// <summary>No user.</summary>
-        public Guid UserId { get; } = Guid.Empty;
-
-        /// <summary>No name.</summary>
-        public string Username { get; } = string.Empty;
-
-        /// <summary>No account.</summary>
-        public Guid? AccountId
-        {
-            get { return null; }
-        }
-
-        /// <summary>Not an administrator.</summary>
-        public bool IsAdmin
-        {
-            get { return false; }
-        }
+        /// <summary>Nobody.</summary>
+        public Caller Caller { get; } = AnonymousCaller.Instance;
     }
 }

@@ -4,6 +4,7 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -416,8 +417,9 @@ public sealed class CreateSiteCommandHandlerTests
         await world.Handler().HandleAsync(Command(account), CancellationToken.None);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(world.CurrentUser.UserId, entry.ActorUserId);
-        Assert.Equal(world.CurrentUser.Username, entry.ActorUsername);
+        var caller = Assert.IsAssignableFrom<PrincipalCaller>(world.CurrentUser.Caller);
+        Assert.Equal(caller.UserId, entry.ActorUserId);
+        Assert.Equal(caller.Username, entry.ActorUsername);
         Assert.NotEqual(string.Empty, entry.ActorUsername);
     }
 

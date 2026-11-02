@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Identity.Tests.TestSupport;
@@ -5,6 +6,15 @@ namespace Maran.Modules.Identity.Tests.TestSupport;
 /// <summary>An <see cref="ICurrentUser"/> double naming one signed-in administrator.</summary>
 public sealed class StubCurrentUser : ICurrentUser
 {
+    /// <summary>The administrator's id; named here because tests assert the audit actor against it.</summary>
+    public Guid UserId { get; }
+
+    /// <summary>The administrator's login name; named here because tests assert the audit actor against it.</summary>
+    public string Username { get; }
+
+    /// <inheritdoc />
+    public Caller Caller { get; }
+
     /// <summary>Speaks for a freshly invented administrator.</summary>
     public StubCurrentUser()
         : this(Guid.NewGuid(), "admin")
@@ -18,29 +28,6 @@ public sealed class StubCurrentUser : ICurrentUser
     {
         UserId = userId;
         Username = username;
-    }
-
-    /// <summary>The administrator this double speaks for.</summary>
-    public Guid UserId { get; }
-
-    /// <inheritdoc />
-    public string Username { get; }
-
-    /// <inheritdoc />
-    public Guid? AccountId
-    {
-        get
-        {
-            return null;
-        }
-    }
-
-    /// <inheritdoc />
-    public bool IsAdmin
-    {
-        get
-        {
-            return true;
-        }
+        Caller = new AdministratorCaller(userId, username);
     }
 }
