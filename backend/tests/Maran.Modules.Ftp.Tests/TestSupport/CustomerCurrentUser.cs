@@ -8,7 +8,7 @@ namespace Maran.Modules.Ftp.Tests.TestSupport;
 /// </summary>
 /// <remarks>
 /// It exists because the tenant query filter on <c>FtpUser</c> is only observable through a
-/// non-administrator principal: <see cref="TestCurrentUser"/> reports <c>IsAdmin</c>, and the filter
+/// non-administrator principal: <see cref="TestCurrentUser"/> is an <c>AdministratorCaller</c>, and the filter
 /// short-circuits for an administrator, so a cross-tenant test written with it would pass whatever
 /// the filter did. This is the principal that makes the filter measurable.
 /// </remarks>

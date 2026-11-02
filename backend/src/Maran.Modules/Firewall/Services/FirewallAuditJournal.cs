@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Firewall.Services;
 
@@ -65,9 +67,11 @@ public sealed class FirewallAuditJournal
         string userAgent,
         CancellationToken cancellationToken)
     {
+        var (actorId, actorName) = RequestActor();
+
         await WriteAsync(
-            _currentUser.UserId,
-            _currentUser.Username,
+            actorId,
+            actorName,
             action,
             subject,
             ipAddress,
@@ -89,9 +93,11 @@ public sealed class FirewallAuditJournal
         string userAgent,
         CancellationToken cancellationToken)
     {
+        var (actorId, actorName) = RequestActor();
+
         await WriteAsync(
-            _currentUser.UserId,
-            _currentUser.Username,
+            actorId,
+            actorName,
             action,
             subject,
             ipAddress,
@@ -117,6 +123,21 @@ public sealed class FirewallAuditJournal
         CancellationToken cancellationToken)
     {
         await WriteAsync(null, SystemActor, action, subject, subject, string.Empty, succeeded, cancellationToken);
+    }
+
+    /// <summary>
+    /// The actor a request-driven entry is recorded under: the signed-in login, or the empty id and
+    /// name for a request that arrived with nobody signed in.
+    /// </summary>
+    /// <returns>The login's id and name, or <see cref="Guid.Empty"/> and an empty name.</returns>
+    private (Guid UserId, string Username) RequestActor()
+    {
+        return _currentUser.Caller switch
+        {
+            PrincipalCaller principal => (principal.UserId, principal.Username),
+            AnonymousCaller => (Guid.Empty, string.Empty),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: a principal or nobody."),
+        };
     }
 
     /// <summary>Builds and stores one entry.</summary>

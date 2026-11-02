@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Maran.Modules.Ftp.Domain.Entities;
 using Maran.Modules.Ftp.Persistence.Configurations;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Ftp.Persistence;
 
@@ -72,6 +74,45 @@ public sealed class FtpDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// True when the caller is an administrator, who sees every account's logins. Read per context
+    /// instance by the tenant filter, which an expression tree cannot express as a type switch.
+    /// </summary>
+    private bool SeesEveryAccount
+    {
+        get
+        {
+            return _currentUser.Caller switch
+            {
+                AdministratorCaller => true,
+                AnonymousCaller => false,
+                CustomerCaller => false,
+                AccountlessCustomerCaller => false,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            };
+        }
+    }
+
+    /// <summary>
+    /// The one account a customer acts for, or null for an administrator, an anonymous caller and a
+    /// customer login with no account selected — none of whom own a row, so the filter shows them none
+    /// through this arm.
+    /// </summary>
+    private Guid? OwnAccountId
+    {
+        get
+        {
+            return _currentUser.Caller switch
+            {
+                CustomerCaller customer => customer.AccountId,
+                AdministratorCaller => null,
+                AnonymousCaller => null,
+                AccountlessCustomerCaller => null,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            };
+        }
+    }
+
     /// <summary>Applies the schema, both entity configurations, and the tenant query filter.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -84,7 +125,7 @@ public sealed class FtpDbContext : DbContext
         // remembering to filter. An administrator sees everything; a customer's context carries
         // their account id and the filter closes over it.
         modelBuilder.Entity<FtpUser>().HasQueryFilter(ftpUser =>
-            _currentUser.IsAdmin || ftpUser.AccountId == _currentUser.AccountId);
+            SeesEveryAccount || ftpUser.AccountId == OwnAccountId);
 
         base.OnModelCreating(modelBuilder);
     }
