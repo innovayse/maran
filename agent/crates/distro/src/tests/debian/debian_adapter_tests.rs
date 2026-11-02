@@ -111,7 +111,7 @@ fn the_debian_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 24] = [
+const EXPECTED_BINARIES: [(&str, &str); 25] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
@@ -140,7 +140,7 @@ const EXPECTED_BINARIES: [(&str, &str); 24] = [
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [String; 24] {
+fn actual_binaries() -> [String; 25] {
     [
         DebianAdapter.useradd_binary().to_string(),
         DebianAdapter.usermod_binary().to_string(),
