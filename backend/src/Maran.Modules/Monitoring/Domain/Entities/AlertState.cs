@@ -82,7 +82,7 @@ public sealed class AlertState
     /// Nothing reads it. It is dropped in a later release, once no release that reads the column can
     /// run against this schema (expand-then-contract, rules/architecture.md).
     /// </remarks>
-    private bool LegacyIsFiring { get; set; }
+    internal bool LegacyIsFiring { get; private set; }
 
     /// <summary>Starts watching a condition, in the healthy state.</summary>
     /// <param name="id">The row's identity.</param>
