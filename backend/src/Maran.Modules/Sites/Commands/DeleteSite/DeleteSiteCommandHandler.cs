@@ -58,7 +58,7 @@ public sealed class DeleteSiteCommandHandler
     /// <param name="command">Which site to remove.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or <c>SiteNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>
-    public async Task<Result<bool>> HandleAsync(DeleteSiteCommand command, CancellationToken cancellationToken)
+    public async Task<Result> HandleAsync(DeleteSiteCommand command, CancellationToken cancellationToken)
     {
         // The hostname claims are loaded with the site so that removing it frees the names it held
         // through the tracked graph, rather than relying on the database's cascade alone: a name
@@ -104,7 +104,7 @@ public sealed class DeleteSiteCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.SiteDeleted, domain, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <summary>
@@ -145,7 +145,7 @@ public sealed class DeleteSiteCommandHandler
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<bool>> FailAsync(
+    private async Task<Result> FailAsync(
         DeleteSiteCommand command,
         string subject,
         Error error,
@@ -154,6 +154,6 @@ public sealed class DeleteSiteCommandHandler
         await _journal.RecordFailureAsync(
             AuditActions.SiteDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Fail(error);
+        return Result.Fail(error);
     }
 }
