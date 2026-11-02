@@ -1,16 +1,33 @@
+using System.Security.Claims;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Host.Security;
 
 /// <summary>
-/// The authenticated principal, read from the current request's validated access token.
+/// The caller, read from the current request's validated access token.
 /// </summary>
 /// <remarks>
-/// Every answer degrades to the least privileged one when the claim is absent or unreadable: no
-/// user, no account, not an administrator. That is deliberate and carried over from the stub this
-/// replaced — code that starts checking permissions must deny by default, so the failure mode of a
-/// missing claim is a refusal rather than a silent grant.
+/// <para>
+/// <b>Three outcomes, and a refusal for everything else.</b> A request with no authenticated
+/// principal (or no request at all, as in background work) is an <see cref="AnonymousCaller"/>. An
+/// authenticated principal whose role claim is exactly <c>Admin</c> is an
+/// <see cref="AdministratorCaller"/>; exactly <c>Customer</c> with a readable account claim, a
+/// <see cref="CustomerCaller"/>. An authenticated principal that is none of these — an unknown or
+/// missing role, an unreadable user id, a customer with no readable account, a view-as marker with
+/// no readable operator — is NOT folded into one of the three: it raises
+/// <see cref="UnrecognisedPrincipalException"/>.
+/// </para>
+/// <para>
+/// <b>Why that refuses and does not degrade.</b> Degrading to anonymous would grant nothing, but it
+/// would also report a signed-in person as nobody and hide a broken token issuer behind "not signed
+/// in"; degrading to a customer would invent a tenant. The only token this class can see has
+/// already passed signature validation, so a principal outside the two roles is a defect to surface,
+/// and the request fails closed with a generic 500 that carries no claim value. Previously the same
+/// token answered "not an administrator, no account", which is the same denial; the difference is
+/// that it is now loud and that no part of the token is half-trusted.
+/// </para>
 /// </remarks>
 public sealed class HttpContextCurrentUser : ICurrentUser
 {
@@ -25,74 +42,69 @@ public sealed class HttpContextCurrentUser : ICurrentUser
     }
 
     /// <inheritdoc />
-    public Guid UserId
+    /// <exception cref="UnrecognisedPrincipalException">
+    /// The request is authenticated but its token is not an administrator's or a customer's.
+    /// </exception>
+    public Caller Caller
     {
         get
         {
-            return Guid.TryParse(Claim(PanelClaimTypes.UserId), out var id) ? id : Guid.Empty;
+            var principal = _httpContextAccessor.HttpContext?.User;
+            if (principal?.Identity?.IsAuthenticated != true)
+            {
+                return AnonymousCaller.Instance;
+            }
+
+            if (!Guid.TryParse(principal.FindFirst(PanelClaimTypes.UserId)?.Value, out var userId))
+            {
+                throw new UnrecognisedPrincipalException("The token carries no readable user id.");
+            }
+
+            var username = principal.FindFirst(PanelClaimTypes.Username)?.Value ?? string.Empty;
+            var viewedBy = ReadViewingOperator(principal);
+
+            // An exact, case-sensitive match against the two role names. Anything else — an older
+            // token, or one carrying a role this build has never heard of — is refused, not demoted.
+            var role = principal.FindFirst(PanelClaimTypes.Role)?.Value;
+            if (string.Equals(role, nameof(UserRole.Admin), StringComparison.Ordinal))
+            {
+                return new AdministratorCaller(userId, username, viewedBy);
+            }
+
+            if (!string.Equals(role, nameof(UserRole.Customer), StringComparison.Ordinal))
+            {
+                throw new UnrecognisedPrincipalException("The token carries no recognised role.");
+            }
+
+            if (!Guid.TryParse(principal.FindFirst(PanelClaimTypes.AccountId)?.Value, out var accountId))
+            {
+                throw new UnrecognisedPrincipalException("The customer token carries no readable account.");
+            }
+
+            return new CustomerCaller(userId, username, accountId, viewedBy);
         }
     }
 
-    /// <inheritdoc />
-    public string Username
+    /// <summary>Reads the operator viewing as this login, when the token is a view-as token.</summary>
+    /// <param name="principal">The validated principal of the request.</param>
+    /// <returns>The operator, or null for an own sign-in.</returns>
+    /// <exception cref="UnrecognisedPrincipalException">
+    /// The token carries a view-as marker but no readable operator. The bearer handler refuses such a
+    /// token before this runs (<see cref="ViewAsSessionValidation"/>); reading it as an own sign-in
+    /// here would credit the viewed login with what the operator did, so it is refused again.
+    /// </exception>
+    private static ViewingOperator? ReadViewingOperator(ClaimsPrincipal principal)
     {
-        get
+        if (ActorClaimReader.TryRead(principal, out var actor))
         {
-            return Claim(PanelClaimTypes.Username) ?? string.Empty;
+            return new ViewingOperator(actor.UserId, actor.Username);
         }
-    }
 
-    /// <inheritdoc />
-    public Guid? AccountId
-    {
-        get
+        if (ActorClaimReader.IsViewAs(principal))
         {
-            return Guid.TryParse(Claim(PanelClaimTypes.AccountId), out var id) ? id : null;
+            throw new UnrecognisedPrincipalException("The view-as token carries no readable operator.");
         }
-    }
 
-    /// <inheritdoc />
-    public bool IsAdmin
-    {
-        get
-        {
-            // An exact match against the one role name that grants everything. A claim carrying an
-            // unknown role — from an older token, or a forged one that still verified — is not an
-            // administrator, which is the answer that fails closed.
-            return string.Equals(Claim(PanelClaimTypes.Role), nameof(UserRole.Admin), StringComparison.Ordinal);
-        }
-    }
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// Read from the token's <c>act</c> claim. A view-as token whose actor is unreadable never gets
-    /// this far — the bearer handler refuses it (<see cref="ViewAsSessionValidation"/>) — so null
-    /// here means an own sign-in, not a damaged one.
-    /// </remarks>
-    public Guid? ActorUserId
-    {
-        get
-        {
-            var user = _httpContextAccessor.HttpContext?.User;
-            return user is not null && ActorClaimReader.TryRead(user, out var actor) ? actor.UserId : null;
-        }
-    }
-
-    /// <inheritdoc />
-    public string ActorUsername
-    {
-        get
-        {
-            var user = _httpContextAccessor.HttpContext?.User;
-            return user is not null && ActorClaimReader.TryRead(user, out var actor) ? actor.Username : string.Empty;
-        }
-    }
-
-    /// <summary>Reads one claim of the current request's principal.</summary>
-    /// <param name="type">The claim name, from <see cref="PanelClaimTypes"/>.</param>
-    /// <returns>The claim's value, or null outside a request and for an unauthenticated one.</returns>
-    private string? Claim(string type)
-    {
-        return _httpContextAccessor.HttpContext?.User.FindFirst(type)?.Value;
+        return null;
     }
 }
