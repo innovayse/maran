@@ -95,13 +95,13 @@ public sealed class CronRun
     }
 
     /// <summary>The legacy <c>ExitCode</c> column, kept in step with <see cref="EndExitCode"/> until a later release.</summary>
-    private int? LegacyExitCode { get; set; }
+    internal int? LegacyExitCode { get; private set; }
 
     /// <summary>The legacy <c>Limit</c> column, kept in step with <see cref="EndLimit"/> until a later release.</summary>
-    private CronRunLimit? LegacyLimit { get; set; }
+    internal CronRunLimit? LegacyLimit { get; private set; }
 
     /// <summary>The legacy <c>Outcome</c> column, kept in step with <see cref="Outcome"/> until a later release.</summary>
-    private CronRunOutcome LegacyOutcome { get; set; }
+    internal CronRunOutcome LegacyOutcome { get; private set; }
 
     /// <summary>Records one run.</summary>
     /// <param name="id">The row's identity.</param>
