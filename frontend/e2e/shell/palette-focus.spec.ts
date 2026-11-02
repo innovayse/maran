@@ -7,7 +7,7 @@ import type { PanelModule } from '../../src/types/module'
 // Issue #208: the jump-to palette opened with focus on its Close button, so typing did nothing,
 // and the app bar could hold two "Search or jump to…" buttons at once.
 
-/** A catalogue with a module whose name the query below picks out. */
+/** A catalogue whose firewall pages hold the one entry the query below picks out. */
 const MODULES: PanelModule[] = [
   { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
   { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
@@ -39,11 +39,11 @@ const typeAndExpectFiltered = async (page: Page): Promise<void> => {
   const field = dialog.getByRole('combobox', { name: 'Search the panel' })
   await expect(field).toBeFocused()
 
-  await page.keyboard.type('fire')
-  await expect(field).toHaveValue('fire')
+  await page.keyboard.type('never')
+  await expect(field).toHaveValue('never')
   const options = dialog.getByRole('option')
   await expect(options).toHaveCount(1)
-  await expect(options.first()).toHaveText(/Firewall/)
+  await expect(options.first()).toHaveText(/Never banned/)
 }
 
 for (const width of [1440, 390]) {

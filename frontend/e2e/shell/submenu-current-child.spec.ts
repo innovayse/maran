@@ -23,7 +23,7 @@ interface Case {
 const CASES: Case[] = [
   { section: 'Backups', child: 'Schedule', path: '/backups/schedule', siblings: ['Backup list', 'Destinations'] },
   { section: 'Backups', child: 'Destinations', path: '/backups/destinations', siblings: ['Backup list', 'Schedule'] },
-  { section: 'Sites', child: 'New site', path: '/sites/new', siblings: ['Site list', 'PHP versions'] },
+  { section: 'Sites and domains', child: 'PHP versions', path: '/settings/php', siblings: ['Site list'] },
   { section: 'Databases', child: 'Grant repair', path: '/databases/grant-repair', siblings: ['Database list'] },
   { section: 'Accounts', child: 'New account', path: '/accounts/new', siblings: ['Account list', 'Plans'] },
 ]

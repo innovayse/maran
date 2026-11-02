@@ -34,6 +34,7 @@ import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import type { RouteLocationRaw } from 'vue-router'
 import type { NavigationEntry } from '../../types/navigation'
 
 /**
@@ -41,7 +42,7 @@ import type { NavigationEntry } from '../../types/navigation'
  * are the entries' own (`system-status`, or the module name for a module-backed entry).
  */
 const PREFERRED: readonly { key: string; labelKey: string }[] = [
-  { key: 'system-status', labelKey: 'app.shell.tabs.home' },
+  { key: 'dashboard', labelKey: 'app.shell.tabs.home' },
   { key: 'accounts', labelKey: 'app.shell.tabs.accounts' },
   { key: 'sites', labelKey: 'app.shell.tabs.sites' },
   { key: 'databases', labelKey: 'app.shell.tabs.databases' },
@@ -54,6 +55,8 @@ const DESTINATIONS = 4
 interface Tab {
   /** The navigation entry this tab opens. */
   entry: NavigationEntry
+  /** Where the tab leads: the entry's destination, which a tab always has. */
+  target: RouteLocationRaw
   /** Already-translated label, short enough to stay whole at 390px. */
   label: string
 }
@@ -86,18 +89,26 @@ const tabs: ComputedRef<Tab[]> = computed(() => {
     const entry = props.entries.find((candidate) => {
       return candidate.key === preferred.key
     })
-    if (entry !== undefined) {
-      chosen.push({ entry, label: t(preferred.labelKey) })
+    if (entry !== undefined && entry.state.kind !== 'planned') {
+      chosen.push({ entry, target: entry.state.target, label: t(preferred.labelKey) })
       used.add(entry.key)
     }
   }
 
   for (const entry of props.entries) {
+    // A tab is a destination: an entry that leads nowhere yet is left to the drawer.
+    if (entry.state.kind === 'planned') {
+      continue
+    }
     if (chosen.length >= DESTINATIONS) {
       break
     }
     if (!used.has(entry.key)) {
-      chosen.push({ entry, label: entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey) })
+      chosen.push({
+        entry,
+        target: entry.state.target,
+        label: entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey),
+      })
     }
   }
 
@@ -121,7 +132,7 @@ const openNavigation = (): void => {
     <RouterLink
       v-for="tab in tabs"
       :key="tab.entry.key"
-      :to="tab.entry.target"
+      :to="tab.target"
       class="m-0.5 flex min-w-0 flex-col items-center justify-center gap-1 rounded-control px-0 text-center text-xs leading-tight font-semibold text-text-secondary transition-colors focus-visible:shadow-focus focus-visible:outline-none [&.router-link-active]:bg-accent-soft [&.router-link-active]:text-accent-text"
     >
       <UiIcon :name="tab.entry.icon" size="lg" />

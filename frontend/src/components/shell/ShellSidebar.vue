@@ -21,13 +21,14 @@
  * otherwise push the sign-out control off the bottom. `min-h-0` is what lets a flex child
  * scroll instead of growing past its parent.
  *
- * **Entries are grouped by a presentation map, not by the catalogue.** The catalogue reports no
- * grouping, so `utils/groupNavigation.ts` states which group each entry key is drawn under, and
- * puts a key it does not know into a trailing fallback group: a newly licensed module must
- * appear, never vanish because nobody extended a map. There is still exactly ONE navigation
- * landmark ("Main navigation"): each group is a list inside it, named by its visible label
- * through `aria-labelledby`, so a screen reader hears "Hosting, list, 5 items" without the page
- * gaining a landmark per group (specs find the landmark by name and would see several).
+ * **Entries are grouped as the navigation tree groups them** (`router/navigationTree.ts`, issue
+ * #311), with a trailing fallback group for a catalogue module the tree does not know. There is still
+ * exactly ONE navigation landmark ("Main navigation"): each group is a list inside it, named by its
+ * visible label through `aria-labelledby`, so the page gains no landmark per group.
+ *
+ * **A page not built yet is drawn disabled** (`UiNavPlanned`): greyed, leading nowhere, with a
+ * "coming soon" hint, so the menu shows the whole product. A live count (running tasks) is drawn
+ * as a badge beside its row.
  *
  * **Group labels wrap.** They are display text and the panel ships Armenian, whose
  * long words ("ՀԱՅՏԱՐԱՐՈՒԹՅՈՒՆՆԵՐ") have no break points: left alone they push the panel into a
@@ -73,6 +74,7 @@ import UiIcon from '../ui/UiIcon.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
 import UiNavLink from '../ui/UiNavLink.vue'
+import UiNavPlanned from '../ui/UiNavPlanned.vue'
 import UiNavSection from '../ui/UiNavSection.vue'
 import ShellUserBlock from './ShellUserBlock.vue'
 import { groupNavigation } from '../../utils/groupNavigation'
@@ -262,11 +264,7 @@ useRevealCurrentRow(scroller, (): readonly NavigationEntry[] => {
   <component
     :is="compact ? 'div' : 'aside'"
     class="flex min-h-0 flex-col"
-    :class="
-      compact
-        ? 'flex-1'
-        : 'w-54 flex-none rounded-panel border border-border-subtle bg-surface-1 p-2.5'
-    "
+    :class="compact ? 'flex-1' : 'w-54 flex-none rounded-panel border border-border-subtle bg-surface-1 p-2.5'"
   >
     <!-- The scroll container clips whatever leaves its padding box, and the active row's glow
          (`--glow`: 30px blur, 8px down, -8px spread) reaches about 22px out sideways and 30px
@@ -308,22 +306,27 @@ useRevealCurrentRow(scroller, (): readonly NavigationEntry[] => {
           </p>
           <ul class="flex flex-col gap-0.5" :aria-labelledby="`nav-group-${group.key}`">
             <UiNavItem v-for="entry in group.entries" :key="entry.key">
+              <UiNavPlanned v-if="entry.state.kind === 'planned'" :hint="t('app.nav.plannedHint')">
+                <UiIcon :name="entry.icon" size="md" />
+                <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
+              </UiNavPlanned>
+
               <UiNavLink
-                v-if="entry.children.length === 0"
-                :to="entry.target"
-                :locked="entry.locked"
+                v-else-if="entry.children.length === 0"
+                :to="entry.state.target"
+                :locked="entry.state.kind === 'locked'"
                 @click="navigate"
               >
                 <UiIcon :name="entry.icon" size="md" />
                 <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
-                <template v-if="entry.locked" #badge>
-                  <UiBadge>{{ t('app.nav.lockedBadge') }}</UiBadge>
+                <template v-if="entry.state.kind === 'locked' || entry.badge !== null" #badge>
+                  <UiBadge>{{ entry.state.kind === 'locked' ? t('app.nav.lockedBadge') : entry.badge }}</UiBadge>
                 </template>
               </UiNavLink>
 
               <template v-else>
                 <UiNavSection
-                  :to="entry.target"
+                  :to="entry.state.target"
                   :current="holdsCurrentRoute(entry)"
                   :open="isOpen(entry.key)"
                   :section="entry.key"
@@ -342,13 +345,21 @@ useRevealCurrentRow(scroller, (): readonly NavigationEntry[] => {
                   :aria-label="labelOf(entry)"
                 >
                   <UiNavItem v-for="child in entry.children" :key="child.key">
+                    <UiNavPlanned v-if="child.state.kind === 'planned'" :hint="t('app.nav.plannedHint')" nested>
+                      <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
+                    </UiNavPlanned>
                     <UiNavLink
-                      :to="child.target"
+                      v-else
+                      :to="child.state.target"
+                      :locked="child.state.kind === 'locked'"
                       nested
                       :data-nav-parent="entry.key"
                       @click="navigate"
                     >
                       <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
+                      <template v-if="child.state.kind === 'locked' || child.badge !== null" #badge>
+                        <UiBadge>{{ child.state.kind === 'locked' ? t('app.nav.lockedBadge') : child.badge }}</UiBadge>
+                      </template>
                     </UiNavLink>
                   </UiNavItem>
                 </ul>

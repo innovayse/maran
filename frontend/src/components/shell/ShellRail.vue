@@ -33,6 +33,7 @@ import UiIcon from '../ui/UiIcon.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
 import UiNavLink from '../ui/UiNavLink.vue'
+import UiNavPlanned from '../ui/UiNavPlanned.vue'
 import { useCurrentSection } from '../../composables/useCurrentSection'
 import type { NavigationEntry } from '../../types/navigation'
 
@@ -164,9 +165,7 @@ onBeforeUnmount(cancelClose)
 </script>
 
 <template>
-  <aside
-    class="flex w-14 flex-none flex-col gap-2.5 rounded-panel border border-border-subtle bg-surface-1 py-2.5"
-  >
+  <aside class="flex w-14 flex-none flex-col gap-2.5 rounded-panel border border-border-subtle bg-surface-1 py-2.5">
     <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2.5">
       <UiNav :label="t('app.nav.ariaLabel')">
         <UiNavItem v-for="entry in entries" :key="entry.key">
@@ -181,16 +180,21 @@ onBeforeUnmount(cancelClose)
           >
             <!-- A section is lit on any of its children's pages, by the sidebar's own rule; a
                  single page is left to the router's match. -->
+            <UiNavPlanned v-if="entry.state.kind === 'planned'" :hint="t('app.nav.plannedHint')" compact>
+              <UiIcon :name="entry.icon" size="md" />
+              <span class="sr-only">{{ labelOf(entry) }}</span>
+            </UiNavPlanned>
             <UiNavLink
-              :to="entry.target"
-              :locked="entry.locked"
+              v-else
+              :to="entry.state.target"
+              :locked="entry.state.kind === 'locked'"
               :active="entry.children.length > 0 ? holdsCurrentRoute(entry) : undefined"
               compact
             >
               <UiIcon :name="entry.icon" size="md" />
               <span class="sr-only">
                 {{ labelOf(entry) }}
-                <template v-if="entry.locked">{{ t('app.nav.lockedBadge') }}</template>
+                <template v-if="entry.state.kind === 'locked'">{{ t('app.nav.lockedBadge') }}</template>
               </span>
             </UiNavLink>
 
@@ -203,13 +207,12 @@ onBeforeUnmount(cancelClose)
               <p class="px-2.5 py-1 text-sm font-semibold text-text-primary">
                 {{ labelOf(entry) }}
               </p>
-              <ul
-                v-if="entry.children.length > 0"
-                class="flex flex-col gap-0.5"
-                :aria-label="labelOf(entry)"
-              >
+              <ul v-if="entry.children.length > 0" class="flex flex-col gap-0.5" :aria-label="labelOf(entry)">
                 <UiNavItem v-for="child in entry.children" :key="child.key">
-                  <UiNavLink :to="child.target" nested>
+                  <UiNavPlanned v-if="child.state.kind === 'planned'" :hint="t('app.nav.plannedHint')" nested>
+                    <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
+                  </UiNavPlanned>
+                  <UiNavLink v-else :to="child.state.target" :locked="child.state.kind === 'locked'" nested>
                     <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
                   </UiNavLink>
                 </UiNavItem>

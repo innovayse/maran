@@ -25,8 +25,9 @@
 // not that any click leads there.
 //
 // The property is static: a route name is reachable when at least one link source targets it —
-// a `:to="{ name: '…' }"` in a component, a shell-owned navigation entry (`shellEntryRoutes.ts`), a module's
-// submenu child (`moduleNavigationChildren.ts`), or a module landing route (which the sidebar turns into an entry for every module the panel reports). Pages
+// a `:to="{ name: '…' }"` in a component, a built page of the navigation tree (`navigationTree.ts`,
+// issue #311), or a module landing route (which the sidebar turns into an entry for a module the tree
+// does not know). Pages
 // deliberately outside the shell's links — the unauthenticated screens the auth guard steers
 // visitors to, the catch-all, the screens the account menu opens with a programmatic push — are
 // declared in DELIBERATELY_UNLINKED below, each with the reason, and a declaration that stops
@@ -58,20 +59,17 @@ const VUE_IMPORT = /import\s+(\w+)\s+from\s+'([^']+\.vue)'/g
  */
 const ROUTE_COMPONENT = /\bcomponent:\s*(\w+)\b/g
 
-/** The composable that builds the sidebar's entries, which names the upgrade route a locked one leads to. */
-const NAVIGATION_FILE = join(FRONTEND_ROOT, 'src', 'composables', 'useNavigation.ts')
+/** The function that builds the sidebar's entries, which names the upgrade route a locked one leads to. */
+const NAVIGATION_FILE = join(FRONTEND_ROOT, 'src', 'utils', 'buildNavigation.ts')
 
-/** Where the shell's own navigation entries lead — the entries no module reports (issue #209). */
-const SHELL_ENTRY_ROUTES_FILE = join(FRONTEND_ROOT, 'src', 'router', 'shellEntryRoutes.ts')
+/** The navigation tree: every menu item, and the route of each built page (issue #311). */
+const NAVIGATION_TREE_FILE = join(FRONTEND_ROOT, 'src', 'router', 'navigationTree.ts')
 
 /** The module-to-route map the sidebar links every reported module through — the other one. */
 const LANDING_ROUTES_FILE = join(FRONTEND_ROOT, 'src', 'router', 'moduleLandingRoute.ts')
 
-/** The module-to-submenu map the sidebar links a module's child pages through. */
-const NAVIGATION_CHILDREN_FILE = join(FRONTEND_ROOT, 'src', 'router', 'moduleNavigationChildren.ts')
-
-/** One `route: 'route-name'` field of a submenu child in that map. */
-const CHILD_ROUTE_VALUE = /\broute:\s*'([\w-]+)'/g
+/** One built page's route in the tree: `routed('route-name')`. A planned page has no route. */
+const TREE_ROUTE_VALUE = /\brouted\('([\w-]+)'\)/g
 
 /** A `name: '…'` route name in a route record. The router names every route, so this is the census. */
 const ROUTE_NAME = /\bname:\s*'([\w-]+)'/g
@@ -84,9 +82,6 @@ const NAVIGATION_TARGET = /\bname:\s*([A-Z][A-Z_0-9]*)\b/g
 
 /** A `const IDENT = '…'` route-name constant in the navigation composable. */
 const NAVIGATION_CONST = /\bconst\s+([A-Z][A-Z_0-9]*)\s*=\s*'([\w-]+)'/g
-
-/** One `'entry-key': 'route-name',` arm of the shell entry map. */
-const SHELL_ENTRY_ROUTE_VALUE = /^\s*'[\w-]+':\s*'([\w-]+)',?$/gm
 
 /** One `module: 'route-name',` arm of the landing-route map. */
 const LANDING_ROUTE_VALUE = /^\s*\w+:\s*'([\w-]+)',?$/gm
@@ -105,7 +100,6 @@ const DELIBERATELY_UNLINKED = new Map([
   ['two-factor-setup', 'the auth guard steers an obliged administrator here; the router documents that nothing links it'],
   ['not-found', 'the catch-all: a page nothing should ever link to'],
   ['not-available', 'the role and module guards redirect a customer here; a page nothing should link to'],
-  ['profile', 'opened by the account menu (ShellUserBlock), whose dropdown items push programmatically'],
 ])
 
 /**
@@ -145,11 +139,10 @@ const vueFiles = (directory) => {
 }
 
 /**
- * Collects every route name some link in the shell targets, from the three places a link is born:
- * `:to="{ name: '…' }"` in components, the navigation composable's consts (the upgrade route), the
- * shell's own navigation entries (`shellEntryRoutes.ts`),
- * the module landing-route map the sidebar links every reported module through, and the submenu
- * children under a module's entry.
+ * Collects every route name some link in the shell targets, from the places a link is born:
+ * `:to="{ name: '…' }"` in components, the navigation builder's consts (the upgrade route), the
+ * built pages of the navigation tree, and the module landing-route map the sidebar links a module
+ * the tree does not know through.
  * @param {string[]} problems The shared problem list; each source's vacuity guard reports into it.
  * @returns {Set<string>} The route names at least one link targets.
  */
@@ -171,7 +164,7 @@ const collectLinkTargets = (problems) => {
     problems.push('src/**/*.vue: no `:to="{ name: … }"` link found — the link scan measured nothing')
   }
 
-  // Source 2: the navigation composable's own entries, via its route-name consts.
+  // Source 2: the navigation builder's own entries, via its route-name consts.
   const navigation = readFileSync(NAVIGATION_FILE, 'utf8')
   const constants = new Map()
   for (const match of navigation.matchAll(NAVIGATION_CONST)) {
@@ -187,22 +180,20 @@ const collectLinkTargets = (problems) => {
   }
   if (navigationTargets === 0) {
     problems.push(
-      'src/composables/useNavigation.ts: no `name: SOME_ROUTE` entry resolved through its consts — ' +
+      'src/utils/buildNavigation.ts: no `name: SOME_ROUTE` entry resolved through its consts — ' +
         'the navigation scan measured nothing',
     )
   }
 
-  // Source 2b: the shell's own navigation entries, which no module reports.
-  const shellEntries = readFileSync(SHELL_ENTRY_ROUTES_FILE, 'utf8')
-  let shellTargets = 0
-  for (const match of shellEntries.matchAll(SHELL_ENTRY_ROUTE_VALUE)) {
+  // Source 2b: every built page of the navigation tree, whichever role it is offered to.
+  const tree = readFileSync(NAVIGATION_TREE_FILE, 'utf8')
+  let treeTargets = 0
+  for (const match of tree.matchAll(TREE_ROUTE_VALUE)) {
     targets.add(match[1])
-    shellTargets++
+    treeTargets++
   }
-  if (shellTargets === 0) {
-    problems.push(
-      "src/router/shellEntryRoutes.ts: no `'key': 'route'` arm parsed — the shell-entry scan measured nothing",
-    )
+  if (treeTargets === 0) {
+    problems.push("src/router/navigationTree.ts: no `routed('…')` page parsed — the tree scan measured nothing")
   }
 
   // Source 3: the landing route the sidebar links every reported module through.
@@ -215,19 +206,6 @@ const collectLinkTargets = (problems) => {
   if (landingTargets === 0) {
     problems.push(
       'src/router/moduleLandingRoute.ts: no landing route parsed — the landing-route scan measured nothing',
-    )
-  }
-
-  // Source 4: the submenu children the sidebar renders under a module's entry.
-  const children = readFileSync(NAVIGATION_CHILDREN_FILE, 'utf8')
-  let childTargets = 0
-  for (const match of children.matchAll(CHILD_ROUTE_VALUE)) {
-    targets.add(match[1])
-    childTargets++
-  }
-  if (childTargets === 0) {
-    problems.push(
-      'src/router/moduleNavigationChildren.ts: no `route: …` child parsed — the submenu scan measured nothing',
     )
   }
 

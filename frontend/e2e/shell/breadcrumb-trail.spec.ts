@@ -85,13 +85,13 @@ interface SubmenuCase {
 }
 
 const SUBMENU_CASES: SubmenuCase[] = [
-  { section: 'Backups', child: 'Schedule', expected: 'Security / Backups / Schedule' },
-  { section: 'Backups', child: 'Destinations', expected: 'Security / Backups / Destinations' },
-  { section: 'Sites', child: 'New site', expected: 'Hosting / Sites / New site' },
+  { section: 'Backups', child: 'Schedule', expected: 'Hosting / Backups / Schedule' },
+  { section: 'Backups', child: 'Destinations', expected: 'Hosting / Backups / Destinations' },
+  { section: 'Accounts', child: 'Plans', expected: 'Hosting / Accounts / Plans' },
   { section: 'Databases', child: 'Grant repair', expected: 'Hosting / Databases / Grant repair' },
   { section: 'Accounts', child: 'New account', expected: 'Hosting / Accounts / New account' },
-  { section: 'Firewall', child: 'Bans', expected: 'Security / Firewall / Bans' },
-  { section: 'Firewall', child: 'Never banned', expected: 'Security / Firewall / Never banned' },
+  { section: 'Security', child: 'Bans', expected: 'Infrastructure / Security / Bans' },
+  { section: 'Security', child: 'Never banned', expected: 'Infrastructure / Security / Never banned' },
 ]
 
 for (const { section, child, expected } of SUBMENU_CASES) {
@@ -109,14 +109,14 @@ test('a site ends the trail on its domain, with a placeholder while it loads', a
   await stubSiteDetail(page, SITE_DETAIL)
   await delayRoute(page, `**/api/v1/sites/${SITE.id}`, 1500)
 
-  await mainNavigation(page).getByRole('link', { name: 'Sites', exact: true }).click()
+  await mainNavigation(page).getByRole('link', { name: 'Sites and domains', exact: true }).click()
   await page.getByRole('main').getByRole('link', { name: SITE.domain }).click()
 
   // While the site is on its way the last crumb is a placeholder, and the id never shows.
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[data-ui="crumb-loading"] [data-skeleton]')).toBeVisible()
   expect(await trail(page)).not.toContain(SITE.id)
 
-  await expectTrail(page, `Hosting / Sites / ${SITE.domain}`)
+  await expectTrail(page, `Hosting / Sites and domains / ${SITE.domain}`)
 })
 
 test('an account ends the trail on its name', async ({ page }) => {
@@ -145,16 +145,19 @@ test('settings screens are named by their titles, never by a URL segment (#72)',
   await openFullShell(page)
   const nav = mainNavigation(page)
 
+  await openSection(page, 'Monitoring')
   await nav.getByRole('link', { name: 'Audit journal', exact: true }).click()
-  await expectTrail(page, 'System / Audit journal')
+  await expectTrail(page, 'Infrastructure / Monitoring / Audit journal')
 
+  await openSection(page, 'Security')
   await nav.getByRole('link', { name: 'Security policy', exact: true }).click()
-  await expectTrail(page, 'System / Security policy')
+  await expectTrail(page, 'Infrastructure / Security / Security policy')
 
-  await nav.getByRole('link', { name: 'Signed-in devices', exact: true }).click()
-  await expectTrail(page, 'System / Signed-in devices')
+  await openSection(page, 'Settings')
+  await nav.getByRole('link', { name: 'Outgoing mail', exact: true }).click()
+  await expectTrail(page, 'System / Settings / Outgoing mail')
 
-  await openSection(page, 'Sites')
+  await openSection(page, 'Sites and domains')
   await nav.getByRole('link', { name: 'PHP versions', exact: true }).click()
-  await expectTrail(page, 'Hosting / Sites / PHP versions')
+  await expectTrail(page, 'Hosting / Sites and domains / PHP versions')
 })

@@ -26,6 +26,12 @@ declare module 'node:fs' {
    * @returns The file's contents.
    */
   export const readFileSync: (path: string, encoding: 'utf8') => string
+  /**
+   * Lists the entries of a directory synchronously.
+   * @param path Absolute path to the directory.
+   * @returns The entries' names.
+   */
+  export const readdirSync: (path: string) => string[]
 }
 
 declare module 'node:url' {
