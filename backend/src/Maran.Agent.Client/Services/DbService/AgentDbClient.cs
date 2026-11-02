@@ -76,7 +76,7 @@ public sealed class AgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DropAsync(
+    public async Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -92,15 +92,15 @@ public sealed class AgentDbClient : IAgentDbClient
 
         return response.ResultCase switch
         {
-            DropDatabaseResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            DropDatabaseResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            DropDatabaseResponse.ResultOneofCase.Ok => Result.Ok(),
+            DropDatabaseResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DropAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetPasswordAsync(
+    public async Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,
@@ -119,10 +119,10 @@ public sealed class AgentDbClient : IAgentDbClient
 
         return response.ResultCase switch
         {
-            SetDatabasePasswordResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetDatabasePasswordResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetDatabasePasswordResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetDatabasePasswordResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetPasswordAsync), password)),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 

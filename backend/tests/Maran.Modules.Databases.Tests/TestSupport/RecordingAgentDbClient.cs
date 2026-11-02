@@ -32,10 +32,10 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     public Result<CreatedDatabaseDto>? CreateResult { get; set; }
 
     /// <summary>What <see cref="DropAsync"/> answers; success by default.</summary>
-    public Result<bool>? DropResult { get; set; }
+    public Result? DropResult { get; set; }
 
     /// <summary>What <see cref="SetPasswordAsync"/> answers; success by default.</summary>
-    public Result<bool>? SetPasswordResult { get; set; }
+    public Result? SetPasswordResult { get; set; }
 
     /// <summary>
     /// Every grant-repair pass this client was asked for, in order, each recorded as its
@@ -73,7 +73,7 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DropAsync(
+    public Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -81,11 +81,11 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     {
         Drops.Add(new AgentDropCall(accountUsername, databaseName, dbUsername));
 
-        return Task.FromResult(DropResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(DropResult ?? Result.Ok());
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,
@@ -93,7 +93,7 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     {
         PasswordChanges.Add(new AgentSetPasswordCall(accountUsername, dbUsername, password));
 
-        return Task.FromResult(SetPasswordResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(SetPasswordResult ?? Result.Ok());
     }
 
     /// <inheritdoc/>

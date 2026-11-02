@@ -57,7 +57,7 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> DropAsync(
+    public async Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -69,11 +69,11 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetPasswordAsync(
+    public async Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,
@@ -85,7 +85,7 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     /// <inheritdoc/>

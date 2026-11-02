@@ -146,7 +146,6 @@ public sealed class AgentDbClientTests
             .DropAsync("alice", "shop", "shopuser", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
     }
 
     /// <summary>Drop error payload maps to a failed result with the agent code.</summary>
@@ -430,7 +429,7 @@ public sealed class AgentDbClientTests
     /// <param name="stub">The transport stub to drive.</param>
     /// <param name="logger">The logger the client writes the agent's text to.</param>
     /// <returns>What the client returned.</returns>
-    private static async Task<SharedKernel.Results.Result<bool>> SetPasswordAsync(
+    private static async Task<SharedKernel.Results.Result> SetPasswordAsync(
         StubDbService stub,
         Microsoft.Extensions.Logging.ILogger<AgentDbClient> logger)
     {

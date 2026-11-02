@@ -55,7 +55,7 @@ public sealed class DropDatabaseCommandHandlerTests
         // Agent first, row second. A row removed while the database still exists is a customer's
         // data nobody in the panel can see and nobody can now remove.
         var world = await WorldAsync();
-        world.Agent.DropResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.DropResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.DropAsync(world.OwnDatabaseId);
 
@@ -97,7 +97,7 @@ public sealed class DropDatabaseCommandHandlerTests
     public async Task A_drop_the_agent_refuses_is_journalled_with_the_full_database_name()
     {
         var world = await WorldAsync();
-        world.Agent.DropResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+        world.Agent.DropResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         await world.DropAsync(world.OwnDatabaseId);
 
@@ -176,7 +176,7 @@ public sealed class DropDatabaseCommandHandlerTests
 
         /// <summary>Runs the handler with the usual audit context.</summary>
         /// <param name="databaseId">Which database to drop.</param>
-        public async Task<Result<bool>> DropAsync(Guid databaseId)
+        public async Task<Result> DropAsync(Guid databaseId)
         {
             return await Handler.HandleAsync(
                 new DropDatabaseCommand(databaseId, "203.0.113.7", "tests"), CancellationToken.None);

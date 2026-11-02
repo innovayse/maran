@@ -147,7 +147,7 @@ export const stubCreateDatabaseProblem = async (page: Page, detail: string): Pro
 
 /**
  * Fulfils `POST /api/v1/databases/{id}/password` with a new password, and `DELETE
- * /api/v1/databases/{id}` with a success.
+ * /api/v1/databases/{id}` with an empty 204.
  *
  * Installed AFTER {@link stubDatabases} in a spec: Playwright gives priority to the most recently
  * registered route, and these two patterns are the narrower ones.
@@ -157,7 +157,7 @@ export const stubCreateDatabaseProblem = async (page: Page, detail: string): Pro
  */
 export const stubDatabaseActions = async (page: Page, dbUserName: string): Promise<void> => {
   await page.route(DATABASE_PATTERN, async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 204 })
   })
 
   await page.route(DATABASE_PASSWORD_PATTERN, async (route) => {

@@ -53,7 +53,7 @@ public interface IAgentDbClient
     /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure — <c>AgentNotFound</c> when there was no such database.</returns>
-    Task<Result<bool>> DropAsync(
+    Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -78,7 +78,7 @@ public interface IAgentDbClient
     ///
     /// It still returns no password: the caller minted the value it sent and already holds it.
     /// </remarks>
-    Task<Result<bool>> SetPasswordAsync(
+    Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,

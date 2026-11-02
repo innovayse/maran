@@ -46,7 +46,7 @@ public sealed class StubAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> DropAsync(
+    public Task<Result> DropAsync(
         string accountUsername,
         string databaseName,
         string dbUsername,
@@ -56,7 +56,7 @@ public sealed class StubAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetPasswordAsync(
+    public Task<Result> SetPasswordAsync(
         string accountUsername,
         string dbUsername,
         SensitiveString password,

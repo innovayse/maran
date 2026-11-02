@@ -93,7 +93,7 @@ public sealed class ResetDatabasePasswordCommandHandlerTests
     public async Task An_agent_that_refuses_leaves_the_old_password_live_and_is_reported_as_it_answered()
     {
         var world = await WorldAsync();
-        world.Agent.SetPasswordResult = Result<bool>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
+        world.Agent.SetPasswordResult = Result.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
 
         var result = await world.ResetAsync(world.OwnDatabaseId);
 
