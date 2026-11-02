@@ -154,19 +154,38 @@ export interface NavigationBadge {
   count: number
 }
 
+/** Whether the licence lets the caller into an installed module. */
+export type NavigationModuleAccess = 'enabled' | 'locked'
+
+/**
+ * What the panel reported about the plan features of the signed-in caller. The unreported arm
+ * carries no set at all, so nothing can mistake "not reported" for "a plan with no features".
+ */
+export type NavigationPlanFeatures =
+  | {
+      /** The panel does not report them (an administrator, a read still on its way or failed). */
+      state: 'unreported'
+    }
+  | {
+      /** The panel reported the features of the caller's plan. */
+      state: 'reported'
+      /** The single feature ids the plan includes. */
+      features: ReadonlySet<AccountFeatureName>
+    }
+
 /** What the shell knows about the caller and the panel when it builds the navigation. */
 export interface NavigationContext {
   /** The signed-in caller's role. */
   role: NavigationRole
   /** The module catalogue as the panel reported it, in its order. */
   catalogue: readonly PanelModule[]
-  /** Module machine name to whether the licence enables it; a module absent here is not installed. */
-  modules: ReadonlyMap<string, boolean>
+  /** Module machine name to how the licence stands; a module absent here is not installed. */
+  modules: ReadonlyMap<string, NavigationModuleAccess>
   /**
-   * The caller's plan features, or null while the panel does not report them; null offers every
-   * item, since hiding is advice and errs permissive.
+   * The caller's plan features. While the panel does not report them every item is offered, since
+   * hiding is advice and errs permissive.
    */
-  planFeatures: ReadonlySet<AccountFeatureName> | null
+  planFeatures: NavigationPlanFeatures
   /**
    * The live counts the shell holds, per badge kind. A partial map and not a total one: a kind is
    * present exactly when the panel answered with a real count, and absent when it was not asked,

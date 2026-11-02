@@ -7,8 +7,7 @@ import { useNavigationBadgesStore } from '../stores/navigationBadges'
 import { useTasksStore } from '../stores/tasks'
 import { buildNavigation } from '../utils/buildNavigation'
 import { useNavigationRole } from './useNavigationRole'
-import type { AccountFeatureName } from '../types/accountFeature'
-import type { NavigationEntry } from '../types/navigation'
+import type { NavigationEntry, NavigationModuleAccess, NavigationPlanFeatures } from '../types/navigation'
 
 /**
  * The shell's navigation for the signed-in caller, built from the navigation tree
@@ -40,16 +39,16 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
   )
 
   /**
-   * The features of the signed-in customer's plan, or null when they are not known: an
+   * The features of the signed-in customer's plan, or unreported when they are not known: an
    * administrator, a read still on its way or failed, and an account read left over from somebody
    * who signed in before (its id is not this caller's).
    */
-  const planFeatures = computed<ReadonlySet<AccountFeatureName> | null>(() => {
+  const planFeatures = computed<NavigationPlanFeatures>(() => {
     const mine = accountsStore.mine
     if (mine === null || mine.id !== authStore.user?.accountId || mine.plan.features === undefined) {
-      return null
+      return { state: 'unreported' }
     }
-    return new Set(mine.plan.features)
+    return { state: 'reported', features: new Set(mine.plan.features) }
   })
 
   return computed<NavigationEntry[]>(() => {
@@ -57,8 +56,8 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       role: role.value,
       catalogue: modulesStore.modules,
       modules: new Map(
-        modulesStore.modules.map((module): [string, boolean] => {
-          return [module.name, module.isEnabled]
+        modulesStore.modules.map((module): [string, NavigationModuleAccess] => {
+          return [module.name, module.isEnabled ? 'enabled' : 'locked']
         }),
       ),
       planFeatures: planFeatures.value,

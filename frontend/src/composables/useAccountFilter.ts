@@ -11,7 +11,7 @@ export interface AccountFilter {
   /** The filter to hand the store: `{ accountId }` when the URL names an account, `{}` otherwise. */
   filter: ComputedRef<AccountListFilter>
   /** Whether the URL narrows the list to one account. */
-  isActive: ComputedRef<boolean>
+  isNarrowed: ComputedRef<boolean>
   /**
    * The name of the account the list is narrowed to, read by id from the panel; the raw id while
    * that read is in flight or if it failed. Empty when the list is not narrowed.
@@ -63,7 +63,7 @@ export const useAccountFilter = (): AccountFilter => {
     return !isCustomer.value && typeof account === 'string' && account.length > 0 ? { accountId: account } : {}
   })
 
-  const isActive = computed((): boolean => {
+  const isNarrowed = computed((): boolean => {
     return filter.value.accountId !== undefined
   })
 
@@ -76,7 +76,7 @@ export const useAccountFilter = (): AccountFilter => {
   })
 
   const text = computed((): string => {
-    return isActive.value ? t('common.accountFilter.only', { account: name.value }) : ''
+    return isNarrowed.value ? t('common.accountFilter.only', { account: name.value }) : ''
   })
 
   const spec: ListFilterSpec = {
@@ -113,5 +113,5 @@ export const useAccountFilter = (): AccountFilter => {
     { immediate: true },
   )
 
-  return { filter, isActive, name, text, clear, spec }
+  return { filter, isNarrowed, name, text, clear, spec }
 }

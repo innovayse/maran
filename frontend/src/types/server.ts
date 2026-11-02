@@ -4,17 +4,13 @@
  *
  * The panel manages one server today, the machine it runs on. Fleet mode (issue #180) adds servers
  * reached over the network; the list shape is already a list so that arrival changes data, not
- * contract.
+ * contract. How a server is reached (the wire's `kind`) joins the shape when a second way exists,
+ * with its members; a one-member union before then would say nothing.
  */
-
-/** How the panel reaches a server, as the panel's JSON spells `ServerKind` (camelCase). */
-export type ServerKind = "local";
 
 /** One server the panel manages, as `GET /api/v1/servers` reports it (`ServerDto`). */
 export interface Server {
-  /** How the panel reaches the server. */
-  kind: ServerKind;
-  /** What that kind is called, already in the reader's language. */
+  /** How the panel reaches the server, named in the reader's language (the wire's `kind` is not read here). */
   kindDisplayName: string;
   /** The host name the panel is configured to be reached by; `null` when none is configured. */
   hostName: string | null;

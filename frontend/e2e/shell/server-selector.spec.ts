@@ -6,7 +6,7 @@ import { stubServers } from "../fixtures/stub-servers-route";
 import type { Server } from "../../src/types/server";
 
 /** The one server the panel manages today: the machine it runs on, named by its configured host. */
-const LOCAL_SERVER: Server = { kind: "local", kindDisplayName: "This server (local)", hostName: "panel.example.com" };
+const LOCAL_SERVER: Server = { kindDisplayName: "This server (local)", hostName: "panel.example.com" };
 
 /**
  * Signs a person in with the given role and answers the shell's own requests.
@@ -27,7 +27,7 @@ const stubPanel = async (page: Page, role: "admin" | "customer", servers: Server
  * A second server, as fleet mode (issue #180) will report one. The panel cannot report it today; the
  * stub stands in so the display that fleet mode needs is exercised before the fleet exists.
  */
-const SECOND_SERVER: Server = { kind: "local", kindDisplayName: "This server (local)", hostName: "node-2.example.com" };
+const SECOND_SERVER: Server = { kindDisplayName: "This server (local)", hostName: "node-2.example.com" };
 
 test("with one server there is nothing to select, so no selector is drawn", async ({ page }) => {
   const requested = await stubPanel(page, "admin", [LOCAL_SERVER]);

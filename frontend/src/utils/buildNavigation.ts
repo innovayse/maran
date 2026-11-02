@@ -43,7 +43,9 @@ const stateOf = (page: NavigationPageSpec, context: NavigationContext): Navigati
   // Advice, never a gate: the endpoints refuse a caller whatever the menu offers. An unreported
   // plan-feature list offers the page rather than hiding it.
   const featureOffered =
-    page.planFeature === null || context.planFeatures === null || context.planFeatures.has(page.planFeature)
+    page.planFeature === null ||
+    context.planFeatures.state === 'unreported' ||
+    context.planFeatures.features.has(page.planFeature)
   if (!page.roles.includes(context.role) || !featureOffered) {
     return null
   }
@@ -51,12 +53,12 @@ const stateOf = (page: NavigationPageSpec, context: NavigationContext): Navigati
     return { kind: 'planned', issue: page.availability.issue }
   }
   if (page.module !== null) {
-    const enabled = context.modules.get(page.module)
+    const access = context.modules.get(page.module)
     // A module the catalogue does not report is not installed: nothing of it is offered.
-    if (enabled === undefined) {
+    if (access === undefined) {
       return null
     }
-    if (!enabled) {
+    if (access === 'locked') {
       return { kind: 'locked', target: upgradeOf(page.module) }
     }
   }
