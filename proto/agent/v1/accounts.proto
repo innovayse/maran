@@ -553,7 +553,36 @@ message SiteSuspensionFact {
   // an unresolvable document root, a vhost whose `server_name` line it cannot
   // read. Unobservable is reported as not stubbed, which refuses a suspension
   // rather than certifying one.
+  //
+  // DEPRECATED since revision 13 — read `serving`, which tells "not stubbed"
+  // from "could not be observed". Still written, true exactly for
+  // SITE_SERVING_STUB, until a later release removes it.
   bool serving_stub = 2;
+
+  // What the vhost on disk was observed to be serving, without the collapse
+  // `serving_stub` carries. See SiteServing.
+  SiteServing serving = 3;
+}
+
+// What one vhost was observed to be serving. Added in contract revision 13
+// (2026-11-02): `SiteSuspensionFact.serving_stub` reported a vhost the agent
+// could not compare as "not stubbed", the same `false` as a site that is
+// really serving its own content.
+enum SiteServing {
+  // Never sent by an agent that knows this enum; means "this agent predates
+  // it". A caller falls back to `serving_stub`.
+  SITE_SERVING_UNSPECIFIED = 0;
+  // The vhost on disk is BYTE FOR BYTE the suspended render for this site.
+  SITE_SERVING_STUB = 1;
+  // The comparison text was produced and the vhost on disk differs from it:
+  // the site serves something other than the suspension page.
+  SITE_SERVING_NOT_STUB = 2;
+  // The agent could not produce the text to compare against — an
+  // unresolvable document root, a vhost whose `server_name` line it cannot
+  // read, a file name that is not a domain. Nothing is known about what the
+  // site serves; a suspension attestation MUST NOT certify it, which is the
+  // refusing direction `serving_stub = false` already had.
+  SITE_SERVING_UNOBSERVABLE = 3;
 }
 
 // Added 2026-09-19 (issue #28 item E).

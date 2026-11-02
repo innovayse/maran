@@ -8,6 +8,7 @@ use maran_agent_core::validation::web::ban_address::BanAddress;
 use maran_ops::firewall::ActiveBan;
 
 use super::listed_ban;
+use crate::proto::BanEntry;
 
 /// One live ban with `expires_in`.
 fn ban(expires_in: Option<Duration>) -> ActiveBan {
@@ -47,13 +48,18 @@ fn a_lifetime_too_large_for_the_field_saturates_rather_than_becoming_permanent()
 }
 
 #[test]
-fn a_listed_ban_carries_neither_a_reason_nor_an_absolute_expiry() {
-    // Both fields are deprecated in `firewall.proto` and both are unproduced:
-    // the agent stores no reason at all, and what the kernel holds is a
-    // remaining timeout rather than an instant. A 0 here is "unproduced", and
-    // the test pins that the mapping does not invent either one.
+fn a_listed_ban_carries_the_address_and_the_remaining_timeout_only() {
+    // The reason and the absolute expiry were unproduced zeros and are
+    // reserved in `firewall.proto` (revision 13): the message is exactly the
+    // two facts the agent can observe, and building it by naming every field
+    // makes the compiler refuse a third one nobody decided to send.
     let wire = listed_ban(&ban(Some(Duration::from_secs(60))));
 
-    assert_eq!(wire.reason, "");
-    assert_eq!(wire.expires_at_unix, 0);
+    assert_eq!(
+        wire,
+        BanEntry {
+            address: "198.51.100.7".to_owned(),
+            expires_in_seconds: Some(60),
+        }
+    );
 }

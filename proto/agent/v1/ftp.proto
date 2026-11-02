@@ -377,6 +377,27 @@ message EnableFtpsResponse {
   }
 }
 
+// Whether the live FTPS configuration forces TLS on both channels, as a THREE
+// valued fact. Added in contract revision 13 (2026-11-02) because the older
+// `bool forced_tls` of the four FTPS status messages folded "TLS is switched
+// off" and "the agent could not resolve the two keys" into the same `false`.
+enum TlsEnforcement {
+  // Never sent by an agent that knows this enum; means "this agent predates
+  // it". A caller falls back to the deprecated `forced_tls` bool, which reads
+  // false for every state but ENFORCED.
+  TLS_ENFORCEMENT_UNSPECIFIED = 0;
+  // The last occurrence of BOTH `force_local_logins_ssl` and
+  // `force_local_data_ssl` in the live configuration is YES.
+  TLS_ENFORCEMENT_ENFORCED = 1;
+  // The live configuration was read and at least one of the two keys is not
+  // YES: the daemon accepts passwords in the clear.
+  TLS_ENFORCEMENT_NOT_ENFORCED = 2;
+  // The agent could not resolve the two keys: no live configuration on this
+  // host yet, or a file that does not carry both. Nothing is known about the
+  // daemon's TLS, and the panel must not certify it either way.
+  TLS_ENFORCEMENT_NOT_OBSERVED = 3;
+}
+
 message EnableFtpsOk {
   // True when the service manager reports the FTPS unit active.
   bool running = 1;
@@ -420,7 +441,13 @@ message EnableFtpsOk {
   // configuration, a file it could not resolve, or an agent predating this
   // field. That direction is deliberate — an unknown must never read as
   // "encryption is enforced".
+  //
+  // DEPRECATED since revision 13 — read `tls_enforcement`, which tells "not
+  // enforced" from "not observed". Still written, true exactly for
+  // TLS_ENFORCEMENT_ENFORCED, until a later release removes it.
   bool forced_tls = 9;
+  // The same fact as `forced_tls` without the collapse. See TlsEnforcement.
+  TlsEnforcement tls_enforcement = 10;
 }
 
 message DisableFtpsRequest {}
@@ -461,7 +488,13 @@ message DisableFtpsOk {
   // configuration, a file it could not resolve, or an agent predating this
   // field. That direction is deliberate — an unknown must never read as
   // "encryption is enforced".
+  //
+  // DEPRECATED since revision 13 — read `tls_enforcement`, which tells "not
+  // enforced" from "not observed". Still written, true exactly for
+  // TLS_ENFORCEMENT_ENFORCED, until a later release removes it.
   bool forced_tls = 9;
+  // The same fact as `forced_tls` without the collapse. See TlsEnforcement.
+  TlsEnforcement tls_enforcement = 10;
 }
 
 message GetFtpsStatusRequest {
@@ -507,7 +540,13 @@ message GetFtpsStatusOk {
   // configuration, a file it could not resolve, or an agent predating this
   // field. That direction is deliberate — an unknown must never read as
   // "encryption is enforced".
+  //
+  // DEPRECATED since revision 13 — read `tls_enforcement`, which tells "not
+  // enforced" from "not observed". Still written, true exactly for
+  // TLS_ENFORCEMENT_ENFORCED, until a later release removes it.
   bool forced_tls = 9;
+  // The same fact as `forced_tls` without the collapse. See TlsEnforcement.
+  TlsEnforcement tls_enforcement = 10;
 }
 
 message ReloadFtpsTlsRequest {}
@@ -545,7 +584,13 @@ message ReloadFtpsTlsOk {
   // configuration, a file it could not resolve, or an agent predating this
   // field. That direction is deliberate — an unknown must never read as
   // "encryption is enforced".
+  //
+  // DEPRECATED since revision 13 — read `tls_enforcement`, which tells "not
+  // enforced" from "not observed". Still written, true exactly for
+  // TLS_ENFORCEMENT_ENFORCED, until a later release removes it.
   bool forced_tls = 9;
+  // The same fact as `forced_tls` without the collapse. See TlsEnforcement.
+  TlsEnforcement tls_enforcement = 10;
 }
 
 message CreateFtpsUserRequest {

@@ -4,17 +4,16 @@ use std::time::Duration;
 
 use maran_agent_core::validation::web::ban_address::BanAddress;
 
-use crate::proto::AgentError;
+use crate::proto::{AgentError, BanAddressRequest};
+use crate::services::firewall::ban_lifetime::ban_lifetime;
 use crate::services::wire::invalid_input::invalid_input;
 
 /// Builds the address and the ban's lifetime from what `BanAddress` carries.
 ///
-/// `duration_seconds` is 0 for a ban with no expiry, which the contract states
-/// and which is the one place in this service where a zero is a value rather
-/// than an absent field. It becomes `None` — "no timeout" — rather than a zero
-/// `Duration`, because `nft` reads `timeout 0s` as no timeout anyway and
-/// writing the clause would say the same thing in a form that reads like a
-/// mistake.
+/// The ban's life is read by [`ban_lifetime`]: the request's `term` when it
+/// carries one, the deprecated `duration_seconds` (0 for a ban with no expiry)
+/// only for a request from a panel older than revision 13. It is `None` for a
+/// ban with no timeout, never a zero `Duration`.
 ///
 /// The request's `reason` is not read, here or anywhere: it is deprecated in
 /// `firewall.proto` and the agent stores no reason. The only place one could go
@@ -24,7 +23,7 @@ use crate::services::wire::invalid_input::invalid_input;
 /// # Errors
 ///
 /// Returns the wire error for anything that is not a single IPv4 or IPv6
-/// address, and for a loopback address.
+/// address, for a loopback address, and for a timed term of zero seconds.
 ///
 /// This calls [`BanAddress::parse`] directly rather than going through the
 /// unban path's `validated_address`, and the difference is the point: the ban
@@ -34,11 +33,11 @@ use crate::services::wire::invalid_input::invalid_input;
 /// must still accept those addresses so a leftover from an older version can
 /// be lifted.
 pub fn validated_ban(
-    address: &str,
-    duration_seconds: u32,
+    request: &BanAddressRequest,
 ) -> Result<(BanAddress, Option<Duration>), AgentError> {
-    let address = BanAddress::parse(address).map_err(|error| invalid_input(error.to_string()))?;
-    let lifetime = (duration_seconds > 0).then(|| Duration::from_secs(u64::from(duration_seconds)));
+    let address =
+        BanAddress::parse(&request.address).map_err(|error| invalid_input(error.to_string()))?;
+    let lifetime = ban_lifetime(request.term.as_ref(), request.duration_seconds)?;
 
     Ok((address, lifetime))
 }

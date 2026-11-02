@@ -140,16 +140,14 @@ message CronEntry {
   // True if the entry is installed and active; false entries are kept in
   // the crontab commented out (enable/disable without losing history).
   bool enabled = 4;
-  // DEPRECATED in this message and always written 0 — a listing does not read
-  // it. Reading an entry's exit status means reading a file under the
-  // account's home per entry, which would turn one listing into N privileged
-  // reads. Ask GetCronEntryOutput for the entry you are showing. A 0 here is
-  // "not read", never "the last run succeeded"; the field is kept rather than
-  // removed because removing it is a breaking change (rules/proto.md).
-  int32 last_exit_code = 5;
-  // DEPRECATED in this message and always written 0, for the same reason as
-  // last_exit_code. GetCronEntryOutput answers it per entry.
-  int64 last_run_at_unix = 6;
+  // Fields 5 and 6 were `last_exit_code` and `last_run_at_unix`, always
+  // written 0 in a listing: reading an entry's exit status means reading a
+  // file under the account's home per entry, which would turn one listing
+  // into N privileged reads. Removed in revision 13 (2026-11-02) after the
+  // panel's client was confirmed not to read them here; GetCronEntryOutput
+  // answers both per entry, with explicit presence.
+  reserved 5, 6;
+  reserved "last_exit_code", "last_run_at_unix";
   // True when the entry is suppressed because the ACCOUNT is suspended, as
   // opposed to `enabled` above, which is the customer's own switch.
   //

@@ -1,5 +1,6 @@
 //! The `FirewallService` handler, its error mapping and its request checks.
 
+pub mod ban_lifetime;
 pub mod firewall_service;
 pub mod firewall_status;
 pub mod listed_ban;

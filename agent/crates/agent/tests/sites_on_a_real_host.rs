@@ -46,7 +46,7 @@ use maran_ops::files::{ProcessFilesHost, WriteFileInput};
 use maran_ops::php::ProcessPhpHost;
 use maran_ops::sites::{
     CreateSiteInput, ProcessSiteHost, SiteCertificate, SiteHost, SiteIdentity, SiteKind, SitePaths,
-    SitesOpError, create_site,
+    SiteServing, SitesOpError, create_site,
 };
 use maran_ops::ssl::{ProcessSslHost, delete_site_with_certificate, generate_self_signed};
 
@@ -1014,12 +1014,14 @@ fn the_suspension_state_answers_on_a_real_host_what_the_requests_above_observed(
             })
     };
 
-    assert!(
-        fact(&stubbed_domain).serving_stub,
+    assert_eq!(
+        fact(&stubbed_domain).serving,
+        SiteServing::Stub,
         "the disabled site's real vhost IS the suspended render"
     );
-    assert!(
-        !fact(&serving_domain).serving_stub,
+    assert_eq!(
+        fact(&serving_domain).serving,
+        SiteServing::NotStub,
         "the untouched site is still serving its own content"
     );
 }

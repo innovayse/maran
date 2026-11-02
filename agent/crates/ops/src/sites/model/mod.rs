@@ -11,5 +11,6 @@ pub mod site_identity;
 pub mod site_kind;
 pub mod site_log_kind;
 pub mod site_paths;
+pub mod site_serving;
 pub mod site_suspension_fact;
 pub mod tail_end;

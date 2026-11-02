@@ -7,6 +7,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::model::account_site_suspension::AccountSiteSuspension;
+use crate::sites::model::site_serving::SiteServing;
 use crate::sites::model::site_suspension_fact::SiteSuspensionFact;
 use crate::sites::render_legacy_suspended_vhost::render_legacy_suspended_vhost;
 use crate::sites::render_suspended_vhost::render_suspended_vhost;
@@ -62,7 +63,7 @@ const SERVER_NAME_DIRECTIVE: &str = "    server_name ";
 ///
 /// # Why "stubbed" is a byte comparison and not a marker
 ///
-/// `serving_stub` is decided by rendering the suspended vhost for the site and
+/// The serving state is decided by rendering the suspended vhost for the site and
 /// comparing it with the file, byte for byte — the same definition
 /// `disable_site` already uses to be idempotent, so there is one definition of
 /// suspended in the workspace. A marker file beside the config could outlive
@@ -103,7 +104,7 @@ pub fn inspect_account_sites(
 
         sites.push(SiteSuspensionFact {
             domain: file_stem(&path),
-            serving_stub: serving_stub(host, account, &path, &contents),
+            serving: observe_serving(host, account, &path, &contents),
         });
     }
 
@@ -125,24 +126,30 @@ fn file_stem(path: &Path) -> String {
     )
 }
 
-/// Decides whether `contents` is the suspended render for this site.
+/// Decides what `contents` serves for this site: the suspended render, some
+/// other vhost, or nothing the agent can judge.
 ///
-/// Returns `false` for every case in which the comparison text cannot be
-/// produced: a file name that is not a domain, a document root that no longer
-/// resolves inside the account's home, a `server_name` line that is not there
-/// or is there more than once, a template that refuses to render. Each of
-/// those is "this agent cannot observe the site", and the answer to that is
-/// the one that refuses a suspension rather than certifying one
-/// ([`SiteSuspensionFact::serving_stub`]).
-fn serving_stub(host: &dyn SiteHost, account: &AccountName, path: &Path, contents: &str) -> bool {
+/// Returns [`SiteServing::Unobservable`] for every case in which the
+/// comparison text cannot be produced: a file name that is not a domain, a
+/// document root that no longer resolves inside the account's home, a
+/// `server_name` line that is not there or is there more than once, a template
+/// that refuses to render. Each of those is "this agent cannot observe the
+/// site", which the panel treats as a refusal of the suspension rather than a
+/// certification of it ([`SiteSuspensionFact::serving`]).
+fn observe_serving(
+    host: &dyn SiteHost,
+    account: &AccountName,
+    path: &Path,
+    contents: &str,
+) -> SiteServing {
     let Ok(domain) = Domain::parse_existing(&file_stem(path)) else {
-        return false;
+        return SiteServing::Unobservable;
     };
     let Ok(resolved) = resolved_site_paths(host, account, &domain) else {
-        return false;
+        return SiteServing::Unobservable;
     };
     let Some((primary, aliases)) = server_names(contents) else {
-        return false;
+        return SiteServing::Unobservable;
     };
 
     // The names are read out of the file and are NOT trusted: they only supply
@@ -152,9 +159,20 @@ fn serving_stub(host: &dyn SiteHost, account: &AccountName, path: &Path, content
     // stand in for an nginx parser here without weakening the answer.
     // Either the current stub or the one written before the challenge
     // location carried its symlink rule is a suspension.
-    render_suspended_vhost(&primary, &aliases, &resolved).is_ok_and(|expected| expected == contents)
-        || render_legacy_suspended_vhost(&primary, &aliases, &resolved)
-            .is_ok_and(|expected| expected == contents)
+    let current = render_suspended_vhost(&primary, &aliases, &resolved);
+    let legacy = render_legacy_suspended_vhost(&primary, &aliases, &resolved);
+    if current.is_err() && legacy.is_err() {
+        // A template that refuses to render produced no text to compare.
+        return SiteServing::Unobservable;
+    }
+
+    if current.is_ok_and(|expected| expected == contents)
+        || legacy.is_ok_and(|expected| expected == contents)
+    {
+        SiteServing::Stub
+    } else {
+        SiteServing::NotStub
+    }
 }
 
 /// Reads the primary name and the aliases out of a rendered `server_name` line.
@@ -162,7 +180,7 @@ fn serving_stub(host: &dyn SiteHost, account: &AccountName, path: &Path, content
 /// Matched with its indentation and its terminating semicolon, and required to
 /// occur exactly ONCE, because the only files this can conclude anything about
 /// are the ones this agent renders — every other shape falls through to
-/// [`SiteSuspensionFact::serving_stub`] being false. Returns [`None`] when the
+/// [`SiteServing::Unobservable`]. Returns [`None`] when the
 /// line is absent, repeated, or carries no name at all.
 fn server_names(contents: &str) -> Option<(String, Vec<String>)> {
     let mut matches = contents.lines().filter_map(|line| {

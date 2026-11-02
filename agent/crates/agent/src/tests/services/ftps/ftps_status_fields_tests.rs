@@ -6,6 +6,7 @@
 use maran_ops::ftps::{FtpsState, ListenMode};
 use maran_ops::ssl::{CertificateInstallation, CertificateState};
 
+use crate::proto::TlsEnforcement;
 use crate::services::ftps::ftps_status_fields::FtpsStatusFields;
 
 /// A state with nothing observed: no daemon, no configuration, no hostname
@@ -134,7 +135,64 @@ fn a_configuration_this_agent_cannot_resolve_never_reports_encryption_as_enforce
 }
 
 #[test]
-fn the_four_responses_carry_the_same_nine_values_for_one_observation() {
+fn forced_tls_is_reported_as_three_states_and_the_old_bool_keeps_its_collapse() {
+    // The observed-off configuration and the unresolvable one used to be the
+    // same `false`. The enum tells them apart; the deprecated bool still reads
+    // false for both, so a panel that has not moved sees what it always saw.
+    let cases = [
+        (Some(true), TlsEnforcement::Enforced, true),
+        (Some(false), TlsEnforcement::NotEnforced, false),
+        (None, TlsEnforcement::NotObserved, false),
+    ];
+
+    for (observed, expected, legacy) in cases {
+        let mut state = a_running_daemon();
+        state.forced_tls = observed;
+
+        let ok = FtpsStatusFields::from_state(state).into_status_ok();
+
+        assert_eq!(ok.tls_enforcement, expected as i32, "{observed:?}");
+        assert_eq!(ok.forced_tls, legacy, "{observed:?}");
+    }
+}
+
+#[test]
+fn every_one_of_the_four_responses_carries_the_tls_enforcement() {
+    let state = || {
+        let mut state = a_running_daemon();
+        state.forced_tls = Some(false);
+        state
+    };
+    let expected = TlsEnforcement::NotEnforced as i32;
+
+    assert_eq!(
+        FtpsStatusFields::from_state(state())
+            .into_enable_ok()
+            .tls_enforcement,
+        expected
+    );
+    assert_eq!(
+        FtpsStatusFields::from_state(state())
+            .into_disable_ok()
+            .tls_enforcement,
+        expected
+    );
+    assert_eq!(
+        FtpsStatusFields::from_state(state())
+            .into_status_ok()
+            .tls_enforcement,
+        expected
+    );
+    assert_eq!(
+        FtpsStatusFields::from_state(state())
+            .into_reload_ok()
+            .tls_enforcement,
+        expected
+    );
+}
+
+#[test]
+fn the_four_responses_carry_the_same_values_for_one_observation() {
     // The property the four messages exist for: a panel that has just enabled,
     // disabled or reloaded needs no second call. Four separate prost structs
     // means nothing couples them at compile time, so it is asserted here.

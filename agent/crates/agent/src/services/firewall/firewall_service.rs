@@ -189,7 +189,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
     ) -> Result<Response<BanAddressResponse>, Status> {
         let request = request.into_inner();
 
-        let result = match validated_ban(&request.address, request.duration_seconds) {
+        let result = match validated_ban(&request) {
             Ok((address, lifetime)) => {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;

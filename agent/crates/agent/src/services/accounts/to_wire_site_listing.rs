@@ -1,8 +1,8 @@
 //! The one mapping from a vhost listing onto the wire's readable flag and list.
 
-use maran_ops::sites::AccountSiteSuspension;
+use maran_ops::sites::{AccountSiteSuspension, SiteServing};
 
-use crate::proto::SiteSuspensionFact;
+use crate::proto::{SiteServing as WireSiteServing, SiteSuspensionFact};
 
 /// Converts the listing into the pair the contract carries on
 /// `GetAccountSuspensionStateOk`: `sites_directory_readable` and `sites`.
@@ -21,10 +21,24 @@ pub fn to_wire_site_listing(listing: AccountSiteSuspension) -> (bool, Vec<SiteSu
                 .into_iter()
                 .map(|fact| SiteSuspensionFact {
                     domain: fact.domain,
-                    serving_stub: fact.serving_stub,
+                    // The deprecated bool keeps its refusing direction: only an
+                    // observed stub is true, so "could not be compared" still
+                    // reads as not stubbed to a panel that has not moved to
+                    // `serving`.
+                    serving_stub: fact.serving == SiteServing::Stub,
+                    serving: to_wire_site_serving(fact.serving) as i32,
                 })
                 .collect(),
         ),
+    }
+}
+
+/// The wire spelling of what a vhost was observed to serve.
+fn to_wire_site_serving(serving: SiteServing) -> WireSiteServing {
+    match serving {
+        SiteServing::Stub => WireSiteServing::Stub,
+        SiteServing::NotStub => WireSiteServing::NotStub,
+        SiteServing::Unobservable => WireSiteServing::Unobservable,
     }
 }
 
