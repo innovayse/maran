@@ -38,7 +38,7 @@ export const stubInvitation = async (
   let resends = 0
 
   const status = (): InvitationStatus => {
-    return { state, expiresAt: state === 'pending' ? EXPIRES_AT : null }
+    return state === 'pending' ? { state, expiresAt: EXPIRES_AT } : { state }
   }
 
   await page.route(`**/api/v1/invitations/${accountId}`, async (route) => {

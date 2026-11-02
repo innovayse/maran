@@ -98,7 +98,7 @@ const stateText: ComputedRef<string> = computed(() => {
     return ''
   }
 
-  if (status.state === 'pending' && status.expiresAt !== null) {
+  if (status.state === 'pending') {
     return t('invitations.state.pending', { date: formatDate(status.expiresAt, localeStore.current) })
   }
 

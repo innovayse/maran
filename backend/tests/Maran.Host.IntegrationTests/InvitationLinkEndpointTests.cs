@@ -394,9 +394,8 @@ public sealed class InvitationLinkEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var expires = body.RootElement.GetProperty("expiresAt");
-        return (
-            body.RootElement.GetProperty("state").GetString()!,
-            expires.ValueKind == JsonValueKind.Null ? null : expires.GetString());
+        // Only a pending invitation has an expiry; every other state omits the member altogether.
+        var expires = body.RootElement.TryGetProperty("expiresAt", out var value) ? value.GetString() : null;
+        return (body.RootElement.GetProperty("state").GetString()!, expires);
     }
 }

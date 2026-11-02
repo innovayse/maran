@@ -1,5 +1,5 @@
+using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Entities;
-using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Queries.GetInvitationStatus;
 using Maran.Modules.Identity.Tests.TestSupport;
@@ -34,7 +34,7 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
     }
 
     /// <summary>Asks the handler about the account under test.</summary>
-    private async Task<Common.InvitationStatusDto> AskAsync()
+    private async Task<InvitationStatusDto> AskAsync()
     {
         var handler = new GetInvitationStatusQueryHandler(_context, _clock, IdentityTestContext.DisplayNameResources());
         var result = await handler.HandleAsync(new GetInvitationStatusQuery(AccountId), CancellationToken.None);
@@ -69,8 +69,7 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
     {
         var status = await AskAsync();
 
-        Assert.Equal(InvitationState.None, status.State);
-        Assert.Null(status.ExpiresAt);
+        Assert.IsType<NoInvitationStatusDto>(status);
     }
 
     /// <summary>An unused unexpired invitation reports pending with its expiry.</summary>
@@ -82,8 +81,7 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
 
         var status = await AskAsync();
 
-        Assert.Equal(InvitationState.Pending, status.State);
-        Assert.Equal(token.ExpiresAt, status.ExpiresAt);
+        Assert.Equal(token.ExpiresAt, Assert.IsType<PendingInvitationStatusDto>(status).ExpiresAt);
     }
 
     /// <summary>An invitation lapses at the instant its token expires, not before.</summary>
@@ -98,10 +96,9 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
         _clock.Advance(TimeSpan.FromSeconds(1));
         var at = await AskAsync();
 
-        Assert.Equal(InvitationState.Pending, before.State);
+        Assert.IsType<PendingInvitationStatusDto>(before);
         Assert.Equal(token.ExpiresAt, _clock.UtcNow);
-        Assert.Equal(InvitationState.Expired, at.State);
-        Assert.Null(at.ExpiresAt);
+        Assert.IsType<ExpiredInvitationStatusDto>(at);
     }
 
     /// <summary>A login whose only token was retired without a replacement reports expired.</summary>
@@ -115,7 +112,7 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
 
         var status = await AskAsync();
 
-        Assert.Equal(InvitationState.Expired, status.State);
+        Assert.IsType<ExpiredInvitationStatusDto>(status);
     }
 
     /// <summary>An invited login that has no token at all reports expired.</summary>
@@ -128,7 +125,7 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
 
         var status = await AskAsync();
 
-        Assert.Equal(InvitationState.Expired, status.State);
+        Assert.IsType<ExpiredInvitationStatusDto>(status);
     }
 
     /// <summary>With several tokens the expiry reported is the usable one's.</summary>
@@ -143,8 +140,7 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
 
         var status = await AskAsync();
 
-        Assert.Equal(InvitationState.Pending, status.State);
-        Assert.Equal(current.ExpiresAt, status.ExpiresAt);
+        Assert.Equal(current.ExpiresAt, Assert.IsType<PendingInvitationStatusDto>(status).ExpiresAt);
     }
 
     /// <summary>A login that has set its password reports accepted whatever tokens remain.</summary>
@@ -165,8 +161,7 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
 
         var status = await AskAsync();
 
-        Assert.Equal(InvitationState.Accepted, status.State);
-        Assert.Null(status.ExpiresAt);
+        Assert.IsType<AcceptedInvitationStatusDto>(status);
     }
 
     /// <summary>Another account's invitation is never reported.</summary>
@@ -180,7 +175,7 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
 
         var status = await AskAsync();
 
-        Assert.Equal(InvitationState.None, status.State);
+        Assert.IsType<NoInvitationStatusDto>(status);
     }
 
     /// <summary>Every state is named for the request's culture, in each language the panel speaks.</summary>
