@@ -464,7 +464,7 @@ public sealed class AuditLogsController : BaseApiController
   address, the caller's user agent, the caller's identity from their own access token, and any id
   that comes from the route — carries `[property: JsonIgnore][property: BindNever][BindNever]` on its
   record parameter, takes `= ""` if it is a trailing reference type, and is written by the action from
-  `ClientIpAddress`, `CallerUserAgent`, `CurrentUser.UserId` or the action's own route parameter:
+  `ClientIpAddress`, `CallerUserAgent`, `CurrentUser.Caller` or the action's own route parameter:
 
   ```csharp
   public sealed record LoginCommand(
