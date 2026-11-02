@@ -46,8 +46,8 @@ onMounted(() => {
     <UiPageHeading :title="t('panelCertificate.heading')" :subtitle="t('panelCertificate.subtitle')" />
 
     <!-- A refused order; a refused read is the region's own error below. -->
-    <UiAlert v-if="certificateStore.loadState === 'loaded' && certificateStore.errorMessage !== null" variant="error">
-      {{ certificateStore.errorMessage }}
+    <UiAlert v-if="certificateStore.orderMessage !== null" variant="error">
+      {{ certificateStore.orderMessage }}
     </UiAlert>
 
     <UiAlert v-if="certificateStore.issued" variant="success">
@@ -56,7 +56,7 @@ onMounted(() => {
 
     <UiLoadingRegion :state="certificateStore.loadState">
       <template #error>
-        <UiAlert variant="error">{{ certificateStore.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+        <UiAlert variant="error">{{ certificateStore.loadMessage ?? t('app.status.unreachable') }}</UiAlert>
       </template>
       <UiCard>
         <UiSectionHeading class="mb-4" :title="t('panelCertificate.currentTitle')" />
