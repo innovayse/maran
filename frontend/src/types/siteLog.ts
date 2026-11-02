@@ -42,13 +42,30 @@ export interface SiteLogLine {
 }
 
 /**
- * How the stream a site's log tab is watching currently stands.
+ * How the stream a site's log tab is watching currently stands: not started, open, or ended for a
+ * named reason. The reason and the backend's message exist only on the ended case, so an open
+ * stream cannot be read as carrying a stale ending.
  *
  * `idle` here means "no stream has been opened", which is NOT the agent's
- * {@link SiteLogEndReason} `idle` — that one is an ending. They are separate types for that
- * reason: a state and a reason must not be comparable by accident.
+ * {@link SiteLogEndReason} `idle` — that one is an ending, and lives on a different field.
  */
-export type SiteLogStreamStatus = 'idle' | 'streaming' | 'ended'
+export type SiteLogStream =
+  | {
+      /** No stream has been opened. */
+      state: 'idle'
+    }
+  | {
+      /** A stream is open and delivering lines. */
+      state: 'streaming'
+    }
+  | {
+      /** The stream is over. */
+      state: 'ended'
+      /** Why it ended. */
+      reason: SiteLogEndReason
+      /** The backend's already-localized explanation of a failure, or `null` when it sent none. */
+      message: string | null
+    }
 
 /** What a caller asks for when opening a log stream. */
 export interface TailSiteLogOptions {

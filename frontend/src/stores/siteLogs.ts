@@ -5,7 +5,7 @@ import type {
   SiteLogEndReason,
   SiteLogLine,
   SiteLogSource,
-  SiteLogStreamStatus,
+  SiteLogStream,
 } from '../types/siteLog'
 
 /**
@@ -32,25 +32,21 @@ export const useSiteLogsStore = defineStore('siteLogs', () => {
   /** The lines of the log currently being tailed, oldest first, capped at {@link MAX_LOG_LINES}. */
   const logLines: Ref<SiteLogLine[]> = ref([])
 
-  /** Whether a log stream is open, has ended, or was never started. */
-  const logStatus: Ref<SiteLogStreamStatus> = ref('idle')
-
   /**
-   * Why the last log stream ended, or `null` while one is open or none has run.
+   * Whether a log stream is open, has ended, or was never started — and, once ended, why.
    *
-   * The whole point of keeping it: a pane that stopped updating looks the same whether the log
-   * simply had nothing more to say, was dropped, was truncated, or failed. The view renders this
-   * reason, so a truncation is never shown as a normal end.
+   * The whole point of keeping the reason: a pane that stopped updating looks the same whether
+   * the log simply had nothing more to say, was dropped, was truncated, or failed. The view
+   * renders this reason, so a truncation is never shown as a normal end. The reason and the
+   * backend's message live on the ended case alone, so they cannot outlive the stream they
+   * describe.
    */
-  const logEndReason: Ref<SiteLogEndReason | null> = ref(null)
-
-  /** The backend's own explanation of a failed log stream, or `null` when it sent none. */
-  const logEndMessage: Ref<string | null> = ref(null)
+  const logStream: Ref<SiteLogStream> = ref({ state: 'idle' })
 
   /**
    * Whether this view's own scrollback cap has already dropped lines the stream delivered.
    *
-   * A second, quieter truncation than {@link logEndReason}'s: the stream is intact, but what is
+   * A second, quieter truncation than an ending's: the stream is intact, but what is
    * held is not all of it. The pane says so, because an operator scrolling to the top of a log
    * must not read the oldest line it holds as the oldest line there was.
    */
@@ -91,7 +87,7 @@ export const useSiteLogsStore = defineStore('siteLogs', () => {
    * Opens a live tail of one of a site's logs, replacing any stream already open.
    *
    * Resolves when the stream ends, so a caller may await it; the ending itself is left in
-   * {@link logStatus}, {@link logEndReason} and {@link logEndMessage} rather than returned,
+   * {@link logStream} rather than returned,
    * because the pane has to keep showing it after the promise is long settled.
    * @param siteId The site whose log is read.
    * @param source Which of the site's two logs to tail.
@@ -108,9 +104,7 @@ export const useSiteLogsStore = defineStore('siteLogs', () => {
 
     logLines.value = []
     logScrollbackTruncated.value = false
-    logEndReason.value = null
-    logEndMessage.value = null
-    logStatus.value = 'streaming'
+    logStream.value = { state: 'streaming' }
 
     await api.tailLog(
       { siteId, source, historyLines: LOG_HISTORY_LINES },
@@ -148,9 +142,7 @@ export const useSiteLogsStore = defineStore('siteLogs', () => {
             return
           }
 
-          logEndReason.value = reason
-          logEndMessage.value = message
-          logStatus.value = 'ended'
+          logStream.value = { state: 'ended', reason, message }
           logAbort.value = null
         },
       },
@@ -160,9 +152,7 @@ export const useSiteLogsStore = defineStore('siteLogs', () => {
 
   return {
     logLines,
-    logStatus,
-    logEndReason,
-    logEndMessage,
+    logStream,
     logScrollbackTruncated,
     startLogTail,
     stopLogTail,

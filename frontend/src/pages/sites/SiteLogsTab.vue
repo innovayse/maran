@@ -63,31 +63,30 @@ const sourceOptions: ComputedRef<SegmentOption[]> = computed(() => {
 
 /** Whether a stream is currently open. */
 const isStreaming: ComputedRef<boolean> = computed(() => {
-  return store.logStatus === 'streaming'
+  return store.logStream.state === 'streaming'
 })
 
 /** The sentence naming how the last stream ended, or `null` while one is open or none has run. */
 const endText: ComputedRef<string | null> = computed(() => {
-  const reason = store.logEndReason
-  if (reason === null) {
+  const stream = store.logStream
+  if (stream.state !== 'ended') {
     return null
   }
   // The panel's own sentence names the KIND of ending; the backend's message, when it sent one,
   // is appended verbatim because only the server may word what went wrong on the server.
-  const explanation = store.logEndMessage
-  const named = t(`sites.detail.logs.endReason.${reason}`)
-  return explanation === null ? named : `${named} ${explanation}`
+  const named = t(`sites.detail.logs.endReason.${stream.reason}`)
+  return stream.message === null ? named : `${named} ${stream.message}`
 })
 
 /** Whether the ending means lines are missing, which decides the tone it is shown in. */
 const endIsIncomplete: ComputedRef<boolean> = computed(() => {
-  const reason = store.logEndReason
-  return reason !== null && INCOMPLETE_ENDINGS.includes(reason)
+  const stream = store.logStream
+  return stream.state === 'ended' && INCOMPLETE_ENDINGS.includes(stream.reason)
 })
 
 /** Whether the pane has never been started for this site. */
 const isUntouched: ComputedRef<boolean> = computed(() => {
-  return store.logStatus === 'idle' && store.logLines.length === 0
+  return store.logStream.state === 'idle' && store.logLines.length === 0
 })
 
 /**
