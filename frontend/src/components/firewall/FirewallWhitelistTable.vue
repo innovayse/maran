@@ -53,8 +53,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const localeStore = useLocaleStore()
 
-/** The row whose removal is awaiting confirmation, or the empty string when none is. */
-const pendingId: Ref<string> = ref('')
+/** The row whose removal is awaiting confirmation, or `null` when none is. */
+const pendingId: Ref<string | null> = ref(null)
 
 /**
  * The table's columns: its header, its cells and its loading placeholder all read this one list.
@@ -107,7 +107,7 @@ const ask = (id: string): void => {
  * @returns Nothing.
  */
 const cancel = (): void => {
-  pendingId.value = ''
+  pendingId.value = null
 }
 
 /**
@@ -133,7 +133,7 @@ watch(
   },
   (busy, wasBusy): void => {
     if (wasBusy && !busy) {
-      pendingId.value = ''
+      pendingId.value = null
     }
   },
 )
@@ -182,7 +182,7 @@ watch(
   <!-- One dialog for the whole table rather than one per row: only one removal can be awaiting an
        answer, and the menu that opened it is already gone by the time it appears. -->
   <UiConfirm
-    :open="pendingId.length > 0"
+    :open="pendingId !== null"
     :title="confirmationTitle"
     :question="t('firewall.whitelist.confirmRemove')"
     :confirm-label="t('firewall.whitelist.confirm')"
