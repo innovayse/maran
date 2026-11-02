@@ -61,7 +61,7 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SuspendAsync(string username, CancellationToken cancellationToken)
+    public async Task<Result> SuspendAsync(string username, CancellationToken cancellationToken)
     {
         var response = await _invoker.SuspendAccountAsync(
             new SuspendAccountRequest { Username = username },
@@ -69,15 +69,15 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
 
         return response.ResultCase switch
         {
-            SuspendAccountResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SuspendAccountResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SuspendAccountResponse.ResultOneofCase.Ok => Result.Ok(),
+            SuspendAccountResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SuspendAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public async Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
     {
         var response = await _invoker.UnsuspendAccountAsync(
             new UnsuspendAccountRequest { Username = username },
@@ -85,10 +85,10 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
 
         return response.ResultCase switch
         {
-            UnsuspendAccountResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            UnsuspendAccountResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            UnsuspendAccountResponse.ResultOneofCase.Ok => Result.Ok(),
+            UnsuspendAccountResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(UnsuspendAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -270,7 +270,7 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetQuotaAsync(
+    public async Task<Result> SetQuotaAsync(
         string username,
         ulong quotaBytes,
         CancellationToken cancellationToken)
@@ -280,15 +280,15 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
 
         return response.ResultCase switch
         {
-            SetAccountQuotaResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetAccountQuotaResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetAccountQuotaResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetAccountQuotaResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetQuotaAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetResourceLimitsAsync(
+    public async Task<Result> SetResourceLimitsAsync(
         string username,
         AccountSliceLimitsDto limits,
         CancellationToken cancellationToken)
@@ -304,10 +304,10 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
 
         return response.ResultCase switch
         {
-            SetAccountResourceLimitsResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetAccountResourceLimitsResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            SetAccountResourceLimitsResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetAccountResourceLimitsResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetResourceLimitsAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
