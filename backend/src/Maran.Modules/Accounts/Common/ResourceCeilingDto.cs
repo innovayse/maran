@@ -8,7 +8,7 @@ namespace Maran.Modules.Accounts.Common;
 /// so a figure exists only where there is a cap and "no ceiling" is never read off a zero.
 /// </summary>
 /// <remarks>
-/// The constructor is private to this assembly, so <see cref="LimitedResourceCeilingDto"/> and
+/// The closed set is stated by the <c>JsonDerivedType</c> attributes: <see cref="LimitedResourceCeilingDto"/> and
 /// <see cref="UnlimitedResourceCeilingDto"/> are the whole set. The stored ceiling has the same two
 /// cases (a nullable figure, null when uncapped), and <see cref="Mappers.RuntimeLimitsMapper"/> is
 /// the one place the two are restated into each other.
@@ -16,10 +16,4 @@ namespace Maran.Modules.Accounts.Common;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(LimitedResourceCeilingDto), "limited")]
 [JsonDerivedType(typeof(UnlimitedResourceCeilingDto), "unlimited")]
-public abstract record ResourceCeilingDto
-{
-    /// <summary>Closes the hierarchy to the two shapes this assembly declares.</summary>
-    private protected ResourceCeilingDto()
-    {
-    }
-}
+public abstract record ResourceCeilingDto;

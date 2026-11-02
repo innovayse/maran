@@ -29,11 +29,6 @@ namespace Maran.Modules.Monitoring.Common;
 [JsonDerivedType(typeof(QuotaBackingDto.Unmeasured), "unmeasured")]
 public abstract record QuotaBackingDto
 {
-    /// <summary>Closes the hierarchy to the three cases declared below.</summary>
-    private QuotaBackingDto()
-    {
-    }
-
     /// <summary>
     /// The filesystem holding this account's home is tracking quota accounting right now, so the
     /// allowance is backed by a kernel-enforced limit and there is nothing to explain.

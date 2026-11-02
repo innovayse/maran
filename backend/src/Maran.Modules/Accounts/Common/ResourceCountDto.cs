@@ -9,16 +9,10 @@ namespace Maran.Modules.Accounts.Common;
 /// answer".
 /// </summary>
 /// <remarks>
-/// The constructor is private to this assembly, so <see cref="CountedResourceCountDto"/> and
+/// The closed set is stated by the <c>JsonDerivedType</c> attributes: <see cref="CountedResourceCountDto"/> and
 /// <see cref="UnavailableResourceCountDto"/> are the whole set.
 /// </remarks>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "state")]
 [JsonDerivedType(typeof(CountedResourceCountDto), "counted")]
 [JsonDerivedType(typeof(UnavailableResourceCountDto), "unavailable")]
-public abstract record ResourceCountDto
-{
-    /// <summary>Closes the hierarchy to the two shapes this assembly declares.</summary>
-    private protected ResourceCountDto()
-    {
-    }
-}
+public abstract record ResourceCountDto;
