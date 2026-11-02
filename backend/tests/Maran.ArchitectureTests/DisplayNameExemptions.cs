@@ -141,14 +141,6 @@ public static class DisplayNameExemptions
             + "name on the wire would be a second, worse translation of a word every operating "
             + "system already knows."),
         new(
-            "Maran.Modules.Backups.Common.RestoreOutcomeDto",
-            "FailureCode",
-            DisplayNameExemptionKind.NotAnOperatorFacingName,
-            "frontend/src/types/backup.ts",
-            "This body is answered only for a restore that replaced everything it set out to, and "
-            + "the code is empty on every such response. A restore that failed is a problem "
-            + "document carrying the backend's own localized sentence, not this DTO."),
-        new(
             "Maran.Modules.Firewall.Common.BanDto",
             "Reason",
             DisplayNameExemptionKind.SpaOwnedVocabulary,

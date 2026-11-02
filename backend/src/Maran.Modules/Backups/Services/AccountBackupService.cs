@@ -1,5 +1,6 @@
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Models;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Resources;
 using Maran.Sdk.Contracts;
@@ -105,31 +106,33 @@ public sealed class AccountBackupService : IAccountBackupService
         var outcome = await _runner.RunAsync(
             accountName, backup.Id, destination.Value.Agent, Guid.Empty, cancellationToken);
 
-        if (outcome.Succeeded)
-        {
-            backup.Completed(outcome.SizeBytes, outcome.Sha256, outcome.DatabaseCount, _clock.UtcNow);
-        }
-        else
-        {
-            backup.Failed(outcome.FailureCode, _clock.UtcNow);
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
         // The caller has no address to record — a deletion is journalled by the Accounts module
         // under its own action — so what this journal adds is the fact that the FINAL backup
         // specifically was attempted and how it ended, against the account being destroyed: the
         // one name that is left to search for once the deletion finishes.
-        if (!outcome.Succeeded)
+        switch (outcome)
         {
-            await _journal.RecordFailureAsync(
-                AuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
+            case CreatedBackupOutcome created:
+                backup.Completed(created.SizeBytes, created.Sha256, created.DatabaseCount, _clock.UtcNow);
+                await _dbContext.SaveChangesAsync(cancellationToken);
 
-            return Result<Guid>.Fail(Error.Of(nameof(ErrorMessages.FinalBackupFailed), ErrorType.Failure));
+                await _journal.RecordSuccessAsync(
+                    AuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
+                break;
+
+            case FailedBackupOutcome failed:
+                backup.Failed(failed.FailureCode, _clock.UtcNow);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                await _journal.RecordFailureAsync(
+                    AuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
+
+                return Result<Guid>.Fail(Error.Of(nameof(ErrorMessages.FinalBackupFailed), ErrorType.Failure));
+
+            default:
+                throw new InvalidOperationException(
+                    $"Unhandled backup outcome {outcome.GetType().Name}; the hierarchy is closed to two cases.");
         }
-
-        await _journal.RecordSuccessAsync(
-            AuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
 
         return Result<Guid>.Ok(backup.Id);
     }

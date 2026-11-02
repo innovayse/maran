@@ -10,7 +10,7 @@ namespace Maran.Agent.Client.Interfaces;
 /// <remarks>
 /// Every call names its destination, because the agent holds no destination configuration of its
 /// own. The agent that ships today reaches only
-/// <see cref="AgentBackupDestinationKind.Local"/>: a destination naming a bucket is refused at the
+/// <see cref="AgentLocalBackupDestination"/>: a destination naming a bucket is refused at the
 /// agent's service boundary with a not-implemented failure, which arrives here as the
 /// <c>AgentNotImplemented</c> code and must be shown as itself. It is never a generic failure, and
 /// there is no fallback to a local destination anywhere in this client — a backup silently written

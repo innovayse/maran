@@ -17,8 +17,9 @@ namespace Maran.Modules.Backups.Services;
 /// <b>The one decision in this module that a wrong answer looks right for.</b> The agent's
 /// <c>RestoreOutcome</c> carries no success field on purpose — three numbers and no verdict — so
 /// that the panel has to state the verdict itself and can be tested on it. That statement is made
-/// HERE, once: <c>Whole</c> is <c>FilesRestored &amp;&amp; DatabasesRestored == DatabasesTotal</c>,
-/// and everything downstream reads it rather than recomputing it. A restore that replaced the home
+/// HERE, once: a restore is a <c>WholeRestoreOutcome</c> only when <c>FilesRestored &amp;&amp;
+/// DatabasesRestored == DatabasesTotal</c>, and everything downstream matches on the outcome's type
+/// rather than recomputing it. A restore that replaced the home
 /// and eleven of twelve databases is a FAILURE, and the account is now a home from one point in time
 /// over a database from another.
 /// </para>
@@ -127,7 +128,10 @@ public sealed class RestoreRunner
 
     /// <summary>States the panel's verdict over the agent's three numbers.</summary>
     /// <param name="outcome">What the agent said it did.</param>
-    /// <returns>The same facts with the verdict added.</returns>
+    /// <returns>
+    /// A <see cref="WholeRestoreOutcome"/> when the files were restored and every database was, and
+    /// a <see cref="PartialRestoreOutcome"/> carrying the agent's own figures otherwise.
+    /// </returns>
     /// <remarks>
     /// The comparison is here and nowhere else. A partial restore is given
     /// <c>RestorePartial</c> — an <see cref="ErrorType.Failure"/>, because the SERVER left the
@@ -137,26 +141,26 @@ public sealed class RestoreRunner
     /// </remarks>
     private static RestoreRunOutcome Reduce(AgentRestoreOutcome outcome)
     {
-        var whole = outcome.FilesRestored && outcome.DatabasesRestored == outcome.DatabasesTotal;
+        if (outcome.FilesRestored && outcome.DatabasesRestored == outcome.DatabasesTotal)
+        {
+            return new WholeRestoreOutcome(outcome.DatabasesRestored);
+        }
 
-        return new RestoreRunOutcome(
-            whole,
+        return new PartialRestoreOutcome(
             outcome.FilesRestored,
             outcome.DatabasesRestored,
             outcome.DatabasesTotal,
-            Measured: true,
-            whole ? null : Error.Of(nameof(ErrorMessages.RestorePartial), ErrorType.Failure));
+            Error.Of(nameof(ErrorMessages.RestorePartial), ErrorType.Failure));
     }
 
     /// <summary>Builds the outcome of a run the agent stated nothing usable about.</summary>
     /// <param name="failure">The machine-stable code naming what went wrong, and its kind.</param>
     /// <returns>
-    /// An unsuccessful outcome carrying that error and no figures. The counts are left at zero and
-    /// that is NOT a claim that nothing was restored — the agent said nothing, so there is nothing
-    /// to report; the code is what the caller is meant to read.
+    /// An <see cref="UnmeasuredRestoreOutcome"/> carrying that error and no figures: the agent said
+    /// nothing, so there is nothing to report; the code is what the caller is meant to read.
     /// </returns>
     private static RestoreRunOutcome Failure(Error failure)
     {
-        return new RestoreRunOutcome(Whole: false, FilesRestored: false, 0, 0, Measured: false, failure);
+        return new UnmeasuredRestoreOutcome(failure);
     }
 }

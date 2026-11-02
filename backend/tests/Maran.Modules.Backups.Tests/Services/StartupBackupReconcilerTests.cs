@@ -109,7 +109,7 @@ public sealed class StartupBackupReconcilerTests
             new AgentBackupSummary(
                 world.BackupId.ToString(),
                 null,
-                new AgentBackupUnreadableReason(AgentBackupUnreadableKind.Corrupt, 1)),
+                new AgentBackupCorrupt()),
         ]);
 
         var reclamation = await world.Reconciler.ReconcileAsync(CancellationToken.None);
@@ -214,8 +214,7 @@ public sealed class StartupBackupReconcilerTests
 
         var listing = Assert.Single(world.Agent.Listings);
         Assert.Equal(Username, listing.AccountUsername);
-        Assert.Equal(AgentBackupDestinationKind.Local, listing.Destination.Kind);
-        Assert.Equal(string.Empty, listing.Destination.Path);
+        Assert.IsType<AgentLocalBackupDestination>(listing.Destination);
     }
 
     /// <summary>Every row the pass closes is journalled as a failed backup, naming the account.</summary>

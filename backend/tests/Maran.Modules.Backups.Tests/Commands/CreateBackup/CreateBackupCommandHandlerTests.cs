@@ -86,8 +86,7 @@ public sealed class CreateBackupCommandHandlerTests
         Assert.Equal(BackupDestination.DefaultDestinationId, stored.DestinationId);
 
         var destination = Assert.Single(world.Agent.Destinations);
-        Assert.Equal(AgentBackupDestinationKind.Local, destination.Kind);
-        Assert.Equal(string.Empty, destination.Path);
+        Assert.IsType<AgentLocalBackupDestination>(destination);
     }
 
     /// <summary>The agent is asked for the owning accounts system user name and the rows own id.</summary>

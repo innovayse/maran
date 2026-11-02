@@ -28,8 +28,9 @@ public sealed class BackupDestinationResolverTests
 
         Assert.True(resolved.IsSuccess);
         Assert.Equal(BackupDestination.DefaultDestinationId, resolved.Value!.Id);
-        Assert.Equal(AgentBackupDestinationKind.Local, resolved.Value.Agent.Kind);
-        Assert.Equal(string.Empty, resolved.Value.Agent.Path);
+        // The local arm has no member that could carry a path: the agent refuses a local destination
+        // that names one, so the type is what holds that rule.
+        Assert.IsType<AgentLocalBackupDestination>(resolved.Value.Agent);
     }
 
     /// <summary>A server with no default destination refuses as a conflict rather than inventing one.</summary>

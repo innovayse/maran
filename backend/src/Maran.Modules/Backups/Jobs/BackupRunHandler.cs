@@ -1,5 +1,6 @@
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Models;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Resources;
 using Maran.Modules.Backups.Services;
@@ -278,33 +279,36 @@ public sealed class BackupRunHandler
             var outcome = await _runner.RunAsync(
                 account.Username, backup.Id, destination.Value.Agent, taskId, cancellationToken);
 
-            if (outcome.Succeeded)
-            {
-                backup.Completed(outcome.SizeBytes, outcome.Sha256, outcome.DatabaseCount, _clock.UtcNow);
-            }
-            else
-            {
-                backup.Failed(outcome.FailureCode, _clock.UtcNow);
-            }
-
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
             // The account, not the backup id — the same subject the task above records, and the one
             // AuditEntry asks for: what the operation acts on, as an operator would search for it.
-            await _journal.RecordSystemAsync(
-                AuditActions.BackupCreated, account.Username, outcome.Succeeded, cancellationToken);
-
-            if (!outcome.Succeeded)
+            switch (outcome)
             {
-                await _tasks.FailAsync(taskId, outcome.FailureCode, cancellationToken);
-                await _alerts.ScheduledRunFailedAsync(account.Username, outcome.FailureCode, cancellationToken);
-                return 1;
+                case CreatedBackupOutcome created:
+                    backup.Completed(created.SizeBytes, created.Sha256, created.DatabaseCount, _clock.UtcNow);
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+
+                    await _journal.RecordSystemAsync(
+                        AuditActions.BackupCreated, account.Username, succeeded: true, cancellationToken);
+                    await _tasks.CompleteAsync(taskId, cancellationToken);
+                    await _bus.PublishAsync(new RetentionRequested(account.Id, retainCount));
+
+                    return 1;
+
+                case FailedBackupOutcome failed:
+                    backup.Failed(failed.FailureCode, _clock.UtcNow);
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+
+                    await _journal.RecordSystemAsync(
+                        AuditActions.BackupCreated, account.Username, succeeded: false, cancellationToken);
+                    await _tasks.FailAsync(taskId, failed.FailureCode, cancellationToken);
+                    await _alerts.ScheduledRunFailedAsync(account.Username, failed.FailureCode, cancellationToken);
+
+                    return 1;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"Unhandled backup outcome {outcome.GetType().Name}; the hierarchy is closed to two cases.");
             }
-
-            await _tasks.CompleteAsync(taskId, cancellationToken);
-            await _bus.PublishAsync(new RetentionRequested(account.Id, retainCount));
-
-            return 1;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

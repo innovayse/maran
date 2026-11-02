@@ -5,6 +5,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
 using Maran.Agent.V1;
 using Maran.SharedKernel.Results;
+using Maran.SharedKernel.Security;
 using Microsoft.Extensions.Logging;
 
 namespace Maran.Agent.Client.Services.BackupService;
@@ -302,7 +303,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         // the panel's surface so that a caller states which destination it believes it is reading,
         // and a destination this agent cannot serve is refused here rather than answered from the
         // local directory — the silent substitution this whole client is written to avoid.
-        if (destination.Kind != AgentBackupDestinationKind.Local)
+        if (destination is not AgentLocalBackupDestination)
         {
             return Result<IReadOnlyList<AgentBackupSummary>>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentNotImplemented), ErrorType.Unavailable));
@@ -315,7 +316,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         {
             ListBackupsResponse.ResultOneofCase.Ok => ToSummariesResult(response.Ok),
             ListBackupsResponse.ResultOneofCase.Error => Result<IReadOnlyList<AgentBackupSummary>>.Fail(
-                AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListAsync), destination.S3SecretAccessKey)),
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListAsync), SecretOf(destination))),
             _ => Result<IReadOnlyList<AgentBackupSummary>>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
@@ -340,7 +341,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         {
             DeleteBackupResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             DeleteBackupResponse.ResultOneofCase.Error => Result<bool>.Fail(
-                AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync), destination.S3SecretAccessKey)),
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync), SecretOf(destination))),
             _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
@@ -357,7 +358,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         {
             ProbeDestinationResponse.ResultOneofCase.Ok => ToVerdictResult(response.Ok),
             ProbeDestinationResponse.ResultOneofCase.Error => Result<AgentPublicReadVerdict>.Fail(
-                AgentErrorTranslator.ToError(_logger, response.Error, nameof(ProbeAsync), destination.S3SecretAccessKey)),
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(ProbeAsync), SecretOf(destination))),
             _ => Result<AgentPublicReadVerdict>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
@@ -384,26 +385,39 @@ public sealed class AgentBackupClient : IAgentBackupClient
     /// <returns>The wire message, which never leaves this project.</returns>
     /// <remarks>
     /// The two credentials are revealed here and nowhere else in this client, which is what makes
-    /// "where does the secret escape" a one-search question. There is no local-versus-S3 branch: the
-    /// panel's record already carries empty values for the members a local destination has none of,
-    /// and a branch that blanked them would be a second place the shape of a local destination is
-    /// decided.
+    /// "where does the secret escape" a one-search question. The wire message is flat, so the
+    /// members of a case that has none of them are simply left at the wire's defaults — the agent
+    /// refuses a local destination that names anything, and a branch that blanked a field would be a
+    /// second place the shape of a local destination is decided.
     /// </remarks>
     private static BackupDestination ToWireDestination(AgentBackupDestination destination)
     {
-        return new BackupDestination
+        if (destination is AgentS3BackupDestination s3)
         {
-            Kind = destination.Kind == AgentBackupDestinationKind.S3
-                ? BackupDestinationKind.S3
-                : BackupDestinationKind.Local,
-            Path = destination.Path,
-            S3Bucket = destination.S3Bucket,
-            S3Region = destination.S3Region,
-            S3Endpoint = destination.S3Endpoint,
-            S3AccessKeyId = destination.S3AccessKeyId.Reveal(),
-            S3SecretAccessKey = destination.S3SecretAccessKey.Reveal(),
-            S3PathStyle = destination.S3PathStyle,
-        };
+            return new BackupDestination
+            {
+                Kind = BackupDestinationKind.S3,
+                Path = s3.Path,
+                S3Bucket = s3.Bucket,
+                S3Region = s3.Region,
+                S3Endpoint = s3.Endpoint,
+                S3AccessKeyId = s3.AccessKeyId.Reveal(),
+                S3SecretAccessKey = s3.SecretAccessKey.Reveal(),
+                S3PathStyle = s3.PathStyle,
+            };
+        }
+
+        return new BackupDestination { Kind = BackupDestinationKind.Local };
+    }
+
+    /// <summary>Names the one secret a destination holds, so a translator can redact it from a quote.</summary>
+    /// <param name="destination">The destination the caller named.</param>
+    /// <returns>
+    /// The secret access key of an object store, or <c>null</c> for a local destination, which holds none.
+    /// </returns>
+    private static SensitiveString? SecretOf(AgentBackupDestination destination)
+    {
+        return destination is AgentS3BackupDestination s3 ? s3.SecretAccessKey : null;
     }
 
     /// <summary>Projects the wire listing onto the panel's summaries, refusing an entry the contract forbids.</summary>
@@ -442,12 +456,17 @@ public sealed class AgentBackupClient : IAgentBackupClient
 
             if (backup.StateCase == BackupInfo.StateOneofCase.Unreadable)
             {
-                summaries.Add(new AgentBackupSummary(
-                    backup.BackupId,
-                    null,
-                    new AgentBackupUnreadableReason(
-                        ToUnreadableKind(backup.Unreadable.Kind),
-                        backup.Unreadable.Version)));
+                // A kind the wire left unspecified, or one a newer agent added, is a listing this
+                // build cannot describe truthfully: refused whole rather than given a reason the
+                // agent never gave.
+                var reason = ToUnreadableReason(backup.Unreadable);
+                if (reason is null)
+                {
+                    return Result<IReadOnlyList<AgentBackupSummary>>.Fail(
+                        Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+                }
+
+                summaries.Add(new AgentBackupSummary(backup.BackupId, null, reason));
                 continue;
             }
 
@@ -479,20 +498,20 @@ public sealed class AgentBackupClient : IAgentBackupClient
             manifest.AgentVersion);
     }
 
-    /// <summary>Maps the wire's unreadable kind onto the panel's.</summary>
-    /// <param name="kind">The kind the agent reported.</param>
+    /// <summary>Maps the wire's unreadable reason onto the panel's.</summary>
+    /// <param name="reason">The reason the agent reported.</param>
     /// <returns>
-    /// The matching member, and <see cref="AgentBackupUnreadableKind.Unknown"/> for the wire's
-    /// unspecified value and for a kind a newer agent added — never a guess at one of the three.
+    /// The matching case, carrying the version only for an unknown version; <c>null</c> for the
+    /// wire's unspecified value and for a kind a newer agent added — never a guess at one of the three.
     /// </returns>
-    private static AgentBackupUnreadableKind ToUnreadableKind(UnreadableKind kind)
+    private static AgentBackupUnreadableReason? ToUnreadableReason(UnreadableReason reason)
     {
-        return kind switch
+        return reason.Kind switch
         {
-            UnreadableKind.Corrupt => AgentBackupUnreadableKind.Corrupt,
-            UnreadableKind.UnknownVersion => AgentBackupUnreadableKind.UnknownVersion,
-            UnreadableKind.NotARegularFile => AgentBackupUnreadableKind.NotARegularFile,
-            _ => AgentBackupUnreadableKind.Unknown,
+            UnreadableKind.Corrupt => new AgentBackupCorrupt(),
+            UnreadableKind.UnknownVersion => new AgentBackupUnknownVersion(reason.Version),
+            UnreadableKind.NotARegularFile => new AgentBackupNotARegularFile(),
+            _ => null,
         };
     }
 
@@ -519,7 +538,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
             0,
             string.Empty,
             0,
-            AgentErrorTranslator.ToError(_logger, error, nameof(CreateAsync), destination.S3SecretAccessKey).Code);
+            AgentErrorTranslator.ToError(_logger, error, nameof(CreateAsync), SecretOf(destination)).Code);
     }
 
     /// <summary>Turns the terminal error of a restore stream into the event that ends the sequence.</summary>
@@ -548,29 +567,38 @@ public sealed class AgentBackupClient : IAgentBackupClient
             0,
             string.Empty,
             null,
-            AgentErrorTranslator.ToError(_logger, error, nameof(RestoreAsync), destination.S3SecretAccessKey));
+            AgentErrorTranslator.ToError(_logger, error, nameof(RestoreAsync), SecretOf(destination)));
     }
 
     /// <summary>Projects the probe's success payload onto a verdict, logging why nothing was established.</summary>
     /// <param name="ok">The success payload of <c>ProbeDestination</c>.</param>
     /// <returns>
-    /// The verdict the agent stated, and <see cref="AgentPublicReadVerdict.Unspecified"/> for a value
-    /// this build has no member for. The unproven reason is logged rather than returned: it is the
-    /// agent's own sentence about a network failure, and it is operator-facing.
+    /// The verdict the agent stated, or an <c>AgentInvalidResponse</c> failure for a value this build
+    /// has no member for — never a guess, because only a private verdict may save a destination. The
+    /// unproven reason is logged rather than returned: it is the agent's own sentence about a
+    /// network failure, and it is operator-facing.
     /// </returns>
     private Result<AgentPublicReadVerdict> ToVerdictResult(ProbeDestinationOk ok)
     {
-        var verdict = ok.Verdict switch
+        AgentPublicReadVerdict verdict;
+        switch (ok.Verdict)
         {
-            PublicReadVerdict.Private => AgentPublicReadVerdict.Private,
-            PublicReadVerdict.PubliclyReadable => AgentPublicReadVerdict.PubliclyReadable,
-            PublicReadVerdict.Unproven => AgentPublicReadVerdict.Unproven,
-            _ => AgentPublicReadVerdict.Unspecified,
-        };
+            case PublicReadVerdict.Private:
+                verdict = AgentPublicReadVerdict.Private;
+                break;
 
-        if (verdict == AgentPublicReadVerdict.Unproven)
-        {
-            LogUnprovenProbe(_logger, ok.UnprovenReason, null);
+            case PublicReadVerdict.PubliclyReadable:
+                verdict = AgentPublicReadVerdict.PubliclyReadable;
+                break;
+
+            case PublicReadVerdict.Unproven:
+                verdict = AgentPublicReadVerdict.Unproven;
+                LogUnprovenProbe(_logger, ok.UnprovenReason, null);
+                break;
+
+            default:
+                return Result<AgentPublicReadVerdict>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
         }
 
         return Result<AgentPublicReadVerdict>.Ok(verdict);

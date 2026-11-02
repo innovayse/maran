@@ -10,14 +10,15 @@ namespace Maran.Modules.Backups.Common;
 /// <remarks>
 /// <para>
 /// Deliberately smaller than <see cref="RestoreOutcomeDto"/>: no <c>BackupId</c>/<c>AccountId</c>
-/// (the caller named the backup themselves), no <c>Whole</c> (a failure response IS the verdict),
-/// no <c>FailureCode</c> (the problem's own <c>code</c> member already carries it). Three facts the
+/// (the caller named the backup themselves), no verdict (a failure response IS the verdict), no
+/// <c>FailureCode</c> (the problem's own <c>code</c> member already carries it). Three facts the
 /// agent measured, and nothing restated.
 /// </para>
 /// <para>
-/// It is attached ONLY when the agent stated a terminal outcome (<c>RestoreRunOutcome.Measured</c>).
-/// A truncated or refused run has counts of zero that are "the agent said nothing", not "nothing
-/// was replaced", and publishing them would hand the operator a false <c>0 of 0</c>.
+/// It is attached ONLY when the agent stated a terminal outcome (a <c>PartialRestoreOutcome</c>;
+/// an <c>UnmeasuredRestoreOutcome</c> carries no counts at all). A truncated or refused run would
+/// have counts of zero that are "the agent said nothing", not "nothing was replaced", and
+/// publishing them would hand the operator a false <c>0 of 0</c>.
 /// </para>
 /// </remarks>
 /// <param name="FilesRestored">Whether the account's home was already the archive's home when the run stopped.</param>

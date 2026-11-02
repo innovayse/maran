@@ -43,11 +43,11 @@ public sealed class DeleteBackupCommandHandlerTests
         Assert.Equal(row.Id.ToString(), call.BackupId);
 
         var destination = Assert.Single(world.Agent.Destinations);
-        Assert.Equal(AgentBackupDestinationKind.Local, destination.Kind);
 
-        // Empty, not the configured root: the agent refuses a local destination that carries a path,
-        // so an assertion that this held the root was certifying a call a real agent turns away.
-        Assert.Equal(string.Empty, destination.Path);
+        // The local arm, which has no path to carry: the agent refuses a local destination that
+        // names one, so an assertion that this held the configured root was certifying a call a real
+        // agent turns away.
+        Assert.IsType<AgentLocalBackupDestination>(destination);
 
         Assert.Empty(await world.Read().Backups.IgnoreQueryFilters().ToListAsync());
 

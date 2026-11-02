@@ -101,26 +101,56 @@ public sealed class AgentBackupClientTests
         Assert.True(result.IsSuccess);
         var summary = Assert.Single(result.Value);
         Assert.Null(summary.Readable);
-        Assert.Equal(AgentBackupUnreadableKind.UnknownVersion, summary.Unreadable!.Kind);
-        Assert.Equal(9u, summary.Unreadable.Version);
+        var reason = Assert.IsType<AgentBackupUnknownVersion>(summary.Unreadable);
+        Assert.Equal(9u, reason.Version);
     }
 
-    /// <summary>An unreadable kind this build does not know stays unknown.</summary>
-    [Fact]
-    public async Task An_unreadable_kind_this_build_does_not_know_stays_unknown()
+    /// <summary>The corrupt and not-a-regular-file wire kinds each map to their own reason.</summary>
+    /// <remarks>
+    /// The inverse control for the unknown-version case above: a mapping that sent every kind to one
+    /// reason would pass that test and fail this one.
+    /// </remarks>
+    [Theory]
+    [InlineData(UnreadableKind.Corrupt, typeof(AgentBackupCorrupt))]
+    [InlineData(UnreadableKind.NotARegularFile, typeof(AgentBackupNotARegularFile))]
+    public async Task Each_known_unreadable_kind_maps_to_its_own_reason(UnreadableKind wire, Type expected)
     {
         var ok = new ListBackupsOk();
         ok.Backups.Add(new BackupInfo
         {
-            BackupId = "b3",
-            Unreadable = new UnreadableReason { Kind = (UnreadableKind)77 },
+            BackupId = "b4",
+            Unreadable = new UnreadableReason { Kind = wire },
         });
 
         var result = await NewClient(new StubBackupService { ListResponse = new ListBackupsResponse { Ok = ok } })
             .ListAsync("alice", Local(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(AgentBackupUnreadableKind.Unknown, Assert.Single(result.Value).Unreadable!.Kind);
+        Assert.IsType(expected, Assert.Single(result.Value).Unreadable);
+    }
+
+    /// <summary>An unreadable kind this build does not know, or one left unspecified, is an invalid response.</summary>
+    /// <remarks>
+    /// Never a guess at one of the three known reasons: "we do not know why" must not be rendered as
+    /// "it is damaged", and the panel has no case for it.
+    /// </remarks>
+    [Theory]
+    [InlineData((UnreadableKind)77)]
+    [InlineData(UnreadableKind.Unspecified)]
+    public async Task An_unreadable_kind_this_build_does_not_know_is_an_invalid_response(UnreadableKind wire)
+    {
+        var ok = new ListBackupsOk();
+        ok.Backups.Add(new BackupInfo
+        {
+            BackupId = "b3",
+            Unreadable = new UnreadableReason { Kind = wire },
+        });
+
+        var result = await NewClient(new StubBackupService { ListResponse = new ListBackupsResponse { Ok = ok } })
+            .ListAsync("alice", Local(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
     /// <summary>Listing a remote destination is refused without asking the agent.</summary>
@@ -228,15 +258,10 @@ public sealed class AgentBackupClientTests
     }
 
     /// <summary>Each probe verdict maps to its own member.</summary>
-    /// <remarks>
-    /// Including the unspecified one, which is the arm that matters: a verdict this build cannot name
-    /// must not become "private", because only "private" may save a destination.
-    /// </remarks>
     [Theory]
     [InlineData(PublicReadVerdict.Private, AgentPublicReadVerdict.Private)]
     [InlineData(PublicReadVerdict.PubliclyReadable, AgentPublicReadVerdict.PubliclyReadable)]
     [InlineData(PublicReadVerdict.Unproven, AgentPublicReadVerdict.Unproven)]
-    [InlineData(PublicReadVerdict.Unspecified, AgentPublicReadVerdict.Unspecified)]
     public async Task Each_probe_verdict_maps_to_its_own_member(
         PublicReadVerdict wire,
         AgentPublicReadVerdict expected)
@@ -250,6 +275,27 @@ public sealed class AgentBackupClientTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(expected, result.Value);
+    }
+
+    /// <summary>A verdict this build cannot name is an invalid response, never a verdict.</summary>
+    /// <remarks>
+    /// The arm that matters: a verdict this build cannot name must not become "private", because only
+    /// "private" may save a destination.
+    /// </remarks>
+    [Theory]
+    [InlineData(PublicReadVerdict.Unspecified)]
+    [InlineData((PublicReadVerdict)99)]
+    public async Task A_verdict_this_build_cannot_name_is_an_invalid_response(PublicReadVerdict wire)
+    {
+        var stub = new StubBackupService
+        {
+            ProbeResponse = new ProbeDestinationResponse { Ok = new ProbeDestinationOk { Verdict = wire } },
+        };
+
+        var result = await NewClient(stub).ProbeAsync(S3(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
     /// <summary>An unproven probe logs its reason rather than returning it.</summary>
@@ -560,6 +606,7 @@ public sealed class AgentBackupClientTests
 
         var destination = stub.LastDeleteRequest!.Destination;
         Assert.Equal(BackupDestinationKind.S3, destination.Kind);
+        Assert.Equal("accounts/alice", destination.Path);
         Assert.Equal("maran-backups", destination.S3Bucket);
         Assert.Equal(SecretKey, destination.S3SecretAccessKey);
     }
@@ -646,23 +693,14 @@ public sealed class AgentBackupClientTests
     /// <returns>A local destination.</returns>
     private static AgentBackupDestination Local()
     {
-        return new AgentBackupDestination(
-            AgentBackupDestinationKind.Local,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            new SensitiveString(string.Empty),
-            new SensitiveString(string.Empty),
-            false);
+        return new AgentLocalBackupDestination();
     }
 
     /// <summary>An object-store destination, which the agent that ships today refuses.</summary>
     /// <returns>An S3 destination carrying credentials.</returns>
     private static AgentBackupDestination S3()
     {
-        return new AgentBackupDestination(
-            AgentBackupDestinationKind.S3,
+        return new AgentS3BackupDestination(
             "accounts/alice",
             "maran-backups",
             "eu-central-1",

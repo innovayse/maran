@@ -1,4 +1,6 @@
 using Maran.Agent.Client.Services.BackupService;
+using Maran.Modules.Backups.Domain.Entities;
+using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Tests.TestSupport;
 
@@ -7,7 +9,7 @@ namespace Maran.Modules.Backups.Tests.Mappers;
 /// <summary>The agent-facing restatement of a recorded destination.</summary>
 public sealed class BackupDestinationMapperTests
 {
-    /// <summary>A local destination carries no path, because the agent refuses one that does.</summary>
+    /// <summary>A local destination is the local arm, which has no path, because the agent refuses one that does.</summary>
     /// <remarks>
     /// <b>This is the test the defect it guards had none of.</b> The mapper used to put the
     /// configured local root in <c>Path</c>, and the agent's <c>validated_local</c> answers
@@ -21,22 +23,34 @@ public sealed class BackupDestinationMapperTests
     {
         var agentDestination = BackupDestinationMapper.ForAgent(BackupsTestContext.DefaultDestinationRow());
 
-        Assert.Equal(AgentBackupDestinationKind.Local, agentDestination.Kind);
-        Assert.Equal(string.Empty, agentDestination.Path);
+        Assert.IsType<AgentLocalBackupDestination>(agentDestination);
     }
 
-    /// <summary>A local destination carries no S3 field either, which the agent also refuses.</summary>
+    /// <summary>An object-store row is restated as the S3 arm, carrying no credential this build stores.</summary>
+    /// <remarks>
+    /// The inverse control for the local test above: a mapper that returned the local arm for every
+    /// row would pass that test and fail this one.
+    /// </remarks>
     [Fact]
-    public void Local_destinations_carry_no_s3_fields()
+    public void Object_store_destinations_are_the_s3_arm_with_empty_members()
     {
-        var agentDestination = BackupDestinationMapper.ForAgent(BackupsTestContext.DefaultDestinationRow());
+        var row = new BackupDestination(
+            Guid.NewGuid(),
+            "Somebody's bucket",
+            BackupDestinationKind.S3,
+            string.Empty,
+            isDefault: false,
+            BackupsTestContext.SeedInstant);
 
-        Assert.Equal(string.Empty, agentDestination.S3Bucket);
-        Assert.Equal(string.Empty, agentDestination.S3Region);
-        Assert.Equal(string.Empty, agentDestination.S3Endpoint);
-        Assert.Equal(string.Empty, agentDestination.S3AccessKeyId.Reveal());
-        Assert.Equal(string.Empty, agentDestination.S3SecretAccessKey.Reveal());
-        Assert.False(agentDestination.S3PathStyle);
+        var agentDestination = Assert.IsType<AgentS3BackupDestination>(BackupDestinationMapper.ForAgent(row));
+
+        Assert.Equal(string.Empty, agentDestination.Path);
+        Assert.Equal(string.Empty, agentDestination.Bucket);
+        Assert.Equal(string.Empty, agentDestination.Region);
+        Assert.Equal(string.Empty, agentDestination.Endpoint);
+        Assert.Equal(string.Empty, agentDestination.AccessKeyId.Reveal());
+        Assert.Equal(string.Empty, agentDestination.SecretAccessKey.Reveal());
+        Assert.False(agentDestination.PathStyle);
     }
 
     /// <summary>Formatting a destination never prints anything a credential could hide behind.</summary>
@@ -48,9 +62,17 @@ public sealed class BackupDestinationMapperTests
     [Fact]
     public void Formatting_a_destination_prints_the_mask_where_a_credential_would_be()
     {
-        var rendered = BackupDestinationMapper.ForAgent(BackupsTestContext.DefaultDestinationRow()).ToString();
+        var row = new BackupDestination(
+            Guid.NewGuid(),
+            "Somebody's bucket",
+            BackupDestinationKind.S3,
+            string.Empty,
+            isDefault: false,
+            BackupsTestContext.SeedInstant);
 
-        Assert.Contains("S3AccessKeyId = [redacted]", rendered, StringComparison.Ordinal);
-        Assert.Contains("S3SecretAccessKey = [redacted]", rendered, StringComparison.Ordinal);
+        var rendered = BackupDestinationMapper.ForAgent(row).ToString();
+
+        Assert.Contains("AccessKeyId = [redacted]", rendered, StringComparison.Ordinal);
+        Assert.Contains("SecretAccessKey = [redacted]", rendered, StringComparison.Ordinal);
     }
 }

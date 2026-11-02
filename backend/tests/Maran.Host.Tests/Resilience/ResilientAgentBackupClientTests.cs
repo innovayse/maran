@@ -2,7 +2,6 @@ using Maran.Agent.Client.Services.BackupService;
 using Maran.Host.Resilience;
 using Maran.Host.Tests.Fixtures;
 using Maran.SharedKernel.Results;
-using Maran.SharedKernel.Security;
 
 namespace Maran.Host.Tests.Resilience;
 
@@ -148,15 +147,7 @@ public sealed class ResilientAgentBackupClientTests
     /// <returns>A local destination.</returns>
     private static AgentBackupDestination Local()
     {
-        return new AgentBackupDestination(
-            AgentBackupDestinationKind.Local,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            new SensitiveString(string.Empty),
-            new SensitiveString(string.Empty),
-            false);
+        return new AgentLocalBackupDestination();
     }
 
     /// <summary>Builds the decorator over a pipeline whose timeout is long enough not to interfere.</summary>

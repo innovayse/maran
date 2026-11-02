@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.BackupService;
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Jobs;
@@ -136,8 +137,8 @@ public sealed class RetentionHandlerTests
         Assert.Equal(
             new[] { rows[0].Id.ToString(), rows[1].Id.ToString(), rows[2].Id.ToString() },
             world.Agent.Deletes.Select(call => { return call.BackupId; }));
-        // Empty, not the configured root: the agent refuses a local destination that carries a path.
-        Assert.All(world.Agent.Destinations, destination => { Assert.Equal(string.Empty, destination.Path); });
+        // The local arm, which has no path: the agent refuses a local destination that carries one.
+        Assert.All(world.Agent.Destinations, destination => { Assert.IsType<AgentLocalBackupDestination>(destination); });
     }
 
     /// <summary>An archive the agent says is already gone still takes its row with it.</summary>

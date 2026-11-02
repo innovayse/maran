@@ -38,11 +38,8 @@ public sealed class RestoreBackupCommandHandlerTests
         var result = await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value.Whole);
-        Assert.True(result.Value.FilesRestored);
+        Assert.Equal(world.BackupId, result.Value.BackupId);
         Assert.Equal(2u, result.Value.DatabasesRestored);
-        Assert.Equal(2u, result.Value.DatabasesTotal);
-        Assert.Equal(string.Empty, result.Value.FailureCode);
     }
 
     /// <summary>A restore that lost a database is a failure, not a success carrying smaller numbers.</summary>
@@ -131,6 +128,46 @@ public sealed class RestoreBackupCommandHandlerTests
         Assert.Null(refusedResult.Extension);
         Assert.False(confirmationResult.IsSuccess);
         Assert.Null(confirmationResult.Extension);
+    }
+
+    /// <summary>A restore whose databases all came back but whose files did not is still a partial restore.</summary>
+    /// <remarks>
+    /// The other arm of the verdict: the restored and total counts agree here, so a verdict taken
+    /// from the counts alone would call it whole. The counts that ride the failure say the files
+    /// were not replaced.
+    /// </remarks>
+    [Fact]
+    public async Task A_restore_that_left_the_files_behind_is_partial_even_when_every_database_came_back()
+    {
+        var world = World.Create([
+            new BackupRestoreEvent(
+                BackupRestoreEventKind.Restored, 100, string.Empty, new AgentRestoreOutcome(false, 2, 2), null),
+        ]);
+
+        var result = await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("RestorePartial", result.Error!.Code);
+        Assert.NotNull(result.Extension);
+        var counts = Assert.IsType<RestorePartialDto>(result.Extension.Value);
+        Assert.False(counts.FilesRestored);
+        Assert.Equal(2u, counts.DatabasesRestored);
+        Assert.Equal(2u, counts.DatabasesTotal);
+    }
+
+    /// <summary>A terminal restored event that carries no outcome is refused and publishes no counts.</summary>
+    [Fact]
+    public async Task A_restored_event_with_no_outcome_is_refused_and_carries_no_counts()
+    {
+        var world = World.Create([
+            new BackupRestoreEvent(BackupRestoreEventKind.Restored, 100, string.Empty, null, null),
+        ]);
+
+        var result = await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("RestoreInvalidOutcome", result.Error!.Code);
+        Assert.Null(result.Extension);
     }
 
     /// <summary>A stream that ended with no terminal event is never read as a completed restore.</summary>
