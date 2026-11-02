@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Backups.Services;
 
@@ -152,10 +154,17 @@ public sealed class BackupAuditJournal : ISystemAuditJournal
         bool succeeded,
         CancellationToken cancellationToken)
     {
+        var (userId, username) = _currentUser.Caller switch
+        {
+            PrincipalCaller principal => (principal.UserId, principal.Username),
+            AnonymousCaller => (Guid.Empty, string.Empty),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: a principal or nobody."),
+        };
+
         await _auditWriter.WriteAsync(
             new AuditEntry(
-                _currentUser.UserId,
-                _currentUser.Username,
+                userId,
+                username,
                 action,
                 subject,
                 ipAddress,
