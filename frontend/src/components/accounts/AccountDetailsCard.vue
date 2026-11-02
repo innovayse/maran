@@ -17,7 +17,7 @@ import type { AppLocale } from '../../types/app'
 import { formatDate } from '../../utils/formatDate'
 
 /** Props accepted by {@link AccountDetailsCard}. */
-const props = defineProps<{
+defineProps<{
   /** The account to describe; `null` is the one state in which it is still on its way. */
   account: AccountDetail | null
   /** The interface language the creation date is written in. */
@@ -31,7 +31,7 @@ const { t } = useI18n()
   <UiCard>
     <!-- The values are read only once loaded: while loading each item draws a placeholder
          line in place of its slot. -->
-    <UiDescriptionList :loading="props.account === null">
+    <UiDescriptionList :loading="account === null">
       <UiDescriptionItem :term="t('common.name')" mono>
         {{ account?.name }}
       </UiDescriptionItem>
