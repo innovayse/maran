@@ -155,8 +155,8 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
         {
             return session.Id == owner.SessionId;
         });
-        Assert.Equal(SessionRevocationReason.PasswordChanged, revoked.RevocationReason);
-        Assert.Null(kept.RevokedAt);
+        Assert.Equal(SessionRevocationReason.PasswordChanged, revoked.Revocation?.Reason);
+        Assert.Null(kept.Revocation);
     }
 
     /// <summary>The caller's whole rotation family is kept, so a refresh in another tab survives.</summary>
@@ -169,7 +169,7 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
         await NewHandler().HandleAsync(Command(OldPassword, owner.SessionId), CancellationToken.None);
 
         var live = await _context.Sessions.AsNoTracking().SingleAsync(session => session.Id == rotated.Value.SessionId);
-        Assert.Null(live.RevokedAt);
+        Assert.Null(live.Revocation);
     }
 
     /// <summary>A refused change revokes no session.</summary>
@@ -182,7 +182,7 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
 
         Assert.All(await _context.Sessions.AsNoTracking().ToListAsync(), session =>
         {
-            Assert.Null(session.RevokedAt);
+            Assert.Null(session.Revocation);
         });
     }
 

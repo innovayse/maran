@@ -280,7 +280,7 @@ public sealed class PasswordResetEndpointTests : IAsyncLifetime
         {
             var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
             var beforeTheReset = await identity.Sessions
-                .Where(session => session.UserId == userId && session.RevokedAt == null)
+                .Where(session => session.UserId == userId && session.Revocation == null)
                 .CountAsync();
 
             // Exactly one live session: the sign-in that used the NEW password, a moment ago. The one

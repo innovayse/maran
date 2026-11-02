@@ -77,8 +77,8 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
 
         var session = await _context.Sessions.SingleAsync(candidate => candidate.Id == issued.SessionId);
         Assert.False(session.IsActive(Now));
-        Assert.NotNull(session.RevokedAt);
-        Assert.Equal(SessionRevocationReason.AccountSuspended, session.RevocationReason);
+        Assert.NotNull(session.Revocation);
+        Assert.Equal(SessionRevocationReason.AccountSuspended, session.Revocation?.Reason);
     }
 
     /// <summary>Suspending an account blocks its login from signing in again.</summary>

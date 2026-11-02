@@ -36,7 +36,7 @@ public interface IAccessTokenIssuer
     /// session kind as <c>sk</c>, and expires with the session (issue #317).
     /// </summary>
     /// <param name="viewedUser">The login being viewed as.</param>
-    /// <param name="session">A <see cref="Domain.Enums.SessionKind.ViewAs"/> session of that login, started by <paramref name="actor"/>.</param>
+    /// <param name="session">A view-as session (<see cref="Domain.Entities.Session.ViewAs"/> is set) of that login, started by <paramref name="actor"/>.</param>
     /// <param name="actor">The operator viewing.</param>
     /// <returns>The signed token and its expiry; never steered into two-factor enrolment.</returns>
     /// <exception cref="InvalidOperationException">The session is not a view-as session of these two users.</exception>

@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -75,7 +76,11 @@ public sealed class DatabaseAuditWriter : IAuditWriter
     public async Task WriteAsync(AuditEntry entry, CancellationToken cancellationToken)
     {
         var correlationId = _correlationIdAccessor.CorrelationId;
-        var impersonatorUserId = _currentUser.ActorUserId;
+        var impersonator = _currentUser.ActorUserId is { } impersonatorUserId
+            ? new AuditImpersonator(
+                impersonatorUserId,
+                ColumnText.Fit(_currentUser.ActorUsername, AuditEvent.ActorUsernameMaxLength))
+            : null;
 
         _dbContext.AuditEvents.Add(new AuditEvent(
             Guid.NewGuid(),
@@ -88,10 +93,7 @@ public sealed class DatabaseAuditWriter : IAuditWriter
             entry.UserAgent,
             entry.Succeeded,
             correlationId is null ? null : ColumnText.Fit(correlationId, AuditEvent.CorrelationIdMaxLength),
-            impersonatorUserId,
-            impersonatorUserId is null
-                ? null
-                : ColumnText.Fit(_currentUser.ActorUsername, AuditEvent.ActorUsernameMaxLength)));
+            impersonator));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }

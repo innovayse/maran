@@ -37,8 +37,8 @@ public sealed class DatabaseAuditWriterViewAsTests : IDisposable
 
         var stored = await _fixture.Context.AuditEvents.SingleAsync();
         Assert.Equal(viewedId, stored.ActorUserId);
-        Assert.Equal(operatorId, stored.ImpersonatorUserId);
-        Assert.Equal("root-admin", stored.ImpersonatorUsername);
+        Assert.Equal(operatorId, stored.Impersonator?.UserId);
+        Assert.Equal("root-admin", stored.Impersonator?.Username);
     }
 
     /// <summary>An entry written by somebody acting as themselves has no impersonator.</summary>
@@ -54,7 +54,6 @@ public sealed class DatabaseAuditWriterViewAsTests : IDisposable
         await writer.WriteAsync(Entry(Guid.NewGuid()), CancellationToken.None);
 
         var stored = await _fixture.Context.AuditEvents.SingleAsync();
-        Assert.Null(stored.ImpersonatorUserId);
-        Assert.Null(stored.ImpersonatorUsername);
+        Assert.Null(stored.Impersonator);
     }
 }

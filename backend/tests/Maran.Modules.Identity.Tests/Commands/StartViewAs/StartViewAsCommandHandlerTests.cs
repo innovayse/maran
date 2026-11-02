@@ -50,7 +50,7 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
         Assert.Equal(owner.Id.ToString(), token.GetClaim(PanelClaimTypes.UserId).Value);
         Assert.Equal(nameof(UserRole.Customer), token.GetClaim(PanelClaimTypes.Role).Value);
         Assert.Equal(accountId.ToString(), token.GetClaim(PanelClaimTypes.AccountId).Value);
-        Assert.Equal(nameof(SessionKind.ViewAs), token.GetClaim(PanelClaimTypes.SessionKind).Value);
+        Assert.Equal("ViewAs", token.GetClaim(PanelClaimTypes.SessionKind).Value);
 
         using var actor = JsonDocument.Parse(token.GetClaim(PanelClaimTypes.Actor).Value);
         Assert.Equal(admin.Id.ToString(), actor.RootElement.GetProperty(PanelClaimTypes.UserId).GetString());
@@ -67,11 +67,11 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
 
         var result = await NewHandler().HandleAsync(Command(accountId, admin.Id, adminSession.Id), CancellationToken.None);
 
-        var stored = await _fixture.Context.Sessions.SingleAsync(s => s.Kind == SessionKind.ViewAs);
+        var stored = await _fixture.Context.Sessions.SingleAsync(s => s.ViewAs != null);
         Assert.Equal(ViewAsFixture.Now.Add(ViewAsLifetime.Duration), stored.ExpiresAt);
         Assert.Equal(stored.ExpiresAt, result.Value.ExpiresAt);
-        Assert.Equal(admin.Id, stored.ActorUserId);
-        Assert.Equal(adminSession.Id, stored.ActorSessionId);
+        Assert.Equal(admin.Id, stored.ViewAs?.ActorUserId);
+        Assert.Equal(adminSession.Id, stored.ViewAs?.ActorSessionId);
         Assert.Equal(accountId, stored.ActiveAccountId);
     }
 
@@ -105,7 +105,7 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
         Assert.NotNull(result.Error);
         Assert.Equal(ErrorType.NotFound, result.Error.Type);
         Assert.Equal("ViewAsAccountNotFound", result.Error.Code);
-        Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.Kind == SessionKind.ViewAs));
+        Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.ViewAs != null));
         Assert.False(Assert.Single(_fixture.Audit.Written).Succeeded);
     }
 
@@ -121,7 +121,7 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Error);
         Assert.Equal(ErrorType.NotFound, result.Error.Type);
-        Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.Kind == SessionKind.ViewAs));
+        Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.ViewAs != null));
     }
 
     /// <summary>A suspended login cannot be viewed as.</summary>
@@ -138,6 +138,6 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Error);
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
-        Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.Kind == SessionKind.ViewAs));
+        Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.ViewAs != null));
     }
 }

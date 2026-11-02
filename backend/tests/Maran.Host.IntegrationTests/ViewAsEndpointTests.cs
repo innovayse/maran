@@ -106,12 +106,12 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         Assert.Equal(adminId, started.ActorUserId);
         Assert.Contains("olive", started.Subject, StringComparison.Ordinal);
         Assert.True(started.Succeeded);
-        Assert.Null(started.ImpersonatorUserId);
+        Assert.Null(started.Impersonator);
 
         Assert.Equal(adminId, stopped.ActorUserId);
         Assert.Contains("acme", stopped.Subject, StringComparison.Ordinal);
-        Assert.Equal(adminId, stopped.ImpersonatorUserId);
-        Assert.Equal("admin", stopped.ImpersonatorUsername);
+        Assert.Equal(adminId, stopped.Impersonator?.UserId);
+        Assert.Equal("admin", stopped.Impersonator?.Username);
     }
 
     /// <summary>Something the operator does while viewing is journalled under the customer with the operator beside it.</summary>
@@ -129,7 +129,7 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var entry = await context.AuditEvents.SingleAsync(e => e.Action == AuditActions.PagePinned);
         Assert.Equal("olive", entry.ActorUsername);
-        Assert.Equal("admin", entry.ImpersonatorUsername);
+        Assert.Equal("admin", entry.Impersonator?.Username);
     }
 
     /// <summary>A customer may not view as anybody, and nothing is issued.</summary>
@@ -273,7 +273,7 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
     {
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        return await context.Sessions.CountAsync(s => s.Kind == SessionKind.ViewAs);
+        return await context.Sessions.CountAsync(s => s.ViewAs != null);
     }
 
     /// <summary>Boots the host with an administrator and a customer, olive, who owns acme; globex has its own owner.</summary>

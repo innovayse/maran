@@ -48,7 +48,7 @@ public sealed class GetProfileQueryHandler
         var activeSessions = await _dbContext.Sessions
             .AsNoTracking()
             .CountAsync(
-                session => session.UserId == user.Id && session.RevokedAt == null && session.ExpiresAt > now,
+                session => session.UserId == user.Id && session.Revocation == null && session.ExpiresAt > now,
                 cancellationToken);
 
         // How the person stands towards the account they are acting for. Read through the entity's own

@@ -21,6 +21,12 @@ namespace Maran.Modules.Identity.Services;
 /// </remarks>
 public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
 {
+    /// <summary>
+    /// The value of <see cref="PanelClaimTypes.SessionKind"/> on a view-as token. A closed one-value
+    /// vocabulary: an own sign-in carries no such claim, so there is no second value to name.
+    /// </summary>
+    private const string ViewAsClaimValue = "ViewAs";
+
     /// <summary>Signing key, issuer, audience and lifetime.</summary>
     private readonly JwtOptions _options;
 
@@ -64,7 +70,7 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
             [PanelClaimTypes.Role] = viewedUser.Role.ToString(),
             [PanelClaimTypes.SessionId] = session.Id.ToString(),
             [PanelClaimTypes.AccountId] = viewedAccountId.ToString(),
-            [PanelClaimTypes.SessionKind] = nameof(SessionKind.ViewAs),
+            [PanelClaimTypes.SessionKind] = ViewAsClaimValue,
 
             // RFC 8693 §4.1: the party actually acting, as a JSON object nested in the token. The
             // operator's own session id rides along so the bearer handler can require that the

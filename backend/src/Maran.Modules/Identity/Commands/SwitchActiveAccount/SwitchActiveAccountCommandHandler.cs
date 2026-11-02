@@ -1,5 +1,4 @@
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
@@ -104,7 +103,7 @@ public sealed class SwitchActiveAccountCommandHandler
         // An operator viewing as this person is bound to the account they chose to view: switching
         // would re-issue an ordinary token with the operator's marker dropped, and the viewed
         // person's other accounts were never part of what the operator was shown.
-        if (session is null || session.Kind == SessionKind.ViewAs || !session.IsActive(_clock.UtcNow))
+        if (session is null || session.ViewAs is not null || !session.IsActive(_clock.UtcNow))
         {
             return Result<ActiveAccountDto>.Fail(Error.Of(nameof(ErrorMessages.SessionNotFound), ErrorType.NotFound));
         }

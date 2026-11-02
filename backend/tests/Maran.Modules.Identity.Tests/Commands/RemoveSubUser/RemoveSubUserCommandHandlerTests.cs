@@ -70,9 +70,9 @@ public sealed class RemoveSubUserCommandHandlerTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.True(await _world.Context.Users.AnyAsync(candidate => candidate.Id == member.Id));
         var storedHere = await _world.Context.Sessions.SingleAsync(candidate => candidate.Id == here.Id);
-        Assert.Equal(SessionRevocationReason.MembershipRemoved, storedHere.RevocationReason);
+        Assert.Equal(SessionRevocationReason.MembershipRemoved, storedHere.Revocation?.Reason);
         var storedThere = await _world.Context.Sessions.SingleAsync(candidate => candidate.Id == there.Id);
-        Assert.Null(storedThere.RevokedAt);
+        Assert.Null(storedThere.Revocation);
         Assert.False(await _world.Context.AccountMemberships.AnyAsync(
             candidate => candidate.UserId == member.Id && candidate.AccountId == SubUserWorld.AccountId));
     }

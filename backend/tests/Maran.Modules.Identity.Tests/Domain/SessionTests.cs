@@ -77,8 +77,8 @@ public sealed class SessionTests
 
         session.Revoke(Now.AddMinutes(9), SessionRevocationReason.ReuseDetected);
 
-        Assert.Equal(Now.AddMinutes(5), session.RevokedAt);
-        Assert.Equal(SessionRevocationReason.Rotated, session.RevocationReason);
+        Assert.Equal(Now.AddMinutes(5), session.Revocation?.At);
+        Assert.Equal(SessionRevocationReason.Rotated, session.Revocation?.Reason);
     }
 
     /// <summary>A user's own session has no view-as origin.</summary>

@@ -41,7 +41,7 @@ public sealed class ListSessionsQueryHandler
 
         var sessions = _dbContext.Sessions
             .AsNoTracking()
-            .Where(session => session.UserId == query.UserId && session.RevokedAt == null && session.ExpiresAt > now);
+            .Where(session => session.UserId == query.UserId && session.Revocation == null && session.ExpiresAt > now);
 
         if (!query.Search.IsNone)
         {

@@ -28,11 +28,11 @@ public sealed class Session
     /// <summary>The instant the refresh token stops being accepted.</summary>
     public DateTimeOffset ExpiresAt { get; private set; }
 
-    /// <summary>The instant the session was revoked; null while it is still live.</summary>
-    public DateTimeOffset? RevokedAt { get; private set; }
-
-    /// <summary>Why the session was revoked; null while it is still live.</summary>
-    public SessionRevocationReason? RevocationReason { get; private set; }
+    /// <summary>
+    /// How and when the session ended before its expiry, or <c>null</c> while it has not been
+    /// revoked. Instant and reason exist together or not at all, which is why they are one value.
+    /// </summary>
+    public SessionRevocation? Revocation { get; private set; }
 
     /// <summary>The address the session was created from.</summary>
     public string IpAddress { get; private set; }
@@ -49,43 +49,12 @@ public sealed class Session
     public Guid? ActiveAccountId { get; private set; }
 
     /// <summary>
-    /// Whose sign-in this is: the user's own (every session the constructor creates), or an operator
-    /// viewing the panel as this user (<see cref="StartViewAs"/>).
+    /// Who is behind this session when an operator is viewing the panel as <see cref="UserId"/>
+    /// (<see cref="StartViewAs"/>), or <c>null</c> for the user's own sign-in, which has no actor but
+    /// its user. The operator's ids exist only inside this value, so an own session cannot carry
+    /// them and a view-as session cannot lack them.
     /// </summary>
-    public SessionKind Kind { get; private set; }
-
-    /// <summary>
-    /// The operator viewing as <see cref="UserId"/>, for a <see cref="SessionKind.ViewAs"/> session;
-    /// null for an own session, which has no actor but its user.
-    /// </summary>
-    public Guid? ActorUserId { get; private set; }
-
-    /// <summary>
-    /// The operator's own session the view-as session was started from, for a
-    /// <see cref="SessionKind.ViewAs"/> session; null for an own session. Its rotation family must
-    /// stay live for the view-as session to be accepted, so signing the operator out ends it too.
-    /// </summary>
-    public Guid? ActorSessionId { get; private set; }
-
-    /// <summary>
-    /// Who is behind this session when it is a view-as session, or <c>null</c> for the user's own
-    /// sign-in — the one question the stored <see cref="Kind"/>, <see cref="ActorUserId"/> and
-    /// <see cref="ActorSessionId"/> are read together to answer.
-    /// </summary>
-    /// <remarks>
-    /// Derived on every read and never stored. A row whose kind says view-as but whose actor ids are
-    /// missing reads as <c>null</c>, which every caller treats as "not a view-as session" — the
-    /// refusing direction — rather than as an origin of empty ids.
-    /// </remarks>
-    public ViewAsOrigin? ViewAs
-    {
-        get
-        {
-            return Kind == SessionKind.ViewAs && ActorUserId is { } actorUserId && ActorSessionId is { } actorSessionId
-                ? new ViewAsOrigin(actorUserId, actorSessionId)
-                : null;
-        }
-    }
+    public ViewAsOrigin? ViewAs { get; private set; }
 
     /// <summary>Creates an active session.</summary>
     /// <param name="id">The session's identity; also the <c>sid</c> claim of the access token issued beside it.</param>
@@ -168,9 +137,7 @@ public sealed class Session
             userAgent,
             viewedAccountId)
         {
-            Kind = SessionKind.ViewAs,
-            ActorUserId = actorUserId,
-            ActorSessionId = actorSessionId,
+            ViewAs = new ViewAsOrigin(actorUserId, actorSessionId),
         };
 
         return session;
@@ -181,7 +148,7 @@ public sealed class Session
     /// <returns>True when the session is neither revoked nor expired.</returns>
     public bool IsActive(DateTimeOffset now)
     {
-        return RevokedAt is null && ExpiresAt > now;
+        return Revocation is null && ExpiresAt > now;
     }
 
     /// <summary>Makes the sign-in speak for another account the login holds a membership of.</summary>
@@ -202,12 +169,11 @@ public sealed class Session
     /// <param name="reason">Why the session is ending.</param>
     public void Revoke(DateTimeOffset at, SessionRevocationReason reason)
     {
-        if (RevokedAt is not null)
+        if (Revocation is not null)
         {
             return;
         }
 
-        RevokedAt = at;
-        RevocationReason = reason;
+        Revocation = new SessionRevocation(at, reason);
     }
 }

@@ -60,7 +60,7 @@ public sealed class SessionService : ISessionService
         // A view-as session's refresh token never left the server, so presenting one is impossible
         // in honest use; refusing it here as well means that even a leak of the discarded plaintext
         // could not stretch a fifteen-minute view into a renewable one (issue #317).
-        if (session is null || session.Kind == SessionKind.ViewAs)
+        if (session is null || session.ViewAs is not null)
         {
             return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized));
         }
@@ -71,7 +71,7 @@ public sealed class SessionService : ISessionService
         // is compromised. Revoking the whole family is what makes a stolen cookie usable once
         // rather than for a fortnight, and it tells the real user something is wrong by signing
         // them out.
-        if (session.RevokedAt is not null)
+        if (session.Revocation is not null)
         {
             await RevokeFamilyAsync(session.FamilyId, SessionRevocationReason.ReuseDetected, cancellationToken);
             return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenReusedUnauthorized), ErrorType.Unauthorized));
@@ -132,7 +132,7 @@ public sealed class SessionService : ISessionService
     public async Task RevokeAllAsync(Guid userId, SessionRevocationReason reason, CancellationToken cancellationToken)
     {
         var sessions = await _dbContext.Sessions
-            .Where(s => s.UserId == userId && s.RevokedAt == null)
+            .Where(s => s.UserId == userId && s.Revocation == null)
             .ToListAsync(cancellationToken);
 
         foreach (var session in sessions)
@@ -157,7 +157,7 @@ public sealed class SessionService : ISessionService
             .SingleOrDefaultAsync(cancellationToken);
 
         var sessions = await _dbContext.Sessions
-            .Where(s => s.UserId == userId && s.RevokedAt == null && s.FamilyId != keptFamilyId)
+            .Where(s => s.UserId == userId && s.Revocation == null && s.FamilyId != keptFamilyId)
             .ToListAsync(cancellationToken);
 
         foreach (var session in sessions)
@@ -213,7 +213,7 @@ public sealed class SessionService : ISessionService
     private async Task RevokeFamilyAsync(Guid familyId, SessionRevocationReason reason, CancellationToken cancellationToken)
     {
         var sessions = await _dbContext.Sessions
-            .Where(s => s.FamilyId == familyId && s.RevokedAt == null)
+            .Where(s => s.FamilyId == familyId && s.Revocation == null)
             .ToListAsync(cancellationToken);
 
         foreach (var session in sessions)

@@ -55,7 +55,7 @@ public sealed class EndViewAsCommandHandlerTests : IDisposable
 
         Assert.True(result.IsSuccess);
         var stored = await _fixture.Context.Sessions.SingleAsync(s => s.Id == viewAs.Id);
-        Assert.Equal(SessionRevocationReason.ViewAsEnded, stored.RevocationReason);
+        Assert.Equal(SessionRevocationReason.ViewAsEnded, stored.Revocation?.Reason);
 
         var entry = Assert.Single(_fixture.Audit.Written);
         Assert.Equal(AuditActions.ViewAsEnded, entry.Action);
@@ -78,7 +78,7 @@ public sealed class EndViewAsCommandHandlerTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Error);
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
-        Assert.Null((await _fixture.Context.Sessions.SingleAsync(s => s.Id == adminSession.Id)).RevokedAt);
+        Assert.Null((await _fixture.Context.Sessions.SingleAsync(s => s.Id == adminSession.Id)).Revocation);
         Assert.Empty(_fixture.Audit.Written);
     }
 

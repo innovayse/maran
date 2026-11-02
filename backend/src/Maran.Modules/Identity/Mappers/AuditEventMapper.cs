@@ -31,6 +31,6 @@ public static class AuditEventMapper
             auditEvent.Subject,
             auditEvent.IpAddress,
             auditEvent.Succeeded,
-            auditEvent.ImpersonatorUsername);
+            auditEvent.Impersonator?.Username);
     }
 }

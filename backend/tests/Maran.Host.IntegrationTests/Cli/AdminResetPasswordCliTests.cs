@@ -200,7 +200,7 @@ public sealed class AdminResetPasswordCliTests : IAsyncLifetime
 
             // The session of the first sign-in is dead before the new password is even chosen.
             var live = await identity.Sessions.CountAsync(
-                session => session.UserId == userId && session.RevokedAt == null);
+                session => session.UserId == userId && session.Revocation == null);
             Assert.Equal(0, live);
 
             var audit = await identity.AuditEvents

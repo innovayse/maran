@@ -1,5 +1,4 @@
 using Maran.Modules.Identity.Domain.Entities;
-using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Persistence;
 
@@ -20,9 +19,9 @@ namespace Maran.Modules.Identity.Services;
 /// </para>
 /// <para>
 /// <b>What "live" means, every clause required:</b> the row named by the token's <c>sid</c> exists,
-/// is a <see cref="SessionKind.ViewAs"/> session, is active, belongs to the token's <c>sub</c>, and
+/// is a view-as session (<see cref="Session.ViewAs"/> is set), is active, belongs to the token's <c>sub</c>, and
 /// names the token's <c>act</c> user as its actor; AND the operator's own rotation family — found
-/// from <see cref="Session.ActorSessionId"/> — still holds an active session of that operator. The
+/// from <see cref="Session.ViewAs"/> — still holds an active session of that operator. The
 /// FAMILY and not the row, because the operator's row rotates whenever another of their tabs
 /// refreshes, and checking the row would end viewing at every rotation.
 /// </para>
@@ -70,7 +69,7 @@ public sealed class ViewAsSessionVerifier
 
         var actorFamilyId = await _dbContext.Sessions
             .AsNoTracking()
-            .Where(s => s.Id == actorSessionId && s.UserId == actorUserId && s.Kind == SessionKind.Own)
+            .Where(s => s.Id == actorSessionId && s.UserId == actorUserId && s.ViewAs == null)
             .Select(s => (Guid?)s.FamilyId)
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -82,7 +81,7 @@ public sealed class ViewAsSessionVerifier
         return await _dbContext.Sessions
             .AsNoTracking()
             .AnyAsync(
-                s => s.FamilyId == actorFamilyId && s.UserId == actorUserId && s.RevokedAt == null && s.ExpiresAt > now,
+                s => s.FamilyId == actorFamilyId && s.UserId == actorUserId && s.Revocation == null && s.ExpiresAt > now,
                 cancellationToken);
     }
 
@@ -97,7 +96,7 @@ public sealed class ViewAsSessionVerifier
         return await _dbContext.Sessions
             .AsNoTracking()
             .SingleOrDefaultAsync(
-                s => s.Id == sessionId && s.Kind == SessionKind.ViewAs && s.RevokedAt == null && s.ExpiresAt > now,
+                s => s.Id == sessionId && s.ViewAs != null && s.Revocation == null && s.ExpiresAt > now,
                 cancellationToken);
     }
 }

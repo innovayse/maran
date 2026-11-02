@@ -59,7 +59,7 @@ public sealed class EndViewAsCommandHandler
     {
         var now = _clock.UtcNow;
         var session = await _dbContext.Sessions.SingleOrDefaultAsync(
-            s => s.Id == command.SessionId && s.UserId == command.ViewedUserId && s.Kind == SessionKind.ViewAs,
+            s => s.Id == command.SessionId && s.UserId == command.ViewedUserId && s.ViewAs != null,
             cancellationToken);
 
         if (session is null || !session.IsActive(now) || session.ViewAs is not { } origin)

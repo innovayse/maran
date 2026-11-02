@@ -1,3 +1,5 @@
+using Maran.Modules.Identity.Domain.ValueObjects;
+
 namespace Maran.Modules.Identity.Domain.Entities;
 
 /// <summary>
@@ -61,12 +63,10 @@ public sealed class AuditEvent
     /// <summary>
     /// The operator who was viewing the panel as the actor when this happened (issue #317); null when
     /// the actor was acting as themselves. The actor columns keep the login whose authority the action
-    /// ran under, and this column says who was really at the keyboard.
+    /// ran under, and this value says who was really at the keyboard.
     /// </summary>
-    public Guid? ImpersonatorUserId { get; private set; }
+    public AuditImpersonator? Impersonator { get; private set; }
 
-    /// <summary>The login name of <see cref="ImpersonatorUserId"/>; null exactly when it is null.</summary>
-    public string? ImpersonatorUsername { get; private set; }
     /// <summary>Records an event.</summary>
     /// <param name="id">The event's identity.</param>
     /// <param name="occurredAt">When it happened, taken from <see cref="IClock"/>.</param>
@@ -78,8 +78,7 @@ public sealed class AuditEvent
     /// <param name="userAgent">What client it came from.</param>
     /// <param name="succeeded">Whether it worked.</param>
     /// <param name="correlationId">The request's correlation id, tying this row to the logs.</param>
-    /// <param name="impersonatorUserId">The operator viewing as the actor, or null when there was none.</param>
-    /// <param name="impersonatorUsername">That operator's login name, or null when there was none.</param>
+    /// <param name="impersonator">The operator viewing as the actor, or null when there was none.</param>
     public AuditEvent(
         Guid id,
         DateTimeOffset occurredAt,
@@ -91,8 +90,7 @@ public sealed class AuditEvent
         string userAgent,
         bool succeeded,
         string? correlationId,
-        Guid? impersonatorUserId = null,
-        string? impersonatorUsername = null)
+        AuditImpersonator? impersonator = null)
     {
         Id = id;
         OccurredAt = occurredAt;
@@ -104,8 +102,7 @@ public sealed class AuditEvent
         UserAgent = userAgent;
         Succeeded = succeeded;
         CorrelationId = correlationId;
-        ImpersonatorUserId = impersonatorUserId;
-        ImpersonatorUsername = impersonatorUserId is null ? null : impersonatorUsername;
+        Impersonator = impersonator;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>

@@ -48,7 +48,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
         Assert.True(rotated.IsSuccess);
         Assert.NotEqual(issued.RefreshToken, rotated.Value.RefreshToken);
         var old = await _context.Sessions.SingleAsync(s => s.Id == issued.SessionId);
-        Assert.Equal(SessionRevocationReason.Rotated, old.RevocationReason);
+        Assert.Equal(SessionRevocationReason.Rotated, old.Revocation?.Reason);
     }
 
     /// <summary>A rotated session keeps the family of the one it replaces.</summary>
@@ -93,7 +93,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
         Assert.False(replay.IsSuccess);
         Assert.Equal("RefreshTokenReusedUnauthorized", replay.Error!.Code);
         var live = await _context.Sessions.SingleAsync(s => s.Id == second.Value.SessionId);
-        Assert.Equal(SessionRevocationReason.ReuseDetected, live.RevocationReason);
+        Assert.Equal(SessionRevocationReason.ReuseDetected, live.Revocation?.Reason);
     }
 
     /// <summary>An unknown refresh token is rejected without revoking anything.</summary>
@@ -174,7 +174,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
 
         await service.RevokeAllAsync(_userId, SessionRevocationReason.LogoutAll, CancellationToken.None);
 
-        Assert.Empty(await _context.Sessions.Where(s => s.UserId == _userId && s.RevokedAt == null).ToListAsync());
+        Assert.Empty(await _context.Sessions.Where(s => s.UserId == _userId && s.Revocation == null).ToListAsync());
     }
 
     /// <summary>A session issued today expires after the configured refresh lifetime.</summary>
