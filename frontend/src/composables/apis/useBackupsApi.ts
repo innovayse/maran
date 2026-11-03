@@ -98,7 +98,7 @@ export const useBackupsApi = (): BackupsApi => {
    * @returns The backup with its verification state as the panel now holds it.
    */
   const verify = (id: string, signal?: AbortSignal): Promise<Backup> => {
-    return api.post<Backup>(`${BACKUPS_PATH}/${id}/verify`, {}, signal)
+    return api.post<Backup>(`${BACKUPS_PATH}/${id}/verify`, undefined, signal)
   }
 
   /**
