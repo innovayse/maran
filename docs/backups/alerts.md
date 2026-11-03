@@ -30,7 +30,9 @@ hour.
 A manual run does not mail for its own outcome: whoever asked for it is watching its task. Its
 verification is different, because the finding arrives after they have stopped watching, so a failed
 verification mails for manual runs too. A verification that could not run (the agent busy, saturated
-or unreachable) mails nothing, because it found nothing about the artifact.
+or unreachable) mails nothing, because it found nothing about the artifact. A failure found by
+**Verify now** is mailed once, when the backup moves into the failed state; pressing the button again
+on a backup already recorded as failed mails nothing more.
 
 ## What is not covered yet
 

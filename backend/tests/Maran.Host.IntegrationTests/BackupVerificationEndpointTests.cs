@@ -102,15 +102,15 @@ public sealed class BackupVerificationEndpointTests : IAsyncLifetime
         Assert.Equal("owner-a", entry.ActorUsername);
     }
 
-    /// <summary>A finding about the artifact is recorded as failed, journalled as a failure, and not mailed.</summary>
+    /// <summary>A finding about the artifact is recorded as failed, journalled as a failure, and mailed once.</summary>
     /// <remarks>
-    /// "Verify now" is the owner's own question, answered on their own screen. The administrator's
-    /// mail is raised once when a run is verified, so a login clicking the button cannot use it as a
-    /// mail cannon against the administrator; the run-time alert is proved in
-    /// <see cref="BackupVerificationAlertTests"/>.
+    /// A finding made by "Verify now" is the same unattended-in-effect fact a run's own verification
+    /// makes: the person who pressed the button may be a customer, and the administrator is the one
+    /// who must act. It is mailed on the transition into the failed state, so the first press alerts
+    /// and the repeat does not (<see cref="Pressing_verify_again_on_a_backup_already_failed_mails_nothing_more"/>).
     /// </remarks>
     [Fact]
-    public async Task A_finding_about_the_artifact_is_recorded_failed_journalled_and_not_mailed()
+    public async Task A_finding_about_the_artifact_is_recorded_failed_journalled_and_mailed_once()
     {
         var agent = new ScriptedVerificationAgentBackupClient();
         var mailer = new RecordingMailer(TimeSpan.Zero);
@@ -132,8 +132,47 @@ public sealed class BackupVerificationEndpointTests : IAsyncLifetime
         Assert.False(entry.Succeeded);
         Assert.Equal("owner-a", entry.ActorUsername);
 
-        Assert.Empty(await BackupVerificationWorld.AuditEntriesAsync(factory, MonitoringAuditActions.AlertRaised));
-        Assert.Empty(await BackupVerificationWorld.DrainedMailAsync(factory, mailer));
+        Assert.Single(await BackupVerificationWorld.WaitForAuditAsync(
+            factory, MonitoringAuditActions.AlertRaised, 1));
+        var sent = Assert.Single(await BackupVerificationWorld.WaitForMailAsync(mailer, 1));
+        Assert.Equal(FixedAlertRecipientDirectory.Address, sent.Recipient);
+    }
+
+    /// <summary>Pressing verify again on a backup already recorded as failed mails nothing more.</summary>
+    /// <remarks>
+    /// The mail-cannon rule (threat note R-H2): the alert is raised on the transition into the failed
+    /// state, so a login that presses the button repeatedly on a damaged backup produces one mail, not
+    /// one per press. The control is the second half of the same test: after the backup is found sound
+    /// and then damaged again, that is a new transition and mails again.
+    /// </remarks>
+    [Fact]
+    public async Task Pressing_verify_again_on_a_backup_already_failed_mails_nothing_more()
+    {
+        var agent = new ScriptedVerificationAgentBackupClient();
+        var mailer = new RecordingMailer(TimeSpan.Zero);
+        await using var factory = await BackupVerificationWorld.BootAsync(
+            _pg, agent, mailer, alertRecipient: true);
+        agent.AnswerFailure("AgentValidationFailed", ErrorType.Validation);
+        var backupId = await BackupVerificationWorld.SeedCompletedBackupAsync(factory, "acme");
+        using var owner = await EndpointHarness.SignInAsync(factory, "owner-a");
+
+        await owner.PostAsync($"/api/v1/backups/{backupId}/verify", null);
+        await owner.PostAsync($"/api/v1/backups/{backupId}/verify", null);
+        await owner.PostAsync($"/api/v1/backups/{backupId}/verify", null);
+
+        Assert.Equal(3, agent.VerificationCount);
+        Assert.Single(await BackupVerificationWorld.WaitForAuditAsync(
+            factory, MonitoringAuditActions.AlertRaised, 1));
+        Assert.Single(await BackupVerificationWorld.DrainedMailAsync(factory, mailer));
+
+        // The inverse control: sound, then damaged again, is a new event and is announced again.
+        agent.AnswerSound();
+        await owner.PostAsync($"/api/v1/backups/{backupId}/verify", null);
+        agent.AnswerFailure("AgentValidationFailed", ErrorType.Validation);
+        await owner.PostAsync($"/api/v1/backups/{backupId}/verify", null);
+
+        Assert.Equal(2, (await BackupVerificationWorld.WaitForAuditAsync(
+            factory, MonitoringAuditActions.AlertRaised, 2)).Count);
     }
 
     /// <summary>A later verification replaces an earlier finding: the last answer wins.</summary>

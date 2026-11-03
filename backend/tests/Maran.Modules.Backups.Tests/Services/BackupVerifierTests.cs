@@ -64,6 +64,46 @@ public sealed class BackupVerifierTests
         Assert.False(entry.Succeeded);
     }
 
+    /// <summary>A finding on a backup not yet recorded as failed is news; the same finding again is not.</summary>
+    /// <remarks>
+    /// The outcome's <c>EnteredFailedState</c> is what the announcer reads to keep a repeated finding
+    /// from mailing again (threat note R-H2). Both halves are asserted: a verifier that said "news" for
+    /// every finding would pass the first and fail the second.
+    /// </remarks>
+    [Fact]
+    public async Task A_finding_is_news_only_on_the_transition_into_the_failed_state()
+    {
+        var world = World.Create(Result<AgentBackupVerification>.Fail(
+            Error.Of("AgentValidationFailed", ErrorType.Validation)));
+        var row = world.Seed(BackupsTestContext.CompletedRow(Guid.NewGuid()));
+
+        var first = await world.Verifier.VerifyAsync(row, Username, CancellationToken.None);
+        var repeat = await world.Verifier.VerifyAsync(row, Username, CancellationToken.None);
+
+        Assert.True(first.EnteredFailedState);
+        Assert.False(repeat.EnteredFailedState);
+        Assert.Equal("BackupVerificationFailed", repeat.FailureCode);
+        Assert.Equal(BackupVerificationState.Failed, row.VerificationState);
+    }
+
+    /// <summary>A sound artifact and a verification that could not run are never news.</summary>
+    [Fact]
+    public async Task A_sound_artifact_and_a_verification_that_could_not_run_are_not_news()
+    {
+        var sound = World.Create();
+        var soundRow = sound.Seed(BackupsTestContext.CompletedRow(Guid.NewGuid()));
+        var unreachable = World.Create(Result<AgentBackupVerification>.Fail(
+            Error.Of("AgentUnavailable", ErrorType.Unavailable)));
+        var unreachableRow = unreachable.Seed(BackupsTestContext.CompletedRow(Guid.NewGuid()));
+
+        var soundOutcome = await sound.Verifier.VerifyAsync(soundRow, Username, CancellationToken.None);
+        var unreachableOutcome = await unreachable.Verifier.VerifyAsync(
+            unreachableRow, Username, CancellationToken.None);
+
+        Assert.False(soundOutcome.EnteredFailedState);
+        Assert.False(unreachableOutcome.EnteredFailedState);
+    }
+
     /// <summary>An unreachable agent is not a finding: the outcome says it was not performed and nothing is recorded.</summary>
     [Fact]
     public async Task An_unreachable_agent_is_reported_as_not_performed_and_records_nothing()

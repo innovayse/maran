@@ -19,6 +19,14 @@ namespace Maran.Modules.Backups.Models;
 /// is neither. Never two of them, and the verifier is the only thing that builds one. A carrier the
 /// module passes between its own layers and never serialises, so <c>Models/</c>.
 /// </para>
+/// <para>
+/// <b>A finding is announced on the transition into the failed state, not on every finding.</b>
+/// <see cref="EnteredFailedState"/> says whether this finding moved the backup into
+/// <see cref="Domain.Enums.BackupVerificationState.Failed"/> from another state. A backup already
+/// recorded as failed that is found failed again (a repeated "Verify now") has already been reported,
+/// and reporting it again per click would let any login that can press the button mail the
+/// administrator at will (threat note R-H2).
+/// </para>
 /// </remarks>
 /// <param name="Verified">Whether the artifact was read back and found to match its record.</param>
 /// <param name="FailureCode">
@@ -29,7 +37,13 @@ namespace Maran.Modules.Backups.Models;
 /// Why the verification could not be performed, as the agent client or this module reported it, or
 /// <c>null</c> when it concluded. Nothing was recorded on the backup for it.
 /// </param>
+/// <param name="EnteredFailedState">
+/// <c>true</c> only for a finding that moved a backup which was not recorded as failed into the
+/// failed state; <c>false</c> for a sound artifact, a verification that did not run, and a finding on
+/// a backup that was already recorded as failed.
+/// </param>
 public sealed record BackupVerificationOutcome(
     bool Verified,
     string? FailureCode,
-    Error? NotPerformed = null);
+    Error? NotPerformed = null,
+    bool EnteredFailedState = false);

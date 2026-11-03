@@ -78,6 +78,14 @@ run's own status: the run produced an archive, and that stays true.
 - **Alert mail.** A failed verification after a run, scheduled or manual, mails the administrator
   ("Backup verification failed") through the same path as the other backup alerts
   (`OperatorAlertMailer`); see [alerts](alerts.md). A verification that could not run mails nothing.
+  A failure found by pressing **Verify now** mails too, by the same rule: **once, when the backup
+  moves into the failed state.** Pressing the button again on a backup already recorded as failed
+  mails nothing more, so no login can use it to send the administrator one message per press. A backup
+  found sound and later found damaged again is a new event and mails again.
+- **Rate limit.** Verify now has its own limit of ten requests an hour per hosting account
+  (`RateLimiting__BackupVerifyMaxRequests`, `RateLimiting__BackupVerifyWindowSeconds`), because every
+  press makes the agent read a whole archive. The verification the panel runs after each backup does
+  not count against it.
 
 ## What it costs
 

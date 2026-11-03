@@ -44,13 +44,26 @@ public static class BackupRunnerFactory
             agent,
             tasks,
             new BackupVerifier(dbContext, agent, new BackupDestinationResolver(dbContext), journal, clock),
+            Announcer(journal, bus ?? new RecordingMessageBus(), recipients),
+            NullLogger<BackupRunner>.Instance);
+    }
+
+    /// <summary>Builds the announcer over the real alert mailer and the doubles.</summary>
+    /// <param name="journal">The journal both the verification and the alert write through.</param>
+    /// <param name="bus">The bus double the alert mail is published on.</param>
+    /// <param name="recipients">Where alerts go; an address is configured when omitted.</param>
+    /// <returns>The announcer.</returns>
+    public static BackupVerificationAnnouncer Announcer(
+        BackupAuditJournal journal,
+        RecordingMessageBus bus,
+        StubAlertRecipientDirectory? recipients = null)
+    {
+        return new BackupVerificationAnnouncer(
             new BackupAlertMailer(
-                new OperatorAlertMailer(
-                    recipients ?? new StubAlertRecipientDirectory("ops@example.test"),
-                    bus ?? new RecordingMessageBus()),
+                new OperatorAlertMailer(recipients ?? new StubAlertRecipientDirectory("ops@example.test"), bus),
                 journal,
                 BackupsTestContext.AlertText(),
                 BackupsTestContext.FailureNames()),
-            NullLogger<BackupRunner>.Instance);
+            NullLogger<BackupVerificationAnnouncer>.Instance);
     }
 }

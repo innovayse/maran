@@ -26,8 +26,9 @@ namespace Maran.Modules.Backups.Services;
 /// <b>No deduplication, on purpose.</b> Every alert here is one event — one run, one refusal, one
 /// missed hour — and the caller reaches each at most once: the sweep stamps a schedule as run before
 /// it calls anything here, so the next tick cannot meet the same occurrence again. A failed
-/// verification is one event of one backup, raised once when the run that wrote it is verified; a
-/// repeated "Verify now" raises nothing here, so no account can use it to mail the administrator.
+/// verification is one event of one backup: <see cref="BackupVerificationAnnouncer"/> raises it on
+/// the transition into the failed state only, so a repeated "Verify now" on a backup already
+/// recorded as failed raises nothing here and no account can use it to mail the administrator.
 /// </para>
 /// <para>
 /// <b>The verification mail says what kind of problem and nothing about where.</b> It names the

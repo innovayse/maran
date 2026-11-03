@@ -63,8 +63,8 @@ public sealed class BackupRunner
     /// <summary>Reads a finished artifact back, records and journals what it found.</summary>
     private readonly BackupVerifier _verifier;
 
-    /// <summary>Tells the administrator about an artifact that failed verification.</summary>
-    private readonly BackupAlertMailer _alerts;
+    /// <summary>Tells the administrator about an artifact that has just been found damaged.</summary>
+    private readonly BackupVerificationAnnouncer _announcer;
 
     /// <summary>Where a verification that could not be carried out is reported.</summary>
     private readonly ILogger<BackupRunner> _logger;
@@ -73,19 +73,19 @@ public sealed class BackupRunner
     /// <param name="agent">The agent client that makes the archive.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
     /// <param name="verifier">Reads a finished artifact back, records and journals what it found.</param>
-    /// <param name="alerts">Tells the administrator about an artifact that failed verification.</param>
+    /// <param name="announcer">Tells the administrator about an artifact that has just been found damaged.</param>
     /// <param name="logger">Where a verification that could not be carried out is reported.</param>
     public BackupRunner(
         IAgentBackupClient agent,
         ITaskRecorder tasks,
         BackupVerifier verifier,
-        BackupAlertMailer alerts,
+        BackupVerificationAnnouncer announcer,
         ILogger<BackupRunner> logger)
     {
         _agent = agent;
         _tasks = tasks;
         _verifier = verifier;
-        _alerts = alerts;
+        _announcer = announcer;
         _logger = logger;
     }
 
@@ -151,7 +151,7 @@ public sealed class BackupRunner
     /// </param>
     /// <param name="accountUsername">System user name of the account the backup is of.</param>
     /// <param name="cancellationToken">Cancels the verification.</param>
-    /// <returns>A task that completes once the verification is recorded and a finding is mailed.</returns>
+    /// <returns>A task that completes once the verification is recorded and a finding is announced.</returns>
     /// <remarks>
     /// <para>
     /// <b>Never throws on the verification's account, and so never makes the run fail.</b> The
@@ -184,7 +184,7 @@ public sealed class BackupRunner
         }
     }
 
-    /// <summary>Asks the verifier and mails a finding about the artifact.</summary>
+    /// <summary>Asks the verifier and announces a finding about the artifact.</summary>
     /// <param name="backup">The completed row.</param>
     /// <param name="accountUsername">System user name of the account the backup is of.</param>
     /// <param name="cancellationToken">Cancels the verification and the writes.</param>
@@ -196,17 +196,12 @@ public sealed class BackupRunner
     {
         var outcome = await _verifier.VerifyAsync(backup, accountUsername, cancellationToken);
 
-        // The verifier has already recorded and journalled a sound artifact or a finding. Only a
-        // finding is announced: a verification that was not performed found nothing about the
-        // artifact, and mailing it would tell the administrator a backup is corrupt because the
-        // server was busy.
-        if (outcome.FailureCode is null)
-        {
-            return;
-        }
-
-        await _alerts.VerificationFailedAsync(
-            backup.Id, accountUsername, backup.FinishedAt ?? backup.StartedAt, outcome.FailureCode, cancellationToken);
+        // The verifier has already recorded and journalled a sound artifact or a finding. Whether a
+        // finding is announced is the announcer's rule, not the runner's: a verification that was not
+        // performed found nothing about the artifact and is never announced, and a finding on a backup
+        // already recorded as failed is not news. A row this run has just written is not yet failed,
+        // so its first finding is always announced.
+        await _announcer.AnnounceAsync(backup, accountUsername, outcome, cancellationToken);
     }
 
     /// <summary>Builds the outcome of a run that produced no usable artifact.</summary>

@@ -86,9 +86,57 @@ public sealed class VerifyBackupCommandHandlerTests
         Assert.Equal("BackupVerificationFailed", stored.VerificationFailureCode);
         Assert.Equal(BackupStatus.Completed, stored.Status);
 
-        var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(BackupAuditActions.BackupVerificationFailed, entry.Action);
+        var entry = Assert.Single(
+            world.Audit.Entries, candidate => { return candidate.Action == BackupAuditActions.BackupVerificationFailed; });
         Assert.False(entry.Succeeded);
+
+        // The finding is news, so the administrator is told: one alert, journalled and mailed.
+        Assert.Single(world.Audit.Entries, candidate => { return candidate.Action == MonitoringAuditActions.AlertRaised; });
+        Assert.Single(world.Bus.Published.OfType<SendMailRequested>());
+    }
+
+    /// <summary>Verifying a backup already recorded as failed finds it failed again and mails nothing more.</summary>
+    /// <remarks>
+    /// The mail-cannon rule (threat note R-H2): a finding is announced on the transition into the
+    /// failed state. The row is seeded already failed, so this finding is a repeat; the vacuity guard is
+    /// the first half of the pair above — the same agent answer on a fresh row DOES mail.
+    /// </remarks>
+    [Fact]
+    public async Task Verifying_a_backup_already_recorded_as_failed_mails_nothing_more()
+    {
+        var accountId = Guid.NewGuid();
+        var row = BackupsTestContext.CompletedRow(accountId);
+        row.MarkVerificationFailed(World.Now.AddDays(-1), "BackupVerificationFailed");
+        var world = await World.SeededAsync(
+            accountId, row, accountId, Result<AgentBackupVerification>.Fail(
+                Error.Of("AgentValidationFailed", ErrorType.Validation)));
+
+        var result = await world.Handler.HandleAsync(Command(row.Id), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(BackupVerificationState.Failed, result.Value!.VerificationState);
+        Assert.Equal(World.Now, result.Value.VerifiedAt);
+        Assert.Single(
+            world.Audit.Entries, candidate => { return candidate.Action == BackupAuditActions.BackupVerificationFailed; });
+        Assert.DoesNotContain(
+            world.Audit.Entries, candidate => { return candidate.Action == MonitoringAuditActions.AlertRaised; });
+        Assert.Empty(world.Bus.Published.OfType<SendMailRequested>());
+    }
+
+    /// <summary>A backup found sound and then damaged again is a new event and mails again.</summary>
+    [Fact]
+    public async Task A_backup_that_was_sound_and_is_now_found_damaged_is_announced()
+    {
+        var accountId = Guid.NewGuid();
+        var row = BackupsTestContext.CompletedRow(accountId);
+        row.MarkVerified(World.Now.AddDays(-1));
+        var world = await World.SeededAsync(
+            accountId, row, accountId, Result<AgentBackupVerification>.Fail(
+                Error.Of("AgentValidationFailed", ErrorType.Validation)));
+
+        await world.Handler.HandleAsync(Command(row.Id), CancellationToken.None);
+
+        Assert.Single(world.Bus.Published.OfType<SendMailRequested>());
     }
 
     /// <summary>An artifact the agent cannot find is a finding with its own code.</summary>
@@ -288,6 +336,9 @@ public sealed class VerifyBackupCommandHandlerTests
         /// <summary>The audit double, holding what was journalled.</summary>
         public RecordingAuditWriter Audit { get; }
 
+        /// <summary>The bus double, holding the alert mail the handler requested.</summary>
+        public RecordingMessageBus Bus { get; }
+
         /// <summary>Assembles the handler over doubles.</summary>
         /// <param name="callerAccountId">The account the caller owns.</param>
         /// <param name="knownAccountId">The account the directory can answer for.</param>
@@ -299,6 +350,7 @@ public sealed class VerifyBackupCommandHandlerTests
 
             Agent = new StubAgentBackupClient { VerifyResult = verifyResult };
             Audit = new RecordingAuditWriter();
+            Bus = new RecordingMessageBus();
 
             var dbContext = BackupsTestContext.CreateSeeded(_currentUser, _database);
             var journal = new BackupAuditJournal(Audit, _currentUser);
@@ -309,6 +361,7 @@ public sealed class VerifyBackupCommandHandlerTests
                     new AccountSnapshot(knownAccountId, Username, 1, 1, 1, 1, 1, 1024, AccountState.Active)),
                 new BackupVerifier(
                     dbContext, Agent, new BackupDestinationResolver(dbContext), journal, new FakeClock(Now)),
+                BackupRunnerFactory.Announcer(journal, Bus),
                 journal,
                 BackupsTestContext.FailureNames(),
                 BackupsTestContext.BackupNames());

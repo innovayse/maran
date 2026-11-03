@@ -24,6 +24,13 @@ namespace Maran.Modules.Backups.Commands.VerifyBackup;
 /// busy agent is not a corrupt backup.
 /// </para>
 /// <para>
+/// <b>A finding is mailed once, on the transition into the failed state.</b> A customer who finds
+/// their own backup damaged has found something the administrator should know, so the finding is
+/// announced exactly as a run's would be — but only when the backup was not already recorded as
+/// failed, so the button cannot be used to mail the administrator once per press
+/// (<see cref="BackupVerificationAnnouncer"/>).
+/// </para>
+/// <para>
 /// <b>Another account's backup is not-found, never forbidden.</b> Nothing here checks the account:
 /// the context's global query filter hides the row, so the lookup finds nothing and the agent is
 /// never asked. The account name and the backup id the agent receives are read from the row, never
@@ -45,6 +52,9 @@ public sealed class VerifyBackupCommandHandler
     /// <summary>Asks the agent, records the state and journals the result.</summary>
     private readonly BackupVerifier _verifier;
 
+    /// <summary>Tells the administrator about a backup this verification has just found damaged.</summary>
+    private readonly BackupVerificationAnnouncer _announcer;
+
     /// <summary>This module's audit journal, for the refusals that never reach the verifier.</summary>
     private readonly BackupAuditJournal _journal;
 
@@ -58,6 +68,7 @@ public sealed class VerifyBackupCommandHandler
     /// <param name="dbContext">The Backups module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="verifier">Asks the agent, records the state and journals the result.</param>
+    /// <param name="announcer">Tells the administrator about a backup this verification has just found damaged.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="failureNames">Names a recorded failure code in the caller's language.</param>
     /// <param name="backupNames">Names a backup's status, kind and verification state in the caller's language.</param>
@@ -65,6 +76,7 @@ public sealed class VerifyBackupCommandHandler
         BackupsDbContext dbContext,
         IAccountDirectory accounts,
         BackupVerifier verifier,
+        BackupVerificationAnnouncer announcer,
         BackupAuditJournal journal,
         BackupFailureDisplayNames failureNames,
         BackupDisplayNames backupNames)
@@ -72,6 +84,7 @@ public sealed class VerifyBackupCommandHandler
         _dbContext = dbContext;
         _accounts = accounts;
         _verifier = verifier;
+        _announcer = announcer;
         _journal = journal;
         _failureNames = failureNames;
         _backupNames = backupNames;
@@ -129,6 +142,11 @@ public sealed class VerifyBackupCommandHandler
         {
             return Result<BackupDto>.Fail(outcome.NotPerformed);
         }
+
+        // A finding made by this click is the same fact a run's own verification would have made, and
+        // goes through the same rule: the administrator is told when the backup BECOMES failed, and
+        // pressing the button again on a backup already recorded as failed tells nobody.
+        await _announcer.AnnounceAsync(backup, username, outcome, cancellationToken);
 
         // Asked of the directory exactly as the reads ask it, so this answer and a later read of the
         // same row cannot label its owner differently.

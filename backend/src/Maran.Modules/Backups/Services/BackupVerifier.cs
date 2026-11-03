@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Backups.Domain.Entities;
+using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Models;
 using Maran.Modules.Backups.Persistence;
@@ -172,10 +173,14 @@ public sealed class BackupVerifier
                 BackupVerificationAgentErrorTranslator.ToNotPerformed(answer.Error!));
         }
 
+        // Read BEFORE the entity is changed: whether this finding is news is decided by the state the
+        // backup was in when it was asked about, and marking it overwrites that.
+        var alreadyFailed = backup.VerificationState == BackupVerificationState.Failed;
+
         backup.MarkVerificationFailed(_clock.UtcNow, finding);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return new BackupVerificationOutcome(Verified: false, finding);
+        return new BackupVerificationOutcome(Verified: false, finding, EnteredFailedState: !alreadyFailed);
     }
 
     /// <summary>Names the audit action an outcome is journalled under.</summary>
