@@ -80,7 +80,7 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
             .Options;
 
         var planId = Guid.NewGuid();
-        await using (var setupContext = new AccountsDbContext(options))
+        await using (var setupContext = new AccountsDbContext(options, new NoPrincipal()))
         {
             var databaseCreator = setupContext.GetService<IRelationalDatabaseCreator>();
             await databaseCreator.CreateTablesAsync();
@@ -98,7 +98,7 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
             planId,
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
-        await using (var writeContext = new AccountsDbContext(options))
+        await using (var writeContext = new AccountsDbContext(options, new NoPrincipal()))
         {
             writeContext.Accounts.Add(account);
             await writeContext.SaveChangesAsync();
@@ -106,7 +106,7 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
 
         // A second, independent DbContext instance against the same container — proves the row is
         // durably persisted in PostgreSQL, not just tracked by the first context's change tracker.
-        await using var readContext = new AccountsDbContext(options);
+        await using var readContext = new AccountsDbContext(options, new NoPrincipal());
         var reloaded = await readContext.Accounts.FindAsync(account.Id);
 
         Assert.NotNull(reloaded);

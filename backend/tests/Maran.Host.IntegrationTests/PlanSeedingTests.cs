@@ -120,7 +120,8 @@ public sealed class PlanSeedingTests : IAsyncLifetime
     private AccountsDbContext OpenContext()
     {
         return new AccountsDbContext(
-            new DbContextOptionsBuilder<AccountsDbContext>().UseNpgsql(_pg.GetConnectionString()).Options);
+            new DbContextOptionsBuilder<AccountsDbContext>().UseNpgsql(_pg.GetConnectionString()).Options,
+            new NoPrincipal());
     }
 
     /// <summary>Builds a host against this test's database, exactly as the panel is configured.</summary>
