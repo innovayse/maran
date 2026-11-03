@@ -140,7 +140,8 @@ const BACKUPS: Backup[] = [
     verificationState: 'notVerified',
     verificationStateName: 'Not verified',
     verifiedAt: null,
-    verificationFailure: null,
+    verificationFailureCode: null,
+    verificationFailureDisplayName: null,
   },
   {
     id: '77777777-7777-7777-7777-777777777772',
@@ -161,7 +162,8 @@ const BACKUPS: Backup[] = [
     verificationState: 'notVerified',
     verificationStateName: 'Not verified',
     verifiedAt: null,
-    verificationFailure: null,
+    verificationFailureCode: null,
+    verificationFailureDisplayName: null,
   },
   {
     id: '77777777-7777-7777-7777-777777777773',
@@ -182,7 +184,8 @@ const BACKUPS: Backup[] = [
     verificationState: 'notVerified',
     verificationStateName: 'Not verified',
     verifiedAt: null,
-    verificationFailure: null,
+    verificationFailureCode: null,
+    verificationFailureDisplayName: null,
   },
 ]
 

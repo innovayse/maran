@@ -80,7 +80,8 @@ const MANUAL_BACKUP: Backup = {
   verificationState: 'notVerified',
   verificationStateName: 'Not verified',
   verifiedAt: null,
-  verificationFailure: null,
+  verificationFailureCode: null,
+  verificationFailureDisplayName: null,
 }
 
 /**

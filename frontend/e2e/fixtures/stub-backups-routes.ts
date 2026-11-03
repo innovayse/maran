@@ -135,7 +135,8 @@ export const stubBackups = async (page: Page, backups: Backup[]): Promise<() => 
         verificationState: 'notVerified',
         verificationStateName: 'Not verified',
         verifiedAt: null,
-        verificationFailure: null,
+        verificationFailureCode: null,
+        verificationFailureDisplayName: null,
       }
       backups.unshift(created)
       await route.fulfill({
@@ -270,7 +271,14 @@ const VERIFY_PATTERN = '**/api/v1/backups/*/verify'
  * refusal as an RFC 7807 problem.
  */
 export type BackupVerifyAnswer =
-  | { kind: 'record'; changes: Pick<Backup, 'verificationState' | 'verificationStateName' | 'verifiedAt' | 'verificationFailure'> }
+  | { kind: 'record'; changes: Pick<
+      Backup,
+      | 'verificationState'
+      | 'verificationStateName'
+      | 'verifiedAt'
+      | 'verificationFailureCode'
+      | 'verificationFailureDisplayName'
+    > }
   | { kind: 'problem'; status: number; code: string; detail: string }
 
 /**

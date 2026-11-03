@@ -65,7 +65,8 @@ const completedFor = (id: string, account: Account): Backup => {
     verificationState: 'notVerified',
     verificationStateName: 'Not verified',
     verifiedAt: null,
-    verificationFailure: null,
+    verificationFailureCode: null,
+    verificationFailureDisplayName: null,
   }
 }
 
@@ -83,10 +84,8 @@ const UNSOUND: Backup = {
   verificationState: 'failed',
   verificationStateName: 'Verification failed',
   verifiedAt: '2026-09-05T03:03:00Z',
-  verificationFailure: {
-    code: 'BackupArtifactChecksumMismatch',
-    message: 'The archive no longer matches the checksum recorded when it was taken.',
-  },
+  verificationFailureCode: 'BackupArtifactChecksumMismatch',
+  verificationFailureDisplayName: 'The archive no longer matches the checksum recorded when it was taken.',
 }
 
 /**
@@ -118,7 +117,8 @@ const SOUND_NOW: BackupVerifyAnswer = {
     verificationState: 'verified',
     verificationStateName: 'Verified',
     verifiedAt: '2026-09-07T10:00:00Z',
-    verificationFailure: null,
+    verificationFailureCode: null,
+    verificationFailureDisplayName: null,
   },
 }
 
@@ -158,7 +158,8 @@ test('Verify now shows a failed verification message verbatim', async ({ page })
       verificationState: 'failed',
       verificationStateName: 'Verification failed',
       verifiedAt: '2026-09-07T10:00:00Z',
-      verificationFailure: { code: 'BackupDumpMissing', message },
+      verificationFailureCode: 'BackupDumpMissing',
+      verificationFailureDisplayName: message,
     },
   })
 

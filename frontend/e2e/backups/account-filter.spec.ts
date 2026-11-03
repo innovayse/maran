@@ -75,7 +75,8 @@ const ALICE_COPY: Backup = {
   verificationState: 'notVerified',
   verificationStateName: 'Not verified',
   verifiedAt: null,
-  verificationFailure: null,
+  verificationFailureCode: null,
+  verificationFailureDisplayName: null,
 }
 
 const BOB_COPY: Backup = { ...ALICE_COPY, id: '33333333-3333-3333-3333-333333333333', accountId: BOB.id, ownerName: BOB.name }

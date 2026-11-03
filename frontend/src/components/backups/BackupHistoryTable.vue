@@ -167,12 +167,15 @@ const sortBy = (field: string): void => {
     <template #cell-verification="{ row }">
       <BackupVerificationBadge :state="row.verificationState" :label="row.verificationStateName" />
       <!-- The failure's sentence is the backend's, beside its code: the same two halves a failed run shows. -->
-      <template v-if="row.verificationFailure !== null">
-        <span class="mt-1.5 block max-w-64 text-sm whitespace-normal text-text-secondary wrap-anywhere">
-          {{ row.verificationFailure.message }}
+      <template v-if="row.verificationFailureCode !== null">
+        <span
+          v-if="row.verificationFailureDisplayName !== null"
+          class="mt-1.5 block max-w-64 text-sm whitespace-normal text-text-secondary wrap-anywhere"
+        >
+          {{ row.verificationFailureDisplayName }}
         </span>
         <span class="mt-0.5 block font-mono text-xs text-text-muted">
-          {{ t('backups.list.failureCode', { code: row.verificationFailure.code }) }}
+          {{ t('backups.list.failureCode', { code: row.verificationFailureCode }) }}
         </span>
       </template>
       <span v-if="verified(row) !== null" class="mt-0.5 block text-xs text-text-muted">

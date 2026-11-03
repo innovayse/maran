@@ -31,18 +31,6 @@ export type BackupKind = 'manual' | 'scheduled' | 'preDeletion' | 'preRestore'
 export type BackupVerificationState = 'notVerified' | 'verified' | 'failed'
 
 /**
- * Why a backup's verification failed, mirroring the backend's verification failure object: the
- * machine-stable code and the sentence already in the caller's language. The panel owns no text for
- * it (rules/vue.md): the message is rendered as given and the code is printed beneath it.
- */
-export interface BackupVerificationFailure {
-  /** The machine-stable code an operator quotes in a support ticket; never looked up for text. */
-  code: string
-  /** The failure as the operator reads it, in the request's language. */
-  message: string
-}
-
-/**
  * Outward view of one backup, mirroring the backend's `BackupDto` field for field.
  *
  * It carries no path, no bucket and no object key, because the backend's DTO carries none: where
@@ -115,8 +103,17 @@ export interface Backup {
   verificationStateName: string
   /** When the artifact was last verified, as an ISO-8601 string, or `null` when it never was. */
   verifiedAt: string | null
-  /** Why the last verification failed, or `null` when it did not fail. */
-  verificationFailure: BackupVerificationFailure | null
+  /**
+   * The machine-stable code of what the last verification found wrong, or `null` when it did not
+   * fail. It travels BESIDE {@link Backup.verificationFailureDisplayName}, as a run's `failureCode`
+   * does: the code is what an operator quotes in a support ticket and does not change with the language.
+   */
+  verificationFailureCode: string | null
+  /**
+   * The same finding named in the caller's language, or `null` when nothing failed. The panel owns
+   * no text for it (rules/vue.md): it is rendered as given, with the code printed beneath it.
+   */
+  verificationFailureDisplayName: string | null
 }
 
 /**

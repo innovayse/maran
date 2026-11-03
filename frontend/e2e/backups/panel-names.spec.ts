@@ -46,7 +46,8 @@ const BACKUP: Backup = {
   verificationState: 'notVerified',
   verificationStateName: 'Not verified',
   verifiedAt: null,
-  verificationFailure: null,
+  verificationFailureCode: null,
+  verificationFailureDisplayName: null,
 }
 
 test('the history prints the status and the reason under the names the rows carry', async ({ page }) => {

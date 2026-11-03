@@ -50,7 +50,8 @@ const COMPLETED: Backup = {
   verificationState: 'notVerified',
   verificationStateName: 'Not verified',
   verifiedAt: null,
-  verificationFailure: null,
+  verificationFailureCode: null,
+  verificationFailureDisplayName: null,
 }
 
 /** A run that produced NO artifact. Its `sizeBytes` is zero, which is not a size of zero. */
@@ -73,7 +74,8 @@ const FAILED: Backup = {
   verificationState: 'notVerified',
   verificationStateName: 'Not verified',
   verifiedAt: null,
-  verificationFailure: null,
+  verificationFailureCode: null,
+  verificationFailureDisplayName: null,
 }
 
 test('the backups screen shows the empty state when the panel reports no backups', async ({ page }) => {
@@ -148,7 +150,8 @@ const ORPHANED: Backup = {
   verificationState: 'notVerified',
   verificationStateName: 'Not verified',
   verifiedAt: null,
-  verificationFailure: null,
+  verificationFailureCode: null,
+  verificationFailureDisplayName: null,
 }
 
 test('a copy of a deleted account is named by the username preserved on the backup', async ({
@@ -533,7 +536,8 @@ const FAILED_IN_RUSSIAN: Backup = {
   verificationState: 'notVerified',
   verificationStateName: 'Not verified',
   verifiedAt: null,
-  verificationFailure: null,
+  verificationFailureCode: null,
+  verificationFailureDisplayName: null,
 }
 
 // The defect this closes: the cell printed the identifier and nothing else, so a row read
