@@ -79,8 +79,14 @@ public sealed class ListAccountsQueryHandler
         var page = await accounts.ToPagedAsync(query, ListAccountsSorts.Map, cancellationToken);
 
         var ownerIds = page.Items
-            .Where(account => account.ResellerId is not null)
-            .Select(account => account.ResellerId!.Value)
+            .Where(account =>
+            {
+                return account.ResellerId is not null;
+            })
+            .Select(account =>
+            {
+                return account.ResellerId!.Value;
+            })
             .ToList();
         var resellerNames = await _resellerNames.NamesOfAsync(ownerIds, cancellationToken);
 

@@ -283,7 +283,13 @@ public sealed class JwtAccessTokenIssuerTests
         Assert.Equal("ViewAs", claims.GetClaim(PanelClaimTypes.SessionKind).Value);
         using var actor = JsonDocument.Parse(claims.GetClaim(PanelClaimTypes.Actor).Value);
         Assert.Equal(admin.Id.ToString(), actor.RootElement.GetProperty(PanelClaimTypes.UserId).GetString());
-        Assert.DoesNotContain(nameof(UserRole.Admin), claims.Claims.Where(c => c.Type == PanelClaimTypes.Role).Select(c => c.Value));
+        Assert.DoesNotContain(nameof(UserRole.Admin), claims.Claims.Where(c =>
+        {
+            return c.Type == PanelClaimTypes.Role;
+        }).Select(c =>
+{
+    return c.Value;
+}));
     }
 
     /// <summary>A view-as token expires at the instant its session does, for both kinds.</summary>

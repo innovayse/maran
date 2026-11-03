@@ -79,8 +79,14 @@ public sealed class ListPlansQueryHandler
         var plans = await owned.ToListAsync(cancellationToken);
 
         var ownerIds = plans
-            .Where(plan => plan.ResellerId is not null)
-            .Select(plan => plan.ResellerId!.Value)
+            .Where(plan =>
+            {
+                return plan.ResellerId is not null;
+            })
+            .Select(plan =>
+            {
+                return plan.ResellerId!.Value;
+            })
             .ToList();
         var resellerNames = await _resellerNames.NamesOfAsync(ownerIds, cancellationToken);
 

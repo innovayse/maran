@@ -15,6 +15,9 @@ namespace Maran.Modules.Identity.Tests.IntegrationEvents.Handlers;
 /// </summary>
 public sealed class ResellerDeletingHandlerTests : IDisposable
 {
+    /// <summary>The logins left after the reseller is deleted.</summary>
+    private static readonly string[] SurvivingUsernames = { "contoso", "customer-one" };
+
     private static readonly Guid ResellerId = Guid.Parse("eeeeeeee-0000-4000-8000-000000000001");
 
     private static readonly Guid OtherResellerId = Guid.Parse("eeeeeeee-0000-4000-8000-000000000002");
@@ -108,7 +111,7 @@ public sealed class ResellerDeletingHandlerTests : IDisposable
         await new ResellerDeletingHandler(_context).HandleAsync(Deleting(), CancellationToken.None);
 
         Assert.Equal(
-            new[] { "contoso", "customer-one" },
+            SurvivingUsernames,
             (await _context.Users.Select(candidate => candidate.Username).ToListAsync()).Order().ToArray());
         Assert.Equal(2, await _context.Sessions.CountAsync());
         Assert.Equal(2, await _context.PasswordResetTokens.CountAsync());

@@ -164,7 +164,7 @@ public sealed class ChangeAccountPlanCommandHandler
 
         var subject = $"{account.Name}: {current.DisplayNameKey} -> {target.DisplayNameKey}";
 
-        var refusal = _allocation.RequirePlanOwnedBy(account.ResellerId, target)
+        var refusal = ResellerAllocationGuard.RequirePlanOwnedBy(account.ResellerId, target)
             ?? await _allocation.AdmitPlanChangeAsync(account.ResellerId, current, target, cancellationToken);
         if (refusal is not null)
         {

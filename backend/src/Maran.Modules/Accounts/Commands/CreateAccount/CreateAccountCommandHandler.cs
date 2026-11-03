@@ -189,7 +189,7 @@ public sealed class CreateAccountCommandHandler
         }
 
         var refusal = await _allocation.AdmitAccountAsync(ownerId, plan, cancellationToken)
-            ?? _allocation.RequirePlanOwnedBy(ownerId, plan);
+            ?? ResellerAllocationGuard.RequirePlanOwnedBy(ownerId, plan);
         if (refusal is not null)
         {
             return await FailAsync(command, refusal.Error, cancellationToken);

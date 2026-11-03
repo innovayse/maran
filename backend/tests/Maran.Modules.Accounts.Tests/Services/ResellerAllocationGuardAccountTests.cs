@@ -16,7 +16,7 @@ public sealed class ResellerAllocationGuardAccountTests
         await using var fixture = new ResellerAllocationFixture(ResellerTestData.Envelope());
         var plan = fixture.AddPlan(100, fixture.Reseller.Id);
 
-        Assert.Null(fixture.Guard.RequirePlanOwnedBy(fixture.Reseller.Id, plan));
+        Assert.Null(ResellerAllocationGuard.RequirePlanOwnedBy(fixture.Reseller.Id, plan));
     }
 
     /// <summary>An administrator's plan for an administrator's account is accepted.</summary>
@@ -26,7 +26,7 @@ public sealed class ResellerAllocationGuardAccountTests
         await using var fixture = new ResellerAllocationFixture(ResellerTestData.Envelope());
         var plan = fixture.AddPlan(100, null);
 
-        Assert.Null(fixture.Guard.RequirePlanOwnedBy(null, plan));
+        Assert.Null(ResellerAllocationGuard.RequirePlanOwnedBy(null, plan));
     }
 
     /// <summary>A plan of another owner is refused as an owner mismatch, in both directions.</summary>
@@ -37,9 +37,9 @@ public sealed class ResellerAllocationGuardAccountTests
         var adminPlan = fixture.AddPlan(100, null);
         var resellerPlan = fixture.AddPlan(100, fixture.Reseller.Id);
 
-        var forReseller = fixture.Guard.RequirePlanOwnedBy(fixture.Reseller.Id, adminPlan);
-        var forAdmin = fixture.Guard.RequirePlanOwnedBy(null, resellerPlan);
-        var forOther = fixture.Guard.RequirePlanOwnedBy(Guid.NewGuid(), resellerPlan);
+        var forReseller = ResellerAllocationGuard.RequirePlanOwnedBy(fixture.Reseller.Id, adminPlan);
+        var forAdmin = ResellerAllocationGuard.RequirePlanOwnedBy(null, resellerPlan);
+        var forOther = ResellerAllocationGuard.RequirePlanOwnedBy(Guid.NewGuid(), resellerPlan);
 
         foreach (var refusal in new[] { forReseller, forAdmin, forOther })
         {

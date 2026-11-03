@@ -67,7 +67,13 @@ public sealed class StartViewAsResellerCommandHandlerTests : IDisposable
 
         var token = new JsonWebTokenHandler().ReadJsonWebToken(result.Value.AccessToken);
         Assert.NotEqual(nameof(UserRole.Admin), token.GetClaim(PanelClaimTypes.Role).Value);
-        Assert.DoesNotContain(nameof(UserRole.Admin), token.Claims.Where(c => c.Type == PanelClaimTypes.Role).Select(c => c.Value));
+        Assert.DoesNotContain(nameof(UserRole.Admin), token.Claims.Where(c =>
+        {
+            return c.Type == PanelClaimTypes.Role;
+        }).Select(c =>
+{
+    return c.Value;
+}));
     }
 
     /// <summary>The session is stored with no account, for the viewed login, and lives the view-as lifetime.</summary>

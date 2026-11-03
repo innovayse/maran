@@ -160,16 +160,19 @@ public sealed class ResellerEnvelopeDtoValidatorTests
         yield return (nameof(ResellerEnvelopeDto.MaxPlans), (e, v) => { return e with { MaxPlans = (int)v }; });
         yield return (
             nameof(ResellerEnvelopeDto.MaxDiskQuotaMb),
-            (e, v) => { return e with { MaxDiskQuotaMb = (int)v }; });
+            (e, v) => { return e with { MaxDiskQuotaMb = (int)v }; }
+        );
         yield return (nameof(ResellerEnvelopeDto.MaxSites), (e, v) => { return e with { MaxSites = (int)v }; });
         yield return (nameof(ResellerEnvelopeDto.MaxDatabases), (e, v) => { return e with { MaxDatabases = (int)v }; });
         yield return (nameof(ResellerEnvelopeDto.MaxSftpUsers), (e, v) => { return e with { MaxSftpUsers = (int)v }; });
         yield return (nameof(ResellerEnvelopeDto.MaxFtpUsers), (e, v) => { return e with { MaxFtpUsers = (int)v }; });
         yield return (
             nameof(ResellerEnvelopeDto.MaxCronEntries),
-            (e, v) => { return e with { MaxCronEntries = (int)v }; });
+            (e, v) => { return e with { MaxCronEntries = (int)v }; }
+        );
         yield return (
             nameof(ResellerEnvelopeDto.MaxPhpWorkersPerPool),
-            (e, v) => { return e with { MaxPhpWorkersPerPool = (int)v }; });
+            (e, v) => { return e with { MaxPhpWorkersPerPool = (int)v }; }
+        );
     }
 }

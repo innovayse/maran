@@ -58,7 +58,7 @@ public sealed class ResellerAllocationGuard
     /// administrator could move a reseller's account to an administrator's plan and the account would
     /// vanish from the reseller's joined list.
     /// </returns>
-    public ResellerRefusal? RequirePlanOwnedBy(Guid? ownerId, Plan plan)
+    public static ResellerRefusal? RequirePlanOwnedBy(Guid? ownerId, Plan plan)
     {
         return plan.ResellerId == ownerId
             ? null
