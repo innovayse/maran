@@ -12,6 +12,7 @@ import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import { stubTasks } from '../fixtures/stub-tasks-routes'
 import { forbidAccountsList, stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubMembershipOffers } from '../fixtures/stub-membership-offers-routes'
 import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { MyAccount } from '../../src/types/account'
@@ -92,6 +93,8 @@ test('a customer walks their own area with a clean console', async ({ page }) =>
   await stubTasks(page, [])
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubMyAccountResources(page, OWN_RESOURCES)
+  // The my-account page reads the offers addressed to the caller; unanswered, the read reaches no backend.
+  await stubMembershipOffers(page, [])
   const accountsListCalls = await forbidAccountsList(page)
 
   for (const path of CUSTOMER_PAGES) {
