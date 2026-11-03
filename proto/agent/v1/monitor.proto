@@ -55,6 +55,19 @@ service MonitorService {
   // Reports the kernel's own synchronised flag — not a measured offset, which
   // would need an outbound call this agent never makes.
   rpc GetClockSync(GetClockSyncRequest) returns (GetClockSyncResponse);
+
+  // Lists the OS packages the host's package manager already knows a newer
+  // version of (issue #324, contract revision 17). Read-only and takes no
+  // input: the request carries no field, so no caller value can reach the
+  // program the agent runs. The answer comes from the package manager's local
+  // cache and nothing else, so this rpc makes no outbound call and never
+  // refreshes metadata: a host that does not refresh its own cache reports a
+  // frozen list, which is the correct answer to "what does this host already
+  // know". A catalogue the agent could not read (a cache never built, a
+  // package manager that failed, output it could not parse, a run stopped at
+  // its deadline) is an `AgentError` with `ERROR_CODE_SYSTEM_FAILURE`, NEVER
+  // an empty list: zero updates is only the answer to a read that succeeded.
+  rpc ListPendingUpdates(ListPendingUpdatesRequest) returns (ListPendingUpdatesResponse);
 }
 
 message GetHostMetricsRequest {}
@@ -396,4 +409,44 @@ enum ClockSyncState {
   // No synchronisation service is enabled and the clock is not synchronised;
   // nothing on the host will correct a drift.
   CLOCK_SYNC_STATE_SYNC_SERVICE_DISABLED = 3;
+}
+
+// Request for ListPendingUpdates. Carries no parameters: the answer is always
+// about the host the agent runs on, and there is nothing a caller may choose.
+message ListPendingUpdatesRequest {}
+
+// Response for ListPendingUpdates.
+message ListPendingUpdatesResponse {
+  oneof result {
+    ListPendingUpdatesOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Terminal success payload for ListPendingUpdates. An empty list means the
+// package manager's cache was read and nothing newer is known; a cache that
+// could not be read is the error arm, never this one.
+message ListPendingUpdatesOk {
+  // The packages with a newer version available, in the order the package
+  // manager reported them. Packages the package manager would keep back or
+  // remove are not listed.
+  repeated PendingUpdate updates = 1;
+}
+
+// One package with a newer version available in the host's package cache.
+message PendingUpdate {
+  // The OS package name as the package manager names it, without an
+  // architecture suffix on the RHEL family (e.g. "openssl", "libstdc++6").
+  string package_name = 1;
+  // The version an upgrade would install, exactly as the package manager
+  // prints it (epoch and release included).
+  string available_version = 2;
+  // The version installed now. Empty when the family does not report it
+  // (`dnf check-update` prints only the new version) or when the package is
+  // not installed yet; the panel reads an empty value as "not reported".
+  string installed_version = 3;
+  // The repository or archive the update comes from: the apt origin list
+  // (e.g. "Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security") or the
+  // dnf repository id (e.g. "baseos"). May be empty.
+  string source = 4;
 }
