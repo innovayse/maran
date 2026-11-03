@@ -21,7 +21,8 @@ namespace Maran.Host.IntegrationTests;
 
 /// <summary>
 /// The forced two-factor steering, checked by WALKING THE ROUTE TABLE rather than by naming three
-/// examples.
+/// examples, for an administrator and for a reseller (issue #179, decision D4): a reseller can start
+/// view-as into its customers, so its login is steered exactly as an administrator's is.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -45,6 +46,9 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
 {
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
     private const string Password = "correct horse battery staple";
+
+    /// <summary>The reseller login the reseller facts steer; its name is also the reseller's.</summary>
+    private const string ResellerLogin = "nova";
 
     private readonly TestDatabase _pg;
 
@@ -88,7 +92,13 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
         });
     }
 
-    private static async Task SeedSteeredAdministratorAsync(WebApplicationFactory<Program> factory)
+    /// <summary>
+    /// Stores a login that must still enrol, under a policy forcing a second factor for administrators
+    /// and for resellers alike: exactly the state the steering exists for.
+    /// </summary>
+    /// <param name="factory">The booted host.</param>
+    /// <param name="role">The role of the login: <c>Admin</c> (named admin) or <c>Reseller</c> (named nova).</param>
+    private static async Task SeedSteeredLoginAsync(WebApplicationFactory<Program> factory, UserRole role)
     {
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -97,14 +107,26 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
-        identity.Users.Add(new User(
-            Guid.NewGuid(), "admin", "admin@example.com", hasher.Hash(Password), UserRole.Admin, clock.UtcNow));
+        if (role == UserRole.Reseller)
+        {
+            // The steering refuses before any handler reads the reseller, so the login needs no
+            // accounts-module row behind it.
+            var reseller = User.InviteReseller(
+                Guid.NewGuid(), ResellerLogin, $"{ResellerLogin}@example.com", Guid.NewGuid(), clock.UtcNow);
+            reseller.Activate(hasher.Hash(Password));
+            identity.Users.Add(reseller);
+        }
+        else
+        {
+            identity.Users.Add(new User(
+                Guid.NewGuid(), "admin", "admin@example.com", hasher.Hash(Password), UserRole.Admin, clock.UtcNow));
+        }
 
-        // Forced 2FA ON, and this administrator holds no second factor: exactly the state the
-        // steering exists for.
+        // Forced 2FA ON for both roles, and this login holds no second factor.
         identity.SecurityPolicies.Add(new SecurityPolicy(
             SecurityPolicy.DefaultMinimumPasswordLength,
             forceTwoFactorForAdmins: true,
+            forceTwoFactorForResellers: true,
             SecurityPolicy.DefaultMaxFailedLoginAttempts,
             SecurityPolicy.DefaultLockoutMinutes,
             clock.UtcNow));
@@ -112,10 +134,10 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
         await identity.SaveChangesAsync();
     }
 
-    private static async Task<string> SignInAsync(HttpClient client)
+    private static async Task<string> SignInAsync(HttpClient client, string username = "admin")
     {
         var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { Username = "admin", Password });
+            "/api/v1/auth/login", new { Username = username, Password });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -195,7 +217,7 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
     public async Task A_steered_administrator_is_refused_by_every_endpoint_that_is_not_part_of_enrolment()
     {
         await using var factory = CreateFactory();
-        await SeedSteeredAdministratorAsync(factory);
+        await SeedSteeredLoginAsync(factory, UserRole.Admin);
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", await SignInAsync(client));
@@ -228,7 +250,7 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
     public async Task A_steered_administrator_can_still_reach_the_enrolment_endpoints()
     {
         await using var factory = CreateFactory();
-        await SeedSteeredAdministratorAsync(factory);
+        await SeedSteeredLoginAsync(factory, UserRole.Admin);
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", await SignInAsync(client));
@@ -263,6 +285,113 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
         using var client = factory.CreateClient();
         var response = await client.PostAsJsonAsync(
             "/api/v1/auth/login", new { Username = "admin", Password });
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.False(body.RootElement.GetProperty("session").GetProperty("requiresTwoFactorSetup").GetBoolean());
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", body.RootElement.GetProperty("session").GetProperty("accessToken").GetString());
+
+        using var sessions = await CallAsync(client, "GET", "/api/v1/sessions");
+        Assert.Equal(HttpStatusCode.OK, sessions.StatusCode);
+    }
+
+    /// <summary>A steered reseller is refused by every endpoint that is not part of enrolment.</summary>
+    [Fact]
+    public async Task A_steered_reseller_is_refused_by_every_endpoint_that_is_not_part_of_enrolment()
+    {
+        await using var factory = CreateFactory();
+        await SeedSteeredLoginAsync(factory, UserRole.Reseller);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await SignInAsync(client, ResellerLogin));
+
+        var governed = Routes(factory, exempt: false);
+
+        // The walk must find something, and it must reach the surfaces a reseller is allowed on: a
+        // filter that matched nothing would pass while asserting nothing.
+        Assert.NotEmpty(governed);
+        Assert.Contains(governed, route =>
+        {
+            return route.Verb == "GET" && route.Path.StartsWith("/api/v1/reseller/me", StringComparison.Ordinal);
+        });
+        Assert.Contains(governed, route =>
+        {
+            return route.Verb == "POST" && route.Path == "/api/v1/view-as";
+        });
+
+        var reachable = new List<string>();
+        foreach (var (verb, path) in governed)
+        {
+            using var response = await CallAsync(client, verb, path);
+            if (response.StatusCode != HttpStatusCode.Forbidden)
+            {
+                reachable.Add($"{verb} {path} -> {(int)response.StatusCode}");
+            }
+        }
+
+        Assert.Empty(reachable);
+    }
+
+    /// <summary>A steered reseller can still reach the enrolment endpoints.</summary>
+    /// <remarks>
+    /// The other half, which stops the steering from being a locked door with no key: a reseller that
+    /// cannot reach enrolment can never leave the state the panel put it in.
+    /// </remarks>
+    [Fact]
+    public async Task A_steered_reseller_can_still_reach_the_enrolment_endpoints()
+    {
+        await using var factory = CreateFactory();
+        await SeedSteeredLoginAsync(factory, UserRole.Reseller);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await SignInAsync(client, ResellerLogin));
+
+        var exempt = Routes(factory, exempt: true);
+        Assert.NotEmpty(exempt);
+
+        foreach (var (verb, path) in exempt)
+        {
+            using var response = await CallAsync(client, verb, path);
+            Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+    }
+
+    /// <summary>A reseller with two factor off is not steered when the policy does not force it.</summary>
+    /// <remarks>
+    /// The policy's reseller switch is honoured, in both directions: forced it steers (above), saved off
+    /// it does not, and the administrator's own switch is a separate one.
+    /// </remarks>
+    [Fact]
+    public async Task A_reseller_with_two_factor_off_is_not_steered_when_the_policy_does_not_force_it()
+    {
+        await using var factory = CreateFactory();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            await identity.Database.MigrateAsync();
+            var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+            var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+            var reseller = User.InviteReseller(
+                Guid.NewGuid(), ResellerLogin, $"{ResellerLogin}@example.com", Guid.NewGuid(), clock.UtcNow);
+            reseller.Activate(hasher.Hash(Password));
+            identity.Users.Add(reseller);
+
+            // Administrators are forced and resellers are not: the two switches are independent.
+            identity.SecurityPolicies.Add(new SecurityPolicy(
+                SecurityPolicy.DefaultMinimumPasswordLength,
+                forceTwoFactorForAdmins: true,
+                forceTwoFactorForResellers: false,
+                SecurityPolicy.DefaultMaxFailedLoginAttempts,
+                SecurityPolicy.DefaultLockoutMinutes,
+                clock.UtcNow));
+            await identity.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/auth/login", new { Username = ResellerLogin, Password });
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.False(body.RootElement.GetProperty("session").GetProperty("requiresTwoFactorSetup").GetBoolean());
