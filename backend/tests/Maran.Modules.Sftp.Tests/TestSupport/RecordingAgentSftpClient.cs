@@ -87,12 +87,19 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
         CancellationToken cancellationToken)
     {
         Deletes.Add(new AgentDeleteCall(accountUsername, sftpUsername));
+        OnDelete?.Invoke();
 
         return Task.FromResult(DeleteResult ?? Result.Ok());
     }
 
     /// <summary>Every session termination this client was asked for, in order.</summary>
     public List<AgentEndSessionsCall> EndSessionsCalls { get; } = [];
+
+    /// <summary>Runs when <see cref="DeleteAsync"/> is called, so a test can observe the order of calls.</summary>
+    public Action? OnDelete { get; set; }
+
+    /// <summary>Runs when <see cref="EndSessionsAsync"/> is called, so a test can observe the order of calls.</summary>
+    public Action? OnEndSessions { get; set; }
 
     /// <summary>What <see cref="EndSessionsAsync"/> answers; success with no process signalled by default.</summary>
     public Result<int>? EndSessionsResult { get; set; }
@@ -104,6 +111,7 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
         CancellationToken cancellationToken)
     {
         EndSessionsCalls.Add(new AgentEndSessionsCall(accountUsername, sftpUsername));
+        OnEndSessions?.Invoke();
 
         return Task.FromResult(EndSessionsResult ?? Result<int>.Ok(0));
     }

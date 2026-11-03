@@ -248,6 +248,13 @@ public static class AuditActions
     /// </summary>
     public const string SftpUserPasswordReset = "SftpUserPasswordReset";
 
+    /// <summary>
+    /// The sessions an SFTP login had open were ended after its credential changed (issue #339). Recorded
+    /// on the refusal too: a failure means the previous credential's sessions may still be open, which is
+    /// the one thing an operator reading the reset above needs to know about it.
+    /// </summary>
+    public const string SftpUserSessionsEnded = "SftpUserSessionsEnded";
+
     /// <summary>A certificate was ordered from a certificate authority and installed.</summary>
     public const string CertificateIssued = "CertificateIssued";
 

@@ -135,6 +135,9 @@
   <data name="AuditActionSftpUserPasswordReset">
     <value>SFTP password reset</value>
   </data>
+  <data name="AuditActionSftpUserSessionsEnded">
+    <value>SFTP sessions ended</value>
+  </data>
   <data name="AuditActionFtpsEnabled">
     <value>FTPS enabled</value>
   </data>

@@ -135,6 +135,9 @@
   <data name="AuditActionSftpUserPasswordReset">
     <value>Сброшен пароль SFTP</value>
   </data>
+  <data name="AuditActionSftpUserSessionsEnded">
+    <value>Завершены сеансы SFTP</value>
+  </data>
   <data name="AuditActionFtpsEnabled">
     <value>Служба FTPS включена</value>
   </data>

@@ -45,6 +45,58 @@ public sealed class DeleteSftpUserCommandHandlerTests
         Assert.Equal("deploy", call.SftpUsername);
     }
 
+    /// <summary>A delete ends the login's open sessions by the row's suffix, before the login is removed.</summary>
+    [Fact]
+    public async Task A_delete_ends_the_logins_open_sessions_before_the_login_is_removed()
+    {
+        // After the delete the agent answers NotFound for the login, so the call has nothing to act on
+        // once the login is gone: a session admitted before the delete would outlive it.
+        var world = await WorldAsync();
+        var order = new List<string>();
+        world.Agent.OnEndSessions = () => order.Add("end");
+        world.Agent.OnDelete = () => order.Add("delete");
+
+        var result = await world.DeleteAsync(world.OwnSftpUserId);
+
+        Assert.True(result.IsSuccess);
+        var call = Assert.Single(world.Agent.EndSessionsCalls);
+        Assert.Equal("alice", call.AccountUsername);
+        Assert.Equal("deploy", call.SftpUsername);
+        Assert.Equal(["end", "delete"], order);
+    }
+
+    /// <summary>A session end the agent could not confirm refuses the delete and keeps the row.</summary>
+    [Fact]
+    public async Task A_session_end_the_agent_could_not_confirm_refuses_the_delete_and_keeps_the_row()
+    {
+        var world = await WorldAsync();
+        world.Agent.EndSessionsResult = Result<int>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+
+        var result = await world.DeleteAsync(world.OwnSftpUserId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentSystemFailure", result.Error!.Code);
+        Assert.Empty(world.Agent.Deletes);
+        using var read = SftpTestContext.Create(FakeCurrentUser.Admin(), world.Store);
+        Assert.Equal(2, await read.SftpUsers.CountAsync());
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(AuditActions.SftpUserDeleted, entry.Action);
+        Assert.False(entry.Succeeded);
+    }
+
+    /// <summary>A login the host no longer holds has no sessions to end, so the delete still converges.</summary>
+    [Fact]
+    public async Task A_login_the_host_no_longer_holds_has_no_sessions_to_end_so_the_delete_still_converges()
+    {
+        var world = await WorldAsync();
+        world.Agent.EndSessionsResult = Result<int>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
+
+        var result = await world.DeleteAsync(world.OwnSftpUserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(world.Agent.Deletes);
+    }
+
     /// <summary>Deleting an sftp user removes the row only after the agent confirms.</summary>
     [Fact]
     public async Task Deleting_an_sftp_user_removes_the_row_only_after_the_agent_confirms()

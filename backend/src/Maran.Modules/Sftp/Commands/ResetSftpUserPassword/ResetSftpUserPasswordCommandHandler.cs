@@ -38,6 +38,15 @@ namespace Maran.Modules.Sftp.Commands.ResetSftpUserPassword;
 /// does not, the old one is still live and the customer is told the reset failed, which is true and
 /// leaves them exactly where they were.
 /// </para>
+/// <para>
+/// <b>Once the new password is installed, the login's open sessions are ended</b> (issue #339): a
+/// session admitted under the old credential would otherwise outlive the reset, and a reset is what
+/// a customer does when the old credential may be in someone else's hands. The outcome is journalled
+/// as its own entry (<c>SftpUserSessionsEnded</c>), success or failure, and a failure does NOT fail
+/// the request: the new password is already installed and is shown once, so refusing here would
+/// destroy the only copy of a credential that works. The failure is journalled instead, which is
+/// where an operator learns the old sessions may still be open.
+/// </para>
 /// </remarks>
 public sealed class ResetSftpUserPasswordCommandHandler
 {
@@ -121,6 +130,26 @@ public sealed class ResetSftpUserPasswordCommandHandler
             command.IpAddress,
             command.UserAgent,
             cancellationToken);
+
+        var ended = await _agent.EndSessionsAsync(account.Username, sftpUser.Name, cancellationToken);
+        if (ended.IsSuccess)
+        {
+            await _journal.RecordSuccessAsync(
+                AuditActions.SftpUserSessionsEnded,
+                sftpUser.Name,
+                command.IpAddress,
+                command.UserAgent,
+                cancellationToken);
+        }
+        else
+        {
+            await _journal.RecordFailureAsync(
+                AuditActions.SftpUserSessionsEnded,
+                sftpUser.Name,
+                command.IpAddress,
+                command.UserAgent,
+                cancellationToken);
+        }
 
         return Result<SftpUserPasswordDto>.Ok(
             new SftpUserPasswordDto(sftpUser.Id, sftpUser.FullName, password));
