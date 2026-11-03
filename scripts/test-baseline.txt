@@ -514,7 +514,7 @@ rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	8
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
 rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	16
 rust	handshake [tests/handshake.rs]	9	0	0
-rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	8
+rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	9
 rust	php_install_rpc [tests/php_install_rpc.rs]	7	0	0
 rust	php_socket_migration_on_a_real_host [tests/php_socket_migration_on_a_real_host.rs]	0	0	3
 rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	3
@@ -793,3 +793,4 @@ spa	monitoring/pending-updates.spec.ts	15	0	0
 spa	customer/membership-offers.spec.ts	8	0	0
 spa	audit/impersonator.spec.ts	5	0	0
 # RE-MEASURED 2026-11-03 (issues #324 #327 #328), edited by hand from one gate pass: backend 21 targets 6187 passed / 0 failed (Agent.Client 460->466, Identity 625->698, Monitoring 136->159, Sdk 353->356, Host.Tests 495->498, Host.IntegrationTests 926->976); rust 36 targets 3164 passed / 0 failed; spa 197 targets 1284+ passed / 0 failed. New spa rows: shell/member-navigation 5, monitoring/pending-updates 15, customer/membership-offers 8, audit/impersonator 5; raised rows: axe-scan 11->13, sub-users 7->17, navigation-badges 6->9. CI re-measures every row.
+# 2026-11-03 (issue #324): monitor_on_a_real_host 8->9 (the pending-updates real-host test), measured by the polygon lane on Ubuntu 24.04 and AlmaLinux 9 (CI), edited by hand.
