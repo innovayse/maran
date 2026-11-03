@@ -141,7 +141,12 @@ agent/
     │   │       │              auth model, its own TLS material.
     │   │       ├── cron/      cron_service.rs · cron_status.rs · the wire-payload builders (entry_output.rs · environment_variables.rs · listed_entry.rs · run_outcome.rs)
     │   │       ├── firewall/  firewall_service.rs · firewall_status.rs
-    │   │       ├── backup/    backup_service.rs · backup_status.rs
+    │   │       ├── backup/    backup_service.rs · backup_status.rs ·
+    │   │       │              validated_verification.rs (the account, backup id and
+    │   │       │              destination a VerifyBackup request carries) ·
+    │   │       │              reported_verify_backup.rs (the outcome on the wire: an ok
+    │   │       │              only for what the operation established, never an empty
+    │   │       │              one for something it did not read, issue #134)
     │   │       ├── monitor/   monitor_service.rs · monitor_status.rs · reported_clock_sync.rs · reported_pending_updates.rs
     │   │       └── wire/      NOT a proto service: the proto ↔ domain boundary shared
     │   │                      by EVERY service — invalid_input.rs · validated_account.rs ·
@@ -465,6 +470,18 @@ agent/
     │       │                  finalise_restore.rs (step 8). create_backup.rs and
     │       │                  restore_backup.rs keep the entry point, the outer body
     │       │                  that cleans up on every path, and the ordering.
+    │       │                  verify_backup.rs is the third, read-only entry point
+    │       │                  (issue #134): it takes the account's lock without
+    │       │                  waiting, checks the artifact against its sidecar and
+    │       │                  manifest, extracts nothing into a home, and answers
+    │       │                  model/backup_verification.rs (the three figures it
+    │       │                  established). verification_placement.rs carries the
+    │       │                  directories and uid it works against, so a test can
+    │       │                  fill them with ones it can create; its scratch is
+    │       │                  AgentPaths::backup_verification_scratch_dir, a
+    │       │                  directory of its own beside restore's, because the
+    │       │                  reaper that keeps a backup's rollback copy must not
+    │       │                  be shared with a reader that deletes its scratch.
     │       ├── safe_write/    render_validate_swap.rs · remove_config.rs ·
     │       │                  rollback_guard.rs · safe_write_error.rs ·
     │       │                  config_tree_lock.rs (the host-wide write lock —
