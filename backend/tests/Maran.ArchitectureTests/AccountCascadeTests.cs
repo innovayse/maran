@@ -377,10 +377,19 @@ public sealed class AccountCascadeTests
 
             // The vacuity guard on the axis that can go blind: both assertions here are satisfied by
             // an empty census, and an empty census is exactly what a broken model walk produces.
-            Assert.True(
-                relationships.Count >= 3,
-                $"Only {relationships.Count} dependents of a tenant entity were found; the model walk "
-                + "has stopped seeing relationships and this test now proves nothing");
+            // A user no longer carries an AccountId (a login can belong to several accounts through
+            // memberships, #326), so the dependents of a user are no longer dependents of a tenant row
+            // and the census shrank on purpose. The guard therefore names one dependent that must
+            // always be seen — a hostname hangs off its site — instead of counting a population that
+            // moved: a count says "something was found", the named control says the walk still reaches
+            // a relationship it is known to contain.
+            Assert.Contains(
+                relationships,
+                foreignKey =>
+                {
+                    return foreignKey.DeclaringEntityType.ClrType.Name == "SiteHostname"
+                        && foreignKey.PrincipalEntityType.ClrType.Name == "Site";
+                });
 
             var orphaning = relationships
                 .Where(relationship =>

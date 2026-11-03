@@ -35,6 +35,10 @@ public sealed class ListGrantableFeaturesQueryHandlerTests : IDisposable
                 AccountFeature.Cron,
                 AccountFeature.FileTransfer,
                 AccountFeature.Backups,
+                AccountFeature.Sites,
+                AccountFeature.Ssl,
+                AccountFeature.Tasks,
+                AccountFeature.Php,
             ],
             result.Value.Select(feature => { return feature.Feature; }));
         Assert.All(result.Value, feature =>

@@ -143,7 +143,9 @@ public sealed class AccountResidueAuditTests : IAsyncLifetime
 
         var residue = await AuditAsync(factory, accountId);
 
-        Assert.Contains(residue.Rows, row => { return row.StartsWith("User(", StringComparison.Ordinal); });
+        // A login carries no account of its own since #326: what ties it to the account, and so what
+        // the deletion would leave behind, is its membership.
+        Assert.Contains(residue.Rows, row => { return row.StartsWith("AccountMembership(", StringComparison.Ordinal); });
         Assert.Empty(residue.Unchecked);
     }
 

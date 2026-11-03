@@ -203,7 +203,10 @@ public sealed class AccountSuspensionAttestationTests : IDisposable
         Assert.Equal(TaskAudience.AdministratorOnly, task.Audience);
         var attestation = Assert.Single(task.Reports, report => { return report.Line.Contains("NOT covered"); });
         Assert.Contains("databases", attestation.Line, StringComparison.Ordinal);
-        Assert.Contains("web login", attestation.Line, StringComparison.Ordinal);
+
+        // The panel's own web login is covered since the suspension became the membership's state
+        // (#326), so the line must not list it among what was NOT covered.
+        Assert.DoesNotContain("web login", attestation.Line, StringComparison.Ordinal);
     }
 
     /// <summary>A completed suspension names the crontab lines it did not silence.</summary>

@@ -71,13 +71,22 @@ public static class DisplayNameExemptions
             "Manual or brute force: two values the panel itself writes, shown as a column of one "
             + "word each."),
         new(
+            "Maran.Modules.Firewall.Common.FirewallPresetDto",
+            "Key",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/firewall/FirewallPresetButtons.vue",
+            "The key is the preset's identity, which the card uses to tell one preset from another "
+            + "and to ask for it by name; the words an operator reads are the sibling Name, resolved "
+            + "by the panel for the request's culture (issue #330). No screen prints the key."),
+        new(
             "Maran.Modules.Firewall.Common.FirewallRuleDto",
             "Protocol",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "firewall.protocols.{member}",
-            "TCP and UDP are proper nouns that read the same in every language; the bundle carries "
-            + "them so the rule table can label a column without asking the panel what TCP is "
-            + "called in Armenian."),
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/firewall/FirewallRulesTable.vue",
+            "The protocol is the key the rule table looks up in the panel's own list of protocol "
+            + "choices (GET /api/v1/firewall/rules/protocols, issue #330), whose protocolName is the "
+            + "backend's word for it; the SPA holds no label of its own, so a display name beside "
+            + "this field on the wire would repeat what the choices list already names."),
         new(
             "Maran.Modules.Identity.Common.AuthenticatedUserDto",
             "Role",
