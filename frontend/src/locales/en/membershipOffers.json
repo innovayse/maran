@@ -1,0 +1,17 @@
+{
+  "membershipOffers": {
+    "heading": "Invitations to join an account",
+    "subtitle": "Someone offered you access to their hosting account. Nothing changes until you accept.",
+    "features": "Features you would get: {features}",
+    "noFeatures": "None",
+    "expires": "Open until {date}",
+    "accept": "Accept",
+    "decline": "Decline",
+    "declineTitle": "Decline the offer from {name}",
+    "declineQuestion": "Decline this offer? The owner would have to send it again if you change your mind.",
+    "declineConfirm": "Decline offer",
+    "working": "Working…",
+    "accepted": "You joined {name}. You can switch to it from the account menu.",
+    "declined": "The offer from {name} was declined."
+  }
+}
