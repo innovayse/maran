@@ -84,7 +84,7 @@ may contain a platform literal — a path, a package name, a shell — and
 | Path | Purpose |
 |---|---|
 | `src/detection/` | what host is this? `os_release.rs` parses, `detect.rs` decides, `distro_info.rs` carries the answer, `detect_error.rs` refuses unsupported hosts. |
-| `src/adapter.rs` | the `DistroAdapter` trait, alone in its file. It also answers the account-deletion programs `atq`, `atrm`, `loginctl`, `ipcrm` (as `AdapterBinary`), `at_spool_directory` and `mail_spool_directory`. |
+| `src/adapter.rs` | the `DistroAdapter` trait, alone in its file: `family()` plus ten supertraits, one per concern, each in its own file — `account_programs.rs` (`AccountPrograms`, which also answers the account-deletion programs `atq`, `atrm`, `loginctl`, `ipcrm`, `at_spool_directory` and `mail_spool_directory`), `web_server_facts.rs`, `php_facts.rs`, `package_facts.rs`, `file_transfer_facts.rs`, `backup_facts.rs`, `database_facts.rs`, `service_manager_facts.rs`, `scheduling_facts.rs`, `firewall_facts.rs`. A new adapter method goes into the trait of its concern. |
 | `src/adapter_binary.rs` | `AdapterBinary`, alone in its file: the absolute path of one program the agent may start as root. The field is private and the constructors are `pub(crate)`, so only this crate can build one; every `*_binary` adapter method that names an executed program returns it, and every `ops` process seam takes `&AdapterBinary` rather than a string. `php_fpm_binary` takes the validated `PhpVersion`, the only path built with `format!`. |
 | `src/adapter_for.rs` | family → adapter. The branch on family happens exactly once, here. |
 | `src/family.rs` | `DistroFamily`. |

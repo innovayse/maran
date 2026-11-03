@@ -19,7 +19,7 @@ use crate::accounts::AccountError;
 /// `userdel --remove` is not relied on: measured on AlmaLinux 9, the spool of a
 /// deleted account survived it, and the next account given the freed uid owned
 /// the file. The mail directory is a distro fact
-/// ([`DistroAdapter::mail_spool_directory`]).
+/// ([`AccountPrograms::mail_spool_directory`](maran_distro::AccountPrograms::mail_spool_directory)).
 ///
 /// Must be called with the account's lock held. That lock is process-local.
 ///

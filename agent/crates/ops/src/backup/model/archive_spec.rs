@@ -145,7 +145,7 @@ impl ArchiveSpec {
     ///
     /// `compressor` is the absolute path of `gzip`, and it comes from the
     /// caller — which is the host, holding what
-    /// [`DistroAdapter::gzip_binary`](maran_distro::DistroAdapter::gzip_binary)
+    /// [`DistroAdapter::gzip_binary`](maran_distro::BackupFacts::gzip_binary)
     /// answered at construction, exactly as it already holds `tar`'s own path.
     /// A field would have to be filled at every construction site, and those
     /// sites are operations deep in this crate that hold no adapter; threading

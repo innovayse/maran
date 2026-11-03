@@ -289,9 +289,18 @@ agent/
     │   │                  ubuntu:24.04 and almalinux:9 containers, which the classification
     │   │                  tests include_str!; bytes as the tool printed them
     │   └── src/
-    │       ├── adapter.rs     the DistroAdapter trait, alone. Besides paths and packages it
-    │       │                  answers the account-deletion programs atq · atrm · loginctl ·
-    │       │                  ipcrm (each an AdapterBinary) and the directories at_spool_directory · mail_spool_directory
+    │       ├── adapter.rs     the DistroAdapter trait, alone: `family()` plus the supertraits
+    │       │                  below, so a caller holding `&dyn DistroAdapter` asks any of them
+    │       ├── account_programs.rs · web_server_facts.rs · php_facts.rs ·
+    │       │   package_facts.rs · file_transfer_facts.rs · backup_facts.rs ·
+    │       │   database_facts.rs · service_manager_facts.rs · scheduling_facts.rs ·
+    │       │   firewall_facts.rs
+    │       │                  the concern traits `DistroAdapter` composes, one per file, each
+    │       │                  named for what it answers (AccountPrograms owns the
+    │       │                  account-deletion programs atq · atrm · loginctl · ipcrm and the
+    │       │                  at/mail spool directories). Each family implements every one in
+    │       │                  its own `<family>_adapter.rs`; a method is added to the trait of
+    │       │                  its concern, never to DistroAdapter itself
     │       ├── adapter_for.rs the selector: family → adapter
     │       ├── family.rs      DistroFamily
     │       ├── vsftpd_tls_version_keys.rs  the NAMES of the three TLS-version
