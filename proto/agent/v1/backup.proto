@@ -42,6 +42,51 @@ service BackupService {
   // non-existent backup_id returns NotFound.
   rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
 
+  // Reads one published artifact and its sidecar back and answers what that
+  // read established: that the artifact still hashes to the digest the sidecar
+  // recorded and weighs what it recorded, that its member list is inside the
+  // fixed layout and the bounds a restore applies, that its manifest names this
+  // account and this backup and agrees with the sidecar, and that every
+  // database the manifest names has its dump among the members.
+  //
+  // READ-ONLY AND IDEMPOTENT. Nothing under the backup root, in any home or in
+  // any database is created, changed or removed; repeating the call changes
+  // nothing on the host. Nothing is extracted into a home. The one thing
+  // written anywhere is a manifest of a few kilobytes into the agent's
+  // root-only scratch, removed on every path.
+  //
+  // LOCAL DESTINATION ONLY. Any other BackupDestinationKind is answered with
+  // ERROR_CODE_NOT_IMPLEMENTED, as ProbeDestination answers every destination:
+  // the agent holds no code path that reaches a remote store, so verifying a
+  // remote copy is not something this rpc can do and does not pretend to.
+  //
+  // WHAT A SUCCESS DOES NOT ESTABLISH. It is a statement about the bytes at
+  // the moment of the read, never a promise about a restore: the dumps are not
+  // parsed or loaded, a dump's own digest is not recomputed (the artifact's
+  // digest covers every byte of it), the databases may no longer exist to be
+  // restored into, the host may have no room, and an artifact replaced together
+  // with its sidecar and manifest by someone who can write root-owned files
+  // verifies. A caller MUST NOT present a success as "restorable" or "safe".
+  //
+  // FAILURES. Two kinds that a caller MUST keep apart. A finding about the
+  // artifact (it was read and is not what it should be: digest or size
+  // mismatch, a layout violation, a manifest naming another account or backup,
+  // a sidecar that disagrees, a missing dump, a sidecar or artifact that is
+  // not a plain file) is ERROR_CODE_VALIDATION_FAILED. A host that could not do
+  // the read (a bound reached, a scratch that could not be used, the free-space
+  // floor, an archiver that could not run) is ERROR_CODE_SYSTEM_FAILURE or
+  // ERROR_CODE_BELOW_FREE_SPACE_FLOOR and says nothing about the artifact. A
+  // missing artifact is ERROR_CODE_NOT_FOUND. A caller treats only the first
+  // kind as damage, and an ok is never produced for something that was not read.
+  //
+  // The account's backup lock is taken first and never waited for: when a
+  // backup, a restore, a delete or another verification of the account holds
+  // it, the answer is ERROR_CODE_ACCOUNT_BUSY at once, and nothing was read.
+  //
+  // CANCELLATION: runs to completion. The work is read-only, so a caller that
+  // goes away leaves nothing to reclaim; the result is discarded.
+  rpc VerifyBackup(VerifyBackupRequest) returns (VerifyBackupResponse);
+
   // Asks whether a destination would serve this product's archives to
   // anyone: the agent writes a canary object into it and fetches that object
   // back with no credentials at all, and answers what came back. The
@@ -413,3 +458,46 @@ message DeleteBackupResponse {
 }
 
 message DeleteBackupOk {}
+
+message VerifyBackupRequest {
+  // System username of the account owning the backup. Revalidated by the
+  // agent; the artifact is looked up only under this account's own backup
+  // directory, so a backup_id that exists under another account does not
+  // resolve, and an artifact whose manifest names another account is refused.
+  string account_username = 1;
+  // Identifier of the backup to verify, as passed to CreateBackup: a lowercase
+  // hyphenated UUID. Revalidated by the agent before any path is formed; a
+  // value carrying a separator, a dot-dot, a NUL or a control character is
+  // ERROR_CODE_INVALID_INPUT and nothing is opened. The artifact's own manifest
+  // must name this same id, or it is refused.
+  string backup_id = 2;
+  // Where the backup artifact resides. Only BACKUP_DESTINATION_KIND_LOCAL is
+  // served; any other kind is ERROR_CODE_NOT_IMPLEMENTED. For the local kind
+  // the agent reads from its own configured backup root, never from a path in
+  // this message.
+  BackupDestination destination = 3;
+}
+
+message VerifyBackupResponse {
+  oneof result {
+    VerifyBackupOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// What a verification established. Present only after every check ran to
+// completion: a count here is a measured count and a zero is a measured zero,
+// never a read that did not happen. It carries no verdict about restorability;
+// see the rpc's comment for what it does not establish.
+message VerifyBackupOk {
+  // How many members the artifact's listing held, directories included.
+  uint32 member_count = 1;
+  // How many databases the manifest names whose dump member was found in the
+  // listing. The dumps' content is not read, so this counts presence and says
+  // nothing about whether a dump loads. Zero is an ordinary answer: most static
+  // sites have no database.
+  uint32 database_count = 2;
+  // The artifact's size in bytes as the read measured it, equal to the size
+  // its sidecar recorded.
+  uint64 artifact_bytes = 3;
+}
