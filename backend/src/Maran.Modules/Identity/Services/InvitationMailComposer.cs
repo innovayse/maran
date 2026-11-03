@@ -61,14 +61,32 @@ public sealed class InvitationMailComposer
     public SendMailRequested Compose(string recipient, string token, string language)
     {
         using var scope = new RecipientCultureScope(language);
-        return Render(recipient, token);
+        return Render(recipient, token, "InvitationSubject", "InvitationBody");
+    }
+
+    /// <summary>
+    /// Renders the invitation mail sent to a reseller's contact once the reseller's login exists, in
+    /// the contact's language. Same link, same token handling and same culture rules as
+    /// <see cref="Compose"/>; only the words differ, because what the mail announces is a reseller
+    /// login and not a hosting account.
+    /// </summary>
+    /// <param name="recipient">The invited login's own stored address.</param>
+    /// <param name="token">The plaintext invitation token. It exists here, in the message, and nowhere else.</param>
+    /// <param name="language">The contact's language, one of <see cref="PanelLanguages.Supported"/>.</param>
+    /// <returns>The message to publish as <see cref="SendMailRequested"/>.</returns>
+    public SendMailRequested ComposeForReseller(string recipient, string token, string language)
+    {
+        using var scope = new RecipientCultureScope(language);
+        return Render(recipient, token, "ResellerInvitationSubject", "ResellerInvitationBody");
     }
 
     /// <summary>Renders the message in whatever culture is current.</summary>
     /// <param name="recipient">The invited user's own stored address.</param>
     /// <param name="token">The plaintext invitation token.</param>
+    /// <param name="subjectKey">The resource key of the subject line.</param>
+    /// <param name="bodyKey">The resource key of the body, which has one placeholder for the instruction.</param>
     /// <returns>The message to publish as <see cref="SendMailRequested"/>.</returns>
-    private SendMailRequested Render(string recipient, string token)
+    private SendMailRequested Render(string recipient, string token, string subjectKey, string bodyKey)
     {
         var instruction = string.IsNullOrWhiteSpace(_options.PanelUrl)
             ? string.Format(CultureInfo.CurrentCulture, _templates["InvitationTokenOnly"], token)
@@ -77,8 +95,8 @@ public sealed class InvitationMailComposer
                 _templates["InvitationLink"],
                 $"{_options.PanelUrl.TrimEnd('/')}{InvitationLinkBuilder.RelativeFor(token)}");
 
-        var body = string.Format(CultureInfo.CurrentCulture, _templates["InvitationBody"], instruction);
+        var body = string.Format(CultureInfo.CurrentCulture, _templates[bodyKey], instruction);
 
-        return new SendMailRequested(recipient, _templates["InvitationSubject"], body);
+        return new SendMailRequested(recipient, _templates[subjectKey], body);
     }
 }

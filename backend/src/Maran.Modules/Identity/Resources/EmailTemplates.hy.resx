@@ -40,6 +40,16 @@
 
 Հղումը կդադարի գործել յոթ օրից և կարող է օգտագործվել մեկ անգամ։</value>
   </data>
+  <data name="ResellerInvitationSubject">
+    <value>Ձեր ռեսելլերի մուտքը պատրաստ է</value>
+  </data>
+  <data name="ResellerInvitationBody">
+    <value>Ձեզ համար ստեղծվել է ռեսելլերի մուտք այս հոսթինգ վահանակում։
+
+{0}
+
+Հղումը կդադարի գործել յոթ օրից և կարող է օգտագործվել մեկ անգամ։</value>
+  </data>
   <data name="InvitationLink">
     <value>Բացեք այս հասցեն՝ ձեր գաղտնաբառը ընտրելու համար․
 {0}</value>

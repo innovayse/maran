@@ -31,6 +31,16 @@ public enum SessionRevocationReason
     /// </summary>
     AccountSuspended,
 
+    /// <summary>
+    /// The reseller the login belongs to was suspended. The login itself is suspended with it, and
+    /// ending the sessions already open is the half that matters for the same reason as
+    /// <see cref="AccountSuspended"/>: a token issued before the suspension would otherwise keep
+    /// working until it expires. Not <see cref="AccountSuspended"/>, because a reseller's suspension
+    /// touches no hosting account and an operator reading the sessions screen should not be told one
+    /// was suspended.
+    /// </summary>
+    ResellerSuspended,
+
     /// <summary>The operator viewing as this user pressed Back, ending the view-as session.</summary>
     ViewAsEnded,
 

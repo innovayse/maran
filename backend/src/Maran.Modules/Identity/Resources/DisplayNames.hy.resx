@@ -353,10 +353,28 @@
     <value>Թիմի անդամ</value>
   </data>
   <data name="AuditActionViewAsStarted">
-    <value>Սկսվեց դիտումը հաշվի անունից</value>
+    <value>Սկսվեց դիտումը այլ մուտքի անունից</value>
   </data>
   <data name="AuditActionViewAsEnded">
-    <value>Ավարտվեց դիտումը հաշվի անունից</value>
+    <value>Ավարտվեց դիտումը այլ մուտքի անունից</value>
+  </data>
+  <data name="AuditActionResellerInvited">
+    <value>Ռեսելլերը հրավիրվեց</value>
+  </data>
+  <data name="AuditActionResellerCreated">
+    <value>Ստեղծվեց ռեսելլեր</value>
+  </data>
+  <data name="AuditActionResellerEnvelopeChanged">
+    <value>Ռեսելլերի սահմանաչափերը փոխվեցին</value>
+  </data>
+  <data name="AuditActionResellerSuspended">
+    <value>Ռեսելլերը կասեցվեց</value>
+  </data>
+  <data name="AuditActionResellerReactivated">
+    <value>Ռեսելլերը վերսկսվեց</value>
+  </data>
+  <data name="AuditActionResellerDeleted">
+    <value>Ռեսելլերը ջնջվեց</value>
   </data>
   <data name="AuditOutcomeSucceeded">
     <value>Հաջողվեց</value>
