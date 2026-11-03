@@ -4,6 +4,7 @@ using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
 using Maran.Modules.Backups.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Backups.Tests.Services;
@@ -49,6 +50,32 @@ public sealed class AccountBackupServiceTests
         Assert.Equal(BackupStatus.Completed, stored.Status);
         Assert.Equal(accountId, stored.AccountId);
         Assert.Equal(new string('c', 64), stored.ArtifactSha256);
+    }
+
+    /// <summary>The final archive is read back, and a finding about it never refuses the deletion.</summary>
+    /// <remarks>
+    /// The deletion asked for a final backup and got one; whether the artifact reads back is a second
+    /// fact, recorded on the row and mailed, and turning it into a refusal would let a transient
+    /// read fault keep an account from being deleted.
+    /// </remarks>
+    [Fact]
+    public async Task A_final_backup_failing_verification_is_recorded_and_still_succeeds()
+    {
+        var accountId = Guid.NewGuid();
+        var world = World.Create(accountId, [Created]);
+        world.Agent.VerifyResult = Result<AgentBackupVerification>.Fail(
+            Error.Of("AgentValidationFailed", ErrorType.Validation));
+
+        var result = await world.Service.TakeFinalBackupAsync(accountId, "acme", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var call = Assert.Single(world.Agent.Verifications);
+        Assert.Equal("acme", call.AccountUsername);
+
+        await using var reading = world.Read();
+        var stored = await reading.Backups.IgnoreQueryFilters().SingleAsync();
+        Assert.Equal(BackupStatus.Completed, stored.Status);
+        Assert.Equal(BackupVerificationState.Failed, stored.VerificationState);
     }
 
     /// <summary>A run that produced nothing answers a failure, not a row the caller must inspect.</summary>
@@ -168,7 +195,7 @@ public sealed class AccountBackupServiceTests
 
             Service = new AccountBackupService(
                 dbContext,
-                new BackupRunner(Agent, Tasks),
+                BackupRunnerFactory.Create(Agent, Tasks, dbContext, _currentUser, Audit, new FakeClock(Now)),
                 new BackupDestinationResolver(dbContext),
                 new BackupAuditJournal(Audit, _currentUser),
                 new FakeClock(Now));

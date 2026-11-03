@@ -127,7 +127,7 @@ public sealed class BackupSweepWorld
         Handler = new BackupRunHandler(
             dbContext,
             _accounts,
-            new BackupRunner(Agent, tasks),
+            BackupRunnerFactory.Create(Agent, tasks, dbContext, _currentUser, Audit, new FakeClock(now), Bus, Recipients),
             new BackupDestinationResolver(dbContext),
             new BackupAuditJournal(Audit, _currentUser),
             new FakeClock(now),

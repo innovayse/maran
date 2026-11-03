@@ -212,7 +212,8 @@ public sealed class BackupRunHandlerTests
 
         await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
 
-        var entry = Assert.Single(world.Audit.Entries);
+        var entry = Assert.Single(
+            world.Audit.Entries, candidate => { return candidate.Action == BackupAuditActions.BackupCreated; });
         Assert.Null(entry.ActorUserId);
         Assert.Equal(SystemAuditEntry.NameFor(BackupAuditJournal.ModuleName), entry.ActorUsername);
         Assert.Equal(string.Empty, entry.IpAddress);

@@ -85,8 +85,9 @@ public sealed class CreateBackupCommandHandlerTests
         var stored = await world.Read().Backups.SingleAsync();
         Assert.Equal(BackupDestination.DefaultDestinationId, stored.DestinationId);
 
-        var destination = Assert.Single(world.Agent.Destinations);
-        Assert.IsType<AgentLocalBackupDestination>(destination);
+        // The create and the verification that follows it are both aimed at the one local destination.
+        Assert.NotEmpty(world.Agent.Destinations);
+        Assert.All(world.Agent.Destinations, destination => { Assert.IsType<AgentLocalBackupDestination>(destination); });
     }
 
     /// <summary>The agent is asked for the owning accounts system user name and the rows own id.</summary>
@@ -103,6 +104,61 @@ public sealed class CreateBackupCommandHandlerTests
         Assert.Equal(result.Value.Id.ToString(), call.BackupId);
     }
 
+    /// <summary>A manual run whose artifact fails verification mails the administrator and stays completed.</summary>
+    /// <remarks>
+    /// A manual run's own outcome is not mailed — whoever asked is watching its task — but its
+    /// verification finding arrives after they have stopped watching, so it is an unattended finding.
+    /// </remarks>
+    [Fact]
+    public async Task A_manual_run_whose_artifact_fails_verification_mails_once_and_stays_completed()
+    {
+        var accountId = Guid.NewGuid();
+        var world = World.Owning(accountId, [Created]);
+        world.Agent.VerifyResult = Result<AgentBackupVerification>.Fail(
+            Error.Of("AgentValidationFailed", ErrorType.Validation));
+
+        var result = await world.Handler.HandleAsync(Command(accountId), CancellationToken.None);
+
+        Assert.Equal(BackupStatus.Completed, result.Value.Status);
+        var mail = Assert.Single(world.Bus.Published.OfType<SendMailRequested>());
+        Assert.Contains(World.Username, mail.Subject, StringComparison.Ordinal);
+
+        var stored = await world.Read().Backups.SingleAsync();
+        Assert.Equal(BackupStatus.Completed, stored.Status);
+        Assert.Equal(BackupVerificationState.Failed, stored.VerificationState);
+        Assert.Equal("BackupVerificationFailed", stored.VerificationFailureCode);
+    }
+
+    /// <summary>A manual run whose artifact verifies mails nobody and records the state.</summary>
+    [Fact]
+    public async Task A_manual_run_whose_artifact_verifies_is_recorded_verified_and_mails_nobody()
+    {
+        var accountId = Guid.NewGuid();
+        var world = World.Owning(accountId, [Created]);
+
+        await world.Handler.HandleAsync(Command(accountId), CancellationToken.None);
+
+        Assert.Empty(world.Bus.Published.OfType<SendMailRequested>());
+        var call = Assert.Single(world.Agent.Verifications);
+        Assert.Equal(World.Username, call.AccountUsername);
+
+        var stored = await world.Read().Backups.SingleAsync();
+        Assert.Equal(BackupVerificationState.Verified, stored.VerificationState);
+    }
+
+    /// <summary>A manual run that failed is not verified: there is no artifact to read.</summary>
+    [Fact]
+    public async Task A_manual_run_that_failed_is_not_verified()
+    {
+        var accountId = Guid.NewGuid();
+        var world = World.Owning(accountId, [Dropped]);
+
+        await world.Handler.HandleAsync(Command(accountId), CancellationToken.None);
+
+        Assert.Empty(world.Agent.Verifications);
+        Assert.Empty(world.Bus.Published.OfType<SendMailRequested>());
+    }
+
     /// <summary>A successful run journals the creation and completes the task.</summary>
     [Fact]
     public async Task A_successful_run_journals_the_creation_and_completes_the_task()
@@ -112,8 +168,8 @@ public sealed class CreateBackupCommandHandlerTests
 
         var result = await world.Handler.HandleAsync(Command(accountId), CancellationToken.None);
 
-        var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(BackupAuditActions.BackupCreated, entry.Action);
+        var entry = Assert.Single(
+            world.Audit.Entries, candidate => { return candidate.Action == BackupAuditActions.BackupCreated; });
 
         // The account, not the backup id: AuditEntry's subject is "what the operation acts on, as
         // an operator would search for it" — the same asymmetry the tasks screen carried, measured
@@ -385,6 +441,9 @@ public sealed class CreateBackupCommandHandlerTests
         /// <summary>The directory double, holding which accounts were looked up.</summary>
         public StubAccountDirectory Accounts { get; }
 
+        /// <summary>The bus double, holding the alert mail a failed verification publishes.</summary>
+        public RecordingMessageBus Bus { get; } = new();
+
         /// <summary>Assembles the handler over doubles.</summary>
         /// <param name="ownedAccountId">The one account the directory knows, and the caller's own.</param>
         /// <param name="events">The create stream the agent replays.</param>
@@ -404,7 +463,7 @@ public sealed class CreateBackupCommandHandlerTests
             Handler = new CreateBackupCommandHandler(
                 dbContext,
                 Accounts,
-                new BackupRunner(Agent, Tasks),
+                BackupRunnerFactory.Create(Agent, Tasks, dbContext, _currentUser, Audit, new FakeClock(Now), Bus),
                 new BackupDestinationResolver(dbContext),
                 new BackupAuditJournal(Audit, _currentUser),
                 new FakeClock(Now),

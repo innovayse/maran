@@ -179,6 +179,13 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
     /// </remarks>
     public Result<AgentBackupVerification>? VerifyResult { get; set; }
 
+    /// <summary>Run at the moment a verification is asked for, before it answers; may throw.</summary>
+    /// <remarks>
+    /// Reaches the one case a scripted answer cannot express: the call raising instead of answering,
+    /// which is what a dropped socket does and which a verification must not turn into a failed run.
+    /// </remarks>
+    public Action? OnVerify { get; set; }
+
     /// <inheritdoc />
     public Task<Result<AgentBackupVerification>> VerifyBackupAsync(
         string accountUsername,
@@ -188,6 +195,7 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
     {
         Verifications.Add((accountUsername, backupId));
         Destinations.Add(destination);
+        OnVerify?.Invoke();
 
         return Task.FromResult(
             VerifyResult ?? Result<AgentBackupVerification>.Ok(new AgentBackupVerification(3, 1, 4096)));
