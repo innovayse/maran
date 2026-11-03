@@ -4,7 +4,7 @@ using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Backups.Services;
 
-/// <summary>Resolves the operator-facing names of a backup's status and kind in the current request's culture.</summary>
+/// <summary>Resolves the operator-facing names of a backup's status, kind and verification state.</summary>
 /// <remarks>
 /// <b>The names are the backend's to produce, not the SPA's</b> (rules/architecture.md "The backend
 /// owns the data, the SPA renders it"). Both sets are closed and every member has an entry, so a miss
