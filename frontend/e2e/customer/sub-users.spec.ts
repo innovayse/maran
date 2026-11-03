@@ -5,11 +5,13 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
-import { stubSubUsers, stubSubUsersForbidden, subUserRow } from '../fixtures/stub-sub-users-routes'
+import { setPersistedLocale } from '../fixtures/set-locale'
+import { offerRow, stubSubUsers, stubSubUsersForbidden, subUserRow } from '../fixtures/stub-sub-users-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 
-// Issue #315: an account's owner invites, limits and removes team members from My account > Sub-users.
+// Issues #315 and #328: an account's owner invites, resends, offers a place to an existing login,
+// limits and removes team members from My account > Sub-users.
 // Reached by clicks only: the sidebar's My account section, then its Sub-users link. The endpoints
 // are the boundary (they refuse everyone but the owner); these specs prove what the screen does with
 // their answers.
@@ -149,3 +151,159 @@ test('an owner with no team sees the empty state and the invite form', async ({ 
   await expect(page.getByText('No sub-users yet')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Send invitation' })).toBeVisible()
 })
+
+test('an owner resends the invitation of a person who has not accepted yet', async ({ page }) => {
+  const sent = await stubSubUsers(page, [subUserRow('writer', [], 'invited')])
+  await openSubUsers(page)
+
+  await page.getByRole('button', { name: 'Actions for writer' }).click()
+  await page.getByRole('menuitem', { name: 'Resend invitation' }).click()
+
+  await expect(page.getByText('A new invitation was sent to writer. The earlier link no longer works.')).toBeVisible()
+  expect(sent.resends).toHaveLength(1)
+  // Nothing was asked to confirm and the row did not change: the person is still invited.
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByRole('row', { name: /writer/ })).toContainText('Invited')
+})
+
+test('a person who already signed in is not offered a resend', async ({ page }) => {
+  await stubSubUsers(page, [subUserRow('deploy', ['databases'])])
+  await openSubUsers(page)
+
+  await page.getByRole('button', { name: 'Actions for deploy' }).click()
+
+  await expect(page.getByRole('menuitem', { name: 'Change features' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Resend invitation' })).toHaveCount(0)
+})
+
+test('a refused resend shows the panel sentence verbatim', async ({ page }) => {
+  await stubSubUsers(page, [subUserRow('writer', [], 'invited')], { resendRefusal: 'That person has already accepted.' })
+  await openSubUsers(page)
+
+  await page.getByRole('button', { name: 'Actions for writer' }).click()
+  await page.getByRole('menuitem', { name: 'Resend invitation' }).click()
+
+  await expect(page.getByText('That person has already accepted.')).toBeVisible()
+  await expect(page.getByText(/A new invitation was sent/)).toHaveCount(0)
+})
+
+test('an owner offers a place to an existing login and the person is shown as offered', async ({ page }) => {
+  const sent = await stubSubUsers(page, [], { knownLogins: ['maria'] })
+  await openSubUsers(page)
+
+  await page.getByLabel('Existing login or e-mail').fill('maria')
+  await page.getByRole('group', { name: 'Features to offer' }).getByLabel('Databases').check({ force: true })
+  await page.getByRole('button', { name: 'Send offer' }).click()
+
+  await expect(page.getByText('If that login exists, an offer was sent.')).toBeVisible()
+  expect(sent.offers).toEqual([{ identifier: 'maria', features: ['databases'] }])
+  const row = page.getByRole('row', { name: /maria/ })
+  await expect(row).toContainText('Offer sent')
+  await expect(row).toContainText('Databases')
+})
+
+test('the answer to an offer is the same for a login that does not exist', async ({ page }) => {
+  const sent = await stubSubUsers(page, [], { knownLogins: ['maria'] })
+  await openSubUsers(page)
+
+  await page.getByLabel('Existing login or e-mail').fill('nobody-here')
+  await page.getByRole('button', { name: 'Send offer' }).click()
+
+  // The same sentence, the same request: nothing on screen confirms that the login is absent.
+  await expect(page.getByText('If that login exists, an offer was sent.')).toBeVisible()
+  expect(sent.offers).toEqual([{ identifier: 'nobody-here', features: [] }])
+  await expect(page.getByRole('row', { name: /nobody-here/ })).toHaveCount(0)
+})
+
+test('the add-existing form refuses an empty identifier without calling the panel', async ({ page }) => {
+  const sent = await stubSubUsers(page, [])
+  await openSubUsers(page)
+
+  await page.getByRole('button', { name: 'Send offer' }).click()
+
+  await expect(page.getByText('Enter a login name or an e-mail address.')).toBeVisible()
+  expect(sent.offers).toEqual([])
+})
+
+test('a refused offer shows the panel sentence verbatim and no success message', async ({ page }) => {
+  await stubSubUsers(page, [], { offerRefusal: 'You have reached the limit of sub-users for this account.' })
+  await openSubUsers(page)
+
+  await page.getByLabel('Existing login or e-mail').fill('maria')
+  await page.getByRole('button', { name: 'Send offer' }).click()
+
+  await expect(page.getByText('You have reached the limit of sub-users for this account.')).toBeVisible()
+  await expect(page.getByText('If that login exists, an offer was sent.')).toHaveCount(0)
+})
+
+test('a pending offer can only be cancelled, and only after confirming', async ({ page }) => {
+  const sent = await stubSubUsers(page, [offerRow('maria', ['databases'])])
+  await openSubUsers(page)
+
+  await page.getByRole('button', { name: 'Actions for maria' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Resend invitation' })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Change features' })).toHaveCount(0)
+  await page.getByRole('menuitem', { name: 'Cancel offer' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+  expect(sent.removals).toEqual([])
+
+  await page.getByRole('button', { name: 'Actions for maria' }).click()
+  await page.getByRole('menuitem', { name: 'Cancel offer' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel offer' }).click()
+
+  await expect(page.getByText('Offer to maria cancelled.')).toBeVisible()
+  expect(sent.removals).toHaveLength(1)
+  await expect(page.getByRole('row', { name: /maria/ })).toHaveCount(0)
+})
+
+/** What each language calls the things these specs click and read. */
+const LOCALES = [
+  {
+    code: 'ru',
+    navigation: 'Основная навигация',
+    expand: 'Показать разделы «Мой аккаунт»',
+    link: 'Пользователи',
+    actions: 'Действия для writer',
+    resend: 'Отправить приглашение повторно',
+    sent: 'Новое приглашение отправлено пользователю writer. Прежняя ссылка больше не действует.',
+    identifier: 'Существующий логин или e-mail',
+    submit: 'Отправить предложение',
+    offered: 'Если такой логин существует, предложение отправлено. Человек должен принять его, чтобы присоединиться.',
+  },
+  {
+    code: 'hy',
+    navigation: 'Հիմնական նավիգացիա',
+    expand: 'Ցույց տալ «Իմ հաշիվը» բաժինները',
+    link: 'Ենթաօգտատերեր',
+    actions: 'writer-ի գործողությունները',
+    resend: 'Կրկին ուղարկել հրավերը',
+    sent: 'writer-ին նոր հրավեր ուղարկվեց։ Նախորդ հղումն այլևս չի գործում։',
+    identifier: 'Առկա մուտքանուն կամ e-mail',
+    submit: 'Ուղարկել առաջարկը',
+    offered: 'Եթե այդպիսի մուտքանուն կա, առաջարկն ուղարկվել է։ Անձը պետք է ընդունի այն՝ միանալու համար։',
+  },
+] as const
+
+for (const locale of LOCALES) {
+  test(`resending and offering are localized in ${locale.code}`, async ({ page }) => {
+    await setPersistedLocale(page, locale.code)
+    await stubSubUsers(page, [subUserRow('writer', [], 'invited')])
+    await stubSignedIn(page, CUSTOMER)
+    await stubHealthy(page)
+    await stubModules(page, FULL_CATALOGUE)
+    await stubEmptyTasks(page)
+    await stubMyAccount(page, OWN_ACCOUNT)
+    await page.goto('/')
+    const navigation = page.getByRole('navigation', { name: locale.navigation })
+    await navigation.getByRole('button', { name: locale.expand }).click()
+    await navigation.getByRole('link', { name: locale.link, exact: true }).click()
+
+    await page.getByRole('button', { name: locale.actions }).click()
+    await page.getByRole('menuitem', { name: locale.resend }).click()
+    await expect(page.getByText(locale.sent)).toBeVisible()
+
+    await page.getByLabel(locale.identifier).fill('nobody-here')
+    await page.getByRole('button', { name: locale.submit }).click()
+    await expect(page.getByText(locale.offered)).toBeVisible()
+  })
+}

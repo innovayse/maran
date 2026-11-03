@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Asks the owner to confirm removing one sub-user before the page sends it, naming the person and the
+ * Asks the owner to confirm removing one sub-user (or cancelling a pending offer) before the page sends it, naming the person and the
  * consequence. Dumb: the page holds which sub-user is pending and carries the removal out on `confirm`.
  */
 import { computed, type ComputedRef } from 'vue'
@@ -26,9 +26,14 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+/** Which wording applies: cancelling a pending offer says nothing of a deleted login. */
+const section: ComputedRef<'remove' | 'cancelOffer'> = computed(() => {
+  return props.subUser?.isOffer === true ? 'cancelOffer' : 'remove'
+})
+
 /** The confirmation's title, naming the person. */
 const confirmationTitle: ComputedRef<string> = computed(() => {
-  return t('subUsers.remove.title', { name: props.subUser?.username ?? '' })
+  return t(`subUsers.${section.value}.title`, { name: props.subUser?.username ?? '' })
 })
 </script>
 
@@ -36,8 +41,8 @@ const confirmationTitle: ComputedRef<string> = computed(() => {
   <UiConfirm
     :open="subUser !== null"
     :title="confirmationTitle"
-    :question="t('subUsers.remove.question')"
-    :confirm-label="t('subUsers.remove.confirm')"
+    :question="t(`subUsers.${section}.question`)"
+    :confirm-label="t(`subUsers.${section}.confirm`)"
     :cancel-label="t('common.cancel')"
     :close-label="t('common.close')"
     :acting="acting"

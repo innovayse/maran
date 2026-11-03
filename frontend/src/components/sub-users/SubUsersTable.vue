@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * One page of the account's sub-users as a table: the login, the address, whether they have accepted
- * the invitation, the features they hold, their last sign-in, and each row's actions menu. Dumb by the
+ * the invitation, the features they hold, their last sign-in, and each row's actions menu. A pending
+ * offer to an existing login is a row too, badged as an offer and offering only its cancellation. Dumb by the
  * usual contract — the page owns the paging, the sort state and the dialogs; this renders rows and
  * reports clicks.
  */
@@ -84,7 +85,7 @@ const featureNames = (row: SubUser): string => {
     <template #cell-email="{ row }">{{ row.email }}</template>
     <template #cell-state="{ row }">
       <UiBadge :variant="row.state === 'active' ? 'success' : 'warning'">
-        {{ t(`subUsers.states.${row.state}`) }}
+        {{ row.isOffer ? t('subUsers.states.offered') : t(`subUsers.states.${row.state}`) }}
       </UiBadge>
     </template>
     <template #cell-features="{ row }">{{ featureNames(row) }}</template>
@@ -100,11 +101,15 @@ const featureNames = (row: SubUser): string => {
         :chevron="false"
       >
         <template #trigger><UiIcon name="ellipsis" size="md" /></template>
-        <UiDropdownItem @select="emit('act', row, 'features')">
+        <!-- A pending offer is not a member yet: nothing to resend or change, only to cancel. -->
+        <UiDropdownItem v-if="row.state === 'invited' && !row.isOffer" @select="emit('act', row, 'resend')">
+          {{ t('subUsers.resend.action') }}
+        </UiDropdownItem>
+        <UiDropdownItem v-if="!row.isOffer" @select="emit('act', row, 'features')">
           {{ t('subUsers.changeFeatures') }}
         </UiDropdownItem>
         <UiDropdownItem destructive @select="emit('act', row, 'remove')">
-          {{ t('subUsers.remove.action') }}
+          {{ row.isOffer ? t('subUsers.cancelOffer.action') : t('subUsers.remove.action') }}
         </UiDropdownItem>
       </UiDropdown>
     </template>

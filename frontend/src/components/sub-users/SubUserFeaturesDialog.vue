@@ -65,7 +65,11 @@ watch(
     @close="emit('close')"
   >
     <p class="mb-3 text-sm text-text-secondary">{{ t('subUsers.featuresDialog.description') }}</p>
-    <SubUserFeaturePicker v-model="selected" :features="features" />
+    <SubUserFeaturePicker
+      v-model="selected"
+      :features="features"
+      :group-label="t('subUsers.features.groupLabel')"
+    />
     <template #footer>
       <UiButton variant="secondary" @click="emit('close')">{{ t('common.cancel') }}</UiButton>
       <UiButton :disabled="acting" @click="save">{{ t('subUsers.featuresDialog.save') }}</UiButton>
