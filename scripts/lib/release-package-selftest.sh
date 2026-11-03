@@ -152,6 +152,29 @@ cmd_package_selftest() {
     --bundle "$hollow" --arch x86_64 --out "${work}/o-hollow" --pubkey "$pub"
 
   echo
+  echo "-- case 3b: the integrity manifest's signature is checked like the manifest's --"
+  local integ="${work}/integrity-tampered"
+  cp -r "$good" "$integ"
+  printf ' ' >> "${integ}/integrity-manifest.json"
+  package_must_refuse "a bundle whose integrity manifest changed after signing" "${work}/o-integrity" "integrity manifest signature .* does NOT verify"     --bundle "$integ" --out "${work}/o-integrity" --pubkey "$pub"
+  # A tarball that simply lacks the integrity signature (the packager cannot write one, so it is
+  # assembled by hand) must be refused by the verifier itself.
+  local nosig="${work}/nosig" nosig_out
+  install -d "$nosig"
+  tar -xzf "${out}/maran-offline-selftest-x86_64.tar.gz" -C "$nosig"
+  rm -f -- "${nosig}/integrity-manifest.json.sig"
+  ( cd "$nosig" && tar -czf "${work}/nosig.tar.gz" . )
+  if nosig_out="$(verify_offline_tarball "${work}/nosig.tar.gz" x86_64 "$pub" 2>&1)"; then
+    release_failed "package selftest: a tarball with no integrity-manifest.json.sig was ACCEPTED."
+  fi
+  printf '%s' "$nosig_out" | grep -q 'missing integrity-manifest.json' \
+    || release_failed "package selftest: the signature-less tarball was refused for another reason: ${nosig_out}"
+  echo "${VERDICT_PREFIX}: OK — a tarball without integrity-manifest.json.sig REFUSED by the verifier (expected)."
+  verify_offline_tarball "${out}/maran-offline-selftest-x86_64.tar.gz" x86_64 "$pub" \
+    || release_failed "package selftest: the untouched x86_64 bundle failed verification — the integrity refusals above are not attributable."
+  echo "${VERDICT_PREFIX}: OK — the untouched bundle still verifies (inverse control, expected)."
+
+  echo
   echo "-- case 4: a machine without openssl answers DID NOT RUN, status 2, not a verdict --"
   local empty_path="${work}/empty-path" refusal status=0
   install -d "$empty_path"
@@ -163,7 +186,7 @@ cmd_package_selftest() {
   fi
 
   echo
-  release_ok "package selftest: a two-architecture build packaged into one openssl-verified bundle per architecture, each carrying its own architecture's archives; tampering, a missing signature, an untrusted key, an absent architecture, an ambiguous --out and an unrunnable archive were all refused with nothing left on disk, and a missing openssl refused with DID NOT RUN."
+  release_ok "package selftest: a two-architecture build packaged into one openssl-verified bundle per architecture, each carrying its own architecture's archives; tampering, a missing signature, an untrusted key, an altered or missing integrity-manifest signature, an absent architecture, an ambiguous --out and an unrunnable archive were all refused with nothing left on disk, and a missing openssl refused with DID NOT RUN."
 }
 
 # plant_resign: <bundle dir> <key>. Rewrites the manifest's agent-x86_64 checksum to the bundle's

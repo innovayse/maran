@@ -80,7 +80,9 @@ manifest_sha256() {
 
 # verify_offline_tarball: <tarball> <arch> <public key>. Extracts the tarball into a fresh directory
 # and repeats what use_offline_tarball and unpack_artifacts do for MARAN_ARCH=<arch>: signature over
-# manifest.json, then for api, agent and frontend the sha256 of the UNSUFFIXED archive against the
+# manifest.json, signature over integrity-manifest.json (the code-integrity hash list ships in the
+# same bundle, so an unsigned or altered one must be refused here and not discovered on a server),
+# then for api, agent and frontend the sha256 of the UNSUFFIXED archive against the
 # `<component>-<arch>` manifest entry, then the entry file at each archive's root. Returns 1 naming
 # the first failure. Reads the artefact that will be shipped, not the staging directory it came from.
 verify_offline_tarball() {
@@ -92,6 +94,10 @@ verify_offline_tarball() {
     echo "verify: ${tarball##*/} is missing manifest.json or manifest.json.sig" >&2; rc=1
   elif ! verify_release_file "$pubkey" "${dir}/manifest.json" "${dir}/manifest.json.sig"; then
     echo "verify: manifest signature in ${tarball##*/} does NOT verify against ${pubkey}" >&2; rc=1
+  elif [ ! -f "${dir}/integrity-manifest.json" ] || [ ! -f "${dir}/integrity-manifest.json.sig" ]; then
+    echo "verify: ${tarball##*/} is missing integrity-manifest.json or integrity-manifest.json.sig" >&2; rc=1
+  elif ! verify_release_file "$pubkey" "${dir}/integrity-manifest.json" "${dir}/integrity-manifest.json.sig"; then
+    echo "verify: integrity manifest signature in ${tarball##*/} does NOT verify against ${pubkey}" >&2; rc=1
   else
     for component in $MARAN_COMPONENTS; do
       if [ ! -f "${dir}/${component}.tar.gz" ]; then
