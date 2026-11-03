@@ -26,7 +26,22 @@ public static class AuthorizationPolicies
     public const string AdminOnly = "AdminOnly";
 
     /// <summary>
-    /// Requires a signed-in caller of either role who has completed any forced two-factor enrolment; a
+    /// Requires a signed-in reseller who has completed any forced two-factor enrolment. An
+    /// administrator does not pass it: it is for the endpoints that speak about the reseller's own
+    /// standing, never a way to reach the administrator's.
+    /// </summary>
+    public const string ResellerOnly = "ResellerOnly";
+
+    /// <summary>
+    /// Requires a signed-in administrator or reseller who has completed any forced two-factor
+    /// enrolment; a customer does not pass it. For the endpoints both manage — accounts and plans —
+    /// where the Accounts module narrows a reseller to what it owns, so passing the policy is never the
+    /// whole of the scoping.
+    /// </summary>
+    public const string AdminOrReseller = "AdminOrReseller";
+
+    /// <summary>
+    /// Requires a signed-in caller of any role who has completed any forced two-factor enrolment; a
     /// customer passes it. Also what a bare <c>[Authorize]</c> is held to.
     /// </summary>
     public const string AnyAuthenticated = "AnyAuthenticated";

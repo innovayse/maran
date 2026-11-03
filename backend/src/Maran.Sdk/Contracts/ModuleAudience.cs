@@ -16,4 +16,11 @@ public enum ModuleAudience
 
     /// <summary>Administrators only: the module governs the server rather than an account's resources.</summary>
     AdministratorOnly,
+
+    /// <summary>
+    /// Administrators and resellers: the module manages accounts on behalf of a seller, so an
+    /// administrator sees the whole server through it and a reseller only what it owns. A customer
+    /// and an anonymous caller are not offered it.
+    /// </summary>
+    AdminOrReseller,
 }

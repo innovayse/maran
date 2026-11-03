@@ -1,7 +1,7 @@
 namespace Maran.Sdk.Contracts;
 
 /// <summary>
-/// The machine-stable audit action names for hosting account lifecycle, plan, deletion and final-backup actions. Constants rather than an enum: a marketplace
+/// The machine-stable audit action names for hosting account lifecycle, plan, reseller, deletion and final-backup actions. Constants rather than an enum: a marketplace
 /// module records actions this assembly was never compiled knowing about, and an enum could not be
 /// extended from outside.
 /// </summary>
@@ -115,4 +115,33 @@ public static class AccountAuditActions
     /// plan is how an operator learns who is still being sold it.
     /// </summary>
     public const string PlanDeleted = "PlanDeleted";
+
+    /// <summary>
+    /// A reseller was created: its row in the Accounts module and, through an event, the login it
+    /// signs in with. Recorded on the refusals too — a name already taken by an account or another
+    /// reseller is how one caller learns that another tenant holds it.
+    /// </summary>
+    public const string ResellerCreated = "ResellerCreated";
+
+    /// <summary>
+    /// A reseller's envelope — what the administrator sold it — was changed. Recorded on the refusals
+    /// too. The subject is the reseller's name; the figures are not journalled, because the journal
+    /// is never deleted and the current envelope is readable from the row.
+    /// </summary>
+    public const string ResellerEnvelopeChanged = "ResellerEnvelopeChanged";
+
+    /// <summary>
+    /// A reseller was suspended: its login can no longer sign in and its mutations are refused. Its
+    /// customers' accounts are NOT suspended by it; an administrator suspends those separately.
+    /// </summary>
+    public const string ResellerSuspended = "ResellerSuspended";
+
+    /// <summary>A reseller's suspension was lifted and its login let back in.</summary>
+    public const string ResellerReactivated = "ResellerReactivated";
+
+    /// <summary>
+    /// A reseller was deleted, and with it its login. Recorded on the refusals too — above all the
+    /// refusal because accounts it owns still exist.
+    /// </summary>
+    public const string ResellerDeleted = "ResellerDeleted";
 }
