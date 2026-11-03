@@ -16,9 +16,14 @@ namespace Maran.Sdk.Interfaces;
 /// </para>
 /// <para>
 /// <b>The methods differ on tenancy, and the difference is the first thing to read.</b>
-/// <see cref="FindAsync"/>, <see cref="NamesOfAsync"/> and <see cref="FindIdsByNameAsync"/> MUST apply
-/// the caller's tenant scope, answering nothing for an account the current user does not own,
-/// exactly as a tenant-scoped query filter would.
+/// <see cref="FindAsync"/>, <see cref="NamesOfAsync"/> and <see cref="FindIdsByNameAsync"/> answer
+/// the question "which accounts may the caller's TENANT DATA touch": they MUST apply the caller's
+/// tenant scope, answering nothing for an account the current user does not own, exactly as a
+/// tenant-scoped query filter would. A reseller is a login that owns accounts and has no account
+/// of its own, so those three answer it NOTHING — it reaches a customer's resources only through a
+/// view-as session, whose token is a customer's (issue #179). <see cref="FindForViewAsAsync"/> asks
+/// a different question — which accounts may this caller START a view-as session on — and is the
+/// one place a reseller's own accounts are answered.
 /// <see cref="ListAsync"/> applies NONE and hands back every account on the host, because its one
 /// use — the administrator's host-wide disk view — has no tenant to scope by. Its own remarks say
 /// so at length; nothing may call it without gating itself to administrators first.
@@ -26,7 +31,10 @@ namespace Maran.Sdk.Interfaces;
 /// </remarks>
 public interface IAccountDirectory
 {
-    /// <summary>Reads one account's snapshot, scoped to what the current user may see.</summary>
+    /// <summary>
+    /// Reads one account's snapshot, scoped to the accounts the current user's TENANT DATA may touch: an
+    /// administrator any account, a customer the one they own, and nobody else — a reseller included.
+    /// </summary>
     /// <param name="accountId">The account to read.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
@@ -35,6 +43,27 @@ public interface IAccountDirectory
     /// caller confirm the existence of an account it may not see (rules/security.md — 404, never 403).
     /// </returns>
     Task<AccountSnapshot?> FindAsync(Guid accountId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads one account's snapshot for the single purpose of starting a view-as session on it: an
+    /// administrator may start one on any account, a reseller only on an account it owns, and no other
+    /// caller on any.
+    /// </summary>
+    /// <param name="accountId">The account the operator asks to view as.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>
+    /// The snapshot, or <c>null</c> when no such account exists OR when it is outside the caller's
+    /// view-as scope. The two cases are indistinguishable, as <see cref="FindAsync"/> requires.
+    /// </returns>
+    /// <remarks>
+    /// This is NOT a second tenant scope for data. It exists because "which accounts may the caller's
+    /// data touch" (<see cref="FindAsync"/>: a reseller touches none) and "which accounts may the caller
+    /// look through as their owner" (a reseller's own) are two questions, and answering both with one
+    /// method either let a reseller read a customer's resources outside a view-as session or refused it
+    /// the view-as itself. Only the view-as start asks this one; a module serving a tenant's data never
+    /// does.
+    /// </remarks>
+    Task<AccountSnapshot?> FindForViewAsAsync(Guid accountId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Reads EVERY account on this host, applying NO tenant scope whatsoever.
@@ -73,14 +102,15 @@ public interface IAccountDirectory
     Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Reads the names of several accounts in one round-trip, scoped to what the current user may see.
+    /// Reads the names of several accounts in one round-trip, scoped to what the current user's tenant data
+    /// may touch.
     /// </summary>
     /// <param name="accountIds">The accounts whose names to read; duplicates are harmless.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
-    /// Account id to account name, for every requested account the caller may see. An id that does
-    /// not exist and an id belonging to another tenant are both simply absent, for the reason
-    /// <see cref="FindAsync"/> gives: the two must be indistinguishable.
+    /// Account id to account name, for every requested account the caller may see (none, for a reseller).
+    /// An id that does not exist and an id belonging to another tenant are both simply absent, for the
+    /// reason <see cref="FindAsync"/> gives: the two must be indistinguishable.
     /// </returns>
     /// <remarks>
     /// The batched form exists so that a list naming the owner of each of its rows asks once per
@@ -92,7 +122,7 @@ public interface IAccountDirectory
 
     /// <summary>
     /// Finds every account whose name contains <paramref name="search"/>, case-insensitively and
-    /// literally, scoped to what the current user may see.
+    /// literally, scoped to what the current user's tenant data may touch.
     /// </summary>
     /// <param name="search">
     /// The term, matched literally: <c>%</c>, <c>_</c> and <c>\</c> carry no pattern meaning.
@@ -100,7 +130,7 @@ public interface IAccountDirectory
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
     /// The id of EVERY matching account, in no guaranteed order. Another tenant's account never
-    /// appears, so a customer can match only their own.
+    /// appears, so a customer can match only their own and a reseller none.
     /// </returns>
     /// <remarks>
     /// This is how another module searches its own rows by owner name without reading this module's

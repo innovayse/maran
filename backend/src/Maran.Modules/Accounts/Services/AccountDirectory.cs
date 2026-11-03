@@ -27,12 +27,16 @@ namespace Maran.Modules.Accounts.Services;
 /// comparison against the caller's own token: a customer's answer can only ever name their own account.
 /// </para>
 /// <para>
-/// A reseller is held to the line the customer is, drawn by owner instead of by account: every read
-/// but <see cref="ListAsync"/> adds <c>account.ResellerId == reseller.ResellerId</c> to its query, so
-/// an account another reseller or the administrator owns answers exactly as an account that does not
-/// exist. That predicate is stated here AND in <see cref="AccountsDbContext"/>'s query filter, on
-/// purpose: a window other modules call and a view-as start rests on should not depend on one
-/// mechanism that a later edit could remove.
+/// A reseller's TENANT DATA touches no account: <see cref="Sees"/> answers false for it, so
+/// <see cref="FindAsync"/> answers null, <see cref="NamesOfAsync"/> an empty set and
+/// <see cref="FindIdsByNameAsync"/> no id, and a module that scopes its rows only through this window
+/// (Cron keeps none of its own) shows a reseller nothing, even for an account it owns (issue #179,
+/// decision D8). The reseller's own accounts are answered by <see cref="FindForViewAsAsync"/> alone,
+/// for the one purpose of starting a view-as session: it adds <c>account.ResellerId == reseller.ResellerId</c>
+/// to its query, so an account another reseller or the administrator owns answers exactly as an account
+/// that does not exist. That predicate is stated here AND in <see cref="AccountsDbContext"/>'s query
+/// filter, on purpose: a window a view-as start rests on should not depend on one mechanism that a
+/// later edit could remove.
 /// </para>
 /// <para>
 /// <see cref="ListAsync"/> is the deliberate exception and the interface says so: it answers with
@@ -61,35 +65,32 @@ public sealed class AccountDirectory : IAccountDirectory
     public async Task<AccountSnapshot?> FindAsync(Guid accountId, CancellationToken cancellationToken)
     {
         // An administrator sees every account; a customer sees exactly the one they own; a reseller
-        // sees the accounts it owns. The comparison is against the id the caller's own token carries,
-        // never against anything on the request, so a forged or guessed account id cannot widen it.
+        // none. The comparison is against the id the caller's own token carries, never against anything
+        // on the request, so a forged or guessed account id cannot widen it.
         if (!Sees(accountId))
         {
             return null;
         }
 
-        // Expression lambdas, not the braced form used elsewhere in this repository: EF Core
-        // translates these into SQL, and a statement-bodied lambda cannot become an expression tree.
-        return await OwnedByCaller(_dbContext.Accounts.AsNoTracking())
-            .Where(account => account.Id == accountId)
-            .Join(
-                _dbContext.Plans.AsNoTracking(),
-                account => account.PlanId,
-                plan => plan.Id,
-                (account, plan) => new AccountSnapshot(
-                    account.Id,
-                    account.Name,
-                    plan.MaxSites,
-                    plan.MaxDatabases,
-                    plan.MaxSftpUsers,
-                    plan.MaxCronEntries,
-                    plan.MaxPhpWorkersPerPool,
-                    plan.DiskQuotaMb,
-                    account.Status == AccountStatus.Suspended ? AccountState.Suspended : AccountState.Active,
-                    plan.MaxFtpUsers,
-                    account.OwnerEmail,
-                    account.OwnerLanguage))
-            .SingleOrDefaultAsync(cancellationToken);
+        return await ReadSnapshotAsync(_dbContext.Accounts.AsNoTracking(), accountId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<AccountSnapshot?> FindForViewAsAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        // Who may START a view-as on an account: an administrator any, a reseller the accounts it owns,
+        // every other case none. Decided from the caller's own token, as every other read here is.
+        var accounts = _currentUser.Caller switch
+        {
+            AdministratorCaller => _dbContext.Accounts.AsNoTracking(),
+            ResellerCaller reseller => WhereOwnedBy(_dbContext.Accounts.AsNoTracking(), reseller.ResellerId),
+            CustomerCaller => null,
+            AnonymousCaller => null,
+            AccountlessCustomerCaller => null,
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+        };
+
+        return accounts is null ? null : await ReadSnapshotAsync(accounts, accountId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -121,28 +122,7 @@ public sealed class AccountDirectory : IAccountDirectory
     /// </remarks>
     public async Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken)
     {
-        // Expression lambdas for the same reason FindAsync uses them: EF Core translates these into
-        // SQL, and a statement-bodied lambda cannot become an expression tree.
-        return await _dbContext.Accounts
-            .AsNoTracking()
-            .Join(
-                _dbContext.Plans.AsNoTracking(),
-                account => account.PlanId,
-                plan => plan.Id,
-                (account, plan) => new AccountSnapshot(
-                    account.Id,
-                    account.Name,
-                    plan.MaxSites,
-                    plan.MaxDatabases,
-                    plan.MaxSftpUsers,
-                    plan.MaxCronEntries,
-                    plan.MaxPhpWorkersPerPool,
-                    plan.DiskQuotaMb,
-                    account.Status == AccountStatus.Suspended ? AccountState.Suspended : AccountState.Active,
-                    plan.MaxFtpUsers,
-                    account.OwnerEmail,
-                    account.OwnerLanguage))
-            .ToListAsync(cancellationToken);
+        return await ProjectSnapshots(_dbContext.Accounts.AsNoTracking()).ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -151,8 +131,8 @@ public sealed class AccountDirectory : IAccountDirectory
         CancellationToken cancellationToken)
     {
         // The same scope FindAsync applies, to a set instead of one id: a customer's answer can only
-        // ever hold their own account, a reseller's only its own accounts, whatever ids they managed
-        // to put in front of the caller.
+        // ever hold their own account and a reseller's nothing, whatever ids they managed to put in
+        // front of the caller.
         var visible = accountIds.Where(Sees).Distinct().ToList();
 
         if (visible.Count == 0)
@@ -161,7 +141,8 @@ public sealed class AccountDirectory : IAccountDirectory
         }
 
         // The selectors are delegates run after the read, not translated, so they are braced.
-        return await OwnedByCaller(_dbContext.Accounts.AsNoTracking())
+        return await _dbContext.Accounts
+            .AsNoTracking()
             .Where(account => visible.Contains(account.Id))
             .ToDictionaryAsync(
                 account =>
@@ -191,7 +172,7 @@ public sealed class AccountDirectory : IAccountDirectory
         {
             AdministratorCaller => accounts,
             CustomerCaller customer => accounts.Where(account => account.Id == customer.AccountId),
-            ResellerCaller reseller => WhereOwnedBy(accounts, reseller.ResellerId),
+            ResellerCaller => accounts.Where(account => false),
             AnonymousCaller => accounts.Where(account => false),
             AccountlessCustomerCaller => accounts.Where(account => false),
             _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
@@ -206,9 +187,9 @@ public sealed class AccountDirectory : IAccountDirectory
 
     /// <summary>
     /// Whether the caller MAY see the account <paramref name="accountId"/>, before the row is read: an
-    /// administrator any account, a customer only the one their own token names, a reseller any id (the
-    /// owner comparison is made in the query, where the account's owner is known), and nobody else (an
-    /// anonymous caller, a customer login acting for no account) none.
+    /// administrator any account, a customer only the one their own token names, and nobody else (a
+    /// reseller, whose tenant data touches no account; an anonymous caller; a customer login acting for
+    /// no account) none.
     /// </summary>
     /// <param name="accountId">The account asked about.</param>
     /// <returns>True when the caller's tenant scope may include the account.</returns>
@@ -218,30 +199,51 @@ public sealed class AccountDirectory : IAccountDirectory
         {
             AdministratorCaller => true,
             CustomerCaller customer => customer.AccountId == accountId,
-            ResellerCaller => true,
+            ResellerCaller => false,
             AnonymousCaller => false,
             AccountlessCustomerCaller => false,
             _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
         };
     }
 
-    /// <summary>
-    /// Narrows a set of accounts to the ones a reseller owns when the caller is one, and leaves it
-    /// whole for every other case, whose scope <see cref="Sees"/> has already decided.
-    /// </summary>
-    /// <param name="accounts">The accounts to narrow.</param>
-    /// <returns>The accounts the caller's owner scope admits.</returns>
-    private IQueryable<Account> OwnedByCaller(IQueryable<Account> accounts)
+    /// <summary>Reads the snapshot of one account out of a set of accounts, or null when the set holds none.</summary>
+    /// <param name="accounts">The accounts the caller's scope admits.</param>
+    /// <param name="accountId">The account to read.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The account's snapshot, or null.</returns>
+    private async Task<AccountSnapshot?> ReadSnapshotAsync(
+        IQueryable<Account> accounts,
+        Guid accountId,
+        CancellationToken cancellationToken)
     {
-        return _currentUser.Caller switch
-        {
-            ResellerCaller reseller => WhereOwnedBy(accounts, reseller.ResellerId),
-            AdministratorCaller => accounts,
-            CustomerCaller => accounts,
-            AnonymousCaller => accounts,
-            AccountlessCustomerCaller => accounts,
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
-        };
+        return await ProjectSnapshots(accounts.Where(account => account.Id == accountId))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>Joins accounts to their plans and projects each pair to the snapshot other modules read.</summary>
+    /// <param name="accounts">The accounts to project.</param>
+    /// <returns>One snapshot per account.</returns>
+    private IQueryable<AccountSnapshot> ProjectSnapshots(IQueryable<Account> accounts)
+    {
+        // Expression lambdas, not the braced form used elsewhere in this repository: EF Core
+        // translates these into SQL, and a statement-bodied lambda cannot become an expression tree.
+        return accounts.Join(
+            _dbContext.Plans.AsNoTracking(),
+            account => account.PlanId,
+            plan => plan.Id,
+            (account, plan) => new AccountSnapshot(
+                account.Id,
+                account.Name,
+                plan.MaxSites,
+                plan.MaxDatabases,
+                plan.MaxSftpUsers,
+                plan.MaxCronEntries,
+                plan.MaxPhpWorkersPerPool,
+                plan.DiskQuotaMb,
+                account.Status == AccountStatus.Suspended ? AccountState.Suspended : AccountState.Active,
+                plan.MaxFtpUsers,
+                account.OwnerEmail,
+                account.OwnerLanguage));
     }
 
     /// <summary>Restricts accounts to those owned by one reseller; the id is a captured parameter, never inlined.</summary>

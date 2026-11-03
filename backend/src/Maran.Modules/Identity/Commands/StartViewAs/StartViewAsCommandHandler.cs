@@ -18,8 +18,10 @@ namespace Maran.Modules.Identity.Commands.StartViewAs;
 /// <para>
 /// <b>Who may view as whom — the scope rule.</b> An administrator may view as any account's owning
 /// login; a reseller may view as the owning login of one of ITS OWN accounts and of no other. Both
-/// are one line: the target account is resolved through <see cref="IAccountDirectory.FindAsync"/>,
-/// which is scoped to the CALLER and answers null for an account outside that scope, and a null is a
+/// are one line: the target account is resolved through <see cref="IAccountDirectory.FindForViewAsAsync"/>,
+/// which is scoped to the CALLER's view-as reach (an administrator any account, a reseller its own) and
+/// answers null for an account outside it. It is not <see cref="IAccountDirectory.FindAsync"/>: that one
+/// answers "which accounts may a caller's tenant data touch", and a reseller touches none. A null is a
 /// 404 indistinguishable from "no such account". A reseller naming another reseller's account, or an
 /// account that does not exist, therefore gets the same answer. This handler builds no second scoping
 /// mechanism; the endpoint's policy admits both roles and the directory narrows.
@@ -37,7 +39,7 @@ public sealed class StartViewAsCommandHandler
     /// <summary>The module's database context.</summary>
     private readonly IdentityDbContext _dbContext;
 
-    /// <summary>The tenant-scoped window onto the accounts module.</summary>
+    /// <summary>The window onto the accounts module, asked which accounts the caller may view as.</summary>
     private readonly IAccountDirectory _accountDirectory;
 
     /// <summary>Starts the session and records the start and its refusals.</summary>
@@ -45,7 +47,7 @@ public sealed class StartViewAsCommandHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
-    /// <param name="accountDirectory">The tenant-scoped window onto the accounts module.</param>
+    /// <param name="accountDirectory">The window onto the accounts module, asked which accounts may be viewed as.</param>
     /// <param name="starter">Starts the session and records the start and its refusals.</param>
     public StartViewAsCommandHandler(
         IdentityDbContext dbContext,
@@ -79,8 +81,8 @@ public sealed class StartViewAsCommandHandler
             return Result<ViewAsSessionDto>.Fail(Error.Of(nameof(ErrorMessages.ViewAsAccountNotFound), ErrorType.NotFound));
         }
 
-        // Scope rule: the directory answers null for an account the caller may not see (see remarks).
-        var account = await _accountDirectory.FindAsync(command.AccountId, cancellationToken);
+        // Scope rule: the directory answers null for an account the caller may not view as (see remarks).
+        var account = await _accountDirectory.FindForViewAsAsync(command.AccountId, cancellationToken);
         var owner = account is null ? null : await FindOwnerAsync(account.Id, cancellationToken);
         if (account is null || owner is null)
         {

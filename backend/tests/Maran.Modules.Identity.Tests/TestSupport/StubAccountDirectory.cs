@@ -16,10 +16,11 @@ namespace Maran.Modules.Identity.Tests.TestSupport;
 /// indistinguishable there and are deliberately indistinguishable here, so a test cannot accidentally
 /// depend on the difference.
 /// <para>
-/// Like the real directory it can be asked on behalf of a caller (<see cref="ActAs"/>): a reseller
-/// sees only the accounts registered with its reseller id, and every other caller sees them all. That
-/// is the one rule of the real directory a view-as test depends on, restated here as data (an
-/// account's owner) rather than as a query.
+/// Like the real directory it can be asked on behalf of a caller (<see cref="ActAs"/>), and like the
+/// real directory it answers the two tenancy questions separately: <see cref="FindAsync"/> (which accounts
+/// a caller's tenant data may touch) answers a reseller nothing, while <see cref="FindForViewAsAsync"/>
+/// (which accounts a caller may start a view-as on) answers it the accounts registered with its reseller
+/// id. Both are restated here as data (an account's owner) rather than as a query.
 /// </para>
 /// </remarks>
 public sealed class StubAccountDirectory : IAccountDirectory
@@ -82,15 +83,23 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <inheritdoc />
     public Task<AccountSnapshot?> FindAsync(Guid accountId, CancellationToken cancellationToken)
     {
+        // Tenant data: a reseller's touches no account, every other caller this double models sees all.
+        var seen = _viewer?.Caller is not ResellerCaller;
+        return Task.FromResult(seen && _accounts.TryGetValue(accountId, out var snapshot) ? snapshot : null);
+    }
+
+    /// <inheritdoc />
+    public Task<AccountSnapshot?> FindForViewAsAsync(Guid accountId, CancellationToken cancellationToken)
+    {
         return Task.FromResult(
-            _accounts.TryGetValue(accountId, out var snapshot) && Sees(accountId) ? snapshot : null);
+            _accounts.TryGetValue(accountId, out var snapshot) && MayViewAs(accountId) ? snapshot : null);
     }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken)
     {
-        return Task.FromResult<IReadOnlyList<AccountSnapshot>>(
-            _accounts.Values.Where(account => Sees(account.Id)).ToList());
+        // Unscoped, exactly as the contract says the real one is: every snapshot this double was given.
+        return Task.FromResult<IReadOnlyList<AccountSnapshot>>([.. _accounts.Values]);
     }
 
     /// <inheritdoc />
@@ -110,16 +119,21 @@ public sealed class StubAccountDirectory : IAccountDirectory
         throw new NotSupportedException("Identity searches no account names.");
     }
 
-    /// <summary>Whether the directory's caller may see an account: a reseller only its own, everyone else all.</summary>
+    /// <summary>
+    /// Whether the directory's caller may start a view-as on an account: an administrator (or no caller
+    /// set) any account, a reseller only an account registered with its own reseller id, anyone else none.
+    /// </summary>
     /// <param name="accountId">The account.</param>
-    /// <returns>True when the account is in the caller's scope.</returns>
-    private bool Sees(Guid accountId)
+    /// <returns>True when the account is in the caller's view-as scope.</returns>
+    private bool MayViewAs(Guid accountId)
     {
-        if (_viewer?.Caller is not ResellerCaller reseller)
+        return _viewer?.Caller switch
         {
-            return true;
-        }
-
-        return _ownerResellers.TryGetValue(accountId, out var owner) && owner == reseller.ResellerId;
+            null => true,
+            AdministratorCaller => true,
+            ResellerCaller reseller => _ownerResellers.TryGetValue(accountId, out var owner)
+                && owner == reseller.ResellerId,
+            _ => false,
+        };
     }
 }
