@@ -58,10 +58,19 @@ rules/security.md "Sensitive change escalation" applies. It may land on a branch
   design. A token whose role is Customer but which names no account is not refused by it.
 - `1.0.0-beta.4` reads `Users.AccountId`, so the column is kept and rollback to beta.4 stays possible at
   the schema level. What a rolled-back beta.4 would see is still limited: a login created by this release
-  holds NULL there, so beta.4 does not find an account for it, and a suspension is visible to beta.4 only
-  through the legacy `State` / `IsAccountSuspended` pair, which this release keeps writing for the login.
-  `AddMembershipState.Down` restores only the OWNER's membership suspension onto the login; an added
-  member's suspension has no earlier shape to go back to.
+  holds NULL there, so beta.4 does not find an account for it. For a login that owns an account, beta.4
+  refuses the sign-in from the legacy `State` / `IsAccountSuspended` pair of the owner's row. This release
+  keeps that pair in step with the owner membership: `AccountSuspendingHandler` and `AccountResumingHandler`
+  restate it through `LegacyOwnerSuspensionPolicy` and `User.SyncLegacyColumns` (suspended while ANY owner
+  membership of that login is suspended; an invited owner stays `Invited` with `IsAccountSuspended` true), and
+  `AddMembershipState` no longer rewrites the pair when it collapses the two suspended lifecycles (an earlier
+  draft blanked it to Active / false, which would have let every suspended account's owner sign in again after a
+  rollback; that was wrong and is corrected). Covered by `AccountSuspendingHandlerTests`,
+  `AccountResumingHandlerTests` and `UserTests`. Limits: this protects only the OWNER's login (beta.4 had no
+  members), a rollback does not undo suspensions made in beta.4 itself, and a login that owns several accounts
+  is shown as suspended while any is, because beta.4 could represent one account per login.
+  `AddMembershipState.Down` restores only the OWNER's membership suspension onto the login, with the same
+  pair values; an added member's suspension has no earlier shape to go back to.
 - The architecture census no longer sees `User`, `Session`, `PasswordResetToken`, `InvitationToken`,
   `RecoveryCode` and `PinnedPage` as tenant rows (a login names no account now), so their exemptions were
   removed from `TenantScopeTests`; the account-deletion cascade over them is asserted by
@@ -71,7 +80,8 @@ rules/security.md "Sensitive change escalation" applies. It may land on a branch
 
 Nothing was built or run (the working tree is shared and the gate pass belongs to the coordinator). The
 migrations, their designers and the model snapshot were written by hand. PENDING in the gate pass, and the
-coordinator will update this note once they are done: `maran migrate check` (the snapshot equals the model),
+coordinator will update this note once they are done: the rollback claim above (never exercised against a
+real beta.4 build), `maran migrate check` (the snapshot equals the model),
 `maran migrate guard` (`AddMembershipState` adds an index and a column and drops nothing the previous release
 reads), and a built, run suite (issue #331 adds `SuspendedAccountMemberEndpointTests`, also not run yet). The second review stays OUTSTANDING.
 The reviewer should confirm that no other reader of `Users.AccountId` survived (`grep -rn "\.AccountId"`
