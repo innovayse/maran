@@ -13,8 +13,10 @@
  * thing that says "tick here", and `--b2` is 1.47:1 against a panel. `--bc` is the
  * token that exists for a control's edge, so the boundary cannot drift with the text
  * tier the way a borrowed `text-text-muted` would. Measured against the surface the
- * box sits on (WCAG 1.4.11 wants 3:1 of a control boundary): dark 3.82 on the page,
- * 3.57 on `--s1`, 3.36 on `--s2`, 3.08 on `--s3`; light 3.39, 3.63, 3.30, 3.07.
+ * box sits on (WCAG 1.4.11 wants 3:1 of a control boundary): dark 4.25 on the page,
+ * 3.98 on `--s1`, 3.74 on `--s2`, 3.43 on `--s3`; light 3.53, 3.79, 3.43, 3.20. Unchecked, hovering an
+ * enabled box steps the edge to `border-border-control-hover` (`--bch`), the same stronger edge every
+ * control uses, so no field answers the pointer differently from its neighbour.
  * Checked, the box is `bg-accent-fill` carrying a
  * white check mark at 5.14:1 (`bg-accent` would give 3.89:1 and fail); the fill
  * itself is 3.65:1 against a panel. The whole row is the label, so the click
@@ -92,7 +94,7 @@ const onChange = (event: Event): void => {
     <label
       :for="formLoading ? undefined : fieldId"
       class="flex min-h-choice w-fit max-w-full items-center gap-2 text-sm text-text-primary"
-      :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
+      :class="disabled ? 'cursor-not-allowed opacity-65' : 'group cursor-pointer'"
     >
       <UiSkeleton v-if="formLoading" shape="block" control="checkbox" />
       <template v-else>
@@ -112,7 +114,7 @@ const onChange = (event: Event): void => {
           :class="[
             modelValue ? 'border-accent-fill bg-accent-fill' : 'bg-surface-2',
             !modelValue && hasError ? 'border-danger' : '',
-            !modelValue && !hasError ? 'border-border-control' : '',
+            !modelValue && !hasError ? 'border-border-control group-hover:border-border-control-hover' : '',
             hasError ? 'peer-focus-visible:shadow-focus-danger' : 'peer-focus-visible:shadow-focus',
           ]"
           aria-hidden="true"

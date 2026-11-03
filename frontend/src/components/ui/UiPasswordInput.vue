@@ -38,6 +38,9 @@
  * (Accessible Authentication) requires a person to be able to paste or have a
  * manager fill a password rather than recall and retype it.
  *
+ * EDGE. The field's edge, hover step and 2px focus/error edge are drawn by {@link UiInput} alone
+ * (`--bc`, `--bch`, `shadow-field-focus`), so this field looks and behaves identically to it.
+ *
  * The two controls are raw `<button>`s (allowed here, in the kit), not
  * `UiButton`: they live inside the field's box, 4px from its edge, and
  * need a fixed 32px square that does not depend on another component's padding.

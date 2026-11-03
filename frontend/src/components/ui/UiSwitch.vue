@@ -16,8 +16,9 @@
  * would be 3.89:1). Off: a `bg-surface-3` track outlined in `border-border-control`
  * (`--bc`, the control-edge token; the `--b2` border would be 1.47:1, and the track is
  * the only thing that says "this is a switch"). The outline against the surface the
- * switch sits on: dark 3.82 on the page, 3.57 on `--s1`, 3.36 on `--s2`, 3.08 on
- * `--s3`; light 3.39, 3.63, 3.30, 3.07 — over the 3:1 of WCAG 1.4.11. The off knob is
+ * switch sits on: dark 4.25 on the page, 3.98 on `--s1`, 3.74 on `--s2`, 3.43 on
+ * `--s3`; light 3.53, 3.79, 3.43, 3.20 — over the 3:1 of WCAG 1.4.11. Off and enabled, hovering the
+ * track steps the edge to `border-border-control-hover`, the same stronger edge every control uses. The off knob is
  * `bg-text-secondary` (6.11:1 against the track in dark, 5.06 in light). The knob is
  * a fixed colour pair per state because
  * a white knob is invisible on the off track in the light theme, where
@@ -61,7 +62,7 @@ const formLoading = useFormLoading()
 const trackClasses: ComputedRef<string> = computed(() => {
   return props.modelValue
     ? 'border-accent-fill bg-accent-fill'
-    : 'border-border-control bg-surface-3'
+    : 'border-border-control bg-surface-3 enabled:hover:border-border-control-hover'
 })
 
 /**

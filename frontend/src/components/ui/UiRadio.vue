@@ -17,9 +17,10 @@
  *
  * LOOK AND MEASUREMENTS. Same family as `UiCheckbox`. Unselected: a
  * `bg-surface-2` disc with a `border-border-control` outline (`--bc`, the control-edge
- * token; the `--b2` border would be 1.47:1). Against the surface it sits on: dark 3.82
- * on the page, 3.57 on `--s1`, 3.36 on `--s2`, 3.08 on `--s3`; light 3.39, 3.63, 3.30,
- * 3.07 — all over the 3:1 of WCAG 1.4.11. Selected: a
+ * token; the `--b2` border would be 1.47:1). Against the surface it sits on: dark 4.25
+ * on the page, 3.98 on `--s1`, 3.74 on `--s2`, 3.43 on `--s3`; light 3.53, 3.79, 3.43,
+ * 3.20 — all over the 3:1 of WCAG 1.4.11. Hovering an enabled, unselected row steps the edge to
+ * `border-border-control-hover`, the same stronger edge every control uses. Selected: a
  * `bg-accent-fill` disc (3.65:1 against a panel) holding a white dot at 5.14:1,
  * so selection is carried by the dot's presence as well as by colour. The row is
  * `min-h-choice` tall: 28px from tablet up, 44px on a phone.
@@ -66,7 +67,7 @@ const onChange = (): void => {
   <label
     :for="fieldId"
     class="flex min-h-choice w-fit max-w-full items-center gap-2 text-sm text-text-primary"
-    :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
+    :class="disabled ? 'cursor-not-allowed opacity-65' : 'group cursor-pointer'"
   >
     <input
       :id="fieldId"
@@ -80,7 +81,11 @@ const onChange = (): void => {
     />
     <span
       class="inline-flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors peer-focus-visible:shadow-focus"
-      :class="checked ? 'border-accent-fill bg-accent-fill' : 'border-border-control bg-surface-2'"
+      :class="
+        checked
+          ? 'border-accent-fill bg-accent-fill'
+          : 'border-border-control bg-surface-2 group-hover:border-border-control-hover'
+      "
       aria-hidden="true"
     >
       <span v-if="checked" class="size-1.5 rounded-full bg-white" />

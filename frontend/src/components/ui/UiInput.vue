@@ -15,11 +15,14 @@
  * 1.06:1 against the panel it sits on — so with either of them the dark theme
  * showed nothing at all where a field is, below the 3:1 WCAG 1.4.11 asks of the
  * visual information that identifies a control. The boundary is therefore its own
- * token, `border-border-control` (`--bc`): 3.57:1 on `--s1`, 3.36:1 on `--s2` and
- * 3.08:1 on `--s3` in dark, 3.63 / 3.30 / 3.07 in light. It is a token rather than
+ * token, `border-border-control` (`--bc`): 3.98:1 on `--s1`, 3.74:1 on `--s2` and
+ * 3.43:1 on `--s3` in dark, 3.79 / 3.43 / 3.20 in light. It is a token rather than
  * a reuse of `text-text-muted`, because a text colour that happens to pass would
- * drift the day the text tier is retuned. The label always visible above the
- * field and the 2px focus ring (`shadow-focus`, 4.8:1) remain on top of it.
+ * drift the day the text tier is retuned. Hover steps the edge one notch stronger
+ * (`enabled:hover:border-border-control-hover`, `--bch`), and focus makes it a
+ * crisp 2px solid edge: the accent border (`border-danger` when invalid) plus a 1px ring of
+ * the same colour (`shadow-field-focus`, `shadow-field-focus-danger`), with no
+ * alpha halo. The label always visible above the field remains on top of it.
  *
  * DISABLED. A disabled field keeps its fill and drops everything that invites a click: the
  * boundary falls back to the decorative `border-border-subtle` (WCAG 1.4.11 exempts inactive
@@ -181,7 +184,7 @@ const onInput = (event: Event): void => {
         :class="[
           hasError
             ? 'border-danger focus-visible:shadow-field-focus-danger'
-            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus disabled:border-border-subtle',
+            : 'border-border-control enabled:hover:border-border-control-hover focus-visible:border-accent focus-visible:shadow-field-focus disabled:border-border-subtle',
           $slots.trailing ? 'pr-[calc(var(--d-inset)*2+0.5rem)]' : 'pr-3',
           icon ? 'pl-9' : 'pl-3',
           mono ? 'font-mono' : '',

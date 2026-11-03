@@ -339,7 +339,7 @@ useOutsidePress(rootElement, isOpen, (): void => {
         :class="
           hasError
             ? 'border-danger focus-visible:shadow-field-focus-danger'
-            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus'
+            : 'border-border-control enabled:hover:border-border-control-hover focus-visible:border-accent focus-visible:shadow-field-focus'
         "
         @click="onTriggerClick"
         @keydown.enter.prevent="open"
