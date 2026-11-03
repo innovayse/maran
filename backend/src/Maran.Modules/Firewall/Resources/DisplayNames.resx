@@ -15,4 +15,10 @@
   <data name="FirewallModuleDisplayName">
     <value>Firewall</value>
   </data>
+  <data name="FirewallProtocolTcp">
+    <value>TCP</value>
+  </data>
+  <data name="FirewallProtocolUdp">
+    <value>UDP</value>
+  </data>
 </root>

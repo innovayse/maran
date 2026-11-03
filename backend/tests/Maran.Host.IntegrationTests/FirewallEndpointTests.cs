@@ -168,6 +168,28 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         Assert.Equal(8443, agent.PanelPort);
     }
 
+    /// <summary>The protocol picker is offered both protocols the allow command accepts, each named.</summary>
+    [Fact]
+    public async Task The_protocol_picker_is_offered_both_protocols_the_allow_command_accepts_each_named()
+    {
+        await using var factory = CreateFactory(new StubAgentFirewallClient());
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/firewall/rules/protocols");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var choices = body.RootElement.EnumerateArray()
+            .Select(choice =>
+            {
+                return (choice.GetProperty("protocol").GetString(), choice.GetProperty("protocolName").GetString());
+            })
+            .ToList();
+        Assert.Equal([("tcp", "TCP"), ("udp", "UDP")], choices);
+    }
+
     /// <summary>A rule the caller spelled wrongly is answered as the callers mistake.</summary>
     [Fact]
     public async Task A_rule_the_caller_spelled_wrongly_is_answered_as_the_callers_mistake()
@@ -374,7 +396,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         StubAgentFirewallClient agent,
         params (string Key, string Value)[] settings)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
