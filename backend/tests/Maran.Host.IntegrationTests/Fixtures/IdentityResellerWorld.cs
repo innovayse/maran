@@ -9,6 +9,7 @@ using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,13 +49,26 @@ public static class IdentityResellerWorld
     /// (which force a reseller to enrol).
     /// </param>
     /// <param name="configure">Extra service replacements for the test, or <c>null</c>.</param>
+    /// <param name="panelUrl">
+    /// The panel's public address, or <c>null</c>. A configured address makes an invitation carry a link with
+    /// <c>token=</c>, which is the shape the person receives on an installed panel.
+    /// </param>
     /// <returns>The booted factory, which the caller disposes.</returns>
     public static async Task<WebApplicationFactory<Program>> BootAsync(
         TestDatabase database,
         bool? forceTwoFactorForResellers = false,
-        Action<IServiceCollection>? configure = null)
+        Action<IServiceCollection>? configure = null,
+        string? panelUrl = null)
     {
         var factory = EndpointHarness.CreateFactory(database, configure);
+        if (panelUrl is not null)
+        {
+            factory = factory.WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting("PasswordReset:PanelUrl", panelUrl);
+            });
+        }
+
         await EndpointHarness.MigrateAsync(factory);
         await EndpointHarness.SeedAdministratorAsync(factory);
         if (forceTwoFactorForResellers is { } forced)
@@ -168,6 +182,20 @@ public static class IdentityResellerWorld
         var (_, accountId) = await EndpointHarness.SeedAccountAsync(factory, accountName);
         await EndpointHarness.SeedCustomerAsync(factory, ownerUsername, accountId);
         return accountId;
+    }
+
+    /// <summary>Stores the world the view-as edge tests start from: see <see cref="ViewAsWorld"/>.</summary>
+    /// <param name="factory">The booted host.</param>
+    /// <returns>The identities the tests address.</returns>
+    public static async Task<ViewAsWorld> SeedViewAsWorldAsync(WebApplicationFactory<Program> factory)
+    {
+        var nova = await SeedResellerAsync(factory, "nova");
+        var orbit = await SeedResellerAsync(factory, "orbit");
+        var acme = await SeedResellerAccountAsync(factory, nova.ResellerId, "acme", "olive");
+        var globex = await SeedResellerAccountAsync(factory, orbit.ResellerId, "globex", "gus");
+        var initech = await SeedAdministratorAccountAsync(factory, "initech", "ivan");
+
+        return new ViewAsWorld(nova, orbit, acme, globex, initech);
     }
 
     /// <summary>Creates a client carrying a bearer token.</summary>
