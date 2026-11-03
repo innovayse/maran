@@ -257,6 +257,82 @@ public sealed class AgentBackupClientTests
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
+    /// <summary>A verification ok maps to the measured counts, and the request names its target.</summary>
+    [Fact]
+    public async Task A_verification_ok_maps_to_the_measured_counts()
+    {
+        var stub = new StubBackupService
+        {
+            VerifyResponse = new VerifyBackupResponse
+            {
+                Ok = new VerifyBackupOk { MemberCount = 12, DatabaseCount = 2, ArtifactBytes = 8192 },
+            },
+        };
+
+        var result = await NewClient(stub).VerifyBackupAsync("alice", "b1", Local(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(12u, result.Value.MemberCount);
+        Assert.Equal(2u, result.Value.DatabaseCount);
+        Assert.Equal(8192ul, result.Value.ArtifactBytes);
+        Assert.Equal("alice", stub.LastVerifyRequest!.AccountUsername);
+        Assert.Equal("b1", stub.LastVerifyRequest.BackupId);
+        Assert.Equal(BackupDestinationKind.Local, stub.LastVerifyRequest.Destination.Kind);
+    }
+
+    /// <summary>A corrupt artifact is a failure carrying the agent's code, never a success.</summary>
+    [Fact]
+    public async Task A_verification_error_maps_to_a_failed_result_with_the_agent_code()
+    {
+        var stub = new StubBackupService
+        {
+            VerifyResponse = new VerifyBackupResponse
+            {
+                Error = new AgentError { Code = ErrorCode.ValidationFailed, Message = "digest differs" },
+            },
+        };
+
+        var result = await NewClient(stub).VerifyBackupAsync("alice", "b1", Local(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentValidationFailed", result.Error!.Code);
+    }
+
+    /// <summary>A verification response naming neither branch is an invalid response, never a success.</summary>
+    [Fact]
+    public async Task A_verification_response_with_neither_branch_set_is_an_invalid_response()
+    {
+        var result = await NewClient(new StubBackupService()).VerifyBackupAsync(
+            "alice",
+            "b1",
+            Local(),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+        Assert.Equal(ErrorType.Failure, result.Error.Type);
+    }
+
+    /// <summary>An object-store destination is forwarded as such, for the agent to refuse.</summary>
+    [Fact]
+    public async Task A_verification_of_an_object_store_destination_is_forwarded_for_the_agent_to_refuse()
+    {
+        var stub = new StubBackupService
+        {
+            VerifyResponse = new VerifyBackupResponse
+            {
+                Error = new AgentError { Code = ErrorCode.NotImplemented, Message = "s3 is not served" },
+            },
+        };
+
+        var result = await NewClient(stub).VerifyBackupAsync("alice", "b1", S3(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentNotImplemented", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+        Assert.Equal(BackupDestinationKind.S3, stub.LastVerifyRequest!.Destination.Kind);
+    }
+
     /// <summary>Each probe verdict maps to its own member.</summary>
     [Theory]
     [InlineData(PublicReadVerdict.Private, AgentPublicReadVerdict.Private)]

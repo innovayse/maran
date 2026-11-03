@@ -31,6 +31,12 @@ internal interface IBackupServiceInvoker
     /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
     Task<ListBackupsResponse> ListBackupsAsync(ListBackupsRequest request, CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>VerifyBackup</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<VerifyBackupResponse> VerifyBackupAsync(VerifyBackupRequest request, CancellationToken cancellationToken);
+
     /// <summary>Invokes <c>DeleteBackup</c>.</summary>
     /// <param name="request">The wire request.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

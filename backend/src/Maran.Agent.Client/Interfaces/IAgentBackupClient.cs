@@ -5,7 +5,8 @@ namespace Maran.Agent.Client.Interfaces;
 
 /// <summary>
 /// The panel's view of an account's backups: creating one, restoring from one, listing what exists,
-/// deleting an artifact, and asking whether a destination would serve those artifacts to anyone.
+/// verifying a stored artifact, deleting an artifact, and asking whether a destination would serve
+/// those artifacts to anyone.
 /// </summary>
 /// <remarks>
 /// Every call names its destination, because the agent holds no destination configuration of its
@@ -86,6 +87,28 @@ public interface IAgentBackupClient
     /// </returns>
     Task<Result<IReadOnlyList<AgentBackupSummary>>> ListAsync(
         string accountUsername,
+        AgentBackupDestination destination,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Asks the agent to read a stored artifact back and prove it is still restorable, extracting
+    /// nothing and changing nothing.
+    /// </summary>
+    /// <param name="accountUsername">System username of the account owning the backup.</param>
+    /// <param name="backupId">Identifier of the backup to verify.</param>
+    /// <param name="destination">Where the artifact currently resides.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// What the agent measured, or a typed failure. A corrupt, missing or changed artifact is a
+    /// failure carrying the agent's code, never a success with empty counts; a response naming
+    /// neither an outcome nor an error is <c>AgentInvalidResponse</c>, never a success. The agent
+    /// that ships today verifies only <see cref="AgentLocalBackupDestination"/> and answers
+    /// <c>AgentNotImplemented</c> for another kind. An agent of revision 17 has no such rpc and answers
+    /// it <c>UNIMPLEMENTED</c>; the handshake's window keeps the panel from driving one.
+    /// </returns>
+    Task<Result<AgentBackupVerification>> VerifyBackupAsync(
+        string accountUsername,
+        string backupId,
         AgentBackupDestination destination,
         CancellationToken cancellationToken);
 

@@ -54,6 +54,32 @@ public sealed class ResilientAgentBackupClientTests
         Assert.Equal(2, inner.Calls);
     }
 
+    /// <summary>Verifying retries a transport failure through the pipeline.</summary>
+    [Fact]
+    public async Task Verifying_retries_a_transport_failure_through_the_pipeline()
+    {
+        var inner = new RecordingAgentBackupClient { FailuresBeforeSuccess = 1 };
+
+        var result = await NewClient(inner).VerifyBackupAsync("alice", "b1", Local(), default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+    }
+
+    /// <summary>A transport outage on a verification is answered as an unavailable agent, not thrown.</summary>
+    [Fact]
+    public async Task A_transport_outage_on_a_verification_answers_agent_unavailable_instead_of_throwing()
+    {
+        var inner = new RecordingAgentBackupClient { FailuresBeforeSuccess = int.MaxValue };
+
+        var result = await NewClient(inner).VerifyBackupAsync("alice", "b1", Local(), default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+        Assert.Equal(3, inner.Calls);
+    }
+
     /// <summary>Probing retries a transport failure through the pipeline.</summary>
     [Fact]
     public async Task Probing_retries_a_transport_failure_through_the_pipeline()

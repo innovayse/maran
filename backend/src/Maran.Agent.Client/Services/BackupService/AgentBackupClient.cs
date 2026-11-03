@@ -323,6 +323,39 @@ public sealed class AgentBackupClient : IAgentBackupClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<AgentBackupVerification>> VerifyBackupAsync(
+        string accountUsername,
+        string backupId,
+        AgentBackupDestination destination,
+        CancellationToken cancellationToken)
+    {
+        var request = new VerifyBackupRequest
+        {
+            AccountUsername = accountUsername,
+            BackupId = backupId,
+            Destination = ToWireDestination(destination),
+        };
+        var response = await _invoker.VerifyBackupAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            VerifyBackupResponse.ResultOneofCase.Ok => Result<AgentBackupVerification>.Ok(
+                new AgentBackupVerification(
+                    response.Ok.MemberCount,
+                    response.Ok.DatabaseCount,
+                    response.Ok.ArtifactBytes)),
+            VerifyBackupResponse.ResultOneofCase.Error => Result<AgentBackupVerification>.Fail(
+                AgentErrorTranslator.ToError(
+                    _logger,
+                    response.Error,
+                    nameof(VerifyBackupAsync),
+                    SecretOf(destination))),
+            _ => Result<AgentBackupVerification>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
     public async Task<Result> DeleteAsync(
         string accountUsername,
         string backupId,

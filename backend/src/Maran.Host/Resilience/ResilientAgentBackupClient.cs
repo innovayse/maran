@@ -20,6 +20,11 @@ namespace Maran.Host.Resilience;
 /// transport itself is not one of those endings: with no pipeline here, it leaves the stream as the
 /// exception the transport raised, and the caller deals with it as a torn stream.
 ///
+/// Verifying reads a stored artifact and changes nothing, so it is as safe to repeat as a listing: it
+/// goes through the pipeline, is retried only when the connection to the agent could not be
+/// established, and is answered as <c>AgentUnavailable</c> when the agent cannot be reached at all.
+/// The pipeline's operation timeout bounds it like any unary call.
+///
 /// The probe is a network call the agent makes on the panel's behalf and is treated like any other
 /// unary call: retried only when the connection to the agent could not be established, and answered
 /// as <c>AgentUnavailable</c> when the agent cannot be reached at all.
@@ -82,6 +87,27 @@ public sealed class ResilientAgentBackupClient : IAgentBackupClient
                 return await state.Client.ListAsync(state.AccountUsername, state.Destination, token);
             },
             (Client: _inner, AccountUsername: accountUsername, Destination: destination),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<AgentBackupVerification>> VerifyBackupAsync(
+        string accountUsername,
+        string backupId,
+        AgentBackupDestination destination,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.Client.VerifyBackupAsync(
+                    state.AccountUsername,
+                    state.BackupId,
+                    state.Destination,
+                    token);
+            },
+            (Client: _inner, AccountUsername: accountUsername, BackupId: backupId, Destination: destination),
             cancellationToken);
     }
 

@@ -95,6 +95,25 @@ internal sealed class RecordingAgentBackupClient : IAgentBackupClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<AgentBackupVerification>> VerifyBackupAsync(
+        string accountUsername,
+        string backupId,
+        AgentBackupDestination destination,
+        CancellationToken cancellationToken)
+    {
+        Calls++;
+
+        if (Calls <= FailuresBeforeSuccess)
+        {
+            throw AgentTransportFaults.ConnectRefused();
+        }
+
+        await Task.Yield();
+
+        return Result<AgentBackupVerification>.Ok(new AgentBackupVerification(3, 1, 4096));
+    }
+
+    /// <inheritdoc/>
     public async Task<Result> DeleteAsync(
         string accountUsername,
         string backupId,

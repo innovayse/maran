@@ -117,6 +117,33 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
         return Task.FromResult(Result.Ok());
     }
 
+    /// <summary>The account name and backup id of every verification asked for, in order.</summary>
+    public List<(string AccountUsername, string BackupId)> Verifications { get; } = [];
+
+    /// <summary>The answer every verification gets, or null for one that found a sound artifact.</summary>
+    public Result<AgentBackupVerification>? VerifyResult { get; set; }
+
+    /// <summary>Records the verification and answers the scripted result.</summary>
+    /// <param name="accountUsername">The account that owns the backup.</param>
+    /// <param name="backupId">The backup to verify.</param>
+    /// <param name="destination">Where the artifact resides.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// <see cref="VerifyResult"/> when a test set one, otherwise a successful verification: a run that
+    /// is not about verification must not raise an alert over an artifact nobody described as damaged.
+    /// </returns>
+    public Task<Result<AgentBackupVerification>> VerifyBackupAsync(
+        string accountUsername,
+        string backupId,
+        AgentBackupDestination destination,
+        CancellationToken cancellationToken)
+    {
+        Verifications.Add((accountUsername, backupId));
+
+        return Task.FromResult(
+            VerifyResult ?? Result<AgentBackupVerification>.Ok(new AgentBackupVerification(3, 1, SizeBytes)));
+    }
+
     /// <summary>Answers as the shipping agent does: no probe is performed at all.</summary>
     /// <param name="destination">The destination that would be probed.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
