@@ -1,4 +1,6 @@
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Events;
@@ -15,9 +17,17 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// so suspending one must close that account's door and leave the others open: each membership of
 /// the account (the owner's and every added member's) becomes
 /// <see cref="MembershipState.Suspended"/>, and sign-in, refresh, account switching and the
-/// feature gate all read that state. The login itself is untouched. Added members used to keep
+/// feature gate all read that state. The login's lifecycle is untouched; only its legacy
+/// <c>State</c> / <c>IsAccountSuspended</c> pair is restated (see below). Added members used to keep
 /// working in a suspended account because only the owner's login was found; they are memberships
 /// of the account like the owner's, and are suspended with it.
+/// </para>
+/// <para>
+/// <b>The owner login's legacy pair is kept in step.</b> The previous release (beta.4) refuses a
+/// sign-in from <c>Users."State"</c> / <c>"IsAccountSuspended"</c>, so a rollback to it would let a
+/// suspended account's owner in again if this release left them at Active. The pair is restated
+/// from the owner membership by <see cref="LegacyOwnerSuspensionPolicy"/>; this release never
+/// reads it.
 /// </para>
 /// <para>
 /// <b>Closing the door is not enough on its own.</b> Only the NEXT sign-in or refresh reads the
@@ -84,6 +94,7 @@ public sealed class AccountSuspendingHandler
             membership.Suspend();
         }
 
+        await RestateLegacyColumnsAsync(memberships, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         // Revoking the sessions is the half that matters: a suspension that only blocks the NEXT
@@ -91,5 +102,33 @@ public sealed class AccountSuspendingHandler
         // expires, which is exactly the window a suspension exists to close.
         await _sessionService.RevokeSpeakingForAccountAsync(
             message.AccountId, SessionRevocationReason.AccountSuspended, cancellationToken);
+    }
+
+    /// <summary>
+    /// Keeps the owner logins' legacy suspension columns in step with their owner memberships, which
+    /// the previous release still reads (<see cref="LegacyOwnerSuspensionPolicy"/>).
+    /// </summary>
+    /// <param name="memberships">The account's memberships, already changed.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    private async Task RestateLegacyColumnsAsync(
+        IReadOnlyCollection<AccountMembership> memberships,
+        CancellationToken cancellationToken)
+    {
+        var ownerIds = memberships
+            .Where(membership => membership.Role == MembershipRole.Owner)
+            .Select(membership => membership.UserId)
+            .ToList();
+        if (ownerIds.Count == 0)
+        {
+            return;
+        }
+
+        var owners = await _dbContext.Users
+            .Where(user => ownerIds.Contains(user.Id))
+            .ToListAsync(cancellationToken);
+        var ownerMemberships = await _dbContext.AccountMemberships
+            .Where(membership => membership.Role == MembershipRole.Owner && ownerIds.Contains(membership.UserId))
+            .ToListAsync(cancellationToken);
+        LegacyOwnerSuspensionPolicy.Apply(owners, ownerMemberships);
     }
 }

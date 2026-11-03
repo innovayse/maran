@@ -1,4 +1,6 @@
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Events;
 
@@ -16,10 +18,13 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// one, exactly as they would after signing out anywhere else.
 /// </para>
 /// <para>
-/// <b>It acts on the account's memberships only</b>, for the reason
+/// <b>It acts on the account's memberships</b>, for the reason
 /// <see cref="AccountSuspendingHandler"/>'s remarks give: a login that holds other accounts was
-/// never blocked as a whole, so there is nothing on the login to lift. An account with no
-/// membership at all has nothing to resume.
+/// never blocked as a whole, so there is nothing on the login's lifecycle to lift. The one thing
+/// restated on the login is its legacy <c>State</c> / <c>IsAccountSuspended</c> pair, which the
+/// previous release reads (<see cref="LegacyOwnerSuspensionPolicy"/>): it is cleared here unless the
+/// owner still owns another suspended account. An account with no membership at all has nothing to
+/// resume.
 /// </para>
 /// <para>
 /// <b>The failure is not swallowed.</b> Anything thrown here propagates to the Accounts handler,
@@ -62,6 +67,35 @@ public sealed class AccountResumingHandler
             membership.Resume();
         }
 
+        await RestateLegacyColumnsAsync(memberships, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Keeps the owner logins' legacy suspension columns in step with their owner memberships, which
+    /// the previous release still reads (<see cref="LegacyOwnerSuspensionPolicy"/>).
+    /// </summary>
+    /// <param name="memberships">The account's memberships, already changed.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    private async Task RestateLegacyColumnsAsync(
+        IReadOnlyCollection<AccountMembership> memberships,
+        CancellationToken cancellationToken)
+    {
+        var ownerIds = memberships
+            .Where(membership => membership.Role == MembershipRole.Owner)
+            .Select(membership => membership.UserId)
+            .ToList();
+        if (ownerIds.Count == 0)
+        {
+            return;
+        }
+
+        var owners = await _dbContext.Users
+            .Where(user => ownerIds.Contains(user.Id))
+            .ToListAsync(cancellationToken);
+        var ownerMemberships = await _dbContext.AccountMemberships
+            .Where(membership => membership.Role == MembershipRole.Owner && ownerIds.Contains(membership.UserId))
+            .ToListAsync(cancellationToken);
+        LegacyOwnerSuspensionPolicy.Apply(owners, ownerMemberships);
     }
 }

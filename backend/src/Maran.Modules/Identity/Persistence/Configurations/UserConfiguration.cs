@@ -50,8 +50,9 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // migration could add it to a table that already has rows; Active is what the previous
         // release's rows overwhelmingly are. Legacy columns that stay mapped and are written by
         // User.SyncLegacyColumns until the contract release: "State" (LegacyState) and
-        // "IsAccountSuspended" (LegacyAccountSuspended, now always false because a suspension is the
-        // state of a membership). The "IsTotpEnabled" column (LegacyTotpEnabled) is likewise kept and
+        // "IsAccountSuspended" (LegacyAccountSuspended). They restate the suspension of the account
+        // the login owns, which the previous release reads to refuse a sign-in; this release's truth
+        // for it is the owner membership's state. The "IsTotpEnabled" column (LegacyTotpEnabled) is likewise kept and
         // written by EnableTotp/DisableTotp; the code reads TotpSecret instead, which already holds
         // the same fact.
         builder.Property(u => u.Lifecycle)

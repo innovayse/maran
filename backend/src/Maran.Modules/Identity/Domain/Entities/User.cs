@@ -37,26 +37,31 @@ public sealed class User
     /// </para>
     /// <para>
     /// Replaces the pair <see cref="LegacyState"/> and <see cref="LegacyAccountSuspended"/>. Every
-    /// mutator below writes this property and then restates it into that pair, so the legacy columns
-    /// never disagree with it until the contract release drops them.
+    /// mutator below writes this property and then restates it into that pair, together with the
+    /// owner membership's suspension (<see cref="SyncLegacyColumns"/>), so the legacy columns never
+    /// disagree with what this release stores until the contract release drops them.
     /// </para>
     /// </remarks>
     public UserLifecycle Lifecycle { get; private set; }
 
     /// <summary>
     /// The previous release's coarse state, stored in <c>Users."State"</c>. <b>Legacy: written only
-    /// by <see cref="SyncLegacyColumns"/> and never read by this release's code</b>; read
-    /// <see cref="Lifecycle"/> instead. Kept for one release because the previous release reads the
-    /// column (rules/architecture.md, expand then contract); the next release drops it.
+    /// by <see cref="SyncLegacyColumns"/> and the lifecycle mutators, and never read by this release's
+    /// code</b>; read <see cref="Lifecycle"/> instead. It is <see cref="UserState.Suspended"/> for a
+    /// claimed login whose owned account is suspended, because the previous release reads that to
+    /// refuse a sign-in. Kept for one release because the previous release reads the column
+    /// (rules/architecture.md, expand then contract); the next release drops it.
     /// </summary>
     public UserState LegacyState { get; private set; }
 
     /// <summary>
     /// The previous release's "this login's account is suspended" flag, stored in
-    /// <c>Users."IsAccountSuspended"</c>. <b>Legacy: written only by <see cref="SyncLegacyColumns"/>,
-    /// always <c>false</c> now, and never read by this release's code</b>: a suspension is the state
-    /// of a membership (<see cref="AccountMembership.State"/>), not of the login. Dropped by the same
-    /// later release as <see cref="LegacyState"/>.
+    /// <c>Users."IsAccountSuspended"</c>. <b>Legacy: written only by <see cref="SyncLegacyColumns"/>
+    /// and never read by this release's code</b>: it restates whether the OWNER membership of the
+    /// account this login owns is <see cref="MembershipState.Suspended"/>, so a rollback to the
+    /// previous release still sees the suspension. The truth is the membership
+    /// (<see cref="AccountMembership.State"/>), not the login. Dropped by the same later release as
+    /// <see cref="LegacyState"/>.
     /// </summary>
     public bool LegacyAccountSuspended { get; private set; }
 
@@ -194,7 +199,7 @@ public sealed class User
             Lifecycle = UserLifecycle.Invited,
         };
 
-        user.SyncLegacyColumns();
+        user.RestateLegacyColumns();
         return user;
     }
 
@@ -214,7 +219,7 @@ public sealed class User
     {
         PasswordHash = passwordHash;
         Lifecycle = UserLifecycle.Active;
-        SyncLegacyColumns();
+        RestateLegacyColumns();
     }
 
     /// <summary>
@@ -321,16 +326,31 @@ public sealed class User
     }
 
     /// <summary>
-    /// Restates <see cref="Lifecycle"/> into the two legacy columns the previous release reads, so a
-    /// rollback finds the row it would have written itself. Called by every method that changes the
-    /// lifecycle and by nothing else; deleted with the columns in the contract release.
+    /// Restates the suspension of the account this login OWNS into the two legacy columns the
+    /// previous release reads, so a rollback still refuses to sign in the owner of a suspended
+    /// account. Called by the suspension and reactivation handlers with the state of the owner
+    /// membership, and by nothing else; deleted with the columns in the contract release.
     /// </summary>
-    private void SyncLegacyColumns()
+    /// <param name="ownerMembershipState">The state of this login's owner membership of the account.</param>
+    public void SyncLegacyColumns(MembershipState ownerMembershipState)
     {
-        (LegacyState, LegacyAccountSuspended) = Lifecycle switch
+        LegacyAccountSuspended = ownerMembershipState == MembershipState.Suspended;
+        RestateLegacyColumns();
+    }
+
+    /// <summary>
+    /// Restates <see cref="Lifecycle"/> and the stored suspension flag into the legacy
+    /// <see cref="LegacyState"/>, the way the previous release wrote it: a claimed login of a
+    /// suspended account reads <see cref="UserState.Suspended"/>, an invited one stays
+    /// <see cref="UserState.Invited"/> with the flag set. Called by every method that changes the
+    /// lifecycle, so accepting an invitation never lifts a suspension the flag records.
+    /// </summary>
+    private void RestateLegacyColumns()
+    {
+        LegacyState = Lifecycle switch
         {
-            UserLifecycle.Active => (UserState.Active, false),
-            UserLifecycle.Invited => (UserState.Invited, false),
+            UserLifecycle.Active => LegacyAccountSuspended ? UserState.Suspended : UserState.Active,
+            UserLifecycle.Invited => UserState.Invited,
             _ => throw new InvalidOperationException($"Unknown user lifecycle {Lifecycle}."),
         };
     }

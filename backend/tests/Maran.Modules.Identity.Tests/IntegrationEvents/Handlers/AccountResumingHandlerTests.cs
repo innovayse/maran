@@ -42,6 +42,8 @@ public sealed class AccountResumingHandlerTests : IDisposable
             _context.AccountMemberships.Add(membership);
         }
 
+        user.SyncLegacyColumns(MembershipState.Suspended);
+
         await _context.SaveChangesAsync();
         return user;
     }
@@ -75,6 +77,38 @@ public sealed class AccountResumingHandlerTests : IDisposable
 
         Assert.Equal(MembershipState.Active, await StateOfAsync(user.Id, OtherAccountId));
         Assert.Equal(MembershipState.Suspended, await StateOfAsync(user.Id, AccountId));
+    }
+
+    /// <summary>Resuming an account clears the owner's legacy suspension pair that the suspension set.</summary>
+    [Fact]
+    public async Task Resuming_an_account_clears_the_owners_legacy_suspension_pair()
+    {
+        await SeedSuspendedOwnerAsync(AccountId);
+        Assert.Equal((UserState.Suspended, true), await LegacyPairAsync());
+
+        await new AccountResumingHandler(_context).HandleAsync(
+            new AccountResuming(AccountId, "owner-one"), CancellationToken.None);
+
+        Assert.Equal((UserState.Active, false), await LegacyPairAsync());
+    }
+
+    /// <summary>The legacy pair stays suspended while the owner still owns another suspended account.</summary>
+    [Fact]
+    public async Task The_legacy_pair_stays_suspended_while_another_owned_account_is_still_suspended()
+    {
+        await SeedSuspendedOwnerAsync(AccountId, OtherAccountId);
+
+        await new AccountResumingHandler(_context).HandleAsync(
+            new AccountResuming(OtherAccountId, "owner-two"), CancellationToken.None);
+
+        Assert.Equal((UserState.Suspended, true), await LegacyPairAsync());
+    }
+
+    /// <summary>Reads the stored owner's legacy state and suspension flag, as the previous release would.</summary>
+    private async Task<(UserState State, bool Suspended)> LegacyPairAsync()
+    {
+        var owner = await _context.Users.SingleAsync();
+        return (owner.LegacyState, owner.LegacyAccountSuspended);
     }
 
     /// <summary>An account with no membership is left with nothing to do.</summary>

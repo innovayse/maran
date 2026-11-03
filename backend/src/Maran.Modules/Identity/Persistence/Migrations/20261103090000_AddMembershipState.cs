@@ -48,16 +48,14 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                 """);
 
             // raw-sql: the login itself is no longer suspendable, so the two suspended lifecycles collapse
-            // into the claimed and the unclaimed one, and the legacy State / IsAccountSuspended pair is
-            // restated to agree with what the application now writes. Lifecycle was added after the last
-            // release (AddUserLifecycle), so no release reads the two values this removes; the legacy
-            // pair is rewritten for agreement only.
+            // into the claimed and the unclaimed one. The legacy State / IsAccountSuspended pair is left
+            // exactly as it is: the previous release reads it to refuse the owner of a suspended account,
+            // so blanking it would let that owner sign in again after a rollback. Lifecycle was added
+            // after the last release (AddUserLifecycle), so no release reads the two values this removes.
             migrationBuilder.Sql(
                 """
                 UPDATE identity."Users" SET
-                    "Lifecycle" = CASE "Lifecycle" WHEN 'Suspended' THEN 'Active' ELSE 'Invited' END,
-                    "State" = CASE "Lifecycle" WHEN 'Suspended' THEN 'Active' ELSE 'Invited' END,
-                    "IsAccountSuspended" = false
+                    "Lifecycle" = CASE "Lifecycle" WHEN 'Suspended' THEN 'Active' ELSE 'Invited' END
                 WHERE "Lifecycle" IN ('Suspended', 'InvitedAccountSuspended');
                 """);
         }
@@ -66,7 +64,10 @@ namespace Maran.Modules.Identity.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             // raw-sql: restore the login-wide suspension the previous shape stored, from the OWNER's
-            // membership only, before the column that holds the truth is dropped. An added member's
+            // membership only, before the column that holds the truth is dropped. The legacy pair is
+            // restored to the same values the application writes for a suspended owner (State
+            // Suspended for a claimed login, Invited for an unclaimed one, IsAccountSuspended true), so
+            // it agrees with Lifecycle whether or not the pair was kept in step. An added member's
             // suspension is not restored: the previous shape had no per-member suspension to restore it to.
             migrationBuilder.Sql(
                 """

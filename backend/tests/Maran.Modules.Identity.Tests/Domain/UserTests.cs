@@ -223,6 +223,44 @@ public sealed class UserTests
         Assert.Equal((UserState.Active, false), (user.LegacyState, user.LegacyAccountSuspended));
     }
 
+    /// <summary>The legacy pair of a claimed owner reads suspended while the owner membership is, and clears on resume.</summary>
+    [Fact]
+    public void The_legacy_pair_of_a_claimed_owner_reads_suspended_until_the_membership_is_active_again()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
+        user.Activate("hash");
+
+        user.SyncLegacyColumns(MembershipState.Suspended);
+        Assert.Equal((UserState.Suspended, true), (user.LegacyState, user.LegacyAccountSuspended));
+        Assert.Equal(UserLifecycle.Active, user.Lifecycle);
+
+        user.SyncLegacyColumns(MembershipState.Active);
+        Assert.Equal((UserState.Active, false), (user.LegacyState, user.LegacyAccountSuspended));
+    }
+
+    /// <summary>An invited owner of a suspended account stays Invited in the legacy state, with the flag set.</summary>
+    [Fact]
+    public void An_invited_owner_of_a_suspended_account_keeps_the_invited_state_with_the_flag_set()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
+
+        user.SyncLegacyColumns(MembershipState.Suspended);
+
+        Assert.Equal((UserState.Invited, true), (user.LegacyState, user.LegacyAccountSuspended));
+    }
+
+    /// <summary>Accepting an invitation never lifts the suspension the legacy flag records.</summary>
+    [Fact]
+    public void Accepting_an_invitation_does_not_lift_the_legacy_suspension()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
+        user.SyncLegacyColumns(MembershipState.Suspended);
+
+        user.Activate("hash");
+
+        Assert.Equal((UserState.Suspended, true), (user.LegacyState, user.LegacyAccountSuspended));
+    }
+
     /// <summary>A pending invitation is reported while invited and no longer once accepted.</summary>
     [Fact]
     public void A_pending_invitation_is_reported_while_invited_and_not_after_acceptance()

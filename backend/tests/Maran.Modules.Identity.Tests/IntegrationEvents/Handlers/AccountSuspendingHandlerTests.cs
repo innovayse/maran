@@ -183,6 +183,55 @@ public sealed class AccountSuspendingHandlerTests : IDisposable
         Assert.Equal(MembershipState.Suspended, await StateOfAsync(user.Id, AccountId));
     }
 
+    /// <summary>Suspending an account restates the owner's legacy pair as suspended, as the previous release reads it.</summary>
+    /// <remarks>
+    /// A rollback to the previous release reads <c>State</c> / <c>IsAccountSuspended</c>, so an owner
+    /// left at Active there could sign in to a suspended account again.
+    /// </remarks>
+    [Fact]
+    public async Task Suspending_an_account_restates_the_owners_legacy_pair_as_suspended()
+    {
+        await SeedActiveOwnerAsync(AccountId);
+
+        await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
+
+        var owner = await _context.Users.SingleAsync();
+        Assert.Equal((UserState.Suspended, true), (owner.LegacyState, owner.LegacyAccountSuspended));
+    }
+
+    /// <summary>An invited owner of the suspended account is restated as Invited with the flag set.</summary>
+    [Fact]
+    public async Task Suspending_an_account_restates_an_invited_owners_legacy_pair_as_invited_and_suspended()
+    {
+        var user = User.Invite(Guid.NewGuid(), "owner-one", "owner@example.com", Now);
+        _context.Users.Add(user);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, AccountId, Now));
+        await _context.SaveChangesAsync();
+
+        await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
+
+        var owner = await _context.Users.SingleAsync();
+        Assert.Equal((UserState.Invited, true), (owner.LegacyState, owner.LegacyAccountSuspended));
+    }
+
+    /// <summary>An added member's login is not restated: it owns nothing the previous release could suspend.</summary>
+    [Fact]
+    public async Task Suspending_an_account_leaves_an_added_members_legacy_pair_alone()
+    {
+        await SeedActiveOwnerAsync(AccountId);
+        var member = new User(Guid.NewGuid(), "member-one", "member@example.com", "hash", UserRole.Customer, Now);
+        member.Activate("hash");
+        _context.Users.Add(member);
+        _context.AccountMemberships.Add(
+            AccountMembership.Admit(Guid.NewGuid(), member.Id, AccountId, Maran.Sdk.Contracts.AccountFeature.None, Now));
+        await _context.SaveChangesAsync();
+
+        await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
+
+        var stored = await _context.Users.SingleAsync(candidate => candidate.Id == member.Id);
+        Assert.Equal((UserState.Active, false), (stored.LegacyState, stored.LegacyAccountSuspended));
+    }
+
     /// <summary>Another account's memberships are not touched by a suspension.</summary>
     [Fact]
     public async Task Another_accounts_memberships_are_not_touched()
