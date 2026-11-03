@@ -58,7 +58,8 @@ Tailwind utilities generated from them. **No component writes a hex value.**
 | `--s3` | `#1D2126` | The next step up (pressed, deeper). |
 | `--b1` | `#23262C` | Border that separates. Decorative. |
 | `--b2` | `#2E3339` | Border that emphasises. Decorative. |
-| `--bc` | `#656D76` | **Control boundary** — the edge of an input, select, textarea, search field. 3.57 / 3.36 / 3.08:1 on s1 / s2 / s3 (WCAG 1.4.11 needs 3:1). |
+| `--bc` | `#68748A` | **Control boundary** — the edge of an input, select, textarea, search field, tinted toward the shell's cool hue. 3.98 / 3.74 / 3.43:1 on s1 / s2 / s3 (WCAG 1.4.11 needs 3:1). |
+| `--bch` | `#8793A8` | **Control boundary on hover** — the same edge one step stronger, one value for every control. 6.04 / 5.68 / 5.22:1 on s1 / s2 / s3. |
 | `--t1` | `#E9EBEE` | Text. |
 | `--t2` | `#98A0A8` | Muted text and labels. |
 | `--t3` | `#828A92` | The faintest **text** tier: captions, secondary lines. It passes as text (see section 3). |
@@ -75,6 +76,8 @@ Tailwind utilities generated from them. **No component writes a hex value.**
 | `--glow` | `0 8px 30px -8px rgb(46 123 255 / 0.55)` | The accent glow under the active nav item and the primary pill. Theme-independent. |
 | `--shadow-focus` | `0 0 0 2px var(--bg), 0 0 0 4px var(--ac)` | The focus ring (see below). |
 | `--shadow-focus-danger` | `0 0 0 2px var(--bg), 0 0 0 4px var(--rd)` | The focus ring on a destructive control. |
+| `--shadow-field-focus` | `0 0 0 1px var(--ac)` | A text field's focus: the border turns accent and this 1px ring sits directly outside it, one solid 2px edge with no translucent halo. `--ac` as a graphic: 4.81 / 4.52 / 4.16:1 on s1 / s2 / s3 dark, 3.89 / 3.53 / 3.29:1 light. |
+| `--shadow-field-focus-danger` | `0 0 0 1px var(--rd)` | The same edge for a field in error: 4.79 / 4.50 / 4.13:1 dark, 5.62 / 5.10 / 4.74:1 light. |
 
 **The focus ring is part of the contract.** It is a solid 2 px accent ring set off from the control by a
 2 px gap in the page colour, so it stays visible on an accent fill, where a ring of the same blue would
@@ -91,7 +94,8 @@ of the same blue or hue, with a measurement that forced it. The values that diff
 |---|---|---|
 | `--bg` / `--s1` / `--s2` / `--s3` | `#F6F7F9` / `#FFFFFF` / `#F2F4F6` / `#E9ECF0` | Light surfaces. |
 | `--b1` / `--b2` | `#E2E5EA` / `#D2D6DD` | Light borders. |
-| `--bc` | `#80878F` | Light control boundary: 3.63 / 3.30 / 3.07:1 on s1 / s2 / s3. |
+| `--bc` | `#788497` | Light control boundary, tinted toward the shell hue: 3.79 / 3.43 / 3.20:1 on s1 / s2 / s3. |
+| `--bch` | `#5B6779` | Light control boundary on hover: 5.74 / 5.20 / 4.84:1 on s1 / s2 / s3. |
 | `--t1` / `--t2` | `#14171B` / `#5C646D` | Light text. |
 | `--t3` | `#636B73` | 5.05 / 5.41 / 4.91 on bg / s1 / s2 and 4.57 on s3. |
 | `--acs` | `rgb(46 123 255 / 0.10)` | A lighter wash on white. |
@@ -117,6 +121,7 @@ disagree. Components use the utilities; the raw variable is for the few places a
 | `--s1` / `--s2` / `--s3` | `bg-surface-1` / `bg-surface-2` / `bg-surface-3` |
 | `--b1` / `--b2` | `border-border-subtle` / `border-border-strong` |
 | `--bc` | `border-border-control` (form-control edges only) |
+| `--bch` | `border-border-control-hover` (the hover edge of every form control) |
 | `--t1` / `--t2` / `--t3` | `text-text-primary` / `text-text-secondary` / `text-text-muted` |
 | `--ac` | `bg-accent` (graphics only) |
 | `--acs` | `bg-accent-soft` |
@@ -129,6 +134,7 @@ disagree. Components use the utilities; the raw variable is for the few places a
 | `--glow` | `shadow-glow` |
 | `--glass` | `shadow-glass` (the soft lift under the glass auth card) |
 | focus ring | `shadow-focus`, `shadow-focus-danger` |
+| text-field focus | `shadow-field-focus`, `shadow-field-focus-danger` |
 | `--r-panel` (16 px) | `rounded-panel` |
 | `--r-control` (12 px) | `rounded-control` |
 | `--r-inset` (8 px) / `--r-row` (8 px) / `--r-mark` (4 px) | `rounded-inset` / `rounded-row` / `rounded-mark` |
@@ -244,7 +250,8 @@ and 3:1 for graphics and control boundaries. The dark-theme figures below were r
 | `--rd` on `--s3` | 4.13:1 | **fails text** |
 | `--b1` against `--s1` | 1.24:1 | decoration only; not a control boundary |
 | `--b2` against `--s1` | 1.47:1 | decoration only; not a control boundary |
-| `--bc` against `--s1` / `--s2` / `--s3` | 3.57 / 3.36 / 3.08:1 | passes 1.4.11 as a control boundary |
+| `--bc` against `--s1` / `--s2` / `--s3` | dark 3.98 / 3.74 / 3.43:1, light 3.79 / 3.43 / 3.20:1 | passes 1.4.11 as a control boundary |
+| `--bch` against `--s1` / `--s2` / `--s3` | dark 6.04 / 5.68 / 5.22:1, light 5.74 / 5.20 / 4.84:1 | the hover edge, one step stronger |
 
 Light-theme figures for the values that changed are in the light-theme table in section 2 (for example
 `--t3` 5.05 / 5.41 / 4.91 / 4.57:1 and `--act` over the wash 5.15 to 6.80:1).
@@ -440,8 +447,8 @@ instead of a class on the tag, an `!` modifier or a selector that reaches into a
 | `UiTableHeaderCell` | `sort`: `ascending`, `descending` or `none` makes the heading a button that emits `sort`; left out, the heading is plain text. | The `th` carries `aria-sort`, so the order is announced on the heading, never only by the glyph. The caller owns the order (a server-paged list's `useServerTable`). |
 | `UiMeter` | `tone`: `capacity` (default; warns past 80 %, danger at 100 %) or `progress` (colour from `status`: `running`, `success`, `danger`); `showValue` (default on). | For a task a full bar is success, so the ratio cannot pick the colour. The figure is visible text unless the caller prints it. |
 | `UiStackedMeter` | `segments` (each `key`, translated `label`, `value`, formatted `valueText`, `tone`: `accent`, `warning`, `neutral`) and `label` (the bar's translated summary). Issue #77. | Parts of one whole (disk: used, reserved, available). The bar is `role="img"` named by `label`; the legend prints every part as text, a zero part included. Fills measured as graphics on `--s1` and `--s3`; adjacent fills are not told apart by colour (1.05:1 in light), so they are gapped and the legend carries the meaning. |
-| `UiSearchInput` | Combobox mode: `inputRole="combobox"`, `ariaControls`, `ariaExpanded`, `ariaActivedescendant`. | These must reach the `<input>`, not the wrapper. Defaults are the plain `searchbox`. |
-| `UiDateInput` | `disabled`. The value is a calendar date `YYYY-MM-DD`, never an instant. | The day-to-instant conversion depends on the reader's time zone and belongs to whoever sends the value. Drawn like `UiInput`; the native picker carries the keyboard and locale behaviour. |
+| `UiSearchInput` | Combobox mode: `inputRole="combobox"`, `ariaControls`, `ariaExpanded`, `ariaActivedescendant`. | These must reach the `<input>`, not the wrapper. Defaults are the plain `searchbox`. `error` (optional text): draws `border-danger`, sets `aria-invalid` and points `aria-describedby` at the message printed under the field, as `UiInput` does. |
+| `UiDateInput` | `disabled`, `error` (optional text: `border-danger`, `aria-invalid`, `aria-describedby` to the printed message, as `UiInput`). The value is a calendar date `YYYY-MM-DD`, never an instant. | The day-to-instant conversion depends on the reader's time zone and belongs to whoever sends the value. Drawn like `UiInput`; the native picker carries the keyboard and locale behaviour. |
 | `UiAvatar` | `name`, `size` (`sm` 32 px, `md` 36 px); the letters come from `utils/initialsOf`. | One initials disc for the identity card, the accounts table and the journal. White on `--acf`; decorative, the name is printed beside it. |
 | `UiIconTile` | `name` or the default slot; `size`: `sm`, `md`, `lg`. | One accent icon square. `--act` on `--acs` passes on `--s1` and `--s2` but is 4.40:1 on `--s3`, so **a tile never sits over `--s3`**. Decorative. |
 | `UiSelect` | `emptyText` (optional; default the translated `app.select.noOptions`) and `loadError` (the parent's server message for a list that failed to load, shown instead). Issue #225. | Opened with no options the popup shows one `role="status"` line instead of a blank listbox; primary text on `--s3`, never `text-danger` there (4.13:1). |

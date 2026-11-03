@@ -100,7 +100,7 @@ const onInput = (event: Event): void => {
       :class="
         hasError
           ? 'border-danger focus-visible:shadow-field-focus-danger'
-          : 'border-border-control hover:border-border-control-hover focus-visible:border-accent focus-visible:shadow-field-focus'
+          : 'border-border-control enabled:hover:border-border-control-hover focus-visible:border-accent focus-visible:shadow-field-focus'
       "
       @input="onInput"
     />
