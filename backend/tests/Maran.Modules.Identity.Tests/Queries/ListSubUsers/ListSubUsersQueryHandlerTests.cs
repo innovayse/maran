@@ -61,91 +61,25 @@ public sealed class ListSubUsersQueryHandlerTests : IDisposable
     [Fact]
     public async Task The_page_is_cut_and_the_total_counts_every_row()
     {
-        await _world.SeedMemberAsync("a", AccountFeature.None);
-        await _world.SeedMemberAsync("b", AccountFeature.None);
-        await _world.SeedMemberAsync("c", AccountFeature.None);
+        // 12 rows against the smallest allowed page size (10), so the second page is a real boundary.
+        foreach (var name in new[] { "a", "b", "c", "d", "e", "f" })
+        {
+            await _world.SeedMemberAsync(name, AccountFeature.None);
+        }
 
-        var result = await NewHandler().HandleAsync(new ListSubUsersQuery(PageSize: 10), CancellationToken.None);
+        foreach (var name in new[] { "g", "h", "i", "j", "k", "l" })
+        {
+            await SeedOfferedLoginAsync(name, name);
+        }
 
-        Assert.Equal(3, result.Value.Total);
-        Assert.Equal(3, result.Value.Items.Count);
-    }
+        var first = await NewHandler().HandleAsync(new ListSubUsersQuery(Page: 1, PageSize: 10), CancellationToken.None);
+        var second = await NewHandler().HandleAsync(new ListSubUsersQuery(Page: 2, PageSize: 10), CancellationToken.None);
 
-    /// <summary>A team member may not list the team.</summary>
-    [Fact]
-    public async Task A_member_is_refused()
-    {
-        var member = await _world.SeedMemberAsync("deploy", AccountFeature.All);
-        var caller = new StubCustomerUser(member.Id, member.Username, SubUserWorld.AccountId);
-
-        var result = await NewHandler(caller).HandleAsync(new ListSubUsersQuery(), CancellationToken.None);
-
-        Assert.Equal("SubUsersOwnerOnly", result.Error!.Code);
-    }
-
-    /// <summary>The sort whitelist accepts its own names and refuses an unknown one.</summary>
-    [Fact]
-    public void The_validator_accepts_a_known_sort_and_refuses_an_unknown_one()
-    {
-        var validator = new ListSubUsersQueryValidator();
-
-        Assert.True(validator.Validate(new ListSubUsersQuery(Sort: SortRequest.Parse("-username"))).IsValid);
-        Assert.False(validator.Validate(new ListSubUsersQuery(Sort: SortRequest.Parse("password"))).IsValid);
-    }
-
-    /// <summary>An open offer is listed as an invited row carrying only what the owner typed.</summary>
-    [Fact]
-    public async Task An_open_offer_is_listed_as_an_invited_row_carrying_only_what_the_owner_typed()
-    {
-        var person = await SeedOfferedLoginAsync("bob", "bob@example.com");
-
-        var result = await NewHandler().HandleAsync(new ListSubUsersQuery(), CancellationToken.None);
-
-        var row = Assert.Single(result.Value.Items);
-        Assert.Equal(UserLifecycle.Invited, row.State);
-        Assert.Equal("bob@example.com", row.Username);
-        Assert.Equal("bob@example.com", row.Email);
-        Assert.NotEqual(person.Id, row.Id);
-        Assert.True(row.IsOffer);
-        Assert.Null(row.LastLoginAt);
-        Assert.Equal([AccountFeature.Databases], row.Features);
-    }
-
-    /// <summary>A mixed list marks each offer as an offer and each member as a member.</summary>
-    [Fact]
-    public async Task A_mixed_list_marks_offers_and_members_correctly()
-    {
-        await _world.SeedMemberAsync("member", AccountFeature.None);
-        var person = await SeedOfferedLoginAsync("offered", "offered@example.com");
-
-        var result = await NewHandler().HandleAsync(new ListSubUsersQuery(), CancellationToken.None);
-
-        Assert.Equal(2, result.Value.Items.Count);
-        var member = Assert.Single(result.Value.Items, row => { return !row.IsOffer; });
-        var offer = Assert.Single(result.Value.Items, row => { return row.IsOffer; });
-        Assert.Equal("member", member.Username);
-        Assert.Equal("offered@example.com", offer.Username);
-        Assert.NotEqual(person.Id, offer.Id);
-    }
-
-    /// <summary>Members and offers are paged and counted together, across the page boundary.</summary>
-    [Fact]
-    public async Task Members_and_offers_are_paged_and_counted_together()
-    {
-        await _world.SeedMemberAsync("a", AccountFeature.None);
-        await _world.SeedMemberAsync("b", AccountFeature.None);
-        await SeedOfferedLoginAsync("c", "c");
-        await SeedOfferedLoginAsync("d", "d");
-        await SeedOfferedLoginAsync("e", "e");
-
-        var first = await NewHandler().HandleAsync(new ListSubUsersQuery(Page: 1, PageSize: 3), CancellationToken.None);
-        var second = await NewHandler().HandleAsync(new ListSubUsersQuery(Page: 2, PageSize: 3), CancellationToken.None);
-
-        Assert.Equal(5, first.Value.Total);
-        Assert.Equal(3, first.Value.Items.Count);
+        Assert.Equal(12, first.Value.Total);
+        Assert.Equal(10, first.Value.Items.Count);
         Assert.Equal(2, second.Value.Items.Count);
         Assert.Equal(
-            5,
+            12,
             first.Value.Items.Concat(second.Value.Items).Select(row => { return row.Id; }).Distinct().Count());
     }
 

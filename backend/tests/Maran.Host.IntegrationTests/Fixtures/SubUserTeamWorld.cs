@@ -144,16 +144,19 @@ public static class SubUserTeamWorld
         return member.Id;
     }
 
-    /// <summary>Suspends an account itself, so it can take no new team member.</summary>
+    /// <summary>
+    /// Suspends an account the way production does: the administrator's suspend endpoint, whose
+    /// handler publishes the event that suspends every membership. Changing the account row alone would
+    /// leave the Identity side (what sign-in and the offer's acceptance read) unsuspended.
+    /// </summary>
     /// <param name="factory">The booted host.</param>
     /// <param name="accountName">The account's name.</param>
     public static async Task SuspendAccountAsync(WebApplicationFactory<Program> factory, string accountName)
     {
-        using var scope = factory.Services.CreateScope();
-        var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        var account = await accounts.Accounts.SingleAsync(candidate => candidate.Name == accountName);
-        account.Suspend();
-        await accounts.SaveChangesAsync();
+        var accountId = await AccountIdAsync(factory, accountName);
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+        var response = await admin.PostAsync($"/api/v1/accounts/{accountId}/suspend", null);
+        response.EnsureSuccessStatusCode();
     }
 
     /// <summary>Reads an account's id by name.</summary>

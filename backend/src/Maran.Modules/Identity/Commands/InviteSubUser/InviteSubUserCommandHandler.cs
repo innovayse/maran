@@ -77,7 +77,8 @@ namespace Maran.Modules.Identity.Commands.InviteSubUser;
 /// <para>
 /// <b>The cap counts members in any state, and the count is decided under a lock.</b> A pending
 /// invitation is already a login, a membership and a mailed token, and a suspended member still holds
-/// a credential, so all of them count against <see cref="SubUserOptions.MaxPerAccount"/>. The check
+/// a credential, so all of them count against <see cref="SubUserOptions.MaxPerAccount"/>, and so does every
+/// open membership offer (a place held for a person who may accept it). The check
 /// runs before the taken check, so a full account is told so whatever it asked for. It runs AFTER
 /// <see cref="ISubUserTeamLock"/> has made this invitation the only one for the account: counting
 /// first and inserting later, under <c>READ COMMITTED</c>, would let two parallel invitations both
@@ -201,7 +202,14 @@ public sealed class InviteSubUserCommandHandler
         var teamSize = await _dbContext.AccountMemberships.CountAsync(
             candidate => candidate.AccountId == owned.Value && candidate.Role == MembershipRole.Member,
             cancellationToken);
-        if (teamSize >= _limits.MaxPerAccount)
+
+        // An open membership offer is a team place reserved for a person who may accept it, so it
+        // counts here exactly as it does when an offer is made: the two ways in share one cap.
+        var capNow = _clock.UtcNow;
+        var openOffers = await _dbContext.AccountMembershipOffers.CountAsync(
+            candidate => candidate.AccountId == owned.Value && candidate.ResolvedAt == null && candidate.ExpiresAt > capNow,
+            cancellationToken);
+        if (teamSize + openOffers >= _limits.MaxPerAccount)
         {
             await transaction.RollbackAsync(cancellationToken);
             return await RefuseAsync(
