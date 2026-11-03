@@ -84,6 +84,10 @@ const BACKUP: Backup = {
   finishedAt: '2026-09-07T03:01:00Z',
   failureCode: 'DestinationUnreachable',
   failureDisplayName: 'The backup destination could not be reached',
+  verificationState: 'notVerified',
+  verificationStateName: 'Not verified',
+  verifiedAt: null,
+  verificationFailure: null,
 }
 
 const DASHBOARD: Dashboard = {

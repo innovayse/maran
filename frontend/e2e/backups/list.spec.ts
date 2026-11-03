@@ -47,6 +47,10 @@ const COMPLETED: Backup = {
   finishedAt: '2026-09-06T03:04:00Z',
   failureCode: null,
   failureDisplayName: null,
+  verificationState: 'notVerified',
+  verificationStateName: 'Not verified',
+  verifiedAt: null,
+  verificationFailure: null,
 }
 
 /** A run that produced NO artifact. Its `sizeBytes` is zero, which is not a size of zero. */
@@ -66,6 +70,10 @@ const FAILED: Backup = {
   finishedAt: '2026-09-06T04:00:30Z',
   failureCode: 'BackupArchiveTooLarge',
   failureDisplayName: 'The archive grew past what this server will store',
+  verificationState: 'notVerified',
+  verificationStateName: 'Not verified',
+  verifiedAt: null,
+  verificationFailure: null,
 }
 
 test('the backups screen shows the empty state when the panel reports no backups', async ({ page }) => {
@@ -137,6 +145,10 @@ const ORPHANED: Backup = {
   finishedAt: '2026-09-06T05:00:20Z',
   failureCode: null,
   failureDisplayName: null,
+  verificationState: 'notVerified',
+  verificationStateName: 'Not verified',
+  verifiedAt: null,
+  verificationFailure: null,
 }
 
 test('a copy of a deleted account is named by the username preserved on the backup', async ({
@@ -518,6 +530,10 @@ const FAILED_IN_RUSSIAN: Backup = {
   ...FAILED,
   failureCode: 'AgentSystemFailure',
   failureDisplayName: 'Серверу не удалось создать копию',
+  verificationState: 'notVerified',
+  verificationStateName: 'Not verified',
+  verifiedAt: null,
+  verificationFailure: null,
 }
 
 // The defect this closes: the cell printed the identifier and nothing else, so a row read

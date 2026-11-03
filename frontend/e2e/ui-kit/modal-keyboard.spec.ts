@@ -54,6 +54,10 @@ const COMPLETED: Backup = {
   finishedAt: '2026-09-06T03:04:00Z',
   failureCode: null,
   failureDisplayName: null,
+  verificationState: 'notVerified',
+  verificationStateName: 'Not verified',
+  verifiedAt: null,
+  verificationFailure: null,
 }
 
 /**
