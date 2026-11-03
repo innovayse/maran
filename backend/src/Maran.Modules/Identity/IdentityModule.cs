@@ -96,6 +96,7 @@ public sealed class IdentityModule : IPanelModule
         // filter asks to learn whether a person was given a feature. Scoped, because both read the
         // request's own DbContext.
         services.AddScoped<SubUserOwnerGuard>();
+        services.AddScoped<ISubUserTeamLock, SubUserTeamLock>();
         services.AddScoped<IAccountMemberGrants, AccountMemberGrants>();
 
         services.AddScoped<PasswordResetLinkBuilder>();

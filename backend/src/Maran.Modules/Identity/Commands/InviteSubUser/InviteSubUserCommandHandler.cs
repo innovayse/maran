@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Domain.Policies;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
@@ -40,27 +41,47 @@ namespace Maran.Modules.Identity.Commands.InviteSubUser;
 /// could read it off the response could test any name or mailbox against the whole server (a
 /// cross-tenant enumeration, issue #341). So a request that cannot be honoured because the name or
 /// address is taken answers exactly as one that was: the same status, the same body
-/// (<see cref="SubUserInvitationDto"/> echoing the owner's own input), and a response time that
-/// differs only by the writes the honoured request performs — one transaction against a journal
-/// line both paths write. Nothing is created and nothing is mailed for a taken request; the real
-/// outcome is visible to the owner as the presence or absence of the pending person in their list
-/// and to the administrator in the audit log (<c>succeeded: false</c>). Adding an existing person to
-/// a second account without their say would put an account in their switcher unasked, and mailing
-/// them a token that sets a password they already have is of no use to them, so neither is done.
+/// (<see cref="SubUserInvitationDto"/> echoing the owner's own input), and, as far as the rules
+/// allow, the same amount of work. Nothing is created and nothing is mailed for a taken request; the
+/// real outcome is visible to the owner as the presence or absence of the pending person in their
+/// list and to the administrator in the audit log (<c>succeeded: false</c>). Adding an existing
+/// person to a second account without their say would put an account in their switcher unasked, and
+/// mailing them a token that sets a password they already have is of no use to them, so neither is
+/// done.
 /// </para>
 /// <para>
-/// <b>What this does not close, stated.</b> An owner who invites a name and then reads their list
-/// still learns whether the row appeared. That channel is bounded, not removed: by the per-account
-/// cap on sub-users (<see cref="SubUserOptions.MaxPerAccount"/>, refused before the taken check so
-/// it says nothing about the target) and by invitation sending's own rate-limit bucket
+/// <b>Equal work, by staging the same invitation for a login that is not there.</b> Both paths run
+/// one transaction with the same statements in the same order: take the account's lock, count the
+/// team, look for a holder of the name or address, then stage a login, a membership and a token (the
+/// outstanding-token lookup and the insert batch included) and render the invitation mail. A free
+/// request stages the person who was asked for, writes the journal line in that transaction and
+/// commits. A taken request stages a DECOY login (a random name and an address that cannot resolve, so
+/// it never collides and never reaches anybody), rolls the transaction back, and writes the journal
+/// line on its own. Each path therefore ends with one journal row and exactly one durable commit. A
+/// decoy is never durable and its token is never published: the rows are rolled back, and the
+/// rendered mail is dropped, because a secret-bearing message must not outlive its purpose
+/// (rules/csharp.md "a message carrying a secret is never durable").
+/// </para>
+/// <para>
+/// <b>What this does not close, stated.</b> Three differences remain, all small: the free path hands
+/// the finished mail to the bus (an in-memory enqueue, the mail itself is sent after the response),
+/// a rolled-back transaction costs less than a committed one in write-ahead-log volume (not in
+/// flush count: the journal commit is the one flush both paths pay), and the free path's rows are
+/// real where the decoy's are random. And an owner who invites a name and then reads their list still
+/// learns whether the row appeared. That channel is bounded, not removed: by the per-account cap on
+/// sub-users (<see cref="SubUserOptions.MaxPerAccount"/>, refused before the taken check so it says
+/// nothing about the target) and by invitation sending's own rate-limit bucket
 /// (<c>RateLimitPolicies.InvitationSending</c>). Removing it needs a consenting join flow for
 /// existing logins, which is a separate feature.
 /// </para>
 /// <para>
-/// <b>The cap counts members in any state.</b> A pending invitation is already a login, a membership
-/// and a mailed token, and a suspended member still holds a credential, so all of them count against
-/// <see cref="SubUserOptions.MaxPerAccount"/>. The check runs before the taken check, so a full
-/// account is told so whatever it asked for.
+/// <b>The cap counts members in any state, and the count is decided under a lock.</b> A pending
+/// invitation is already a login, a membership and a mailed token, and a suspended member still holds
+/// a credential, so all of them count against <see cref="SubUserOptions.MaxPerAccount"/>. The check
+/// runs before the taken check, so a full account is told so whatever it asked for. It runs AFTER
+/// <see cref="ISubUserTeamLock"/> has made this invitation the only one for the account: counting
+/// first and inserting later, under <c>READ COMMITTED</c>, would let two parallel invitations both
+/// read N-1 and both insert, so the account would end over its cap.
 /// </para>
 /// <para>
 /// <b>Uniqueness is still decided by the database.</b> The pre-check is one query over both columns;
@@ -75,6 +96,9 @@ public sealed class InviteSubUserCommandHandler
 
     /// <summary>Establishes that the caller owns the account they are acting for.</summary>
     private readonly SubUserOwnerGuard _guard;
+
+    /// <summary>Makes this invitation the only one for the account while the cap is decided.</summary>
+    private readonly ISubUserTeamLock _teamLock;
 
     /// <summary>Retires old tokens and mints the new one.</summary>
     private readonly InvitationIssuer _issuer;
@@ -103,6 +127,7 @@ public sealed class InviteSubUserCommandHandler
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="guard">Establishes that the caller owns the account they are acting for.</param>
+    /// <param name="teamLock">Makes this invitation the only one for the account while the cap is decided.</param>
     /// <param name="issuer">Retires old tokens and mints the new one.</param>
     /// <param name="composer">Writes the invitation mail.</param>
     /// <param name="accountDirectory">The read-only window onto the Accounts module.</param>
@@ -114,6 +139,7 @@ public sealed class InviteSubUserCommandHandler
     public InviteSubUserCommandHandler(
         IdentityDbContext dbContext,
         SubUserOwnerGuard guard,
+        ISubUserTeamLock teamLock,
         InvitationIssuer issuer,
         InvitationMailComposer composer,
         IAccountDirectory accountDirectory,
@@ -125,6 +151,7 @@ public sealed class InviteSubUserCommandHandler
     {
         _dbContext = dbContext;
         _guard = guard;
+        _teamLock = teamLock;
         _issuer = issuer;
         _composer = composer;
         _accountDirectory = accountDirectory;
@@ -165,6 +192,10 @@ public sealed class InviteSubUserCommandHandler
                 command, Error.Of(nameof(ErrorMessages.InvitationAccountSuspended), ErrorType.Conflict), cancellationToken);
         }
 
+        // Everything from here to the commit or the rollback is one transaction holding the account's
+        // lock, so the count below is the deciding read and the insert behind it cannot be overtaken.
+        await using var transaction = await _teamLock.BeginAsync(owned.Value, cancellationToken);
+
         // Before the taken check, and independent of the target: the cap is about the owner's own
         // team, so refusing on it discloses nothing about anybody else.
         var teamSize = await _dbContext.AccountMemberships.CountAsync(
@@ -172,20 +203,19 @@ public sealed class InviteSubUserCommandHandler
             cancellationToken);
         if (teamSize >= _limits.MaxPerAccount)
         {
+            await transaction.RollbackAsync(cancellationToken);
             return await RefuseAsync(
                 command, Error.Of(nameof(ErrorMessages.SubUserLimitReached), ErrorType.Conflict), cancellationToken);
         }
 
         var uniform = Result<SubUserInvitationDto>.Ok(new SubUserInvitationDto(command.Username, command.Email));
-        if (await IsTakenAsync(command, cancellationToken))
-        {
-            // Answered as a success on purpose (see the type's remarks); only the journal knows.
-            await JournalAsync(command, succeeded: false, cancellationToken);
-            return uniform;
-        }
+        var taken = await IsTakenAsync(command, cancellationToken);
 
+        // The same staging for both answers (see the type's remarks): a taken request stages a decoy.
         var now = _clock.UtcNow;
-        var user = User.Invite(Guid.NewGuid(), command.Username, command.Email, now);
+        var user = taken
+            ? User.Invite(Guid.NewGuid(), DecoyUsername(), DecoyEmail(), now)
+            : User.Invite(Guid.NewGuid(), command.Username, command.Email, now);
         var membership = AccountMembership.Admit(
             Guid.NewGuid(), user.Id, owned.Value, command.Features.ToSet(), now);
         _dbContext.Users.Add(user);
@@ -194,28 +224,60 @@ public sealed class InviteSubUserCommandHandler
         MintedInvitationToken minted;
         try
         {
-            // Saves the login, the membership and the token's digest in one transaction.
+            // Saves the login, the membership and the token's digest, inside the transaction.
             minted = await _issuer.MintAsync(user, now, cancellationToken);
         }
         catch (DbUpdateException exception) when (
             exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             // Lost a race to a login that took the name or address between the pre-check and the
-            // insert. Nothing this call added exists (SaveChanges rolled it back); stop tracking it
-            // so a retry on this context starts clean, and answer as a taken request does.
+            // insert. The statement failed, so the transaction is unusable: end it, stop tracking
+            // what this call added so a retry on this context starts clean, and answer as a taken
+            // request does.
+            await transaction.RollbackAsync(cancellationToken);
             _dbContext.ChangeTracker.Clear();
             await JournalAsync(command, succeeded: false, cancellationToken);
             return uniform;
         }
 
+        // Rendered for both paths so the work is the same; only the honoured one is ever published.
+        var mail = _composer.Compose(user.Email, minted.Token.Reveal(), account.OwnerLanguage);
+
+        if (taken)
+        {
+            // Answered as a success on purpose (see the type's remarks); only the journal knows.
+            // The decoy's rows are undone, and the journal line is written on its own afterwards.
+            await transaction.RollbackAsync(cancellationToken);
+            _dbContext.ChangeTracker.Clear();
+            await JournalAsync(command, succeeded: false, cancellationToken);
+            return uniform;
+        }
+
+        // Written inside the transaction, so the invitation and its record stand or fall together
+        // and the free path pays one commit, as the taken path's journal write does.
         await JournalAsync(command, succeeded: true, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         // Published, not sent, because the mail credential lives in the Notifications module. The
         // token is in the message body for this one hop and is stored nowhere (the message is not
         // durable: rules/csharp.md "a message carrying a secret is never durable").
-        await _bus.PublishAsync(_composer.Compose(user.Email, minted.Token.Reveal(), account.OwnerLanguage));
+        await _bus.PublishAsync(mail);
 
         return uniform;
+    }
+
+    /// <summary>A login name no request can have asked for, for the login a taken request stages.</summary>
+    /// <returns>A random 32-character name, which no request is going to carry and so never collides.</returns>
+    private static string DecoyUsername()
+    {
+        return Guid.NewGuid().ToString("N");
+    }
+
+    /// <summary>An address that can never be a real person's, for the login a taken request stages.</summary>
+    /// <returns>A random address under the reserved <c>.invalid</c> top-level domain.</returns>
+    private static string DecoyEmail()
+    {
+        return Guid.NewGuid().ToString("N") + "@decoy.invalid";
     }
 
     /// <summary>Asks whether a login already holds the requested name or address.</summary>

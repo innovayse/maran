@@ -167,6 +167,12 @@ public sealed class InvitationIssuer
     /// <param name="now">The current instant, taken from <see cref="IClock"/> by the caller.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>The plaintext token, once, and when it expires.</returns>
+    /// <remarks>
+    /// The save runs on the module's context, so it joins a transaction the caller has open on it and
+    /// is undone with that transaction. The sub-user invitation relies on this: it stages a decoy
+    /// login through this very method and rolls the transaction back, so the work is the same and
+    /// nothing is kept.
+    /// </remarks>
     public async Task<MintedInvitationToken> MintAsync(User user, DateTimeOffset now, CancellationToken cancellationToken)
     {
         foreach (var outstanding in await _dbContext.InvitationTokens
