@@ -99,6 +99,15 @@
   <data name="BackupStatusFailed">
     <value>Ձախողված</value>
   </data>
+  <data name="BackupVerificationStateNotVerified">
+    <value>Չստուգված</value>
+  </data>
+  <data name="BackupVerificationStateVerified">
+    <value>Ստուգված</value>
+  </data>
+  <data name="BackupVerificationStateFailed">
+    <value>Ստուգումը ձախողվել է</value>
+  </data>
   <data name="BackupKindManual">
     <value>Ձեռքով</value>
   </data>

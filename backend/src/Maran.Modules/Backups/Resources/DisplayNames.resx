@@ -99,6 +99,15 @@
   <data name="BackupStatusFailed">
     <value>Failed</value>
   </data>
+  <data name="BackupVerificationStateNotVerified">
+    <value>Not verified</value>
+  </data>
+  <data name="BackupVerificationStateVerified">
+    <value>Verified</value>
+  </data>
+  <data name="BackupVerificationStateFailed">
+    <value>Verification failed</value>
+  </data>
   <data name="BackupKindManual">
     <value>Manual</value>
   </data>

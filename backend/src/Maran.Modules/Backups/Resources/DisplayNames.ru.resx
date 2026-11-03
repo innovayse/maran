@@ -99,6 +99,15 @@
   <data name="BackupStatusFailed">
     <value>Не удалась</value>
   </data>
+  <data name="BackupVerificationStateNotVerified">
+    <value>Не проверена</value>
+  </data>
+  <data name="BackupVerificationStateVerified">
+    <value>Проверена</value>
+  </data>
+  <data name="BackupVerificationStateFailed">
+    <value>Проверка не пройдена</value>
+  </data>
   <data name="BackupKindManual">
     <value>Вручную</value>
   </data>

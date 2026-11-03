@@ -20,6 +20,9 @@ public sealed class BackupDisplayNames
     /// <summary>The prefix a kind's resx key carries.</summary>
     private const string KindPrefix = "BackupKind";
 
+    /// <summary>The prefix a verification state's resx key carries.</summary>
+    private const string VerificationStatePrefix = "BackupVerificationState";
+
     /// <summary>Resolves this module's display-name resources for the current request culture.</summary>
     private readonly IStringLocalizer<DisplayNames> _displayNames;
 
@@ -44,5 +47,13 @@ public sealed class BackupDisplayNames
     public string Of(BackupKind kind)
     {
         return _displayNames[KindPrefix + kind].Value;
+    }
+
+    /// <summary>Names whether a backup's artifact was read back and found sound, as an operator reads it.</summary>
+    /// <param name="state">The verification state to name.</param>
+    /// <returns>The localized name.</returns>
+    public string Of(BackupVerificationState state)
+    {
+        return _displayNames[VerificationStatePrefix + state].Value;
     }
 }
