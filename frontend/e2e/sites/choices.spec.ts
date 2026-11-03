@@ -6,7 +6,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPhpVersions, stubSiteChoices, stubSites } from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
-import type { SiteChoices } from '../../src/types/site'
+import type { Site, SiteChoices } from '../../src/types/site'
 
 const LICENSED_SITES: PanelModule[] = [
   { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
@@ -38,6 +38,20 @@ const PANEL_CHOICES: SiteChoices = {
   ],
 }
 
+/** One site, so the list shows its toolbar: with no site at all the list is the empty state, which has no filters. */
+const ONE_SITE: Site = {
+  id: '33333333-3333-3333-3333-333333333333',
+  accountId: OWNER.id,
+  ownerName: OWNER.name,
+  domain: 'alpha.example.com',
+  backendType: 'static',
+  backendTypeName: 'Panel-labelled static',
+  phpVersion: '',
+  status: 'enabled',
+  statusName: 'Panel-labelled serving',
+  createdAt: '2026-08-30T10:00:00Z',
+}
+
 /**
  * Installs everything the site screens read, with the panel answering the given choices.
  * @param page The Playwright page whose network the routes are installed on.
@@ -49,7 +63,7 @@ const stubScreens = async (page: Page): Promise<void> => {
   await stubModules(page, LICENSED_SITES)
   await stubAccounts(page, [OWNER])
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
-  await stubSites(page, [])
+  await stubSites(page, [ONE_SITE])
   // After stubSites, whose own default answer this replaces.
   await stubSiteChoices(page, PANEL_CHOICES)
 }

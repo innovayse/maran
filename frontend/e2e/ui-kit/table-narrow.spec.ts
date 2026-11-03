@@ -324,7 +324,13 @@ const stubScreens = async (page: Page, locale: (typeof LOCALES)[number] = 'en'):
       return { ...account, statusName: words[account.status] }
     }),
   )
-  await stubBackups(page, [...BACKUPS])
+  // The backup states arrive named by the panel as well.
+  await stubBackups(
+    page,
+    BACKUPS.map((backup) => {
+      return { ...backup, statusName: words[backup.status] ?? backup.statusName }
+    }),
+  )
   await stubAudit(page, auditEvents)
 }
 

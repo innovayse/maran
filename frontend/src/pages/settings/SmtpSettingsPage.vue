@@ -187,7 +187,7 @@ void smtpStore.loadSecurityModes()
       <template #error>
         <UiAlert variant="error">{{ smtpStore.loadMessage ?? t('app.status.unreachable') }}</UiAlert>
       </template>
-      <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         <UiForm :loading="smtpStore.loadState === 'loading'" @submit="submit">
           <div class="flex flex-col gap-4">
             <UiCard>
