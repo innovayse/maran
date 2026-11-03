@@ -2,12 +2,10 @@ using Maran.Modules.Accounts.Commands.CreateAccount;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Events;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreateAccount;
 
@@ -26,12 +24,6 @@ public sealed class CreateAccountCommandHandlerTests
     /// <summary>The user agent every command in this file carries.</summary>
     private const string Client = "unit-tests";
 
-    /// <summary>Builds a journal writing into a writer nothing asserts on; the audit tests do that.</summary>
-    private static AccountAuditJournal Journal()
-    {
-        return new AccountAuditJournal(new RecordingAuditWriter(), FakeCurrentUser.Admin());
-    }
-
     /// <summary>Builds a fresh, isolated in-memory <see cref="AccountsDbContext"/>.</summary>
     private static AccountsDbContext CreateDbContext()
     {
@@ -48,7 +40,7 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance, new StubDisplayNames());
+        var handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent);
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
@@ -74,7 +66,7 @@ public sealed class CreateAccountCommandHandlerTests
         var agent = new RecordingAgentAccountsClient();
         dbContext.Accounts.Add(new Account(Guid.NewGuid(), "acme", "existing.example.com", Guid.NewGuid(), clock.UtcNow));
         await dbContext.SaveChangesAsync();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance, new StubDisplayNames());
+        var handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent);
 
         var result = await handler.HandleAsync(
             new CreateAccountCommand("acme", "different.example.com", Guid.NewGuid(), "owner@example.com", IpAddress: Ip, UserAgent: Client),
@@ -93,7 +85,7 @@ public sealed class CreateAccountCommandHandlerTests
         var agent = new RecordingAgentAccountsClient();
         dbContext.Accounts.Add(new Account(Guid.NewGuid(), "existing", "acme.example.com", Guid.NewGuid(), clock.UtcNow));
         await dbContext.SaveChangesAsync();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance, new StubDisplayNames());
+        var handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent);
 
         var result = await handler.HandleAsync(
             new CreateAccountCommand("newname", "acme.example.com", Guid.NewGuid(), "owner@example.com", IpAddress: Ip, UserAgent: Client),
@@ -115,9 +107,8 @@ public sealed class CreateAccountCommandHandlerTests
     public async Task Creating_an_account_provisions_the_system_user_with_the_plans_quota()
     {
         await using var dbContext = CreateDbContext();
-        var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance, new StubDisplayNames());
+        var handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent);
         var planId = await SeedPlanAsync(dbContext, diskQuotaMb: 5_120);
 
         await handler.HandleAsync(
@@ -135,9 +126,8 @@ public sealed class CreateAccountCommandHandlerTests
         // The agent runs first precisely so this is the failure mode: nothing was written, and the
         // caller sees the agent's own typed error rather than an account that does not exist.
         await using var dbContext = CreateDbContext();
-        var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient(Error.Of("AgentUnavailable", ErrorType.Unavailable));
-        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance, new StubDisplayNames());
+        var handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent);
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
@@ -157,10 +147,9 @@ public sealed class CreateAccountCommandHandlerTests
     public async Task A_subscriber_that_fails_to_issue_the_login_returns_the_typed_error_and_keeps_the_account_row()
     {
         await using var dbContext = CreateDbContext();
-        var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
         var bus = new StubMessageBus(new InvalidOperationException("SMTP relay unreachable"));
-        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), bus, NullLogger<CreateAccountCommandHandler>.Instance, new StubDisplayNames());
+        var handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent, bus: bus);
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
@@ -179,9 +168,8 @@ public sealed class CreateAccountCommandHandlerTests
     public async Task An_unknown_plan_is_refused_before_the_agent_is_asked_to_do_anything()
     {
         await using var dbContext = CreateDbContext();
-        var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance, new StubDisplayNames());
+        var handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent);
 
         var result = await handler.HandleAsync(
             new CreateAccountCommand("acme", "acme.example.com", Guid.NewGuid(), "owner@example.com", IpAddress: Ip, UserAgent: Client), CancellationToken.None);
@@ -207,15 +195,13 @@ public sealed class CreateAccountCommandHandlerTests
     public async Task The_owners_language_is_stored_on_the_account_and_carried_to_the_logins_invitation()
     {
         await using var dbContext = CreateDbContext();
-        var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
         var bus = new StubMessageBus();
-        var handler = new CreateAccountCommandHandler(
-            dbContext, agent, new AccountRuntimeLimitsEnforcer(agent), clock, Journal(), bus, NullLogger<CreateAccountCommandHandler>.Instance, new StubDisplayNames());
+        var handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent, bus: bus);
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", "hy", Ip, Client),
+            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", "hy", IpAddress: Ip, UserAgent: Client),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);

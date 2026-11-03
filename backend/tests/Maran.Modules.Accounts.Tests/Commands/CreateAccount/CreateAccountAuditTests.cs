@@ -2,12 +2,10 @@ using Maran.Modules.Accounts.Commands.CreateAccount;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreateAccount;
 
@@ -156,15 +154,7 @@ public sealed class CreateAccountAuditTests
             DbContext = dbContext;
             Audit = new RecordingAuditWriter();
             PlanId = planId;
-            _handler = new CreateAccountCommandHandler(
-                dbContext,
-                agent,
-                new AccountRuntimeLimitsEnforcer(agent),
-                new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
-                new AccountAuditJournal(Audit, FakeCurrentUser.Admin()),
-                new StubMessageBus(),
-                NullLogger<CreateAccountCommandHandler>.Instance,
-                new StubDisplayNames());
+            _handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent, Audit);
         }
 
         /// <summary>The module's context, so a test can assert no row was stored.</summary>
