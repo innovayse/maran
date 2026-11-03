@@ -142,9 +142,7 @@ const REVISIONS: &[(u32, u64)] = &[
     (15, 0x79fb_aa5c_2e22_2194),
     (16, 0x6d9e_fca8_8145_5caa),
     (17, 0x8462_2503_bd18_b072),
-    // Placeholder: the lead replaces this with the digest of the recorded
-    // baseline after `maran proto --accept` (issue #134).
-    (18, 0x0000_0000_0000_0000),
+    (18, 0xcc07_f6a6_861a_d2a4),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to
