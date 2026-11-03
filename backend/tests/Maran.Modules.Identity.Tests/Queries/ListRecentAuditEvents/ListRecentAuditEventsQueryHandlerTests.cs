@@ -29,7 +29,7 @@ public sealed class ListRecentAuditEventsQueryHandlerTests : IDisposable
 
     private ListRecentAuditEventsQueryHandler Handler()
     {
-        return new ListRecentAuditEventsQueryHandler(_context, IdentityTestContext.ActionNames());
+        return new ListRecentAuditEventsQueryHandler(_context, IdentityTestContext.ActionNames(), IdentityTestContext.OutcomeNames());
     }
 
     /// <summary>Listing returns the most recent events first.</summary>

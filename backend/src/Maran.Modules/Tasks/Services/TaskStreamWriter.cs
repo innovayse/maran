@@ -60,16 +60,16 @@ public sealed class TaskStreamWriter
     /// A task's log carries whatever the instrumented operation reported and its subject is a name a
     /// caller chose, so both are serialized rather than concatenated and cannot forge a frame of
     /// their own; the reasoning lives with the renderer (<see cref="EventStreamFrame"/>). The ending
-    /// is discriminated by <see cref="TaskFrame.EndStatus"/>, whose counterpart
+    /// is discriminated by <see cref="TaskFrame.End"/>, whose counterpart
     /// <see cref="TaskFrame.Snapshot"/> is null on exactly those frames.
     /// </remarks>
     private static string Format(TaskFrame frame)
     {
-        if (frame.EndStatus is null)
+        if (frame.End is null)
         {
             return EventStreamFrame.Render("task", frame.Snapshot!);
         }
 
-        return EventStreamFrame.Render("end", new TaskStreamEndDto(frame.EndStatus.Value));
+        return EventStreamFrame.Render("end", frame.End);
     }
 }

@@ -33,4 +33,12 @@ public sealed class AuditOutcomeDisplayNames
     {
         return _displayNames[KeyPrefix + outcome].Value;
     }
+
+    /// <summary>Names the outcome a journal row recorded as an administrator reads it.</summary>
+    /// <param name="succeeded">Whether the recorded action worked.</param>
+    /// <returns>The localized name of <see cref="AuditOutcome.Succeeded"/> or <see cref="AuditOutcome.Failed"/>.</returns>
+    public string Of(bool succeeded)
+    {
+        return Of(succeeded ? AuditOutcome.Succeeded : AuditOutcome.Failed);
+    }
 }

@@ -17,8 +17,10 @@ namespace Maran.Modules.Sites.Common;
 /// </param>
 /// <param name="Domain">The primary domain served by this site.</param>
 /// <param name="BackendType">Which backend serves this site's content.</param>
+/// <param name="BackendTypeName">The backend as an operator reads it, localized for the request's culture by <c>SiteDisplayNames</c>.</param>
 /// <param name="PhpVersion">The bound PHP version, or the empty string when the backend is not PHP.</param>
 /// <param name="Status">Whether the site serves its own content or a suspension response.</param>
+/// <param name="StatusName">The serving state as an operator reads it, localized for the request's culture by <c>SiteDisplayNames</c>.</param>
 /// <param name="CreatedAt">The instant the site was created.</param>
 public sealed record SiteDto(
     Guid Id,
@@ -26,6 +28,8 @@ public sealed record SiteDto(
     string OwnerName,
     string Domain,
     SiteBackendType BackendType,
+    string BackendTypeName,
     string PhpVersion,
     SiteStatus Status,
+    string StatusName,
     DateTimeOffset CreatedAt);

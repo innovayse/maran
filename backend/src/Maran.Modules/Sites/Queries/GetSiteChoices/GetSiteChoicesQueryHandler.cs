@@ -1,8 +1,7 @@
 using System.Text.Json;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Enums;
-using Maran.Modules.Sites.Resources;
-using Microsoft.Extensions.Localization;
+using Maran.Modules.Sites.Services;
 
 namespace Maran.Modules.Sites.Queries.GetSiteChoices;
 
@@ -17,14 +16,14 @@ namespace Maran.Modules.Sites.Queries.GetSiteChoices;
 /// </remarks>
 public sealed class GetSiteChoicesQueryHandler
 {
-    /// <summary>The module's display-name table, in the caller's culture.</summary>
-    private readonly IStringLocalizer<DisplayNames> _displayNames;
+    /// <summary>Names the backends and serving states in the caller's culture.</summary>
+    private readonly SiteDisplayNames _siteNames;
 
     /// <summary>Creates the handler.</summary>
-    /// <param name="displayNames">The module's display-name table, in the caller's culture.</param>
-    public GetSiteChoicesQueryHandler(IStringLocalizer<DisplayNames> displayNames)
+    /// <param name="siteNames">Names the backends and serving states in the caller's culture.</param>
+    public GetSiteChoicesQueryHandler(SiteDisplayNames siteNames)
     {
-        _displayNames = displayNames;
+        _siteNames = siteNames;
     }
 
     /// <summary>Returns the backend types and serving states, labelled in the caller's language.</summary>
@@ -34,22 +33,22 @@ public sealed class GetSiteChoicesQueryHandler
     public Task<Result<SiteChoicesDto>> HandleAsync(GetSiteChoicesQuery query, CancellationToken cancellationToken)
     {
         var choices = new SiteChoicesDto(
-            ChoicesOf<SiteBackendType>("SiteBackendType"),
-            ChoicesOf<SiteStatus>("SiteStatus"));
+            ChoicesOf<SiteBackendType>(_siteNames.Of),
+            ChoicesOf<SiteStatus>(_siteNames.Of));
 
         return Task.FromResult(Result<SiteChoicesDto>.Ok(choices));
     }
 
     /// <summary>Lists every member of an enum as a choice, in declaration order.</summary>
     /// <typeparam name="TEnum">The closed set to list.</typeparam>
-    /// <param name="keyPrefix">The resource key prefix; the member's name completes the key.</param>
+    /// <param name="nameOf">Names one member in the caller's culture.</param>
     /// <returns>One choice per member.</returns>
-    private List<SiteChoiceDto> ChoicesOf<TEnum>(string keyPrefix)
+    private static List<SiteChoiceDto> ChoicesOf<TEnum>(Func<TEnum, string> nameOf)
         where TEnum : struct, Enum
     {
-        return Enum.GetNames<TEnum>().Select(name =>
+        return Enum.GetValues<TEnum>().Select(member =>
         {
-            return new SiteChoiceDto(JsonNamingPolicy.CamelCase.ConvertName(name), _displayNames[keyPrefix + name]);
+            return new SiteChoiceDto(JsonNamingPolicy.CamelCase.ConvertName(member.ToString()), nameOf(member));
         }).ToList();
     }
 }

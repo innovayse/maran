@@ -227,7 +227,8 @@ public sealed class DisableSiteCommandHandlerTests
             context,
             accounts,
             agent,
-            new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)));
+            new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
+            SitesTestContext.SiteNames());
     }
 
     /// <summary>Seeds one site in the state this operation acts from, and returns its id.</summary>

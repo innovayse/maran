@@ -315,7 +315,8 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
             accounts,
             agent,
             new RecordingAgentPhpClient(installedPhp ?? ["8.3", "8.4"]),
-            new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)));
+            new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
+            SitesTestContext.SiteNames());
     }
 
     /// <summary>Seeds one site and returns its id.</summary>

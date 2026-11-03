@@ -220,7 +220,7 @@ public sealed class ListSitesQueryHandlerTests
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
         var directory = new StubAccountDirectory(Snapshot(acme, "acme"), Snapshot(globex, "globex"));
 
-        var result = await new ListSitesQueryHandler(context, directory)
+        var result = await new ListSitesQueryHandler(context, directory, SitesTestContext.SiteNames())
             .HandleAsync(new ListSitesQuery(), CancellationToken.None);
 
         Assert.Equal(["acme", "acme", "globex"], result.Value.Items.Select(site =>
@@ -245,7 +245,7 @@ public sealed class ListSitesQueryHandlerTests
         await SeedSitesAsync(database, NewSite(account, "orphan.example.com", Epoch));
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
-        var result = await new ListSitesQueryHandler(context, new StubAccountDirectory())
+        var result = await new ListSitesQueryHandler(context, new StubAccountDirectory(), SitesTestContext.SiteNames())
             .HandleAsync(new ListSitesQuery(), CancellationToken.None);
 
         Assert.Equal(string.Empty, Assert.Single(result.Value.Items).OwnerName);
@@ -258,7 +258,7 @@ public sealed class ListSitesQueryHandlerTests
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin());
         var directory = new StubAccountDirectory();
 
-        var result = await new ListSitesQueryHandler(context, directory)
+        var result = await new ListSitesQueryHandler(context, directory, SitesTestContext.SiteNames())
             .HandleAsync(new ListSitesQuery(), CancellationToken.None);
 
         Assert.Empty(result.Value.Items);
@@ -271,7 +271,7 @@ public sealed class ListSitesQueryHandlerTests
     /// <param name="query">The list request.</param>
     private static Task<Result<PagedResult<SiteDto>>> HandleAsync(SitesDbContext context, ListSitesQuery query)
     {
-        return new ListSitesQueryHandler(context, new StubAccountDirectory())
+        return new ListSitesQueryHandler(context, new StubAccountDirectory(), SitesTestContext.SiteNames())
             .HandleAsync(query, CancellationToken.None);
     }
 

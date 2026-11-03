@@ -40,7 +40,7 @@ public sealed class RunningTasksStreamServiceTests
         var service = new RunningTasksStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             subscriber);
         using var watching = new CancellationTokenSource(ReadTimeout);
@@ -88,7 +88,7 @@ public sealed class RunningTasksStreamServiceTests
         var service = new RunningTasksStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             subscriber);
         using var watching = new CancellationTokenSource(ReadTimeout);

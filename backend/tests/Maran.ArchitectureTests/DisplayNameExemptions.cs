@@ -166,31 +166,6 @@ public static class DisplayNameExemptions
             "The clock card's badge, a tone as much as a word, like ServiceStatusDto.State. The "
             + "sentence saying what the state means is the backend's, in Description (issue #150)."),
         new(
-            "Maran.Modules.Sites.Common.SiteDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "sites.status.{member}",
-            "Enabled or disabled, drawn as a badge from a set the domain closes."),
-        new(
-            "Maran.Modules.Sites.Common.SiteDto",
-            "BackendType",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "sites.backendType.{member}",
-            "What serves the site is a closed choice this panel offers when the site is created, "
-            + "so the bundle already words all three to offer it."),
-        new(
-            "Maran.Modules.Sites.Common.SiteDetailDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "sites.status.{member}",
-            "The detail screen draws the list's badge from the same closed set."),
-        new(
-            "Maran.Modules.Sites.Common.SiteDetailDto",
-            "BackendType",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "sites.backendType.{member}",
-            "The same closed choice the create form offers, shown back on the detail screen."),
-        new(
             "Maran.Modules.Sites.Common.SiteLogEndDto",
             "Reason",
             DisplayNameExemptionKind.SpaOwnedVocabulary,
@@ -264,13 +239,6 @@ public static class DisplayNameExemptions
             "Default, not default and not established are the three answers of the versions table's "
             + "default column, which the page words as yes, no and not established beside the badge tone."),
         new(
-            "Maran.Modules.Tasks.Common.PanelTaskDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "tasks.statuses.{member}",
-            "Running, completed, failed — the badge on the tasks table, from a set the panel "
-            + "closes."),
-        new(
             "Maran.Modules.Tasks.Common.TaskFailureDto",
             "Code",
             DisplayNameExemptionKind.NotAnOperatorFacingName,
@@ -279,11 +247,5 @@ public static class DisplayNameExemptions
             + "sentence the backend resolves for the reader's culture (issue #272). The defect this "
             + "law is about is a code printed AS the name of the thing; a code labelled as a code "
             + "beside its own sentence is the cure for it, not an instance of it."),
-        new(
-            "Maran.Modules.Tasks.Common.TaskStreamEndDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "tasks.statuses.{member}",
-            "The final frame of the stream carries the same badge value as the row it closes."),
     ];
 }

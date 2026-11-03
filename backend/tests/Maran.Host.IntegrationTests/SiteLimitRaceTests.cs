@@ -2,10 +2,13 @@ using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Sites.Commands.CreateSite;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Resources;
 using Maran.Modules.Sites.Services;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -200,7 +203,10 @@ public sealed class SiteLimitRaceTests : IAsyncLifetime
             new SiteSlotGate(context),
             new SiteAuditJournal(new DiscardingAuditWriter(), principal),
             new FixedInstantClock(),
-            NullLogger<CreateSiteCommandHandler>.Instance);
+            NullLogger<CreateSiteCommandHandler>.Instance,
+            new SiteDisplayNames(new StringLocalizer<DisplayNames>(new ResourceManagerStringLocalizerFactory(
+                new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+                NullLoggerFactory.Instance))));
 
         return await handler.HandleAsync(
             new CreateSiteCommand(AccountId, domain, SiteBackendType.Static, []), CancellationToken.None);

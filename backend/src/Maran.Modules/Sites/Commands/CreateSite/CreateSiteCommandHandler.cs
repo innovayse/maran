@@ -188,6 +188,9 @@ public sealed class CreateSiteCommandHandler
     /// <summary>Where a failed or withheld compensation is reported, since the customer is told nothing about it.</summary>
     private readonly ILogger<CreateSiteCommandHandler> _logger;
 
+    /// <summary>Names the site's backend and serving state in the request's culture.</summary>
+    private readonly SiteDisplayNames _siteNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name and plan allowance.</param>
@@ -197,6 +200,7 @@ public sealed class CreateSiteCommandHandler
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="clock">The injected time source used to stamp the new site's creation time.</param>
     /// <param name="logger">Where a failed or withheld compensation is reported.</param>
+    /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
     public CreateSiteCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
@@ -205,9 +209,11 @@ public sealed class CreateSiteCommandHandler
         ISiteSlotGate slotGate,
         SiteAuditJournal journal,
         IClock clock,
-        ILogger<CreateSiteCommandHandler> logger)
+        ILogger<CreateSiteCommandHandler> logger,
+        SiteDisplayNames siteNames)
     {
         _dbContext = dbContext;
+        _siteNames = siteNames;
         _accounts = accounts;
         _agent = agent;
         _php = php;
@@ -341,8 +347,10 @@ public sealed class CreateSiteCommandHandler
             account.Username,
             site.Domain,
             site.BackendType,
+            _siteNames.Of(site.BackendType),
             site.PhpVersion,
             site.Status,
+            _siteNames.Of(site.Status),
             site.CreatedAt));
     }
 

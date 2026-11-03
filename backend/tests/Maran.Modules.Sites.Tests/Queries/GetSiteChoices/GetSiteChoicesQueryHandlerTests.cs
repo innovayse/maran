@@ -2,6 +2,7 @@ using System.Text.Json;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Queries.GetSiteChoices;
 using Maran.Modules.Sites.Resources;
+using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -92,7 +93,7 @@ public sealed class GetSiteChoicesQueryHandlerTests
             new ResourceManagerStringLocalizerFactory(
                 new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
                 NullLoggerFactory.Instance));
-        var handler = new GetSiteChoicesQueryHandler(localizer);
+        var handler = new GetSiteChoicesQueryHandler(new SiteDisplayNames(localizer));
 
         var result = await handler.HandleAsync(new GetSiteChoicesQuery(), CancellationToken.None);
 

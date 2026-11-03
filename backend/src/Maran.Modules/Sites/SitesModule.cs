@@ -62,6 +62,9 @@ public sealed class SitesModule : IPanelModule
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
         services.AddScoped<SiteAuditJournal>();
 
+        // Scoped, because the localizer it wraps resolves the request's own culture.
+        services.AddScoped<SiteDisplayNames>();
+
         // Scoped, because it takes a transaction on the request's own DbContext connection: the
         // advisory lock it holds is scoped to that transaction and must be released by its commit.
         services.AddScoped<ISiteSlotGate, SiteSlotGate>();

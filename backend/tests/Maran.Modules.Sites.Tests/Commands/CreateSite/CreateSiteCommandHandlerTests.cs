@@ -797,7 +797,8 @@ public sealed class CreateSiteCommandHandlerTests
                 SlotGate,
                 new SiteAuditJournal(Audit, CurrentUser),
                 new FakeClock(Now),
-                Logger);
+                Logger,
+                SitesTestContext.SiteNames());
         }
     }
 }

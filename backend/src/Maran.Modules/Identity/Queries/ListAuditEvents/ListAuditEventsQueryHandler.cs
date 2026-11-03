@@ -34,13 +34,18 @@ public sealed class ListAuditEventsQueryHandler
     /// <summary>Names each row's action as an operator reads it, in the request's culture.</summary>
     private readonly AuditActionDisplayNames _actionNames;
 
+    /// <summary>Names an audit outcome as an administrator reads it, in the request's culture.</summary>
+    private readonly AuditOutcomeDisplayNames _outcomeNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="actionNames">Names an audit action for the request's culture.</param>
-    public ListAuditEventsQueryHandler(IdentityDbContext dbContext, AuditActionDisplayNames actionNames)
+    /// <param name="outcomeNames">Names an audit outcome for the request's culture.</param>
+    public ListAuditEventsQueryHandler(IdentityDbContext dbContext, AuditActionDisplayNames actionNames, AuditOutcomeDisplayNames outcomeNames)
     {
         _dbContext = dbContext;
         _actionNames = actionNames;
+        _outcomeNames = outcomeNames;
     }
 
     /// <summary>
@@ -93,7 +98,7 @@ public sealed class ListAuditEventsQueryHandler
 
         return Result<PagedResult<AuditEventDto>>.Ok(page.Map(auditEvent =>
         {
-            return AuditEventMapper.From(auditEvent, _actionNames.Of(auditEvent.Action));
+            return AuditEventMapper.From(auditEvent, _actionNames.Of(auditEvent.Action), _outcomeNames.Of(auditEvent.Succeeded));
         }));
     }
 }

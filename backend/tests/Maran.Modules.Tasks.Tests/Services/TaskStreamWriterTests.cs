@@ -27,6 +27,7 @@ public sealed class TaskStreamWriterTests
         "example.com",
         null,
         PanelTaskStatus.Running,
+        "Running",
         40,
         "ordering",
         true,
@@ -44,7 +45,7 @@ public sealed class TaskStreamWriterTests
         Assert.Equal(
             ": open\n\nevent: task\ndata: {\"id\":\"11111111-2222-3333-4444-555555555555\","
             + "\"kind\":\"CertificateIssue\",\"kindDisplayName\":\"Issuing a certificate\","
-            + "\"subject\":\"example.com\",\"status\":\"running\","
+            + "\"subject\":\"example.com\",\"status\":\"running\",\"statusName\":\"Running\","
             + "\"percent\":40,\"log\":\"ordering\",\"logIncluded\":true,"
             + "\"startedAt\":\"2026-03-01T12:00:00+00:00\",\"revision\":1}\n\n",
             written);
@@ -54,9 +55,9 @@ public sealed class TaskStreamWriterTests
     [Fact]
     public async Task An_end_frame_names_the_status_the_task_reached()
     {
-        var written = await WriteAsync(TaskFrame.OfEnd(PanelTaskStatus.Failed));
+        var written = await WriteAsync(TaskFrame.OfEnd(new TaskStreamEndDto(PanelTaskStatus.Failed, "Failed")));
 
-        Assert.Equal(": open\n\nevent: end\ndata: {\"status\":\"failed\"}\n\n", written);
+        Assert.Equal(": open\n\nevent: end\ndata: {\"status\":\"failed\",\"statusName\":\"Failed\"}\n\n", written);
     }
 
     /// <summary>A task log cannot forge a frame with newlines or quotes of its own.</summary>
