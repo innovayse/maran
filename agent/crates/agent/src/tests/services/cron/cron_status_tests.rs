@@ -32,6 +32,8 @@ fn every_variant() -> Vec<CronError> {
         CronError::EntryLimitReached,
         CronError::Suspended,
         CronError::RunUnavailable,
+        CronError::RunCapacityReached,
+        CronError::RunNotStopped,
         CronError::Account(ManagedAccountError::Reserved),
         CronError::Account(ManagedAccountError::NotFound),
         CronError::Account(ManagedAccountError::SystemIdentity),
@@ -142,6 +144,33 @@ fn a_suspended_account_refusing_a_run_is_its_own_code() {
 fn a_run_that_could_not_be_started_is_a_system_failure() {
     assert_eq!(
         code_of(&CronError::RunUnavailable),
+        ErrorCode::SystemFailure as i32
+    );
+}
+
+#[test]
+fn a_run_refused_for_capacity_is_the_saturated_code_and_none_of_its_neighbours() {
+    // Not ACCOUNT_BUSY (one account's lock was held), not LIMIT_REACHED (the
+    // panel's allowance, which waiting does not clear) and not SYSTEM_FAILURE
+    // (nothing is wrong with the host): the panel answers each of those
+    // differently, and this one means "try again in a moment".
+    let refusal = code_of(&CronError::RunCapacityReached);
+
+    assert_eq!(refusal, ErrorCode::AgentSaturated as i32);
+    for neighbour in [
+        ErrorCode::AccountBusy,
+        ErrorCode::LimitReached,
+        ErrorCode::SystemFailure,
+        ErrorCode::AccountSuspended,
+    ] {
+        assert_ne!(refusal, neighbour as i32);
+    }
+}
+
+#[test]
+fn a_run_whose_unit_could_not_be_confirmed_stopped_is_a_fault_and_not_a_stopped_run() {
+    assert_eq!(
+        code_of(&CronError::RunNotStopped),
         ErrorCode::SystemFailure as i32
     );
 }

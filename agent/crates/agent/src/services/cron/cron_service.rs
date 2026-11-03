@@ -373,6 +373,11 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
     }
 
     /// Starts one of the account's entries now, as the account, and waits.
+    ///
+    /// A run holds a blocking-pool thread until the job ends, so the operation
+    /// admits a bounded number at once and refuses the rest with
+    /// `AgentSaturated` (issue #333); the bound lives in `ops`, where the slot
+    /// is taken before anything is read.
     async fn run_cron_entry(
         &self,
         request: Request<RunCronEntryRequest>,

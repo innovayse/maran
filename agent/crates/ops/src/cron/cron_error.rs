@@ -181,6 +181,32 @@ pub enum CronError {
     /// wrong place. Carries nothing, for the reason the enum states.
     #[error("the cron entry could not be started")]
     RunUnavailable,
+
+    /// The agent is already running as many entries by hand as it admits, for
+    /// this account or for the whole host, so this one was refused before
+    /// anything started (issue #333).
+    ///
+    /// A run holds a worker thread of the agent for as long as the job lasts, up
+    /// to its runtime ceiling, and the generic request rate limit is a rate and
+    /// not a count of runs in flight: a few hundred requests a minute is a few
+    /// hundred threads held at once. Its own variant, because it is the one
+    /// refusal here that clears by waiting and that the panel is told to retry
+    /// later; nothing is wrong with the host, the account or the entry. Carries
+    /// nothing, and does not say WHICH of the two bounds was reached: the second
+    /// would tell a customer how busy their neighbours are.
+    #[error("too many cron entries are running by hand at once")]
+    RunCapacityReached,
+
+    /// The unit a run by hand started could not be confirmed stopped after a
+    /// ceiling ended the run (issue #336).
+    ///
+    /// Its own variant and not [`Self::RunUnavailable`]: the run DID start, and
+    /// the job may still be running until the service manager's own runtime
+    /// ceiling stops it. Reporting a run that "was stopped" over a unit that
+    /// might not have been is the defect this exists to refuse, and the panel
+    /// has to be able to say so. Carries nothing, for the reason the enum states.
+    #[error("the cron entry's run could not be confirmed stopped")]
+    RunNotStopped,
 }
 
 #[cfg(test)]

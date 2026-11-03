@@ -30,8 +30,11 @@ use crate::cron::model::cron_entry::CronEntry;
 use crate::cron::model::cron_environment::CronEnvironment;
 use crate::cron::model::cron_run::CronRun;
 use crate::cron::model::cron_run_record::CronRunRecord;
+use crate::cron::model::run_unit_name::RunUnitName;
 use crate::cron::run_now_arguments::{RUN_NOW_OUTPUT_CEILING, run_now_arguments};
 use crate::cron::run_now_outcome::run_now_outcome;
+use crate::cron::run_unit_must_stop::run_unit_must_stop;
+use crate::cron::stop_run_unit::stop_run_unit;
 
 /// The mode the account's cron directory is created with.
 ///
@@ -261,8 +264,14 @@ impl CronHost for ProcessCronHost {
         // account: the job must land in the account's cgroup, which a child of
         // the agent could not be moved into without a second privileged step.
         // The agent spawns only the client, through the bounded core.
+        //
+        // The unit is NAMED by the agent (issue #336), because the client is not
+        // the job: a ceiling that kills the client leaves the job running, and
+        // the only way to end it is to stop the unit by name.
         let program = self.distro.systemd_run_binary();
-        let arguments = run_now_arguments(account, entry, environment, self.distro.sh_binary());
+        let unit = RunUnitName::next(account.uid(), entry);
+        let arguments =
+            run_now_arguments(account, entry, &unit, environment, self.distro.sh_binary());
         let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
 
         let started = Instant::now();
@@ -277,6 +286,15 @@ impl CronHost for ProcessCronHost {
             },
         });
 
-        run_now_outcome(answer, started.elapsed())
+        let elapsed = started.elapsed();
+
+        // A run reported as stopped by a ceiling must BE stopped. The customer
+        // is told so, and without this the job runs on until its runtime
+        // ceiling, still holding its place in the account's slice.
+        if run_unit_must_stop(&answer) {
+            stop_run_unit(&self.distro.service_manager(), &unit)?;
+        }
+
+        run_now_outcome(answer, elapsed)
     }
 }

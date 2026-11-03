@@ -146,9 +146,13 @@ mod run_cron_entry;
 pub(crate) mod recording_cron_host;
 mod run_now_arguments;
 mod run_now_outcome;
+mod run_now_slot;
+mod run_now_slots;
+mod run_unit_must_stop;
 mod set_account_cron_suspended;
 mod set_cron_entry_enabled;
 mod set_cron_environment;
+mod stop_run_unit;
 #[cfg(test)]
 #[path = "../tests/cron/unmanaged_case.rs"]
 pub(crate) mod unmanaged_case;
