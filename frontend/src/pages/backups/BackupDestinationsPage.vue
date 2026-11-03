@@ -95,14 +95,19 @@ const table = useServerTable<BackupDestination>({
   filters: {
     kind: {
       /**
-       * Honours only a kind the panel knows, so a hand-edited link never reaches the server.
+       * Honours only a kind of storage the panel lists, so a hand-edited link never reaches the
+       * server; permissive while the list is unknown (not yet read, or the read failed).
        * @param value The `?kind=` value.
-       * @returns True for a known kind.
+       * @returns True for a listed kind, or while the list is unknown.
        */
       accepts: (value: string): boolean => {
-        return KINDS.some((entry) => {
-          return entry.kind === value
-        })
+        const listed = optionsStore.options.destinationKinds
+        return (
+          listed.length === 0 ||
+          listed.some((choice) => {
+            return choice.value === value
+          })
+        )
       },
     },
   },

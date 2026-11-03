@@ -266,11 +266,11 @@ onBeforeUnmount(() => {
         <UiPageHeading
           mono
           :title="site?.domain ?? ''"
-          :subtitle="site === null ? '' : t(`sites.backendType.${site.backendType}`)"
+          :subtitle="site === null ? '' : site.backendTypeName"
           :loading="isLoading"
         >
           <template #actions>
-            <SiteStatusBadge v-if="site !== null" :status="site.status" />
+            <SiteStatusBadge v-if="site !== null" :status="site.status" :label="site.statusName" />
             <UiLink :to="{ name: 'sites' }" icon="chevronLeft">{{ t('sites.detail.backToList') }}</UiLink>
           </template>
         </UiPageHeading>
@@ -304,7 +304,7 @@ onBeforeUnmount(() => {
                 }}
               </UiDescriptionItem>
               <UiDescriptionItem :term="t('sites.detail.backendTypeLabel')">
-                {{ site === null ? '' : t(`sites.backendType.${site.backendType}`) }}
+                {{ site === null ? '' : site.backendTypeName }}
               </UiDescriptionItem>
               <UiDescriptionItem
                 v-if="site !== null && site.phpVersion.length > 0"
@@ -324,7 +324,7 @@ onBeforeUnmount(() => {
                 {{ site?.documentRoot }}
               </UiDescriptionItem>
               <UiDescriptionItem :term="t('sites.detail.statusLabel')">
-                <SiteStatusBadge v-if="site !== null" :status="site.status" />
+                <SiteStatusBadge v-if="site !== null" :status="site.status" :label="site.statusName" />
               </UiDescriptionItem>
               <UiDescriptionItem :term="t('sites.detail.certificateLabel')">
                 {{

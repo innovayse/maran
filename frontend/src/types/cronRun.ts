@@ -6,9 +6,6 @@ import type { ListRequest, Paged } from './list'
  */
 export type CronRunOutcome = 'succeeded' | 'failed' | 'stopped'
 
-/** Every {@link CronRunOutcome}, in the order the history's filter offers them. */
-export const CRON_RUN_OUTCOMES: readonly CronRunOutcome[] = ['succeeded', 'failed', 'stopped']
-
 /** The agent's ceiling that stopped a run, mirroring the backend's `CronRunLimit`. */
 export type CronRunLimit = 'runtime' | 'output'
 

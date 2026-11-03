@@ -202,8 +202,10 @@ export const useSitesStore = defineStore('sites', () => {
         site: {
           ...current.site,
           backendType: changed.backendType,
+          backendTypeName: changed.backendTypeName,
           phpVersion: changed.phpVersion,
           status: changed.status,
+          statusName: changed.statusName,
         },
       }
     }

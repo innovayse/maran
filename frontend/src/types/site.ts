@@ -39,10 +39,14 @@ export interface Site {
   domain: string
   /** Which backend serves this site's content. */
   backendType: SiteBackendType
+  /** The backend as an operator reads it, in the request's language. */
+  backendTypeName: string
   /** The bound PHP version, or the empty string when the backend is not PHP. */
   phpVersion: string
   /** Whether the site serves its own content or a suspension response. */
   status: SiteStatus
+  /** The serving state as an operator reads it, in the request's language. */
+  statusName: string
   /** The instant the site was created, as an ISO-8601 string. */
   createdAt: string
 }
@@ -63,6 +67,8 @@ export interface SiteDetail {
   aliases: string[]
   /** Which backend serves this site's content. */
   backendType: SiteBackendType
+  /** The backend as an operator reads it, in the request's language. */
+  backendTypeName: string
   /** The bound PHP version, or the empty string when the backend is not PHP. */
   phpVersion: string
   /** The upstream forwarded to, or the empty string when the backend is not a reverse proxy. */
@@ -73,6 +79,8 @@ export interface SiteDetail {
   hasCertificate: boolean
   /** Whether the site serves its own content or a suspension response. */
   status: SiteStatus
+  /** The serving state as an operator reads it, in the request's language. */
+  statusName: string
   /** The instant the site was created, as an ISO-8601 string. */
   createdAt: string
 }

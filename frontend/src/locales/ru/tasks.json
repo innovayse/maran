@@ -42,11 +42,6 @@
       "BackupRestore": "Восстановление из копии",
       "PhpVersionInstall": "Установка версии PHP"
     },
-    "statuses": {
-      "running": "Выполняется",
-      "completed": "Завершена",
-      "failed": "Не удалась"
-    },
     "pane": {
       "correlationId": "Идентификатор запроса",
       "notReported": "Не сообщено",

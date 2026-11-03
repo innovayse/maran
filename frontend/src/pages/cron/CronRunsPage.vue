@@ -40,7 +40,7 @@ import { useCronOptionsStore } from '../../stores/cronOptions'
 import { useCronStore } from '../../stores/cron'
 import { useCronRunsStore } from '../../stores/cronRuns'
 import { cronRunResultOf } from '../../utils/cronRunResultOf'
-import { CRON_RUN_OUTCOMES, type CronRunSummary } from '../../types/cronRun'
+import type { CronRunSummary } from '../../types/cronRun'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 
 const { t } = useI18n()
@@ -66,12 +66,19 @@ const table = useServerTable<CronRunSummary>({
   filters: {
     outcome: {
       /**
-       * Honours only an outcome the panel knows, so a hand-edited link never reaches the server.
+       * Honours only an outcome the panel lists, so a hand-edited link never reaches the server;
+       * permissive while the list is unknown (not yet read, or the read failed).
        * @param value The value found in the URL.
-       * @returns Whether it names an outcome.
+       * @returns True for a listed outcome, or while the list is unknown.
        */
       accepts: (value: string): boolean => {
-        return (CRON_RUN_OUTCOMES as readonly string[]).includes(value)
+        const listed = optionsStore.options.runOutcomes
+        return (
+          listed.length === 0 ||
+          listed.some((choice) => {
+            return choice.value === value
+          })
+        )
       },
     },
   },

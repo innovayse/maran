@@ -6,6 +6,7 @@ import { isCalendarDate } from '../utils/isCalendarDate'
 import { localDayBoundary } from '../utils/localDayBoundary'
 import type { ListFilterSchema, ListFilterSpec } from './useServerTable'
 import type { ActiveFilterChip } from '../types/list'
+import type { TaskStatusChoice } from '../types/panelTask'
 
 /** The tasks list's filter vocabulary: how each is read from the URL, and how it is shown as a chip. */
 export interface TaskFilters {
@@ -31,20 +32,39 @@ export interface TaskFilters {
  * The tasks list's filters in one place, so the page that reads them from the URL and the chips
  * that name them cannot disagree. A date that is not a real `YYYY-MM-DD` day is not honoured from a
  * hand-edited link. A kind is honoured as written: kinds are open-ended (a module compiled later
- * records its own), and the panel matches it exactly. So is a status: the set belongs to the panel,
- * which lists it and refuses a value it does not have, so the bundle keeps no copy of it to check a
- * link against.
+ * records its own), and the panel matches it exactly. A status is checked against the set the panel
+ * listed, and honoured as written until the panel has listed it: the set belongs to the panel, so
+ * the bundle keeps no copy of it, and the server stays the authority.
  * @param accountSpec The `account` entry from `useAccountFilter`, which a customer's list ignores.
+ * @param statuses Reads the statuses the panel listed; empty until read or when the read failed.
  * @returns The schema and the chip builder.
  */
-export const useTaskFilters = (accountSpec: ListFilterSpec): TaskFilters => {
+export const useTaskFilters = (
+  accountSpec: ListFilterSpec,
+  statuses: () => readonly TaskStatusChoice[],
+): TaskFilters => {
   const { t } = useI18n()
   const labels = useListLabels()
   const localeStore = useLocaleStore()
 
   const schema: ListFilterSchema = {
     account: accountSpec,
-    status: {},
+    status: {
+      /**
+       * Honours only a status the panel lists; permissive while the list is unknown.
+       * @param value The `?status=` value.
+       * @returns True for a listed status, or while the list is unknown.
+       */
+      accepts: (value: string): boolean => {
+        const listed = statuses()
+        return (
+          listed.length === 0 ||
+          listed.some((choice) => {
+            return choice.status === value
+          })
+        )
+      },
+    },
     kind: {},
     from: { accepts: isCalendarDate },
     to: { accepts: isCalendarDate },

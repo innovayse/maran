@@ -54,7 +54,9 @@ const { spec: accountSpec, name: accountFilterName } = useAccountFilter()
 const { isCustomer } = useCallerRole()
 const labels = useListLabels()
 const kindLabel = useTaskKindLabel()
-const taskFilters = useTaskFilters(accountSpec)
+const taskFilters = useTaskFilters(accountSpec, () => {
+  return store.statuses
+})
 
 const table = useServerTable<PanelTask>({
   filters: taskFilters.schema,

@@ -7,22 +7,21 @@
  * differently: running is the accent (work in flight is not a verdict), completed is green, failed
  * is red. The tone is never the only carrier — the badge always prints the status as a word.
  *
- * The TEXT is this panel's own chrome and comes from the locale files — the status arrives as a
- * machine-stable name (`running`), not as a sentence, which is exactly why it may be translated here
- * without breaking the "the backend owns its text" rule.
+ * The TEXT is the backend's: the row carries the status as the operator reads it (`statusName`) and
+ * this component prints it as given, so the bundle holds no copy of the vocabulary. The machine
+ * status only picks the tone.
  */
 import { computed, type ComputedRef } from 'vue'
-import { useI18n } from 'vue-i18n'
 import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
 import type { PanelTaskStatus } from '../../types/panelTask'
 
 /** Props accepted by {@link TaskStatusBadge}. */
 const props = defineProps<{
-  /** The status to draw. */
+  /** The status to draw, which picks the tone. */
   status: PanelTaskStatus
+  /** The status as the operator reads it, already in their language; the badge's text. */
+  label: string
 }>()
-
-const { t } = useI18n()
 
 /** The badge tone for this status. */
 const variant: ComputedRef<BadgeVariant> = computed(() => {
@@ -34,11 +33,6 @@ const variant: ComputedRef<BadgeVariant> = computed(() => {
     default:
       return 'info'
   }
-})
-
-/** The status in the operator's language. */
-const label: ComputedRef<string> = computed(() => {
-  return t(`tasks.statuses.${props.status}`)
 })
 </script>
 

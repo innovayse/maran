@@ -95,6 +95,8 @@ export interface PanelTask {
   correlationId: string | null
   /** Where it has got to. */
   status: PanelTaskStatus
+  /** The status as an operator reads it, in the request's language: the word the status badge prints. */
+  statusName: string
   /** How far along, 0-100. */
   percent: number
   /**

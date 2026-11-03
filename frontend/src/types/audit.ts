@@ -26,6 +26,8 @@ export interface AuditEvent {
   ipAddress: string
   /** Whether the action succeeded. A failed sign-in is recorded as much as a successful one. */
   succeeded: boolean
+  /** The outcome in words, in the request's language: what the outcome badge prints. */
+  outcomeName: string
 }
 
 /**

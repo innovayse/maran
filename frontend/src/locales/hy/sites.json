@@ -1,14 +1,5 @@
 {
   "sites": {
-    "status": {
-      "enabled": "Միացված",
-      "disabled": "Անջատված"
-    },
-    "backendType": {
-      "static": "Ստատիկ",
-      "php": "PHP",
-      "reverseProxy": "Հակադարձ պրոքսի"
-    },
     "list": {
       "heading": "Կայքեր",
       "subtitle": "Այս սերվերի սպասարկած կայքերը։",

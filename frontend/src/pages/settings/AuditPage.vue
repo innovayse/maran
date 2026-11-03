@@ -44,7 +44,9 @@ import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 const { t } = useI18n()
 const auditStore = useAuditStore()
 const labels = useListLabels()
-const auditFilters = useAuditFilters()
+const auditFilters = useAuditFilters(() => {
+  return auditStore.outcomes
+})
 
 const table = useServerTable<AuditEvent>({
   filters: auditFilters.schema,

@@ -10,9 +10,6 @@ import type { ListRequest, Paged } from './list'
  */
 export type BackupStatus = 'running' | 'completed' | 'failed'
 
-/** Every {@link BackupStatus}, in the order a filter offers them. */
-export const BACKUP_STATUSES: readonly BackupStatus[] = ['running', 'completed', 'failed']
-
 /**
  * Why a backup was taken, mirroring the backend's `BackupKind` and likewise a camelCase name on
  * the wire.
@@ -23,9 +20,6 @@ export const BACKUP_STATUSES: readonly BackupStatus[] = ['running', 'completed',
  * one of the others and rendered nothing would be worse than one that names it.
  */
 export type BackupKind = 'manual' | 'scheduled' | 'preDeletion' | 'preRestore'
-
-/** Every {@link BackupKind}, in the order a filter offers them. */
-export const BACKUP_KINDS: readonly BackupKind[] = ['manual', 'scheduled', 'preDeletion', 'preRestore']
 
 /**
  * Outward view of one backup, mirroring the backend's `BackupDto` field for field.

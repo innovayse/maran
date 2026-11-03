@@ -12,8 +12,6 @@
       "subjectColumn": "Объект",
       "addressColumn": "Откуда",
       "outcomeColumn": "Результат",
-      "succeeded": "Успешно",
-      "failed": "Отказ",
       "failedNotice": "{count} запись журнала завершилась отказом. | {count} записи журнала завершились отказом. | {count} записей журнала завершились отказом.",
       "searchLabel": "Поиск по журналу",
       "searchPlaceholder": "Поиск по автору, объекту или адресу…",
