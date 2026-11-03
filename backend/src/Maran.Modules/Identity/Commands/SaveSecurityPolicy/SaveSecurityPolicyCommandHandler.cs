@@ -77,6 +77,7 @@ public sealed class SaveSecurityPolicyCommandHandler
             policy = new Domain.Entities.SecurityPolicy(
                 command.MinimumPasswordLength,
                 command.ForceTwoFactorForAdmins,
+                command.ForceTwoFactorForResellers,
                 command.MaxFailedLoginAttempts,
                 command.LockoutMinutes,
                 now);
@@ -88,6 +89,7 @@ public sealed class SaveSecurityPolicyCommandHandler
             policy.Replace(
                 command.MinimumPasswordLength,
                 command.ForceTwoFactorForAdmins,
+                command.ForceTwoFactorForResellers,
                 command.MaxFailedLoginAttempts,
                 command.LockoutMinutes,
                 now);
