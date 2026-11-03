@@ -179,6 +179,7 @@ public sealed class DeleteAccountAuditTests : IDisposable
     {
         var handler = new DeleteAccountCommandHandler(
             _context,
+            new ResellerScope(_context, FakeCurrentUser.Admin()),
             agent,
             bus,
             NullLogger<DeleteAccountCommandHandler>.Instance,

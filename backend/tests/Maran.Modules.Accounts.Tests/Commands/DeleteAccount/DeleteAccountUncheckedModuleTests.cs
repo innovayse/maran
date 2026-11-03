@@ -121,6 +121,7 @@ public sealed class DeleteAccountUncheckedModuleTests : IDisposable
     {
         var handler = new DeleteAccountCommandHandler(
             _context,
+            new ResellerScope(_context, FakeCurrentUser.Admin()),
             new RecordingAgentAccountsClient(),
             new StubMessageBus(),
             NullLogger<DeleteAccountCommandHandler>.Instance,

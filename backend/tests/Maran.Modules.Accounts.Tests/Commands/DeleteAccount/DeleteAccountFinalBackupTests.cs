@@ -184,6 +184,7 @@ public sealed class DeleteAccountFinalBackupTests : IDisposable
     {
         var handler = new DeleteAccountCommandHandler(
             _context,
+            new ResellerScope(_context, FakeCurrentUser.Admin()),
             agent,
             new StubMessageBus(),
             NullLogger<DeleteAccountCommandHandler>.Instance,

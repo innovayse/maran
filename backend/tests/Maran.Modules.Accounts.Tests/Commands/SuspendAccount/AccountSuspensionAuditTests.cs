@@ -151,6 +151,8 @@ public sealed class AccountSuspensionAuditTests : IDisposable
     {
         var handler = new SuspendAccountCommandHandler(
             _context,
+            new ResellerScope(_context, FakeCurrentUser.Admin()),
+            new ResellerNameDirectory(_context),
             agent,
             new StubMessageBus(),
             NullLogger<SuspendAccountCommandHandler>.Instance,
@@ -170,6 +172,8 @@ public sealed class AccountSuspensionAuditTests : IDisposable
     {
         var handler = new ReactivateAccountCommandHandler(
             _context,
+            new ResellerScope(_context, FakeCurrentUser.Admin()),
+            new ResellerNameDirectory(_context),
             agent,
             new StubMessageBus(),
             NullLogger<ReactivateAccountCommandHandler>.Instance,

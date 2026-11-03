@@ -88,6 +88,8 @@ public sealed class AccountSuspensionHarness : IDisposable
     {
         var handler = new SuspendAccountCommandHandler(
             Context,
+            new ResellerScope(Context, FakeCurrentUser.Admin()),
+            new ResellerNameDirectory(Context),
             agent,
             bus,
             logger ?? NullLogger<SuspendAccountCommandHandler>.Instance,
@@ -116,6 +118,8 @@ public sealed class AccountSuspensionHarness : IDisposable
     {
         var handler = new ReactivateAccountCommandHandler(
             Context,
+            new ResellerScope(Context, FakeCurrentUser.Admin()),
+            new ResellerNameDirectory(Context),
             agent,
             bus,
             logger ?? NullLogger<ReactivateAccountCommandHandler>.Instance,
