@@ -55,7 +55,8 @@ public sealed class CronDbContext : DbContext
                 AnonymousCaller => false,
                 CustomerCaller => false,
                 AccountlessCustomerCaller => false,
-                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+                ResellerCaller => false,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
             };
         }
     }
@@ -75,7 +76,8 @@ public sealed class CronDbContext : DbContext
                 AdministratorCaller => null,
                 AnonymousCaller => null,
                 AccountlessCustomerCaller => null,
-                _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+                ResellerCaller => null,
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
             };
         }
     }
