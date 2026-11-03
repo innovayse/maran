@@ -502,12 +502,12 @@
 # names unchanged (`cargo test --test <suite>` listing 9 and 5).
 # RE-MEASURED 2026-11-02 (issue #323, bool/sentinel state refactors): edited by hand from the gate run (backend 21 targets 5748 passed; rust 36 targets 3021 passed / 156 ignored; spa 183 targets 1204 passed). Every changed row takes the measured value; Databases.Tests 129->128 is intended (the empty-string refusal reason test cannot exist once the reason is an enum); new spa rows: view-as, account-selector, sub-users, plan-features, favourites, navigation-badges, server-selector (#313-#320). CI re-measures every row.
 # RE-MEASURED 2026-11-03 (critical batch #299-#341): edited by hand from one full run (maran test rust 36 targets 3096 passed; backend 21 targets 6029 passed; spa 193 targets 1237 passed / 0 failed / 2 ignored). Rows changed where the run differs; new spa spec rows added. CI re-measures every row.
-rust	maran_agent [unittests src/lib.rs]	476	0	0
+rust	maran_agent [unittests src/lib.rs]	488	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
 rust	account_leftovers_on_a_real_host [tests/account_leftovers_on_a_real_host.rs]	0	0	2
-rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	13
+rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	14
 rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	5
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
 rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	8
@@ -525,8 +525,8 @@ rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
 rust	maran_agent_core [unittests src/lib.rs]	557	0	0
-rust	maran_distro [unittests src/lib.rs]	81	0	0
-rust	maran_ops [unittests src/lib.rs]	1897	0	1
+rust	maran_distro [unittests src/lib.rs]	128	0	0
+rust	maran_ops [unittests src/lib.rs]	1953	0	1
 rust	maran_templates [unittests src/lib.rs]	13	0	0
 rust	golden_test [tests/golden_test.rs]	23	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
@@ -547,7 +547,7 @@ rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processe
 # 3/3 alone at load 12. New spa row accounts/form-options.spec.ts 5.
 # RE-KEYED 2026-11-01 (issue #289, perf off the PR path): edited by hand. Maran.Host.IntegrationTests.dll 833 is now two
 # rows: 814 (main part) + 19 (`[PerformanceBudget]` part, ListPerformanceBudgetTests); `--list-tests` lists 833.
-backend	Maran.Agent.Client.Tests.dll	466	0	0
+backend	Maran.Agent.Client.Tests.dll	470	0	0
 backend	Maran.SharedKernel.Tests.dll	355	0	0
 backend	Maran.Modules.Identity.Tests.dll	856	0	0
 backend	Maran.Modules.Sftp.Tests.dll	111	0	0
@@ -555,18 +555,18 @@ backend	Maran.Modules.Notifications.Tests.dll	63	0	0
 backend	Maran.Modules.Tasks.Tests.dll	113	0	0
 backend	Maran.Modules.Ftp.Tests.dll	178	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	159	0	0
-backend	Maran.Modules.Backups.Tests.dll	261	0	0
+backend	Maran.Modules.Backups.Tests.dll	340	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	293	0	0
 backend	Maran.Modules.Cron.Tests.dll	245	0	0
 backend	Maran.Modules.Accounts.Tests.dll	1056	0	0
 backend	Maran.Modules.Databases.Tests.dll	128	0	0
 backend	Maran.Modules.Ssl.Tests.dll	250	0	0
-backend	Maran.Sdk.Tests.dll	371	0	0
+backend	Maran.Sdk.Tests.dll	374	0	0
 backend	Maran.Modules.Sites.Tests.dll	290	0	0
 backend	Maran.ArchitectureTests.dll	104	0	0
-backend	Maran.Host.Tests.dll	516	0	0
-backend	Maran.Host.IntegrationTests.dll	1111	0	0
+backend	Maran.Host.Tests.dll	521	0	0
+backend	Maran.Host.IntegrationTests.dll	1134	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
 # RAISED 2026-11-01 (issue #149, accessibility): edited by hand. Three new spa rows from e2e/accessibility/:
 # axe-scan 11 (5 screens x 2 themes + the planted-violation control), document-language 2, reduced-motion 2.
@@ -800,3 +800,5 @@ spa	reseller/reseller-role-exact.spec.ts	40	0	0
 spa	reseller/reseller-plans-accounts.spec.ts	10	0	0
 spa	reseller/admin-resellers.spec.ts	16	0	0
 # RE-MEASURED 2026-11-04 (issue #179, reseller role), edited by hand from one gate pass: backend 21 targets 6996 passed / 0 failed (SharedKernel 353->355, Identity 698->856, Accounts 579->1056, Sdk 356->371, Architecture 100->104, Host.Tests 498->516, Host.IntegrationTests 976->1111); spa 202 targets 1368 passed / 0 failed. New spa rows: reseller/admin-resellers 16, reseller-plans-accounts 10, reseller-role-exact 40, view-as-reseller 8, shell/reseller-tab-bar 2; raised: axe-scan 13->19, admin-navigation 8->9. Rust untouched. CI re-measures every row.
+spa	backups/verification.spec.ts	12	0	0
+# RE-MEASURED 2026-11-04 (issue #134, backup verification), edited by hand from one gate pass: backend 21 targets 7110 passed / 0 failed (Agent.Client 466->470, Backups 261->340, Sdk 371->374, Host.Tests 516->521, Host.IntegrationTests 1111->1134); rust 36 targets 3211 passed / 0 failed (maran_agent lib 476->488, maran_distro 81->128, maran_ops 1897->1953 as measured, backup_on_a_real_host ignored 13->14); spa 203 targets 1380 passed / 0 failed, new row backups/verification 12. CI re-measures every row.
