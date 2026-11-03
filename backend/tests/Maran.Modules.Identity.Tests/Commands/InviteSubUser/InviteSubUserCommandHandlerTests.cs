@@ -29,6 +29,7 @@ public sealed class InviteSubUserCommandHandlerTests : IDisposable
         return new InviteSubUserCommandHandler(
             _world.Context,
             _world.Guard(principal),
+            _world.TeamLock,
             new InvitationIssuer(_world.Context, _world.Accounts, new AccountOwnerFinder(_world.Context)),
             new InvitationMailComposer(new StubEmailTemplates(), new OptionsWrapper<PanelOptions>(new PanelOptions())),
             _world.Accounts,
@@ -149,6 +150,41 @@ public sealed class InviteSubUserCommandHandlerTests : IDisposable
         Assert.True(free.IsSuccess);
         Assert.True(taken.IsSuccess);
         Assert.Equal(free.Value.GetType(), taken.Value.GetType());
+    }
+
+    /// <summary>
+    /// A taken request does the work of a free one in the same shape: it stages a login, a membership
+    /// and a token and renders the mail, then undoes it, while a free request commits the same three.
+    /// </summary>
+    [Fact]
+    public async Task A_taken_request_stages_the_same_rows_as_a_free_one_and_rolls_them_back()
+    {
+        var free = new SubUserWorld();
+        await new InviteSubUserCommandHandler(
+            free.Context, free.Guard(), free.TeamLock,
+            new InvitationIssuer(free.Context, free.Accounts, new AccountOwnerFinder(free.Context)),
+            new InvitationMailComposer(new StubEmailTemplates(), new OptionsWrapper<PanelOptions>(new PanelOptions())),
+            free.Accounts, free.Bus, new IdentityAuditJournal(free.Audit, free.Caller), free.Clock, free.Caller,
+            new OptionsWrapper<SubUserOptions>(new SubUserOptions()))
+            .HandleAsync(Command(username: "fresh", email: "fresh@example.com"), CancellationToken.None);
+        await NewHandler().HandleAsync(Command(username: "acme"), CancellationToken.None);
+
+        Assert.Equal((1, 0), (free.TeamLock.Commits, free.TeamLock.Rollbacks));
+        Assert.Equal((0, 1), (_world.TeamLock.Commits, _world.TeamLock.Rollbacks));
+        Assert.Equal(3, _world.TeamLock.RowsRolledBack);
+        free.Dispose();
+    }
+
+    /// <summary>A taken request leaves no decoy behind and mails nobody, whichever column matched.</summary>
+    [Fact]
+    public async Task A_taken_request_leaves_no_decoy_login_behind()
+    {
+        await NewHandler().HandleAsync(Command(email: "owner@example.com"), CancellationToken.None);
+
+        Assert.Equal(1, await _world.Context.Users.CountAsync());
+        Assert.Equal(1, await _world.Context.AccountMemberships.CountAsync());
+        Assert.Equal(0, await _world.Context.InvitationTokens.CountAsync());
+        Assert.Empty(_world.Bus.Published);
     }
 
     /// <summary>The real outcome of a taken request is journalled as unsuccessful, where only the administrator reads it.</summary>

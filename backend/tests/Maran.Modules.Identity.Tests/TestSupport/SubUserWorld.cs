@@ -42,6 +42,9 @@ public sealed class SubUserWorld : IDisposable
     /// <summary>The journal over <see cref="Audit"/>, naming <see cref="Caller"/>.</summary>
     public IdentityAuditJournal Journal { get; }
 
+    /// <summary>The stand-in for the invitation lock, counting commits and rollbacks.</summary>
+    public EmulatedTeamLock TeamLock { get; }
+
     /// <summary>Creates the world with the owner's login and ownership already stored.</summary>
     public SubUserWorld()
     {
@@ -52,6 +55,7 @@ public sealed class SubUserWorld : IDisposable
         Context.SaveChanges();
         Caller = new StubCustomerUser(Owner.Id, Owner.Username, AccountId);
         Journal = new IdentityAuditJournal(Audit, Caller);
+        TeamLock = new EmulatedTeamLock(Context);
     }
 
     /// <summary>The guard over <paramref name="caller"/>.</summary>
