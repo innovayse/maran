@@ -73,6 +73,24 @@ public sealed class ListCronRunsQueryHandlerTests
         Assert.Equal(new CronRunExitedDto(2), row.End);
     }
 
+    /// <summary>Each row carries its outcome named by the backend, in the request's culture.</summary>
+    [Fact]
+    public async Task Each_row_carries_its_outcome_named_by_the_backend()
+    {
+        var handler = Handler(out var database);
+        database.CronRuns.AddRange(
+            Run(EntryId, Noon, new CronRunExited(0)),
+            Run(EntryId, Noon.AddMinutes(1), new CronRunExited(2)));
+        await database.SaveChangesAsync();
+
+        var result = await handler.HandleAsync(new ListCronRunsQuery(AccountId, EntryId: EntryId), default);
+
+        Assert.Equal(["Failed", "Succeeded"], result.Value.Items.Select(run =>
+        {
+            return run.OutcomeName;
+        }));
+    }
+
     /// <summary>A page of the given size is cut from the newest.</summary>
     [Fact]
     public async Task A_page_of_the_given_size_is_cut_from_the_newest()
@@ -101,7 +119,8 @@ public sealed class ListCronRunsQueryHandlerTests
         database = InMemoryCronDatabase.Open(Guid.NewGuid().ToString(), FakeCurrentUser.Customer(AccountId));
         return new ListCronRunsQueryHandler(
             database,
-            new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)));
+            new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)),
+            CronTestNames.Runs());
     }
 
     /// <summary>A recorded run.</summary>

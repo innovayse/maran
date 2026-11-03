@@ -9,8 +9,13 @@ public static class CronRunMapper
 {
     /// <summary>The wire shape of <paramref name="run"/>.</summary>
     /// <param name="run">The recorded run.</param>
+    /// <param name="outcomeName">
+    /// The run's outcome as an operator reads it, already resolved for the request's culture by
+    /// <c>CronRunDisplayNames</c>. Passed in because a mapper translates and never decides
+    /// (rules/csharp.md), and a resource lookup is a decision about culture.
+    /// </param>
     /// <returns>Its DTO.</returns>
-    public static CronRunDto From(CronRun run)
+    public static CronRunDto From(CronRun run, string outcomeName)
     {
         ArgumentNullException.ThrowIfNull(run);
 
@@ -21,14 +26,16 @@ public static class CronRunMapper
             run.DurationMilliseconds,
             End(run.End),
             run.Outcome,
+            outcomeName,
             run.Stdout,
             run.Stderr);
     }
 
     /// <summary>The history row of <paramref name="run"/>: everything but its output.</summary>
     /// <param name="run">The recorded run.</param>
+    /// <param name="outcomeName">The run's outcome as an operator reads it; see <see cref="From"/>.</param>
     /// <returns>Its summary DTO.</returns>
-    public static CronRunSummaryDto Summary(CronRun run)
+    public static CronRunSummaryDto Summary(CronRun run, string outcomeName)
     {
         ArgumentNullException.ThrowIfNull(run);
 
@@ -38,7 +45,8 @@ public static class CronRunMapper
             run.StartedAt,
             run.DurationMilliseconds,
             End(run.End),
-            run.Outcome);
+            run.Outcome,
+            outcomeName);
     }
 
     /// <summary>The wire shape of how a run ended.</summary>

@@ -73,6 +73,9 @@ public sealed class CronModule : IPanelModule
         // Scoped, because the journal reads the request's own ICurrentUser for the entry's actor.
         services.AddScoped<CronAuditJournal>();
 
+        // Scoped, because the localizer it wraps resolves the request's own culture.
+        services.AddScoped<CronRunDisplayNames>();
+
         // This module's answer to how many crontab entries an account owns, for the Accounts module's resource
         // summary. Scoped, because it resolves the account through the request-scoped directory.
         services.AddScoped<IAccountResourceCounter, CronAccountResourceCounter>();

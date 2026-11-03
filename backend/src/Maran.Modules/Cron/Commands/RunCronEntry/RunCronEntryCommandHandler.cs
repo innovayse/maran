@@ -57,6 +57,9 @@ public sealed class RunCronEntryCommandHandler
     /// <summary>Where an agent refusal leaves its code and the entry id, and nothing else.</summary>
     private readonly ILogger<RunCronEntryCommandHandler> _logger;
 
+    /// <summary>Names the recorded run's outcome in the request's culture.</summary>
+    private readonly CronRunDisplayNames _names;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="accounts">The owning account's system user name and state.</param>
     /// <param name="agent">The agent client that runs the entry.</param>
@@ -64,13 +67,15 @@ public sealed class RunCronEntryCommandHandler
     /// <param name="clock">The panel's clock.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="logger">Where an agent refusal is reported, by code and entry id only.</param>
+    /// <param name="names">Names the recorded run's outcome in the request's culture.</param>
     public RunCronEntryCommandHandler(
         IAccountDirectory accounts,
         IAgentCronClient agent,
         CronDbContext dbContext,
         IClock clock,
         CronAuditJournal journal,
-        ILogger<RunCronEntryCommandHandler> logger)
+        ILogger<RunCronEntryCommandHandler> logger,
+        CronRunDisplayNames names)
     {
         _accounts = accounts;
         _agent = agent;
@@ -78,6 +83,7 @@ public sealed class RunCronEntryCommandHandler
         _clock = clock;
         _journal = journal;
         _logger = logger;
+        _names = names;
     }
 
     /// <summary>Runs the entry now and records what it reported.</summary>
@@ -137,7 +143,7 @@ public sealed class RunCronEntryCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.CronEntryRun, command.EntryId, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<CronRunDto>.Ok(CronRunMapper.From(run));
+        return Result<CronRunDto>.Ok(CronRunMapper.From(run, _names.Of(run.Outcome)));
     }
 
     /// <summary>The module's own name for how the agent says the run ended.</summary>

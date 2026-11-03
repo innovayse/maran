@@ -26,6 +26,7 @@ public sealed class GetCronRunQueryHandlerTests
 
         Assert.Equal("out", result.Value.Stdout);
         Assert.Equal("err", result.Value.Stderr);
+        Assert.Equal("Succeeded", result.Value.OutcomeName);
     }
 
     /// <summary>A run id under another entry answers not found.</summary>
@@ -62,7 +63,8 @@ public sealed class GetCronRunQueryHandlerTests
 
         var handler = new GetCronRunQueryHandler(
             database,
-            new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)));
+            new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)),
+            CronTestNames.Runs());
 
         return (handler, run);
     }

@@ -63,6 +63,7 @@ public sealed class RunCronEntryCommandHandlerTests
         Assert.Equal(world.Clock.UtcNow, row.StartedAt);
         Assert.Equal(1200, row.DurationMilliseconds);
         Assert.Equal(CronRunOutcome.Succeeded, row.Outcome);
+        Assert.Equal("Succeeded", result.Value.OutcomeName);
         Assert.Equal(row.Id, result.Value.Id);
         Assert.Equal("done\n", result.Value.Stdout);
     }
@@ -93,6 +94,7 @@ public sealed class RunCronEntryCommandHandlerTests
         var result = await world.HandleAsync();
 
         Assert.Equal(CronRunOutcome.Stopped, result.Value.Outcome);
+        Assert.Equal("Stopped", result.Value.OutcomeName);
         Assert.Equal(new CronRunStoppedDto(CronRunLimit.Runtime), result.Value.End);
     }
 
@@ -213,7 +215,8 @@ public sealed class RunCronEntryCommandHandlerTests
                 Database,
                 Clock,
                 new CronAuditJournal(Audit, currentUser),
-                new CapturingLogger<RunCronEntryCommandHandler>());
+                new CapturingLogger<RunCronEntryCommandHandler>(),
+                CronTestNames.Runs());
         }
 
         /// <summary>Runs the handler with the usual audit context.</summary>
