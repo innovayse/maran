@@ -8,6 +8,8 @@ import type {
   HostMetrics,
   MetricsChart,
   MonitoringApi,
+  PendingUpdate,
+  PendingUpdateCount,
   ServiceStatus,
 } from '../../types/monitoring'
 
@@ -25,6 +27,15 @@ const SERVICES_PATH = '/api/v1/monitoring/services'
 
 /** The endpoint the per-account disk figures are read from. */
 const ACCOUNTS_DISK_PATH = '/api/v1/monitoring/accounts-disk'
+
+/** The endpoint the pending operating-system updates are read from. */
+const UPDATES_PATH = '/api/v1/monitoring/updates'
+
+/** The endpoint the number of pending updates is read from. */
+const UPDATES_COUNT_PATH = '/api/v1/monitoring/updates/count'
+
+/** The pending updates list takes no typed filter: its only narrowing is the search. */
+const UPDATES_FILTER_PARAMS: Readonly<Record<string, string>> = {}
 
 /** The per-account disk list takes no typed filter: its only narrowing is the search. */
 const ACCOUNTS_DISK_FILTER_PARAMS: Readonly<Record<string, string>> = {}
@@ -95,5 +106,33 @@ export const useMonitoringApi = (): MonitoringApi => {
     return api.get<ClockSync>(CLOCK_PATH, signal)
   }
 
-  return { getChart, getHostMetrics, listServices, listAccountDiskUsage, getClockSync }
+  /**
+   * Reads one page of the packages the operating system could update, searched and sorted by the
+   * panel from the package cache.
+   * @param request The page, size, search on the package name and sort.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The page the panel answered.
+   */
+  const pendingUpdates = (request: ListRequest, signal?: AbortSignal): Promise<Paged<PendingUpdate>> => {
+    return api.get<Paged<PendingUpdate>>(`${UPDATES_PATH}${listQuery(request, UPDATES_FILTER_PARAMS)}`, signal)
+  }
+
+  /**
+   * Reads how many packages have an update available.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The count.
+   */
+  const pendingUpdateCount = (signal?: AbortSignal): Promise<PendingUpdateCount> => {
+    return api.get<PendingUpdateCount>(UPDATES_COUNT_PATH, signal)
+  }
+
+  return {
+    getChart,
+    getHostMetrics,
+    listServices,
+    listAccountDiskUsage,
+    getClockSync,
+    pendingUpdates,
+    pendingUpdateCount,
+  }
 }

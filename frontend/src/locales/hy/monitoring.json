@@ -71,6 +71,23 @@
       "synchronized": "Համաժամեցված է",
       "notSynchronized": "Համաժամեցված չէ",
       "syncServiceDisabled": "Ժամանակի համաժամեցում չկա"
+    },
+    "updates": {
+      "heading": "Թարմացումներ",
+      "subtitle": "Փաթեթներ, որոնք օպերացիոն համակարգը կարող է թարմացնել՝ ըստ իր փաթեթների քեշի։",
+      "caption": "Օպերացիոն համակարգի փաթեթներ, որոնց համար թարմացում կա",
+      "columnPackage": "Փաթեթ",
+      "columnInstalled": "Տեղադրված",
+      "columnAvailable": "Հասանելի",
+      "columnSource": "Աղբյուր",
+      "searchLabel": "Որոնել փաթեթներ",
+      "searchPlaceholder": "Որոնել ըստ փաթեթի…",
+      "searchClear": "Մաքրել որոնումը",
+      "refresh": "Թարմացնել ցանկը",
+      "emptyTitle": "Թարմացնելու բան չկա",
+      "emptyDescription": "Փաթեթների քեշում այս սերվերի համար թարմացումներ չկան։",
+      "noResultsTitle": "Փաթեթներ չեն գտնվել",
+      "noResultsDescription": "Փոխեք որոնումը կամ մաքրեք այն՝ բոլոր փաթեթները տեսնելու համար։"
     }
   }
 }

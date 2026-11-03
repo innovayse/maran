@@ -29,6 +29,7 @@ import CronPage from '../pages/cron/CronPage.vue'
 import CronRunsPage from '../pages/cron/CronRunsPage.vue'
 import TasksPage from '../pages/tasks/TasksPage.vue'
 import MonitoringPage from '../pages/monitoring/MonitoringPage.vue'
+import PendingUpdatesPage from '../pages/monitoring/PendingUpdatesPage.vue'
 import AuthLayout from '../layouts/AuthLayout.vue'
 import LoginPage from '../pages/auth/LoginPage.vue'
 import TwoFactorPage from '../pages/auth/TwoFactorPage.vue'
@@ -256,6 +257,16 @@ export const createAppRouter = (): Router => {
         component: DefaultLayout,
         children: [
           { path: '', name: 'monitoring', component: MonitoringPage, meta: { module: 'monitoring', title: 'monitoring.heading', adminOnly: true } },
+        ],
+      },
+      {
+        // Servers > Updates lives under /servers, not /monitoring: the menu groups it with the
+        // server pages, and the module that answers it is still monitoring (the agent's package
+        // cache is read through the monitoring controller).
+        path: '/servers/updates',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'servers-updates', component: PendingUpdatesPage, meta: { module: 'monitoring', title: 'monitoring.updates.heading', adminOnly: true } },
         ],
       },
       {
