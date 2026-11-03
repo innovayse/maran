@@ -40,7 +40,7 @@ how many logins one account could create.
 | Read existence from the status or body | Same status (202), same body shape, same fields (the owner's own input). `A_taken_name_or_address_is_answered_exactly_like_a_free_one`. |
 | Read existence from the cap | The cap depends on the owner's own count only; a full team is refused whatever was asked (`A_full_account_is_refused_even_for_a_taken_name`). |
 | Read existence from mail | Nothing is mailed to the existing holder of a taken address or name. The invitee receives mail only when the request was honoured. |
-| Read existence from timing | Both paths run the same reads and write one journal line; the honoured path also writes the login, membership and token in one transaction and publishes the mail. The difference is one database transaction. NOT closed, see below. |
+| Read existence from timing | Both paths run one transaction with the same statements in the same order (see "Equal work" below) and end with one journal row and one durable commit. Narrowed to the residual listed under "What this does NOT close", not removed. |
 | Flood invitations to a stranger's mailbox | Per-account `invitation-sending` bucket (default 20/h), then the cap. A free request mails once, to the address the owner typed. |
 | Exhaust the acceptance bucket by sending, or the reverse | Separate policies with separate keys. `Sending_invitations_has_its_own_rate_limit_separate_from_acceptance`. |
 | Create unlimited logins | Cap, counted including pending invitations. |
@@ -53,11 +53,17 @@ how many logins one account could create.
   bounded rather than removed: by the sending bucket (names testable per hour), the cap (rows that can
   be left pending) and by cleanup — a tester must also remove each probe row. Removing the channel
   needs a consenting join flow for existing logins, which does not exist.
-- **Timing.** The honoured path costs one more transaction than the refused one. A measuring owner
-  behind the bucket's allowance (20/h) gets 20 samples an hour per account. A real fix equalises the
-  work (for example doing the write on a queue for both paths); it was not done here because the
-  Wolverine local queue is not durable and a durable one would persist the token-bearing envelope
-  (rules/csharp.md "a message carrying a secret is never durable").
+- **Timing, the residual.** The two paths now do the same work (below), but not byte-identical work.
+  What still differs: (a) the honoured path hands the rendered mail to the bus, an in-memory enqueue;
+  the decoy's mail is rendered and dropped, because publishing it would mail a stranger and a durable
+  queue would persist a token-bearing envelope (rules/csharp.md "a message carrying a secret is never
+  durable"); (b) the honoured path commits three real rows and the journal in one transaction, the
+  taken path rolls back the same three decoy rows and then commits the journal alone, so the write-ahead
+  log volume at commit differs (the flush count does not: one each); (c) a rollback is cheaper than a
+  commit in lock and visibility bookkeeping. Each is far below network jitter on one request, but a
+  patient measurer could average them; they are bounded by the sending bucket (20/h per account),
+  which is 20 samples an hour. Equalising (a) completely would need a decoy recipient the Notifications
+  module accepts and drops, which is a feature of that module, not of this handler.
 - **The audit log records the real outcome** (`SubUserInvited`, `succeeded: false`). It is
   administrator-only (`AuditController`, `AdminOnly`); if a customer-facing audit view is ever added it
   must not show this field.
@@ -65,8 +71,43 @@ how many logins one account could create.
   id the administrator already holds, so they disclose nothing across tenants. They stay on the `api`
   bucket.
 
+## Equal work, and the cap made atomic (review round on the first version)
+
+**Equal work.** `InviteSubUserCommandHandler` runs, for both answers: begin transaction and take the
+account's lock; count the team; one query over name and address; stage a login, a membership and a
+token through `InvitationIssuer.MintAsync` (outstanding-token lookup and insert batch included); render
+the invitation mail. A free request journals inside the transaction and commits, then publishes the
+mail. A taken request stages a decoy login (a random 32-character name, an address under the reserved
+`.invalid` domain, so it can neither collide nor reach anybody), rolls the transaction back, clears the
+change tracker, and journals on its own. The decoy rows are never committed; its token is never
+published and never leaves memory. Covered by
+`A_taken_request_stages_the_same_rows_as_a_free_one_and_rolls_them_back` (the stand-in's commit and
+rollback counts and the three staged rows), `A_taken_request_leaves_no_decoy_login_behind` and, against
+real PostgreSQL, `Parallel_requests_for_a_taken_name_leave_no_decoy_login_behind`.
+
+**Atomic cap.** The cap used to be a count followed by an insert, which under `READ COMMITTED` lets two
+parallel invitations both read N-1 and both insert, overshooting by up to the number of parallel
+requests (the sending bucket bounded the overshoot but did not prevent it). `ISubUserTeamLock` /
+`SubUserTeamLock` now begin the transaction and run `select 1 from identity."AccountMemberships" where
+"AccountId" = @id and "Role" = 'Owner' for update` (a parameterized `// raw-sql:` block) before the
+count, so a second invitation for the same account waits and then counts the first one's committed
+row. A row lock was chosen over a serializable transaction because the latter reports the conflict as
+`40001` at commit and forces a retry loop around a handler that must answer identically every time, and
+over an advisory lock because the owner membership row exists for every account the guard accepts and
+needs no key derivation. Measured by `Parallel_invitations_cannot_take_an_account_past_its_cap` (twelve
+parallel requests, cap three: exactly three accepted and nine refused, three rows) with
+`Parallel_invitations_inside_the_cap_are_all_accepted` as the accepting control.
+
+Stated limits: the lock is a convention, not a constraint (a future path that adds a member without
+taking it is not held back); the race test has no barrier inside the handler, so over an unprotected
+handler it can still pass by luck on a run (twelve to three makes that unlikely, it does not rule it
+out); nothing has been built or run.
+
 ## What a reviewer must check
 
+- That the decoy can never be committed or published: every path out of the staged section is either
+  `RollbackAsync` (taken, unique violation, full team) or `CommitAsync` after the `taken` branch has
+  returned, and `PublishAsync` is only reached after the commit.
 - That no code path in `InviteSubUserCommandHandler` returns anything other than the one DTO (or an
   owner-account refusal) for a taken request, including exceptions: only the unique-violation
   `DbUpdateException` is caught; any other failure is a 500 for both paths alike.
