@@ -1,7 +1,6 @@
 using Maran.Modules.Accounts.Commands.UpdatePlan;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Extensions;
@@ -108,13 +107,7 @@ public sealed class UpdatePlanFeaturesTests : IDisposable
     /// <returns>The handler.</returns>
     private UpdatePlanCommandHandler NewHandler()
     {
-        return new UpdatePlanCommandHandler(
-            _dbContext,
-            new AccountDiskQuotaEnforcer(_agent),
-            new AccountRuntimeLimitsEnforcer(_agent),
-            new PlanNameDirectory(_dbContext, _displayNames),
-            new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
-            _displayNames);
+        return PlanHandlerFactory.Update(_dbContext, FakeCurrentUser.Admin(), _audit, _displayNames, _agent);
     }
 
     /// <summary>Builds an edit of the plan that changes nothing but the features it states.</summary>

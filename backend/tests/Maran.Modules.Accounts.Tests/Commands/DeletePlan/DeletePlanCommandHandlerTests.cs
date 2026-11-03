@@ -1,7 +1,6 @@
 using Maran.Modules.Accounts.Commands.DeletePlan;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -42,7 +41,7 @@ public sealed class DeletePlanCommandHandlerTests : IDisposable
     /// <summary>Builds the handler over this test's context and journal.</summary>
     private DeletePlanCommandHandler NewHandler()
     {
-        return new DeletePlanCommandHandler(_dbContext, new AccountAuditJournal(_audit, FakeCurrentUser.Admin()));
+        return PlanHandlerFactory.Delete(_dbContext, FakeCurrentUser.Admin(), _audit);
     }
 
     /// <summary>Builds a deletion request for <paramref name="planId"/>.</summary>
