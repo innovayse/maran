@@ -111,4 +111,10 @@
   <data name="AccountStatusSuspended">
     <value>Suspended</value>
   </data>
+  <data name="ResellerStatusActive">
+    <value>Active</value>
+  </data>
+  <data name="ResellerStatusSuspended">
+    <value>Suspended</value>
+  </data>
 </root>

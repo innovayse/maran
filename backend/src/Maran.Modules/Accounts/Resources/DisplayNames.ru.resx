@@ -111,4 +111,10 @@
   <data name="AccountStatusSuspended">
     <value>Приостановлен</value>
   </data>
+  <data name="ResellerStatusActive">
+    <value>Активен</value>
+  </data>
+  <data name="ResellerStatusSuspended">
+    <value>Приостановлен</value>
+  </data>
 </root>
