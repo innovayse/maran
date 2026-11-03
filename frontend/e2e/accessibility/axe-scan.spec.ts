@@ -6,6 +6,7 @@ import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dash
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
+import { stubPendingUpdates } from '../fixtures/stub-monitoring-routes'
 import { stubPlans } from '../fixtures/stub-plans-route'
 import { stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
@@ -22,6 +23,7 @@ const LICENSED: PanelModule[] = [
   { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
   { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
   { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {
@@ -138,6 +140,10 @@ const signInWithData = async (page: Page): Promise<void> => {
   await stubSites(page, [ALPHA])
   await stubPhpVersions(page, [])
   await stubDatabases(page, [SHOP])
+  await stubPendingUpdates(page, [
+    { packageName: 'openssl', availableVersion: '3.0.13-0ubuntu3.5', installedVersion: '3.0.13-0ubuntu3.4', source: 'noble-security' },
+    { packageName: 'bash', availableVersion: '5.2.21-2ubuntu4', installedVersion: null, source: '' },
+  ])
 }
 
 for (const theme of ['dark', 'light'] as const) {
@@ -187,6 +193,15 @@ for (const theme of ['dark', 'light'] as const) {
 
       await page.goto('/databases')
       await expect(page.getByRole('cell', { name: 'alice_shop', exact: true })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the pending updates list has no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+
+      await page.goto('/servers/updates')
+      await expect(page.getByRole('cell', { name: 'openssl', exact: true })).toBeVisible()
 
       await expectNoSeriousViolations(page)
     })
