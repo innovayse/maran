@@ -77,6 +77,20 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasColumnName("IsTotpEnabled")
             .IsRequired();
 
+        // The reseller a login is the one login of. Nullable and never a foreign key: the reseller row
+        // lives in the Accounts schema, which this module does not read. Additive: a login that exists
+        // before the migration reads back null, which is "not a reseller's". The role itself needs no
+        // column change: Role is stored as its name in a character varying(16) with no CHECK
+        // constraint, and "Reseller" is eight characters.
+        builder.Property(u => u.ResellerId);
+
+        // Whether a reseller's login is suspended (User.Suspend). Required with a database default so
+        // the additive migration could add it to a table that already has rows: every existing login
+        // is not suspended on the login itself, because a customer's suspension is on its membership.
+        builder.Property(u => u.IsSuspended)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(u => u.CreatedAt)
             .IsRequired();
 
@@ -95,6 +109,15 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // enforced by the database rather than only by the command, so a race cannot create twins.
         builder.HasIndex(u => u.Username).IsUnique().HasDatabaseName("IX_Users_Username");
         builder.HasIndex(u => u.Email).IsUnique().HasDatabaseName("IX_Users_Email");
+
+        // One login per reseller, enforced by the database so two deliveries of ResellerCreated cannot
+        // create twins. Partial, because PostgreSQL counts NULLs as distinct in a unique index and
+        // every login that is not a reseller's holds NULL; the filter also keeps it PostgreSQL 13
+        // compatible (NULLS NOT DISTINCT is 15 and later).
+        builder.HasIndex(u => u.ResellerId)
+            .IsUnique()
+            .HasFilter("\"ResellerId\" IS NOT NULL")
+            .HasDatabaseName("UX_Users_ResellerId");
 
         // EXPAND-ONLY: the previous release (1.0.0-beta.4) reads and writes Users."AccountId" and its
         // partial unique index, so both stay in the schema for one more release. This release neither

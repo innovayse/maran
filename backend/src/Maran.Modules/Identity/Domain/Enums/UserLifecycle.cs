@@ -5,11 +5,14 @@ namespace Maran.Modules.Identity.Domain.Enums;
 /// and read through <see cref="Entities.User.Lifecycle"/>.
 /// </summary>
 /// <remarks>
-/// A login is never "suspended": a suspension is a fact about one hosting account, and a login can
-/// hold several, so it is stored on the membership
+/// A login is never "suspended" by this type: a customer's suspension is a fact about one hosting
+/// account, and a login can hold several, so it is stored on the membership
 /// (<see cref="Entities.AccountMembership.State"/>, <see cref="MembershipState"/>). This type used to
 /// carry two suspended values; they made a suspension of one account block the whole login and made
-/// the second account of a person with two unreachable by suspend or resume.
+/// the second account of a person with two unreachable by suspend or resume. The one login that has
+/// no membership to carry a suspension, a reseller's, stores it as its own fact
+/// (<see cref="Entities.User.IsSuspended"/>) rather than as a third value here, because a reseller
+/// invited and suspended before it accepted is both at once and must still be invited afterwards.
 /// </remarks>
 public enum UserLifecycle
 {
