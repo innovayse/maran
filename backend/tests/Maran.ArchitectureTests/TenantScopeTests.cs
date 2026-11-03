@@ -56,60 +56,30 @@ public sealed class TenantScopeTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The first five are Identity's, and they are one decision rather than five. A filter closes over the
-    /// authenticated principal, and every query here runs when there is NO principal yet: sign-in
-    /// looks a user up by e-mail and then a session up by token hash, a password reset is consumed by
-    /// a caller holding nothing but the token, an invitation is consumed the same way by a caller
-    /// holding nothing but ITS token, and a recovery code is consumed part-way through two-factor,
-    /// before a session exists. A filtered table would find nobody and refuse every login on the
-    /// panel. <c>User.AccountId</c> is nullable precisely because an administrator has none; the
-    /// other four reach a tenant only THROUGH that user, which is why they appear here only now that
-    /// the census follows relationships.
+    /// <c>AccountMembership</c> is Identity's one entry and carries an <c>AccountId</c>, and it is exempt
+    /// on purpose: it is the table that DECIDES which account a session may act for, so it is read by
+    /// user id across every account a login holds, at sign-in (before a principal exists) and when the
+    /// person switches account. Filtered by the account claim, it would show only the account already
+    /// active and make a switch impossible. The endpoints that read it stamp the user id from the token;
+    /// none takes a membership id.
     /// </para>
     /// <para>
-    /// <c>PinnedPage</c> is the sixth and a different case: a signed-in person's own list, reached only
-    /// through the user id the controller stamps from their token, with no endpoint that takes a pin
-    /// id. It belongs to a user, not to an account, and a user may be an administrator with no account.
-    /// </para>
-    /// <para>
-    /// <c>AccountMembership</c> carries an <c>AccountId</c> and is exempt on purpose: it is the table
-    /// that DECIDES which account a session may act for, so it is read by user id across every account
-    /// a login holds, at sign-in (before a principal exists) and when the person switches account.
-    /// Filtered by the account claim, it would show only the account already active and make a switch
-    /// impossible. The endpoints that read it stamp the user id from the token; none takes a
-    /// membership id.
-    /// </para>
-    /// <para>
-    /// <c>InvitationToken</c> qualifies for the identical reason <c>PasswordResetToken</c> does: it
-    /// is reached by an anonymous caller presenting a bearer token — the plaintext value mailed to a
-    /// hosting account's owner — before any principal exists for a filter to close over. Nothing
-    /// exposes it by id; the only lookup is by the token's own digest.
-    /// </para>
-    /// <para>
-    /// What makes the absence safe is that nothing exposes these rows by id — Identity's HTTP surface
-    /// is sign-in, sessions, two-factor, password reset, the setup flow, and two administrator-only
-    /// screens, and a session is addressed by its own id only for the signed-in principal that owns
-    /// it. Adding an endpoint that reads one of these rows by an id the caller names is what would
-    /// change that, and it must scope the read itself.
+    /// <b>What is no longer listed, and why that is not a loss of coverage.</b> <c>User</c>,
+    /// <c>Session</c>, <c>PasswordResetToken</c>, <c>InvitationToken</c>, <c>RecoveryCode</c> and
+    /// <c>PinnedPage</c> used to be exempt here because the census reached them through <c>User.AccountId</c>
+    /// and the required relationships hanging off it. A login names no account any more (issue #325): it
+    /// belongs to a PERSON, who may hold several accounts or, for an administrator, none, so these rows are
+    /// not an account's rows and the census correctly stops seeing them. What was true of them is
+    /// unchanged — they are read at sign-in or by an unauthenticated caller holding a token, before any
+    /// principal exists, and nothing exposes one by an id the caller names — and an endpoint that did
+    /// would have to scope the read itself.
     /// </para>
     /// </remarks>
     private static readonly IReadOnlyDictionary<string, string> Exempt =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["Maran.Modules.Identity.Domain.Entities.User"] =
-                "read by sign-in before any principal exists; no endpoint reads a user the caller names",
-            ["Maran.Modules.Identity.Domain.Entities.Session"] =
-                "looked up by token hash to ESTABLISH the principal a filter would close over",
-            ["Maran.Modules.Identity.Domain.Entities.PasswordResetToken"] =
-                "consumed by an unauthenticated caller holding the token; there is no principal to scope to",
-            ["Maran.Modules.Identity.Domain.Entities.InvitationToken"] =
-                "consumed by an unauthenticated caller holding the token; there is no principal to scope to",
-            ["Maran.Modules.Identity.Domain.Entities.RecoveryCode"] =
-                "consumed part-way through two-factor, before the session that would carry a principal exists",
             ["Maran.Modules.Identity.Domain.Entities.AccountMembership"] =
                 "read by the login's own user id across ALL its accounts, to decide which one a session may act for; a tenant filter would hide every account but the active one",
-            ["Maran.Modules.Identity.Domain.Entities.PinnedPage"] =
-                "keyed by the signed-in user's own id, which the controller stamps from the token; no endpoint takes a pin id",
         };
 
     /// <summary>Every entity that belongs to a tenant is scoped by a global query filter.</summary>

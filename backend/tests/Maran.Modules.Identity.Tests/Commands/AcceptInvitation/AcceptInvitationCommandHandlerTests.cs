@@ -27,7 +27,8 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
     /// <summary>Seeds the invited login every test accepts an invitation for.</summary>
     public async Task InitializeAsync()
     {
-        _context.Users.Add(User.Invite(_userId, "owner-one", "owner@example.com", Guid.NewGuid(), Now));
+        _context.Users.Add(User.Invite(_userId, "owner-one", "owner@example.com", Now));
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), _userId, Guid.NewGuid(), Now));
         await _context.SaveChangesAsync();
     }
 
@@ -169,54 +170,54 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
 
     /// <summary>
     /// Accepting an invitation while the hosting account is suspended stores the chosen password but
-    /// does NOT produce a usable login: the account created, invited, then suspended before the
-    /// owner opened the link must not become <see cref="UserLifecycle.Active"/> just because the token is
-    /// still live.
+    /// does NOT produce a way in: the login becomes <see cref="UserLifecycle.Active"/>, and its
+    /// membership of the suspended account is what keeps it from signing in.
     /// </summary>
     /// <remarks>
-    /// Closes the hole a final review found: <c>User.Suspend()</c> deliberately leaves an
-    /// <see cref="UserLifecycle.Invited"/> login in <c>Invited</c> rather than consuming the invitation,
-    /// but nothing previously stopped <c>Activate</c> from later making it fully usable regardless.
+    /// Closes the hole a final review found: nothing may let an owner turn a suspended hosting account
+    /// into a working login by finding an old invitation link. The suspension used to be a lifecycle
+    /// value the invitation had to preserve; it is now the state of the membership, which accepting
+    /// the invitation never touches.
     /// </remarks>
     [Fact]
-    public async Task Accepting_an_invitation_on_a_suspended_account_does_not_activate_the_login()
+    public async Task Accepting_an_invitation_on_a_suspended_account_does_not_open_the_account()
     {
         var token = await IssueTokenAsync();
-        var user = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        user.Suspend();
+        (await _context.AccountMemberships.SingleAsync()).Suspend();
         await _context.SaveChangesAsync();
 
         var result = await NewHandler().HandleAsync(Command(token), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         var stored = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        Assert.Equal(UserLifecycle.Suspended, stored.Lifecycle);
-        Assert.NotEqual(UserLifecycle.Active, stored.Lifecycle);
+        Assert.Equal(UserLifecycle.Active, stored.Lifecycle);
+        Assert.Equal(MembershipState.Suspended, (await _context.AccountMemberships.SingleAsync()).State);
+        Assert.True(await new ActiveAccountResolver(_context).IsSuspendedEverywhereAsync(stored, CancellationToken.None));
         // The password was still stored: once the account is resumed the owner may sign in with the
         // password they already chose, rather than needing a second invitation.
         Assert.True(_hasher.Verify(NewPassword, stored.PasswordHash));
     }
 
     /// <summary>
-    /// Once the account is resumed, the login the owner already completed while suspended becomes
-    /// usable — no second invitation is needed.
+    /// Once the account is resumed, the login the owner already completed while suspended may act for
+    /// it — no second invitation is needed.
     /// </summary>
     [Fact]
-    public async Task Resuming_the_account_makes_the_already_accepted_login_active()
+    public async Task Resuming_the_account_makes_the_already_accepted_login_usable()
     {
         var token = await IssueTokenAsync();
-        var user = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        user.Suspend();
+        var membership = await _context.AccountMemberships.SingleAsync();
+        membership.Suspend();
         await _context.SaveChangesAsync();
 
         await NewHandler().HandleAsync(Command(token), CancellationToken.None);
 
-        var stored = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        stored.Resume();
+        membership.Resume();
         await _context.SaveChangesAsync();
 
         var resumed = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
         Assert.Equal(UserLifecycle.Active, resumed.Lifecycle);
+        Assert.False(await new ActiveAccountResolver(_context).IsSuspendedEverywhereAsync(resumed, CancellationToken.None));
         Assert.True(_hasher.Verify(NewPassword, resumed.PasswordHash));
     }
 }

@@ -305,7 +305,6 @@ public sealed class AccountResourceSummaryEndpointTests : IAsyncLifetime
 
         var customer = new User(
             Guid.NewGuid(), username, $"{username}@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        customer.AssignAccount(accountId);
         context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, accountId, now));
         context.Users.Add(customer);
         await context.SaveChangesAsync();

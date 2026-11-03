@@ -252,7 +252,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
     public async Task A_reset_for_an_invited_login_activates_it_instead_of_leaving_it_invited()
     {
         var invitedUserId = Guid.NewGuid();
-        _context.Users.Add(User.Invite(invitedUserId, "acme", "owner@example.com", Guid.NewGuid(), Now));
+        _context.Users.Add(User.Invite(invitedUserId, "acme", "owner@example.com", Now));
         await _context.SaveChangesAsync();
         var token = PasswordResetTokenHasher.Generate();
         _context.PasswordResetTokens.Add(
@@ -276,7 +276,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
     public async Task A_reset_that_completes_an_invitation_retires_its_outstanding_invitation_tokens()
     {
         var invitedUserId = Guid.NewGuid();
-        _context.Users.Add(User.Invite(invitedUserId, "acme", "owner@example.com", Guid.NewGuid(), Now));
+        _context.Users.Add(User.Invite(invitedUserId, "acme", "owner@example.com", Now));
         var invitationToken = InvitationTokenHasher.Generate();
         _context.InvitationTokens.Add(new InvitationToken(
             Guid.NewGuid(), invitedUserId, InvitationTokenHasher.Hash(invitationToken), Now));
@@ -301,7 +301,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
     public async Task A_reset_that_completes_an_invitation_is_also_journalled_as_an_invitation_accepted()
     {
         var invitedUserId = Guid.NewGuid();
-        _context.Users.Add(User.Invite(invitedUserId, "acme", "owner@example.com", Guid.NewGuid(), Now));
+        _context.Users.Add(User.Invite(invitedUserId, "acme", "owner@example.com", Now));
         await _context.SaveChangesAsync();
         var token = PasswordResetTokenHasher.Generate();
         _context.PasswordResetTokens.Add(

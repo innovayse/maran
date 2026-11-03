@@ -38,7 +38,7 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
             new IdentityAuditJournal(_audit, _currentUser),
             new InvitationMailComposer(
                 new StubEmailTemplates(), new OptionsWrapper<PanelOptions>(new PanelOptions())),
-            new InvitationIssuer(_context, _accountDirectory),
+            new InvitationIssuer(_context, _accountDirectory, new AccountOwnerFinder(_context)),
             _clock,
             _currentUser);
     }
@@ -51,10 +51,20 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
     private async Task<User> SeedInvitedUserAsync()
     {
         _accountDirectory.Add(AccountId, "owner-one", maxFtpUsers: 1);
-        var user = User.Invite(Guid.NewGuid(), "owner-one", "owner@example.com", AccountId, Now);
+        var user = User.Invite(Guid.NewGuid(), "owner-one", "owner@example.com", Now);
         _context.Users.Add(user);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, AccountId, Now));
         await _context.SaveChangesAsync();
         return user;
+    }
+
+    /// <summary>Suspends the owner membership of the account, as the suspension cascade does.</summary>
+    private async Task SuspendOwnerMembershipAsync()
+    {
+        var membership = await _context.AccountMemberships.SingleAsync(
+            candidate => candidate.AccountId == AccountId && candidate.Role == MembershipRole.Owner);
+        membership.Suspend();
+        await _context.SaveChangesAsync();
     }
 
     /// <summary>Resend on a missing login creates it, from the account's own directory entry.</summary>
@@ -66,7 +76,9 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
         var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var user = Assert.Single(await _context.Users.Where(candidate => candidate.AccountId == AccountId).ToListAsync());
+        var membership = await _context.AccountMemberships.SingleAsync(
+            candidate => candidate.AccountId == AccountId && candidate.Role == MembershipRole.Owner);
+        var user = await _context.Users.SingleAsync(candidate => candidate.Id == membership.UserId);
         Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
         Assert.Single(await _context.InvitationTokens.ToListAsync());
         Assert.Single(_bus.Published);
@@ -102,23 +114,41 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
         Assert.Empty(_bus.Published);
     }
 
-    /// <summary>Resend on a suspended login is refused, the same way an active one is.</summary>
+    /// <summary>Resend on a claimed login whose account is suspended is refused, the same way an active one is.</summary>
     /// <remarks>
-    /// A suspended login was active before it was suspended and already has a real password;
-    /// <c>User.Activate</c> would overwrite it and unconditionally lift the suspension.
+    /// A claimed login already has a real password, whether or not its account is suspended;
+    /// <c>User.Activate</c> would overwrite it.
     /// </remarks>
     [Fact]
-    public async Task Resend_on_a_suspended_login_is_refused()
+    public async Task Resend_on_a_claimed_login_of_a_suspended_account_is_refused()
     {
         var user = await SeedInvitedUserAsync();
         user.Activate("hash");
-        user.Suspend();
-        await _context.SaveChangesAsync();
+        await SuspendOwnerMembershipAsync();
 
         var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("InvitationLoginNotPending", result.Error!.Code);
+    }
+
+    /// <summary>Resend on a pending invitation of a suspended account is refused with its own code.</summary>
+    /// <remarks>
+    /// The suspension is the owner membership's state, so an invited login (no password yet) is told
+    /// apart from a claimed one by the lifecycle and from an active account by the membership.
+    /// </remarks>
+    [Fact]
+    public async Task Resend_on_a_pending_invitation_of_a_suspended_account_is_refused()
+    {
+        await SeedInvitedUserAsync();
+        await SuspendOwnerMembershipAsync();
+
+        var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("InvitationAccountSuspended", result.Error!.Code);
+        Assert.Empty(_bus.Published);
+        Assert.Empty(await _context.InvitationTokens.ToListAsync());
     }
 
     /// <summary>Resend retires the previous outstanding token.</summary>

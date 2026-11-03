@@ -137,12 +137,17 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
         Assert.Empty(await _context.PasswordResetTokens.ToListAsync());
     }
 
-    /// <summary>A suspended administrator is refused, and the suspension is not lifted.</summary>
+    /// <summary>An administrator who has not set a password is refused, and the invitation is not consumed.</summary>
+    /// <remarks>
+    /// No mutator can leave an administrator unusable, so the row is built the way a legacy one could
+    /// be: an invited login whose role is then stated as administrator through the context.
+    /// </remarks>
     [Fact]
-    public async Task A_suspended_administrator_is_refused_and_stays_suspended()
+    public async Task An_administrator_who_has_not_set_a_password_is_refused_and_stays_invited()
     {
-        var admin = await SeedAsync();
-        admin.Suspend();
+        var admin = User.Invite(Guid.NewGuid(), "root", "root@example.com", Now);
+        _context.Users.Add(admin);
+        _context.Entry(admin).Property(user => user.Role).CurrentValue = UserRole.Admin;
         await _context.SaveChangesAsync();
 
         var result = await NewIssuer().IssueAsync("root", false, "alice", CancellationToken.None);
@@ -150,7 +155,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.Equal("AdminRecoveryLoginNotActive", result.Error!.Code);
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
-        Assert.Equal(UserLifecycle.Suspended, (await _context.Users.SingleAsync()).Lifecycle);
+        Assert.Equal(UserLifecycle.Invited, (await _context.Users.SingleAsync()).Lifecycle);
         Assert.Empty(await _context.PasswordResetTokens.ToListAsync());
     }
 

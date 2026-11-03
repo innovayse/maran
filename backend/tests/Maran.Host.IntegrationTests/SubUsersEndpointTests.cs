@@ -354,7 +354,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
             where user.Username == "owner-a"
             select membership).SingleAsync();
 
-        var member = User.InviteMember(Guid.NewGuid(), username, $"{username}@example.com", now);
+        var member = User.Invite(Guid.NewGuid(), username, $"{username}@example.com", now);
         member.Activate(hasher.Hash(EndpointHarness.Password));
         identity.Users.Add(member);
         identity.AccountMemberships.Add(

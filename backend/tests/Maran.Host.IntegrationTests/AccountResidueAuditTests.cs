@@ -135,7 +135,9 @@ public sealed class AccountResidueAuditTests : IAsyncLifetime
         {
             var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
             var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
-            identity.Users.Add(User.Invite(Guid.NewGuid(), "residue-owner", "residue-owner@example.com", accountId, now));
+            var owner = User.Invite(Guid.NewGuid(), "residue-owner", "residue-owner@example.com", now);
+            identity.Users.Add(owner);
+            identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), owner.Id, accountId, now));
             await identity.SaveChangesAsync();
         }
 

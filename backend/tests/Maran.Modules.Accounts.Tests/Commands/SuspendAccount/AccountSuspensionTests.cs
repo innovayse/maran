@@ -354,7 +354,7 @@ public sealed class AccountSuspensionTests : IDisposable
     /// <summary>A completed suspension says on its task what it did not cover.</summary>
     /// <remarks>
     /// The task's stage line is the only place an operator is told what a suspension does NOT reach —
-    /// the account's databases and the panel's own web login. A completion without it would be the
+    /// the account's databases. A completion without it would be the
     /// panel implying a cascade wider than the one it has, which is the defect three documents in
     /// this repository already had.
     /// </remarks>
@@ -702,7 +702,7 @@ public sealed class AccountSuspensionTests : IDisposable
                 + "and all 1 of its ftps logins locked; the panel asked the host to end the account's "
                 + "open transfer sessions, and no module reported having done so, so this line cannot "
                 + "say that any were ended; NOT covered by this suspension: "
-                + "the account's databases and the panel's own web login, and 2 login(s) sharing this "
+                + "the account's databases, and 2 login(s) sharing this "
                 + "account's uid that the panel did not create and does not lock",
             attestation.Line);
     }
@@ -739,7 +739,7 @@ public sealed class AccountSuspensionTests : IDisposable
                 + "and all 0 of its ftps logins locked; the panel asked the host to end the account's "
                 + "open transfer sessions, and no module reported having done so, so this line cannot "
                 + "say that any were ended; NOT covered by this suspension: "
-                + "the account's databases and the panel's own web login, and no transfer login was "
+                + "the account's databases, and no transfer login was "
                 + "reported, so nothing in the host's answer can say whether a login outside the "
                 + "panel's own shares this account's uid: read the host's passwd for entries carrying "
                 + "it",
@@ -991,9 +991,8 @@ public sealed class AccountSuspensionTests : IDisposable
         Assert.Equal(
             "the host shows the login unlocked, none of its 0 vhosts for this account serving the "
                 + "suspension page, all 2 of its cron entries free to run again and all 1 of its sftp "
-                + "logins and all 1 of its ftps logins unlocked; the account's databases and the "
-                + "panel's own web login were never stopped by the suspension, so nothing here "
-                + "restored them",
+                + "logins and all 1 of its ftps logins unlocked; the account's databases were never "
+                + "stopped by the suspension, so nothing here restored them",
             attestation.Line);
     }
 

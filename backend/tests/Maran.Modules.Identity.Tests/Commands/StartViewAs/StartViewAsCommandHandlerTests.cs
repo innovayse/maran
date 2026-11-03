@@ -124,13 +124,13 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
         Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.ViewAs != null));
     }
 
-    /// <summary>A suspended login cannot be viewed as.</summary>
+    /// <summary>A suspended account cannot be viewed as: its owner's membership is suspended.</summary>
     [Fact]
-    public async Task A_suspended_login_cannot_be_viewed_as()
+    public async Task A_suspended_account_cannot_be_viewed_as()
     {
         var (admin, adminSession) = await _fixture.SeedAdminAsync();
-        var (accountId, owner) = await _fixture.SeedAccountAsync();
-        owner.Suspend();
+        var (accountId, _) = await _fixture.SeedAccountAsync();
+        (await _fixture.Context.AccountMemberships.SingleAsync(m => m.AccountId == accountId)).Suspend();
         await _fixture.Context.SaveChangesAsync();
 
         var result = await NewHandler().HandleAsync(Command(accountId, admin.Id, adminSession.Id), CancellationToken.None);

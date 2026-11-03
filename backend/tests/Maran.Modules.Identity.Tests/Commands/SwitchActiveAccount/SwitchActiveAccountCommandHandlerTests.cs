@@ -7,6 +7,7 @@ using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Identity.Tests.Commands.SwitchActiveAccount;
@@ -139,17 +140,80 @@ public sealed class SwitchActiveAccountCommandHandlerTests : IAsyncLifetime
         Assert.Equal("SessionNotFound", result.Error!.Code);
     }
 
-    /// <summary>A suspended login holding a live session cannot obtain a fresh token by switching.</summary>
+    /// <summary>A login that may not be used holding a live session cannot obtain a fresh token by switching.</summary>
     [Fact]
-    public async Task A_suspended_login_cannot_obtain_a_token_by_switching()
+    public async Task A_login_that_may_not_be_used_cannot_obtain_a_token_by_switching()
     {
-        _user.Suspend();
+        var invited = User.Invite(Guid.NewGuid(), "invited", "invited@example.com", Now);
+        var account = Guid.NewGuid();
+        _context.Users.Add(invited);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), invited.Id, account, Now));
         await _context.SaveChangesAsync();
+        var issued = await NewSessions().IssueAsync(invited.Id, "203.0.113.9", "agent", account, CancellationToken.None);
+
+        var result = await NewHandler().HandleAsync(
+            new SwitchActiveAccountCommand(account, invited.Id, issued.SessionId, "203.0.113.9", "agent"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("InvalidCredentialsUnauthorized", result.Error!.Code);
+    }
+
+    /// <summary>Suspends the caller's membership of <paramref name="accountId"/>.</summary>
+    /// <param name="accountId">The account whose membership is suspended.</param>
+    private async Task SuspendAsync(Guid accountId)
+    {
+        var membership = await _context.AccountMemberships.SingleAsync(
+            candidate => candidate.UserId == _user.Id && candidate.AccountId == accountId);
+        membership.Suspend();
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Switching to an account the caller holds but whose membership is suspended is refused with
+    /// its own code, changes nothing, and is journalled as a failure.
+    /// </summary>
+    [Fact]
+    public async Task Switching_to_a_suspended_membership_is_refused_changes_nothing_and_is_audited()
+    {
+        await SuspendAsync(_second);
 
         var result = await NewHandler().HandleAsync(Command(_second), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("InvalidCredentialsUnauthorized", result.Error!.Code);
+        Assert.Equal("AccountMembershipSuspended", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Equal(_first, _context.Sessions.Single(candidate => candidate.Id == _sessionId).ActiveAccountId);
+        var entry = Assert.Single(_audit.Written);
+        Assert.Equal(AuditActions.ActiveAccountSwitched, entry.Action);
+        Assert.Equal(_second.ToString(), entry.Subject);
+        Assert.False(entry.Succeeded);
+    }
+
+    /// <summary>
+    /// Suspending the account the session speaks for does not stop a switch to the other one: the
+    /// suspension belongs to one account, not to the login.
+    /// </summary>
+    [Fact]
+    public async Task Switching_away_from_a_suspended_account_to_an_active_one_succeeds()
+    {
+        await SuspendAsync(_first);
+
+        var result = await NewHandler().HandleAsync(Command(_second), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(_second, result.Value.AccountId);
+    }
+
+    /// <summary>A suspended membership answers a stranger's account id exactly as before: not found.</summary>
+    [Fact]
+    public async Task A_suspended_membership_does_not_change_the_answer_for_somebody_elses_account()
+    {
+        await SuspendAsync(_second);
+
+        var result = await NewHandler().HandleAsync(Command(_someoneElses), CancellationToken.None);
+
+        Assert.Equal("AccountMembershipNotFound", result.Error!.Code);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
     }
 }

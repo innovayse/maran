@@ -59,9 +59,9 @@ public sealed class AccountCascadeTests
     /// <remarks>
     /// <para>
     /// <b>It is empty, and it is kept.</b> <c>Maran.Modules.Identity</c> was its one entry: its
-    /// <c>User.AccountId</c> is nullable and names the hosting account a CUSTOMER login owns, and in
-    /// v1 the only user the panel constructs is the setup administrator, whose <c>AccountId</c> is
-    /// null — so no row was keyed to an account and nothing was orphaned.
+    /// login row named the hosting account a CUSTOMER login owns (since replaced by
+    /// <c>AccountMembership</c> rows), and in v1 the only user the panel constructs is the setup
+    /// administrator, who holds none — so no row was keyed to an account and nothing was orphaned.
     /// </para>
     /// <para>
     /// That exemption was still wrong to keep, for two reasons neither of which was about orphans.

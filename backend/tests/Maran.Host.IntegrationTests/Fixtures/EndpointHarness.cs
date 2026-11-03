@@ -108,7 +108,6 @@ public static class EndpointHarness
 
         var customer = new User(
             Guid.NewGuid(), username, $"{username}@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        customer.AssignAccount(accountId);
         context.Users.Add(customer);
         context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, accountId, now));
         await context.SaveChangesAsync();

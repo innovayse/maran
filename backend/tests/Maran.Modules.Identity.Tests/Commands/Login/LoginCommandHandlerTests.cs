@@ -239,7 +239,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
     [Fact]
     public async Task Signing_in_as_an_invited_login_is_refused_with_the_same_result_as_a_wrong_password()
     {
-        _context.Users.Add(User.Invite(Guid.NewGuid(), "invited", "invited@example.com", Guid.NewGuid(), Now));
+        _context.Users.Add(User.Invite(Guid.NewGuid(), "invited", "invited@example.com", Now));
         await _context.SaveChangesAsync();
         await SeedUserAsync(_hasher.Hash(Password));
 
@@ -265,7 +265,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
     [Fact]
     public async Task An_invited_login_with_a_valid_password_hash_is_still_refused_identically()
     {
-        var invited = User.Invite(Guid.NewGuid(), "invited", "invited@example.com", Guid.NewGuid(), Now);
+        var invited = User.Invite(Guid.NewGuid(), "invited", "invited@example.com", Now);
         invited.ChangePassword(_hasher.Hash(Password));
         _context.Users.Add(invited);
         await _context.SaveChangesAsync();
@@ -278,19 +278,80 @@ public sealed class LoginCommandHandlerTests : IDisposable
         Assert.Equal(wrongPassword.Error, invitedResult.Error);
     }
 
-    /// <summary>Signing in as a suspended login is refused the same way.</summary>
-    [Fact]
-    public async Task Signing_in_as_a_suspended_login_is_refused_with_the_same_result_as_a_wrong_password()
+    /// <summary>
+    /// Stores a customer with a valid password whose memberships are the given accounts, each suspended
+    /// or active as stated.
+    /// </summary>
+    /// <param name="withTotp">Whether a second factor is enrolled.</param>
+    /// <param name="accounts">Each account the customer owns, and whether its membership is suspended.</param>
+    private async Task<User> SeedCustomerAsync(bool withTotp, params (Guid AccountId, bool Suspended)[] accounts)
     {
-        var suspended = await SeedUserAsync(_hasher.Hash(Password));
-        suspended.Suspend();
-        await _context.SaveChangesAsync();
+        var customer = new User(
+            Guid.NewGuid(), "customer", "customer@example.com", _hasher.Hash(Password), UserRole.Customer, Now);
+        if (withTotp)
+        {
+            customer.EnableTotp("JBSWY3DPEHPK3PXP");
+        }
 
-        var suspendedResult = await NewHandler().HandleAsync(Attempt(), CancellationToken.None);
-        var wrongPassword = await NewHandler().HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
+        _context.Users.Add(customer);
+        foreach (var (accountId, suspended) in accounts)
+        {
+            var membership = AccountMembership.Own(Guid.NewGuid(), customer.Id, accountId, Now);
+            if (suspended)
+            {
+                membership.Suspend();
+            }
+
+            _context.AccountMemberships.Add(membership);
+        }
+
+        await _context.SaveChangesAsync();
+        return customer;
+    }
+
+    /// <summary>A customer whose only account is suspended is refused the same way a wrong password is.</summary>
+    [Fact]
+    public async Task Signing_in_with_every_account_suspended_is_refused_with_the_same_result_as_a_wrong_password()
+    {
+        await SeedCustomerAsync(withTotp: false, (Guid.NewGuid(), true));
+
+        var suspendedResult = await NewHandler().HandleAsync(Attempt(username: "customer"), CancellationToken.None);
+        var wrongPassword = await NewHandler().HandleAsync(Attempt(username: "customer", password: "wrong"), CancellationToken.None);
 
         Assert.False(suspendedResult.IsSuccess);
         Assert.Equal(wrongPassword.Error, suspendedResult.Error);
+        Assert.Empty(await _context.Sessions.ToListAsync());
+    }
+
+    /// <summary>
+    /// A customer whose every account is suspended is refused at the password step even with a second
+    /// factor enrolled, so no code is asked for and nothing about the suspension is learnt.
+    /// </summary>
+    [Fact]
+    public async Task A_second_factor_is_not_asked_for_when_every_account_is_suspended()
+    {
+        await SeedCustomerAsync(withTotp: true, (Guid.NewGuid(), true));
+
+        var result = await NewHandler().HandleAsync(Attempt(username: "customer"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("InvalidCredentialsUnauthorized", result.Error!.Code);
+    }
+
+    /// <summary>
+    /// A customer with one suspended account and one active one signs in, and the session speaks for
+    /// the active one.
+    /// </summary>
+    [Fact]
+    public async Task A_customer_with_one_suspended_and_one_active_account_signs_in_to_the_active_one()
+    {
+        var active = Guid.NewGuid();
+        await SeedCustomerAsync(withTotp: false, (Guid.NewGuid(), true), (active, false));
+
+        var result = await NewHandler().HandleAsync(Attempt(username: "customer"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(active, (await _context.Sessions.SingleAsync()).ActiveAccountId);
     }
 
     /// <summary>A locked account is refused with the same error a wrong password gets.</summary>

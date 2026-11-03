@@ -652,7 +652,6 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
             Guid.NewGuid(), "admin", "admin@example.com", hasher.Hash(Password), UserRole.Admin, now));
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        customer.AssignAccount(own.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, own.Id, now));
         identity.Users.Add(customer);
 
@@ -660,7 +659,6 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         // accounts are two budgets and not one shared between everyone on this address.
         var neighbour = new User(
             Guid.NewGuid(), "neighbour", "neighbour@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        neighbour.AssignAccount(stranger.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), neighbour.Id, stranger.Id, now));
         identity.Users.Add(neighbour);
         await identity.SaveChangesAsync();

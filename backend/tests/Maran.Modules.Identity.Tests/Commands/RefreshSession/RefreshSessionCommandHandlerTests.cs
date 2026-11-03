@@ -88,24 +88,28 @@ public sealed class RefreshSessionCommandHandlerTests
     }
 
     /// <summary>
-    /// Seeds a login in <paramref name="state"/> that holds a live session, and returns the refresh
-    /// token for it. The session is issued BEFORE the state changes, which is the real sequence: the
+    /// Seeds a customer owning one account that holds a live session speaking for it, and returns the
+    /// refresh token. The session is issued BEFORE the suspension, which is the real sequence: the
     /// session was legitimate when it was created.
     /// </summary>
-    private async Task<string> SeedLoginHoldingALiveSessionAsync(UserLifecycle state)
+    /// <param name="accountSuspended">Whether the account's membership is suspended afterwards.</param>
+    private async Task<string> SeedLoginHoldingALiveSessionAsync(bool accountSuspended)
     {
         var user = new User(Guid.NewGuid(), "owner-one", "owner@example.com", "hash", UserRole.Customer, Now);
+        var accountId = Guid.NewGuid();
+        var membership = AccountMembership.Own(Guid.NewGuid(), user.Id, accountId, Now);
         _context.Users.Add(user);
+        _context.AccountMemberships.Add(membership);
         await _context.SaveChangesAsync();
 
-        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "agent", null, CancellationToken.None);
+        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "agent", accountId, CancellationToken.None);
 
-        // The suspension's first half only. Its second half — RevokeAllAsync — is deliberately not
-        // run: this is the state the panel is left in when anything stops it, and it is the state the
-        // handler used to accept.
-        if (state == UserLifecycle.Suspended)
+        // The suspension's first half only. Its second half — revoking the sessions — is deliberately
+        // not run: this is the state the panel is left in when anything stops it, and it is the state
+        // the handler used to accept.
+        if (accountSuspended)
         {
-            user.Suspend();
+            membership.Suspend();
         }
 
         await _context.SaveChangesAsync();
@@ -113,13 +117,13 @@ public sealed class RefreshSessionCommandHandlerTests
     }
 
     /// <summary>
-    /// A suspended login holding a live session is refused, and no token is signed for it. This went
-    /// red before the state check existed in the refresh path.
+    /// A login whose only account is suspended, holding a live session, is refused, and no token is
+    /// signed for it. This went red before the state check existed in the refresh path.
     /// </summary>
     [Fact]
-    public async Task A_suspended_login_holding_a_live_session_cannot_refresh()
+    public async Task A_login_whose_only_account_is_suspended_cannot_refresh()
     {
-        var token = await SeedLoginHoldingALiveSessionAsync(UserLifecycle.Suspended);
+        var token = await SeedLoginHoldingALiveSessionAsync(accountSuspended: true);
 
         var result = await NewHandler(NewSessions()).HandleAsync(
             new RefreshSessionCommand(token, "203.0.113.7", "agent"),
@@ -137,7 +141,7 @@ public sealed class RefreshSessionCommandHandlerTests
     [Fact]
     public async Task An_active_login_still_refreshes_and_is_issued_a_token()
     {
-        var token = await SeedLoginHoldingALiveSessionAsync(UserLifecycle.Active);
+        var token = await SeedLoginHoldingALiveSessionAsync(accountSuspended: false);
 
         var result = await NewHandler(NewSessions()).HandleAsync(
             new RefreshSessionCommand(token, "203.0.113.7", "agent"),
@@ -145,6 +149,27 @@ public sealed class RefreshSessionCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, _issuer.Issued);
+    }
+
+    /// <summary>
+    /// A refresh of a session speaking for an account that was suspended moves it to the account the
+    /// login still holds active, and stores the correction on the session.
+    /// </summary>
+    [Fact]
+    public async Task A_refresh_moves_a_session_off_a_suspended_account_to_an_active_one()
+    {
+        var (user, first, second) = await SeedLoginOwningTwoAccountsAsync();
+        var issued = await NewSessions().IssueAsync(user.Id, "203.0.113.7", "agent", second, CancellationToken.None);
+        (await _context.AccountMemberships.SingleAsync(m => m.AccountId == second)).Suspend();
+        await _context.SaveChangesAsync();
+
+        var result = await NewHandler(NewSessions()).HandleAsync(
+            new RefreshSessionCommand(issued.RefreshToken, "203.0.113.7", "agent"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(first, _issuer.LastAccountId);
+        Assert.Equal(first, _context.Sessions.Single(candidate => candidate.Id == result.Value.Session.SessionId).ActiveAccountId);
     }
 
     /// <summary>A refresh keeps acting for the account the session was switched to, not the first one.</summary>

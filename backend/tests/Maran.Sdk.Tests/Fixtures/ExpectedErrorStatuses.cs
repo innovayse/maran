@@ -279,6 +279,7 @@ public static class ExpectedErrorStatuses
             ["ViewAsLoginUnavailable"] = ErrorType.Conflict,
             ["ViewAsNotViewing"] = ErrorType.Conflict,
             ["AccountMembershipNotFound"] = ErrorType.NotFound,
+            ["AccountMembershipSuspended"] = ErrorType.Conflict,
             ["SetupAlreadyCompletedForbidden"] = ErrorType.Forbidden,
             ["SetupTokenExpiredUnauthorized"] = ErrorType.Unauthorized,
             ["SetupTokenInvalidUnauthorized"] = ErrorType.Unauthorized,

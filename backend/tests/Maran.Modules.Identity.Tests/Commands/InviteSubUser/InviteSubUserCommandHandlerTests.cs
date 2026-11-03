@@ -28,7 +28,7 @@ public sealed class InviteSubUserCommandHandlerTests : IDisposable
         return new InviteSubUserCommandHandler(
             _world.Context,
             _world.Guard(principal),
-            new InvitationIssuer(_world.Context, _world.Accounts),
+            new InvitationIssuer(_world.Context, _world.Accounts, new AccountOwnerFinder(_world.Context)),
             new InvitationMailComposer(new StubEmailTemplates(), new OptionsWrapper<PanelOptions>(new PanelOptions())),
             _world.Accounts,
             _world.Bus,
@@ -56,7 +56,7 @@ public sealed class InviteSubUserCommandHandlerTests : IDisposable
         Assert.Equal(UserLifecycle.Invited, result.Value.State);
         Assert.Equal([AccountFeature.Databases, AccountFeature.Cron], result.Value.Features);
         var user = await _world.Context.Users.SingleAsync(candidate => candidate.Username == "deploy");
-        Assert.Null(user.AccountId);
+        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
         var membership = await _world.Context.AccountMemberships.SingleAsync(candidate => candidate.UserId == user.Id);
         Assert.Equal(MembershipRole.Member, membership.Role);
         Assert.Equal(SubUserWorld.AccountId, membership.AccountId);

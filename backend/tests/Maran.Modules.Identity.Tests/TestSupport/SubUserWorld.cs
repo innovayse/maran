@@ -69,7 +69,7 @@ public sealed class SubUserWorld : IDisposable
     /// <returns>The member's login.</returns>
     public async Task<User> SeedMemberAsync(string username, AccountFeature grants, Guid? accountId = null)
     {
-        var user = User.InviteMember(Guid.NewGuid(), username, username + "@example.com", Now);
+        var user = User.Invite(Guid.NewGuid(), username, username + "@example.com", Now);
         user.Activate("hash");
         Context.Users.Add(user);
         Context.AccountMemberships.Add(

@@ -333,7 +333,7 @@ public sealed class InvitationLinkEndpointTests : IAsyncLifetime
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
 
-        var invited = User.Invite(Guid.NewGuid(), "owner-olive", "owner-olive@example.com", accountId, now);
+        var invited = User.Invite(Guid.NewGuid(), "owner-olive", "owner-olive@example.com", now);
         context.Users.Add(invited);
         context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), invited.Id, accountId, now));
         context.InvitationTokens.Add(new InvitationToken(Guid.NewGuid(), invited.Id, InvitationTokenHasher.Hash(MailedToken), now));

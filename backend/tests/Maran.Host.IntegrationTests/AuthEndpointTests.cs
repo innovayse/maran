@@ -91,12 +91,11 @@ public sealed class AuthEndpointTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Creates a customer login holding a VALID hash of <see cref="Password"/>, then moves it out of
-    /// <see cref="UserLifecycle.Active"/> the only way the domain allows: <see cref="User.Suspend"/>,
-    /// which deliberately keeps the password hash rather than clearing it (its own remarks). An
-    /// invited login's empty hash would fail password verification on its own and prove nothing
-    /// about the state check that runs after verification; a suspended login is the one state whose
-    /// password is real and still must be refused.
+    /// Creates a customer login holding a VALID hash of <see cref="Password"/> whose only account is
+    /// suspended: its owner membership is <see cref="MembershipState.Suspended"/>, the way the
+    /// suspension cascade leaves it. An invited login's empty hash would fail password verification
+    /// on its own and prove nothing about the check that runs after verification; a login whose every
+    /// account is suspended is the one case whose password is real and still must be refused.
     /// </summary>
     private static async Task SeedSuspendedCustomerAsync(WebApplicationFactory<Program> factory)
     {
@@ -110,8 +109,10 @@ public sealed class AuthEndpointTests : IAsyncLifetime
             Guid.NewGuid(), "suspended-owner", "suspended-owner@example.com", hasher.Hash(Password),
             UserRole.Customer, clock.UtcNow);
         user.Activate(hasher.Hash(Password));
-        user.Suspend();
+        var membership = AccountMembership.Own(Guid.NewGuid(), user.Id, Guid.NewGuid(), clock.UtcNow);
+        membership.Suspend();
         context.Users.Add(user);
+        context.AccountMemberships.Add(membership);
         await context.SaveChangesAsync();
     }
 

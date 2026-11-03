@@ -57,7 +57,7 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
     private IssueInvitationLinkCommandHandler NewHandler(string panelUrl = "https://panel.example.com")
     {
         return new IssueInvitationLinkCommandHandler(
-            new InvitationIssuer(_context, _accountDirectory),
+            new InvitationIssuer(_context, _accountDirectory, new AccountOwnerFinder(_context)),
             new InvitationLinkBuilder(new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = panelUrl })),
             new IdentityAuditJournal(_audit, _admin),
             _clock,
@@ -75,11 +75,21 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
     private async Task<User> SeedInvitedLoginAsync(string token)
     {
         _accountDirectory.Add(AccountId, "owner-one", maxFtpUsers: 1);
-        var user = User.Invite(Guid.NewGuid(), "owner-one", "owner@example.com", AccountId, Now);
+        var user = User.Invite(Guid.NewGuid(), "owner-one", "owner@example.com", Now);
         _context.Users.Add(user);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, AccountId, Now));
         _context.InvitationTokens.Add(new InvitationToken(Guid.NewGuid(), user.Id, InvitationTokenHasher.Hash(token), Now));
         await _context.SaveChangesAsync();
         return user;
+    }
+
+    /// <summary>Suspends the owner membership of the account, as the suspension cascade does.</summary>
+    private async Task SuspendOwnerMembershipAsync()
+    {
+        var membership = await _context.AccountMemberships.SingleAsync(
+            candidate => candidate.AccountId == AccountId && candidate.Role == MembershipRole.Owner);
+        membership.Suspend();
+        await _context.SaveChangesAsync();
     }
 
     /// <summary>Pulls the plaintext token out of an invitation link.</summary>
@@ -111,9 +121,8 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
     [Fact]
     public async Task An_invited_login_whose_account_is_suspended_gets_no_link_keeps_its_token_and_the_refusal_is_journalled()
     {
-        var user = await SeedInvitedLoginAsync("the-mailed-token");
-        user.Suspend();
-        await _context.SaveChangesAsync();
+        await SeedInvitedLoginAsync("the-mailed-token");
+        await SuspendOwnerMembershipAsync();
 
         var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
@@ -239,7 +248,9 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
         var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var user = await _context.Users.SingleAsync(candidate => candidate.AccountId == AccountId);
+        var membership = await _context.AccountMemberships.SingleAsync(
+            candidate => candidate.AccountId == AccountId && candidate.Role == MembershipRole.Owner);
+        var user = await _context.Users.SingleAsync(candidate => candidate.Id == membership.UserId);
         Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
         Assert.Single(await _context.InvitationTokens.Where(token => token.UserId == user.Id).ToListAsync());
     }
@@ -254,12 +265,11 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
         // reset endpoint's own rate limit; a suspended login already had a real password too.
         var user = await SeedInvitedLoginAsync("the-mailed-token");
         user.Activate("hash");
+        await _context.SaveChangesAsync();
         if (suspended)
         {
-            user.Suspend();
+            await SuspendOwnerMembershipAsync();
         }
-
-        await _context.SaveChangesAsync();
 
         var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
 

@@ -6,6 +6,7 @@ using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -288,22 +289,23 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
-        var login = User.Invite(Guid.NewGuid(), username, email, accountId, now);
+        var login = User.Invite(Guid.NewGuid(), username, email, now);
         context.Users.Add(login);
         context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), login.Id, accountId, now));
         await context.SaveChangesAsync();
         return login.Id;
     }
 
-    /// <summary>Marks a login's account suspended, exactly as the suspension cascade does.</summary>
+    /// <summary>Marks a login's owned account suspended, exactly as the suspension cascade does.</summary>
     /// <param name="factory">The booted host.</param>
-    /// <param name="loginId">The login to suspend.</param>
+    /// <param name="loginId">The owner login whose membership is suspended.</param>
     private static async Task SuspendLoginAsync(WebApplicationFactory<Program> factory, Guid loginId)
     {
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        var login = await context.Users.SingleAsync(user => user.Id == loginId);
-        login.Suspend();
+        var membership = await context.AccountMemberships.SingleAsync(
+            candidate => candidate.UserId == loginId && candidate.Role == MembershipRole.Owner);
+        membership.Suspend();
         await context.SaveChangesAsync();
     }
 
