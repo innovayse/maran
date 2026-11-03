@@ -44,6 +44,7 @@ public static class ExpectedErrorStatuses
             ["AccountCleanupFailed"] = ErrorType.Failure,
             ["AccountDomainTaken"] = ErrorType.Conflict,
             ["AccountDomainWwwPrefix"] = ErrorType.Validation,
+            ["AccountFinalBackupSkipForbidden"] = ErrorType.Forbidden,
             ["AccountHomeGroupRepairCountInvalid"] = ErrorType.Validation,
             ["AccountHomeGroupRepairPlanChanged"] = ErrorType.Conflict,
             ["AccountLoginIssuanceFailed"] = ErrorType.Failure,
@@ -295,6 +296,7 @@ public static class ExpectedErrorStatuses
             // Validation; failing to issue the login is the server's own failure.
             ["ResellerNotFound"] = ErrorType.NotFound,
             ["ResellerNameTaken"] = ErrorType.Conflict,
+            ["ResellerNameInvalid"] = ErrorType.Validation,
             ["ResellerSuspended"] = ErrorType.Conflict,
             ["ResellerHasAccounts"] = ErrorType.Conflict,
             ["ResellerAccountLimitReached"] = ErrorType.Conflict,
