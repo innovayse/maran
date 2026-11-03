@@ -17,31 +17,26 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// access.
 /// </para>
 /// <para>
-/// <b>What it owns, established from the mapping rather than assumed.</b> <c>User</c> is the only
-/// entity in this module carrying an <c>AccountId</c>, so it is the only one the panel's residue
-/// audit can see. The rest of an account's identity state hangs off the USER — <c>Session</c>,
-/// <c>RecoveryCode</c>, <c>PasswordResetToken</c> and <c>InvitationToken</c> are all keyed by
-/// <c>UserId</c> — which is precisely the shape the residue audit is blind to: it counts rows naming
-/// the account, and these name a user. A handler that dropped the <c>User</c> rows alone would
-/// therefore be pronounced clean by the audit while leaving live refresh tokens, and a live
-/// invitation, in the table.
+/// <b>What it owns, established from the mapping rather than assumed.</b> A login row names no
+/// account, so the only entity in this module carrying an <c>AccountId</c> is
+/// <c>AccountMembership</c>, and it is the only one the panel's residue audit can see. The rest of
+/// an account's identity state hangs off the USER — <c>Session</c>, <c>RecoveryCode</c>,
+/// <c>PasswordResetToken</c> and <c>InvitationToken</c> are all keyed by <c>UserId</c> — which is
+/// precisely the shape the residue audit is blind to: it counts rows naming the account, and these
+/// name a user. A handler that dropped the memberships alone would therefore be pronounced clean by
+/// the audit while leaving live refresh tokens, and a live invitation, in the table.
 /// </para>
 /// <para>
-/// <b>What actually guarantees the dependents go, stated honestly.</b> It is the MAPPING, not the
-/// four <c>RemoveRange</c> calls below: all four tables are mapped with
+/// <b>What guarantees the dependents go, stated honestly.</b> All four tables are mapped with
 /// <c>DeleteBehavior.Cascade</c> from <c>User</c>, so removing a login takes them whether this
-/// handler names them or not. That was measured rather than assumed — deleting the session removal
-/// from this method leaves every test in the suite green, on the in-memory provider and against real
-/// PostgreSQL alike, because the cascade does the work either way. The mapping is what
-/// <c>AccountCascadeTests.Every_dependent_of_a_tenant_row_is_removed_with_it</c> guards, and
-/// removing the cascade there is the mutation that fails.
-/// </para>
-/// <para>
-/// They are written out anyway, for two reasons that are about the reader rather than the row. This
-/// method is the module's answer to "what do you release for an account", and an answer that names
-/// only <c>User</c> would understate it by four credentials; and the removal then does not depend
-/// on which provider is underneath, which matters because this module's unit tests run on the
-/// in-memory one, where a foreign key is a suggestion.
+/// handler names them or not; the four <c>RemoveRange</c> calls below also name them, so the removal
+/// does not depend on which provider is underneath (this module's unit tests run on the in-memory one,
+/// where a foreign key is a suggestion) and so the method answers "what do you release for an
+/// account" in full. What does NOT guard the mapping any more is the architecture census:
+/// <c>AccountCascadeTests.Every_dependent_of_a_tenant_row_is_removed_with_it</c> walks the
+/// dependents of tenant rows, and a login stopped being one when its account column was dropped
+/// (issue #325). The assertion that the credentials are gone is
+/// <c>AccountDeletionCascadeTests</c>, against real PostgreSQL.
 /// </para>
 /// <para>
 /// <b>What it deliberately leaves alone.</b> <c>AuditEvent</c> is the append-only journal and
@@ -53,16 +48,17 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// </para>
 /// <para>
 /// <b>No query filter is bypassed, and that is a fact about this module rather than an oversight.</b>
-/// <c>User</c> carries no global tenant filter — it is named in <c>TenantScopeTests</c>' exemption
-/// list, because the Identity module exposes no endpoint that lists or fetches users at all — so
-/// there is nothing here to ignore and no <c>IgnoreQueryFilters</c> to justify.
+/// <c>AccountMembership</c> is named in <c>TenantScopeTests</c>' exemption list, and <c>User</c> and
+/// the rows hanging off it belong to a person rather than to an account, so the census does not see
+/// them; the Identity module exposes no endpoint that lists or fetches users at all. There is
+/// nothing here to ignore and no <c>IgnoreQueryFilters</c> to justify.
 /// </para>
 /// <para>
-/// <b>A login that owns several accounts outlives any one of them.</b> A login is deleted with the
-/// account its older <c>AccountId</c> column names only when it holds no membership of another
-/// account; otherwise it loses this account's membership, has the column cleared, and keeps the
-/// rest. This is the expand-phase price of keeping that column: until it is dropped, the handler has
-/// to treat it as "the account this login was created for" and not as the login's only account.
+/// <b>A login that holds several accounts outlives any one of them.</b> Every login with a
+/// membership of the deleted account loses that membership. A login left with no membership at all
+/// — the owner, and any member who had only this account — is deleted with its credentials, because a
+/// customer login that reaches no account is a way in to nothing; a login that still holds another
+/// account is kept whole.
 /// </para>
 /// <para>
 /// <b>The failure is not swallowed.</b> Anything thrown here propagates to the Accounts handler,
@@ -90,24 +86,21 @@ public sealed class AccountDeletingHandler
     }
 
     /// <summary>
-    /// Removes every membership of the account being removed, and deletes the logins that existed for
-    /// it alone together with everything hanging off them.
+    /// Removes every membership of the account being removed, and deletes the logins left with no
+    /// membership together with everything hanging off them.
     /// </summary>
     /// <param name="message">The account about to be deleted.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>Resolves once the memberships, the logins and their credentials are gone.</returns>
+    /// <returns>Resolves once the memberships, the orphaned logins and their credentials are gone.</returns>
     public async Task HandleAsync(AccountDeleting message, CancellationToken cancellationToken)
     {
         var memberships = await _dbContext.AccountMemberships
             .Where(membership => membership.AccountId == message.AccountId)
             .ToListAsync(cancellationToken);
-        var users = await _dbContext.Users
-            .Where(user => user.AccountId == message.AccountId)
-            .ToListAsync(cancellationToken);
-        if (users.Count == 0 && memberships.Count == 0)
+        if (memberships.Count == 0)
         {
-            // The ordinary case in a panel whose only login is the administrator, whose AccountId is
-            // null. Returning early keeps the cascade from issuing four empty deletes per deletion.
+            // The ordinary case in a panel whose only login is the administrator, who holds no
+            // membership. Returning early keeps the cascade from issuing four empty deletes per deletion.
             return;
         }
 
@@ -116,24 +109,20 @@ public sealed class AccountDeletingHandler
         // next refresh re-resolves the account against the memberships left (ActiveAccountResolver).
         _dbContext.AccountMemberships.RemoveRange(memberships);
 
-        // A login whose older single-account column names this account but which still holds a
-        // membership of ANOTHER account is a person who owns more than one: deleting the login would
-        // delete the other account's way in. It survives, and the column that named the deleted
-        // account is cleared, because the residue audit refuses a deletion while any row still names it.
-        var userIds = users.Select(user => { return user.Id; }).ToList();
+        // A login that still holds a membership of ANOTHER account is a person who has more than one:
+        // deleting it would delete the other account's way in. It survives; every other login loses its
+        // only way to reach anything and goes.
+        var holderIds = memberships.Select(membership => { return membership.UserId; }).ToList();
         var keptIds = await _dbContext.AccountMemberships
-            .Where(membership => userIds.Contains(membership.UserId) && membership.AccountId != message.AccountId)
+            .Where(membership => holderIds.Contains(membership.UserId) && membership.AccountId != message.AccountId)
             .Select(membership => membership.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        foreach (var kept in users.Where(user => { return keptIds.Contains(user.Id); }))
-        {
-            kept.UnassignAccount(message.AccountId);
-        }
-
-        users = users.Where(user => { return !keptIds.Contains(user.Id); }).ToList();
-        userIds = users.Select(user => { return user.Id; }).ToList();
+        var userIds = holderIds.Where(id => { return !keptIds.Contains(id); }).ToList();
+        var users = await _dbContext.Users
+            .Where(user => userIds.Contains(user.Id))
+            .ToListAsync(cancellationToken);
 
         // Sessions first, because a refresh token is the credential that works without the password:
         // it is the one piece of this that an attacker could already be holding.

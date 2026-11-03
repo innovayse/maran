@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Interfaces;
 
@@ -12,7 +13,9 @@ namespace Maran.Modules.Identity.Queries.ListMyAccounts;
 /// The ids handed to <see cref="IAccountNameDirectory"/> come from the caller's own membership rows
 /// and from nowhere else, which is the condition under which that unscoped window is safe to ask. An
 /// account whose name cannot be read (it was deleted a moment ago, and its memberships have not been
-/// removed yet) is left out rather than listed with no label. The list is not paged: it is the
+/// removed yet) is left out rather than listed with no label. A suspended membership is left out too:
+/// the list is the selector's choices, and a suspended account is not one the person can switch to.
+/// The list is not paged: it is the
 /// number of accounts one person holds, read into a selector, not a table.
 /// </remarks>
 public sealed class ListMyAccountsQueryHandler
@@ -42,7 +45,7 @@ public sealed class ListMyAccountsQueryHandler
     {
         var accountIds = await _dbContext.AccountMemberships
             .AsNoTracking()
-            .Where(membership => membership.UserId == query.UserId)
+            .Where(membership => membership.UserId == query.UserId && membership.State == MembershipState.Active)
             .Select(membership => membership.AccountId)
             .ToListAsync(cancellationToken);
 

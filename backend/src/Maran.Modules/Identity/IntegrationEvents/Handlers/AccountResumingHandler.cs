@@ -1,10 +1,12 @@
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Events;
 
 namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 
 /// <summary>
-/// Lets the panel login of a reactivated account sign in again (<see cref="AccountResuming"/>).
+/// Lets the logins that act for a reactivated account act for it again (<see cref="AccountResuming"/>):
+/// every membership of the account becomes <see cref="MembershipState.Active"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -14,9 +16,10 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// one, exactly as they would after signing out anywhere else.
 /// </para>
 /// <para>
-/// <b>The ordinary case is a repeat rather than a genuine miss</b>, for the reason
-/// <see cref="AccountSuspendingHandler"/>'s remarks give: only the administrator can be without a
-/// login, and the administrator is never named by this event.
+/// <b>It acts on the account's memberships only</b>, for the reason
+/// <see cref="AccountSuspendingHandler"/>'s remarks give: a login that holds other accounts was
+/// never blocked as a whole, so there is nothing on the login to lift. An account with no
+/// membership at all has nothing to resume.
 /// </para>
 /// <para>
 /// <b>The failure is not swallowed.</b> Anything thrown here propagates to the Accounts handler,
@@ -40,21 +43,25 @@ public sealed class AccountResumingHandler
         _dbContext = dbContext;
     }
 
-    /// <summary>Resumes the account's login, leaving its sessions exactly as the suspension left them.</summary>
+    /// <summary>Resumes the account's memberships, leaving the sessions exactly as the suspension left them.</summary>
     /// <param name="message">The account about to be reactivated.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>Resolves once the login may sign in again.</returns>
+    /// <returns>Resolves once the logins may act for the account again.</returns>
     public async Task HandleAsync(AccountResuming message, CancellationToken cancellationToken)
     {
-        var user = await _dbContext.Users
-            .SingleOrDefaultAsync(candidate => candidate.AccountId == message.AccountId, cancellationToken);
-        if (user is null)
+        var memberships = await _dbContext.AccountMemberships
+            .Where(membership => membership.AccountId == message.AccountId)
+            .ToListAsync(cancellationToken);
+        if (memberships.Count == 0)
         {
-            // No login owns this account. See AccountSuspendingHandler's remarks.
             return;
         }
 
-        user.Resume();
+        foreach (var membership in memberships)
+        {
+            membership.Resume();
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

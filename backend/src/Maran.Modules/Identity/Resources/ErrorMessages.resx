@@ -36,6 +36,9 @@
   <data name="AccountMembershipNotFound">
     <value>This account could not be found.</value>
   </data>
+  <data name="AccountMembershipSuspended">
+    <value>This account is suspended, so it cannot be used until it is resumed.</value>
+  </data>
   <data name="CurrentPasswordIncorrect">
     <value>The current password is not correct.</value>
   </data>

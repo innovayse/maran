@@ -97,8 +97,9 @@ public sealed class VerifyTwoFactorCommandHandler
         // field's own remarks — so a suspended login with two-factor enrolled could still mint a
         // fresh session through this endpoint after AccountSuspendingHandler had revoked every other
         // one. AuthenticationCompleter enforces it again below; the two calls answer the identical
-        // question so neither can silently stop asking it.
-        if (!user.MayAuthenticate)
+        // question so neither can silently stop asking it. A customer whose every account is
+        // suspended is refused here too, for the same reason (issue #326).
+        if (!await _authenticationCompleter.MayCompleteAsync(user, cancellationToken))
         {
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));

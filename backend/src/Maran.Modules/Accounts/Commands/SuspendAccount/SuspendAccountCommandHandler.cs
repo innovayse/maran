@@ -121,9 +121,12 @@ public sealed class SuspendAccountCommandHandler
     /// account's DATABASES keep accepting connections; revoking access is the only thing that would
     /// stop a suspended customer's data being read by an application they host elsewhere, and
     /// restoring the grants exactly is a real reversal risk, so it is an open product decision. The
-    /// panel's own web LOGIN still works — sign-in consults the user's lockout and the password, and
-    /// never the account's status. FOREIGN crontab lines, which the panel did not write, keep
-    /// firing: a crontab is not the panel's file, so they are counted and reported rather than
+    /// panel's own web LOGIN is closed by a different subscriber, not by the host: Identity suspends
+    /// every membership of the account (<c>MembershipState.Suspended</c>), so sign-in, refresh and
+    /// switching to the account are refused for the people who act for it, and the sessions speaking
+    /// for it end — while a person who also holds ANOTHER, active account keeps that one. The host
+    /// cannot observe it, so the attestation does not claim it. FOREIGN crontab lines, which the panel
+    /// did not write, keep firing: a crontab is not the panel's file, so they are counted and reported rather than
     /// deleted. And any login that shares the account's uid without being one of its jailed logins
     /// keeps authenticating, for the same reason — it is not the panel's entry, and turning a
     /// credential nobody asked it to touch would take away access somebody deliberately arranged. It
@@ -357,7 +360,7 @@ public sealed class SuspendAccountCommandHandler
     /// </para>
     /// <para>
     /// The qualification is not optional prose. What a suspension does not reach — the account's
-    /// databases, the panel's own login, any crontab line the panel did not write, and any login
+    /// databases, any crontab line the panel did not write, and any login
     /// sharing the account's uid that the panel did not create — is named on the line, because a
     /// completion that claimed more than it observed is the defect this whole attestation exists to
     /// end. The last two are the ones the host can actually measure, so they are reported as numbers
@@ -403,7 +406,7 @@ public sealed class SuspendAccountCommandHandler
             + $"serving the suspended page, all {state.CronEntriesTotal} of its cron entries suppressed "
             + $"and {TransferLoginProtocolPolicy.DescribeAll(state.FileTransferLogins)} locked; "
             + SessionCullPolicy.Describe(report)
-            + $"NOT covered by this suspension: the account's databases and the panel's own web login{foreign}"
+            + $"NOT covered by this suspension: the account's databases{foreign}"
             + UnmanagedLoginPolicy.Describe(state);
     }
 

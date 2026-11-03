@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Enums;
+
 namespace Maran.Modules.Identity.Domain.Entities;
 
 /// <summary>
@@ -23,17 +24,22 @@ public sealed class User
     public UserRole Role { get; private set; }
 
     /// <summary>
-    /// Which of the four real situations this login is in: usable, waiting for its owner to set a
-    /// password, waiting while its account is suspended, or suspended. The one stored fact about
-    /// whether the login may be used. An invited login holds no password at all rather than an empty
-    /// hash: a sentinel hash in the same field a real one lives in is one careless comparison away
-    /// from being accepted.
+    /// Which of the two situations this login is in: usable, or waiting for its owner to set a
+    /// password. The one stored fact about whether the login itself may be used. An invited login
+    /// holds no password at all rather than an empty hash: a sentinel hash in the same field a real
+    /// one lives in is one careless comparison away from being accepted.
     /// </summary>
     /// <remarks>
-    /// Replaces the pair <see cref="LegacyState"/> and <see cref="LegacyAccountSuspended"/>, whose six
-    /// combinations included two that no mutator produces. Every mutator below writes this property
-    /// and then restates it into that pair, so the previous release, which still reads the pair,
-    /// keeps working until the contract release drops it.
+    /// <para>
+    /// Whether the login may act for a particular hosting account is not decided here: that is the
+    /// <see cref="AccountMembership.State"/> of the membership, because a suspension belongs to one
+    /// account and a login can hold several.
+    /// </para>
+    /// <para>
+    /// Replaces the pair <see cref="LegacyState"/> and <see cref="LegacyAccountSuspended"/>. Every
+    /// mutator below writes this property and then restates it into that pair, so the legacy columns
+    /// never disagree with it until the contract release drops them.
+    /// </para>
     /// </remarks>
     public UserLifecycle Lifecycle { get; private set; }
 
@@ -47,33 +53,32 @@ public sealed class User
 
     /// <summary>
     /// The previous release's "this login's account is suspended" flag, stored in
-    /// <c>Users."IsAccountSuspended"</c>. <b>Legacy: written only by <see cref="SyncLegacyColumns"/>
-    /// and never read by this release's code</b>; read <see cref="Lifecycle"/> instead. Dropped by
-    /// the same later release as <see cref="LegacyState"/>.
+    /// <c>Users."IsAccountSuspended"</c>. <b>Legacy: written only by <see cref="SyncLegacyColumns"/>,
+    /// always <c>false</c> now, and never read by this release's code</b>: a suspension is the state
+    /// of a membership (<see cref="AccountMembership.State"/>), not of the login. Dropped by the same
+    /// later release as <see cref="LegacyState"/>.
     /// </summary>
     public bool LegacyAccountSuspended { get; private set; }
 
     /// <summary>
-    /// Whether this login may be used to obtain a token at all — the one place that question is
+    /// Whether this login itself may be used to obtain a token — the one place that question is
     /// asked, so a new way of minting one cannot be added without asking it.
     /// </summary>
     /// <remarks>
     /// <para>
     /// <b>Why a member here rather than an <c>if</c> in each handler.</b> There were two sign-in
-    /// paths, each with its own copy of this comparison, and the two-factor path's copy was missing
-    /// — a suspended login with a second factor enrolled could sign in through it. That was fixed by
-    /// routing both through <c>AuthenticationCompleter</c>, and the comparison then existed once.
-    /// It was not the only door: <c>RefreshSessionCommandHandler</c> mints an access token from an
-    /// existing session and consulted nothing but "does this user still exist" (issue #58).
+    /// paths, each with its own copy of this comparison, and the two-factor path's copy was missing.
+    /// That was fixed by routing both through <c>AuthenticationCompleter</c>, and the comparison then
+    /// existed once. It was not the only door: <c>RefreshSessionCommandHandler</c> mints an access
+    /// token from an existing session and consulted nothing but "does this user still exist"
+    /// (issue #58).
     /// </para>
     /// <para>
-    /// <b>What that door was worth.</b> Suspension writes the state and revokes the sessions as two
-    /// separate operations in <c>AccountSuspendingHandler</c> — <c>Suspend()</c> and
-    /// <c>SaveChangesAsync</c> first, <c>RevokeAllAsync</c> after. Anything that stops the second
-    /// from happening (a cancelled request, a failure in the session store, a process that dies in
-    /// between) leaves a suspended login holding live sessions, and refresh would then keep issuing
-    /// fresh access tokens from them indefinitely, each rotation extending the next. Asking the state
-    /// directly removes the dependency on that revocation being complete and timely.
+    /// <b>This answers about the LOGIN only.</b> Whether the login may act for a particular hosting
+    /// account is the <see cref="AccountMembership.State"/> of that membership, asked of the
+    /// memberships by <c>ActiveAccountResolver</c> wherever a token is minted. The two questions are
+    /// separate because a person with two accounts is one login: suspending one account must not
+    /// make this property false.
     /// </para>
     /// <para>
     /// <b>This still is not a structural guarantee</b>, and <c>AuthenticationCompleter</c>'s remarks
@@ -89,27 +94,12 @@ public sealed class User
     }
 
     /// <summary>
-    /// Whether the owner has yet to accept the invitation and choose a password — in either of the
-    /// two lifecycles that hold no password, whether or not the account is suspended meanwhile.
+    /// Whether the person has yet to accept the invitation and choose a password.
     /// </summary>
     public bool HasPendingInvitation
     {
-        get { return Lifecycle is UserLifecycle.Invited or UserLifecycle.InvitedAccountSuspended; }
+        get { return Lifecycle == UserLifecycle.Invited; }
     }
-
-    /// <summary>
-    /// The hosting account this user was created for, for a <see cref="UserRole.Customer"/>; null for
-    /// an administrator, who owns none and reaches all of them.
-    /// </summary>
-    /// <remarks>
-    /// <b>No longer the truth about which accounts a login may act for.</b> That is the login's
-    /// <see cref="AccountMembership"/> rows, which can name several accounts. This column is kept for
-    /// one release because the previous release reads it (rules/architecture.md, expand then
-    /// contract); it is written when a customer login is created and cleared when its account is
-    /// deleted, and nothing in this release decides access from it. Its unique index constrains only
-    /// this column, so a second membership never violates it. The next release drops both.
-    /// </remarks>
-    public Guid? AccountId { get; private set; }
 
     /// <summary>
     /// The TOTP shared secret, base32-encoded and encrypted at rest; null when two-factor is not
@@ -185,31 +175,19 @@ public sealed class User
         PasswordHash = string.Empty;
     }
 
-    /// <summary>Creates the login of a hosting account's owner, before they have set a password.</summary>
-    /// <param name="id">The login's identity.</param>
-    /// <param name="username">The account's system user name, which is also the login name.</param>
-    /// <param name="email">The address the invitation was sent to.</param>
-    /// <param name="accountId">The hosting account this login owns.</param>
-    /// <param name="createdAt">The instant of creation, taken from <see cref="IClock"/>.</param>
-    /// <returns>A login in <see cref="UserLifecycle.Invited"/>, which cannot sign in.</returns>
-    public static User Invite(Guid id, string username, string email, Guid accountId, DateTimeOffset createdAt)
-    {
-        var user = InviteMember(id, username, email, createdAt);
-
-        user.AssignAccount(accountId);
-        return user;
-    }
-
     /// <summary>
-    /// Creates the login of a person an account's owner added to the account, before they have set a
-    /// password. It owns no account: what it may reach is stated by its <c>AccountMembership</c> rows.
+    /// Creates the login of a person invited to the panel, before they have set a password. It owns
+    /// and reaches no account by itself: what it may act for is stated by its
+    /// <see cref="AccountMembership"/> rows, which the caller creates beside it.
     /// </summary>
     /// <param name="id">The login's identity.</param>
-    /// <param name="username">The login name the owner chose.</param>
+    /// <param name="username">
+    /// The login name: the account's system user name for an owner, the name the owner chose for a member.
+    /// </param>
     /// <param name="email">The address the invitation is sent to.</param>
     /// <param name="createdAt">The instant of creation, taken from <see cref="IClock"/>.</param>
     /// <returns>A login in <see cref="UserLifecycle.Invited"/>, which cannot sign in.</returns>
-    public static User InviteMember(Guid id, string username, string email, DateTimeOffset createdAt)
+    public static User Invite(Guid id, string username, string email, DateTimeOffset createdAt)
     {
         var user = new User(id, username, email, string.Empty, UserRole.Customer, createdAt)
         {
@@ -221,113 +199,22 @@ public sealed class User
     }
 
     /// <summary>
-    /// Accepts an invitation: stores the first password and makes the login usable — unless the
-    /// account was suspended while the invitation was outstanding, in which case the password is
-    /// stored but the login comes out <see cref="UserLifecycle.Suspended"/> rather than usable.
+    /// Accepts an invitation: stores the first password and makes the login usable. A login that
+    /// already holds a password keeps its lifecycle.
     /// </summary>
     /// <param name="passwordHash">The Argon2id hash of the password its owner chose.</param>
     /// <remarks>
-    /// A customer must never be able to turn a suspended hosting account into a working login simply
-    /// by finding an old invitation link. Storing the password rather than refusing it means the
-    /// owner does not have to accept the invitation a second time once the account is resumed —
-    /// <see cref="Resume"/> then returns them straight to <see cref="UserLifecycle.Active"/> with the
-    /// password they already chose. A login that already holds a password keeps its lifecycle.
+    /// Accepting an invitation never lifts a suspension: if the account was suspended while the
+    /// invitation was outstanding, the login becomes usable but its membership of that account is
+    /// still <see cref="MembershipState.Suspended"/>, so sign-in refuses it until the account is
+    /// resumed. The password is stored regardless, so the owner does not have to accept the invitation
+    /// a second time.
     /// </remarks>
     public void Activate(string passwordHash)
     {
         PasswordHash = passwordHash;
-
-        switch (Lifecycle)
-        {
-            case UserLifecycle.Invited:
-                Lifecycle = UserLifecycle.Active;
-                break;
-            case UserLifecycle.InvitedAccountSuspended:
-                Lifecycle = UserLifecycle.Suspended;
-                break;
-            case UserLifecycle.Active:
-            case UserLifecycle.Suspended:
-                break;
-            default:
-                throw new InvalidOperationException($"Unknown user lifecycle {Lifecycle}.");
-        }
-
+        Lifecycle = UserLifecycle.Active;
         SyncLegacyColumns();
-    }
-
-    /// <summary>
-    /// Blocks sign-in because the hosting account was suspended. Keeps the password.
-    /// </summary>
-    /// <remarks>
-    /// A login that has not been claimed yet moves to <see cref="UserLifecycle.InvitedAccountSuspended"/>
-    /// rather than <see cref="UserLifecycle.Suspended"/>: suspending an account whose owner never set
-    /// a password must not silently consume the invitation they have not used yet, and the lifecycle
-    /// remembers the suspension so <see cref="Activate"/> keeps an invitation accepted during it from
-    /// producing a usable login. A login already suspended stays so.
-    /// </remarks>
-    public void Suspend()
-    {
-        switch (Lifecycle)
-        {
-            case UserLifecycle.Active:
-                Lifecycle = UserLifecycle.Suspended;
-                break;
-            case UserLifecycle.Invited:
-                Lifecycle = UserLifecycle.InvitedAccountSuspended;
-                break;
-            case UserLifecycle.InvitedAccountSuspended:
-            case UserLifecycle.Suspended:
-                break;
-            default:
-                throw new InvalidOperationException($"Unknown user lifecycle {Lifecycle}.");
-        }
-
-        SyncLegacyColumns();
-    }
-
-    /// <summary>Lifts a suspension, returning the login to the lifecycle it was in before.</summary>
-    public void Resume()
-    {
-        switch (Lifecycle)
-        {
-            case UserLifecycle.Suspended:
-                Lifecycle = UserLifecycle.Active;
-                break;
-            case UserLifecycle.InvitedAccountSuspended:
-                Lifecycle = UserLifecycle.Invited;
-                break;
-            case UserLifecycle.Active:
-            case UserLifecycle.Invited:
-                break;
-            default:
-                throw new InvalidOperationException($"Unknown user lifecycle {Lifecycle}.");
-        }
-
-        SyncLegacyColumns();
-    }
-
-    /// <summary>Binds this user to the hosting account they own.</summary>
-    /// <param name="accountId">The owned account's identity.</param>
-    public void AssignAccount(Guid accountId)
-    {
-        AccountId = accountId;
-    }
-
-    /// <summary>
-    /// Forgets the older single-account pointer when it names <paramref name="accountId"/>, which is
-    /// being deleted. A no-op for any other value.
-    /// </summary>
-    /// <param name="accountId">The account that is going away.</param>
-    /// <remarks>
-    /// Only the pointer is cleared: which accounts the login may act for is its memberships
-    /// (<see cref="AccountMembership"/>), and those are removed by the deletion handler itself.
-    /// </remarks>
-    public void UnassignAccount(Guid accountId)
-    {
-        if (AccountId == accountId)
-        {
-            AccountId = null;
-        }
     }
 
     /// <summary>
@@ -444,8 +331,6 @@ public sealed class User
         {
             UserLifecycle.Active => (UserState.Active, false),
             UserLifecycle.Invited => (UserState.Invited, false),
-            UserLifecycle.InvitedAccountSuspended => (UserState.Invited, true),
-            UserLifecycle.Suspended => (UserState.Suspended, true),
             _ => throw new InvalidOperationException($"Unknown user lifecycle {Lifecycle}."),
         };
     }

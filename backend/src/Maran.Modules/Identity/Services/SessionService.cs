@@ -168,6 +168,24 @@ public sealed class SessionService : ISessionService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task RevokeSpeakingForAccountAsync(
+        Guid accountId,
+        SessionRevocationReason reason,
+        CancellationToken cancellationToken)
+    {
+        var sessions = await _dbContext.Sessions
+            .Where(s => s.ActiveAccountId == accountId && s.Revocation == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var session in sessions)
+        {
+            session.Revoke(_clock.UtcNow, reason);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     /// <summary>Creates and stores one session, returning its plaintext token to the caller.</summary>
     /// <param name="userId">The user the session signs in.</param>
     /// <param name="familyId">The rotation family; a new one at login, the inherited one on rotation.</param>

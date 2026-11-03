@@ -84,6 +84,7 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<InvitationMailComposer>();
         services.AddScoped<InvitationLinkBuilder>();
         services.AddScoped<InvitationIssuer>();
+        services.AddScoped<AccountOwnerFinder>();
 
         // Sub-users: the owner check every operation asks first, and the Sdk window the plan-feature
         // filter asks to learn whether a person was given a feature. Scoped, because both read the

@@ -138,7 +138,7 @@ public sealed class InviteSubUserCommandHandler
         }
 
         var now = _clock.UtcNow;
-        var user = User.InviteMember(Guid.NewGuid(), command.Username, command.Email, now);
+        var user = User.Invite(Guid.NewGuid(), command.Username, command.Email, now);
         var membership = AccountMembership.Admit(
             Guid.NewGuid(), user.Id, owned.Value, command.Features.ToSet(), now);
         _dbContext.Users.Add(user);

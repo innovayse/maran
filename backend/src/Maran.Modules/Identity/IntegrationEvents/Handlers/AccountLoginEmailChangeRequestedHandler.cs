@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Npgsql;
 
@@ -19,8 +20,9 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// <c>SqlState 23505</c> and nothing else, and is answered the same way.
 /// </para>
 /// <para>
-/// <b>No login is a success</b>, for the reason the request's own remarks give. The state of the
-/// login (invited, active, suspended) does not matter: every one of them is mailed at this address.
+/// <b>No login is a success</b>, for the reason the request's own remarks give. Neither the state of
+/// the login (invited or active) nor the account's suspension matters: every one of them is mailed at
+/// this address. The login is the account's OWNER login, found through the owner membership.
 /// </para>
 /// <para>
 /// <b>It writes no audit entry of its own.</b> The Accounts module journals the change, with the
@@ -32,11 +34,16 @@ public sealed class AccountLoginEmailChangeRequestedHandler
     /// <summary>The Identity module's database context.</summary>
     private readonly IdentityDbContext _dbContext;
 
+    /// <summary>Finds the account's owner login.</summary>
+    private readonly AccountOwnerFinder _owners;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Identity module's database context.</param>
-    public AccountLoginEmailChangeRequestedHandler(IdentityDbContext dbContext)
+    /// <param name="owners">Finds the account's owner login.</param>
+    public AccountLoginEmailChangeRequestedHandler(IdentityDbContext dbContext, AccountOwnerFinder owners)
     {
         _dbContext = dbContext;
+        _owners = owners;
     }
 
     /// <summary>Moves the account's login to the new address, or refuses.</summary>
@@ -47,12 +54,13 @@ public sealed class AccountLoginEmailChangeRequestedHandler
         AccountLoginEmailChangeRequested message,
         CancellationToken cancellationToken)
     {
-        var user = await _dbContext.Users
-            .SingleOrDefaultAsync(candidate => candidate.AccountId == message.AccountId, cancellationToken);
-        if (user is null)
+        var owner = await _owners.FindAsync(message.AccountId, cancellationToken);
+        if (owner is null)
         {
             return Result.Ok();
         }
+
+        var user = owner.Login;
 
         var taken = await _dbContext.Users
             .AsNoTracking()

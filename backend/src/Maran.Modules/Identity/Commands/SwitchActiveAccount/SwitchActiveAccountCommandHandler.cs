@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
@@ -27,9 +28,15 @@ namespace Maran.Modules.Identity.Commands.SwitchActiveAccount;
 /// and is the limit of any claim-based scheme.
 /// </para>
 /// <para>
+/// <b>A suspended membership is not a destination.</b> The caller does hold it, so refusing it
+/// discloses nothing about another tenant and is answered <c>AccountMembershipSuspended</c> (409)
+/// rather than 404; the membership is read in the same query as the existence check, so the two
+/// outcomes cannot disagree about which row they looked at.
+/// </para>
+/// <para>
 /// <b>Refused attempts are journalled too.</b> A switch aimed at an account the caller holds no
-/// membership of is the one outcome here worth an operator's attention, so it is recorded with
-/// <c>succeeded: false</c> and the requested id as its subject.
+/// membership of, or one whose membership is suspended, is the outcome here worth an operator's
+/// attention, so it is recorded with <c>succeeded: false</c> and the requested id as its subject.
 /// </para>
 /// </remarks>
 public sealed class SwitchActiveAccountCommandHandler
@@ -68,7 +75,8 @@ public sealed class SwitchActiveAccountCommandHandler
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
     /// The replacement access token and the account it speaks for; <c>AccountMembershipNotFound</c>
-    /// when the caller holds no membership of the account; <c>SessionNotFound</c> when the session in
+    /// when the caller holds no membership of the account; <c>AccountMembershipSuspended</c> when they
+    /// hold one and it is suspended; <c>SessionNotFound</c> when the session in
     /// the caller's token is not one of theirs or is no longer live; or the sign-in refusal when the
     /// login may no longer be used.
     /// </returns>
@@ -76,13 +84,13 @@ public sealed class SwitchActiveAccountCommandHandler
         SwitchActiveAccountCommand command,
         CancellationToken cancellationToken)
     {
-        var isMember = await _dbContext.AccountMemberships
+        var membership = await _dbContext.AccountMemberships
             .AsNoTracking()
-            .AnyAsync(
-                membership => membership.UserId == command.UserId && membership.AccountId == command.AccountId,
+            .SingleOrDefaultAsync(
+                candidate => candidate.UserId == command.UserId && candidate.AccountId == command.AccountId,
                 cancellationToken);
 
-        if (!isMember)
+        if (membership is null || membership.State == MembershipState.Suspended)
         {
             await _journal.RecordIdentifiedAsync(
                 command.UserId,
@@ -93,8 +101,12 @@ public sealed class SwitchActiveAccountCommandHandler
                 succeeded: false,
                 cancellationToken);
 
+            // Only a membership the caller really holds may be told it is suspended; a stranger's
+            // account id is indistinguishable from one that does not exist.
             return Result<ActiveAccountDto>.Fail(
-                Error.Of(nameof(ErrorMessages.AccountMembershipNotFound), ErrorType.NotFound));
+                membership is null
+                    ? Error.Of(nameof(ErrorMessages.AccountMembershipNotFound), ErrorType.NotFound)
+                    : Error.Of(nameof(ErrorMessages.AccountMembershipSuspended), ErrorType.Conflict));
         }
 
         var session = await _dbContext.Sessions

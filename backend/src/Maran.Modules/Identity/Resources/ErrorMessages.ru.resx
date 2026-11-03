@@ -36,6 +36,9 @@
   <data name="AccountMembershipNotFound">
     <value>Аккаунт не найден.</value>
   </data>
+  <data name="AccountMembershipSuspended">
+    <value>Этот аккаунт приостановлен, поэтому работать в нём нельзя, пока он не будет возобновлён.</value>
+  </data>
   <data name="CurrentPasswordIncorrect">
     <value>Текущий пароль указан неверно.</value>
   </data>

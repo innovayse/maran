@@ -295,7 +295,7 @@ public sealed class ReactivateAccountCommandHandler
     /// <remarks>
     /// <para>
     /// It names what was NOT covered for the same reason suspension's does: the account's databases
-    /// and the panel's own web login were never stopped, so a resumption reporting an unqualified
+    /// were never stopped, so a resumption reporting an unqualified
     /// restart would imply they had been. English and not localized, like every other task line
     /// (rules/csharp.md).
     /// </para>
@@ -311,7 +311,7 @@ public sealed class ReactivateAccountCommandHandler
         return $"the host shows the login unlocked, none of its {state.Sites.Count} vhosts for this "
             + $"account serving the suspension page, all {state.CronEntriesTotal} of its cron entries "
             + $"free to run again and {TransferLoginProtocolPolicy.DescribeAll(state.FileTransferLogins)} "
-            + "unlocked; the account's databases and the panel's own web login were never stopped by the "
+            + "unlocked; the account's databases were never stopped by the "
             + "suspension, so nothing here restored them";
     }
 

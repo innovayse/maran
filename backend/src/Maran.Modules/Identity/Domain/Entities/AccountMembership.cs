@@ -10,11 +10,11 @@ namespace Maran.Modules.Identity.Domain.Entities;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>This table, not <see cref="User.AccountId"/>, is the truth about which accounts a login may
-/// act for.</b> The older column still exists because the previous release reads it (the
-/// expand-then-contract law in rules/architecture.md); it names at most the first account a login was
-/// created for, and nothing in this release decides access from it. Its unique index constrains only
-/// that column, so it neither blocks nor is violated by a second membership.
+/// <b>This table is the truth about which accounts a login may act for, and about whether it may
+/// act for each of them right now.</b> The login itself carries no account and no suspension: the
+/// older <c>Users.AccountId</c> column was dropped once every reader had moved here (issue #325), and
+/// a suspension is the <see cref="State"/> of the one membership it concerns (issue #326), so a person
+/// holding two accounts loses access to the suspended one and keeps the other.
 /// </para>
 /// <para>
 /// <b>What <see cref="Grants"/> means, in one sentence: it is the set of features a
@@ -23,7 +23,8 @@ namespace Maran.Modules.Identity.Domain.Entities;
 /// one reader, <see cref="Allows"/>, and an owner's stored value is never consulted by it: an owner
 /// row is created with <see cref="AccountFeature.None"/> and that is the absence of a value, not a
 /// restriction. The account's plan still bounds both roles; that intersection is enforced where the
-/// plan is read, not here.
+/// plan is read, not here. A <see cref="MembershipState.Suspended"/> membership allows nothing,
+/// whatever its role or grants.
 /// </para>
 /// </remarks>
 public sealed class AccountMembership
@@ -45,6 +46,12 @@ public sealed class AccountMembership
     /// not restricted by it; read it through <see cref="Allows"/>, never directly.
     /// </summary>
     public AccountFeature Grants { get; private set; }
+
+    /// <summary>
+    /// Whether the login may act for the account right now. Changed only by <see cref="Suspend"/> and
+    /// <see cref="Resume"/>, which the account's suspension and reactivation drive.
+    /// </summary>
+    public MembershipState State { get; private set; }
 
     /// <summary>The instant the membership was created.</summary>
     public DateTimeOffset CreatedAt { get; private set; }
@@ -105,6 +112,25 @@ public sealed class AccountMembership
         return new AccountMembership(id, userId, accountId, MembershipRole.Member, grants, createdAt);
     }
 
+    /// <summary>
+    /// Stops the login acting for this account because the account was suspended. The role, the
+    /// grants and the membership itself are kept, so <see cref="Resume"/> returns the login to
+    /// exactly what it had. Suspending a suspended membership changes nothing.
+    /// </summary>
+    public void Suspend()
+    {
+        State = MembershipState.Suspended;
+    }
+
+    /// <summary>
+    /// Lets the login act for this account again because the account was resumed. Resuming an
+    /// active membership changes nothing.
+    /// </summary>
+    public void Resume()
+    {
+        State = MembershipState.Active;
+    }
+
     /// <summary>Replaces the features a member may use.</summary>
     /// <param name="grants">The new set; an empty set leaves the member with no gated feature at all.</param>
     /// <exception cref="InvalidOperationException">
@@ -124,11 +150,17 @@ public sealed class AccountMembership
     /// <summary>Whether this membership lets its login use <paramref name="feature"/> of the account.</summary>
     /// <param name="feature">The feature asked about; a single member of <see cref="AccountFeature"/>.</param>
     /// <returns>
-    /// <c>true</c> for every feature when the login owns the account; for a member, <c>true</c> only
-    /// when <see cref="Grants"/> includes it.
+    /// <c>false</c> for every feature while the membership is <see cref="MembershipState.Suspended"/>;
+    /// otherwise <c>true</c> for every feature when the login owns the account and, for a member,
+    /// <c>true</c> only when <see cref="Grants"/> includes it.
     /// </returns>
     public bool Allows(AccountFeature feature)
     {
+        if (State == MembershipState.Suspended)
+        {
+            return false;
+        }
+
         return Role == MembershipRole.Owner || (Grants & feature) == feature;
     }
 }

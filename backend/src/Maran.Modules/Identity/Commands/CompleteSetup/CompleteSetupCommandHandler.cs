@@ -123,8 +123,10 @@ public sealed class CompleteSetupCommandHandler
             succeeded: true,
             cancellationToken);
 
+        // The administrator acts for no hosting account: they reach every account without speaking
+        // for one, so the account the sign-in speaks for is null.
         return Result<AuthenticatedUserDto>.Ok(
-            new AuthenticatedUserDto(user.Id, user.Username, user.Email, user.Role, user.AccountId));
+            new AuthenticatedUserDto(user.Id, user.Username, user.Email, user.Role, null));
     }
 
     /// <summary>Compares the supplied token to the configured one without leaking its length or prefix.</summary>

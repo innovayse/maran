@@ -36,6 +36,9 @@
   <data name="AccountMembershipNotFound">
     <value>Հաշիվը չի գտնվել։</value>
   </data>
+  <data name="AccountMembershipSuspended">
+    <value>Այս հաշիվը կասեցված է, ուստի այն չի կարելի օգտագործել, մինչև վերագործարկվի։</value>
+  </data>
   <data name="CurrentPasswordIncorrect">
     <value>Ընթացիկ գաղտնաբառը սխալ է։</value>
   </data>

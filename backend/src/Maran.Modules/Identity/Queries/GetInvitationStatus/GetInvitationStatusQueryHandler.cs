@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Identity.Queries.GetInvitationStatus;
@@ -30,6 +31,9 @@ public sealed class GetInvitationStatusQueryHandler
     /// <summary>The module's database context.</summary>
     private readonly IdentityDbContext _dbContext;
 
+    /// <summary>Finds the account's owner login through the owner membership.</summary>
+    private readonly AccountOwnerFinder _owners;
+
     /// <summary>The panel's clock; the ambient one is a banned API (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
@@ -38,14 +42,17 @@ public sealed class GetInvitationStatusQueryHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
+    /// <param name="owners">Finds the account's owner login through the owner membership.</param>
     /// <param name="clock">The panel's clock.</param>
     /// <param name="displayNames">Names a state in the request's culture.</param>
     public GetInvitationStatusQueryHandler(
         IdentityDbContext dbContext,
+        AccountOwnerFinder owners,
         IClock clock,
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _owners = owners;
         _clock = clock;
         _displayNames = displayNames;
     }
@@ -61,13 +68,14 @@ public sealed class GetInvitationStatusQueryHandler
         GetInvitationStatusQuery query,
         CancellationToken cancellationToken)
     {
-        var user = await _dbContext.Users
-            .SingleOrDefaultAsync(candidate => candidate.AccountId == query.AccountId, cancellationToken);
+        var owner = await _owners.FindAsync(query.AccountId, cancellationToken);
 
-        if (user is null)
+        if (owner is null)
         {
             return Result<InvitationStatusDto>.Ok(new NoInvitationStatusDto(NameOf(InvitationState.None)));
         }
+
+        var user = owner.Login;
 
         if (!user.HasPendingInvitation)
         {

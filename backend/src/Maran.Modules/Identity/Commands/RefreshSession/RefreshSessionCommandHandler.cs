@@ -120,7 +120,18 @@ public sealed class RefreshSessionCommandHandler
         // forward, but the login may have lost its membership of that account since (it was removed,
         // or the account was deleted), and a refresh must not keep acting for an account the login
         // no longer holds. The corrected choice is stored, so the next refresh starts from it.
-        var activeAccountId = await _activeAccountResolver.ResolveAsync(user, session.ActiveAccountId, cancellationToken);
+        //
+        // A suspended account is lost the same way a removed one is: the resolver only offers active
+        // memberships, so the session moves to another account the login still holds, and a login
+        // whose every account is suspended is refused here with this path's own refusal.
+        var resolved = await _activeAccountResolver.ResolveAsync(user, session.ActiveAccountId, cancellationToken);
+        if (!resolved.IsSuccess)
+        {
+            return Result<AuthenticatedOutcome>.Fail(
+                Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized));
+        }
+
+        var activeAccountId = resolved.Value;
         if (activeAccountId != session.ActiveAccountId)
         {
             session.SwitchAccount(activeAccountId);

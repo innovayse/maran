@@ -83,8 +83,23 @@ public sealed class AuthenticationCompleter
     }
 
     /// <summary>
-    /// Refuses a login whose state is not <see cref="UserLifecycle.Active"/>; otherwise issues a session
-    /// and an access token and records the login on <paramref name="user"/>.
+    /// Whether a sign-in of <paramref name="user"/> can end in a session at all, asked by the
+    /// password step before it asks for a second factor: the login must be usable
+    /// (<see cref="User.MayAuthenticate"/>) and, for a customer, must not have every account suspended.
+    /// </summary>
+    /// <param name="user">The user whose password was just verified.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns><c>true</c> when <see cref="CompleteAsync"/> would not refuse the login on its state.</returns>
+    public async Task<bool> MayCompleteAsync(User user, CancellationToken cancellationToken)
+    {
+        return user.MayAuthenticate
+            && !await _activeAccountResolver.IsSuspendedEverywhereAsync(user, cancellationToken);
+    }
+
+    /// <summary>
+    /// Refuses a login whose state is not <see cref="UserLifecycle.Active"/>, and a customer whose every
+    /// account is suspended; otherwise issues a session and an access token and records the login on
+    /// <paramref name="user"/>.
     /// </summary>
     /// <param name="user">The user whose credentials — password, and second factor where owed — have
     /// already been verified. Only the STATE remains to be checked; this method checks nothing else.</param>
@@ -113,7 +128,17 @@ public sealed class AuthenticationCompleter
         // A new sign-in has no remembered choice: it starts inside the login's own (oldest owned)
         // account, and the person switches from there. Both the session and the token are issued
         // from this one answer, so the stored choice and the claim cannot disagree.
-        var activeAccountId = await _activeAccountResolver.ResolveAsync(user, null, cancellationToken);
+        //
+        // A person whose every account is suspended gets the same refusal as a wrong password: the
+        // resolver says so, and what a stranger may be told is decided here, not there.
+        var resolved = await _activeAccountResolver.ResolveAsync(user, null, cancellationToken);
+        if (!resolved.IsSuccess)
+        {
+            return Result<AuthenticatedOutcome>.Fail(
+                Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
+        }
+
+        var activeAccountId = resolved.Value;
         var session = await _sessionService.IssueAsync(user.Id, ipAddress, userAgent, activeAccountId, cancellationToken);
         var accessToken = await _accessTokenIssuer.IssueAsync(user, session.SessionId, activeAccountId, cancellationToken);
 

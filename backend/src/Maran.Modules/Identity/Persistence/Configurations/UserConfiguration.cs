@@ -47,25 +47,13 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(16);
 
         // The one lifecycle column the code reads. Required with a database default so the additive
-        // migration can add it to a table that already has rows; the default is Active because that
-        // is what the previous release's rows overwhelmingly are, and the migration's backfill then
-        // corrects every row the legacy pair says is anything else. A previous release rolled back
-        // onto this schema keeps writing only the legacy pair, so re-running the same backfill
-        // statement (it is idempotent) after the next upgrade restores agreement.
-        //
-        // MIGRATION MUST CONTAIN this backfill in Up, after AddColumn, with an // raw-sql: comment:
-        //   migrationBuilder.Sql("""
-        //       UPDATE identity."Users" SET "Lifecycle" = CASE
-        //           WHEN "State" = 'Suspended' THEN 'Suspended'
-        //           WHEN "State" = 'Invited' AND "IsAccountSuspended" THEN 'InvitedAccountSuspended'
-        //           WHEN "State" = 'Invited' THEN 'Invited'
-        //           ELSE 'Active' END;
-        //       """);
-        // Down is empty for the data and drops only the new column. Legacy columns that stay mapped
-        // and are written by User.SyncLegacyColumns until the contract release: "State" (LegacyState),
-        // "IsAccountSuspended" (LegacyAccountSuspended). The "IsTotpEnabled" column (LegacyTotpEnabled)
-        // is likewise kept and written by EnableTotp/DisableTotp; the code reads TotpSecret instead,
-        // which already holds the same fact, so TOTP needs no new column and no backfill.
+        // migration could add it to a table that already has rows; Active is what the previous
+        // release's rows overwhelmingly are. Legacy columns that stay mapped and are written by
+        // User.SyncLegacyColumns until the contract release: "State" (LegacyState) and
+        // "IsAccountSuspended" (LegacyAccountSuspended, now always false because a suspension is the
+        // state of a membership). The "IsTotpEnabled" column (LegacyTotpEnabled) is likewise kept and
+        // written by EnableTotp/DisableTotp; the code reads TotpSecret instead, which already holds
+        // the same fact.
         builder.Property(u => u.Lifecycle)
             .IsRequired()
             .HasConversion<string>()
@@ -106,16 +94,5 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // enforced by the database rather than only by the command, so a race cannot create twins.
         builder.HasIndex(u => u.Username).IsUnique().HasDatabaseName("IX_Users_Username");
         builder.HasIndex(u => u.Email).IsUnique().HasDatabaseName("IX_Users_Email");
-
-        // At most one login per hosting account: two would be two keys to the same account and
-        // neither would be wrong, so the second is refused by the database rather than only by
-        // AccountCreatedHandler's own pre-check, which a concurrent redelivery of AccountCreated can
-        // race past. Partial, because PostgreSQL counts NULLs as distinct in a unique index and an
-        // administrator's AccountId is NULL — several administrators, all with AccountId == null,
-        // must stay legal.
-        builder.HasIndex(u => u.AccountId)
-            .IsUnique()
-            .HasFilter("\"AccountId\" IS NOT NULL")
-            .HasDatabaseName("UX_Users_AccountId");
     }
 }
