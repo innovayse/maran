@@ -109,8 +109,10 @@ should demand.
    asserts the same target-kind consistency on every request. No forced-two-factor steering on a
    view-as token, as today.
 5. **A reseller starts a view-as into an account it lost or never owned.** Requirement: the account is
-   resolved through `IAccountDirectory.FindAsync` under the actor's own request caller, which for a
-   reseller is narrowed to its accounts, on EVERY start; not found, not owned and no-owner-login are
+   resolved through `IAccountDirectory.FindForViewAsAsync` under the actor's own request caller, which for a
+   reseller is narrowed to its accounts (`FindAsync`, the tenant-data question, answers a reseller NOTHING,
+   so no tenant module can hand a reseller its customers' data outside view-as: found by an integration
+   test against Cron), on EVERY start; not found, not owned and no-owner-login are
    one 404 (`ViewAsAccountNotFound`). The one distinguishable refusal is 409 `ViewAsLoginUnavailable`
    (the owner login may not sign in), and it is reachable only for an account the caller already owns.
 6. **A demoted or suspended operator starts a view-as with an old token.** Requirement: the start
@@ -313,3 +315,13 @@ plan that preceded it.
    envelope change, suspend and reactivate only; a reseller's name and contact cannot be edited yet.
 9. **There is no way yet to resend a reseller's invitation.** `ResendInvitation` is keyed by an account
    id; a reseller's invitation that expired or was lost cannot be reissued. Follow-up.
+
+### Added after the first integration run
+
+- `IAccountDirectory` now answers two different questions: `FindAsync`, `NamesOfAsync` and
+  `FindIdsByNameAsync` mean "which accounts may the caller's TENANT DATA touch" (a reseller: none, decision
+  D8), and the new `FindForViewAsAsync` means "which accounts may the caller start a view-as on" (admin: any,
+  reseller: its own). Before this split a reseller token could read and write its customers' crontabs
+  through the directory-scoped Cron module; `ResellerTenantModuleScopeEndpointTests` holds it.
+- `ViewAsStarter` now signs the token before it stores the session, so a kind mismatch leaves no orphan
+  session row and no audit entry.
