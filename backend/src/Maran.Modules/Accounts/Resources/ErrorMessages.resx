@@ -87,6 +87,9 @@
   <data name="ResellerNameInvalid">
     <value>This reseller name is not valid. Use 3 to 30 lowercase letters, digits or underscores, starting with a letter. The reseller signs in with this same name.</value>
   </data>
+  <data name="AccountFinalBackupSkipForbidden">
+    <value>A reseller cannot skip the final backup when deleting an account. Ask an administrator, or let the backup run.</value>
+  </data>
   <data name="ResellerSuspended">
     <value>This reseller is suspended, so it cannot make changes. An administrator has to reactivate it first.</value>
   </data>
