@@ -46,6 +46,19 @@ public sealed class IdentityDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// Requests by a hosting account's owner that an existing login join the account, waiting for that
+    /// login's answer. Read only by the offer operations: it grants nothing until an offer is
+    /// accepted, and accepting creates an <see cref="AccountMemberships"/> row.
+    /// </summary>
+    public DbSet<AccountMembershipOffer> AccountMembershipOffers
+    {
+        get
+        {
+            return Set<AccountMembershipOffer>();
+        }
+    }
+
     /// <summary>The refresh-token sessions of those users.</summary>
     public DbSet<Session> Sessions
     {
@@ -155,6 +168,7 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.ApplyConfiguration(new UserConfiguration(_encryptionService));
         modelBuilder.ApplyConfiguration(new SessionConfiguration());
         modelBuilder.ApplyConfiguration(new AccountMembershipConfiguration());
+        modelBuilder.ApplyConfiguration(new AccountMembershipOfferConfiguration());
         modelBuilder.ApplyConfiguration(new RecoveryCodeConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEventConfiguration());
         modelBuilder.ApplyConfiguration(new FailedLoginByIpConfiguration());
