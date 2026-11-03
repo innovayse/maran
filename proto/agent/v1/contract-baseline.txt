@@ -730,6 +730,14 @@ field maran.agent.v1.UpdateSitePhpVersionRequest 6 overrides TYPE_MESSAGE LABEL_
 field maran.agent.v1.UpdateSitePhpVersionRequest 7 remove_previous_pool TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.UpdateSitePhpVersionResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.UpdateSitePhpVersionOk oneof=result
 field maran.agent.v1.UpdateSitePhpVersionResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.VerifyBackupOk 1 member_count TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.VerifyBackupOk 2 database_count TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.VerifyBackupOk 3 artifact_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.VerifyBackupRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.VerifyBackupRequest 2 backup_id TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.VerifyBackupRequest 3 destination TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.BackupDestination oneof=-
+field maran.agent.v1.VerifyBackupResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.VerifyBackupOk oneof=result
+field maran.agent.v1.VerifyBackupResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.WriteFileHeader 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.WriteFileHeader 2 path TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.WriteFileHeader 3 mode TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
@@ -1019,6 +1027,9 @@ message maran.agent.v1.UpdateCronEntryResponse
 message maran.agent.v1.UpdateSitePhpVersionOk
 message maran.agent.v1.UpdateSitePhpVersionRequest
 message maran.agent.v1.UpdateSitePhpVersionResponse
+message maran.agent.v1.VerifyBackupOk
+message maran.agent.v1.VerifyBackupRequest
+message maran.agent.v1.VerifyBackupResponse
 message maran.agent.v1.WriteFileHeader
 message maran.agent.v1.WriteFileOk
 message maran.agent.v1.WriteFileRequest
@@ -1060,6 +1071,7 @@ rpc maran.agent.v1.BackupService DeleteBackup in=.maran.agent.v1.DeleteBackupReq
 rpc maran.agent.v1.BackupService ListBackups in=.maran.agent.v1.ListBackupsRequest out=.maran.agent.v1.ListBackupsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.BackupService ProbeDestination in=.maran.agent.v1.ProbeDestinationRequest out=.maran.agent.v1.ProbeDestinationResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.BackupService RestoreBackup in=.maran.agent.v1.RestoreBackupRequest out=.maran.agent.v1.RestoreBackupResponse client_streaming=false server_streaming=true
+rpc maran.agent.v1.BackupService VerifyBackup in=.maran.agent.v1.VerifyBackupRequest out=.maran.agent.v1.VerifyBackupResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.CronService CreateCronEntry in=.maran.agent.v1.CreateCronEntryRequest out=.maran.agent.v1.CreateCronEntryResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.CronService DeleteCronEntry in=.maran.agent.v1.DeleteCronEntryRequest out=.maran.agent.v1.DeleteCronEntryResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.CronService GetCronEntryOutput in=.maran.agent.v1.GetCronEntryOutputRequest out=.maran.agent.v1.GetCronEntryOutputResponse client_streaming=false server_streaming=false
