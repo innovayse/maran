@@ -74,12 +74,26 @@ test('a page not built yet is shown disabled, with a coming-soon hint and no lin
   }
 
   // A planned page inside a usable section sits beside its built siblings.
-  await openSection(page, 'Accounts')
-  await expect(nav.getByRole('link', { name: 'Resellers Coming soon' })).toHaveAttribute('aria-disabled', 'true')
+  await openSection(page, 'Sites and domains')
+  await expect(nav.getByRole('link', { name: 'Domains and aliases Coming soon' })).toHaveAttribute('aria-disabled', 'true')
   // `force` because Playwright refuses to click an aria-disabled element, and the click is the point:
   // a real pointer press on the disabled row must go nowhere.
-  await nav.getByRole('link', { name: 'Resellers Coming soon' }).click({ force: true })
+  await nav.getByRole('link', { name: 'Domains and aliases Coming soon' }).click({ force: true })
   await expect(page).toHaveURL('/')
+})
+
+// Issue #179: the reseller screens landed, so the Resellers row is a routed link and no longer a
+// disabled "coming soon" one. The same row is the control that proves the disabled form above is
+// still told apart from a built page.
+test('the Resellers page is a built link under Accounts and opens the reseller list', async ({ page }) => {
+  await openFullShell(page)
+  const nav = mainNavigation(page)
+
+  await openSection(page, 'Accounts')
+  await expect(nav.getByRole('link', { name: 'Resellers Coming soon' })).toHaveCount(0)
+  await nav.getByRole('link', { name: 'Resellers', exact: true }).click()
+
+  await expect(page).toHaveURL('/resellers')
 })
 
 test('the audit journal sits under Monitoring and keeps its settings address', async ({ page }) => {

@@ -25,7 +25,7 @@ const CASES: Case[] = [
   { section: 'Backups', child: 'Destinations', path: '/backups/destinations', siblings: ['Backup list', 'Schedule'] },
   { section: 'Sites and domains', child: 'PHP versions', path: '/settings/php', siblings: ['Site list'] },
   { section: 'Databases', child: 'Grant repair', path: '/databases/grant-repair', siblings: ['Database list'] },
-  { section: 'Accounts', child: 'New account', path: '/accounts/new', siblings: ['Account list', 'Plans'] },
+  { section: 'Accounts', child: 'New account', path: '/accounts/new', siblings: ['Account list', 'Plans', 'Resellers'] },
 ]
 
 for (const { section, child, path, siblings } of CASES) {

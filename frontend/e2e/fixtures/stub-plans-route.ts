@@ -172,6 +172,8 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     maxProcesses: { kind: 'limited', maximum: 50 },
     features: ['databases', 'cron', 'fileTransfer', 'backups'],
     accountCount: 3,
+    resellerId: null,
+    resellerName: null,
   },
   {
     id: '33333333-3333-3333-3333-333333333333',
@@ -188,6 +190,8 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     maxProcesses: { kind: 'unlimited' },
     features: EVERY_FEATURE,
     accountCount: 0,
+    resellerId: null,
+    resellerName: null,
   },
   {
     id: '44444444-4444-4444-4444-444444444444',
@@ -204,6 +208,8 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     maxProcesses: { kind: 'unlimited' },
     features: EVERY_FEATURE,
     accountCount: 1,
+    resellerId: null,
+    resellerName: null,
   },
 ]
 
@@ -291,6 +297,8 @@ export const stubManagedPlans = async (
         maxProcesses: body.maxProcesses,
         features: body.features,
         accountCount: 0,
+        resellerId: null,
+        resellerName: null,
       }
       plans.push(created)
       await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(created) })

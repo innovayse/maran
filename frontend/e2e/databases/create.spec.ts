@@ -19,6 +19,8 @@ const ALICE: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
+  resellerId: null,
+  resellerName: null,
 }
 
 // The client rules mirror `CreateDatabaseCommandValidator`. They are advice that saves a round

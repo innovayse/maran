@@ -26,6 +26,8 @@ const ALICE: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
+  resellerId: null,
+  resellerName: null,
 }
 
 /** A finished copy: an artifact exists, and it has a size and two database dumps. */

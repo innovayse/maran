@@ -23,6 +23,8 @@ const ACCOUNTS: Account[] = Array.from({ length: 30 }, (_, index): Account => {
     status: 'active',
     statusName: 'Active',
     createdAt: '2026-08-01T10:00:00Z',
+    resellerId: null,
+    resellerName: null,
   }
 })
 

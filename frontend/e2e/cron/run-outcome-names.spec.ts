@@ -24,6 +24,8 @@ const ALICE: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
+  resellerId: null,
+  resellerName: null,
 }
 
 const NIGHTLY: CronEntry = {

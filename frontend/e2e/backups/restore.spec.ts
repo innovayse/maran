@@ -22,6 +22,8 @@ const ALICE: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
+  resellerId: null,
+  resellerName: null,
 }
 
 /** The only state a restore may be offered from: a run that produced an artifact. */

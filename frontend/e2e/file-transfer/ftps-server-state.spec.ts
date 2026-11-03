@@ -35,6 +35,8 @@ const ALICE: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
+  resellerId: null,
+  resellerName: null,
 }
 
 /** The service runs although the panel has FTPS off — the state the issue was filed against. */

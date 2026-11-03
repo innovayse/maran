@@ -81,6 +81,8 @@ export const stubAccounts = async (page: Page, accounts: Account[]): Promise<() 
         status: 'active',
         statusName: 'Active',
         createdAt: '2026-08-29T10:00:00Z',
+        resellerId: null,
+        resellerName: null,
       }
       accounts.push(created)
       await route.fulfill({
