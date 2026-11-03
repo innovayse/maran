@@ -442,8 +442,9 @@ message PendingUpdate {
   // prints it (epoch and release included).
   string available_version = 2;
   // The version installed now. Empty when the family does not report it
-  // (`dnf check-update` prints only the new version) or when the package is
-  // not installed yet; the panel reads an empty value as "not reported".
+  // (`dnf check-update` prints only the new version); the panel reads an empty
+  // value as "not reported". A package that is not installed yet (a new
+  // dependency of an upgrade) is not an update and is never listed.
   string installed_version = 3;
   // The repository or archive the update comes from: the apt origin list
   // (e.g. "Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security") or the
