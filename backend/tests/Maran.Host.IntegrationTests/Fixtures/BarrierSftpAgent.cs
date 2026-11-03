@@ -140,4 +140,17 @@ public sealed class BarrierSftpAgent : IAgentSftpClient
     {
         throw new NotSupportedException("This double answers login creation and deletion only.");
     }
+
+    /// <summary>Not exercised by a login creation.</summary>
+    /// <param name="accountUsername">Ignored.</param>
+    /// <param name="sftpUsername">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result<int>> EndSessionsAsync(
+        string accountUsername,
+        string sftpUsername,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers login creation and deletion only.");
+    }
 }

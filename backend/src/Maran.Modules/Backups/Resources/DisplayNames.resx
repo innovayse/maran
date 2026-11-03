@@ -78,6 +78,9 @@
   <data name="BackupFailureAgentUnavailable">
     <value>The server was not answering</value>
   </data>
+  <data name="BackupFailureAgentSaturated">
+    <value>The server was already running as many of these as it allows</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Local storage</value>
   </data>

@@ -113,6 +113,7 @@ internal static class AgentErrorTranslator
             ErrorCode.PackageSourceUnreachable => ErrorType.Unavailable,
             ErrorCode.BelowFreeSpaceFloor => ErrorType.Unavailable,
             ErrorCode.AccountSuspended => ErrorType.Conflict,
+            ErrorCode.AgentSaturated => ErrorType.Unavailable,
             _ => ErrorType.Failure,
         };
     }
@@ -167,6 +168,14 @@ internal static class AgentErrorTranslator
     /// has suspended (issue #158: a cron entry run by hand). Its kind is <see cref="ErrorType.Conflict"/>
     /// (409): the request is well formed and the account's own state is what refuses it, exactly as for
     /// <see cref="ErrorCode.LimitReached"/>, and nothing was started.
+    ///
+    /// <see cref="ErrorCode.AgentSaturated"/> is the agent refusing a cron run by hand because it
+    /// already runs as many as it admits, for the host or for the account (issues #333 and #331).
+    /// Its kind is <see cref="ErrorType.Unavailable"/> (503) and not <see cref="ErrorType.Conflict"/>:
+    /// nothing about the request or the account's state is wrong, and the answer changes by itself
+    /// within the run's runtime ceiling, which is exactly what a 503 tells a caller to wait for.
+    /// It is not <see cref="ErrorCode.LimitReached"/> (the panel's plan allowance, which waiting does
+    /// not clear) and not a failure (nothing broke), and nothing was started.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -184,6 +193,7 @@ internal static class AgentErrorTranslator
             ErrorCode.PackageSourceUnreachable => nameof(ErrorMessages.AgentPackageSourceUnreachable),
             ErrorCode.BelowFreeSpaceFloor => nameof(ErrorMessages.AgentBelowFreeSpaceFloor),
             ErrorCode.AccountSuspended => nameof(ErrorMessages.AgentAccountSuspended),
+            ErrorCode.AgentSaturated => nameof(ErrorMessages.AgentSaturated),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

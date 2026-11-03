@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Services.SftpService;
 using Maran.Agent.Client.Tests.TestSupport;
 using Maran.Agent.V1;
+using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -368,5 +369,121 @@ public sealed class AgentSftpClientTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentNotFound", result.Error!.Code);
+    }
+
+    /// <summary>The session-termination request carries the account and the login suffix and nothing else.</summary>
+    [Fact]
+    public async Task Ending_sessions_sends_the_account_and_the_login_suffix()
+    {
+        var stub = new StubSftpService();
+
+        await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .EndSessionsAsync("alice", "web", CancellationToken.None);
+
+        var request = Assert.IsType<EndSftpSessionsRequest>(stub.LastEndSessionsRequest);
+        Assert.Equal("alice", request.AccountUsername);
+        Assert.Equal("web", request.SftpUsername);
+    }
+
+    /// <summary>The ok payload maps to the number of processes the agent signalled.</summary>
+    [Fact]
+    public async Task Ending_sessions_ok_payload_maps_to_the_number_of_processes_signalled()
+    {
+        var stub = new StubSftpService
+        {
+            EndSessionsResponse = new EndSftpSessionsResponse
+            {
+                Ok = new EndSftpSessionsOk { ProcessesSignalled = 4 },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .EndSessionsAsync("alice", "web", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(4, result.Value);
+    }
+
+    /// <summary>A login with nothing open is a success with zero, not a failure.</summary>
+    [Fact]
+    public async Task Ending_sessions_of_a_login_with_nothing_open_is_a_success_with_zero()
+    {
+        var stub = new StubSftpService
+        {
+            EndSessionsResponse = new EndSftpSessionsResponse { Ok = new EndSftpSessionsOk() },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .EndSessionsAsync("alice", "web", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.Value);
+    }
+
+    /// <summary>A count past the range of an int is clamped and never wraps negative.</summary>
+    [Fact]
+    public async Task Ending_sessions_clamps_a_count_past_the_range_of_an_int()
+    {
+        var stub = new StubSftpService
+        {
+            EndSessionsResponse = new EndSftpSessionsResponse
+            {
+                Ok = new EndSftpSessionsOk { ProcessesSignalled = uint.MaxValue },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .EndSessionsAsync("alice", "web", CancellationToken.None);
+
+        Assert.Equal(int.MaxValue, result.Value);
+    }
+
+    /// <summary>The error payload maps to a failed result with the agent code, and the login not being the account's is not found.</summary>
+    [Fact]
+    public async Task Ending_sessions_error_payload_maps_to_a_failed_result_with_the_agent_code()
+    {
+        var stub = new StubSftpService
+        {
+            EndSessionsResponse = new EndSftpSessionsResponse
+            {
+                Error = new AgentError { Code = ErrorCode.NotFound, Message = "no such login" },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .EndSessionsAsync("alice", "web", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentNotFound", result.Error!.Code);
+    }
+
+    /// <summary>A response carrying neither branch is an invalid response and never a success.</summary>
+    [Fact]
+    public async Task Ending_sessions_empty_response_is_an_invalid_response()
+    {
+        var result = await new AgentSftpClient(new StubSftpService(), NullLogger<AgentSftpClient>.Instance)
+            .EndSessionsAsync("alice", "web", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
+    /// <summary>The agent's saturation refusal maps to its own code and is not a failure.</summary>
+    [Fact]
+    public async Task A_saturation_refusal_maps_to_its_own_unavailable_code()
+    {
+        var stub = new StubSftpService
+        {
+            EndSessionsResponse = new EndSftpSessionsResponse
+            {
+                Error = new AgentError { Code = ErrorCode.AgentSaturated, Message = "busy" },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .EndSessionsAsync("alice", "web", CancellationToken.None);
+
+        Assert.Equal("AgentSaturated", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 }

@@ -99,4 +99,19 @@ internal sealed class StubSftpService : ISftpServiceInvoker
         LastSetLoginsLockedRequest = request;
         return Task.FromResult(SetLoginsLockedResponse);
     }
+
+    /// <summary>Response returned from <see cref="EndSftpSessionsAsync"/>.</summary>
+    public EndSftpSessionsResponse EndSessionsResponse { get; set; } = new();
+
+    /// <summary>The last session-termination request the stub received, for asserting the mapping.</summary>
+    public EndSftpSessionsRequest? LastEndSessionsRequest { get; private set; }
+
+    /// <inheritdoc/>
+    public Task<EndSftpSessionsResponse> EndSftpSessionsAsync(
+        EndSftpSessionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastEndSessionsRequest = request;
+        return Task.FromResult(EndSessionsResponse);
+    }
 }

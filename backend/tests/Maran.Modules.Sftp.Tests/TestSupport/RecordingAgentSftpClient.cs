@@ -90,4 +90,21 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
 
         return Task.FromResult(DeleteResult ?? Result.Ok());
     }
+
+    /// <summary>Every session termination this client was asked for, in order.</summary>
+    public List<AgentEndSessionsCall> EndSessionsCalls { get; } = [];
+
+    /// <summary>What <see cref="EndSessionsAsync"/> answers; success with no process signalled by default.</summary>
+    public Result<int>? EndSessionsResult { get; set; }
+
+    /// <inheritdoc/>
+    public Task<Result<int>> EndSessionsAsync(
+        string accountUsername,
+        string sftpUsername,
+        CancellationToken cancellationToken)
+    {
+        EndSessionsCalls.Add(new AgentEndSessionsCall(accountUsername, sftpUsername));
+
+        return Task.FromResult(EndSessionsResult ?? Result<int>.Ok(0));
+    }
 }

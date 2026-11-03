@@ -87,6 +87,7 @@ public sealed class BackupsControllerPolicyTests
         var expected = new[]
         {
             nameof(BackupDestinationsController),
+            nameof(BackupOptionsController),
             nameof(BackupSchedulesController),
             nameof(BackupsController),
         };

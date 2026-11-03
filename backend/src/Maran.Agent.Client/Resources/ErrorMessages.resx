@@ -69,4 +69,7 @@
   <data name="AgentAccountSuspended">
     <value>The account is suspended, so this was refused and nothing was started. Resume the account, then try again.</value>
   </data>
+  <data name="AgentSaturated">
+    <value>The server is already running as many of these as it allows, so nothing was started. Wait a moment for one to finish, then try again.</value>
+  </data>
 </root>

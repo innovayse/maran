@@ -84,6 +84,7 @@ public static class ExpectedErrorStatuses
             ["AgentPackageSourceUnreachable"] = ErrorType.Unavailable,
             ["AgentPrivateKeyMismatch"] = ErrorType.Validation,
             ["AgentPrivateKeyUnreadable"] = ErrorType.Validation,
+            ["AgentSaturated"] = ErrorType.Unavailable,
             ["AgentSystemFailure"] = ErrorType.Failure,
             ["AgentUnavailable"] = ErrorType.Unavailable,
             ["AgentUnspecified"] = ErrorType.Failure,

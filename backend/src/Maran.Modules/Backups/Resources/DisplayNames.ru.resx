@@ -78,6 +78,9 @@
   <data name="BackupFailureAgentUnavailable">
     <value>Сервер не отвечал</value>
   </data>
+  <data name="BackupFailureAgentSaturated">
+    <value>Сервер уже выполнял максимально допустимое число таких операций</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Локальное хранилище</value>
   </data>

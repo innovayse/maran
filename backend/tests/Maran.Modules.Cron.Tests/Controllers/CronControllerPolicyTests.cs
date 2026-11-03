@@ -88,6 +88,7 @@ public sealed class CronControllerPolicyTests
         {
             nameof(CronEntriesController),
             nameof(CronEnvironmentController),
+            nameof(CronOptionsController),
             nameof(CronRunsController),
         };
         Assert.Equal(expected.Order(StringComparer.Ordinal), names);

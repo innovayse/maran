@@ -78,6 +78,9 @@
   <data name="BackupFailureAgentUnavailable">
     <value>Սերվերը չէր պատասխանում</value>
   </data>
+  <data name="BackupFailureAgentSaturated">
+    <value>Սերվերն արդեն կատարում էր թույլատրված առավելագույն թվով նման գործողություններ</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Տեղական պահոց</value>
   </data>
