@@ -10,4 +10,14 @@
  * (and is added to this union in the same change, which the type check then follows through the
  * screens that name one).
  */
-export type AccountFeatureName = 'mail' | 'dns' | 'databases' | 'cron' | 'fileTransfer' | 'backups'
+export type AccountFeatureName =
+  | 'mail'
+  | 'dns'
+  | 'databases'
+  | 'cron'
+  | 'fileTransfer'
+  | 'backups'
+  | 'sites'
+  | 'ssl'
+  | 'tasks'
+  | 'php'

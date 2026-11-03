@@ -19,8 +19,9 @@ rules/security.md "Sensitive change escalation" applies. It may land on a branch
   other doors use. It needs no Sdk window because the fact is Identity's own. Exempt, on purpose: an
   administrator (acts for no account), a view-as token (its per-request session check ends it when the
   suspension revokes its session, and `StartViewAs` refuses a suspended membership), a customer token
-  naming no account, and a login with no membership of the named account at all (a removal, handled by
-  the feature gate and the tenant filter as before).
+  naming no account. (A login with no membership of the named account at all, a removal, was exempt
+  here until issue #340 and is now refused by the same handler; see
+  `2026-11-03-subuser-grants-threat-note.md`.)
 - Three doors read the state: `ActiveAccountResolver` (sign-in and refresh, through
   `AuthenticationCompleter` and `RefreshSessionCommandHandler`), `SwitchActiveAccountCommandHandler`, and
   `AccountMembership.Allows` (the feature gate). A person whose every membership is suspended is refused at

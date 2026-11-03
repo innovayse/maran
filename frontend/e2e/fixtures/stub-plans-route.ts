@@ -140,6 +140,10 @@ export const PLAN_FEATURE_CHOICES: PlanFeatureChoice[] = [
   { feature: 'cron', featureDisplayName: 'Scheduled tasks' },
   { feature: 'fileTransfer', featureDisplayName: 'File transfer (SFTP and FTPS)' },
   { feature: 'backups', featureDisplayName: 'Backups' },
+  { feature: 'sites', featureDisplayName: 'Websites' },
+  { feature: 'ssl', featureDisplayName: 'SSL certificates' },
+  { feature: 'tasks', featureDisplayName: 'Background tasks' },
+  { feature: 'php', featureDisplayName: 'PHP versions' },
 ]
 
 /** Every feature name, the set a plan that predates features sells. */

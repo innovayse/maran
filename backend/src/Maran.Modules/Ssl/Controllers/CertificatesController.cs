@@ -5,6 +5,7 @@ using Maran.Modules.Ssl.Common;
 using Maran.Modules.Ssl.Queries.ListCertificates;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -16,8 +17,11 @@ namespace Maran.Modules.Ssl.Controllers;
 /// binds the request, dispatches through Wolverine, translates the <see cref="Result{T}"/>. No
 /// business logic, no data access.
 ///
-/// Open to any signed-in caller, because a certificate belongs to a customer's site and a customer
-/// manages their own. What they can SEE is not decided here: every read and every mutation goes
+/// Open to any signed-in caller whose plan sells the Ssl feature and, when the caller is a team member,
+/// whose owner gave it to them (issue #340), because a certificate belongs to a customer's site and a
+/// customer manages their own.
+///
+/// What they can SEE is not decided here: every read and every mutation goes
 /// through <c>SslDbContext</c> and the tenant-scoped site directory, so a certificate belonging to
 /// somebody else answers 404 — never 403, which would confirm it exists (spec §8, rules/testing.md
 /// item 3).
@@ -29,6 +33,7 @@ namespace Maran.Modules.Ssl.Controllers;
 /// </summary>
 [Route("api/v1/certificates")]
 [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
+[RequiresAccountFeature(AccountFeature.Ssl)]
 [Tags("Certificates")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]

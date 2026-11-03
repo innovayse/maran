@@ -319,6 +319,18 @@
   <data name="AccountFeatureBackups">
     <value>Պահուստներ</value>
   </data>
+  <data name="AccountFeatureSites">
+    <value>Կայքեր</value>
+  </data>
+  <data name="AccountFeatureSsl">
+    <value>SSL վկայականներ</value>
+  </data>
+  <data name="AccountFeatureTasks">
+    <value>Ֆոնային գործեր</value>
+  </data>
+  <data name="AccountFeaturePhp">
+    <value>PHP տարբերակներ</value>
+  </data>
   <data name="MembershipRoleOwner">
     <value>Սեփականատեր</value>
   </data>

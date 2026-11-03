@@ -319,6 +319,18 @@
   <data name="AccountFeatureBackups">
     <value>Резервные копии</value>
   </data>
+  <data name="AccountFeatureSites">
+    <value>Сайты</value>
+  </data>
+  <data name="AccountFeatureSsl">
+    <value>SSL-сертификаты</value>
+  </data>
+  <data name="AccountFeatureTasks">
+    <value>Фоновые задачи</value>
+  </data>
+  <data name="AccountFeaturePhp">
+    <value>Версии PHP</value>
+  </data>
   <data name="MembershipRoleOwner">
     <value>Владелец</value>
   </data>

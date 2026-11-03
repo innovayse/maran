@@ -84,6 +84,18 @@
   <data name="AccountFeatureBackups">
     <value>Backups</value>
   </data>
+  <data name="AccountFeatureSites">
+    <value>Websites</value>
+  </data>
+  <data name="AccountFeatureSsl">
+    <value>SSL certificates</value>
+  </data>
+  <data name="AccountFeatureTasks">
+    <value>Background tasks</value>
+  </data>
+  <data name="AccountFeaturePhp">
+    <value>PHP versions</value>
+  </data>
   <data name="OwnerLanguageEN">
     <value>English</value>
   </data>

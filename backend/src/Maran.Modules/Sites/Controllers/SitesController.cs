@@ -14,6 +14,7 @@ using Maran.Modules.Sites.Queries.ListSites;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -25,14 +26,20 @@ namespace Maran.Modules.Sites.Controllers;
 /// the request, dispatches through Wolverine, translates the <see cref="Result{T}"/>. No business
 /// logic, no data access.
 ///
-/// Open to any signed-in caller, because a site belongs to a customer and a customer manages their
-/// own. What they can SEE is not decided here: every read and every mutation goes through
+/// Open to any signed-in caller whose plan sells the Sites feature and, when the caller is a team
+/// member, whose owner gave it to them (issue #340), because a site belongs to a customer and a
+/// customer manages their own. Switching a site's PHP version is a feature of its own (Php), asked in
+/// addition on that one action: the list of installed versions stays under Sites, since the site form
+/// reads it and it names nothing but what the host has installed.
+///
+/// What they can SEE is not decided here: every read and every mutation goes through
 /// <c>SitesDbContext</c>, whose global query filter scopes rows to the caller's account, so a site
 /// belonging to somebody else answers 404 — never 403, which would confirm it exists (spec §8,
 /// rules/testing.md item 3).
 /// </summary>
 [Route("api/v1/sites")]
 [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
+[RequiresAccountFeature(AccountFeature.Sites)]
 [Tags("Sites")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
@@ -163,6 +170,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="command">The version to switch to.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/php-version")]
+    [RequiresAccountFeature(AccountFeature.Php)]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

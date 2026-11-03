@@ -8,6 +8,7 @@ using Maran.Modules.Tasks.Queries.ListTaskStatusChoices;
 using Maran.Modules.Tasks.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -20,6 +21,8 @@ namespace Maran.Modules.Tasks.Controllers;
 /// <see cref="Result{T}"/>. No business logic, no data access.
 ///
 /// It is attributed <see cref="AuthorizationPolicies.AnyAuthenticated"/> because both roles use it.
+/// A customer reaches it only when their plan sells the Tasks feature and, for a team member, their
+/// owner gave it to them (issue #340); an administrator is not asked.
 /// An administrator reads every task. A customer reads the tasks recorded against their own account
 /// — the backups, restores and certificates they started, or that ran for them — with the log
 /// withheld, because the log is operator material. Server-wide tasks and what an administrator does
@@ -29,6 +32,7 @@ namespace Maran.Modules.Tasks.Controllers;
 /// </summary>
 [Route("api/v1/tasks")]
 [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
+[RequiresAccountFeature(AccountFeature.Tasks)]
 [Tags("Tasks")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
