@@ -20,6 +20,12 @@ the command is a fixed argument list with nothing a caller can add to it:
 | Debian | `apt-get -s -q -o Debug::NoLocking=true dist-upgrade` | 0 is success; any other status is a failure to read |
 | RHEL | `dnf check-update -C -q` | 0 means nothing is pending, 100 means updates are pending, anything else (1 included) is a failure to read |
 
+On the Debian family a second, fixed command runs first: `apt-get indextargets --format '$(FILENAME)'`.
+`apt-get -s dist-upgrade` against an empty package-lists directory exits 0 and prints "0 upgraded",
+which is indistinguishable from an up-to-date host (recorded on a real container), so an empty answer
+from the probe is reported as a catalogue that was never built, an error, and never as "0 updates".
+The RHEL family needs no probe: `dnf check-update -C` exits 1 when there is no cache.
+
 `apt-get -s` is a simulation: nothing is installed, removed or configured. `dnf check-update -C` is
 cache-only: `-C` forbids a metadata refresh. Each row carries:
 
