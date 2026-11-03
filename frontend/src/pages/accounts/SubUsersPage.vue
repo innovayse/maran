@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * The team screen of the customer's own account: invite a person, choose which gated features they may
- * use, and remove them. Renders a `<section>`, not a `<main>` — the single landmark lives in the layout.
+ * use, resend an invitation, offer a place to a person who already has a login, and remove them.
+ * Renders a `<section>`, not a `<main>` — the single landmark lives in the layout.
  * Rows come from the sub-users store; the page never touches the API layer (rules/vue.md).
  *
  * **Only the account's owner can use it.** Every endpoint behind it answers 403 to a team member and to
@@ -26,6 +27,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import SubUserAddExistingForm from '../../components/sub-users/SubUserAddExistingForm.vue'
 import SubUserFeaturesDialog from '../../components/sub-users/SubUserFeaturesDialog.vue'
 import SubUserInviteForm from '../../components/sub-users/SubUserInviteForm.vue'
 import SubUserRemoveConfirm from '../../components/sub-users/SubUserRemoveConfirm.vue'
@@ -35,7 +37,7 @@ import { useServerTable } from '../../composables/useServerTable'
 import { useSubUsersStore } from '../../stores/subUsers'
 import type { AccountFeatureName } from '../../types/accountFeature'
 import type { ListLoad, ListRequest } from '../../types/list'
-import type { InviteSubUserRequest, SubUser, SubUserAction } from '../../types/subUser'
+import type { InviteSubUserRequest, OfferMembershipRequest, SubUser, SubUserAction } from '../../types/subUser'
 
 const { t } = useI18n()
 const store = useSubUsersStore()
@@ -54,6 +56,9 @@ const table = useServerTable<SubUser>({
 
 /** The invite form, so an accepted invitation can empty the fields it owns. */
 const form = useTemplateRef<{ reset: () => void }>('form')
+
+/** The add-an-existing-login form, so an accepted offer can empty the fields it owns. */
+const existingForm = useTemplateRef<{ reset: () => void }>('existingForm')
 
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
@@ -93,13 +98,41 @@ const invite = async (request: InviteSubUserRequest): Promise<void> => {
 }
 
 /**
- * Starts an action on one row: the features dialog or the removal confirmation.
+ * Offers membership to an existing login, then reads the page again: a stored offer shows as a row.
+ * The toast is the same neutral sentence whatever the identifier named, so it never confirms that a
+ * login exists.
+ * @param request The identifier and features the form collected.
+ * @returns Resolves once the offer and the re-read have settled.
+ */
+const offer = async (request: OfferMembershipRequest): Promise<void> => {
+  if (await store.offerExisting(request)) {
+    notice.value = t('subUsers.offered')
+    existingForm.value?.reset()
+    await table.reload()
+  }
+}
+
+/**
+ * Mails a new invitation to a person who has not accepted the first one.
+ * @param row The invited row.
+ * @returns Resolves once the request has settled.
+ */
+const resend = async (row: SubUser): Promise<void> => {
+  if (await store.resendInvitation(row.id)) {
+    notice.value = t('subUsers.resend.sent', { name: row.username })
+  }
+}
+
+/**
+ * Starts an action on one row: a resend, the features dialog or the removal confirmation.
  * @param row The row the owner acted on.
  * @param action Which action they started.
  * @returns Nothing.
  */
 const ask = (row: SubUser, action: SubUserAction): void => {
-  if (action === 'features') {
+  if (action === 'resend') {
+    void resend(row)
+  } else if (action === 'features') {
     editing.value = row
   } else {
     removing.value = row
@@ -132,7 +165,7 @@ const confirmRemove = async (): Promise<void> => {
     return
   }
   if (await store.remove(target.id)) {
-    notice.value = t('subUsers.removed', { name: target.username })
+    notice.value = t(target.isOffer ? 'subUsers.cancelOffer.done' : 'subUsers.removed', { name: target.username })
     await table.reload()
   }
   // Closed after the request settles rather than before it is sent: the dialog holds the spinner.
@@ -183,11 +216,18 @@ onMounted(store.loadFeatures)
       {{ table.state.value.message }}
     </UiAlert>
     <UiAlert v-if="store.inviteErrorMessage !== null" variant="error">{{ store.inviteErrorMessage }}</UiAlert>
+    <UiAlert v-if="store.offerErrorMessage !== null" variant="error">{{ store.offerErrorMessage }}</UiAlert>
     <UiAlert v-if="store.actionErrorMessage !== null" variant="error">{{ store.actionErrorMessage }}</UiAlert>
     <UiAlert v-if="!refused && store.featuresErrorMessage !== null" variant="error">{{ store.featuresErrorMessage }}</UiAlert>
 
     <template v-if="!refused">
       <SubUserInviteForm ref="form" :features="store.features" :submitting="store.inviting" @submit="invite" />
+      <SubUserAddExistingForm
+        ref="existingForm"
+        :features="store.features"
+        :submitting="store.offering"
+        @submit="offer"
+      />
 
       <UiEmptyState
         v-if="answeredNothing && !isNarrowed"

@@ -6,6 +6,7 @@ use crate::DistroAdapter;
 use crate::account_programs::AccountPrograms;
 use crate::adapter_binary::AdapterBinary;
 use crate::backup_facts::BackupFacts;
+use crate::catalogue_probe::CatalogueProbe;
 use crate::database_facts::DatabaseFacts;
 use crate::debian::{debian_packages, debian_paths, debian_services};
 use crate::family::DistroFamily;
@@ -13,6 +14,8 @@ use crate::file_transfer_facts::FileTransferFacts;
 use crate::firewall_facts::FirewallFacts;
 use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
+use crate::pending_update::PendingUpdate;
+use crate::pending_updates_failure::PendingUpdatesFailure;
 use crate::php_facts::PhpFacts;
 use crate::scheduling_facts::SchedulingFacts;
 use crate::service_manager_facts::ServiceManagerFacts;
@@ -175,6 +178,29 @@ impl PackageFacts for DebianAdapter {
 
     fn journal_binary(&self) -> AdapterBinary {
         debian_services::journal_binary()
+    }
+
+    fn package_query_binary(&self) -> AdapterBinary {
+        debian_services::package_query_binary()
+    }
+
+    fn catalogue_probe(&self) -> Option<CatalogueProbe> {
+        Some(CatalogueProbe {
+            arguments: debian_packages::CATALOGUE_PROBE_ARGUMENTS,
+            read: debian_packages::read_catalogue_probe,
+        })
+    }
+
+    fn pending_updates_arguments(&self) -> &'static [&'static str] {
+        debian_packages::PENDING_UPDATES_ARGUMENTS
+    }
+
+    fn read_pending_updates(
+        &self,
+        status: i32,
+        stdout: &str,
+    ) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure> {
+        debian_packages::read_pending_updates(status, stdout)
     }
 }
 

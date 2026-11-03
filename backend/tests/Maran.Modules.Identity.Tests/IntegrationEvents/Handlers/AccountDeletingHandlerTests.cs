@@ -93,6 +93,42 @@ public sealed class AccountDeletingHandlerTests
         Assert.Empty(await context.RecoveryCodes.Where(code => owned.Contains(code.UserId)).ToListAsync());
     }
 
+    /// <summary>Deleting an account removes every offer made from it, answered or not, and another account's offers stay.</summary>
+    [Fact]
+    public async Task Deleting_an_account_removes_every_offer_made_from_it_and_leaves_other_accounts_offers()
+    {
+        // The residue audit counts offers by AccountId, so one left behind would fail the deletion; it
+        // is also a way onto a team of an account that no longer exists.
+        using var context = await SeedAsync();
+        var stranger = await context.Users.SingleAsync(user => user.Username == "stranger");
+        context.AccountMembershipOffers.AddRange(
+            AccountMembershipOffer.Offer(Guid.NewGuid(), stranger.Id, OwnerAccountId, "gone", "x", AccountFeature.None, Now),
+            AccountMembershipOffer.Offer(Guid.NewGuid(), stranger.Id, StrangerAccountId, "kept", "x", AccountFeature.None, Now));
+        await context.SaveChangesAsync();
+
+        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+
+        var left = await context.AccountMembershipOffers.SingleAsync();
+        Assert.Equal(StrangerAccountId, left.AccountId);
+    }
+
+    /// <summary>An account that has offers but no memberships still loses its offers.</summary>
+    [Fact]
+    public async Task Deleting_an_account_with_offers_and_no_memberships_still_removes_the_offers()
+    {
+        using var context = IdentityTestContext.Create();
+        var person = new User(Guid.NewGuid(), "bob", "bob@example.com", "hash", UserRole.Customer, Now);
+        context.Users.Add(person);
+        context.AccountMembershipOffers.Add(
+            AccountMembershipOffer.Offer(Guid.NewGuid(), person.Id, OwnerAccountId, "gone", "bob", AccountFeature.None, Now));
+        await context.SaveChangesAsync();
+
+        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+
+        Assert.Empty(context.AccountMembershipOffers);
+        Assert.Single(context.Users);
+    }
+
     /// <summary>Deleting an account leaves another tenants login and its session alone.</summary>
     /// <remarks>
     /// The inverse control for every assertion above. Each of them is satisfied by a handler that

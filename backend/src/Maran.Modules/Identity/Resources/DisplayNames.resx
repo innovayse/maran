@@ -303,6 +303,18 @@
   <data name="AuditActionSubUserRemoved">
     <value>Sub-user removed</value>
   </data>
+  <data name="AuditActionSubUserInvitationResent">
+    <value>Sub-user invitation resent</value>
+  </data>
+  <data name="AuditActionSubUserMembershipOffered">
+    <value>Membership offered to a login</value>
+  </data>
+  <data name="AuditActionSubUserMembershipOfferAccepted">
+    <value>Membership offer accepted</value>
+  </data>
+  <data name="AuditActionSubUserMembershipOfferDeclined">
+    <value>Membership offer declined</value>
+  </data>
   <data name="AccountFeatureMail">
     <value>Mail</value>
   </data>

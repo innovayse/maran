@@ -18,8 +18,10 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// </para>
 /// <para>
 /// <b>What it owns, established from the mapping rather than assumed.</b> A login row names no
-/// account, so the only entity in this module carrying an <c>AccountId</c> is
-/// <c>AccountMembership</c>, and it is the only one the panel's residue audit can see. The rest of
+/// account, so the only entities in this module carrying an <c>AccountId</c> are
+/// <c>AccountMembership</c> and <c>AccountMembershipOffer</c> (an offer to join the account's team,
+/// which grants nothing but would let its addressee onto the team), and they are the only ones the
+/// panel's residue audit can see. The rest of
 /// an account's identity state hangs off the USER — <c>Session</c>, <c>RecoveryCode</c>,
 /// <c>PasswordResetToken</c> and <c>InvitationToken</c> are all keyed by <c>UserId</c> — which is
 /// precisely the shape the residue audit is blind to: it counts rows naming the account, and these
@@ -48,7 +50,7 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// </para>
 /// <para>
 /// <b>No query filter is bypassed, and that is a fact about this module rather than an oversight.</b>
-/// <c>AccountMembership</c> is named in <c>TenantScopeTests</c>' exemption list, and <c>User</c> and
+/// <c>AccountMembership</c> and <c>AccountMembershipOffer</c> are named in <c>TenantScopeTests</c>' exemption list, and <c>User</c> and
 /// the rows hanging off it belong to a person rather than to an account, so the census does not see
 /// them; the Identity module exposes no endpoint that lists or fetches users at all. There is
 /// nothing here to ignore and no <c>IgnoreQueryFilters</c> to justify.
@@ -94,13 +96,23 @@ public sealed class AccountDeletingHandler
     /// <returns>Resolves once the memberships, the orphaned logins and their credentials are gone.</returns>
     public async Task HandleAsync(AccountDeleting message, CancellationToken cancellationToken)
     {
+        // Offers first and unconditionally: an account that no member ever joined can still have offers
+        // outstanding, and one left behind is a way onto a team of an account that no longer exists.
+        // Every offer of the account goes, answered or not; the residue audit counts them by AccountId.
+        var offers = await _dbContext.AccountMembershipOffers
+            .Where(offer => offer.AccountId == message.AccountId)
+            .ToListAsync(cancellationToken);
+        _dbContext.AccountMembershipOffers.RemoveRange(offers);
+
         var memberships = await _dbContext.AccountMemberships
             .Where(membership => membership.AccountId == message.AccountId)
             .ToListAsync(cancellationToken);
         if (memberships.Count == 0)
         {
             // The ordinary case in a panel whose only login is the administrator, who holds no
-            // membership. Returning early keeps the cascade from issuing four empty deletes per deletion.
+            // membership. Returning early keeps the cascade from issuing four empty deletes per
+            // deletion; what offers were staged above is saved on the way out.
+            await _dbContext.SaveChangesAsync(cancellationToken);
             return;
         }
 

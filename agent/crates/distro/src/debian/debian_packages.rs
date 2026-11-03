@@ -1,7 +1,10 @@
-//! Package and binary names on the Debian family, and how its package manager
-//! reports a failed install.
+//! Package and binary names on the Debian family, how its package manager
+//! reports a failed install, and how it reports the updates it knows of.
 
+use crate::is_printable_token::is_printable_token;
 use crate::package_failure::PackageFailure;
+use crate::pending_update::PendingUpdate;
+use crate::pending_updates_failure::PendingUpdatesFailure;
 use crate::starts_with_http_status::starts_with_http_status;
 
 /// Name of the OS package that provides php-fpm for `version`, e.g.
@@ -97,6 +100,222 @@ pub fn classify_package_failure(status: i32, output: &str) -> PackageFailure {
         }
     }
     verdict
+}
+
+/// The arguments of the simulated upgrade that lists pending updates
+/// (issue #324).
+///
+/// `-s` simulates: nothing is installed, removed or configured. `-q` drops the
+/// progress animation. `Debug::NoLocking=true` lets the simulation run beside a
+/// real package operation without taking the dpkg lock; the price is a read
+/// that may be inconsistent, which fails closed in [`read_pending_updates`].
+/// `dist-upgrade` is the verb that also lists upgrades needing a new dependency,
+/// which plain `upgrade` holds back. No operand exists, so nothing a caller
+/// chooses can reach the program, and no `--` is needed.
+pub const PENDING_UPDATES_ARGUMENTS: &[&str] =
+    &["-s", "-q", "-o", "Debug::NoLocking=true", "dist-upgrade"];
+
+/// The arguments of the run that lists the package indexes apt has on disk.
+///
+/// `apt-get indextargets` prints one line per index file that EXISTS, and
+/// nothing at all against an empty lists directory (recorded in
+/// `tests/fixtures/package_manager/apt_indextargets_empty.txt`), which is what
+/// tells a catalogue that was never built from one that is up to date.
+pub const CATALOGUE_PROBE_ARGUMENTS: &[&str] = &["indextargets", "--format", "$(FILENAME)"];
+
+/// Reads the run of [`CATALOGUE_PROBE_ARGUMENTS`].
+///
+/// # Errors
+///
+/// Returns [`PendingUpdatesFailure::Unsuccessful`] for any status but 0, and
+/// [`PendingUpdatesFailure::CatalogueNotBuilt`] when no index file is listed.
+pub fn read_catalogue_probe(status: i32, stdout: &str) -> Result<(), PendingUpdatesFailure> {
+    if status != 0 {
+        return Err(PendingUpdatesFailure::Unsuccessful { status });
+    }
+    if stdout.trim().is_empty() {
+        return Err(PendingUpdatesFailure::CatalogueNotBuilt);
+    }
+    Ok(())
+}
+
+/// What a simulation prints before it has said anything about a package.
+const APT_PROGRESS_LINES: [&str; 4] = [
+    "Reading package lists",
+    "Building dependency tree",
+    "Reading state information",
+    "Calculating upgrade",
+];
+
+/// What opens each list apt prints under a heading: the packages that would be
+/// installed, upgraded, removed or kept back, and the ones left over.
+const APT_LIST_HEADINGS: [&str; 3] = [
+    "The following ",
+    "Suggested packages:",
+    "Recommended packages:",
+];
+
+/// The one hint apt prints after the leftover list.
+const APT_AUTOREMOVE_HINT: &str = "Use 'apt autoremove' to remove ";
+
+/// Reads the output of [`PENDING_UPDATES_ARGUMENTS`]: its exit `status` and its
+/// `stdout`.
+///
+/// `apt-get` exits 0 for a simulation that ran and 100 for any error, so any
+/// other status is a failure. Only `Inst` lines that carry an installed
+/// version, in square brackets, become rows: a line without one is a package
+/// being NEWLY installed to satisfy an upgrade, which is not an update of
+/// anything on the host. `Conf`, `Remv` and `Purg` lines are the other halves
+/// of the same transaction and are ignored by rule. Every other line must be
+/// one apt is known to print — its progress lines, a list heading, the
+/// indented names under one, the autoremove hint, the closing summary — and
+/// anything else fails the read, so a line this grammar has never seen is a
+/// failure to read and never a skipped update.
+///
+/// The closing summary (`N upgraded, N newly installed, N to remove and N not
+/// upgraded.`) is required: output without it was cut short, and its absence is
+/// [`PendingUpdatesFailure::IncompleteOutput`]. A package apt keeps back is
+/// listed under a heading and has no `Inst` line, so it is not reported; the
+/// summary's "not upgraded" count is where it shows.
+///
+/// # Errors
+///
+/// Returns [`PendingUpdatesFailure::Unsuccessful`] for a status other than 0,
+/// [`PendingUpdatesFailure::UnrecognisedLine`] for the first line outside the
+/// grammar or an `Inst` line that does not parse, and
+/// [`PendingUpdatesFailure::IncompleteOutput`] when the summary is missing.
+pub fn read_pending_updates(
+    status: i32,
+    stdout: &str,
+) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure> {
+    if status != 0 {
+        return Err(PendingUpdatesFailure::Unsuccessful { status });
+    }
+
+    let mut updates = Vec::new();
+    let mut closed = false;
+    for (index, line) in stdout.lines().enumerate() {
+        let unrecognised = PendingUpdatesFailure::UnrecognisedLine { line: index + 1 };
+        if let Some(rest) = line.strip_prefix("Inst ") {
+            if let Some(update) = parse_inst(rest).ok_or(unrecognised)? {
+                updates.push(update);
+            }
+        } else if is_summary(line) {
+            closed = true;
+        } else if !is_ignored(line) {
+            return Err(unrecognised);
+        }
+    }
+
+    if closed {
+        Ok(updates)
+    } else {
+        Err(PendingUpdatesFailure::IncompleteOutput)
+    }
+}
+
+/// Whether `line` is one apt prints that carries no update: a blank line, the
+/// other halves of a transaction, a progress line, a heading, the indented
+/// names under it, or the autoremove hint.
+fn is_ignored(line: &str) -> bool {
+    line.trim().is_empty()
+        || line.starts_with(char::is_whitespace)
+        || line.starts_with("Conf ")
+        || line.starts_with("Remv ")
+        || line.starts_with("Purg ")
+        || line.starts_with(APT_AUTOREMOVE_HINT)
+        || APT_PROGRESS_LINES
+            .iter()
+            .any(|progress| line.starts_with(progress))
+        || APT_LIST_HEADINGS
+            .iter()
+            .any(|heading| line.starts_with(heading))
+}
+
+/// The words of the summary apt closes a simulation with, by position, between
+/// the four counts: `N upgraded, N newly installed, N to remove and N not
+/// upgraded.`
+const SUMMARY_WORDS: [(usize, &str); 8] = [
+    (1, "upgraded,"),
+    (3, "newly"),
+    (4, "installed,"),
+    (6, "to"),
+    (7, "remove"),
+    (8, "and"),
+    (10, "not"),
+    (11, "upgraded."),
+];
+
+/// Where the four counts sit in the summary's twelve words.
+const SUMMARY_COUNTS: [usize; 4] = [0, 2, 5, 9];
+
+/// Whether `line` is the summary apt closes a simulation with:
+/// `N upgraded, N newly installed, N to remove and N not upgraded.`
+fn is_summary(line: &str) -> bool {
+    let words: Vec<&str> = line.split(' ').collect();
+    words.len() == 12
+        && SUMMARY_COUNTS.iter().all(|position| {
+            let count = words[*position];
+            !count.is_empty() && count.bytes().all(|byte| byte.is_ascii_digit())
+        })
+        && SUMMARY_WORDS
+            .iter()
+            .all(|(position, word)| words[*position] == *word)
+}
+
+/// Reads what follows `Inst ` on one line, or `None` when it is not in the
+/// form `NAME [INSTALLED] (VERSION ORIGINS [ARCH])` plus an optional trailing
+/// `[REVERSE DEPENDENCIES]` — the form recorded in
+/// `tests/fixtures/package_manager/apt_dist_upgrade_with_updates.txt`.
+///
+/// `Some(None)` is a well-formed line for a package with no installed version
+/// (a new dependency), which is not an update. The origins are everything
+/// between the version and the architecture bracket, kept as apt prints them.
+fn parse_inst(rest: &str) -> Option<Option<PendingUpdate>> {
+    let (name, rest) = rest.split_once(' ')?;
+    if !is_printable_token(name) {
+        return None;
+    }
+
+    let (installed, rest) = match rest.strip_prefix('[') {
+        Some(bracketed) => {
+            let (installed, after) = bracketed.split_once("] ")?;
+            if !is_printable_token(installed) {
+                return None;
+            }
+            (Some(installed), after)
+        }
+        None => (None, rest),
+    };
+
+    let group = rest.strip_prefix('(')?;
+    let close = group.char_indices().find_map(|(index, character)| {
+        let tail = &group[index + 1..];
+        (character == ')' && (tail.is_empty() || tail.starts_with(" ["))).then_some(index)
+    })?;
+    let (inside, tail) = (&group[..close], &group[close + 1..]);
+    if !(tail.is_empty() || (tail.starts_with(" [") && tail.ends_with(']'))) {
+        return None;
+    }
+
+    let (version, origins) = inside.split_once(' ').unwrap_or((inside, ""));
+    if !is_printable_token(version) {
+        return None;
+    }
+    let source = match origins.rsplit_once(" [") {
+        Some((before, arch)) if arch.ends_with(']') => before,
+        _ => origins,
+    };
+    if source.chars().any(char::is_control) {
+        return None;
+    }
+
+    Some(installed.map(|installed| PendingUpdate {
+        package_name: name.to_owned(),
+        available_version: version.to_owned(),
+        installed_version: Some(installed.to_owned()),
+        source: source.to_owned(),
+    }))
 }
 
 #[cfg(test)]

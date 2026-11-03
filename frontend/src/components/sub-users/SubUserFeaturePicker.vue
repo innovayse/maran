@@ -5,7 +5,6 @@
  * labels are the panel's (`GET /api/v1/me/sub-users/features`); this component knows no feature by
  * name.
  */
-import { useI18n } from 'vue-i18n'
 import UiCheckbox from '../ui/UiCheckbox.vue'
 import type { AccountFeatureName } from '../../types/accountFeature'
 import type { GrantableFeature } from '../../types/subUser'
@@ -16,6 +15,8 @@ const props = defineProps<{
   features: GrantableFeature[]
   /** The ids currently ticked. */
   modelValue: AccountFeatureName[]
+  /** The group's accessible name, so two pickers on one page are told apart by a screen reader. */
+  groupLabel: string
 }>()
 
 /** Events emitted by {@link SubUserFeaturePicker}. */
@@ -23,8 +24,6 @@ const emit = defineEmits<{
   /** The ticked ids changed. */
   (e: 'update:modelValue', value: AccountFeatureName[]): void
 }>()
-
-const { t } = useI18n()
 
 /**
  * Ticks or unticks one feature and reports the new set, keeping the panel's order.
@@ -45,7 +44,7 @@ const toggle = (id: AccountFeatureName, ticked: boolean): void => {
 </script>
 
 <template>
-  <div role="group" :aria-label="t('subUsers.features.groupLabel')" class="flex flex-col gap-1">
+  <div role="group" :aria-label="groupLabel" class="flex flex-col gap-1">
     <UiCheckbox
       v-for="feature in features"
       :key="feature.feature"

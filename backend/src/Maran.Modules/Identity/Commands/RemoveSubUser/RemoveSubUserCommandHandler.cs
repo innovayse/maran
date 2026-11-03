@@ -29,6 +29,11 @@ namespace Maran.Modules.Identity.Commands.RemoveSubUser;
 /// stays; only this account's access and sessions are withdrawn.
 /// </para>
 /// <para>
+/// <b>The same operation withdraws a pending offer.</b> The row an offer is listed as carries the
+/// offer's id, so removing that row cancels the offer and nothing else: no login and no membership is
+/// touched, because the offered person has none here yet.
+/// </para>
+/// <para>
 /// <b>Only the caller's own team is reachable</b>, with the same 404 for another account's sub-user, the
 /// caller themselves and an unknown id that <c>ChangeSubUserGrantsCommandHandler</c> gives.
 /// </para>
@@ -92,6 +97,17 @@ public sealed class RemoveSubUserCommandHandler
             ? null
             : await _dbContext.Users.SingleOrDefaultAsync(candidate => candidate.Id == command.UserId, cancellationToken);
 
+        if (membership is null)
+        {
+            // Not a member: the id may name an open offer of this account (the row an offer is listed
+            // as), which removing withdraws. Anything else is a person this account has not got.
+            var cancelled = await CancelOfferAsync(command, accountId, cancellationToken);
+            if (cancelled is not null)
+            {
+                return cancelled;
+            }
+        }
+
         if (membership is null || user is null)
         {
             return await RefuseAsync(
@@ -130,6 +146,44 @@ public sealed class RemoveSubUserCommandHandler
             SignedInCallerPolicy.Require(_currentUser).UserId,
             IdentityAuditActions.SubUserRemoved,
             user.Username,
+            command.IpAddress,
+            command.UserAgent,
+            succeeded: true,
+            cancellationToken);
+
+        return Result.Ok();
+    }
+
+    /// <summary>Withdraws the open offer the command names, when it names one of this account's.</summary>
+    /// <param name="command">The request; its id is tried as an offer's.</param>
+    /// <param name="accountId">The account the caller owns.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>Success once the offer is withdrawn, or <c>null</c> when the id names no open offer of this account.</returns>
+    private async Task<Result?> CancelOfferAsync(
+        RemoveSubUserCommand command,
+        Guid accountId,
+        CancellationToken cancellationToken)
+    {
+        // Scoped to the caller's own account in the query, so another account's offer is as absent as
+        // an unknown id, and answers the same 404 the caller gets for any person that is not theirs.
+        var offer = await _dbContext.AccountMembershipOffers.SingleOrDefaultAsync(
+            candidate => candidate.Id == command.UserId
+                && candidate.AccountId == accountId
+                && candidate.ResolvedAt == null,
+            cancellationToken);
+        if (offer is null)
+        {
+            return null;
+        }
+
+        offer.Cancel(_clock.UtcNow);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // The subject is what the owner typed, the only name an offer row has for the person.
+        await _journal.RecordIdentifiedAsync(
+            SignedInCallerPolicy.Require(_currentUser).UserId,
+            IdentityAuditActions.SubUserRemoved,
+            offer.Identifier,
             command.IpAddress,
             command.UserAgent,
             succeeded: true,

@@ -142,7 +142,7 @@ agent/
     │   │       ├── cron/      cron_service.rs · cron_status.rs · the wire-payload builders (entry_output.rs · environment_variables.rs · listed_entry.rs · run_outcome.rs)
     │   │       ├── firewall/  firewall_service.rs · firewall_status.rs
     │   │       ├── backup/    backup_service.rs · backup_status.rs
-    │   │       ├── monitor/   monitor_service.rs · monitor_status.rs
+    │   │       ├── monitor/   monitor_service.rs · monitor_status.rs · reported_clock_sync.rs · reported_pending_updates.rs
     │   │       └── wire/      NOT a proto service: the proto ↔ domain boundary shared
     │   │                      by EVERY service — invalid_input.rs · validated_account.rs ·
     │   │                      system_failure.rs · run_blocking.rs (the ONE
@@ -313,6 +313,17 @@ agent/
     │       │                  identical on both families today — the identical one
     │       │                  is the trap, because it is the one that reads as
     │       │                  safe to type into the template as a literal.
+    │       ├── is_printable_token.rs  crate-private: the one test both families'
+    │       │                  pending-updates readers apply to every field they accept
+    │       ├── pending_update.rs · pending_updates_failure.rs · catalogue_probe.rs
+    │       │                  PendingUpdate (one package with a newer version in the host's
+    │       │                  cache), PendingUpdatesFailure (why a read gave no answer: an exit
+    │       │                  status or a line number, never a byte the package manager printed)
+    │       │                  and CatalogueProbe (the constant run that tells a never-built
+    │       │                  catalogue from an up-to-date host; the Debian family answers it,
+    │       │                  the RHEL family answers `None`, issue #324). Flat for the reason
+    │       │                  package_failure.rs is; the reading is
+    │       │                  `PackageFacts::read_pending_updates`
     │       ├── package_failure.rs  PackageFailure — refused source, unreachable source or
     │       │                  local: the verdict both families answer a failed package-manager
     │       │                  run with (`DistroAdapter::classify_package_failure`, issue #251).

@@ -220,6 +220,33 @@ export interface ClockSync {
   description: string
 }
 
+/**
+ * One package the operating system could update, mirroring the backend's `PendingUpdateDto`.
+ *
+ * Read from the server's package cache only: the agent never refreshes the package lists to answer,
+ * so the rows are what the system already knows about, not a fresh look at the mirrors.
+ */
+export interface PendingUpdate {
+  /** The operating system's name for the package; the row's key within one answer. */
+  packageName: string
+  /** The version the update would install. */
+  availableVersion: string
+  /**
+   * The version installed now, or `null` when the package family does not report it (the RHEL
+   * family's update check lists only the new version). Null is "not reported", never an empty
+   * version, and the table draws it as a dash.
+   */
+  installedVersion: string | null
+  /** Where the update comes from (an apt origin or a dnf repository id); may be an empty string. */
+  source: string
+}
+
+/** How many updates are waiting, mirroring the backend's `PendingUpdateCountDto`. */
+export interface PendingUpdateCount {
+  /** The number of packages with an update available; zero is a real answer from a readable cache. */
+  count: number
+}
+
 /** The monitoring endpoints this SPA calls, as `useMonitoringApi` implements them. */
 export interface MonitoringApi {
   /**
@@ -259,4 +286,19 @@ export interface MonitoringApi {
    * @returns The state with the backend's explanation of it.
    */
   getClockSync: (signal?: AbortSignal) => Promise<ClockSync>
+
+  /**
+   * Reads one page of the packages the operating system could update, from the package cache.
+   * @param request The page, size, search on the package name and sort (`packageName`, `source`).
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The page the panel answered, with the total that matched.
+   */
+  pendingUpdates: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<PendingUpdate>>
+
+  /**
+   * Reads how many packages have an update available, for the navigation badge.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The count; a failed read throws rather than answering zero.
+   */
+  pendingUpdateCount: (signal?: AbortSignal) => Promise<PendingUpdateCount>
 }

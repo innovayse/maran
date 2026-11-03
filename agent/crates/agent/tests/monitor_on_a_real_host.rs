@@ -45,11 +45,12 @@ mod polygon_account;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use maran_distro::{DistroAdapter, adapter_for, detect};
+use maran_distro::{DistroAdapter, DistroFamily, adapter_for, detect};
 use maran_ops::monitor::{
     AccountSelection, MachineIdentity, PrimaryInterface, ProcessMonitorHost, ServiceState,
     ServiceStatus, SftpJailStatus, get_accounts_disk_usage, get_host_metrics,
     get_server_fingerprint_inputs, get_service_statuses, get_sftp_jail_status,
+    list_pending_updates,
 };
 
 use polygon_account::PolygonAccount;
@@ -584,5 +585,86 @@ fn the_fingerprint_inputs_are_read_from_this_hosts_own_files() {
             panic!("a polygon container has a default route, so absence means the parse failed")
         }
         other => panic!("unhandled primary-interface state: {other:?}"),
+    }
+}
+
+/// Whether this host's package manager has a catalogue on disk, observed here
+/// from the files themselves and not through the operation under test: package
+/// index files under apt's lists directory on the Debian family, solver caches
+/// under dnf's cache directory on the RHEL family.
+///
+/// The paths are written out here on purpose, for the reason
+/// [`UNIT_STATE_DIRECTORY`] is: a test that asked the code under test where the
+/// catalogue is could not notice that code reading the wrong place.
+fn catalogue_exists_on_disk(family: DistroFamily) -> bool {
+    fn names_under(directory: &Path, depth: usize, found: &dyn Fn(&str) -> bool) -> bool {
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            return false;
+        };
+        entries.flatten().any(|entry| {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            found(&name) || (depth > 0 && path.is_dir() && names_under(&path, depth - 1, found))
+        })
+    }
+
+    match family {
+        DistroFamily::Debian => names_under(Path::new("/var/lib/apt/lists"), 0, &|name| {
+            name.contains("_Packages")
+        }),
+        DistroFamily::Rhel => names_under(Path::new("/var/cache/dnf"), 2, &|name| {
+            name.ends_with(".solv") || name.ends_with(".solvx")
+        }),
+    }
+}
+
+/// The pending-updates read answers a list or the typed unavailable error on a
+/// real host of each family, and never an empty list for a catalogue it could
+/// not read.
+///
+/// Two outcomes are tolerated and each is judged against the disk. A host with
+/// NO catalogue (a polygon image is built without one) must answer the typed
+/// error: an empty `Ok` there is the exact false "up to date" this operation
+/// exists to prevent. A host WITH a catalogue must answer a list whose rows are
+/// well formed: an error there means the package manager does not run in this
+/// environment, which is a finding and not a pass.
+///
+/// UNOBSERVED HERE: this runs the real package manager as the child the agent
+/// spawns (cleared environment, fixed `PATH`, bounded), but a polygon container
+/// is not the agent's systemd unit. The empty `PATH` of the agent itself, the
+/// syscall filter, `PrivateTmp` and `ProtectSystem=true` are not applied, so
+/// whether the read runs inside the unit's sandbox is a separate measurement.
+#[test]
+#[ignore = "runs the real package manager read-only: polygon only"]
+fn pending_updates_are_a_list_or_a_typed_error_and_never_an_empty_list_for_an_unread_catalogue() {
+    PolygonAccount::require_polygon();
+    let distro = polygon_distro();
+    let catalogue_exists = catalogue_exists_on_disk(distro.family());
+
+    let result = list_pending_updates(&ProcessMonitorHost::new(), distro);
+
+    match (catalogue_exists, result) {
+        (true, Ok(updates)) => {
+            for update in &updates {
+                assert!(!update.package_name.is_empty(), "{update:?}");
+                assert!(!update.available_version.is_empty(), "{update:?}");
+            }
+        }
+        (true, Err(error)) => panic!(
+            "this host has a package catalogue on disk and the read still failed: {error}. \
+             The package manager does not run to an answer here"
+        ),
+        (false, Ok(updates)) => panic!(
+            "this host has no package catalogue and the read answered {} update(s) instead of \
+             an error: a catalogue that was never built was reported as up to date",
+            updates.len()
+        ),
+        (false, Err(error)) => assert!(
+            matches!(
+                error,
+                maran_ops::monitor::MonitorError::UpdateCatalogueUnavailable { .. }
+            ),
+            "no catalogue must be the typed unavailable error, got {error:?}"
+        ),
     }
 }

@@ -1,7 +1,13 @@
 import type { Page } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { AccountFeatureName } from '../../src/types/accountFeature'
-import type { ChangeSubUserFeaturesRequest, GrantableFeature, InviteSubUserRequest, SubUser } from '../../src/types/subUser'
+import type {
+  ChangeSubUserFeaturesRequest,
+  GrantableFeature,
+  InviteSubUserRequest,
+  OfferMembershipRequest,
+  SubUser,
+} from '../../src/types/subUser'
 
 /** The collection endpoint the list and the invite form both talk to, with or without a query. */
 const SUB_USERS_PATTERN = /\/api\/v1\/me\/sub-users(\?.*)?$/
@@ -15,8 +21,41 @@ const SUB_USER_PATTERN = '**/api/v1/me/sub-users/*'
 /** The features endpoint of one sub-user. A `*` never spans a `/`, so this is narrower than the one above. */
 const SUB_USER_FEATURES_PATTERN = '**/api/v1/me/sub-users/*/features'
 
+/** The resend endpoint of one sub-user. */
+const SUB_USER_INVITATION_PATTERN = '**/api/v1/me/sub-users/*/invitation'
+
+/** The endpoint that offers membership to an existing login. */
+const EXISTING_PATTERN = '**/api/v1/me/sub-users/existing'
+
 /** The id the stub gives a freshly invited person. */
 const INVITED_ID = '99999999-9999-4999-8999-999999999999'
+
+/** The id the stub gives a freshly stored offer. */
+const OFFER_ID = '88888888-8888-4888-8888-888888888888'
+
+/** What a spec may arrange about the existing-login flow. */
+export interface SubUsersStubOptions {
+  /** The identifiers that name a real, offerable login; every other identifier is a silent no-op. */
+  knownLogins?: string[]
+  /** When set, an offer is refused with 409 and this sentence in `detail`, as a full team would be. */
+  offerRefusal?: string
+  /** When set, a resend is refused with 409 and this sentence in `detail`. */
+  resendRefusal?: string
+}
+
+/** What the page sent, recorded in order. */
+export interface SubUsersSent {
+  /** The invitations posted. */
+  invitations: InviteSubUserRequest[]
+  /** The feature changes put. */
+  changes: ChangeSubUserFeaturesRequest[]
+  /** The ids deleted (a removal or a cancelled offer). */
+  removals: string[]
+  /** The offers posted to `existing`. */
+  offers: OfferMembershipRequest[]
+  /** The ids whose invitation was resent. */
+  resends: string[]
+}
 
 /** The features the panel offers, as it would label them in English. */
 export const stubbedFeatures: GrantableFeature[] = [
@@ -61,26 +100,37 @@ export const subUserRow = (username: string, features: AccountFeatureName[], sta
     features,
     createdAt: '2026-11-01T10:00:00Z',
     lastLoginAt: state === 'active' ? '2026-11-02T08:00:00Z' : null,
+    isOffer: false,
   }
+}
+
+/**
+ * Builds a pending-offer row for a spec: invited, never signed in, and flagged as an offer.
+ * @param identifier What the owner typed, which is all an offer row shows.
+ * @param features The feature ids on offer.
+ * @returns The row.
+ */
+export const offerRow = (identifier: string, features: AccountFeatureName[] = []): SubUser => {
+  return { ...subUserRow(identifier, features, 'invited'), email: identifier, isOffer: true }
 }
 
 /**
  * Fulfils the whole sub-users surface from one catalogue: the paged list, the feature labels, an
  * invite (the new person joins the catalogue as `invited`, so the page's re-read shows them), a
- * feature change and a removal. Every write is recorded so a spec can assert what the page sent.
+ * feature change, a resend, an offer to an existing login and a removal. Every write is recorded so
+ * a spec can assert what the page sent. An offer answers 202 with the same body whether or not the
+ * identifier is in `knownLogins`; only a known one adds a row, as the real panel does.
  * @param page The Playwright page whose network the routes are installed on.
  * @param users The sub-users the stub knows, in their default order.
- * @returns What the page sent: the invitations and the feature changes, in order.
+ * @param options What the stub should arrange about offers and resends.
+ * @returns What the page sent, in order.
  */
 export const stubSubUsers = async (
   page: Page,
   users: SubUser[],
-): Promise<{ invitations: InviteSubUserRequest[]; changes: ChangeSubUserFeaturesRequest[]; removals: string[] }> => {
-  const sent = {
-    invitations: [] as InviteSubUserRequest[],
-    changes: [] as ChangeSubUserFeaturesRequest[],
-    removals: [] as string[],
-  }
+  options: SubUsersStubOptions = {},
+): Promise<SubUsersSent> => {
+  const sent: SubUsersSent = { invitations: [], changes: [], removals: [], offers: [], resends: [] }
 
   await page.route(SUB_USERS_PATTERN, async (route) => {
     if (route.request().method() === 'POST') {
@@ -145,6 +195,38 @@ export const stubSubUsers = async (
     }
     target.features = submitted.features
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(target) })
+  })
+
+  await page.route(SUB_USER_INVITATION_PATTERN, async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').slice(-2)[0] ?? ''
+    sent.resends.push(id)
+    if (options.resendRefusal !== undefined) {
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ code: 'SubUserNotPending', title: 'Conflict', detail: options.resendRefusal }),
+      })
+      return
+    }
+    await route.fulfill({ status: 204 })
+  })
+
+  await page.route(EXISTING_PATTERN, async (route) => {
+    const submitted = route.request().postDataJSON() as OfferMembershipRequest
+    sent.offers.push(submitted)
+    if (options.offerRefusal !== undefined) {
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ code: 'SubUserLimitReached', title: 'Conflict', detail: options.offerRefusal }),
+      })
+      return
+    }
+    if (options.knownLogins?.includes(submitted.identifier) === true) {
+      users.push({ ...offerRow(submitted.identifier, submitted.features), id: OFFER_ID })
+    }
+    // The real answer is 202 with an echo of the input, identical for every identifier.
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ identifier: submitted.identifier }) })
   })
 
   // Registered last, so it wins over the removal's `*` segment, which would otherwise also match

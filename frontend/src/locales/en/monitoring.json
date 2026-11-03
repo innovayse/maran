@@ -71,6 +71,23 @@
       "synchronized": "Synchronised",
       "notSynchronized": "Not synchronised",
       "syncServiceDisabled": "No time synchronisation"
+    },
+    "updates": {
+      "heading": "Updates",
+      "subtitle": "Packages the operating system could update, as its package cache knows them.",
+      "caption": "Operating system packages with an update available",
+      "columnPackage": "Package",
+      "columnInstalled": "Installed",
+      "columnAvailable": "Available",
+      "columnSource": "Source",
+      "searchLabel": "Search packages",
+      "searchPlaceholder": "Search by package…",
+      "searchClear": "Clear the search",
+      "refresh": "Refresh",
+      "emptyTitle": "Nothing to update",
+      "emptyDescription": "The package cache lists no update for this server.",
+      "noResultsTitle": "No packages match",
+      "noResultsDescription": "Change the search, or clear it to see every package."
     }
   }
 }

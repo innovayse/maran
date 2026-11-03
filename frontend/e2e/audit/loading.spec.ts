@@ -17,6 +17,7 @@ const SIGNED_IN: AuditEvent = {
   id: '00000000-0000-0000-0000-0000000000e1',
   occurredAt: '2026-09-09T09:08:00+00:00',
   actorUsername: 'verifier',
+  impersonatorUsername: null,
   action: 'LoginSucceeded',
   actionName: 'Signed in',
   subject: 'verifier',

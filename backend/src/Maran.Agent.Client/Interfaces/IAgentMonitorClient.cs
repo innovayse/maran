@@ -116,4 +116,21 @@ public interface IAgentMonitorClient
     /// an attacker a licence valid on every machine they own.
     /// </remarks>
     Task<Result<AgentServerFingerprint>> GetServerFingerprintAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the OS packages the host's package manager reports as upgradable, from its local cache
+    /// only (issue #324).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// Every pending update in the order the agent sent them, or a typed failure. An empty list is a
+    /// finding: the cache was read and nothing in it is upgradable.
+    /// </returns>
+    /// <remarks>
+    /// A failure here is NOT "no updates". The agent never refreshes the package metadata and makes no
+    /// outbound call, so a cache that was never built or cannot be read is reported as an error, and a
+    /// caller that turned that into an empty list or a zero would tell an operator a server is up to
+    /// date on no evidence at all. It is the same discipline <see cref="GetClockSyncAsync"/> follows.
+    /// </remarks>
+    Task<Result<IReadOnlyList<AgentPendingUpdate>>> ListPendingUpdatesAsync(CancellationToken cancellationToken);
 }

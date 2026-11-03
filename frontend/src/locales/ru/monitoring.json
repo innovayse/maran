@@ -71,6 +71,23 @@
       "synchronized": "Синхронизированы",
       "notSynchronized": "Не синхронизированы",
       "syncServiceDisabled": "Нет синхронизации времени"
+    },
+    "updates": {
+      "heading": "Обновления",
+      "subtitle": "Пакеты, которые операционная система может обновить, по данным её кэша пакетов.",
+      "caption": "Пакеты операционной системы, для которых доступно обновление",
+      "columnPackage": "Пакет",
+      "columnInstalled": "Установлена",
+      "columnAvailable": "Доступна",
+      "columnSource": "Источник",
+      "searchLabel": "Поиск пакетов",
+      "searchPlaceholder": "Поиск по пакету…",
+      "searchClear": "Сбросить поиск",
+      "refresh": "Обновить список",
+      "emptyTitle": "Обновлять нечего",
+      "emptyDescription": "В кэше пакетов нет обновлений для этого сервера.",
+      "noResultsTitle": "Пакетов не найдено",
+      "noResultsDescription": "Измените поиск или сбросьте его, чтобы увидеть все пакеты."
     }
   }
 }

@@ -7,6 +7,7 @@ import type {
   ClockSync,
   HostMetrics,
   MetricBucket,
+  PendingUpdate,
   ServiceStatus,
 } from '../../src/types/monitoring'
 
@@ -243,6 +244,89 @@ export const stubMonitoring = async (
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(pagedAnswer(accounts, route.request().url(), ACCOUNTS_DISK_RULES)),
+    })
+  })
+}
+
+/** The pending updates list, with or without the list's query. */
+const UPDATES_PATTERN = /\/api\/v1\/monitoring\/updates(\?.*)?$/
+
+/** The number of pending updates, read for the navigation badge. */
+const UPDATES_COUNT_PATTERN = /\/api\/v1\/monitoring\/updates\/count$/
+
+/**
+ * How the pending updates list searches and sorts, as the panel does: the search reads the package
+ * name, and the sorts are the two the panel whitelists, `packageName` and `source`.
+ */
+const UPDATES_RULES: PagedRules<PendingUpdate> = {
+  matches: (row, term) => {
+    return row.packageName.toLowerCase().includes(term)
+  },
+  sorts: {
+    packageName: (row) => {
+      return row.packageName
+    },
+    source: (row) => {
+      return row.source
+    },
+  },
+  filters: {},
+}
+
+/** Every pending updates list request the stub answered, in order, so a spec can read the query. */
+export const pendingUpdateRequests: URL[] = []
+
+/**
+ * Fulfils the pending updates list and its count.
+ *
+ * A stub given `failure` answers both routes with a 500 problem body carrying that message, the way
+ * the panel fails a request when the agent could not read the package cache: the typed failure, never
+ * an empty page and never a zero.
+ * @param page The Playwright page whose network the routes are installed on.
+ * @param updates Every update the stub knows; it answers them a page at a time, honouring `page`,
+ * `pageSize`, `search` and `sort` as the panel does.
+ * @param failure The problem `detail` to answer both routes with instead of the data, or `null`.
+ * @returns Resolves once the routes are installed.
+ */
+export const stubPendingUpdates = async (
+  page: Page,
+  updates: PendingUpdate[],
+  failure: string | null = null,
+): Promise<void> => {
+  pendingUpdateRequests.length = 0
+
+  /**
+   * Answers a request with the stubbed failure.
+   * @param route The intercepted request.
+   * @param detail The problem detail to carry.
+   * @returns Resolves once the response is sent.
+   */
+  const fail = async (route: Route, detail: string): Promise<void> => {
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ title: 'The package cache could not be read', detail, status: 500 }),
+    })
+  }
+
+  await page.route(UPDATES_COUNT_PATTERN, async (route: Route) => {
+    if (failure !== null) {
+      await fail(route, failure)
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ count: updates.length }) })
+  })
+
+  await page.route(UPDATES_PATTERN, async (route: Route) => {
+    pendingUpdateRequests.push(new URL(route.request().url()))
+    if (failure !== null) {
+      await fail(route, failure)
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pagedAnswer(updates, route.request().url(), UPDATES_RULES)),
     })
   })
 }

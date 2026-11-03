@@ -61,7 +61,7 @@ const page = (
   module: string | null,
   planFeature: AccountFeatureName | null = null,
 ): NavigationPageSpec => {
-  return { key, labelKey, availability, roles, module, planFeature, badge: null }
+  return { key, labelKey, availability, roles, module, planFeature, ownerOnly: false, badge: null }
 }
 
 /** Administrators only: the host and the panel itself. */
@@ -268,7 +268,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('servers-fleet', 'app.nav.children.serversFleet', planned(180), ADMIN, null),
           page('servers-services', 'app.nav.children.serversServices', planned(null), ADMIN, null),
           {
-            ...page('servers-updates', 'app.nav.children.serversUpdates', planned(null), ADMIN, null),
+            ...page('servers-updates', 'app.nav.children.serversUpdates', routed('servers-updates'), ADMIN, 'monitoring'),
             badge: 'availableUpdates',
           },
         ],
@@ -334,7 +334,8 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('account-overview', 'app.shell.menu.myAccount', routed('my-account'), CUSTOMER, null),
           page('account-two-factor', 'app.twoFactor.heading', routed('two-factor'), CUSTOMER, null),
           page('account-sessions', 'app.sessions.heading', routed('sessions'), CUSTOMER, null),
-          page('account-sub-users', 'app.nav.children.subUsers', routed('sub-users'), CUSTOMER, null),
+          // Only the owner manages the team: the endpoints refuse a member, so the menu does not offer it.
+          { ...page('account-sub-users', 'app.nav.children.subUsers', routed('sub-users'), CUSTOMER, null), ownerOnly: true },
         ],
       },
     ],

@@ -304,6 +304,18 @@
   <data name="AuditActionSubUserRemoved">
     <value>Пользователь удалён</value>
   </data>
+  <data name="AuditActionSubUserInvitationResent">
+    <value>Приглашение пользователю отправлено повторно</value>
+  </data>
+  <data name="AuditActionSubUserMembershipOffered">
+    <value>Логину предложено членство</value>
+  </data>
+  <data name="AuditActionSubUserMembershipOfferAccepted">
+    <value>Предложение членства принято</value>
+  </data>
+  <data name="AuditActionSubUserMembershipOfferDeclined">
+    <value>Предложение членства отклонено</value>
+  </data>
   <data name="AccountFeatureMail">
     <value>Почта</value>
   </data>

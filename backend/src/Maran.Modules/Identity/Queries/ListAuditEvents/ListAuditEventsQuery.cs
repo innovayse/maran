@@ -26,8 +26,8 @@ namespace Maran.Modules.Identity.Queries.ListAuditEvents;
 /// <param name="Page">The 1-based page requested; a page past the end answers empty with the true total.</param>
 /// <param name="PageSize">Rows per page; one of <see cref="PageDefaults.AllowedSizes"/>.</param>
 /// <param name="Search">
-/// A term matched literally inside the actor's name, the subject or the address the request came
-/// from, or <see cref="SearchTerm.None"/>.
+/// A term matched literally inside the actor's name, the subject, the address the request came
+/// from or the name of the operator who was viewing as the actor, or <see cref="SearchTerm.None"/>.
 /// </param>
 /// <param name="Sort">
 /// One of <see cref="AuditEventSortFields"/> either way (<c>actor</c>, <c>-occurredAt</c>), or

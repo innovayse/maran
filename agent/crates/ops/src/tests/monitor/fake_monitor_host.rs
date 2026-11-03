@@ -146,6 +146,11 @@ pub(crate) struct FakeMonitorHost {
     commands: Mutex<Vec<Vec<String>>>,
     /// The call class of every command, in the same order as `commands`.
     classes: Mutex<Vec<CallClass>>,
+    /// Answers chosen per command, keyed by the command's LAST argument, as an
+    /// exit status and the text printed. They win over the service manager's
+    /// answers, so a program that is not the service manager (the package
+    /// manager) can exit with a status of its own and print what it printed.
+    answers: Mutex<BTreeMap<String, (i32, String)>>,
     /// What `read_machine_id` answers: `Ok(Some(_))`, `Ok(None)` for a
     /// legitimately absent file, or `Err(_)` for a genuine read failure.
     machine_id: Mutex<Result<Option<String>, MonitorError>>,
@@ -182,6 +187,7 @@ impl FakeMonitorHost {
             measured: Mutex::new(Vec::new()),
             commands: Mutex::new(Vec::new()),
             classes: Mutex::new(Vec::new()),
+            answers: Mutex::new(BTreeMap::new()),
             machine_id: Mutex::new(Ok(Some(DEFAULT_MACHINE_ID.to_owned()))),
             ipv4_routes: Mutex::new(Ok(DEFAULT_IPV4_ROUTES.to_owned())),
         }
@@ -252,6 +258,21 @@ impl FakeMonitorHost {
             program: String::from("/usr/bin/systemctl"),
             deadline: CallClass::Query.deadline(),
         }));
+        self
+    }
+
+    /// Makes every command whose last argument is `last_argument` exit with
+    /// `status` and print `stdout`, whatever the service manager would say.
+    pub(crate) fn with_command_answer(
+        self,
+        last_argument: &str,
+        status: i32,
+        stdout: &str,
+    ) -> Self {
+        self.answers
+            .lock()
+            .unwrap()
+            .insert(last_argument.to_owned(), (status, stdout.to_owned()));
         self
     }
 
@@ -436,6 +457,15 @@ impl MonitorHost for FakeMonitorHost {
         command.extend(arguments.iter().map(|argument| (*argument).to_owned()));
         self.commands.lock().unwrap().push(command);
         self.classes.lock().unwrap().push(class);
+
+        let last_argument = arguments.last().copied().unwrap_or_default();
+        if let Some((status, stdout)) = self.answers.lock().unwrap().get(last_argument) {
+            return Ok(CommandOutcome {
+                status: *status,
+                stdout: stdout.clone(),
+                stderr: String::new(),
+            });
+        }
 
         let status = self.service_manager.lock().unwrap().clone()?;
         if status != 0 {

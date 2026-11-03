@@ -13,6 +13,12 @@ export interface AuditEvent {
   occurredAt: string
   /** The login name of whoever performed it. */
   actorUsername: string
+  /**
+   * The login name of the administrator who was viewing the panel as the actor when this was done,
+   * or `null` when the actor acted for themselves. The actor is still who the entry is about; this
+   * names the person at the keyboard.
+   */
+  impersonatorUsername: string | null
   /** What was done, as the backend's machine-stable action name — what an operator greps a log by. */
   action: string
   /**

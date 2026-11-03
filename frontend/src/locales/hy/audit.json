@@ -11,6 +11,7 @@
       "subjectColumn": "Օբյեկտ",
       "addressColumn": "Որտեղից",
       "outcomeColumn": "Արդյունք",
+      "viewedBy": "{name}-ի միջոցով",
       "heading": "Աուդիտի մատյան",
       "searchLabel": "Մատյանի որոնում",
       "searchPlaceholder": "Որոնել ըստ կատարողի, օբյեկտի կամ հասցեի…",

@@ -132,7 +132,11 @@ defineExpose({ reset })
         />
       </div>
       <p class="mt-5 mb-1 text-sm font-medium text-text-primary">{{ t('subUsers.form.fields.features') }}</p>
-      <SubUserFeaturePicker v-model="selected" :features="features" />
+      <SubUserFeaturePicker
+        v-model="selected"
+        :features="features"
+        :group-label="t('subUsers.features.groupLabel')"
+      />
       <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p class="min-w-0 text-sm text-text-muted">{{ t('subUsers.form.hint') }}</p>
         <UiButton class="shrink-0 self-start sm:self-auto" type="submit" :disabled="submitting">

@@ -129,4 +129,18 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
             _inner,
             cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<IReadOnlyList<AgentPendingUpdate>>> ListPendingUpdatesAsync(
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.ListPendingUpdatesAsync(token);
+            },
+            _inner,
+            cancellationToken);
+    }
 }

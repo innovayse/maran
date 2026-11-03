@@ -7,12 +7,13 @@ import type {
   ChangeSubUserFeaturesRequest,
   GrantableFeature,
   InviteSubUserRequest,
+  OfferMembershipRequest,
   SubUser,
 } from '../types/subUser'
 
 /**
  * Owns one page of the account's sub-users, the features an owner may give, and the invite, change
- * and remove workflows. The sub-users page reads state from here and calls its actions — it never
+ * resend, offer and remove workflows. The sub-users page reads state from here and calls its actions — it never
  * touches the API composable directly (rules/vue.md: "API composables are called from Pinia stores
  * ONLY").
  *
@@ -31,13 +32,19 @@ export const useSubUsersStore = defineStore('subUsers', () => {
   /** True while an invite request is in flight. */
   const inviting: Ref<boolean> = ref(false)
 
-  /** True while a change or a removal is in flight. */
+  /** True while an offer to an existing login is in flight. */
+  const offering: Ref<boolean> = ref(false)
+
+  /** True while a resend, a change or a removal is in flight. */
   const acting: Ref<boolean> = ref(false)
 
   /** Backend-localized message from the most recent failed invite, or `null`. */
   const inviteErrorMessage: Ref<string | null> = ref(null)
 
-  /** Backend-localized message from the most recent failed change or removal, or `null`. */
+  /** Backend-localized message from the most recent failed offer, or `null`. */
+  const offerErrorMessage: Ref<string | null> = ref(null)
+
+  /** Backend-localized message from the most recent failed resend, change or removal, or `null`. */
   const actionErrorMessage: Ref<string | null> = ref(null)
 
   /** Backend-localized message from the most recent failed features read, or `null`. */
@@ -97,6 +104,49 @@ export const useSubUsersStore = defineStore('subUsers', () => {
   }
 
   /**
+   * Mails a fresh invitation to a sub-user who has not accepted yet. The row does not change, so the
+   * held page is left as it is.
+   * @param id The invited sub-user.
+   * @returns True when the panel sent it — the caller reads {@link actionErrorMessage} when it did not.
+   */
+  const resendInvitation = async (id: string): Promise<boolean> => {
+    acting.value = true
+    try {
+      await api.resendInvitation(id)
+      actionErrorMessage.value = null
+      return true
+    } catch (error) {
+      actionErrorMessage.value = error instanceof ApiError ? error.message : null
+      return false
+    } finally {
+      acting.value = false
+    }
+  }
+
+  /**
+   * Offers a person who already has a login a place on the team. The answer carries nothing about
+   * whether the login exists, so this only reports whether the request was accepted; the page reads
+   * its list again, where a stored offer shows as a row.
+   * @param request The identifier the owner typed and the features to offer.
+   * @returns True when the panel accepted the request — the caller reads {@link offerErrorMessage}
+   * for the reason when it did not.
+   */
+  const offerExisting = async (request: OfferMembershipRequest): Promise<boolean> => {
+    offering.value = true
+    try {
+      await api.offerExisting(request)
+      offerErrorMessage.value = null
+      return true
+    } catch (error) {
+      // The owner's own refusals (cap reached, bad input, not the owner) arrive already localized.
+      offerErrorMessage.value = error instanceof ApiError ? error.message : null
+      return false
+    } finally {
+      offering.value = false
+    }
+  }
+
+  /**
    * Replaces a sub-user's features and patches the held row with the panel's answer.
    * @param id The sub-user to change.
    * @param request The complete new set of feature ids.
@@ -146,13 +196,17 @@ export const useSubUsersStore = defineStore('subUsers', () => {
     subUsers,
     features,
     inviting,
+    offering,
     acting,
     inviteErrorMessage,
+    offerErrorMessage,
     actionErrorMessage,
     featuresErrorMessage,
     list,
     loadFeatures,
     invite,
+    resendInvitation,
+    offerExisting,
     changeFeatures,
     remove,
   }

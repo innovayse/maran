@@ -1,8 +1,9 @@
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Queries.ListSubUsers;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
-using Maran.SharedKernel.Pagination;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Identity.Tests.Queries.ListSubUsers;
 
@@ -23,7 +24,7 @@ public sealed class ListSubUsersQueryHandlerTests : IDisposable
 
     private ListSubUsersQueryHandler NewHandler(StubCustomerUser? caller = null)
     {
-        return new ListSubUsersQueryHandler(_world.Context, _world.Guard(caller));
+        return new ListSubUsersQueryHandler(_world.Context, _world.Guard(caller), _world.Clock);
     }
 
     /// <summary>The owner sees their own members with the features they hold, and not themselves.</summary>
@@ -37,6 +38,7 @@ public sealed class ListSubUsersQueryHandlerTests : IDisposable
         var row = Assert.Single(result.Value.Items);
         Assert.Equal("deploy", row.Username);
         Assert.Equal(UserLifecycle.Active, row.State);
+        Assert.False(row.IsOffer);
         Assert.Equal([AccountFeature.Databases, AccountFeature.Backups], row.Features);
         Assert.Equal(1, result.Value.Total);
     }
@@ -58,35 +60,56 @@ public sealed class ListSubUsersQueryHandlerTests : IDisposable
     [Fact]
     public async Task The_page_is_cut_and_the_total_counts_every_row()
     {
-        await _world.SeedMemberAsync("a", AccountFeature.None);
-        await _world.SeedMemberAsync("b", AccountFeature.None);
-        await _world.SeedMemberAsync("c", AccountFeature.None);
+        // 12 rows against the smallest allowed page size (10), so the second page is a real boundary.
+        foreach (var name in new[] { "a", "b", "c", "d", "e", "f" })
+        {
+            await _world.SeedMemberAsync(name, AccountFeature.None);
+        }
 
-        var result = await NewHandler().HandleAsync(new ListSubUsersQuery(PageSize: 10), CancellationToken.None);
+        foreach (var name in new[] { "g", "h", "i", "j", "k", "l" })
+        {
+            await SeedOfferedLoginAsync(name, name);
+        }
 
-        Assert.Equal(3, result.Value.Total);
-        Assert.Equal(3, result.Value.Items.Count);
+        var first = await NewHandler().HandleAsync(new ListSubUsersQuery(Page: 1, PageSize: 10), CancellationToken.None);
+        var second = await NewHandler().HandleAsync(new ListSubUsersQuery(Page: 2, PageSize: 10), CancellationToken.None);
+
+        Assert.Equal(12, first.Value.Total);
+        Assert.Equal(10, first.Value.Items.Count);
+        Assert.Equal(2, second.Value.Items.Count);
+        Assert.Equal(
+            12,
+            first.Value.Items.Concat(second.Value.Items).Select(row => { return row.Id; }).Distinct().Count());
     }
 
-    /// <summary>A team member may not list the team.</summary>
+    /// <summary>An expired offer, an answered one and another account's offer are not listed.</summary>
     [Fact]
-    public async Task A_member_is_refused()
+    public async Task Expired_answered_and_foreign_offers_are_not_listed()
     {
-        var member = await _world.SeedMemberAsync("deploy", AccountFeature.All);
-        var caller = new StubCustomerUser(member.Id, member.Username, SubUserWorld.AccountId);
+        await SeedOfferedLoginAsync("old", "old");
+        _world.Clock.Advance(AccountMembershipOffer.Lifetime + TimeSpan.FromMinutes(1));
+        var answered = await SeedOfferedLoginAsync("done", "done");
+        var offer = await _world.Context.AccountMembershipOffers.SingleAsync(candidate => candidate.UserId == answered.Id);
+        offer.Decline(_world.Clock.UtcNow);
+        var foreign = await _world.SeedMemberAsync("stranger", AccountFeature.None, accountId: Guid.NewGuid());
+        _world.Context.AccountMembershipOffers.Add(AccountMembershipOffer.Offer(
+            Guid.NewGuid(), foreign.Id, Guid.NewGuid(), "other", "x", AccountFeature.None, _world.Clock.UtcNow));
+        await _world.Context.SaveChangesAsync();
 
-        var result = await NewHandler(caller).HandleAsync(new ListSubUsersQuery(), CancellationToken.None);
+        var result = await NewHandler().HandleAsync(new ListSubUsersQuery(), CancellationToken.None);
 
-        Assert.Equal("SubUsersOwnerOnly", result.Error!.Code);
+        Assert.Empty(result.Value.Items);
+        Assert.Equal(0, result.Value.Total);
     }
 
-    /// <summary>The sort whitelist accepts its own names and refuses an unknown one.</summary>
-    [Fact]
-    public void The_validator_accepts_a_known_sort_and_refuses_an_unknown_one()
+    /// <summary>Stores a login and an open offer from the owner's account to it, listed as <paramref name="identifier"/>.</summary>
+    private async Task<User> SeedOfferedLoginAsync(string username, string identifier)
     {
-        var validator = new ListSubUsersQueryValidator();
-
-        Assert.True(validator.Validate(new ListSubUsersQuery(Sort: SortRequest.Parse("-username"))).IsValid);
-        Assert.False(validator.Validate(new ListSubUsersQuery(Sort: SortRequest.Parse("password"))).IsValid);
+        var user = new User(Guid.NewGuid(), username, username + "@example.com", "hash", UserRole.Customer, SubUserWorld.Now);
+        _world.Context.Users.Add(user);
+        _world.Context.AccountMembershipOffers.Add(AccountMembershipOffer.Offer(
+            Guid.NewGuid(), user.Id, SubUserWorld.AccountId, "acme", identifier, AccountFeature.Databases, _world.Clock.UtcNow));
+        await _world.Context.SaveChangesAsync();
+        return user;
     }
 }

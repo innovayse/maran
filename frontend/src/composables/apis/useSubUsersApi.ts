@@ -5,12 +5,13 @@ import type {
   ChangeSubUserFeaturesRequest,
   GrantableFeature,
   InviteSubUserRequest,
+  OfferMembershipRequest,
   SubUser,
   SubUserInvitation,
   SubUsersApi,
 } from '../../types/subUser'
 
-/** The endpoint sub-users are listed, invited, changed and removed through. */
+/** The endpoint sub-users are listed, invited, offered, changed and removed through. */
 const SUB_USERS_PATH = '/api/v1/me/sub-users'
 
 /** The sub-users list takes no filter, only a page, a search and a sort. */
@@ -56,6 +57,26 @@ export const useSubUsersApi = (): SubUsersApi => {
   }
 
   /**
+   * Mails a fresh invitation to a sub-user who has not accepted yet.
+   * @param id The invited sub-user; the address is the one stored on the login.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns Resolves once the panel accepted the request; the answer is an empty 204.
+   */
+  const resendInvitation = (id: string, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${SUB_USERS_PATH}/${id}/invitation`, undefined, signal)
+  }
+
+  /**
+   * Offers a person who already has a login a place on the team.
+   * @param request The identifier the owner typed and the features to offer.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns Resolves once the panel accepted the request; the answer is the same for every identifier.
+   */
+  const offerExisting = (request: OfferMembershipRequest, signal?: AbortSignal): Promise<void> => {
+    return api.post<void>(`${SUB_USERS_PATH}/existing`, request, signal)
+  }
+
+  /**
    * Replaces a sub-user's features.
    * @param id The sub-user to change.
    * @param request The complete new set of feature ids.
@@ -80,5 +101,5 @@ export const useSubUsersApi = (): SubUsersApi => {
     return api.delete<void>(`${SUB_USERS_PATH}/${id}`, signal)
   }
 
-  return { list, features, invite, changeFeatures, remove }
+  return { list, features, invite, resendInvitation, offerExisting, changeFeatures, remove }
 }

@@ -27,7 +27,8 @@
     },
     "states": {
       "active": "Active",
-      "invited": "Invited"
+      "invited": "Invited",
+      "offered": "Offer sent"
     },
     "features": {
       "groupLabel": "Features this person may use"
@@ -62,6 +63,35 @@
       "title": "Remove {name}",
       "question": "Remove this person? Their access ends immediately and their login is deleted if it was made only for this account.",
       "confirm": "Remove sub-user"
+    },
+    "offered": "If that login exists, an offer was sent. The person has to accept it before they join.",
+    "resend": {
+      "action": "Resend invitation",
+      "sent": "A new invitation was sent to {name}. The earlier link no longer works."
+    },
+    "cancelOffer": {
+      "action": "Cancel offer",
+      "title": "Cancel the offer to {name}",
+      "question": "Cancel this offer? The person will no longer be able to accept it. Nothing changes for their login.",
+      "confirm": "Cancel offer",
+      "done": "Offer to {name} cancelled."
+    },
+    "existing": {
+      "heading": "Add an existing login",
+      "fields": {
+        "identifier": "Existing login or e-mail",
+        "features": "Features"
+      },
+      "placeholders": {
+        "identifier": "deploy or name{'@'}example.com"
+      },
+      "featuresGroupLabel": "Features to offer",
+      "hint": "The person is asked to accept inside the panel the next time they sign in. They are added only if they do, and you never learn whether the login exists.",
+      "submit": "Send offer",
+      "errors": {
+        "identifierRequired": "Enter a login name or an e-mail address.",
+        "identifierTooLong": "That is too long for a login name or an e-mail address."
+      }
     }
   }
 }

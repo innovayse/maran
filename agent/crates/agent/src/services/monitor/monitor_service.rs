@@ -17,15 +17,17 @@ use crate::proto::{
     GetQuotaEnforceabilityResponse, GetServerFingerprintInputsOk,
     GetServerFingerprintInputsRequest, GetServerFingerprintInputsResponse, GetServiceStatusesOk,
     GetServiceStatusesRequest, GetServiceStatusesResponse, GetSftpJailStatusOk,
-    GetSftpJailStatusRequest, GetSftpJailStatusResponse, HostMetrics, MachineIdStatus,
-    PrimaryInterfaceStatus, QuotaEnforceability, QuotaEnforceabilityReason, ServiceStatus,
-    SftpJailState, get_accounts_disk_usage_response, get_host_metrics_response,
-    get_quota_enforceability_response, get_server_fingerprint_inputs_response,
-    get_service_statuses_response, get_sftp_jail_status_response,
+    GetSftpJailStatusRequest, GetSftpJailStatusResponse, HostMetrics, ListPendingUpdatesRequest,
+    ListPendingUpdatesResponse, MachineIdStatus, PrimaryInterfaceStatus, QuotaEnforceability,
+    QuotaEnforceabilityReason, ServiceStatus, SftpJailState, get_accounts_disk_usage_response,
+    get_host_metrics_response, get_quota_enforceability_response,
+    get_server_fingerprint_inputs_response, get_service_statuses_response,
+    get_sftp_jail_status_response,
 };
 use crate::services::monitor::managed_service::managed_service;
 use crate::services::monitor::monitor_status::to_agent_error;
 use crate::services::monitor::reported_clock_sync::reported_clock_sync;
+use crate::services::monitor::reported_pending_updates::reported_pending_updates;
 use crate::services::monitor::reported_state::reported_state;
 use crate::services::monitor::validated_account_selection::validated_account_selection;
 use crate::services::wire::run_blocking::run_blocking;
@@ -46,9 +48,10 @@ use crate::services::wire::run_blocking::run_blocking;
 /// names and only ever compared against password-database rows — it selects
 /// which homes are measured and never builds a path itself.
 ///
-/// The distro adapter is held because two of the operations need platform
-/// facts: where the password database lives, and the closed set of units this
-/// family calls by name. The service asks no question of it itself.
+/// The distro adapter is held because three of the operations need platform
+/// facts: where the password database lives, the closed set of units this
+/// family calls by name, and the package manager's fixed read-only arguments.
+/// The service asks no question of it itself.
 pub struct MonitorServiceImpl<H> {
     /// The machine the readings are taken from.
     host: Arc<H>,
@@ -311,6 +314,25 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
 
         Ok(Response::new(GetClockSyncResponse {
             result: Some(reported_clock_sync(result)),
+        }))
+    }
+
+    /// Lists the packages the host's package manager already knows a newer
+    /// version of, from its local cache (issue #324). Reads only; installs,
+    /// removes and refreshes nothing, and takes no input.
+    async fn list_pending_updates(
+        &self,
+        _request: Request<ListPendingUpdatesRequest>,
+    ) -> Result<Response<ListPendingUpdatesResponse>, Status> {
+        let host = Arc::clone(&self.host);
+        let distro = self.distro;
+        let result = run_blocking("monitoring reading", to_agent_error, move || {
+            monitor::list_pending_updates(host.as_ref(), distro)
+        })
+        .await;
+
+        Ok(Response::new(ListPendingUpdatesResponse {
+            result: Some(reported_pending_updates(result)),
         }))
     }
 }

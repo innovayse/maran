@@ -1,0 +1,3 @@
+
+maran-fixture-c++.lib.noarch                                                   2.0-1 fixture-two
+maran-fixture-package-with-an-exceptionally-long-name-to-force-wrapping.noarch 2.0-1 fixture-two

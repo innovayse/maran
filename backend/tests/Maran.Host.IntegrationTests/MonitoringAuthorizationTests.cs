@@ -67,6 +67,10 @@ public sealed class MonitoringAuthorizationTests : IAsyncLifetime
             // which applies no tenant scope at all, so the admin policy is the only thing keeping a
             // customer from every other tenant's system user name and plan allowances.
             { "GET", "/api/v1/monitoring/accounts-disk" },
+            // Host-wide package facts read from a root-run package manager, administrators only
+            // (issue #324): the list and the count behind the navigation badge.
+            { "GET", "/api/v1/monitoring/updates" },
+            { "GET", "/api/v1/monitoring/updates/count" },
         };
     }
 

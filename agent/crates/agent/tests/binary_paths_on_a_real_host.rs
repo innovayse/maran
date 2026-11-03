@@ -148,6 +148,10 @@ fn declared_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, S
         ("crontab_binary", distro.crontab_binary().to_string()),
         ("sh_binary", distro.sh_binary().to_owned()),
         ("package_manager", distro.package_manager().to_owned()),
+        (
+            "package_query_binary",
+            distro.package_query_binary().to_string(),
+        ),
         ("nft_binary", distro.nft_binary().to_string()),
         ("tar_binary", distro.tar_binary().to_string()),
         ("gzip_binary", distro.gzip_binary().to_string()),

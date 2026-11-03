@@ -1,6 +1,8 @@
 using Maran.Modules.Identity.Commands.ChangeSubUserGrants;
 using Maran.Modules.Identity.Commands.InviteSubUser;
+using Maran.Modules.Identity.Commands.OfferMembership;
 using Maran.Modules.Identity.Commands.RemoveSubUser;
+using Maran.Modules.Identity.Commands.ResendSubUserInvitation;
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Queries.ListGrantableFeatures;
 using Maran.Modules.Identity.Queries.ListSubUsers;
@@ -13,8 +15,8 @@ using Wolverine;
 namespace Maran.Modules.Identity.Controllers;
 
 /// <summary>
-/// The people an account's owner added to the account: invite one, choose which features they may use,
-/// and end their access.
+/// The people an account's owner added to the account: invite one, resend an invitation, offer
+/// membership to a login that already exists, choose which features they may use, and end their access.
 /// </summary>
 /// <remarks>
 /// The class-level policy is "any signed-in caller" because the question this controller asks is not
@@ -103,6 +105,67 @@ public sealed class SubUsersController : BaseApiController
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         var result = await _bus.InvokeAsync<Result<SubUserInvitationDto>>(command, cancellationToken);
+        return result.IsSuccess ? Accepted(result.Value) : ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Sends the invitation of a team member who has not accepted it yet again, to the address already
+    /// stored on that login. Rate limited by the same per-account sending bucket as an invitation and
+    /// an offer: it is a way to make the panel send mail, and it must not become a way to send one
+    /// address a stream of it.
+    /// </summary>
+    /// <remarks>
+    /// The address is never part of the request. The previous link stops working the moment the new one
+    /// is minted, so at most one link is live. A login that has already accepted answers 409
+    /// <c>SubUserNotPending</c>, which tells the owner only about their own team member.
+    /// </remarks>
+    /// <param name="id">The invited login's id.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>204 No Content once a new invitation has been sent.</returns>
+    [HttpPost("{id:guid}/invitation")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
+    [EnableRateLimiting(RateLimitPolicies.InvitationSending)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ResendInvitationAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var command = new ResendSubUserInvitationCommand(id, ClientIpAddress, CallerUserAgent);
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Offers membership of the caller's account to a login that already exists. The person is asked
+    /// inside their own signed-in session and is added only if they accept. Rate limited by the
+    /// per-account invitation-SENDING policy, shared with an invitation and a resend.
+    /// </summary>
+    /// <remarks>
+    /// Answers <c>202 Accepted</c> with the same body whether or not the identifier named a login that
+    /// can be offered anything: that is not the caller's to learn. The caller's own state (not an
+    /// owner, team full, malformed input) is refused before the identifier is looked at.
+    /// </remarks>
+    /// <param name="command">The login name or address, and the features to grant.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The request as accepted, an echo of the caller's own input.</returns>
+    [HttpPost("existing")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
+    [EnableRateLimiting(RateLimitPolicies.InvitationSending)]
+    [ProducesResponseType(typeof(MembershipOfferRequestedDto), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> OfferExistingAsync(
+        [FromBody] OfferMembershipCommand command,
+        CancellationToken cancellationToken)
+    {
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+
+        var result = await _bus.InvokeAsync<Result<MembershipOfferRequestedDto>>(command, cancellationToken);
         return result.IsSuccess ? Accepted(result.Value) : ToActionResult(result);
     }
 

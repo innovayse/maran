@@ -144,6 +144,15 @@
   <data name="SubUserFeatureInvalid">
     <value>Choose the features from the list the panel offers.</value>
   </data>
+  <data name="SubUserNotPending">
+    <value>That person has already accepted the invitation, so there is nothing to resend.</value>
+  </data>
+  <data name="MembershipOfferNotFound">
+    <value>That offer does not exist or is no longer open.</value>
+  </data>
+  <data name="MembershipOfferAccountSuspended">
+    <value>This account is suspended, so the offer cannot be accepted right now.</value>
+  </data>
   <data name="ViewAsAccountNotFound">
     <value>That account was not found, or it has no login to view as.</value>
   </data>

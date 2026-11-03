@@ -33,8 +33,13 @@
  * their real labels and a placeholder in place of each value ({@link UiLoadingRegion},
  * `UiDescriptionList loading`, a `kpi`-sized figure line per tile), so the account lands in the
  * space already held. A caller who owns no account gets the empty state once the answer is in.
+ *
+ * **Offers to join another account** (`MembershipOffersCard`) are drawn above everything else, and only
+ * while at least one is open, so a person who owns no account still sees and can answer them. Accepting
+ * one reads the account switcher's list again, so the new account appears there without a reload; the
+ * page does that wiring because one store does not import another (rules/vue.md).
  */
-import { computed, onMounted, type ComputedRef } from 'vue'
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiCard from '../../components/ui/UiCard.vue'
@@ -44,10 +49,15 @@ import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
 import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue'
+import MembershipOffersCard from '../../components/sub-users/MembershipOffersCard.vue'
+import { useAccountMembershipsStore } from '../../stores/accountMemberships'
 import { useAccountsStore } from '../../stores/accounts'
+import { useMembershipOffersStore } from '../../stores/membershipOffers'
+import type { MembershipOffer } from '../../types/membershipOffer'
 import type { MyAccountPlan } from '../../types/account'
 import { formatMegabytes } from '../../utils/formatBytes'
 
@@ -91,6 +101,11 @@ const LIMIT_FIGURES: Readonly<Record<LimitKey, (plan: MyAccountPlan) => string>>
 
 const { t } = useI18n()
 const store = useAccountsStore()
+const offersStore = useMembershipOffersStore()
+const membershipsStore = useAccountMembershipsStore()
+
+/** The success toast's text, or `null` while none is showing. */
+const notice: Ref<string | null> = ref(null)
 
 /** Whether the account is still on its way, so every value draws a placeholder. */
 const isLoading: ComputedRef<boolean> = computed(() => {
@@ -112,13 +127,55 @@ const limits: ComputedRef<LimitTile[]> = computed(() => {
   })
 })
 
+/**
+ * Accepts an offer and reads the account switcher's list again, so the account the person just joined
+ * can be switched to straight away.
+ * @param offer The offer the person accepted.
+ * @returns Resolves once the answer and the re-read have settled.
+ */
+const acceptOffer = async (offer: MembershipOffer): Promise<void> => {
+  if (await offersStore.accept(offer.id)) {
+    notice.value = t('membershipOffers.accepted', { name: offer.accountName })
+    await membershipsStore.load()
+  }
+}
+
+/**
+ * Declines an offer the person confirmed declining.
+ * @param offer The offer to decline.
+ * @returns Resolves once the answer has settled.
+ */
+const declineOffer = async (offer: MembershipOffer): Promise<void> => {
+  if (await offersStore.decline(offer.id)) {
+    notice.value = t('membershipOffers.declined', { name: offer.accountName })
+  }
+}
+
+/**
+ * Hides the success toast.
+ * @returns Nothing.
+ */
+const dismissNotice = (): void => {
+  notice.value = null
+}
+
 onMounted(async () => {
-  await Promise.all([store.loadMine(), store.loadMineResourceSummary()])
+  await Promise.all([store.loadMine(), store.loadMineResourceSummary(), offersStore.load()])
 })
 </script>
 
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
+    <!-- Outside the account's region: a person who owns no account is still offered the others. -->
+    <UiAlert v-if="offersStore.errorMessage !== null" variant="error">{{ offersStore.errorMessage }}</UiAlert>
+    <MembershipOffersCard
+      v-if="offersStore.offers.length > 0"
+      :offers="offersStore.offers"
+      :acting-id="offersStore.actingId"
+      @accept="acceptOffer"
+      @decline="declineOffer"
+    />
+
     <UiLoadingRegion :state="store.mineState">
       <template #error>
         <UiAlert variant="error">{{ store.mineErrorMessage ?? t('app.status.unreachable') }}</UiAlert>
@@ -186,5 +243,7 @@ onMounted(async () => {
 
     <!-- Outside the account's region: the summary is its own read with its own loading state. -->
     <AccountResourcesCard v-if="isLoading || store.mine !== null" :read="store.mineResourceSummary" />
+
+    <UiPinnedToast :message="notice" :close-label="t('common.close')" @dismiss="dismissNotice" />
   </section>
 </template>

@@ -304,6 +304,18 @@
   <data name="AuditActionSubUserRemoved">
     <value>Օգտատերը հեռացվել է</value>
   </data>
+  <data name="AuditActionSubUserInvitationResent">
+    <value>Օգտատիրոջ հրավերը կրկին ուղարկվել է</value>
+  </data>
+  <data name="AuditActionSubUserMembershipOffered">
+    <value>Մուտքանունին առաջարկվել է անդամակցություն</value>
+  </data>
+  <data name="AuditActionSubUserMembershipOfferAccepted">
+    <value>Անդամակցության առաջարկն ընդունվել է</value>
+  </data>
+  <data name="AuditActionSubUserMembershipOfferDeclined">
+    <value>Անդամակցության առաջարկը մերժվել է</value>
+  </data>
   <data name="AccountFeatureMail">
     <value>Փոստ</value>
   </data>

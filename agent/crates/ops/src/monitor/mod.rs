@@ -3,8 +3,10 @@
 //!
 //! **Nothing in this area changes the machine.** It is the one `ops` area with
 //! no write, no spawn that acts, and no rollback, and that shapes everything
-//! else here: [`MonitorHost`] exposes only readings, and the single program it
-//! runs is the service manager's reporting subcommand.
+//! else here: [`MonitorHost`] exposes only readings, and the programs it runs
+//! are the service manager's reporting subcommand, `quotaon`'s and
+//! `timedatectl`'s printing modes, and the package manager's read-only,
+//! cache-only question behind [`list_pending_updates`].
 //!
 //! Two decisions carry the area, and both are about what to say when the
 //! machine has not clearly answered.
@@ -43,6 +45,7 @@ mod get_quota_enforceability;
 mod get_server_fingerprint_inputs;
 mod get_service_statuses;
 mod get_sftp_jail_status;
+mod list_pending_updates;
 pub mod model;
 mod monitor_error;
 mod monitor_host;
@@ -55,6 +58,7 @@ pub use get_quota_enforceability::get_quota_enforceability;
 pub use get_server_fingerprint_inputs::get_server_fingerprint_inputs;
 pub use get_service_statuses::get_service_statuses;
 pub use get_sftp_jail_status::get_sftp_jail_status;
+pub use list_pending_updates::list_pending_updates;
 pub use model::account_disk_usage::AccountDiskUsage;
 pub use model::account_selection::AccountSelection;
 pub use model::clock_sync_state::ClockSyncState;

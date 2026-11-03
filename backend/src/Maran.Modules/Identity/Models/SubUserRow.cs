@@ -25,8 +25,36 @@ public sealed record SubUserRow
     /// <summary>The login's address.</summary>
     public required string Email { get; init; }
 
-    /// <summary>Whether the login has accepted its invitation, and whether its account is suspended.</summary>
-    public required UserLifecycle Lifecycle { get; init; }
+    /// <summary>
+    /// Whether the login has accepted its invitation, or <c>null</c> for an open offer, which is
+    /// addressed to a login that already exists and has no invitation of its own. Read the meaning
+    /// through <see cref="State"/>.
+    /// </summary>
+    public required UserLifecycle? Lifecycle { get; init; }
+
+    /// <summary>
+    /// What the owner's list shows: the login's lifecycle, and <see cref="UserLifecycle.Invited"/> for an
+    /// open offer, which is an invitation that has not been taken up.
+    /// </summary>
+    public UserLifecycle State
+    {
+        get
+        {
+            return Lifecycle ?? UserLifecycle.Invited;
+        }
+    }
+
+    /// <summary>
+    /// Whether the row is an open offer and not a member: exactly the rows whose <see cref="Lifecycle"/>
+    /// is <c>null</c>. Computed after the page is read; the database never sees it.
+    /// </summary>
+    public bool IsOffer
+    {
+        get
+        {
+            return Lifecycle is null;
+        }
+    }
 
     /// <summary>The membership's grant set.</summary>
     public required AccountFeature Grants { get; init; }

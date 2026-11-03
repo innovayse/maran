@@ -63,4 +63,12 @@ internal interface IMonitorServiceInvoker
     Task<GetServerFingerprintInputsResponse> GetServerFingerprintInputsAsync(
         GetServerFingerprintInputsRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>ListPendingUpdates</c>.</summary>
+    /// <param name="request">The empty request the rpc takes.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<ListPendingUpdatesResponse> ListPendingUpdatesAsync(
+        ListPendingUpdatesRequest request,
+        CancellationToken cancellationToken);
 }

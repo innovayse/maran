@@ -55,6 +55,13 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     public Result<AgentClockSyncState> ClockSync { get; set; } =
         Result<AgentClockSyncState>.Ok(AgentClockSyncState.Synchronized);
 
+    /// <summary>How many times the pending updates were asked for.</summary>
+    public int PendingUpdatesCalls { get; private set; }
+
+    /// <summary>What <see cref="ListPendingUpdatesAsync"/> answers; an empty catalogue unless a test says otherwise.</summary>
+    public Result<IReadOnlyList<AgentPendingUpdate>> PendingUpdates { get; set; } =
+        Result<IReadOnlyList<AgentPendingUpdate>>.Ok([]);
+
     /// <summary>How many times <see cref="GetServerFingerprintAsync"/> was called.</summary>
     public int ServerFingerprintCalls { get; private set; }
 
@@ -109,6 +116,14 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     {
         ClockSyncCalls++;
         return Task.FromResult(ClockSync);
+    }
+
+    /// <inheritdoc />
+    public Task<Result<IReadOnlyList<AgentPendingUpdate>>> ListPendingUpdatesAsync(
+        CancellationToken cancellationToken)
+    {
+        PendingUpdatesCalls++;
+        return Task.FromResult(PendingUpdates);
     }
 
     /// <inheritdoc />

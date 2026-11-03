@@ -7,7 +7,7 @@ namespace Maran.Modules.Identity.Tests.TestSupport;
 
 /// <summary>
 /// The sub-user team lock as this project can run it: a transaction whose rollback removes the
-/// logins, memberships and tokens written since it began, without the PostgreSQL row lock the real
+/// logins, memberships, membership offers and tokens written since it began, without the PostgreSQL row lock the real
 /// one is built on.
 /// </summary>
 /// <remarks>
@@ -34,7 +34,7 @@ public sealed class EmulatedTeamLock : ISubUserTeamLock
     /// <summary>How many transactions were rolled back.</summary>
     public int Rollbacks { get; private set; }
 
-    /// <summary>How many rows the rollbacks removed in total (logins, memberships and tokens).</summary>
+    /// <summary>How many rows the rollbacks removed in total (logins, memberships, offers and tokens).</summary>
     public int RowsRolledBack { get; private set; }
 
     /// <summary>Creates the stand-in.</summary>
@@ -50,8 +50,9 @@ public sealed class EmulatedTeamLock : ISubUserTeamLock
         var users = await _dbContext.Users.Select(row => row.Id).ToListAsync(cancellationToken);
         var memberships = await _dbContext.AccountMemberships.Select(row => row.Id).ToListAsync(cancellationToken);
         var tokens = await _dbContext.InvitationTokens.Select(row => row.Id).ToListAsync(cancellationToken);
+        var offers = await _dbContext.AccountMembershipOffers.Select(row => row.Id).ToListAsync(cancellationToken);
 
-        return new EmulatedTransaction(this, users, memberships, tokens);
+        return new EmulatedTransaction(this, users, memberships, tokens, offers);
     }
 
     /// <summary>A transaction that remembers what existed when it began.</summary>
@@ -69,6 +70,9 @@ public sealed class EmulatedTeamLock : ISubUserTeamLock
         /// <summary>The invitation token ids that existed at the start.</summary>
         private readonly List<Guid> _tokens;
 
+        /// <summary>The membership offer ids that existed at the start.</summary>
+        private readonly List<Guid> _offers;
+
         /// <inheritdoc />
         public Guid TransactionId { get; } = Guid.NewGuid();
 
@@ -77,12 +81,19 @@ public sealed class EmulatedTeamLock : ISubUserTeamLock
         /// <param name="users">Login ids at the start.</param>
         /// <param name="memberships">Membership ids at the start.</param>
         /// <param name="tokens">Token ids at the start.</param>
-        public EmulatedTransaction(EmulatedTeamLock owner, List<Guid> users, List<Guid> memberships, List<Guid> tokens)
+        /// <param name="offers">Membership offer ids at the start.</param>
+        public EmulatedTransaction(
+            EmulatedTeamLock owner,
+            List<Guid> users,
+            List<Guid> memberships,
+            List<Guid> tokens,
+            List<Guid> offers)
         {
             _owner = owner;
             _users = users;
             _memberships = memberships;
             _tokens = tokens;
+            _offers = offers;
         }
 
         /// <inheritdoc />
@@ -112,13 +123,15 @@ public sealed class EmulatedTeamLock : ISubUserTeamLock
             var memberships = await db.AccountMemberships
                 .Where(row => !_memberships.Contains(row.Id)).ToListAsync(cancellationToken);
             var tokens = await db.InvitationTokens.Where(row => !_tokens.Contains(row.Id)).ToListAsync(cancellationToken);
+            var offers = await db.AccountMembershipOffers.Where(row => !_offers.Contains(row.Id)).ToListAsync(cancellationToken);
+            db.AccountMembershipOffers.RemoveRange(offers);
             db.InvitationTokens.RemoveRange(tokens);
             db.AccountMemberships.RemoveRange(memberships);
             db.Users.RemoveRange(users);
             await db.SaveChangesAsync(cancellationToken);
 
             _owner.Rollbacks++;
-            _owner.RowsRolledBack += users.Count + memberships.Count + tokens.Count;
+            _owner.RowsRolledBack += users.Count + memberships.Count + tokens.Count + offers.Count;
         }
 
         /// <inheritdoc />

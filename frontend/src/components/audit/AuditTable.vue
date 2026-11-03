@@ -90,7 +90,17 @@ const sortBy = (field: string): void => {
     <!-- The instant, not the day: two entries seconds apart must be told apart on the one screen
          whose whole subject is WHEN something happened. -->
     <template #cell-when="{ row }">{{ formatIsoTimestamp(row.occurredAt, localeStore.current) }}</template>
-    <template #cell-actor="{ row }">{{ row.actorUsername }}</template>
+    <template #cell-actor="{ row }">
+      <!-- Who the entry is about, and when an administrator was viewing as them, who was at the
+           keyboard: a second line under the name and not a column of its own, because a column
+           that is empty on nearly every row costs the table its width at 390px. -->
+      <div>
+        <span class="block">{{ row.actorUsername }}</span>
+        <span v-if="row.impersonatorUsername !== null" class="mt-0.5 block text-xs text-text-muted wrap-anywhere">
+          {{ t('app.audit.viewedBy', { name: row.impersonatorUsername }) }}
+        </span>
+      </div>
+    </template>
     <template #cell-action="{ row }">
       <!-- Both halves of the action, and neither instead of the other: the backend's localized name,
            and the machine constant an administrator greps a log by, as selectable text. -->

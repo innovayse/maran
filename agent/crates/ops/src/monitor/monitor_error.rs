@@ -1,6 +1,7 @@
 //! Failures of the read-only monitoring operations.
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_distro::PendingUpdatesFailure;
 
 /// The `code` reported when a program could not be started at all.
 ///
@@ -124,6 +125,23 @@ pub enum MonitorError {
     /// Never read as "not synchronised": the agent did not find out.
     #[error("the clock synchronisation state could not be read")]
     ClockStateUnavailable,
+
+    /// The pending package updates could not be read (issue #324).
+    ///
+    /// Its own variant, and one that is never an empty list: the package
+    /// manager did not start, exited with a status that is not a success, printed
+    /// a line the reader does not know, or the package catalogue was never built
+    /// on this host. In each case the agent did NOT find out, and "no updates" is
+    /// only ever the answer to a read that succeeded. A run killed at its
+    /// deadline is [`Self::Bound`], not this.
+    ///
+    /// The `reason` holds an exit status or a line number at most, never a byte
+    /// the package manager printed.
+    #[error("the pending package updates could not be read: {reason}")]
+    UpdateCatalogueUnavailable {
+        /// Why the read did not produce an answer.
+        reason: PendingUpdatesFailure,
+    },
 
     /// A program this area ran was stopped by the agent: it ran past its
     /// deadline, or wrote more than the host will read, and it was killed

@@ -31,6 +31,12 @@ export interface SubUser {
   createdAt: string
   /** Their most recent sign-in as an ISO-8601 string, or `null` before the first. */
   lastLoginAt: string | null
+  /**
+   * True for a row that is a pending offer to a login that already exists, not a created invitation.
+   * Its `username` and `email` are what the owner typed, and `id` names the offer; the person is a
+   * member only once they accept it, so the only things the owner can do with it are to cancel it.
+   */
+  isOffer: boolean
 }
 
 /** One feature an owner may give a sub-user, with its name in the interface language. */
@@ -63,6 +69,14 @@ export interface SubUserInvitation {
   username: string
   /** The address the owner asked the invitation to be sent to, as typed. */
   email: string
+}
+
+/** Request body for `POST /api/v1/me/sub-users/existing`, binding the backend's `OfferMembershipCommand`. */
+export interface OfferMembershipRequest {
+  /** One identifier: the login name or the e-mail address of a person who already has a login. */
+  identifier: string
+  /** The feature ids the person would hold once they accept; may be empty. */
+  features: AccountFeatureName[]
 }
 
 /** Request body for `PUT /api/v1/me/sub-users/{id}/features`, binding `ChangeSubUserGrantsCommand`. */
@@ -102,6 +116,23 @@ export interface SubUsersApi {
   invite: (request: InviteSubUserRequest, signal?: AbortSignal) => Promise<SubUserInvitation>
 
   /**
+   * Mails a new invitation to a sub-user who has not accepted yet, retiring the earlier link. The
+   * address is the one stored on the login; nothing is typed. Another account's sub-user answers 404
+   * and one who already accepted answers 409.
+   * @param id The invited sub-user.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   */
+  resendInvitation: (id: string, signal?: AbortSignal) => Promise<void>
+
+  /**
+   * Offers a person who already has a login a place on the team. The answer is the same whether or
+   * not the login exists, so nothing in it confirms existence; the person must accept inside the panel.
+   * @param request The identifier the owner typed and the features to offer.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   */
+  offerExisting: (request: OfferMembershipRequest, signal?: AbortSignal) => Promise<void>
+
+  /**
    * Replaces the features a sub-user may use. Another account's sub-user answers 404.
    * @param id The sub-user to change.
    * @param request The complete new set of feature ids.
@@ -119,4 +150,4 @@ export interface SubUsersApi {
 }
 
 /** An action the page offers on a sub-user's row. */
-export type SubUserAction = 'features' | 'remove'
+export type SubUserAction = 'resend' | 'features' | 'remove'

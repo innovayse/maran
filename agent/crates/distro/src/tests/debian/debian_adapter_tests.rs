@@ -114,7 +114,7 @@ fn the_debian_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 25] = [
+const EXPECTED_BINARIES: [(&str, &str); 26] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
@@ -140,10 +140,11 @@ const EXPECTED_BINARIES: [(&str, &str); 25] = [
     ("gzip", "/usr/bin/gzip"),
     ("database_dump", "/usr/bin/mariadb-dump"),
     ("getent", "/usr/bin/getent"),
+    ("package_query", "/usr/bin/apt-get"),
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [String; 25] {
+fn actual_binaries() -> [String; 26] {
     [
         DebianAdapter.useradd_binary().to_string(),
         DebianAdapter.usermod_binary().to_string(),
@@ -170,6 +171,7 @@ fn actual_binaries() -> [String; 25] {
         DebianAdapter.gzip_binary().to_string(),
         DebianAdapter.database_dump_binary().to_string(),
         DebianAdapter.getent_binary().to_string(),
+        DebianAdapter.package_query_binary().to_string(),
     ]
 }
 
@@ -240,7 +242,7 @@ fn declared_binary_methods() -> usize {
 
 /// Every program the Debian adapter lets the agent execute, with the method that names it.
 ///
-/// One entry per `AdapterBinary`-returning method of the trait (29 fixed paths
+/// One entry per `AdapterBinary`-returning method of the trait (30 fixed paths
 /// plus the version-built php-fpm validator). `sh` and the login shell are not
 /// here: they are written somewhere, never executed by the agent, so they stay
 /// plain strings (see the type assertion below).
@@ -269,6 +271,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("ipcrm", DebianAdapter.ipcrm_binary()),
         ("passwd", DebianAdapter.passwd_binary()),
         ("getent", DebianAdapter.getent_binary()),
+        ("package_query", DebianAdapter.package_query_binary()),
         ("setquota", DebianAdapter.setquota_binary()),
         ("quota", DebianAdapter.quota_binary()),
         ("quotaon", DebianAdapter.quotaon_binary()),
@@ -380,4 +383,30 @@ fn the_debian_family_names_the_directory_its_at_daemon_spools_to() {
 #[test]
 fn the_debian_family_names_the_real_directory_of_its_mail_spool() {
     assert_eq!(DebianAdapter.mail_spool_directory(), "/var/mail");
+}
+
+/// The pending-updates read on the Debian family is a simulation, and says so in
+/// its arguments: `-s` is what makes the run unable to change the host.
+#[test]
+fn the_debian_family_reads_pending_updates_through_a_simulation() {
+    assert!(DebianAdapter.pending_updates_arguments().contains(&"-s"));
+    assert_eq!(
+        DebianAdapter.package_query_binary().to_string(),
+        DebianAdapter.package_manager()
+    );
+}
+
+/// An empty lists directory reads as up to date to the simulation, so this family
+/// asks whether the catalogue exists first, and the probe it names refuses an
+/// empty answer.
+#[test]
+fn the_debian_family_probes_for_a_built_catalogue_before_reading_updates() {
+    let probe = DebianAdapter.catalogue_probe().expect("a probe");
+
+    assert_eq!(
+        probe.arguments,
+        &["indextargets", "--format", "$(FILENAME)"]
+    );
+    assert!((probe.read)(0, "").is_err());
+    assert!((probe.read)(0, "/var/lib/apt/lists/x_Packages.lz4\n").is_ok());
 }
