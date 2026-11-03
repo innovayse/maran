@@ -15,6 +15,12 @@
   <data name="FirewallModuleDisplayName">
     <value>Պատնեշ</value>
   </data>
+  <data name="FirewallPresetMysqlExternal">
+    <value>MySQL-ը հասանելի է դրսից</value>
+  </data>
+  <data name="FirewallPresetWeb">
+    <value>Բացել վեբ պորտերը</value>
+  </data>
   <data name="FirewallProtocolTcp">
     <value>TCP</value>
   </data>

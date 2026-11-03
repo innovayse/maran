@@ -61,6 +61,7 @@ public sealed class FirewallAuthorizationTests : IAsyncLifetime
         {
             { "GET", "/api/v1/firewall/rules" },
             { "GET", "/api/v1/firewall/rules/protocols" },
+            { "GET", "/api/v1/firewall/rules/presets" },
             { "POST", "/api/v1/firewall/rules" },
             { "DELETE", "/api/v1/firewall/rules" },
             { "GET", "/api/v1/firewall/bans" },

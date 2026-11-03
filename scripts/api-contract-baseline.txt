@@ -240,6 +240,8 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/accounts/choices
   GET /api/v1/accounts/me
   GET /api/v1/accounts/me/resource-summary
+  GET /api/v1/accounts/owner-languages
+  GET /api/v1/accounts/statuses
   GET /api/v1/accounts/{}
   GET /api/v1/accounts/{}/resource-summary
   GET /api/v1/audit
@@ -261,6 +263,8 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/databases/{}
   GET /api/v1/firewall/bans
   GET /api/v1/firewall/rules
+  GET /api/v1/firewall/rules/presets
+  GET /api/v1/firewall/rules/protocols
   GET /api/v1/firewall/whitelist
   GET /api/v1/ftp-users
   GET /api/v1/ftp-users/{}

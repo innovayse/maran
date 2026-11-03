@@ -1,6 +1,7 @@
 using Maran.Modules.Firewall.Commands.AllowPort;
 using Maran.Modules.Firewall.Commands.DenyPort;
 using Maran.Modules.Firewall.Common;
+using Maran.Modules.Firewall.Queries.ListPortPresets;
 using Maran.Modules.Firewall.Queries.ListProtocolChoices;
 using Maran.Modules.Firewall.Queries.ListRules;
 using Maran.Sdk.Contracts;
@@ -77,6 +78,22 @@ public sealed class FirewallRulesController : BaseApiController
         var query = new ListProtocolChoicesQuery();
         return ToActionResult(
             await _bus.InvokeAsync<Result<IReadOnlyList<FirewallProtocolChoiceDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Lists the port presets the rule screen offers, each with the exact rules it installs. The
+    /// rules are installed through the allow endpoint below, whose validation is unchanged.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("presets")]
+    [ProducesResponseType(typeof(IReadOnlyList<FirewallPresetDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetPresetsAsync(CancellationToken cancellationToken)
+    {
+        var query = new ListPortPresetsQuery();
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<IReadOnlyList<FirewallPresetDto>>>(query, cancellationToken));
     }
 
     /// <summary>Opens a port, optionally scoped to one source range.</summary>

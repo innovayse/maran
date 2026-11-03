@@ -190,6 +190,43 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         Assert.Equal([("tcp", "TCP"), ("udp", "UDP")], choices);
     }
 
+    /// <summary>The preset card is offered both presets, each named, closable or not, with the rules it installs.</summary>
+    [Fact]
+    public async Task The_preset_card_is_offered_both_presets_each_named_with_the_rules_it_installs()
+    {
+        await using var factory = CreateFactory(new StubAgentFirewallClient());
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/firewall/rules/presets");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var presets = body.RootElement.EnumerateArray()
+            .Select(preset =>
+            {
+                var ports = preset.GetProperty("rules").EnumerateArray()
+                    .Select(rule =>
+                    {
+                        return rule.GetProperty("port").GetInt32();
+                    })
+                    .ToList();
+                return (
+                    preset.GetProperty("key").GetString(),
+                    preset.GetProperty("name").GetString(),
+                    preset.GetProperty("closable").GetBoolean(),
+                    string.Join(",", ports));
+            })
+            .ToList();
+        Assert.Equal(
+            [
+                ("web", "Open the web ports", false, "80,443"),
+                ("mysqlExternal", "MySQL reachable from outside", true, "3306"),
+            ],
+            presets);
+    }
+
     /// <summary>A rule the caller spelled wrongly is answered as the callers mistake.</summary>
     [Fact]
     public async Task A_rule_the_caller_spelled_wrongly_is_answered_as_the_callers_mistake()
