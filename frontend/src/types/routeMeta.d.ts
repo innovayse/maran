@@ -32,6 +32,12 @@ declare module 'vue-router' {
      */
     managerOnly?: boolean
     /**
+     * The screen is for resellers only, and for nobody else: an administrator and a customer are
+     * both turned away. Advice, never enforcement, exactly like `adminOnly`: the endpoint behind
+     * it refuses every other role on its own (issue #179).
+     */
+    resellerOnly?: boolean
+    /**
      * Route name of the navigation destination this screen sits beneath, for a screen the
      * navigation does not list itself (a record, a form under a list). It places the screen in the
      * breadcrumb, under the right page eyebrow, one level below that destination (issue #209).

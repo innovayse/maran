@@ -68,8 +68,9 @@ const SITE_ID_SEGMENT = ':id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-
  * screen's name, which `useDocumentTitle` turns into the browser tab's title (WCAG 2.4.2); the key
  * is the one the screen's own heading uses, so the tab and the page never name a screen two ways.
  *
- * A route only administrators may use carries `meta.adminOnly: true`, and one for administrators
- * and resellers `meta.managerOnly: true`. Both flags are advice: the endpoints behind those screens
+ * A route only administrators may use carries `meta.adminOnly: true`, one for administrators
+ * and resellers `meta.managerOnly: true`, and one only a reseller may use `meta.resellerOnly: true`.
+ * The flags are advice: the endpoints behind those screens
  * refuse every other role on their own and stay the boundary. The role guard reads them so a caller
  * who reaches such a URL sees the "not available" screen rather than another role's chrome around
  * a refusal (issues #202 and #179).
@@ -165,12 +166,11 @@ export const createAppRouter = (): Router => {
       {
         // A reseller's own overview: its envelope and what it has used of it (issue #179). It is the
         // reseller's home, in place of the server dashboard, which is not theirs. The endpoint
-        // (`GET /api/v1/reseller/me`) refuses every other role; this route carries no role flag
-        // because `adminOnly` and `managerOnly` can only turn roles AWAY, and an administrator or
-        // a customer who opens the address is answered by that endpoint's refusal.
+        // (`GET /api/v1/reseller/me`) refuses every other role, and `resellerOnly` sends an
+        // administrator or a customer who opens the address to the "not available" screen.
         path: '/reseller',
         component: DefaultLayout,
-        children: [{ path: '', name: 'reseller-overview', component: ResellerOverviewPage, meta: { module: 'accounts', title: 'resellers.overview.heading' } }],
+        children: [{ path: '', name: 'reseller-overview', component: ResellerOverviewPage, meta: { module: 'accounts', title: 'resellers.overview.heading', resellerOnly: true } }],
       },
       {
         path: '/sites',

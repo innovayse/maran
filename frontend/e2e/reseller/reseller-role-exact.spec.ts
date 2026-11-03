@@ -6,7 +6,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubManagedPlans, stubPlans } from '../fixtures/stub-plans-route'
-import { ADMIN_MODULES, stubResellerSession } from '../fixtures/stub-reseller-session'
+import { ADMIN_MODULES, stubMyReseller, stubResellerSession } from '../fixtures/stub-reseller-session'
 import { ACME_HOSTING, stubResellers } from '../fixtures/stub-resellers-routes'
 import type { AuthenticatedUser } from '../../src/types/auth'
 
@@ -240,6 +240,39 @@ for (const path of ['/resellers', '/resellers/new', ...RESELLER_PAGES, '/account
     expect(resellerReads()).toBe(0)
   })
 }
+
+test('an administrator opening the reseller overview lands on the not-available page', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, ADMIN_MODULES)
+  await stubMyReseller(page)
+
+  await page.goto('/reseller')
+
+  await expect(page).toHaveURL('/not-available')
+  await expect(page.getByRole('heading', { level: 1, name: 'Page not available' })).toBeVisible()
+})
+
+test('a customer opening the reseller overview lands on the not-available page', async ({ page }) => {
+  await signInAsCustomer(page)
+  await stubMyReseller(page)
+
+  await page.goto('/reseller')
+
+  await expect(page).toHaveURL('/not-available')
+  await expect(page.getByRole('heading', { level: 1, name: 'Page not available' })).toBeVisible()
+})
+
+test('a reseller still reaches the reseller overview, which only a reseller may open', async ({ page }) => {
+  // Positive control: `resellerOnly` admits a reseller, so the guard is not simply refusing everyone.
+  await stubResellerSession(page, ACME_HOSTING, ADMIN_MODULES)
+
+  await page.goto('/reseller')
+
+  await expect(page).toHaveURL('/reseller')
+  await expect(page.getByRole('heading', { level: 1, name: 'Your reseller account' })).toBeVisible()
+})
 
 test('the role flags send a reseller away from the resellers screens in Russian and Armenian', async ({
   browser,

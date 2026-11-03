@@ -19,10 +19,12 @@ const RESELLER_HOME_ROUTE = 'reseller-overview'
  * an old bookmark or types a URL sees one plain, localized sentence instead of another role's screen
  * wrapped around a refusal.
  *
- * Both route flags are role-exact: `meta.adminOnly` lets only an administrator in, so a reseller
+ * The route flags are role-exact: `meta.adminOnly` lets only an administrator in, so a reseller
  * is turned away from the server and panel screens exactly as a customer is; `meta.managerOnly`
- * lets an administrator or a reseller in and turns a customer away. A reseller who lands on the
- * server dashboard is sent to their own overview, because that is their home.
+ * lets an administrator or a reseller in and turns a customer away; `meta.resellerOnly` lets only
+ * a reseller in, so an administrator and a customer are turned away from the reseller's own
+ * overview. A reseller who lands on the server dashboard is sent to their own overview, because
+ * that is their home.
  *
  * It errs permissive on one thing only: a visitor whose role is not known yet (not restored) passes
  * through and the server answers. A signed-in caller of ANY known role that the flag does not name
@@ -46,7 +48,10 @@ export const createRoleGuard = (): NavigationGuard => {
       return true
     }
 
-    const allowed = (to.meta.adminOnly !== true || isAdmin.value) && (to.meta.managerOnly !== true || isManager.value)
+    const allowed =
+      (to.meta.adminOnly !== true || isAdmin.value) &&
+      (to.meta.managerOnly !== true || isManager.value) &&
+      (to.meta.resellerOnly !== true || isReseller.value)
     if (allowed) {
       return true
     }
