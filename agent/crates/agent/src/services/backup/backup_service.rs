@@ -19,17 +19,20 @@ use crate::proto::{
     AgentError, CreateBackupOk, CreateBackupRequest, CreateBackupResponse, DeleteBackupOk,
     DeleteBackupRequest, DeleteBackupResponse, ListBackupsOk, ListBackupsRequest,
     ListBackupsResponse, ProbeDestinationRequest, ProbeDestinationResponse, RestoreBackupOk,
-    RestoreBackupRequest, RestoreBackupResponse, create_backup_response, delete_backup_response,
-    list_backups_response, probe_destination_response, restore_backup_response,
+    RestoreBackupRequest, RestoreBackupResponse, VerifyBackupRequest, VerifyBackupResponse,
+    create_backup_response, delete_backup_response, list_backups_response,
+    probe_destination_response, restore_backup_response,
 };
 use crate::services::backup::backup_status::to_agent_error;
 use crate::services::backup::channel_progress_sink::ChannelProgressSink;
 use crate::services::backup::channel_restore_sink::ChannelRestoreSink;
 use crate::services::backup::db_host_catalog::DbHostCatalog;
 use crate::services::backup::home_group::home_group;
+use crate::services::backup::reported_verify_backup::reported_verify_backup;
 use crate::services::backup::to_backup_info::to_backup_info;
 use crate::services::backup::validated_destination::validated_destination;
 use crate::services::backup::validated_restore::ValidatedRestore;
+use crate::services::backup::validated_verification::validated_verification;
 use crate::services::wire::invalid_input::invalid_input;
 use crate::services::wire::run_blocking::run_blocking;
 use crate::services::wire::system_failure::system_failure;
@@ -336,6 +339,45 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
 
         Ok(Response::new(DeleteBackupResponse {
             result: Some(result),
+        }))
+    }
+
+    /// Checks that a stored backup still matches its record.
+    ///
+    /// Read-only and idempotent: nothing is extracted into an account's home
+    /// and repeating the call changes nothing on the host. The ok arm says what
+    /// was established — the artifact's digest equals its sidecar's, its member
+    /// list is within the layout and bounds a restore applies, and the sidecar
+    /// and manifest agree — and it does NOT say the backup is restorable.
+    /// Only a local destination is served; any other kind is refused as not
+    /// implemented.
+    ///
+    /// **Cancellation class: run to completion, result discarded.** The work
+    /// is a `spawn_blocking` task, which a dropped future cannot abort, and it
+    /// changes nothing on the host that outlives it, so there is nothing to
+    /// reclaim and no midpoint to protect: a caller that goes away simply never
+    /// hears the answer. The operation takes the account's backup lock and
+    /// refuses rather than waits, so the work cannot pile up behind itself.
+    async fn verify_backup(
+        &self,
+        request: Request<VerifyBackupRequest>,
+    ) -> Result<Response<VerifyBackupResponse>, Status> {
+        let request = request.into_inner();
+
+        let outcome = match validated_verification(&request) {
+            Ok((account, backup_id, root)) => {
+                let host = Arc::clone(&self.host);
+                let floor = self.floor;
+                run_blocking("backup verification", to_agent_error, move || {
+                    backup::verify_backup(host.as_ref(), &account, &backup_id, &root, &floor)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+
+        Ok(Response::new(VerifyBackupResponse {
+            result: Some(reported_verify_backup(outcome)),
         }))
     }
 

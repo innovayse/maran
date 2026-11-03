@@ -26,18 +26,36 @@ pub fn to_agent_error(error: &BackupError) -> AgentError {
         // creation and a repeated delete are successes it must not retry.
         BackupError::AlreadyExists => ErrorCode::AlreadyExists,
         BackupError::NotFound | BackupError::ObjectNotFound => ErrorCode::NotFound,
-        // The caller asked for something the agent will not act on: an archive
-        // it cannot account for, a database the panel does not know, an
-        // endpoint that is not HTTPS.
-        BackupError::UnexpectedArchiveMember { .. }
-        | BackupError::UnknownDatabase { .. }
-        | BackupError::ManifestAccountMismatch
-        | BackupError::DestinationInsecure => ErrorCode::InvalidInput,
+        // The caller asked for something the agent will not act on: a database
+        // the panel does not know, an endpoint that is not HTTPS.
+        BackupError::UnknownDatabase { .. } | BackupError::DestinationInsecure => {
+            ErrorCode::InvalidInput
+        }
         // The checks that stand in front of the destructive half of a restore,
         // every one of which leaves the account exactly as it was — which is
         // what rules/proto.md defines VALIDATION_FAILED as: refused, state
         // unchanged.
-        BackupError::ChecksumMismatch
+        //
+        // The artifact itself is what is refused, not the request: an archive
+        // holding a member the layout does not allow, or a manifest naming
+        // another account, is a finding about the stored bytes. A verification
+        // reports it as a domain outcome the panel records against the backup,
+        // and a restore as the refusal that left the account untouched. The
+        // same holds for the variants only a verification produces: a record
+        // that disagrees with the artifact (checksum, size, backup id, sidecar,
+        // manifest), a member that is not a regular file, and a dump the
+        // manifest names that the archive does not hold (issue #134).
+        BackupError::UnexpectedArchiveMember { .. }
+        | BackupError::ManifestAccountMismatch
+        | BackupError::ChecksumMismatch
+        | BackupError::ArtifactSizeMismatch
+        | BackupError::ArtifactNotRegularFile
+        | BackupError::SidecarUnreadable
+        | BackupError::ManifestUnreadable
+        | BackupError::ManifestBackupMismatch
+        | BackupError::ManifestTooLarge
+        | BackupError::MemberNotRegularFile
+        | BackupError::DumpMissing
         | BackupError::DumpChecksumMismatch { .. }
         | BackupError::ManifestVersionUnknown
         | BackupError::ManifestDisagreesWithSidecar

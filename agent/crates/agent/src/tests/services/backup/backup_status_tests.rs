@@ -87,6 +87,14 @@ fn every_variant() -> Vec<BackupError> {
         BackupError::ObjectStoreFailed {
             message: "the bucket refused".to_owned(),
         },
+        BackupError::ArtifactSizeMismatch,
+        BackupError::ArtifactNotRegularFile,
+        BackupError::SidecarUnreadable,
+        BackupError::ManifestUnreadable,
+        BackupError::ManifestBackupMismatch,
+        BackupError::ManifestTooLarge,
+        BackupError::MemberNotRegularFile,
+        BackupError::DumpMissing,
     ]
 }
 
@@ -147,13 +155,9 @@ fn a_backup_that_is_not_there_is_not_found() {
 #[test]
 fn what_the_caller_asked_for_and_the_agent_will_not_act_on_is_invalid_input() {
     for error in [
-        BackupError::UnexpectedArchiveMember {
-            name: "../../etc/cron.d/pwn".to_owned(),
-        },
         BackupError::UnknownDatabase {
             name: "alice_ghost".to_owned(),
         },
-        BackupError::ManifestAccountMismatch,
         BackupError::DestinationInsecure,
     ] {
         assert_eq!(code_of(&error), ErrorCode::InvalidInput as i32);
@@ -163,7 +167,19 @@ fn what_the_caller_asked_for_and_the_agent_will_not_act_on_is_invalid_input() {
 #[test]
 fn the_checks_that_refuse_before_anything_is_destroyed_are_validation_failed() {
     for error in [
+        BackupError::UnexpectedArchiveMember {
+            name: "../../etc/cron.d/pwn".to_owned(),
+        },
+        BackupError::ManifestAccountMismatch,
         BackupError::ChecksumMismatch,
+        BackupError::ArtifactSizeMismatch,
+        BackupError::ArtifactNotRegularFile,
+        BackupError::SidecarUnreadable,
+        BackupError::ManifestUnreadable,
+        BackupError::ManifestBackupMismatch,
+        BackupError::ManifestTooLarge,
+        BackupError::MemberNotRegularFile,
+        BackupError::DumpMissing,
         BackupError::DumpChecksumMismatch {
             database: "alice_shop".to_owned(),
         },
