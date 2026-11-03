@@ -121,6 +121,13 @@ public sealed class IdentityModule : IPanelModule
         services.AddSingleton<IAuthorizationHandler, ViewAsBoundaryHandler>();
         services.AddScoped<ViewAsSessionVerifier>();
 
+        // The two halves of a view-as start that both start endpoints share (issues #317, #179): the
+        // operator's standing and the signing of the token, and the naming of what is being viewed.
+        // Scoped, because both read the request's own DbContext and the tenant-scoped windows onto
+        // the accounts module.
+        services.AddScoped<ViewAsStarter>();
+        services.AddScoped<ViewAsSubjectReader>();
+
         // Suspension per membership (issues #326, #331): the request-time check that a customer token
         // is not speaking for an account its login was suspended from, attached to the customer-level
         // policy by the Host. Scoped, because it reads the request's own DbContext.
