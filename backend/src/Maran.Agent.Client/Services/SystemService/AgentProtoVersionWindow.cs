@@ -64,6 +64,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 14 adds <c>PhpService.ListInstallablePhpVersions</c> (issue #330), and both ends moved to
 /// it: an older agent answers the rpc <c>UNIMPLEMENTED</c>, so the operator's PHP install picker could
 /// never be filled against it.
+/// Revision 15 adds <c>SftpService.EndSftpSessions</c> and <c>ERROR_CODE_AGENT_SATURATED</c>
+/// (issues #339 and #333), and both ends moved to it: a revision-14 agent answers the rpc
+/// <c>UNIMPLEMENTED</c>, so a revoked SFTP key could never cut the sessions it opened, and it admits
+/// any number of cron runs at once, so the panel's own bound on them would be the only one.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -90,10 +94,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 14;
+    public const uint Minimum = 15;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 14;
+    public const uint Maximum = 15;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

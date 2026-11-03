@@ -385,6 +385,16 @@ impl SftpHost for UnusedSftpHost {
     ) -> Result<(), SftpError> {
         unreachable!("no rpc in this file reaches the sftp host")
     }
+
+    /// Unreachable: see [`UnusedSftpHost`].
+    fn login_names(&self, _passwd_database: &str) -> Result<Vec<String>, SftpError> {
+        unreachable!("no rpc in this file reaches the sftp host")
+    }
+
+    /// Unreachable: see [`UnusedSftpHost`].
+    fn key_file_names(&self) -> Result<Vec<String>, SftpError> {
+        unreachable!("no rpc in this file reaches the sftp host")
+    }
 }
 
 /// The FTPS host the service holds for the deletion cascade.

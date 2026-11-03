@@ -17,7 +17,7 @@ use maran_ops::monitor::ProcessMonitorHost;
 use maran_ops::php::{
     PhpHost, PoolTreeDecision, PoolTreeOutcome, ProcessPhpHost, reload_pool_trees,
 };
-use maran_ops::sftp::ProcessSftpHost;
+use maran_ops::sftp::{ProcessSftpHost, SftpHost, reconcile_orphan_key_files};
 use maran_ops::sites::{ProcessSiteHost, SiteMaintenanceHost, SitesOpError, reload_web_server};
 use maran_ops::ssl::{ProcessPanelChallengeHost, ProcessSslHost};
 use tokio::net::UnixListener;
@@ -157,6 +157,13 @@ pub async fn serve(
     // writing the very tree it is validating, and no connection has been
     // accepted yet.
     reconcile_php_pool_trees(&ProcessPhpHost::new(), adapter);
+
+    // The SFTP logins' key directory against the password database (issue
+    // #338). BEFORE the socket for the same reason as the passes above: no
+    // `CreateSftpUser` or `SetSftpAuthorizedKeys` can be writing a key file
+    // while the sweep decides which ones are orphans, because no connection has
+    // been accepted yet.
+    reconcile_sftp_key_files(&ProcessSftpHost::new(), adapter);
 
     // The directory is created before the socket and no wider than the socket
     // itself, because binding is not atomic with respect to permissions: the
@@ -465,7 +472,7 @@ enum WebTreeReconciliation {
 /// mutating validators are constructed and counted; what this file does about
 /// them is decline to re-run an action and say so. The blind spot is
 /// named in this function's own log output rather than only here, and
-/// `the_only_startup_reconciliations_are_the_restores_the_web_tree_and_the_php_pools`
+/// `the_only_startup_reconciliations_are_restores_web_php_pools_and_sftp_keys`
 /// goes red the day one of the three gains a pass.
 ///
 /// A second blind spot sits inside the tree it does read: a site creation
@@ -609,6 +616,50 @@ fn reconcile_php_pool_trees(
     }
 
     outcomes
+}
+
+/// Removes the SFTP key files whose login is gone, at startup, and logs what it
+/// did.
+///
+/// # Why it exists
+///
+/// A login's key file is addressed by the login's name, and a login created
+/// later under that name would authenticate with the keys of the one that
+/// came before. Deletion removes the file first and creation purges a new
+/// name's file, but a process killed between the steps of either, or a file put
+/// there by hand, leaves one behind; this pass is what removes it. It needs no
+/// state of its own — the directory and the password database are both read as
+/// they are now (`rules/architecture.md`: the agent is stateless).
+///
+/// # Why it never refuses the start
+///
+/// The same trade [`reconcile_web_tree`] is decided by: this process is the
+/// operator's only remote repair tool, and a stale key file is a risk to be
+/// reported, not a reason to take every other rpc down. An unreadable password
+/// database removes nothing (`reconcile_orphan_key_files`), and the failure is
+/// logged for the operator.
+///
+/// Answers how many files were removed, or `None` when the pass failed, so a
+/// test can observe the outcome without reading the log.
+fn reconcile_sftp_key_files(host: &dyn SftpHost, distro: &dyn DistroAdapter) -> Option<usize> {
+    match reconcile_orphan_key_files(host, distro) {
+        Ok(removed) => {
+            tracing::info!(
+                removed,
+                "SFTP key files whose login no longer exists were removed"
+            );
+            Some(removed)
+        }
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                "the SFTP key directory could not be reconciled against the password \
+                 database, so a key file whose login is gone may remain. Nothing was \
+                 removed on the strength of an answer that could not be read"
+            );
+            None
+        }
+    }
 }
 
 #[cfg(test)]

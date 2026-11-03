@@ -21,6 +21,7 @@
 use std::path::Path;
 use std::sync::Mutex;
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::utils::call_class::CallClass;
@@ -188,6 +189,14 @@ pub(crate) struct FakeSftpHost {
     /// The home of the hosting account's row, when a test replaced the managed
     /// `/home/<name>` with something else.
     account_home: Mutex<Option<String>>,
+    /// Whether the password database cannot be read as a list of logins.
+    passwd_unreadable: Mutex<bool>,
+    /// The status `pkill` exits with, and what it prints on standard output.
+    ///
+    /// `pkill --count` prints how many processes it matched, so the fake answers
+    /// the count a test installed and exits as the tool does: zero when it
+    /// matched, one when it matched nothing.
+    pkill_answer: Mutex<(i32, String)>,
 }
 
 impl FakeSftpHost {
@@ -219,7 +228,19 @@ impl FakeSftpHost {
             ownership_questions: Mutex::new(0),
             account_ids: Mutex::new((ACCOUNT_UID, ACCOUNT_GID)),
             account_home: Mutex::new(None),
+            passwd_unreadable: Mutex::new(false),
+            pkill_answer: Mutex::new((1, "0\n".to_owned())),
         }
+    }
+
+    /// Makes the password database unreadable as a list of logins.
+    pub(crate) fn make_passwd_unreadable(&self) {
+        *self.passwd_unreadable.lock().unwrap() = true;
+    }
+
+    /// Makes `pkill` answer with `status` and print `stdout`.
+    pub(crate) fn pkill_answers(&self, status: i32, stdout: &str) {
+        *self.pkill_answer.lock().unwrap() = (status, stdout.to_owned());
     }
 
     /// Makes the program named `name` (`useradd`, `systemctl`, ...) outrun its
@@ -626,6 +647,13 @@ impl SftpHost for FakeSftpHost {
             status
         } else if program.ends_with("getent") {
             return Ok(self.shadow_entry(arguments));
+        } else if program.ends_with("pkill") {
+            let (status, stdout) = self.pkill_answer.lock().unwrap().clone();
+            return Ok(CommandOutcome {
+                status,
+                stdout,
+                stderr: String::new(),
+            });
         } else if program.ends_with("systemctl") {
             *self.systemctl_status.lock().unwrap()
         } else if program.ends_with("usermod") {
@@ -780,6 +808,27 @@ impl SftpHost for FakeSftpHost {
         });
 
         Ok(())
+    }
+
+    /// Every name in the fake's password database, or a refusal when a test
+    /// made it unreadable.
+    fn login_names(&self, _passwd_database: &str) -> Result<Vec<String>, SftpError> {
+        if *self.passwd_unreadable.lock().unwrap() {
+            return Err(SftpError::PasswdUnreadable);
+        }
+
+        Ok(self.users())
+    }
+
+    /// The names of the held paths that sit directly in the key directory.
+    fn key_file_names(&self) -> Result<Vec<String>, SftpError> {
+        let prefix = format!("{}/", AgentPaths::SFTP_AUTHORIZED_KEYS_DIRECTORY);
+
+        Ok(self
+            .paths()
+            .into_iter()
+            .filter_map(|path| path.strip_prefix(&prefix).map(str::to_owned))
+            .collect())
     }
 
     /// Records the key file as a config write with no reload, and puts it on

@@ -219,9 +219,12 @@ fn startup_reconcilers() -> Vec<String> {
     found
 }
 
-/// The startup pass covers interrupted restores, the web tree and the php-fpm
-/// pool trees, and nothing else — which is the still-OPEN part of the
-/// config-write midpoint written down as a check instead of as a sentence.
+/// The startup pass covers interrupted restores, the web tree, the php-fpm
+/// pool trees and the SFTP key directory, and nothing else. The first three are
+/// the still-OPEN part of the config-write midpoint written down as a check
+/// instead of as a sentence; the key directory is not a config tree but a
+/// leftover (issue #338), and it is listed so that it, too, cannot be removed
+/// unnoticed.
 ///
 /// This test is meant to go RED the day the rest of the gap is closed. Three
 /// trees remain unobserved: the SFTP jail mount unit, the FTPS jail mount unit
@@ -242,13 +245,14 @@ fn startup_reconcilers() -> Vec<String> {
 /// It cannot go silently blind: a scan that stopped finding anything returns
 /// an empty list and fails here, rather than agreeing that nothing was added.
 #[test]
-fn the_only_startup_reconciliations_are_the_restores_the_web_tree_and_the_php_pools() {
+fn the_only_startup_reconciliations_are_restores_web_php_pools_and_sftp_keys() {
     assert_eq!(
         startup_reconcilers(),
         vec![
             "recover_restores".to_owned(),
             "reconcile_web_tree".to_owned(),
             "reconcile_php_pool_trees".to_owned(),
+            "reconcile_sftp_key_files".to_owned(),
         ],
         "a startup reconciliation was added or removed; update reconcile_web_tree's \
          stated blind spots and its log line, then update this list"

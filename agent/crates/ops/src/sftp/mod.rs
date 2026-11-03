@@ -61,11 +61,13 @@
 
 mod create_sftp_user;
 mod delete_sftp_user;
+mod end_sftp_sessions;
 #[cfg(test)]
 #[path = "../tests/sftp/fake_sftp_host.rs"]
 pub(crate) mod fake_sftp_host;
 pub mod model;
 mod process_sftp_host;
+mod reconcile_orphan_key_files;
 mod remove_account_sftp;
 mod remove_key_file;
 mod set_sftp_authorized_keys;
@@ -75,12 +77,15 @@ mod sftp_host;
 
 pub use create_sftp_user::create_sftp_user;
 pub use delete_sftp_user::delete_sftp_user;
+pub use end_sftp_sessions::end_sftp_sessions;
 pub use model::account_jail::AccountJail;
 pub use model::account_ownership::AccountOwnership;
 pub use model::authorized_key_set::AuthorizedKeySet;
 pub use model::login_key_file::LoginKeyFile;
+pub use model::login_session_matcher::LoginSessionMatcher;
 pub use model::sftp_user_request::SftpUserRequest;
 pub use process_sftp_host::ProcessSftpHost;
+pub use reconcile_orphan_key_files::reconcile_orphan_key_files;
 pub use remove_account_sftp::remove_account_sftp;
 pub use set_sftp_authorized_keys::set_sftp_authorized_keys;
 pub use set_sftp_password::set_sftp_password;

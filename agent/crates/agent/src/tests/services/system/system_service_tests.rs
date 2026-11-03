@@ -88,12 +88,15 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // certificate rpcs (issue #132); revision 10 adds `GetClockSync`
     // (issue #150); revision 11 adds `RunCronEntry` (issue #158); revision 12
     // adds `SetSftpAuthorizedKeys` (issue #135); revision 13 adds the
-    // three-state account facts and the explicit ban term (issue #323). The panel's
+    // three-state account facts and the explicit ban term (issue #323); revision
+    // 14 adds `ListInstallablePhpVersions` (issue #330); revision 15 adds
+    // `EndSftpSessions` and `ERROR_CODE_AGENT_SATURATED` (issues #339 and #333).
+    // The panel's
     // `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 14);
+    assert_eq!(info.proto_version, 15);
 }
 
 #[tokio::test]
@@ -135,6 +138,7 @@ const REVISIONS: &[(u32, u64)] = &[
     (12, 0xaee3_8cde_9457_4a26),
     (13, 0xc265_007f_e9ed_3bad),
     (14, 0xe775_6ebf_86a6_74ca),
+    (15, 0x79fb_aa5c_2e22_2194),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

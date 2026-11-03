@@ -50,6 +50,7 @@ enum-value maran.agent.v1.ErrorCode 11 ERROR_CODE_PACKAGE_SOURCE_REFUSED
 enum-value maran.agent.v1.ErrorCode 12 ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE
 enum-value maran.agent.v1.ErrorCode 13 ERROR_CODE_BELOW_FREE_SPACE_FLOOR
 enum-value maran.agent.v1.ErrorCode 14 ERROR_CODE_ACCOUNT_SUSPENDED
+enum-value maran.agent.v1.ErrorCode 15 ERROR_CODE_AGENT_SATURATED
 enum-value maran.agent.v1.ErrorCode 2 ERROR_CODE_ALREADY_EXISTS
 enum-value maran.agent.v1.ErrorCode 3 ERROR_CODE_NOT_FOUND
 enum-value maran.agent.v1.ErrorCode 4 ERROR_CODE_VALIDATION_FAILED
@@ -353,6 +354,11 @@ field maran.agent.v1.EnableSiteRequest 2 domain TYPE_STRING LABEL_OPTIONAL type_
 field maran.agent.v1.EnableSiteRequest 3 site TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SiteSpec oneof=-
 field maran.agent.v1.EnableSiteResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.EnableSiteOk oneof=result
 field maran.agent.v1.EnableSiteResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.EndSftpSessionsOk 1 processes_signalled TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.EndSftpSessionsRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.EndSftpSessionsRequest 2 sftp_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.EndSftpSessionsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.EndSftpSessionsOk oneof=result
+field maran.agent.v1.EndSftpSessionsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.ExtractArchiveOk 1 entry_count TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ExtractArchiveRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ExtractArchiveRequest 2 archive_path TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -815,6 +821,9 @@ message maran.agent.v1.EnableFtpsResponse
 message maran.agent.v1.EnableSiteOk
 message maran.agent.v1.EnableSiteRequest
 message maran.agent.v1.EnableSiteResponse
+message maran.agent.v1.EndSftpSessionsOk
+message maran.agent.v1.EndSftpSessionsRequest
+message maran.agent.v1.EndSftpSessionsResponse
 message maran.agent.v1.ExtractArchiveOk
 message maran.agent.v1.ExtractArchiveRequest
 message maran.agent.v1.ExtractArchiveResponse
@@ -1089,6 +1098,7 @@ rpc maran.agent.v1.PhpService ListInstallablePhpVersions in=.maran.agent.v1.List
 rpc maran.agent.v1.PhpService ListPhpVersions in=.maran.agent.v1.ListPhpVersionsRequest out=.maran.agent.v1.ListPhpVersionsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService CreateSftpUser in=.maran.agent.v1.CreateSftpUserRequest out=.maran.agent.v1.CreateSftpUserResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService DeleteSftpUser in=.maran.agent.v1.DeleteSftpUserRequest out=.maran.agent.v1.DeleteSftpUserResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.SftpService EndSftpSessions in=.maran.agent.v1.EndSftpSessionsRequest out=.maran.agent.v1.EndSftpSessionsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService SetAccountLoginsLocked in=.maran.agent.v1.SetAccountLoginsLockedRequest out=.maran.agent.v1.SetAccountLoginsLockedResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService SetSftpAuthorizedKeys in=.maran.agent.v1.SetSftpAuthorizedKeysRequest out=.maran.agent.v1.SetSftpAuthorizedKeysResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService SetSftpPassword in=.maran.agent.v1.SetSftpPasswordRequest out=.maran.agent.v1.SetSftpPasswordResponse client_streaming=false server_streaming=false

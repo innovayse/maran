@@ -9,11 +9,12 @@ use tonic::{Request, Response, Status};
 use crate::proto::sftp_service_server::SftpService;
 use crate::proto::{
     CreateSftpUserOk, CreateSftpUserRequest, CreateSftpUserResponse, DeleteSftpUserOk,
-    DeleteSftpUserRequest, DeleteSftpUserResponse, SetAccountLoginsLockedOk,
-    SetAccountLoginsLockedRequest, SetAccountLoginsLockedResponse, SetSftpAuthorizedKeysOk,
-    SetSftpAuthorizedKeysRequest, SetSftpAuthorizedKeysResponse, SetSftpPasswordOk,
-    SetSftpPasswordRequest, SetSftpPasswordResponse, create_sftp_user_response,
-    delete_sftp_user_response, set_account_logins_locked_response,
+    DeleteSftpUserRequest, DeleteSftpUserResponse, EndSftpSessionsOk, EndSftpSessionsRequest,
+    EndSftpSessionsResponse, SetAccountLoginsLockedOk, SetAccountLoginsLockedRequest,
+    SetAccountLoginsLockedResponse, SetSftpAuthorizedKeysOk, SetSftpAuthorizedKeysRequest,
+    SetSftpAuthorizedKeysResponse, SetSftpPasswordOk, SetSftpPasswordRequest,
+    SetSftpPasswordResponse, create_sftp_user_response, delete_sftp_user_response,
+    end_sftp_sessions_response, set_account_logins_locked_response,
     set_sftp_authorized_keys_response, set_sftp_password_response,
 };
 use crate::services::sftp::logins_status::to_agent_error as to_logins_error;
@@ -278,6 +279,46 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
         };
 
         Ok(Response::new(SetSftpAuthorizedKeysResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Ends the sessions one login has open right now (issue #339).
+    ///
+    /// Proto to validated input, one `ops` call, result to response. The
+    /// account travels beside the login for the reason `delete_sftp_user` gives:
+    /// the login is checked against that account's jail before anything is
+    /// signalled, so a request authorised for one tenant cannot cut another's
+    /// session.
+    ///
+    /// Cancellation class: run to completion. The signal is sent inside the
+    /// blocking call, so a caller that goes away after sending the request does
+    /// not stop it, and there is nothing to reclaim afterwards.
+    async fn end_sftp_sessions(
+        &self,
+        request: Request<EndSftpSessionsRequest>,
+    ) -> Result<Response<EndSftpSessionsResponse>, Status> {
+        let request = request.into_inner();
+
+        let result = match validated_sftp_user(&request.account_username, &request.sftp_username) {
+            Ok((account, user)) => {
+                let (host, distro) = (Arc::clone(&self.host), self.distro);
+                run_blocking("sftp operation", to_agent_error, move || {
+                    sftp::end_sftp_sessions(host.as_ref(), distro, &account, &user)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+
+        let result = match result {
+            Ok(processes_signalled) => end_sftp_sessions_response::Result::Ok(EndSftpSessionsOk {
+                processes_signalled,
+            }),
+            Err(error) => end_sftp_sessions_response::Result::Error(error),
+        };
+
+        Ok(Response::new(EndSftpSessionsResponse {
             result: Some(result),
         }))
     }

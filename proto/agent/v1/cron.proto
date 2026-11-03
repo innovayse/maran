@@ -89,6 +89,17 @@ service CronService {
   // entry is refused with ERROR_CODE_ACCOUNT_SUSPENDED. An entry the account
   // does not have is ERROR_CODE_NOT_FOUND.
   //
+  // Past the output ceiling the AGENT stops the transient unit itself
+  // (`systemctl stop`, through the distro adapter's allow-listed binary), so the
+  // job does not keep running after the customer was told it was stopped
+  // (issue #336). If that stop cannot be confirmed the answer is
+  // ERROR_CODE_SYSTEM_FAILURE and not a run that claims to have been stopped.
+  //
+  // Bounded concurrency (issue #333): a run holds one worker thread of the
+  // agent until it ends, so the agent admits a fixed number of runs at once for
+  // the whole host and a smaller fixed number per account. A call past either
+  // number is refused with ERROR_CODE_AGENT_SATURATED before anything starts.
+  //
   // Not idempotent, and cannot be: every call is a new run of the customer's
   // program. Cancellation class: run to completion. The work is inside the
   // service manager, so a caller that goes away does not stop the run; the
