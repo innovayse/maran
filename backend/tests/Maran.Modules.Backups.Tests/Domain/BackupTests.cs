@@ -189,6 +189,100 @@ public sealed class BackupTests
         Assert.Equal("cust01", backup.DeletedAccountUsername);
     }
 
+    /// <summary>A backup that has not been verified says so: it is unknown, not suspect.</summary>
+    [Fact]
+    public void A_new_backup_is_not_verified()
+    {
+        var backup = Running();
+
+        Assert.Equal(BackupVerificationState.NotVerified, backup.VerificationState);
+        Assert.Null(backup.VerifiedAt);
+        Assert.Null(backup.VerificationFailureCode);
+    }
+
+    /// <summary>Verifying a completed backup records the state and the instant.</summary>
+    [Fact]
+    public void Verifying_a_completed_backup_records_the_state_and_the_instant()
+    {
+        var backup = CompletedOfKind(BackupKind.Manual);
+
+        backup.MarkVerified(Finished.AddMinutes(1));
+
+        Assert.Equal(BackupVerificationState.Verified, backup.VerificationState);
+        Assert.Equal(Finished.AddMinutes(1), backup.VerifiedAt);
+        Assert.Null(backup.VerificationFailureCode);
+    }
+
+    /// <summary>A failed verification records the code and the instant and leaves the run's status alone.</summary>
+    [Fact]
+    public void A_failed_verification_records_the_code_and_leaves_the_run_status_alone()
+    {
+        var backup = CompletedOfKind(BackupKind.Scheduled);
+
+        backup.MarkVerificationFailed(Finished.AddMinutes(1), "AgentValidationFailed");
+
+        Assert.Equal(BackupVerificationState.Failed, backup.VerificationState);
+        Assert.Equal("AgentValidationFailed", backup.VerificationFailureCode);
+        Assert.Equal(Finished.AddMinutes(1), backup.VerifiedAt);
+        Assert.Equal(BackupStatus.Completed, backup.Status);
+        Assert.Null(backup.RunFailureCode);
+    }
+
+    /// <summary>A backup that has not completed has no artifact, so it can neither pass nor fail verification.</summary>
+    /// <remarks>
+    /// Its inverse controls are the two completed-backup tests above: a guard mutated to refuse every
+    /// verification passes this test alone.
+    /// </remarks>
+    [Fact]
+    public void A_backup_that_has_not_completed_cannot_be_verified()
+    {
+        var running = Running();
+        var failed = Running();
+        failed.Failed("BackupTruncated", Finished);
+
+        running.MarkVerified(Finished);
+        running.MarkVerificationFailed(Finished, "AgentValidationFailed");
+        failed.MarkVerified(Finished);
+        failed.MarkVerificationFailed(Finished, "AgentValidationFailed");
+
+        Assert.Equal(BackupVerificationState.NotVerified, running.VerificationState);
+        Assert.Equal(BackupVerificationState.NotVerified, failed.VerificationState);
+        Assert.Null(running.VerifiedAt);
+        Assert.Null(failed.VerificationFailureCode);
+    }
+
+    /// <summary>A failed verification with no code is refused, so no failure is recorded without a reason.</summary>
+    [Fact]
+    public void A_failed_verification_without_a_code_is_refused()
+    {
+        var backup = CompletedOfKind(BackupKind.Manual);
+
+        backup.MarkVerificationFailed(Finished, string.Empty);
+
+        Assert.Equal(BackupVerificationState.NotVerified, backup.VerificationState);
+        Assert.Null(backup.VerifiedAt);
+    }
+
+    /// <summary>Verifying again overwrites the earlier answer, so a pass after a failure leaves no stale code.</summary>
+    [Fact]
+    public void Verifying_again_overwrites_the_previous_answer()
+    {
+        var backup = CompletedOfKind(BackupKind.Manual);
+        backup.MarkVerificationFailed(Finished.AddMinutes(1), "AgentValidationFailed");
+
+        backup.MarkVerified(Finished.AddMinutes(2));
+
+        Assert.Equal(BackupVerificationState.Verified, backup.VerificationState);
+        Assert.Equal(Finished.AddMinutes(2), backup.VerifiedAt);
+        Assert.Null(backup.VerificationFailureCode);
+
+        backup.MarkVerificationFailed(Finished.AddMinutes(3), "AgentNotFound");
+
+        Assert.Equal(BackupVerificationState.Failed, backup.VerificationState);
+        Assert.Equal("AgentNotFound", backup.VerificationFailureCode);
+        Assert.Equal(Finished.AddMinutes(3), backup.VerifiedAt);
+    }
+
     /// <summary>Builds a freshly started backup.</summary>
     /// <returns>A running row.</returns>
     private static Backup Running()

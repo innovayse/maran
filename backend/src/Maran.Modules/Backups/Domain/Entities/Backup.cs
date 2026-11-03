@@ -154,8 +154,8 @@ public sealed class Backup
     internal string LegacyOrphanedAccountUsername { get; private set; }
 
     /// <summary>
-    /// Whether the finished artifact has been read back and found sound. <see cref="BackupVerificationState.NotVerified"/>
-    /// until a verification answers.
+    /// Whether the finished artifact has been read back and found sound;
+    /// <see cref="BackupVerificationState.NotVerified"/> until a verification answers.
     /// </summary>
     /// <remarks>
     /// <b>A fact of its own, never a rewrite of <see cref="Status"/>.</b> A completed run whose

@@ -20,7 +20,7 @@ public sealed class BackupConfiguration : IEntityTypeConfiguration<Backup>
     /// <remarks>The ceiling the panel already validates account names against.</remarks>
     private const int UsernameMaxLength = 32;
 
-    /// <summary>The longest verification failure CODE this table stores; codes are identifiers, not sentences.</summary>
+    /// <summary>The longest verification failure CODE this table stores; a code, not a sentence.</summary>
     private const int VerificationFailureCodeMaxLength = 64;
 
     /// <summary>Configures the table, keys, and column constraints for <see cref="Backup"/>.</summary>
