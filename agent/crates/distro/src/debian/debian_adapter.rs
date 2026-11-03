@@ -59,6 +59,10 @@ impl DistroAdapter for DebianAdapter {
         debian_packages::php_package(version)
     }
 
+    fn installable_php_versions(&self) -> &'static [&'static str] {
+        debian_packages::installable_php_versions()
+    }
+
     fn openssl_binary(&self) -> AdapterBinary {
         debian_services::openssl_binary()
     }

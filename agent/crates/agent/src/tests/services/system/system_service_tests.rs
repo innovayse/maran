@@ -93,7 +93,7 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 13);
+    assert_eq!(info.proto_version, 14);
 }
 
 #[tokio::test]
@@ -134,6 +134,7 @@ const REVISIONS: &[(u32, u64)] = &[
     (11, 0xdb27_e25a_498b_4086),
     (12, 0xaee3_8cde_9457_4a26),
     (13, 0xc265_007f_e9ed_3bad),
+    (14, 0xe775_6ebf_86a6_74ca),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

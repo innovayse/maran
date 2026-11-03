@@ -136,6 +136,17 @@ pub trait DistroAdapter: Send + Sync {
     /// version-specific pool directory never appears.
     fn php_package(&self, version: &str) -> String;
 
+    /// The PHP versions this family's repository publishes a php-fpm package
+    /// for, oldest first.
+    ///
+    /// Sury (Debian family) and Remi (RHEL family) each publish their own
+    /// range, and a version missing from it has no package to install, so the
+    /// answer is the family's and not the panel's. The agent offers the
+    /// intersection of this set and its own closed supported set, which is
+    /// what the installable-versions query reports and what an install is
+    /// checked against.
+    fn installable_php_versions(&self) -> &'static [&'static str];
+
     /// Absolute path of the openssl binary, for the process-execution
     /// allow-list.
     ///

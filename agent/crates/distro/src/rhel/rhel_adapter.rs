@@ -59,6 +59,10 @@ impl DistroAdapter for RhelAdapter {
         rhel_packages::php_package(version)
     }
 
+    fn installable_php_versions(&self) -> &'static [&'static str] {
+        rhel_packages::installable_php_versions()
+    }
+
     fn openssl_binary(&self) -> AdapterBinary {
         rhel_services::openssl_binary()
     }

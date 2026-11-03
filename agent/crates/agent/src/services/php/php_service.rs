@@ -1,4 +1,5 @@
-//! `PhpService`: which PHP runtimes this host has, and installing another.
+//! `PhpService`: which PHP runtimes this host has, which it could install, and
+//! installing another.
 
 use std::pin::Pin;
 use std::sync::Arc;
@@ -13,8 +14,11 @@ use tonic::{Request, Response, Status};
 use crate::proto::php_service_server::PhpService;
 use crate::proto::{
     AgentError, ErrorCode, InstallPhpVersionOk, InstallPhpVersionRequest,
-    InstallPhpVersionResponse, ListPhpVersionsOk, ListPhpVersionsRequest, ListPhpVersionsResponse,
-    PhpVersion as ProtoVersion, Progress, install_php_version_response, list_php_versions_response,
+    InstallPhpVersionResponse, InstallablePhpVersion, ListInstallablePhpVersionsOk,
+    ListInstallablePhpVersionsRequest, ListInstallablePhpVersionsResponse, ListPhpVersionsOk,
+    ListPhpVersionsRequest, ListPhpVersionsResponse, PhpVersion as ProtoVersion, Progress,
+    install_php_version_response, list_installable_php_versions_response,
+    list_php_versions_response,
 };
 use crate::services::php::php_status::to_agent_error;
 use crate::services::wire::run_blocking::run_blocking;
@@ -117,6 +121,38 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
         };
 
         Ok(Response::new(ListPhpVersionsResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Lists the versions this host can install, newest first, each flagged
+    /// as installed or not.
+    async fn list_installable_php_versions(
+        &self,
+        _request: Request<ListInstallablePhpVersionsRequest>,
+    ) -> Result<Response<ListInstallablePhpVersionsResponse>, Status> {
+        let (host, distro) = (Arc::clone(&self.host), self.distro);
+
+        let result = match run_blocking("PHP operation", to_agent_error, move || {
+            php::list_installable_php_versions(host.as_ref(), distro)
+        })
+        .await
+        {
+            Ok(versions) => {
+                list_installable_php_versions_response::Result::Ok(ListInstallablePhpVersionsOk {
+                    versions: versions
+                        .into_iter()
+                        .map(|item| InstallablePhpVersion {
+                            version: item.version,
+                            installed: item.installed,
+                        })
+                        .collect(),
+                })
+            }
+            Err(error) => list_installable_php_versions_response::Result::Error(error),
+        };
+
+        Ok(Response::new(ListInstallablePhpVersionsResponse {
             result: Some(result),
         }))
     }

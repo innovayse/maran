@@ -478,6 +478,8 @@ field maran.agent.v1.InstallPhpVersionRequest 1 version TYPE_STRING LABEL_OPTION
 field maran.agent.v1.InstallPhpVersionResponse 1 progress TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.Progress oneof=result
 field maran.agent.v1.InstallPhpVersionResponse 2 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.InstallPhpVersionOk oneof=result
 field maran.agent.v1.InstallPhpVersionResponse 3 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.InstallablePhpVersion 1 version TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.InstallablePhpVersion 2 installed TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ListBackupsOk 1 backups TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.BackupInfo oneof=-
 field maran.agent.v1.ListBackupsRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ListBackupsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ListBackupsOk oneof=result
@@ -498,6 +500,9 @@ field maran.agent.v1.ListDirectoryRequest 1 account_username TYPE_STRING LABEL_O
 field maran.agent.v1.ListDirectoryRequest 2 path TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ListDirectoryResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ListDirectoryOk oneof=result
 field maran.agent.v1.ListDirectoryResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.ListInstallablePhpVersionsOk 1 versions TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.InstallablePhpVersion oneof=-
+field maran.agent.v1.ListInstallablePhpVersionsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ListInstallablePhpVersionsOk oneof=result
+field maran.agent.v1.ListInstallablePhpVersionsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.ListPhpVersionsOk 1 versions TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.PhpVersion oneof=-
 field maran.agent.v1.ListPhpVersionsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ListPhpVersionsOk oneof=result
 field maran.agent.v1.ListPhpVersionsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
@@ -868,6 +873,7 @@ message maran.agent.v1.InstallPanelCertificateResponse
 message maran.agent.v1.InstallPhpVersionOk
 message maran.agent.v1.InstallPhpVersionRequest
 message maran.agent.v1.InstallPhpVersionResponse
+message maran.agent.v1.InstallablePhpVersion
 message maran.agent.v1.ListBackupsOk
 message maran.agent.v1.ListBackupsRequest
 message maran.agent.v1.ListBackupsResponse
@@ -883,6 +889,9 @@ message maran.agent.v1.ListDatabasesResponse
 message maran.agent.v1.ListDirectoryOk
 message maran.agent.v1.ListDirectoryRequest
 message maran.agent.v1.ListDirectoryResponse
+message maran.agent.v1.ListInstallablePhpVersionsOk
+message maran.agent.v1.ListInstallablePhpVersionsRequest
+message maran.agent.v1.ListInstallablePhpVersionsResponse
 message maran.agent.v1.ListPhpVersionsOk
 message maran.agent.v1.ListPhpVersionsRequest
 message maran.agent.v1.ListPhpVersionsResponse
@@ -1076,6 +1085,7 @@ rpc maran.agent.v1.MonitorService GetServerFingerprintInputs in=.maran.agent.v1.
 rpc maran.agent.v1.MonitorService GetServiceStatuses in=.maran.agent.v1.GetServiceStatusesRequest out=.maran.agent.v1.GetServiceStatusesResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetSftpJailStatus in=.maran.agent.v1.GetSftpJailStatusRequest out=.maran.agent.v1.GetSftpJailStatusResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.PhpService InstallPhpVersion in=.maran.agent.v1.InstallPhpVersionRequest out=.maran.agent.v1.InstallPhpVersionResponse client_streaming=false server_streaming=true
+rpc maran.agent.v1.PhpService ListInstallablePhpVersions in=.maran.agent.v1.ListInstallablePhpVersionsRequest out=.maran.agent.v1.ListInstallablePhpVersionsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.PhpService ListPhpVersions in=.maran.agent.v1.ListPhpVersionsRequest out=.maran.agent.v1.ListPhpVersionsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService CreateSftpUser in=.maran.agent.v1.CreateSftpUserRequest out=.maran.agent.v1.CreateSftpUserResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService DeleteSftpUser in=.maran.agent.v1.DeleteSftpUserRequest out=.maran.agent.v1.DeleteSftpUserResponse client_streaming=false server_streaming=false

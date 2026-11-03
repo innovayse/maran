@@ -55,8 +55,9 @@ use crate::proto::{
 /// always-zero wire fields (`ServiceStatus.uptime_seconds`,
 /// `AccountDiskUsage.quota_bytes`, the listing's `last_exit_code` and
 /// `last_run_at_unix`, `BanEntry.reason` and `BanEntry.expires_at_unix`)
-/// (issue #323).
-const PROTO_VERSION: u32 = 13;
+/// (issue #323). 14 adds `PhpService.ListInstallablePhpVersions`, the PHP
+/// versions the host can install and whether each already is (issue #330).
+const PROTO_VERSION: u32 = 14;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

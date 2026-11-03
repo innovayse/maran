@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::{classify_package_failure, package_manager};
+use super::{classify_package_failure, installable_php_versions, package_manager};
 use crate::PackageFailure;
 
 /// `apt-get install` against a mirror answering every archive with 404.
@@ -92,4 +92,12 @@ fn a_fetch_failure_for_a_reason_that_names_no_source_is_a_local_failure() {
 #[test]
 fn the_package_manager_is_apt_get() {
     assert_eq!(package_manager(), "/usr/bin/apt-get");
+}
+
+#[test]
+fn the_installable_php_versions_run_from_seven_four_to_eight_four_oldest_first() {
+    assert_eq!(
+        installable_php_versions(),
+        &["7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]
+    );
 }

@@ -24,7 +24,10 @@ use tokio_stream::StreamExt;
 use tonic::Request;
 
 use crate::proto::php_service_server::PhpService;
-use crate::proto::{ErrorCode, InstallPhpVersionRequest, install_php_version_response};
+use crate::proto::{
+    ErrorCode, InstallPhpVersionRequest, ListInstallablePhpVersionsRequest,
+    install_php_version_response, list_installable_php_versions_response,
+};
 use crate::services::php::php_service::PhpServiceImpl;
 
 /// The adapter every test here runs against.
@@ -249,4 +252,35 @@ async fn a_malformed_version_ends_the_stream_with_invalid_input_and_starts_nothi
         other => panic!("expected an Error, got {other:?}"),
     }
     assert!(calls.lock().unwrap().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_installable_list_names_every_supported_version_and_flags_the_installed_one() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let host = InstallHost::installing(&calls);
+    host.directories
+        .lock()
+        .unwrap()
+        .insert(PathBuf::from(adapter().php_fpm_pool_directory("8.3")));
+    let service = PhpServiceImpl::new(host, adapter());
+
+    let response = service
+        .list_installable_php_versions(Request::new(ListInstallablePhpVersionsRequest {}))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let Some(list_installable_php_versions_response::Result::Ok(ok)) = response.result else {
+        panic!("expected the ok payload");
+    };
+    let versions: Vec<&str> = ok.versions.iter().map(|item| item.version.as_str()).collect();
+    assert_eq!(versions, vec!["8.4", "8.3", "8.2", "8.1", "8.0", "7.4"]);
+    let installed: Vec<&str> = ok
+        .versions
+        .iter()
+        .filter(|item| item.installed)
+        .map(|item| item.version.as_str())
+        .collect();
+    assert_eq!(installed, vec!["8.3"]);
+    assert!(calls.lock().unwrap().is_empty(), "listing runs no command");
 }
