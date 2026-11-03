@@ -69,6 +69,16 @@ public sealed class SitesModule : IPanelModule
         // advisory lock it holds is scoped to that transaction and must be released by its commit.
         services.AddScoped<ISiteSlotGate, SiteSlotGate>();
 
+        // Scoped, because it reads through the request-scoped context, deliberately without the tenant
+        // filter: a hostname is claimed once across the whole server.
+        services.AddScoped<SiteHostnameClaims>();
+
+        // Scoped, because it asks the claims reader above and drives the agent on the request's behalf.
+        services.AddScoped<SiteVhostCompensator>();
+
+        // Scoped, because it takes the request's slot gate and compensator.
+        services.AddScoped<SiteRecorder>();
+
         // The stream's settings, validated at startup like every other options class.
         services.AddOptions<SiteLogOptions>()
             .Bind(configuration.GetSection(SiteLogOptions.SectionName))

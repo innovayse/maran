@@ -211,11 +211,11 @@ public sealed class SiteHostnameRaceTests : IAsyncLifetime
         var winnerDomain = results[0].IsSuccess ? "shop.example" : "zero.example";
         Assert.Contains(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.SiteCreated && entry.Subject == loserDomain && !entry.Succeeded;
+            return entry.Action == SiteAuditActions.SiteCreated && entry.Subject == loserDomain && !entry.Succeeded;
         });
         Assert.Contains(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.SiteCreated && entry.Subject == winnerDomain && entry.Succeeded;
+            return entry.Action == SiteAuditActions.SiteCreated && entry.Subject == winnerDomain && entry.Succeeded;
         });
     }
 
@@ -287,15 +287,18 @@ public sealed class SiteHostnameRaceTests : IAsyncLifetime
         await using var context = OpenContext(accountId);
 
         var principal = new AccountCustomer(accountId);
+        var claims = new SiteHostnameClaims(context);
         var handler = new CreateSiteCommandHandler(
             context,
             new OneAccountDirectory(accountId, username, maxSites: 5),
             agent,
             new ThrowingAgentPhpClient(),
-            new SiteSlotGate(context),
+            claims,
+            new SiteRecorder(
+                new SiteSlotGate(context),
+                new SiteVhostCompensator(claims, agent, NullLogger<SiteVhostCompensator>.Instance)),
             new SiteAuditJournal(audit ?? new DiscardingAuditWriter(), principal),
             new FixedInstantClock(),
-            NullLogger<CreateSiteCommandHandler>.Instance,
             new SiteDisplayNames(new StringLocalizer<DisplayNames>(new ResourceManagerStringLocalizerFactory(
                 new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
                 NullLoggerFactory.Instance))));

@@ -43,7 +43,7 @@ public sealed class CreateSiteWorld
     public LocklessSiteSlotGate SlotGate { get; }
 
     /// <summary>The logger the handler reports a failed or withheld compensation to.</summary>
-    public RecordingLogger<CreateSiteCommandHandler> Logger { get; } = new();
+    public RecordingLogger<SiteVhostCompensator> Logger { get; } = new();
 
     /// <summary>The principal the context and the handler share.</summary>
     public FakeCurrentUser CurrentUser { get; }
@@ -152,15 +152,17 @@ public sealed class CreateSiteWorld
     /// <returns>A handler wired to this world's doubles.</returns>
     public CreateSiteCommandHandler Handler()
     {
+        var claims = new SiteHostnameClaims(DbContext);
+
         return new CreateSiteCommandHandler(
             DbContext,
             Accounts,
             Agent,
             Php,
-            SlotGate,
+            claims,
+            new SiteRecorder(SlotGate, new SiteVhostCompensator(claims, Agent, Logger)),
             new SiteAuditJournal(Audit, CurrentUser),
             new FakeClock(Now),
-            Logger,
             SitesTestContext.SiteNames());
     }
 
