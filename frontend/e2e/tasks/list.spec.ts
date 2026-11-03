@@ -24,6 +24,7 @@ const INSTALL: PanelTask = {
   subject: 'php8.4',
   correlationId: 'c0rr-3l4t10n',
   status: 'running',
+  statusName: 'Running',
   percent: 40,
   log: 'fetching packages\n',
   logIncluded: true,
@@ -105,6 +106,7 @@ test('a task that failed shows the code it failed with', async ({ page }) => {
     taskFrame({
       ...INSTALL,
       status: 'failed',
+      statusName: 'Failed',
       failure: {
         code: 'SitesPhpVersionUnavailable',
         message: 'That PHP version cannot be installed on this server.',
@@ -188,6 +190,7 @@ const BACKUP: PanelTask = {
   kind: 'BackupCreate',
   subject: 'acme',
   status: 'completed',
+  statusName: 'Completed',
   percent: 100,
   startedAt: '2026-08-20T09:00:00Z',
   finishedAt: '2026-08-20T09:03:00Z',
@@ -200,6 +203,7 @@ const FAILED: PanelTask = {
   kind: 'CertificateIssue',
   subject: 'shop.example.com',
   status: 'failed',
+  statusName: 'Failed',
   failure: {
     code: 'AcmeValidationFailed',
     message: 'The certificate authority could not verify this domain.',

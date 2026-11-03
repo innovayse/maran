@@ -27,6 +27,7 @@ const SUSPEND: PanelTask = {
   subject: 'acme',
   correlationId: 'c0rr-3l4t10n',
   status: 'running',
+  statusName: 'Running',
   percent: 10,
   log: 'Suspending acme.\n',
   logIncluded: true,

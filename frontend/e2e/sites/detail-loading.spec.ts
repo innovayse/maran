@@ -34,11 +34,13 @@ const SITE: SiteDetail = {
   domain: 'alpha.example.com',
   aliases: [],
   backendType: 'static',
+  backendTypeName: 'Static',
   phpVersion: '',
   proxyUpstream: '',
   documentRoot: '/home/alpha/sites/alpha.example.com/public',
   hasCertificate: true,
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
 }
 

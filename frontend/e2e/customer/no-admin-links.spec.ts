@@ -25,6 +25,7 @@ const OWN_ACCOUNT: MyAccount = {
   name: 'olive',
   primaryDomain: 'olive.example.com',
   status: 'active',
+  statusName: 'Active',
   plan: {
     displayName: 'Starter',
     diskQuotaMb: 1024,

@@ -22,8 +22,10 @@ const ALPHA: Site = {
   ownerName: 'alice',
   domain: 'alpha.example.com',
   backendType: 'php',
+  backendTypeName: 'PHP',
   phpVersion: '8.3',
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
 }
 

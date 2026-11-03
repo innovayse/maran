@@ -159,8 +159,10 @@ export const stubSites = async (page: Page, sites: Site[]): Promise<() => readon
         ownerName: '',
         domain: submitted.domain,
         backendType: submitted.backendType,
+        backendTypeName: submitted.backendType,
         phpVersion: submitted.phpVersion,
         status: 'enabled',
+        statusName: 'Enabled',
         createdAt: '2026-08-30T10:00:00Z',
       }
       sites.push(created)

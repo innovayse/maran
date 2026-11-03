@@ -146,7 +146,7 @@ test('a rejected password shows the rule the backend broke it on', async ({ page
       contentType: 'application/problem+json',
       body: JSON.stringify({
         code: 'PasswordTooWeak',
-        detail: 'Choose a password of at least 12 characters that is different from your username.',
+        detail: 'Choose a password of at least 12 characters.',
       }),
     })
   })
@@ -161,7 +161,7 @@ test('a rejected password shows the rule the backend broke it on', async ({ page
   await page.getByRole('button', { name: 'Create administrator' }).click()
 
   await expect(
-    page.getByText('Choose a password of at least 12 characters that is different from your username.'),
+    page.getByText('Choose a password of at least 12 characters.'),
   ).toBeVisible()
 })
 

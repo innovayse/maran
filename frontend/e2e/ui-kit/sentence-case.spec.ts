@@ -53,6 +53,7 @@ const ACCOUNT: Account = {
   primaryDomain: 'alice.example.com',
   planId: THREE_PLANS[0]?.id ?? '',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
 }
 
@@ -68,6 +69,7 @@ const TASK: PanelTask = {
   subject: 'alice',
   correlationId: 'c0rr-s3nt3nc3',
   status: 'completed',
+  statusName: 'Completed',
   percent: 100,
   log: '',
   logIncluded: true,

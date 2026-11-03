@@ -32,6 +32,7 @@ const OWN_BACKUP: PanelTask = {
   subject: 'olive',
   correlationId: null,
   status: 'running',
+  statusName: 'Running',
   percent: 30,
   log: '',
   logIncluded: false,

@@ -15,6 +15,7 @@ const SIGN_IN: AuditEvent = {
   subject: 'admin',
   ipAddress: '203.0.113.7',
   succeeded: true,
+  outcomeName: 'Succeeded',
 }
 
 /** A refused one. Failures are recorded as fully as successes — that is the point of the journal. */
@@ -27,6 +28,7 @@ const REFUSED: AuditEvent = {
   subject: 'admin',
   ipAddress: '198.51.100.4',
   succeeded: false,
+  outcomeName: 'Failed',
 }
 
 test('the audit screen lists what happened, and marks a refusal as one', async ({ page }) => {

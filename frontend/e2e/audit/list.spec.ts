@@ -16,6 +16,7 @@ const SIGN_IN: AuditEvent = {
   subject: 'admin',
   ipAddress: '203.0.113.7',
   succeeded: true,
+  outcomeName: 'Succeeded',
 }
 
 const REFUSED: AuditEvent = {
@@ -27,6 +28,7 @@ const REFUSED: AuditEvent = {
   subject: 'mallory',
   ipAddress: '198.51.100.4',
   succeeded: false,
+  outcomeName: 'Failed',
 }
 
 const AUGUST: AuditEvent = {

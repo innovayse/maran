@@ -21,6 +21,7 @@ const ACCOUNT: Account = {
   primaryDomain: 'alpha.example.com',
   planId: '22222222-2222-2222-2222-222222222222',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-29T10:00:00Z',
 }
 
