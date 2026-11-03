@@ -118,6 +118,10 @@ public sealed class AccountBackupService : IAccountBackupService
 
                 await _journal.RecordSuccessAsync(
                     AccountAuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
+
+                // The deletion has what it asked for either way: a finding about the final archive is
+                // recorded and mailed, never turned into a refusal of the deletion.
+                await _runner.VerifyCompletedAsync(backup, accountName, cancellationToken);
                 break;
 
             case FailedBackupOutcome failed:

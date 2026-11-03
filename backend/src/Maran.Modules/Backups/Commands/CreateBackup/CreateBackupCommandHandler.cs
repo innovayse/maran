@@ -214,6 +214,10 @@ public sealed class CreateBackupCommandHandler
                     command.UserAgent,
                     cancellationToken);
                 await _tasks.CompleteAsync(taskId, cancellationToken);
+
+                // The task is already complete: reading the artifact back is its own fact, and a
+                // finding about it never reopens or fails the run the caller was waiting on.
+                await _runner.VerifyCompletedAsync(backup, account.Username, cancellationToken);
                 break;
 
             case FailedBackupOutcome failed:

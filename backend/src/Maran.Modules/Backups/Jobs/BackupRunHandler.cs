@@ -292,6 +292,10 @@ public sealed class BackupRunHandler
                     await _tasks.CompleteAsync(taskId, cancellationToken);
                     await _bus.PublishAsync(new RetentionRequested(account.Id, retainCount));
 
+                    // After retention is asked for, so a slow read of this archive never holds up the
+                    // pruning of the old ones. It is its own fact and cannot change this run's outcome.
+                    await _runner.VerifyCompletedAsync(backup, account.Username, cancellationToken);
+
                     return 1;
 
                 case FailedBackupOutcome failed:
