@@ -30,6 +30,12 @@ namespace Maran.Host.IntegrationTests;
 /// </summary>
 /// <remarks>
 /// <para>
+/// <b>The stable contract is "never another tenant's data", not one status.</b> A module whose controller
+/// sits behind <c>RequiresAccountFeature</c> refuses a reseller outright with 403 before any handler runs;
+/// a module that does not answers an empty list or a 404. Every one of those discloses nothing, so each is
+/// accepted; what is never accepted is a 200 that carries a row, or any status that serves a write.
+/// </para>
+/// <para>
 /// <b>The check can see what it reports on.</b> The reseller owns <c>acme</c>, and one row of every
 /// module is stored against it, so an empty answer is the module's scoping and not an empty table; the
 /// customer who owns <c>acme</c> reads each of those rows through the same endpoint, which is the
@@ -83,7 +89,8 @@ public sealed class ResellerTenantModuleScopeEndpointTests : IAsyncLifetime
 
     /// <summary>
     /// The customer who owns the account reads its row on every module, the administrator reads it too, and
-    /// the reseller that owns the account reads none: not one row on any list.
+    /// the reseller that owns the account is served none: not one row on any list, whether the module
+    /// refuses it outright or answers an empty page.
     /// </summary>
     [Fact]
     public async Task A_reseller_sees_no_rows_in_the_tenant_modules_even_for_an_account_it_owns()
@@ -100,7 +107,7 @@ public sealed class ResellerTenantModuleScopeEndpointTests : IAsyncLifetime
             Assert.Equal(1, await TotalAsync(olive, path));
             Assert.Equal(1, await TotalAsync(admin, path));
 
-            var total = await TotalAsync(nova, path);
+            var total = await RowsServedToAsync(nova, path);
             if (total != 0)
             {
                 seen.Add($"GET {path} showed the reseller {total} row(s)");
@@ -111,11 +118,12 @@ public sealed class ResellerTenantModuleScopeEndpointTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Naming one of those rows by id is the same answer as naming one that is not there: 404, and never a
-    /// 403 that would confirm the row exists.
+    /// Naming one of those rows by id is refused, never served, and the refusal is the same one a random
+    /// identifier gets, so it confirms no row: a module behind a feature gate refuses the ROLE with 403
+    /// whatever the id, and a module that does not answers 404.
     /// </summary>
     [Fact]
-    public async Task A_reseller_naming_a_row_of_its_own_customer_is_answered_not_found()
+    public async Task A_reseller_naming_a_row_of_its_own_customer_is_refused_the_same_as_a_random_identifier()
     {
         var (factory, world) = await BootAsync();
         await using var host = factory;
@@ -125,20 +133,26 @@ public sealed class ResellerTenantModuleScopeEndpointTests : IAsyncLifetime
         Guid ftpId;
         using (var scope = factory.Services.CreateScope())
         {
+            // A context resolved outside a request has an anonymous caller, which the tenant filters hide
+            // every row from, so the seeded ids are read past them.
             siteId = await scope.ServiceProvider.GetRequiredService<SitesDbContext>().Sites
+                .IgnoreQueryFilters()
                 .Where(site => site.AccountId == world.Acme).Select(site => site.Id).SingleAsync();
             ftpId = await scope.ServiceProvider.GetRequiredService<FtpDbContext>().FtpUsers
+                .IgnoreQueryFilters()
                 .Where(user => user.AccountId == world.Acme).Select(user => user.Id).SingleAsync();
         }
 
         var wrong = new List<string>();
-        foreach (var path in new[] { $"/api/v1/sites/{siteId}", $"/api/v1/ftp-users/{ftpId}" })
+        foreach (var (collection, id) in new[] { ("sites", siteId), ("ftp-users", ftpId) })
         {
+            var path = $"/api/v1/{collection}/{id}";
             Assert.Equal(HttpStatusCode.OK, (await olive.GetAsync(path)).StatusCode);
             var response = await nova.GetAsync(path);
-            if (response.StatusCode != HttpStatusCode.NotFound)
+            var random = await nova.GetAsync($"/api/v1/{collection}/{Guid.NewGuid()}");
+            if (!IsRefusal(response.StatusCode) || response.StatusCode != random.StatusCode)
             {
-                wrong.Add($"GET {path} answered {(int)response.StatusCode}");
+                wrong.Add($"GET {path} answered {(int)response.StatusCode}, a random identifier {(int)random.StatusCode}");
             }
         }
 
@@ -146,9 +160,10 @@ public sealed class ResellerTenantModuleScopeEndpointTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// The cron routes name an account and keep no rows of their own, so what scopes them is the account
-    /// directory: a reseller naming its own customer's account gets the same 404 a stranger does, and the
-    /// agent is never addressed for it. The customer's own request reaches the crontab, which is the control.
+    /// The cron routes name an account and keep no rows of their own, so what refuses a reseller is the
+    /// route's feature gate (403) or, past it, the account directory (404): either way the reseller is
+    /// not served its own customer's crontab, and the agent is never addressed for it. The customer's own
+    /// request reaches the crontab, which is the control.
     /// </summary>
     [Fact]
     public async Task A_reseller_cannot_reach_its_customers_crontab()
@@ -170,8 +185,8 @@ public sealed class ResellerTenantModuleScopeEndpointTests : IAsyncLifetime
             command = "/usr/bin/backup",
         });
 
-        Assert.Equal(HttpStatusCode.NotFound, read.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, written.StatusCode);
+        Assert.True(IsRefusal(read.StatusCode), $"GET {path} answered {(int)read.StatusCode}");
+        Assert.True(IsRefusal(written.StatusCode), $"POST cron-entries answered {(int)written.StatusCode}");
         Assert.Empty(_cron.AddressedAccounts);
     }
 
@@ -191,6 +206,38 @@ public sealed class ResellerTenantModuleScopeEndpointTests : IAsyncLifetime
         {
             Assert.Equal(1, await TotalAsync(viewing, path));
         }
+    }
+
+    /// <summary>
+    /// Whether a status is one of the two refusals that disclose nothing about a tenant's row: 403 from a
+    /// role or feature gate, 404 from a scope that finds nothing.
+    /// </summary>
+    /// <param name="status">The status a reseller was answered.</param>
+    /// <returns><c>true</c> for 403 and 404.</returns>
+    private static bool IsRefusal(HttpStatusCode status)
+    {
+        return status is HttpStatusCode.Forbidden or HttpStatusCode.NotFound;
+    }
+
+    /// <summary>
+    /// Reads how many rows a paged list serves a reseller: none when the module refuses the reseller
+    /// (403 or 404), the page's total when it answers 200, and a failure for any other status, which would
+    /// be a fault and not a refusal.
+    /// </summary>
+    /// <param name="client">The reseller's client.</param>
+    /// <param name="path">The list's path.</param>
+    /// <returns>How many rows the reseller was served.</returns>
+    private static async Task<int> RowsServedToAsync(HttpClient client, string path)
+    {
+        var response = await client.GetAsync(path);
+        if (IsRefusal(response.StatusCode))
+        {
+            return 0;
+        }
+
+        Assert.True(response.StatusCode == HttpStatusCode.OK, $"GET {path} answered {(int)response.StatusCode}");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return body.RootElement.GetProperty("total").GetInt32();
     }
 
     /// <summary>Reads the total of a paged list the caller is entitled to read.</summary>
