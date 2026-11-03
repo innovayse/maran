@@ -27,9 +27,7 @@
     },
     "states": {
       "active": "Ակտիվ",
-      "invited": "Հրավիրված",
-      "invitedAccountSuspended": "Հրավիրված, հաշիվը կասեցված է",
-      "suspended": "Կասեցված"
+      "invited": "Հրավիրված"
     },
     "features": {
       "groupLabel": "Այն հնարավորությունները, որոնցից այս անձը կարող է օգտվել"

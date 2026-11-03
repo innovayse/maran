@@ -27,9 +27,7 @@
     },
     "states": {
       "active": "Active",
-      "invited": "Invited",
-      "invitedAccountSuspended": "Invited, account suspended",
-      "suspended": "Suspended"
+      "invited": "Invited"
     },
     "features": {
       "groupLabel": "Features this person may use"

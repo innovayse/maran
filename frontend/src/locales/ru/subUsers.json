@@ -27,9 +27,7 @@
     },
     "states": {
       "active": "Активен",
-      "invited": "Приглашён",
-      "invitedAccountSuspended": "Приглашён, аккаунт приостановлен",
-      "suspended": "Приостановлен"
+      "invited": "Приглашён"
     },
     "features": {
       "groupLabel": "Функции, которыми может пользоваться этот человек"
