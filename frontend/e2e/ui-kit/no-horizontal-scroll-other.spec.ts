@@ -162,6 +162,7 @@ const SESSIONS: Session[] = [
 const POLICY: SecurityPolicy = {
   minimumPasswordLength: 12,
   forceTwoFactorForAdmins: true,
+  forceTwoFactorForResellers: true,
   maxFailedLoginAttempts: 5,
   lockoutMinutes: 15,
 }
