@@ -153,7 +153,7 @@ public sealed class SubUsersController : BaseApiController
     [HttpPost("existing")]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [EnableRateLimiting(RateLimitPolicies.InvitationSending)]
-    [ProducesResponseType(typeof(MembershipOfferRequestDto), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(MembershipOfferRequestedDto), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -165,7 +165,7 @@ public sealed class SubUsersController : BaseApiController
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        var result = await _bus.InvokeAsync<Result<MembershipOfferRequestDto>>(command, cancellationToken);
+        var result = await _bus.InvokeAsync<Result<MembershipOfferRequestedDto>>(command, cancellationToken);
         return result.IsSuccess ? Accepted(result.Value) : ToActionResult(result);
     }
 
