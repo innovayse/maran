@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Sdk.Contracts;
@@ -26,6 +27,14 @@ namespace Maran.Modules.Accounts.Services;
 /// comparison against the caller's own token: a customer's answer can only ever name their own account.
 /// </para>
 /// <para>
+/// A reseller is held to the line the customer is, drawn by owner instead of by account: every read
+/// but <see cref="ListAsync"/> adds <c>account.ResellerId == reseller.ResellerId</c> to its query, so
+/// an account another reseller or the administrator owns answers exactly as an account that does not
+/// exist. That predicate is stated here AND in <see cref="AccountsDbContext"/>'s query filter, on
+/// purpose: a window other modules call and a view-as start rests on should not depend on one
+/// mechanism that a later edit could remove.
+/// </para>
+/// <para>
 /// <see cref="ListAsync"/> is the deliberate exception and the interface says so: it answers with
 /// every account on the host and applies no scope at all, because the host-wide disk view it exists
 /// for has no tenant to scope by. Its authorization lives entirely at its caller's boundary.
@@ -51,9 +60,9 @@ public sealed class AccountDirectory : IAccountDirectory
     /// <inheritdoc />
     public async Task<AccountSnapshot?> FindAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        // An administrator sees every account; a customer sees exactly the one they own. The
-        // comparison is against the id the caller's own token carries, never against anything on
-        // the request, so a forged or guessed account id cannot widen it.
+        // An administrator sees every account; a customer sees exactly the one they own; a reseller
+        // sees the accounts it owns. The comparison is against the id the caller's own token carries,
+        // never against anything on the request, so a forged or guessed account id cannot widen it.
         if (!Sees(accountId))
         {
             return null;
@@ -61,8 +70,7 @@ public sealed class AccountDirectory : IAccountDirectory
 
         // Expression lambdas, not the braced form used elsewhere in this repository: EF Core
         // translates these into SQL, and a statement-bodied lambda cannot become an expression tree.
-        return await _dbContext.Accounts
-            .AsNoTracking()
+        return await OwnedByCaller(_dbContext.Accounts.AsNoTracking())
             .Where(account => account.Id == accountId)
             .Join(
                 _dbContext.Plans.AsNoTracking(),
@@ -98,11 +106,11 @@ public sealed class AccountDirectory : IAccountDirectory
     /// </para>
     /// <para>
     /// There is no <c>IgnoreQueryFilters()</c> call either, and its absence is deliberate rather
-    /// than an oversight: <see cref="AccountsDbContext"/> declares no global query filter on
-    /// <c>Account</c> — this module's tenant boundary is the explicit comparison in
-    /// <see cref="FindAsync"/>, not a filter — so the call would suppress nothing. A defensive call
-    /// that cannot fail is deleted rather than labelled (rules/testing.md); it would age into a
-    /// reader's belief that a filter exists here.
+    /// than an oversight: <see cref="AccountsDbContext"/>'s query filter narrows a reseller and no
+    /// other caller, and the administrator's host-wide disk view this method exists for is the
+    /// administrator's, which the filter leaves whole — so the call would suppress nothing the
+    /// administrator sees. A reseller who somehow reached this method would be shown only the accounts
+    /// it owns, which is the safe direction; this method is not exposed to it.
     /// </para>
     /// <para>
     /// Every account is returned, suspended ones included. A suspended account's files are still on
@@ -143,7 +151,8 @@ public sealed class AccountDirectory : IAccountDirectory
         CancellationToken cancellationToken)
     {
         // The same scope FindAsync applies, to a set instead of one id: a customer's answer can only
-        // ever hold their own account, whatever ids they managed to put in front of the caller.
+        // ever hold their own account, a reseller's only its own accounts, whatever ids they managed
+        // to put in front of the caller.
         var visible = accountIds.Where(Sees).Distinct().ToList();
 
         if (visible.Count == 0)
@@ -152,8 +161,7 @@ public sealed class AccountDirectory : IAccountDirectory
         }
 
         // The selectors are delegates run after the read, not translated, so they are braced.
-        return await _dbContext.Accounts
-            .AsNoTracking()
+        return await OwnedByCaller(_dbContext.Accounts.AsNoTracking())
             .Where(account => visible.Contains(account.Id))
             .ToDictionaryAsync(
                 account =>
@@ -183,9 +191,10 @@ public sealed class AccountDirectory : IAccountDirectory
         {
             AdministratorCaller => accounts,
             CustomerCaller customer => accounts.Where(account => account.Id == customer.AccountId),
+            ResellerCaller reseller => WhereOwnedBy(accounts, reseller.ResellerId),
             AnonymousCaller => accounts.Where(account => false),
             AccountlessCustomerCaller => accounts.Where(account => false),
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
         };
 
         // Not capped and not ordered: the caller filters its own rows by the whole set (see the
@@ -196,21 +205,51 @@ public sealed class AccountDirectory : IAccountDirectory
     }
 
     /// <summary>
-    /// Whether the caller may see the account <paramref name="accountId"/>: an administrator any
-    /// account, a customer only the one their own token names, and nobody else (an anonymous caller,
-    /// a customer login acting for no account) none.
+    /// Whether the caller MAY see the account <paramref name="accountId"/>, before the row is read: an
+    /// administrator any account, a customer only the one their own token names, a reseller any id (the
+    /// owner comparison is made in the query, where the account's owner is known), and nobody else (an
+    /// anonymous caller, a customer login acting for no account) none.
     /// </summary>
     /// <param name="accountId">The account asked about.</param>
-    /// <returns>True when the caller's tenant scope includes the account.</returns>
+    /// <returns>True when the caller's tenant scope may include the account.</returns>
     private bool Sees(Guid accountId)
     {
         return _currentUser.Caller switch
         {
             AdministratorCaller => true,
             CustomerCaller customer => customer.AccountId == accountId,
+            ResellerCaller => true,
             AnonymousCaller => false,
             AccountlessCustomerCaller => false,
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
         };
+    }
+
+    /// <summary>
+    /// Narrows a set of accounts to the ones a reseller owns when the caller is one, and leaves it
+    /// whole for every other case, whose scope <see cref="Sees"/> has already decided.
+    /// </summary>
+    /// <param name="accounts">The accounts to narrow.</param>
+    /// <returns>The accounts the caller's owner scope admits.</returns>
+    private IQueryable<Account> OwnedByCaller(IQueryable<Account> accounts)
+    {
+        return _currentUser.Caller switch
+        {
+            ResellerCaller reseller => WhereOwnedBy(accounts, reseller.ResellerId),
+            AdministratorCaller => accounts,
+            CustomerCaller => accounts,
+            AnonymousCaller => accounts,
+            AccountlessCustomerCaller => accounts,
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+        };
+    }
+
+    /// <summary>Restricts accounts to those owned by one reseller; the id is a captured parameter, never inlined.</summary>
+    /// <param name="accounts">The accounts to restrict.</param>
+    /// <param name="resellerId">The owning reseller.</param>
+    /// <returns>The accounts whose owner is <paramref name="resellerId"/>.</returns>
+    private static IQueryable<Account> WhereOwnedBy(IQueryable<Account> accounts, Guid resellerId)
+    {
+        return accounts.Where(account => account.ResellerId == resellerId);
     }
 }

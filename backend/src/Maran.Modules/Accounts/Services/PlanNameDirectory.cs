@@ -18,6 +18,14 @@ namespace Maran.Modules.Accounts.Services;
 /// <see cref="PlanMapper.DisplayNameOf"/> shows in the request's language.
 /// </para>
 /// <para>
+/// <b>Within one owner.</b> A reseller's plans and the administrator's are never offered to the same
+/// buyer, so "Gold" may be both a reseller's plan and the administrator's: the name is compared only
+/// against the plans the same owner holds. The database still holds the global unique index on the
+/// stored name for one more release, and a clash it refuses is answered with the same
+/// <c>PlanNameTaken</c> by the handlers that catch the violation; that residual — a reseller learning
+/// that another owner holds an exact name — is stated in the reseller threat note.
+/// </para>
+/// <para>
 /// <b>Without regard to case</b>, because "Gold" and "gold" are the same word to the customer choosing
 /// between them. The database's unique index is exact-match and is the backstop, not the rule.
 /// </para>
@@ -49,17 +57,31 @@ public sealed class PlanNameDirectory
         _displayNames = displayNames;
     }
 
-    /// <summary>Reports whether <paramref name="name"/> already belongs to a plan other than the one named.</summary>
+    /// <summary>
+    /// Reports whether <paramref name="name"/> already belongs to a plan of the same owner other than
+    /// the one named.
+    /// </summary>
     /// <param name="name">The name being claimed, already trimmed.</param>
+    /// <param name="ownerResellerId">
+    /// The reseller that owns the plan claiming the name, or <c>null</c> for the administrator's own
+    /// plans; only plans of that owner are compared.
+    /// </param>
     /// <param name="exceptPlanId">
     /// The plan that is claiming it, which may of course keep its own name; <c>null</c> for a plan that
     /// does not exist yet.
     /// </param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns><c>true</c> when another plan already reads as <paramref name="name"/>.</returns>
-    public async Task<bool> IsTakenAsync(string name, Guid? exceptPlanId, CancellationToken cancellationToken)
+    public async Task<bool> IsTakenAsync(
+        string name,
+        Guid? ownerResellerId,
+        Guid? exceptPlanId,
+        CancellationToken cancellationToken)
     {
-        var plans = await _dbContext.Plans.AsNoTracking().ToListAsync(cancellationToken);
+        var plans = await _dbContext.Plans
+            .AsNoTracking()
+            .Where(plan => plan.ResellerId == ownerResellerId)
+            .ToListAsync(cancellationToken);
 
         return plans.Any(plan =>
         {
