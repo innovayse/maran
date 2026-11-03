@@ -38,6 +38,12 @@ public sealed class ReactivateAccountCommandHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Refuses a write by a suspended reseller.</summary>
+    private readonly ResellerScope _scope;
+
+    /// <summary>Names the owning reseller in the answer.</summary>
+    private readonly ResellerNameDirectory _resellerNames;
+
     /// <summary>The agent, which owns everything outside the database.</summary>
     private readonly IAgentAccountsClient _agent;
 
@@ -61,6 +67,8 @@ public sealed class ReactivateAccountCommandHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="scope">Refuses a write by a suspended reseller.</param>
+    /// <param name="resellerNames">Names the owning reseller in the answer.</param>
     /// <param name="agent">The agent client that performs the privileged half and answers the attestation.</param>
     /// <param name="bus">The bus <see cref="AccountResuming"/> is invoked on.</param>
     /// <param name="logger">Where a subscriber's refusal and an unobserved resumption are recorded.</param>
@@ -70,6 +78,8 @@ public sealed class ReactivateAccountCommandHandler
     /// <param name="displayNames">Names the account's state in the response, in the request's culture.</param>
     public ReactivateAccountCommandHandler(
         AccountsDbContext dbContext,
+        ResellerScope scope,
+        ResellerNameDirectory resellerNames,
         IAgentAccountsClient agent,
         IMessageBus bus,
         ILogger<ReactivateAccountCommandHandler> logger,
@@ -79,6 +89,8 @@ public sealed class ReactivateAccountCommandHandler
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _scope = scope;
+        _resellerNames = resellerNames;
         _agent = agent;
         _bus = bus;
         _logger = logger;
@@ -140,11 +152,20 @@ public sealed class ReactivateAccountCommandHandler
     /// </remarks>
     /// <param name="command">Which account to reactivate.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>The account in its new state, or a typed failure.</returns>
+    /// <returns>
+    /// The account in its new state, <c>ResellerSuspended</c> when the caller is a suspended reseller,
+    /// or a typed failure. An account another reseller owns is <c>AccountNotFound</c>.
+    /// </returns>
     public async Task<Result<AccountDto>> HandleAsync(
         ReactivateAccountCommand command,
         CancellationToken cancellationToken)
     {
+        var inactive = await _scope.RequireActiveAsync(cancellationToken);
+        if (inactive is not null)
+        {
+            return await FailAsync(command, command.AccountId.ToString(), inactive, Guid.Empty, cancellationToken);
+        }
+
         var account = await _dbContext.Accounts.SingleOrDefaultAsync(a => a.Id == command.AccountId, cancellationToken);
         if (account is null)
         {
@@ -224,14 +245,11 @@ public sealed class ReactivateAccountCommandHandler
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
-        return Result<AccountDto>.Ok(new AccountDto(
-            account.Id,
-            account.Name,
-            account.PrimaryDomain,
-            account.PlanId,
-            account.Status,
-            AccountStatusMapper.NameOf(account.Status, _displayNames),
-            account.CreatedAt));
+        return Result<AccountDto>.Ok(
+            AccountMapper.ToDto(
+                account,
+                _displayNames,
+                await _resellerNames.NameOfAsync(account.ResellerId, cancellationToken)));
     }
 
     /// <summary>Journals a refused reactivate and returns it as the typed failure.</summary>

@@ -27,6 +27,14 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// no home directory and no quota behind it — is a customer who has been sold something that does
 /// not exist, and every later operation on it fails.
 ///
+/// <b>A reseller's account is admitted before anything is provisioned.</b> The owner is decided
+/// first (<see cref="ResellerScope.ResolveOwner"/>), the plan must be that owner's own, and the
+/// owner's envelope must have a free account slot and room in its disk pool
+/// (<see cref="ResellerAllocationGuard"/>). The admission also claims the reseller's row, and the
+/// claim is only decided at the save: a second creation admitted against the same slot loses it
+/// there, and the system user the agent already made for it is removed again, exactly as when the
+/// runtime ceilings are refused.
+///
 /// The quota travels with the creation call rather than as a second round trip: the plan's
 /// <see cref="Plan.DiskQuotaMb"/> is part of what the account IS, and an account that briefly
 /// exists without one is an account that briefly has the whole disk.
@@ -58,6 +66,18 @@ public sealed class CreateAccountCommandHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Says who owns what the caller creates, and whether a suspended reseller may still write.</summary>
+    private readonly ResellerScope _scope;
+
+    /// <summary>Holds the account to the owner's envelope and claims the owner's row.</summary>
+    private readonly ResellerAllocationGuard _allocation;
+
+    /// <summary>Answers, across every tenant, whether a name or a domain is already claimed.</summary>
+    private readonly AccountNamespaceClaims _claims;
+
+    /// <summary>Names the owning reseller in the answer.</summary>
+    private readonly ResellerNameDirectory _resellerNames;
+
     /// <summary>The agent, which owns everything about the account that lives on the host.</summary>
     private readonly IAgentAccountsClient _agent;
 
@@ -81,6 +101,10 @@ public sealed class CreateAccountCommandHandler
 
     /// <summary>Creates the handler with the module's own database context, the agent, the clock and the bus.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="scope">Says who owns what the caller creates, and whether a suspended reseller may still write.</param>
+    /// <param name="allocation">Holds the account to the owner's envelope and claims the owner's row.</param>
+    /// <param name="claims">Answers, across every tenant, whether a name or a domain is already claimed.</param>
+    /// <param name="resellerNames">Names the owning reseller in the answer.</param>
     /// <param name="agent">The agent client that provisions the system user.</param>
     /// <param name="runtimeLimits">Puts the plan's runtime ceilings on the new account's slice.</param>
     /// <param name="clock">The injected time source used to stamp the new account's creation time.</param>
@@ -90,6 +114,10 @@ public sealed class CreateAccountCommandHandler
     /// <param name="displayNames">Names the account's state in the response, in the request's culture.</param>
     public CreateAccountCommandHandler(
         AccountsDbContext dbContext,
+        ResellerScope scope,
+        ResellerAllocationGuard allocation,
+        AccountNamespaceClaims claims,
+        ResellerNameDirectory resellerNames,
         IAgentAccountsClient agent,
         AccountRuntimeLimitsEnforcer runtimeLimits,
         IClock clock,
@@ -99,6 +127,10 @@ public sealed class CreateAccountCommandHandler
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _scope = scope;
+        _allocation = allocation;
+        _claims = claims;
+        _resellerNames = resellerNames;
         _agent = agent;
         _runtimeLimits = runtimeLimits;
         _clock = clock;
@@ -115,6 +147,8 @@ public sealed class CreateAccountCommandHandler
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>
     /// The created account, <c>AccountNameTaken</c>/<c>AccountDomainTaken</c>/<c>PlanNotFound</c>,
+    /// <c>ResellerSuspended</c>, <c>ResellerNotFound</c>, <c>PlanOwnerMismatch</c>,
+    /// <c>ResellerAccountLimitReached</c> or <c>ResellerDiskPoolExceeded</c> for a reseller's account,
     /// the agent's own typed failure when the system user could not be provisioned, or
     /// <c>AccountLoginIssuanceFailed</c> when the account was created but its owner's login was not
     /// — see the remarks on the invocation below for why creating the account again is not the
@@ -122,18 +156,26 @@ public sealed class CreateAccountCommandHandler
     /// </returns>
     public async Task<Result<AccountDto>> HandleAsync(CreateAccountCommand command, CancellationToken cancellationToken)
     {
-        var nameTaken = await _dbContext.Accounts
-            .AsNoTracking()
-            .AnyAsync(a => a.Name == command.Name, cancellationToken);
-        if (nameTaken)
+        var inactive = await _scope.RequireActiveAsync(cancellationToken);
+        if (inactive is not null)
+        {
+            return await FailAsync(command, inactive, cancellationToken);
+        }
+
+        var owner = _scope.ResolveOwner(command.ResellerId);
+        if (!owner.IsSuccess)
+        {
+            return await FailAsync(command, owner.Error!, cancellationToken);
+        }
+
+        var ownerId = owner.Value;
+
+        if (await _claims.IsNameTakenAsync(command.Name, cancellationToken))
         {
             return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountNameTaken), ErrorType.Conflict), cancellationToken);
         }
 
-        var domainTaken = await _dbContext.Accounts
-            .AsNoTracking()
-            .AnyAsync(a => a.PrimaryDomain == command.PrimaryDomain, cancellationToken);
-        if (domainTaken)
+        if (await _claims.IsDomainTakenAsync(command.PrimaryDomain, cancellationToken))
         {
             return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountDomainTaken), ErrorType.Conflict), cancellationToken);
         }
@@ -144,6 +186,13 @@ public sealed class CreateAccountCommandHandler
         if (plan is null)
         {
             return await FailAsync(command, Error.Of(nameof(ErrorMessages.PlanNotFound), ErrorType.NotFound), cancellationToken);
+        }
+
+        var refusal = await _allocation.AdmitAccountAsync(ownerId, plan, cancellationToken)
+            ?? _allocation.RequirePlanOwnedBy(ownerId, plan);
+        if (refusal is not null)
+        {
+            return await FailAsync(command, refusal.Error, cancellationToken);
         }
 
         var provisioned = await _agent.CreateAsync(command.Name, QuotaBytes(plan), cancellationToken);
@@ -159,11 +208,7 @@ public sealed class CreateAccountCommandHandler
         var ceilingFailure = await _runtimeLimits.ApplyAsync([command.Name], plan.RuntimeLimits, cancellationToken);
         if (ceilingFailure is not null)
         {
-            var undone = await _agent.DeleteAsync(command.Name, cancellationToken);
-            if (!undone.IsSuccess)
-            {
-                LogRollbackFailed(_logger, command.Name, undone.Error!.Code, null);
-            }
+            await RemoveSystemUserAsync(command.Name, cancellationToken);
 
             return await FailAsync(command, ceilingFailure, cancellationToken);
         }
@@ -175,10 +220,26 @@ public sealed class CreateAccountCommandHandler
             command.PlanId,
             _clock.UtcNow,
             command.OwnerEmail,
-            command.OwnerLanguage);
+            command.OwnerLanguage,
+            ownerId);
 
         _dbContext.Accounts.Add(account);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The owner's row was claimed by another write between the admission above and this save:
+            // the slot the admission counted is gone. The system user made for it is removed again,
+            // and the refusal is the one the admission would have given had this creation run second.
+            await RemoveSystemUserAsync(command.Name, cancellationToken);
+
+            return await FailAsync(
+                command,
+                Error.Of(nameof(ErrorMessages.ResellerAccountLimitReached), ErrorType.Conflict),
+                cancellationToken);
+        }
 
         await _journal.RecordSuccessAsync(
             AccountAuditActions.AccountCreated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
@@ -208,14 +269,26 @@ public sealed class CreateAccountCommandHandler
         }
 
         return Result<AccountDto>.Ok(
-            new AccountDto(
-                account.Id,
-                account.Name,
-                account.PrimaryDomain,
-                account.PlanId,
-                account.Status,
-                AccountStatusMapper.NameOf(account.Status, _displayNames),
-                account.CreatedAt));
+            AccountMapper.ToDto(
+                account,
+                _displayNames,
+                await _resellerNames.NameOfAsync(account.ResellerId, cancellationToken)));
+    }
+
+    /// <summary>
+    /// Removes the system user the agent made for an account whose row could not be written, so its
+    /// name is not blocked for good (the agent never adopts an existing user). A removal that fails is
+    /// logged for the operator, who must then remove the user by hand.
+    /// </summary>
+    /// <param name="name">The account's name, which is the system user's.</param>
+    /// <param name="cancellationToken">Cancels the removal.</param>
+    private async Task RemoveSystemUserAsync(string name, CancellationToken cancellationToken)
+    {
+        var undone = await _agent.DeleteAsync(name, cancellationToken);
+        if (!undone.IsSuccess)
+        {
+            LogRollbackFailed(_logger, name, undone.Error!.Code, null);
+        }
     }
 
     /// <summary>Journals a refused creation and returns it as the typed failure.</summary>

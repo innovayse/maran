@@ -45,6 +45,12 @@ public sealed class SuspendAccountCommandHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Refuses a write by a suspended reseller.</summary>
+    private readonly ResellerScope _scope;
+
+    /// <summary>Names the owning reseller in the answer.</summary>
+    private readonly ResellerNameDirectory _resellerNames;
+
     /// <summary>The agent, which owns everything outside the database.</summary>
     private readonly IAgentAccountsClient _agent;
 
@@ -68,6 +74,8 @@ public sealed class SuspendAccountCommandHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="scope">Refuses a write by a suspended reseller.</param>
+    /// <param name="resellerNames">Names the owning reseller in the answer.</param>
     /// <param name="agent">The agent client that performs the privileged half and answers the attestation.</param>
     /// <param name="bus">The bus <see cref="AccountSuspending"/> is invoked on.</param>
     /// <param name="logger">Where a subscriber's refusal and an unobserved suspension are recorded.</param>
@@ -77,6 +85,8 @@ public sealed class SuspendAccountCommandHandler
     /// <param name="displayNames">Names the account's state in the response, in the request's culture.</param>
     public SuspendAccountCommandHandler(
         AccountsDbContext dbContext,
+        ResellerScope scope,
+        ResellerNameDirectory resellerNames,
         IAgentAccountsClient agent,
         IMessageBus bus,
         ILogger<SuspendAccountCommandHandler> logger,
@@ -86,6 +96,8 @@ public sealed class SuspendAccountCommandHandler
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _scope = scope;
+        _resellerNames = resellerNames;
         _agent = agent;
         _bus = bus;
         _logger = logger;
@@ -177,9 +189,18 @@ public sealed class SuspendAccountCommandHandler
     /// </remarks>
     /// <param name="command">Which account to suspend.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>The account in its new state, or a typed failure.</returns>
+    /// <returns>
+    /// The account in its new state, <c>ResellerSuspended</c> when the caller is a suspended reseller,
+    /// or a typed failure. An account another reseller owns is <c>AccountNotFound</c>.
+    /// </returns>
     public async Task<Result<AccountDto>> HandleAsync(SuspendAccountCommand command, CancellationToken cancellationToken)
     {
+        var inactive = await _scope.RequireActiveAsync(cancellationToken);
+        if (inactive is not null)
+        {
+            return await FailAsync(command, command.AccountId.ToString(), inactive, Guid.Empty, cancellationToken);
+        }
+
         var account = await _dbContext.Accounts.SingleOrDefaultAsync(a => a.Id == command.AccountId, cancellationToken);
         if (account is null)
         {
@@ -278,14 +299,11 @@ public sealed class SuspendAccountCommandHandler
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
-        return Result<AccountDto>.Ok(new AccountDto(
-            account.Id,
-            account.Name,
-            account.PrimaryDomain,
-            account.PlanId,
-            account.Status,
-            AccountStatusMapper.NameOf(account.Status, _displayNames),
-            account.CreatedAt));
+        return Result<AccountDto>.Ok(
+            AccountMapper.ToDto(
+                account,
+                _displayNames,
+                await _resellerNames.NameOfAsync(account.ResellerId, cancellationToken)));
     }
 
     /// <summary>Journals a refused suspend and returns it as the typed failure.</summary>

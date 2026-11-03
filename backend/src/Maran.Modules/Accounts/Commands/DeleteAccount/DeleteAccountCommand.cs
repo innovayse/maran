@@ -9,11 +9,11 @@ namespace Maran.Modules.Accounts.Commands.DeleteAccount;
 /// the default is the safe one: a deletion that took no copy is the one thing about this operation
 /// that cannot be undone at all.
 ///
-/// There is no check in the handler that the caller may set it, and that is deliberate rather than
-/// an omission — the only construction site is <c>AccountsController</c>, whose every route is
-/// behind <c>AuthorizationPolicies.AdminOnly</c> at class level. A structural guarantee beats a
-/// remembered one, and adding a second check inside the handler would suggest there is some other
-/// route in.
+/// Only an administrator may set it, and the handler enforces that from the caller's own token: a
+/// reseller shares the controller that constructs this command (<c>AccountsController</c> is open to
+/// both), so the controller's policy alone no longer says who is asking, and a reseller who sets it is
+/// refused <c>AccountFinalBackupSkipForbidden</c> before anything is looked up. A customer reaches no
+/// route that builds this command at all.
 /// </param>
 public sealed record DeleteAccountCommand(
     Guid AccountId,

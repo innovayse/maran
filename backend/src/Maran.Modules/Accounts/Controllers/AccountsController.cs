@@ -23,12 +23,19 @@ namespace Maran.Modules.Accounts.Controllers;
 /// fixed"): binds the request, dispatches through Wolverine, translates the <see cref="Result{T}"/>.
 /// No business logic, no data access.
 ///
-/// Administrators only. Managing the hosting accounts on a server is a server-owner action
-/// (spec §8); a customer's own view of the account they own arrives with the accounts lifecycle,
-/// scoped by the caller's own token rather than by a parameter.
+/// Administrators and resellers. Managing the hosting accounts on a server is a server-owner action
+/// (spec §8), and a reseller is the server owner's delegate over the accounts it owns: the policy
+/// admits both roles and WHICH accounts a caller sees is decided below the controller, by the
+/// context's query filter, so another reseller's account answers 404 exactly as one that does not
+/// exist. A customer's own view of the account they own is <see cref="MyAccountController"/>, scoped by
+/// the caller's own token rather than by a parameter.
+///
+/// Every action declares what a view-as token may do here, because an operator viewing as a reseller
+/// holds the reseller role and reaches it: reads are allowed, and everything that changes an account is
+/// refused while looking.
 /// </summary>
 [Route("api/v1/accounts")]
-[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+[Authorize(Policy = AuthorizationPolicies.AdminOrReseller)]
 [Tags("Accounts")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
@@ -47,9 +54,12 @@ public sealed class AccountsController : BaseApiController
     }
 
     /// <summary>Lists one page of hosting accounts, searched, filtered and sorted.</summary>
-    /// <param name="query">Paging, search, sort and the plan and status filters, bound from the query string.</param>
+    /// <param name="query">
+    /// Paging, search, sort and the plan, status and owning-reseller filters, bound from the query string.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<AccountDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAllAsync([FromQuery] ListAccountsQuery query, CancellationToken cancellationToken)
@@ -65,6 +75,7 @@ public sealed class AccountsController : BaseApiController
     /// <param name="query">Paging, search and sort, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("choices")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<AccountChoiceDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetChoicesAsync(
@@ -81,6 +92,7 @@ public sealed class AccountsController : BaseApiController
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("owner-languages")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(IReadOnlyList<OwnerLanguageDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetOwnerLanguagesAsync(CancellationToken cancellationToken)
     {
@@ -93,6 +105,7 @@ public sealed class AccountsController : BaseApiController
     /// <param name="id">The account to read.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(AccountDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken)
@@ -108,6 +121,7 @@ public sealed class AccountsController : BaseApiController
     /// <param name="id">The account to summarise.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("{id:guid}/resource-summary")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(AccountResourceSummaryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -128,6 +142,7 @@ public sealed class AccountsController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -147,8 +162,10 @@ public sealed class AccountsController : BaseApiController
     /// <param name="id">The account to suspend.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/suspend")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> SuspendAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new SuspendAccountCommand(id, ClientIpAddress, CallerUserAgent);
@@ -160,8 +177,10 @@ public sealed class AccountsController : BaseApiController
     /// <param name="id">The account to reactivate.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/reactivate")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> ReactivateAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new ReactivateAccountCommand(id, ClientIpAddress, CallerUserAgent);
@@ -177,6 +196,7 @@ public sealed class AccountsController : BaseApiController
     /// <param name="command">The plan to move it to. Its account id, address and agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut("{id:guid}/plan")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -199,6 +219,7 @@ public sealed class AccountsController : BaseApiController
     /// <param name="command">The new address. Its account id, address and agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut("{id:guid}/owner-email")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -219,10 +240,10 @@ public sealed class AccountsController : BaseApiController
     /// </summary>
     /// <param name="id">The account to remove.</param>
     /// <param name="skipFinalBackup">
-    /// Deletes WITHOUT taking that final backup. Off unless asked for, and the whole of what makes
-    /// it safe is that this controller is <c>AdminOnly</c> at class level, so a customer has no
-    /// route to this parameter at all — the guarantee is the policy, not a check in the handler.
-    /// It exists because the alternative to a refusal on a failed backup is an undeletable account:
+    /// Deletes WITHOUT taking that final backup. Off unless asked for, and only an administrator may ask:
+    /// this controller admits resellers too, so the refusal is made by the handler from the caller's own
+    /// token (<c>AccountFinalBackupSkipForbidden</c>, 403) and not by the policy; a customer has no route
+    /// to this parameter at all. It exists because the alternative to a refusal on a failed backup is an undeletable account:
     /// an operator whose customer's data is already gone, or already copied, has to be able to say
     /// so. Whoever sets it is named in the audit journal.
     /// </param>
@@ -233,8 +254,11 @@ public sealed class AccountsController : BaseApiController
     /// same one. It is not a 500 and it is not a partial deletion.
     /// </remarks>
     [HttpDelete("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(ulong), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteAsync(
         Guid id,
