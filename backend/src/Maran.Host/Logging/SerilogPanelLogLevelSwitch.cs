@@ -14,17 +14,27 @@ namespace Maran.Host.Logging;
 /// written, with no restart and no rebuild of the logger. The two enums map one to one in both
 /// directions — <see cref="PanelLogLevel"/> was given six members for exactly that — so
 /// <see cref="Current"/> never has to round a level it cannot name.
+/// <para>
+/// The level is the panel's own. Every change also moves the pinned third-party namespaces, which
+/// never become more verbose than their floor (<see cref="ThirdPartyLogPins"/>, issue #337).
+/// </para>
 /// </remarks>
 public sealed class SerilogPanelLogLevelSwitch : IPanelLogLevelSwitch
 {
     /// <summary>The switch the host's logger was built with.</summary>
     private readonly LoggingLevelSwitch _levelSwitch;
 
+    /// <summary>The switches holding the pinned third-party namespaces.</summary>
+    private readonly ThirdPartyLogSwitches _thirdParty;
+
     /// <summary>Creates the window over the logger's switch.</summary>
     /// <param name="levelSwitch">The switch passed to <c>MinimumLevel.ControlledBy</c>.</param>
-    public SerilogPanelLogLevelSwitch(LoggingLevelSwitch levelSwitch)
+    /// <param name="thirdParty">The pinned namespaces' switches, applied to the same logger.</param>
+    public SerilogPanelLogLevelSwitch(LoggingLevelSwitch levelSwitch, ThirdPartyLogSwitches thirdParty)
     {
         _levelSwitch = levelSwitch;
+        _thirdParty = thirdParty;
+        _thirdParty.Follow(levelSwitch.MinimumLevel);
     }
 
     /// <inheritdoc />
@@ -39,7 +49,9 @@ public sealed class SerilogPanelLogLevelSwitch : IPanelLogLevelSwitch
     /// <inheritdoc />
     public void Apply(PanelLogLevel level)
     {
-        _levelSwitch.MinimumLevel = ToSerilogLevel(level);
+        var serilogLevel = ToSerilogLevel(level);
+        _levelSwitch.MinimumLevel = serilogLevel;
+        _thirdParty.Follow(serilogLevel);
     }
 
     /// <summary>Translates the logger's level into the panel's name for it.</summary>
