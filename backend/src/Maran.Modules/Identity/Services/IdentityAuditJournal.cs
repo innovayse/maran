@@ -87,7 +87,7 @@ public sealed class IdentityAuditJournal
     /// The name the caller supplied — a login name, or the address typed into "forgot password".
     /// It is the subject too: what a sign-in acts on is the account it names. Never a secret.
     /// </param>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
     /// <param name="succeeded">Whether it took effect. A refused sign-in is the entry worth reading.</param>
@@ -115,7 +115,7 @@ public sealed class IdentityAuditJournal
 
     /// <summary>Records an operation the panel performed for a user it had already identified.</summary>
     /// <param name="actorUserId">The user, established by the handler from a session or a token.</param>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">
     /// What was acted on — a session id, the user's own id. Never a token and never its digest.
     /// </param>
@@ -149,7 +149,7 @@ public sealed class IdentityAuditJournal
     }
 
     /// <summary>Records a refused attempt whose caller neither proved nor claimed an identity.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">What was acted on, where anything is known; otherwise empty.</param>
     /// <param name="ipAddress">The caller's address — the one thing such an entry does carry.</param>
     /// <param name="userAgent">The caller's user agent.</param>
@@ -209,7 +209,7 @@ public sealed class IdentityAuditJournal
         await WriteAsync(
             null,
             SystemAuditEntry.NameFor(ModuleName),
-            AuditActions.ConsoleRecovery,
+            IdentityAuditActions.ConsoleRecovery,
             subject,
             ConsoleOrigin,
             OperatorClaimPrefix + operatorClaim,
@@ -220,7 +220,7 @@ public sealed class IdentityAuditJournal
     /// <summary>Records the start or the end of a view-as session, or a refused start (issue #317).</summary>
     /// <param name="operatorUserId">The operator, verified from their own token or from the view-as session row.</param>
     /// <param name="operatorUsername">The operator's login name, read by the handler from the user row.</param>
-    /// <param name="action"><see cref="AuditActions.ViewAsStarted"/> or <see cref="AuditActions.ViewAsEnded"/>.</param>
+    /// <param name="action"><see cref="IdentityAuditActions.ViewAsStarted"/> or <see cref="IdentityAuditActions.ViewAsEnded"/>.</param>
     /// <param name="subject">
     /// The viewed identity: the account and the login, or for a refused start the account id that was
     /// asked for. Never a token.

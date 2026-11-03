@@ -21,6 +21,7 @@ const FAILED_CERTIFICATE: PanelTask = {
   subject: 'shop.example.com',
   correlationId: 'c0rr-cert',
   status: 'failed',
+  statusName: 'Failed',
   percent: 20,
   log: 'registering the account\n',
   logIncluded: true,

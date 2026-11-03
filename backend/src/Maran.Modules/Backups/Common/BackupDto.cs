@@ -35,7 +35,9 @@ namespace Maran.Modules.Backups.Common;
 /// has held this value since the migration that added it; it simply never reached the wire.
 /// </param>
 /// <param name="Status">How far the run got, and therefore whether a restore may read it.</param>
+/// <param name="StatusName">The status as an operator reads it, localized for the request's culture by <c>BackupDisplayNames</c>.</param>
 /// <param name="Kind">Why the backup was taken.</param>
+/// <param name="KindName">The reason as an operator reads it, localized for the request's culture by <c>BackupDisplayNames</c>.</param>
 /// <param name="SizeBytes">The artifact's size, or zero when there is no artifact.</param>
 /// <param name="Sha256">The artifact's digest, hex and lowercase, or <c>null</c> when there is no artifact.</param>
 /// <param name="DatabaseCount">How many database dumps the archive contains.</param>
@@ -56,7 +58,9 @@ public sealed record BackupDto(
     string OwnerName,
     string? OrphanedAccountUsername,
     BackupStatus Status,
+    string StatusName,
     BackupKind Kind,
+    string KindName,
     long SizeBytes,
     string? Sha256,
     int DatabaseCount,

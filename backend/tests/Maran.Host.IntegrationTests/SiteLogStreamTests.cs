@@ -299,8 +299,8 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
 
     /// <summary>The stream budget belongs to the account and is not multiplied by its panel sessions.</summary>
     /// <remarks>
-    /// Two sessions rather than two logins: <c>UX_Users_AccountId</c> now guarantees at most one
-    /// login per hosting account (see <c>AccountCreatedHandler</c>), so "five staff accounts" is no
+    /// Two sessions rather than two logins: <c>UX_AccountMemberships_AccountId_Owner</c> guarantees at most one
+    /// owner login per hosting account (see <c>AccountCreatedHandler</c>), so "five staff accounts" is no
     /// longer a shape the domain allows. The scenario the budget actually has to survive is still
     /// real — the same customer open in two browser tabs, each with its own access token — which is
     /// exactly what two independent sign-ins of the one login produce.
@@ -587,7 +587,7 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         IAgentSitesClient agent,
         params (string Key, string Value)[] settings)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
@@ -652,7 +652,6 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
             Guid.NewGuid(), "admin", "admin@example.com", hasher.Hash(Password), UserRole.Admin, now));
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        customer.AssignAccount(own.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, own.Id, now));
         identity.Users.Add(customer);
 
@@ -660,7 +659,6 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         // accounts are two budgets and not one shared between everyone on this address.
         var neighbour = new User(
             Guid.NewGuid(), "neighbour", "neighbour@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        neighbour.AssignAccount(stranger.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), neighbour.Id, stranger.Id, now));
         identity.Users.Add(neighbour);
         await identity.SaveChangesAsync();

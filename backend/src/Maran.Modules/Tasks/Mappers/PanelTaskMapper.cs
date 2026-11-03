@@ -18,6 +18,10 @@ public static class PanelTaskMapper
     /// <c>TaskKindDisplayNames</c>. Passed in rather than looked up here because a mapper translates
     /// and never decides (rules/csharp.md), and a resource lookup is a decision about culture.
     /// </param>
+    /// <param name="statusName">
+    /// The row's status as an operator reads it, already resolved for the request's culture by
+    /// <c>TaskStatusDisplayNames</c>. Passed in for the same reason as the kind's name.
+    /// </param>
     /// <param name="failure">
     /// Why the row failed, already described for the request's culture by <c>TaskFailureMessages</c>,
     /// or <c>null</c> while it has not failed. Passed in for the same reason as the kind's name.
@@ -31,7 +35,7 @@ public static class PanelTaskMapper
     /// reader.
     /// </param>
     /// <returns>The task as a screen sees it.</returns>
-    public static PanelTaskDto From(PanelTask task, string kindDisplayName, TaskFailureDto? failure, bool includeLog)
+    public static PanelTaskDto From(PanelTask task, string kindDisplayName, string statusName, TaskFailureDto? failure, bool includeLog)
     {
         ArgumentNullException.ThrowIfNull(task);
 
@@ -42,6 +46,7 @@ public static class PanelTaskMapper
             task.Subject,
             task.CorrelationId,
             task.Status,
+            statusName,
             task.Percent,
             includeLog ? task.Log : string.Empty,
             includeLog,

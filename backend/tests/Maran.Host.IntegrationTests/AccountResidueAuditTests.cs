@@ -135,13 +135,17 @@ public sealed class AccountResidueAuditTests : IAsyncLifetime
         {
             var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
             var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
-            identity.Users.Add(User.Invite(Guid.NewGuid(), "residue-owner", "residue-owner@example.com", accountId, now));
+            var owner = User.Invite(Guid.NewGuid(), "residue-owner", "residue-owner@example.com", now);
+            identity.Users.Add(owner);
+            identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), owner.Id, accountId, now));
             await identity.SaveChangesAsync();
         }
 
         var residue = await AuditAsync(factory, accountId);
 
-        Assert.Contains(residue.Rows, row => { return row.StartsWith("User(", StringComparison.Ordinal); });
+        // A login carries no account of its own since #326: what ties it to the account, and so what
+        // the deletion would leave behind, is its membership.
+        Assert.Contains(residue.Rows, row => { return row.StartsWith("AccountMembership(", StringComparison.Ordinal); });
         Assert.Empty(residue.Unchecked);
     }
 
@@ -294,7 +298,7 @@ public sealed class AccountResidueAuditTests : IAsyncLifetime
     /// <returns>The factory, which the caller disposes.</returns>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

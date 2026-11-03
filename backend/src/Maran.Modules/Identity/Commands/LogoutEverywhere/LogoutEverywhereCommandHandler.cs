@@ -33,7 +33,7 @@ public sealed class LogoutEverywhereCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             command.UserId,
-            AuditActions.LoggedOutEverywhere,
+            IdentityAuditActions.LoggedOutEverywhere,
             command.UserId.ToString(),
             command.IpAddress,
             command.UserAgent,

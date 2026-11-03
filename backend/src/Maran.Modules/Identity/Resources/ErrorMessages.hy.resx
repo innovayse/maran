@@ -36,6 +36,9 @@
   <data name="AccountMembershipNotFound">
     <value>Հաշիվը չի գտնվել։</value>
   </data>
+  <data name="AccountMembershipSuspended">
+    <value>Այս հաշիվը կասեցված է, ուստի այն չի կարելի օգտագործել, մինչև վերագործարկվի։</value>
+  </data>
   <data name="CurrentPasswordIncorrect">
     <value>Ընթացիկ գաղտնաբառը սխալ է։</value>
   </data>
@@ -64,7 +67,13 @@
     <value>Երկգործոն վավերացումը միացված չէ։</value>
   </data>
   <data name="PasswordTooWeak">
-    <value>Ընտրեք առնվազն 12 նիշ գաղտնաբառ, որը տարբերվում է օգտանունից։</value>
+    <value>Ընտրեք առնվազն {1} նիշ գաղտնաբառ։</value>
+  </data>
+  <data name="PasswordTooLong">
+    <value>Այս գաղտնաբառը չափազանց երկար է։ Ընտրեք ավելի կարճ գաղտնաբառ։</value>
+  </data>
+  <data name="PasswordSameAsUsername">
+    <value>Ընտրեք օգտանունից տարբերվող գաղտնաբառ։</value>
   </data>
   <data name="UsernameInvalidFormat">
     <value>Օգտանունը կարող է պարունակել միայն տառեր, թվեր, կետեր, գծիկներ և ընդգծումներ։</value>
@@ -129,11 +138,8 @@
   <data name="SubUserNotFound">
     <value>Այդպիսի օգտատեր չկա։</value>
   </data>
-  <data name="SubUserLoginTaken">
-    <value>Մուտքի այդ անունն արդեն զբաղված է։ Ընտրեք մեկ ուրիշը։</value>
-  </data>
-  <data name="SubUserEmailTaken">
-    <value>Այդ էլ. փոստի հասցեով օգտատեր արդեն կա։ Նշեք այլ հասցե։</value>
+  <data name="SubUserLimitReached">
+    <value>Ձեր հաշվում արդեն կա թույլատրելի առավելագույն թվով ենթաօգտատեր։ Նոր հրավերից առաջ հեռացրեք մեկին։</value>
   </data>
   <data name="SubUserFeatureInvalid">
     <value>Ընտրեք հնարավորությունները վահանակի առաջարկած ցանկից։</value>

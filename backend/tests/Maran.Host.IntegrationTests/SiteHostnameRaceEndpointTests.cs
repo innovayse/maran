@@ -177,7 +177,7 @@ public sealed class SiteHostnameRaceEndpointTests : IAsyncLifetime
     /// <param name="agent">The agent double every site call reaches.</param>
     private WebApplicationFactory<Program> CreateFactory(BarrierSitesAgent agent)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
@@ -234,11 +234,9 @@ public sealed class SiteHostnameRaceEndpointTests : IAsyncLifetime
             Guid.NewGuid(), "admin", "admin@example.com", hasher.Hash(Password), UserRole.Admin, now));
         var first = new User(
             Guid.NewGuid(), "first", "first@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        first.AssignAccount(firstAccount.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), first.Id, firstAccount.Id, now));
         var second = new User(
             Guid.NewGuid(), "second", "second@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        second.AssignAccount(secondAccount.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), second.Id, secondAccount.Id, now));
         identity.Users.AddRange(first, second);
         await identity.SaveChangesAsync();

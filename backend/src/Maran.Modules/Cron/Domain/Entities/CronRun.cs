@@ -28,7 +28,8 @@ namespace Maran.Modules.Cron.Domain.Entities;
 /// keeps working; nothing in this release reads them. A later release drops them.
 /// </para>
 /// <para>
-/// The output is the customer's own text returned to its owner. It is never written to a log line or
+/// The output is stored without NUL characters (<see cref="CronRunOutputPolicy"/>), which a text column
+/// cannot hold. It is the customer's own text returned to its owner. It is never written to a log line or
 /// to the audit journal (<c>CronAuditJournal</c>).
 /// </para>
 /// </remarks>
@@ -139,8 +140,8 @@ public sealed class CronRun
         LegacyExitCode = EndExitCode;
         LegacyLimit = EndLimit;
         LegacyOutcome = CronRunOutcomePolicy.Of(end);
-        Stdout = stdout;
-        Stderr = stderr;
+        Stdout = CronRunOutputPolicy.Storable(stdout);
+        Stderr = CronRunOutputPolicy.Storable(stderr);
     }
 
     /// <summary>For EF Core materialisation only.</summary>

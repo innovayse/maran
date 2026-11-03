@@ -102,7 +102,7 @@ public sealed class DeleteSiteCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.SiteDeleted, domain, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SiteDeleted, domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Ok();
     }
@@ -152,7 +152,7 @@ public sealed class DeleteSiteCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SiteDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SiteDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Fail(error);
     }

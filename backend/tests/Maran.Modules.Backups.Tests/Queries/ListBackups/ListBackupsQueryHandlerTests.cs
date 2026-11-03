@@ -34,7 +34,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
         var result = await new ListBackupsQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -65,7 +68,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
         var result = await new ListBackupsQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.Equal(3, result.Value.Total);
@@ -96,7 +102,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(accountId), database);
         var result = await new ListBackupsQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.Equal([newest.Id, oldest.Id], result.Value.Items.Select(backup =>
@@ -111,7 +120,10 @@ public sealed class ListBackupsQueryHandlerTests
     {
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(Guid.NewGuid()));
         var result = await new ListBackupsQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -144,7 +156,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
         var result = await new ListBackupsQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         var listed = Assert.Single(result.Value.Items);
@@ -171,7 +186,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
         var result = await new ListBackupsQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         var listed = Assert.Single(result.Value.Items);
@@ -202,7 +220,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
         var result = await new ListBackupsQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(AccountId: theirs), CancellationToken.None);
 
         Assert.Equal([theirRow.Id], result.Value.Items.Select(backup =>
@@ -232,7 +253,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
         var result = await new ListBackupsQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(AccountId: theirs), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -268,7 +292,8 @@ public sealed class ListBackupsQueryHandlerTests
             new AccountSnapshot(live, "cust01", 1, 1, 1, 1, 1, 1024, AccountState.Active));
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
-        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames(), accounts)
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), BackupsTestContext.BackupNames(), accounts)
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -311,7 +336,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
         var handler = new ListBackupsQueryHandler(
-            context, BackupsTestContext.FailureNames(), new StubAccountDirectory());
+            context,
+            BackupsTestContext.FailureNames(),
+            BackupsTestContext.BackupNames(),
+            new StubAccountDirectory());
 
         var byStatus = await handler.HandleAsync(
             new ListBackupsQuery(Status: BackupStatus.Failed), CancellationToken.None);
@@ -346,7 +374,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
         var result = await new ListBackupsQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(
                 new ListBackupsQuery(From: row.StartedAt, To: row.StartedAt),
                 CancellationToken.None);
@@ -373,7 +404,10 @@ public sealed class ListBackupsQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
         var handler = new ListBackupsQueryHandler(
-            context, BackupsTestContext.FailureNames(), new StubAccountDirectory());
+            context,
+            BackupsTestContext.FailureNames(),
+            BackupsTestContext.BackupNames(),
+            new StubAccountDirectory());
 
         var bySize = await handler.HandleAsync(
             new ListBackupsQuery(Sort: SortRequest.Parse("-" + BackupSortFields.Size)), CancellationToken.None);

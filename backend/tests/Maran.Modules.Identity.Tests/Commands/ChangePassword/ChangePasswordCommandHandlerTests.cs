@@ -193,7 +193,7 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
         await NewHandler().HandleAsync(Command(OldPassword), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.PasswordChanged, entry.Action);
+        Assert.Equal(IdentityAuditActions.PasswordChanged, entry.Action);
         Assert.True(entry.Succeeded);
         Assert.Equal(_userId.ToString(), entry.Subject);
         Assert.Equal("203.0.113.7", entry.IpAddress);
@@ -212,7 +212,7 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
         await NewHandler().HandleAsync(Command("not the password"), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.PasswordChanged, entry.Action);
+        Assert.Equal(IdentityAuditActions.PasswordChanged, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.DoesNotContain("not the password", entry.Subject, StringComparison.Ordinal);
     }
@@ -226,5 +226,19 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
         var result = await NewHandler().HandleAsync(command, CancellationToken.None);
 
         Assert.Equal(ErrorType.NotFound, result.Error!.Type);
+    }
+
+    /// <summary>A new password equal to the caller's username is refused and nothing is changed.</summary>
+    [Fact]
+    public async Task A_new_password_equal_to_the_username_is_refused_and_changes_nothing()
+    {
+        var command = new ChangePasswordCommand(OldPassword, "admin", _userId, Guid.Empty, "203.0.113.7", "agent");
+
+        var result = await NewHandler().HandleAsync(command, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PasswordSameAsUsername", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        Assert.True(_hasher.Verify(OldPassword, (await ReloadUserAsync()).PasswordHash));
     }
 }

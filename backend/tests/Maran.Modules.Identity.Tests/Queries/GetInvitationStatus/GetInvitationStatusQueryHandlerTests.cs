@@ -2,8 +2,10 @@ using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Queries.GetInvitationStatus;
+using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.SharedKernel.Utilities.Tokens;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Identity.Tests.Queries.GetInvitationStatus;
 
@@ -36,7 +38,8 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
     /// <summary>Asks the handler about the account under test.</summary>
     private async Task<InvitationStatusDto> AskAsync()
     {
-        var handler = new GetInvitationStatusQueryHandler(_context, _clock, IdentityTestContext.DisplayNameResources());
+        var handler = new GetInvitationStatusQueryHandler(
+            _context, new AccountOwnerFinder(_context), _clock, IdentityTestContext.DisplayNameResources());
         var result = await handler.HandleAsync(new GetInvitationStatusQuery(AccountId), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -46,8 +49,9 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
     /// <summary>Stores an invited login for the account.</summary>
     private async Task<User> SeedInvitedLoginAsync()
     {
-        var user = User.Invite(Guid.NewGuid(), "owner-one", "owner@example.com", AccountId, Now);
+        var user = User.Invite(Guid.NewGuid(), "owner-one", "owner@example.com", Now);
         _context.Users.Add(user);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, AccountId, Now));
         await _context.SaveChangesAsync();
         return user;
     }
@@ -154,7 +158,7 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
         user.Activate("hash");
         if (suspended)
         {
-            user.Suspend();
+            (await _context.AccountMemberships.SingleAsync(candidate => candidate.UserId == user.Id)).Suspend();
         }
 
         await _context.SaveChangesAsync();
@@ -168,8 +172,9 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
     [Fact]
     public async Task Another_accounts_invitation_is_never_reported()
     {
-        var other = User.Invite(Guid.NewGuid(), "other-owner", "other@example.com", Guid.NewGuid(), Now);
+        var other = User.Invite(Guid.NewGuid(), "other-owner", "other@example.com", Now);
         _context.Users.Add(other);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), other.Id, Guid.NewGuid(), Now));
         await _context.SaveChangesAsync();
         await SeedTokenAsync(other, Now);
 

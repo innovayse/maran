@@ -70,7 +70,9 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/sites" },
             { "POST", "/api/v1/sites" },
             { "GET", "/api/v1/sites/limits" },
+            { "GET", "/api/v1/sites/choices" },
             { "GET", "/api/v1/sites/php-versions" },
+            { "GET", "/api/v1/sites/php-versions/installable" },
             { "POST", "/api/v1/sites/php-versions/install" },
             { "GET", "/api/v1/sites/{id}" },
             { "GET", "/api/v1/sites/{id}/logs" },
@@ -332,7 +334,7 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
     /// <summary>Boots the host against this class's PostgreSQL.</summary>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
@@ -390,7 +392,6 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
             Guid.NewGuid(), "admin", "admin@example.com", hasher.Hash(Password), UserRole.Admin, now));
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        customer.AssignAccount(own.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, own.Id, now));
         identity.Users.Add(customer);
         await identity.SaveChangesAsync();

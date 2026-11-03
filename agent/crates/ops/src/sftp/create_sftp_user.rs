@@ -9,7 +9,9 @@ use maran_templates::systemd::unit::MountUnit;
 use crate::accounts::take_account_lock;
 use crate::safe_write::model::{Reload, Validator};
 use crate::sftp::model::account_jail::AccountJail;
+use crate::sftp::model::login_key_file::LoginKeyFile;
 use crate::sftp::model::sftp_user_request::SftpUserRequest;
+use crate::sftp::remove_key_file::remove_key_file;
 use crate::sftp::set_sftp_password::write_password;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
@@ -205,6 +207,8 @@ pub(crate) fn create_sftp_user_under_lock(
         return Err(SftpError::AccountIdentityChanged);
     }
 
+    purge_stale_key_files(host, distro, request)?;
+
     // Formatted into owned strings that outlive the argv slice below. They are
     // numbers this process read out of the password database, never anything a
     // request carried, so there is nothing here for a caller to influence.
@@ -305,6 +309,42 @@ fn ensure_jail(
     };
 
     host.write_config(Path::new(jail.unit_path()), &contents, &validator, &reload)
+}
+
+/// Removes any key file already sitting at the names a login about to be
+/// created will read its keys from (issue #338).
+///
+/// A key file is addressed by the login's NAME, and the panel reuses names: a
+/// customer deletes `web` and creates `web` again. If the earlier login's file
+/// outlived it — a deletion interrupted between its steps, a file put there by
+/// hand, one written by an agent older than the order the deletion now keeps —
+/// the new login would authenticate with the previous login's keys the moment
+/// it exists, before its password has even been set.
+///
+/// **Only for a name the host does not hold.** A creation repeated after a lost
+/// response finds the login already there and must converge on
+/// `AlreadyExists` without touching it; purging then would delete the keys of a
+/// working login. The password database decides, read under the account's
+/// lock, and is the same file `useradd` is about to consult.
+///
+/// # Errors
+///
+/// [`SftpError::PasswdUnreadable`] when the password database cannot be read,
+/// and [`SftpError::KeyFileFailed`] when a stale file cannot be removed; in both
+/// cases no login has been created.
+fn purge_stale_key_files(
+    host: &dyn SftpHost,
+    distro: &dyn DistroAdapter,
+    request: &SftpUserRequest,
+) -> Result<(), SftpError> {
+    let held = host.login_names(distro.passwd_database())?;
+    if held.iter().any(|name| name == request.user.as_str()) {
+        return Ok(());
+    }
+
+    let keys = LoginKeyFile::for_login(&request.user);
+    remove_key_file(host, keys.active())?;
+    remove_key_file(host, keys.suspended())
 }
 
 #[cfg(test)]

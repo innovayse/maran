@@ -171,12 +171,12 @@ public sealed class WhitelistSelfLockoutTests : IAsyncLifetime
 
         await client.DeleteAsync($"/api/v1/firewall/whitelist/{seeded}");
 
-        var response = await client.GetAsync($"/api/v1/audit?action={AuditActions.FirewallWhitelistChanged}&outcome=failed");
+        var response = await client.GetAsync($"/api/v1/audit?action={FirewallAuditActions.FirewallWhitelistChanged}&outcome=failed");
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var refusals = body.RootElement.GetProperty("items").EnumerateArray()
             .Where(entry =>
             {
-                return entry.GetProperty("action").GetString() == AuditActions.FirewallWhitelistChanged
+                return entry.GetProperty("action").GetString() == FirewallAuditActions.FirewallWhitelistChanged
                     && !entry.GetProperty("succeeded").GetBoolean();
             })
             .Select(entry =>
@@ -268,7 +268,7 @@ public sealed class WhitelistSelfLockoutTests : IAsyncLifetime
     /// <returns>The factory; the caller disposes it.</returns>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

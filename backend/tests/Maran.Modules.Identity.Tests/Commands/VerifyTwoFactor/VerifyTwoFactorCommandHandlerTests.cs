@@ -54,8 +54,16 @@ public sealed class VerifyTwoFactorCommandHandlerTests : IDisposable
         var user = new User(Guid.NewGuid(), "owner-one", "owner@example.com", _hasher.Hash(Password), UserRole.Customer, Now);
         user.EnableTotp(Secret);
         _context.Users.Add(user);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, Guid.NewGuid(), Now));
         await _context.SaveChangesAsync();
         return user;
+    }
+
+    /// <summary>Suspends the only account the seeded customer holds, as the suspension cascade does.</summary>
+    private async Task SuspendTheCustomersAccountAsync()
+    {
+        (await _context.AccountMemberships.SingleAsync()).Suspend();
+        await _context.SaveChangesAsync();
     }
 
     private static string CurrentCode()
@@ -110,17 +118,16 @@ public sealed class VerifyTwoFactorCommandHandlerTests : IDisposable
     }
 
     /// <summary>
-    /// A suspended login is refused here exactly as a wrong password is — the fix for the hole this
+    /// A login whose only account is suspended is refused here exactly as a wrong password is — the fix for the hole this
     /// file exists to close. Equality is asserted on the whole <c>Error</c>, not merely on both
     /// having failed, matching how <c>LoginCommandHandlerTests</c> proves the same claim for
     /// <c>/login</c>.
     /// </summary>
     [Fact]
-    public async Task A_suspended_login_is_refused_identically_to_a_wrong_password()
+    public async Task A_login_whose_only_account_is_suspended_is_refused_identically_to_a_wrong_password()
     {
-        var user = await SeedTotpUserAsync();
-        user.Suspend();
-        await _context.SaveChangesAsync();
+        await SeedTotpUserAsync();
+        await SuspendTheCustomersAccountAsync();
 
         var suspended = await NewHandler().HandleAsync(Attempt(CurrentCode()), CancellationToken.None);
         var wrongPassword = await NewHandler().HandleAsync(Attempt(CurrentCode(), password: "wrong"), CancellationToken.None);
@@ -129,13 +136,12 @@ public sealed class VerifyTwoFactorCommandHandlerTests : IDisposable
         Assert.Equal(wrongPassword.Error, suspended.Error);
     }
 
-    /// <summary>A suspended login issues no session at all, even holding a valid code.</summary>
+    /// <summary>A login whose only account is suspended issues no session at all, even holding a valid code.</summary>
     [Fact]
-    public async Task A_suspended_login_issues_no_session_at_all()
+    public async Task A_login_whose_only_account_is_suspended_issues_no_session_at_all()
     {
-        var user = await SeedTotpUserAsync();
-        user.Suspend();
-        await _context.SaveChangesAsync();
+        await SeedTotpUserAsync();
+        await SuspendTheCustomersAccountAsync();
 
         await NewHandler().HandleAsync(Attempt(CurrentCode()), CancellationToken.None);
 

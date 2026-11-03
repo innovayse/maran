@@ -6,7 +6,9 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
 import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
+import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import { stubTasks } from '../fixtures/stub-tasks-routes'
 import { forbidAccountsList, stubMyAccount } from '../fixtures/stub-my-account-route'
@@ -33,6 +35,7 @@ const OWN_ACCOUNT: MyAccount = {
   name: 'olive',
   primaryDomain: 'olive-shop.example.com',
   status: 'active',
+  statusName: 'Active',
   plan: {
     displayName: 'Starter',
     diskQuotaMb: 1024,
@@ -82,7 +85,9 @@ test('a customer walks their own area with a clean console', async ({ page }) =>
   await stubPhpVersions(page, [])
   await stubDatabases(page, [])
   await stubBackups(page, [])
+  await stubBackupOptions(page)
   await stubCronEntries(page, [])
+  await stubCronOptions(page)
   await stubCronEnvironment(page, [])
   await stubTasks(page, [])
   await stubMyAccount(page, OWN_ACCOUNT)

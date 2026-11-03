@@ -31,6 +31,7 @@ const ALICE: Account = {
   primaryDomain: 'alice.example.com',
   planId: '44444444-4444-4444-4444-444444444444',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -41,7 +42,9 @@ const COMPLETED: Backup = {
   ownerName: ALICE.name,
   orphanedAccountUsername: null,
   status: 'completed',
+  statusName: 'Completed',
   kind: 'manual',
+  kindName: 'Manual',
   sizeBytes: 1_572_864,
   sha256: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
   databaseCount: 2,

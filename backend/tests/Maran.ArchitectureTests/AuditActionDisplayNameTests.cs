@@ -16,7 +16,7 @@ namespace Maran.ArchitectureTests;
 /// That suite exercises the RESOLVER — the fallback, the culture lookup, the exact sentences three
 /// measured defects produced — and it is right where it is, in the module that owns the resolver.
 /// What it cannot do from there is enumerate the actions other modules declare: its walk is over
-/// <c>AuditActions</c>, and six actions the panel writes every day are not in it. Enumerating across
+/// <c>*AuditActions</c>, and six actions the panel writes every day are not in it. Enumerating across
 /// modules is an architecture question and this is where the suites that ask them live
 /// (<see cref="AuditActionVocabulary"/> carries the enumeration and its blind spots).
 /// </para>

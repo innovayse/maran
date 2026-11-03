@@ -84,7 +84,7 @@ const sortBy = (field: string): void => {
     <!-- Machine text as often as not — a domain, a system user name — so monospaced and never
          wrapped: an identifier read across six lines is a different string. -->
     <template #cell-subject="{ row }">{{ row.subject }}</template>
-    <template #cell-status="{ row }"><TaskStatusBadge :status="row.status" /></template>
+    <template #cell-status="{ row }"><TaskStatusBadge :status="row.status" :label="row.statusName" /></template>
     <!-- The figure is the cell's text and the bar decoration; a failed task keeps the figure only. -->
     <template #cell-percent="{ row }"><TaskProgress :status="row.status" :percent="row.percent" size="row" /></template>
     <!-- The instant, not the day: a morning's runs must be told apart. -->

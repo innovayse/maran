@@ -42,6 +42,10 @@ namespace Maran.Host.IntegrationTests;
 [Collection(SharedDatabase.Name)]
 public sealed class TasksAuthorizationTests : IAsyncLifetime
 {
+    /// <summary>The task statuses on the wire, in the order the panel lists them.</summary>
+    private static readonly string[] TaskStatuses =
+        new[] { "running", "completed", "failed" };
+
     private const string Password = "correct horse battery staple";
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
@@ -60,6 +64,7 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
             "GET /api/v1/tasks/running/stream",
             "GET /api/v1/tasks/failed-count",
             "GET /api/v1/tasks/kinds",
+            "GET /api/v1/tasks/statuses",
             "GET /api/v1/tasks/{id}",
             "GET /api/v1/tasks/{id}/stream",
         ];
@@ -253,6 +258,18 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
         using var kinds = await ReadJsonAsync(client, "/api/v1/tasks/kinds");
         Assert.Equal(JsonValueKind.Array, kinds.RootElement.ValueKind);
         Assert.Equal(0, kinds.RootElement.GetArrayLength());
+
+        // The statuses are the closed vocabulary, the same for every caller and tied to no row, so a
+        // customer is offered all of them — what is hidden is the tasks, not the words for their state.
+        using var statuses = await ReadJsonAsync(client, "/api/v1/tasks/statuses");
+        Assert.Equal(
+            TaskStatuses,
+            statuses.RootElement.EnumerateArray()
+                .Select(choice =>
+                {
+                    return choice.GetProperty("status").GetString();
+                })
+                .ToArray());
     }
 
     /// <summary>Reads a route that must answer 200 and parses its body.</summary>
@@ -269,7 +286,7 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
     /// <summary>Boots the host against this class's PostgreSQL.</summary>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

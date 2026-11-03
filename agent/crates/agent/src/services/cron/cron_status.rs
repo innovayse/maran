@@ -48,6 +48,11 @@ pub fn to_agent_error(error: &CronError) -> AgentError {
         // `common.proto`: the account is suspended, so a run by hand was refused
         // before anything started. Not retryable until the account is resumed.
         CronError::Suspended => ErrorCode::AccountSuspended,
+        // `common.proto`: the agent admits a fixed number of runs by hand at once
+        // (issue #333) and this one was refused before anything started. Its own
+        // code, retryable later, and NOT `AccountBusy` (one account's lock held)
+        // or `LimitReached` (the panel's allowance, which waiting does not clear).
+        CronError::RunCapacityReached => ErrorCode::AgentSaturated,
         // Faults of this machine, not of the request. Every one of them leaves
         // the account's live crontab exactly as it was: `crontab(1)` installs a
         // table or it does not, an entry file writes or it does not, and there
@@ -59,6 +64,12 @@ pub fn to_agent_error(error: &CronError) -> AgentError {
         | CronError::EntryFileUnremovable
         | CronError::EntryIdUnavailable
         | CronError::RunUnavailable => ErrorCode::SystemFailure,
+        // `common.proto`: a ceiling ended the run and its unit could not be
+        // confirmed stopped (issue #336), so the job may still be running. Its own
+        // code and NOT `SystemFailure`, whose reading is "the request failed and
+        // the host is as it was" - the opposite of what is true here - and never a
+        // run reported as stopped.
+        CronError::RunNotStopped => ErrorCode::RunNotStopped,
         // A deadline or an output cap ended the program and its process group was
         // killed. This is a fault of the host, never a verdict on the request: the
         // work may or may not have finished, and `tool_output` stays empty because

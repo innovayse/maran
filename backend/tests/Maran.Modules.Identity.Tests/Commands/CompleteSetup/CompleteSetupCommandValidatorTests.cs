@@ -1,5 +1,6 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Identity.Commands.CompleteSetup;
+using Maran.Modules.Identity.Validators;
 using Maran.SharedKernel.Utilities.Mail;
 
 namespace Maran.Modules.Identity.Tests.Commands.CompleteSetup;
@@ -21,7 +22,21 @@ public sealed class CompleteSetupCommandValidatorTests
     [Fact]
     public void A_password_shorter_than_twelve_characters_is_rejected()
     {
-        _validator.TestValidate(Command(password: "short")).ShouldHaveValidationErrorFor(c => c.Password);
+        var result = _validator.TestValidate(Command(password: "short"));
+
+        var failure = Assert.Single(result.Errors);
+        Assert.Equal("PasswordTooWeak", failure.ErrorMessage);
+        Assert.Equal(12, failure.FormattedMessagePlaceholderValues[NewPasswordValidator.MinimumLengthPlaceholder]);
+    }
+
+    /// <summary>A password over the ceiling is rejected as too long, not as too weak.</summary>
+    [Fact]
+    public void A_password_over_the_ceiling_is_rejected_as_too_long()
+    {
+        var result = _validator.TestValidate(Command(password: new string('x', 257)));
+
+        var failure = Assert.Single(result.Errors);
+        Assert.Equal("PasswordTooLong", failure.ErrorMessage);
     }
 
     /// <summary>A password equal to the username is rejected.</summary>
@@ -29,7 +44,8 @@ public sealed class CompleteSetupCommandValidatorTests
     public void A_password_equal_to_the_username_is_rejected()
     {
         _validator.TestValidate(Command(username: "administrator", password: "administrator"))
-            .ShouldHaveValidationErrorFor(c => c.Password);
+            .ShouldHaveValidationErrorFor(c => c.Password)
+            .WithErrorMessage("PasswordSameAsUsername");
     }
 
     /// <summary>A username with a space is rejected.</summary>

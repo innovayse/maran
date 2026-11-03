@@ -98,7 +98,7 @@ public sealed class InstallCustomCertificateCommandHandler
         var certificate = await UpsertAsync(command.Domain, site, installed.Value, cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.CertificateInstalled,
+            CertificateAuditActions.CertificateInstalled,
             command.Domain,
             command.IpAddress,
             command.UserAgent,
@@ -161,7 +161,7 @@ public sealed class InstallCustomCertificateCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.CertificateInstalled,
+            CertificateAuditActions.CertificateInstalled,
             command.Domain,
             command.IpAddress,
             command.UserAgent,

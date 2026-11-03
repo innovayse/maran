@@ -174,14 +174,14 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var entries = await identity.AuditEvents.AsNoTracking()
-            .Where(e => e.Action == AuditActions.PlanCreated || e.Action == AuditActions.PlanUpdated || e.Action == AuditActions.PlanDeleted)
+            .Where(e => e.Action == AccountAuditActions.PlanCreated || e.Action == AccountAuditActions.PlanUpdated || e.Action == AccountAuditActions.PlanDeleted)
             .OrderBy(e => e.OccurredAt)
             .ToListAsync();
         Assert.Equal(
             [
-                (AuditActions.PlanCreated, "Agency", true),
-                (AuditActions.PlanUpdated, "Agency -> Studio", true),
-                (AuditActions.PlanDeleted, "Studio", true),
+                (AccountAuditActions.PlanCreated, "Agency", true),
+                (AccountAuditActions.PlanUpdated, "Agency -> Studio", true),
+                (AccountAuditActions.PlanDeleted, "Studio", true),
             ],
             entries.Select(e =>
             {

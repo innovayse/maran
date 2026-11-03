@@ -163,6 +163,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// </remarks>
     private static void ReclaimPreviousHosts()
     {
+        // A forced collection is the point of this method and not an accident to be tuned away: the
+        // remark above measures why the runtime never schedules it. Flagged by the static-analysis
+        // rule against GC.Collect, which cannot see that reason.
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();

@@ -9,4 +9,5 @@ namespace Maran.Modules.Tasks.Common;
 /// first time a status was added — so the stream says exactly what the row says.
 /// </remarks>
 /// <param name="Status">The final status the task reached.</param>
-public sealed record TaskStreamEndDto(PanelTaskStatus Status);
+/// <param name="StatusName">The same status as an operator reads it, localized for the request's culture.</param>
+public sealed record TaskStreamEndDto(PanelTaskStatus Status, string StatusName);

@@ -68,6 +68,7 @@ const FULL: Dashboard = {
       subject: 'acme',
       ipAddress: '203.0.113.9',
       succeeded: true,
+      outcomeName: 'Succeeded',
     },
     {
       id: '22222222-2222-2222-2222-222222222222',
@@ -78,6 +79,7 @@ const FULL: Dashboard = {
       subject: 'admin',
       ipAddress: '203.0.113.9',
       succeeded: false,
+      outcomeName: 'Failed',
     },
   ]),
 }

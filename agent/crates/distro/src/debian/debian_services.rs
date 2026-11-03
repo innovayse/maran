@@ -133,7 +133,7 @@ pub fn gzip_binary() -> AdapterBinary {
 /// (`ls -l /usr/bin/mysqldump` shows `-> mariadb-dump`; `dpkg -S` attributes
 /// the real file to `mariadb-client`). This answers the real name so a future
 /// package that drops the compatibility symlink cannot silently break this
-/// family — see [`crate::DistroAdapter::database_dump_binary`] for the full
+/// family — see [`BackupFacts::database_dump_binary`](crate::BackupFacts::database_dump_binary) for the full
 /// measurement, including the RHEL family's answer and the `--no-tablespaces`
 /// finding.
 #[must_use]
@@ -500,7 +500,7 @@ pub fn cron_service() -> &'static str {
 /// window closes at the first login and does not reopen. "Is this unit active"
 /// is therefore not the same question as "can anyone reach SSH" on this family;
 /// the full consequence, and what to check instead, is on
-/// [`crate::DistroAdapter::managed_units`].
+/// [`ServiceManagerFacts::managed_units`](crate::ServiceManagerFacts::managed_units).
 #[must_use]
 pub fn ssh_service() -> &'static str {
     "ssh"
@@ -510,7 +510,7 @@ pub fn ssh_service() -> &'static str {
 ///
 /// The `openssh-server` package installs it here on every Debian-family
 /// release this product supports; see
-/// [`crate::DistroAdapter::sshd_config_path`] for why this is an adapter
+/// [`FileTransferFacts::sshd_config_path`](crate::FileTransferFacts::sshd_config_path) for why this is an adapter
 /// method rather than a literal in `ops` even though the RHEL family answers
 /// the identical path.
 #[must_use]
@@ -535,7 +535,7 @@ pub fn managed_units() -> [&'static str; 4] {
 
 /// Where debian keeps the host's `machine-id`.
 ///
-/// See [`crate::DistroAdapter::machine_id_path`] for why this is an adapter fact
+/// See [`ServiceManagerFacts::machine_id_path`](crate::ServiceManagerFacts::machine_id_path) for why this is an adapter fact
 /// even though both families currently agree on it.
 /// @returns The absolute path to the machine-id file.
 #[must_use]

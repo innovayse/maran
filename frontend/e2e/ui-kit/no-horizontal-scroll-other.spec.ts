@@ -120,6 +120,7 @@ const AUDIT_EVENTS: AuditEvent[] = [
     subject: 'customer-account-with-a-rather-long-name',
     ipAddress: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
     succeeded: true,
+    outcomeName: 'Succeeded',
   },
   {
     id: '00000000-0000-0000-0000-0000000000e2',
@@ -130,6 +131,7 @@ const AUDIT_EVENTS: AuditEvent[] = [
     subject: 'admin',
     ipAddress: '198.51.100.4',
     succeeded: false,
+    outcomeName: 'Failed',
   },
 ]
 
@@ -175,6 +177,7 @@ const MY_ACCOUNT: MyAccount = {
   name: 'olive-shop-with-a-long-account-name',
   primaryDomain: 'a-very-long-subdomain.olive-shop-with-a-long-name.example.com',
   status: 'active',
+  statusName: 'Active',
   plan: {
     displayName: 'Professional hosting plan with extended limits',
     diskQuotaMb: 1048576,

@@ -13,10 +13,11 @@ public sealed class PanelTaskMapperTests
         var task = TasksTestContext.Row(subject: "acme", accountId: Guid.NewGuid());
         task.Report(30, "tool output");
 
-        var dto = PanelTaskMapper.From(task, "Taking a backup", failure: null, includeLog: false);
+        var dto = PanelTaskMapper.From(task, "Taking a backup", "Running", failure: null, includeLog: false);
 
         Assert.False(dto.LogIncluded);
         Assert.Equal(string.Empty, dto.Log);
+        Assert.Equal("Running", dto.StatusName);
         Assert.Equal(30, dto.Percent);
         Assert.Equal("acme", dto.Subject);
     }
@@ -28,7 +29,7 @@ public sealed class PanelTaskMapperTests
         var task = TasksTestContext.Row();
         task.Report(30, "tool output");
 
-        var dto = PanelTaskMapper.From(task, "Taking a backup", failure: null, includeLog: true);
+        var dto = PanelTaskMapper.From(task, "Taking a backup", "Running", failure: null, includeLog: true);
 
         Assert.True(dto.LogIncluded);
         Assert.Equal("tool output", dto.Log);
@@ -44,7 +45,7 @@ public sealed class PanelTaskMapperTests
     {
         var task = TasksTestContext.Row();
 
-        var dto = PanelTaskMapper.From(task, "Taking a backup", failure: null, includeLog: true);
+        var dto = PanelTaskMapper.From(task, "Taking a backup", "Running", failure: null, includeLog: true);
 
         Assert.True(dto.LogIncluded);
         Assert.Equal(string.Empty, dto.Log);

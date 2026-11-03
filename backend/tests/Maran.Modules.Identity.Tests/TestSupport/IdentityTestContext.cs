@@ -57,4 +57,15 @@ public static class IdentityTestContext
 
         return new AuditActionDisplayNames(new StringLocalizer<DisplayNames>(factory));
     }
+
+    /// <summary>Builds the audit-outcome name resolver over this module's REAL resource files.</summary>
+    /// <returns>The resolver, reading <c>Resources/DisplayNames*.resx</c> as it does in the panel.</returns>
+    public static AuditOutcomeDisplayNames OutcomeNames()
+    {
+        var factory = new ResourceManagerStringLocalizerFactory(
+            new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+            NullLoggerFactory.Instance);
+
+        return new AuditOutcomeDisplayNames(new StringLocalizer<DisplayNames>(factory));
+    }
 }

@@ -1,4 +1,5 @@
 using System.Resources;
+using Maran.Modules.Cron.Options;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Services;
 using Maran.Sdk.Contracts;
@@ -72,6 +73,19 @@ public sealed class CronModule : IPanelModule
 
         // Scoped, because the journal reads the request's own ICurrentUser for the entry's actor.
         services.AddScoped<CronAuditJournal>();
+
+        // The bounds on runs started by hand, validated at startup so a value that would silently disable
+        // the protection refuses the boot (rules/csharp.md "Options validated at startup"). Issue #333.
+        services.AddOptions<CronRunOptions>()
+            .Bind(configuration.GetSection(CronRunOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Singleton: the count of runs in flight has to be shared by every request.
+        services.AddSingleton<CronRunSlots>();
+
+        // Scoped, because the localizer it wraps resolves the request's own culture.
+        services.AddScoped<CronRunDisplayNames>();
 
         // This module's answer to how many crontab entries an account owns, for the Accounts module's resource
         // summary. Scoped, because it resolves the account through the request-scoped directory.

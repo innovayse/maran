@@ -36,7 +36,7 @@ namespace Maran.Sdk.Events;
 /// </para>
 /// <para>
 /// <b>What it is NOT.</b> Symmetrically with <see cref="AccountSuspending"/>: the account's
-/// databases, the panel's own web login and any foreign crontab line were never stopped, so nothing
+/// databases and any foreign crontab line were never stopped, so nothing
 /// here restores them. A subscriber must not treat this event as a promise that the account was
 /// fully stopped in the first place.
 /// </para>

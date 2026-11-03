@@ -14,6 +14,10 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 /// </remarks>
 public sealed class ScriptedAgentPhpClient : IAgentPhpClient
 {
+    /// <summary>The supported range, newest first.</summary>
+    private static readonly string[] OfferedVersions =
+        new[] { "8.4", "8.3", "8.2", "8.1", "8.0", "7.4" };
+
     /// <summary>The versions the host reports, with a recognisable FPM socket directory on each.</summary>
     private readonly List<PhpVersionDto> _installed;
 
@@ -38,6 +42,27 @@ public sealed class ScriptedAgentPhpClient : IAgentPhpClient
     public Task<Result<IReadOnlyList<PhpVersionDto>>> ListVersionsAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult(Result<IReadOnlyList<PhpVersionDto>>.Ok(_installed.ToList()));
+    }
+
+    /// <summary>Answers the full supported range, flagged by the scripted installed list.</summary>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>The installable versions, newest first.</returns>
+    public Task<Result<IReadOnlyList<InstallablePhpVersionDto>>> ListInstallableVersionsAsync(
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<InstallablePhpVersionDto> offered = OfferedVersions
+            .Select(version =>
+            {
+                return new InstallablePhpVersionDto(
+                    version,
+                    _installed.Any(item =>
+                    {
+                        return string.Equals(item.Version, version, StringComparison.Ordinal);
+                    }));
+            })
+            .ToList();
+
+        return Task.FromResult(Result<IReadOnlyList<InstallablePhpVersionDto>>.Ok(offered));
     }
 
     /// <summary>Replays the scripted stream.</summary>

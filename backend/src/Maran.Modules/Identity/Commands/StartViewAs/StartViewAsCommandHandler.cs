@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
 using Maran.Modules.Identity.Services;
@@ -28,8 +29,9 @@ namespace Maran.Modules.Identity.Commands.StartViewAs;
 /// <para>
 /// <b>Both logins are re-read, and both are asked <see cref="User.MayAuthenticate"/>.</b> The
 /// operator's role is read from the database, not the token, so a token issued before a demotion or a
-/// suspension cannot start a view-as session; and a viewed login that may not sign in itself may not
-/// be viewed as either, because the token minted here is a sign-in as that login.
+/// suspension cannot start a view-as session; and a viewed login that may not sign in itself, or
+/// whose membership of the viewed account is suspended, may not be viewed as either, because the
+/// token minted here is a sign-in as that login for that account.
 /// </para>
 /// </remarks>
 public sealed class StartViewAsCommandHandler
@@ -94,15 +96,16 @@ public sealed class StartViewAsCommandHandler
 
         // Scope rule: the directory answers null for an account the caller may not see (see remarks).
         var account = await _accountDirectory.FindAsync(command.AccountId, cancellationToken);
-        var viewed = account is null ? null : await FindOwnerAsync(account.Id, cancellationToken);
-        if (account is null || viewed is null)
+        var owner = account is null ? null : await FindOwnerAsync(account.Id, cancellationToken);
+        if (account is null || owner is null)
         {
             await RecordAsync(command, actor, refusedSubject, succeeded: false, cancellationToken);
             return Result<ViewAsSessionDto>.Fail(Error.Of(nameof(ErrorMessages.ViewAsAccountNotFound), ErrorType.NotFound));
         }
 
+        var viewed = owner.Login;
         var subject = $"account {account.Username} as {viewed.Username}";
-        if (!viewed.MayAuthenticate)
+        if (!viewed.MayAuthenticate || owner.Membership.State == MembershipState.Suspended)
         {
             await RecordAsync(command, actor, subject, succeeded: false, cancellationToken);
             return Result<ViewAsSessionDto>.Fail(Error.Of(nameof(ErrorMessages.ViewAsLoginUnavailable), ErrorType.Conflict));
@@ -133,22 +136,21 @@ public sealed class StartViewAsCommandHandler
         return Result<ViewAsSessionDto>.Ok(new ViewAsSessionDto(token.Value, token.ExpiresAt, user, viewing));
     }
 
-    /// <summary>Finds the login that owns an account.</summary>
+    /// <summary>Finds the customer login that owns an account, with its membership.</summary>
     /// <param name="accountId">The account.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>The owning login, or null when the account has none.</returns>
-    private async Task<User?> FindOwnerAsync(Guid accountId, CancellationToken cancellationToken)
+    /// <returns>The owning login and its owner membership, or null when the account has none.</returns>
+    private async Task<AccountOwner?> FindOwnerAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        var ownerId = await _dbContext.AccountMemberships
-            .AsNoTracking()
-            .Where(m => m.AccountId == accountId && m.Role == MembershipRole.Owner)
-            .OrderBy(m => m.CreatedAt)
-            .Select(m => (Guid?)m.UserId)
-            .FirstOrDefaultAsync(cancellationToken);
+        var found = await (
+            from membership in _dbContext.AccountMemberships.AsNoTracking()
+            where membership.AccountId == accountId && membership.Role == MembershipRole.Owner
+            join login in _dbContext.Users.AsNoTracking() on membership.UserId equals login.Id
+            where login.Role == UserRole.Customer
+            orderby membership.CreatedAt
+            select new { login, membership }).FirstOrDefaultAsync(cancellationToken);
 
-        return ownerId is null
-            ? null
-            : await _dbContext.Users.SingleOrDefaultAsync(u => u.Id == ownerId && u.Role == UserRole.Customer, cancellationToken);
+        return found is null ? null : new AccountOwner(found.login, found.membership);
     }
 
     /// <summary>Journals a start or a refused start with the operator as actor.</summary>
@@ -168,7 +170,7 @@ public sealed class StartViewAsCommandHandler
         await _journal.RecordViewAsAsync(
             command.OperatorUserId,
             actor?.Username ?? string.Empty,
-            AuditActions.ViewAsStarted,
+            IdentityAuditActions.ViewAsStarted,
             subject,
             command.IpAddress,
             command.UserAgent,

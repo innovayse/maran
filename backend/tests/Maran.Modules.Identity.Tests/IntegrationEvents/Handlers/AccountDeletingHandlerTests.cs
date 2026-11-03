@@ -51,7 +51,8 @@ public sealed class AccountDeletingHandlerTests
 
         await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
-        Assert.Empty(await context.Users.Where(user => user.AccountId == OwnerAccountId).ToListAsync());
+        Assert.Empty(await context.AccountMemberships.Where(membership => membership.AccountId == OwnerAccountId).ToListAsync());
+        Assert.Empty(await context.Users.Where(user => user.Username.StartsWith("owner-")).ToListAsync());
     }
 
     /// <summary>Deleting an account removes the refresh sessions of the logins it owns.</summary>
@@ -105,7 +106,8 @@ public sealed class AccountDeletingHandlerTests
 
         await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
-        var stranger = Assert.Single(await context.Users.Where(user => user.AccountId == StrangerAccountId).ToListAsync());
+        var stranger = await context.Users.SingleAsync(user => user.Username == "stranger");
+        Assert.Equal(StrangerAccountId, (await context.AccountMemberships.SingleAsync(membership => membership.UserId == stranger.Id)).AccountId);
         Assert.Single(await context.Sessions.Where(session => session.UserId == stranger.Id).ToListAsync());
         Assert.Single(await context.PasswordResetTokens.Where(token => token.UserId == stranger.Id).ToListAsync());
         Assert.Single(await context.RecoveryCodes.Where(code => code.UserId == stranger.Id).ToListAsync());
@@ -113,10 +115,10 @@ public sealed class AccountDeletingHandlerTests
 
     /// <summary>Deleting an account leaves the administrator and its session alone.</summary>
     /// <remarks>
-    /// The administrator's <c>AccountId</c> is null, which in a nullable comparison is neither equal
-    /// nor unequal to the account being deleted. A handler that got that wrong would lock the
+    /// The administrator holds no membership at all, so it is in no way named by the deletion. A
+    /// handler that treated "holds no membership" as "has nothing left to reach" would lock the
     /// operator out of the panel the first time they deleted a customer — the most expensive
-    /// possible way to discover a null-handling mistake.
+    /// possible way to discover that mistake.
     /// </remarks>
     [Fact]
     public async Task Deleting_an_account_leaves_the_administrator_and_its_session_alone()
@@ -125,7 +127,7 @@ public sealed class AccountDeletingHandlerTests
 
         await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
-        var administrator = Assert.Single(await context.Users.Where(user => user.AccountId == null).ToListAsync());
+        var administrator = Assert.Single(await context.Users.Where(user => user.Role == UserRole.Admin).ToListAsync());
         Assert.Single(await context.Sessions.Where(session => session.UserId == administrator.Id).ToListAsync());
     }
 
@@ -271,31 +273,45 @@ public sealed class AccountDeletingHandlerTests
 
         await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
-        var remaining = Assert.Single(await context.AccountMemberships.ToListAsync());
-        Assert.Equal(StrangerAccountId, remaining.AccountId);
+        var remaining = await context.AccountMemberships.ToListAsync();
+        Assert.All(remaining, membership => { Assert.Equal(StrangerAccountId, membership.AccountId); });
+        Assert.Equal(2, remaining.Count);
         Assert.Contains(member.Id, await context.Users.Select(user => user.Id).ToListAsync());
     }
 
     /// <summary>
-    /// A login whose older account column names the deleted account but which also owns another one
-    /// survives, with the column cleared, so deleting one account never deletes the other's way in.
+    /// A login that owns the deleted account and also holds another one survives whole, so deleting
+    /// one account never deletes the other's way in.
     /// </summary>
     [Fact]
-    public async Task A_login_that_owns_another_account_survives_with_the_older_column_cleared()
+    public async Task A_login_that_holds_another_account_survives_with_its_credentials()
     {
         using var context = await SeedAsync();
-        var both = await context.Users.FirstAsync(user => user.AccountId == OwnerAccountId);
-        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), both.Id, OwnerAccountId, Now));
+        var both = await context.Users.FirstAsync(user => user.Username == "owner-one");
         context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), both.Id, StrangerAccountId, Now));
         await context.SaveChangesAsync();
 
         await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         var survivor = await context.Users.SingleAsync(user => user.Id == both.Id);
-        Assert.Null(survivor.AccountId);
-        Assert.Equal(StrangerAccountId, (await context.AccountMemberships.SingleAsync()).AccountId);
+        var kept = await context.AccountMemberships.Where(membership => membership.UserId == survivor.Id).ToListAsync();
+        Assert.Equal(StrangerAccountId, Assert.Single(kept).AccountId);
         Assert.NotEmpty(await context.Sessions.Where(session => session.UserId == both.Id).ToListAsync());
-        Assert.Empty(await context.Users.Where(user => user.AccountId == OwnerAccountId).ToListAsync());
+        Assert.Empty(await context.AccountMemberships.Where(membership => membership.AccountId == OwnerAccountId).ToListAsync());
+    }
+
+    /// <summary>
+    /// A member who had only the deleted account is deleted with it: a customer login that reaches no
+    /// account is a way in to nothing.
+    /// </summary>
+    [Fact]
+    public async Task A_member_who_had_only_the_deleted_account_is_deleted_with_it()
+    {
+        using var context = await SeedAsync();
+
+        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+
+        Assert.DoesNotContain("owner-two", await context.Users.Select(user => user.Username).ToListAsync());
     }
 
     /// <summary>The identities of the logins the deleted account owns, read before the handler runs.</summary>
@@ -303,9 +319,9 @@ public sealed class AccountDeletingHandlerTests
     /// <returns>The two owned user ids.</returns>
     private static async Task<List<Guid>> OwnedUserIdsAsync(IdentityDbContext context)
     {
-        return await context.Users
-            .Where(user => user.AccountId == OwnerAccountId)
-            .Select(user => user.Id)
+        return await context.AccountMemberships
+            .Where(membership => membership.AccountId == OwnerAccountId)
+            .Select(membership => membership.UserId)
             .ToListAsync();
     }
 
@@ -338,10 +354,10 @@ public sealed class AccountDeletingHandlerTests
     /// </remarks>
     private static async Task<IdentityDbContext> SeedIntoAsync(IdentityDbContext context)
     {
-        await AddLoginAsync(context, "owner-one", OwnerAccountId);
-        await AddLoginAsync(context, "owner-two", OwnerAccountId);
-        await AddLoginAsync(context, "stranger", StrangerAccountId);
-        await AddLoginAsync(context, "administrator", accountId: null);
+        await AddLoginAsync(context, "owner-one", OwnerAccountId, MembershipRole.Owner);
+        await AddLoginAsync(context, "owner-two", OwnerAccountId, MembershipRole.Member);
+        await AddLoginAsync(context, "stranger", StrangerAccountId, MembershipRole.Owner);
+        await AddLoginAsync(context, "administrator", accountId: null, MembershipRole.Owner);
 
         // Neither of these names an account or a user, and both must survive the cascade.
         context.FailedLoginsByIp.Add(new FailedLoginByIp(AttackerAddress, Now));
@@ -359,20 +375,23 @@ public sealed class AccountDeletingHandlerTests
     /// <summary>Adds one login with the full set of rows that hang off it.</summary>
     /// <param name="context">The context to seed.</param>
     /// <param name="name">The login name, used for its address too.</param>
-    /// <param name="accountId">The account the login owns, or <c>null</c> for the administrator.</param>
-    private static async Task AddLoginAsync(IdentityDbContext context, string name, Guid? accountId)
+    /// <param name="accountId">The account the login acts for, or <c>null</c> for the administrator.</param>
+    /// <param name="role">Whether the login owns the account or was added to it; ignored without an account.</param>
+    private static async Task AddLoginAsync(IdentityDbContext context, string name, Guid? accountId, MembershipRole role)
     {
         // The role follows the shape of the login: a login owning an account is a customer, and
         // the one owning none is the administrator. It is what the panel would really write, and the
         // administrator's row is the one that must survive.
-        var role = accountId is null ? UserRole.Admin : UserRole.Customer;
-        var user = new User(Guid.NewGuid(), name, $"{name}@example.com", "hash", role, Now);
-        if (accountId is not null)
+        var userRole = accountId is null ? UserRole.Admin : UserRole.Customer;
+        var user = new User(Guid.NewGuid(), name, $"{name}@example.com", "hash", userRole, Now);
+        context.Users.Add(user);
+        if (accountId is { } actsFor)
         {
-            user.AssignAccount(accountId.Value);
+            context.AccountMemberships.Add(role == MembershipRole.Owner
+                ? AccountMembership.Own(Guid.NewGuid(), user.Id, actsFor, Now)
+                : AccountMembership.Admit(Guid.NewGuid(), user.Id, actsFor, AccountFeature.None, Now));
         }
 
-        context.Users.Add(user);
         context.Sessions.Add(new Session(
             Guid.NewGuid(), user.Id, Guid.NewGuid(), $"{name}-token", Now, Now.AddDays(30), "203.0.113.10", "tests"));
         context.PasswordResetTokens.Add(new PasswordResetToken(Guid.NewGuid(), user.Id, $"{name}-reset", Now));
@@ -382,7 +401,7 @@ public sealed class AccountDeletingHandlerTests
             Now,
             user.Id,
             name,
-            AuditActions.LoginSucceeded,
+            IdentityAuditActions.LoginSucceeded,
             name,
             "203.0.113.10",
             "tests",

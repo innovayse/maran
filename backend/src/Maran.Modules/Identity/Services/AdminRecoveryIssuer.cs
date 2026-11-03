@@ -24,9 +24,10 @@ namespace Maran.Modules.Identity.Services;
 /// <para>
 /// <b>Administrators only, and only a login that can sign in.</b> A customer's lost password is the
 /// reset mail's business; recovering one from the console would turn root on the server into a
-/// bypass of the customer area's own rate limit and audit trail. A suspended or still-invited login is
-/// refused for the reason <see cref="InvitationIssuer"/> gives: lifting a suspension is a decision,
-/// not a side effect of a password reset.
+/// bypass of the customer area's own rate limit and audit trail. A login that cannot sign in (one
+/// still awaiting its first password is the only such state a login has now that suspension belongs
+/// to an account's membership) is refused for the reason <see cref="InvitationIssuer"/> gives:
+/// consuming an invitation is a decision, not a side effect of a password reset.
 /// </para>
 /// <para>
 /// <b>The token model is unchanged.</b> The database holds the digest of a one-hour, single-use token;

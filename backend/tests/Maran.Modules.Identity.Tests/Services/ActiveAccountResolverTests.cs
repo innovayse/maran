@@ -3,6 +3,8 @@ using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
+using Maran.SharedKernel.Results;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Identity.Tests.Services;
 
@@ -44,7 +46,7 @@ public sealed class ActiveAccountResolverTests : IDisposable
 
         var resolved = await new ActiveAccountResolver(_context).ResolveAsync(user, null, CancellationToken.None);
 
-        Assert.Equal(oldest, resolved);
+        Assert.Equal(oldest, resolved.Value);
     }
 
     /// <summary>A remembered choice survives while the login still holds a membership of that account.</summary>
@@ -58,7 +60,7 @@ public sealed class ActiveAccountResolverTests : IDisposable
 
         var resolved = await new ActiveAccountResolver(_context).ResolveAsync(user, newer, CancellationToken.None);
 
-        Assert.Equal(newer, resolved);
+        Assert.Equal(newer, resolved.Value);
     }
 
     /// <summary>A remembered account the login holds no membership of is replaced, never trusted.</summary>
@@ -72,7 +74,7 @@ public sealed class ActiveAccountResolverTests : IDisposable
         var resolved = await new ActiveAccountResolver(_context)
             .ResolveAsync(user, Guid.NewGuid(), CancellationToken.None);
 
-        Assert.Equal(owned, resolved);
+        Assert.Equal(owned, resolved.Value);
     }
 
     /// <summary>Another login's membership of an account never makes it available.</summary>
@@ -86,7 +88,7 @@ public sealed class ActiveAccountResolverTests : IDisposable
 
         var resolved = await new ActiveAccountResolver(_context).ResolveAsync(user, theirs, CancellationToken.None);
 
-        Assert.Null(resolved);
+        Assert.Null(resolved.Value);
     }
 
     /// <summary>An administrator owns no account and acts for none.</summary>
@@ -99,6 +101,92 @@ public sealed class ActiveAccountResolverTests : IDisposable
 
         var resolved = await new ActiveAccountResolver(_context).ResolveAsync(admin, null, CancellationToken.None);
 
-        Assert.Null(resolved);
+        Assert.Null(resolved.Value);
+    }
+
+    /// <summary>Suspends the membership of <paramref name="accountId"/> held by <paramref name="user"/>.</summary>
+    /// <param name="user">The login whose membership is suspended.</param>
+    /// <param name="accountId">The account the membership is for.</param>
+    private async Task SuspendAsync(User user, Guid accountId)
+    {
+        var membership = await _context.AccountMemberships.SingleAsync(
+            candidate => candidate.UserId == user.Id && candidate.AccountId == accountId);
+        membership.Suspend();
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>A suspended account is never chosen: the sign-in starts inside the next one.</summary>
+    [Fact]
+    public async Task A_suspended_account_is_never_chosen_by_default()
+    {
+        var user = NewCustomer();
+        _context.Users.Add(user);
+        var oldest = await OwnAsync(user, Now.AddDays(-2));
+        var newer = await OwnAsync(user, Now);
+        await SuspendAsync(user, oldest);
+
+        var resolved = await new ActiveAccountResolver(_context).ResolveAsync(user, null, CancellationToken.None);
+
+        Assert.Equal(newer, resolved.Value);
+    }
+
+    /// <summary>A remembered account that has since been suspended is replaced at the next refresh.</summary>
+    [Fact]
+    public async Task A_remembered_account_that_was_suspended_is_replaced()
+    {
+        var user = NewCustomer();
+        _context.Users.Add(user);
+        var first = await OwnAsync(user, Now.AddDays(-2));
+        var second = await OwnAsync(user, Now);
+        await SuspendAsync(user, second);
+
+        var resolved = await new ActiveAccountResolver(_context).ResolveAsync(user, second, CancellationToken.None);
+
+        Assert.Equal(first, resolved.Value);
+    }
+
+    /// <summary>A login whose every account is suspended is refused, not signed in to nothing.</summary>
+    [Fact]
+    public async Task A_login_whose_every_account_is_suspended_is_refused()
+    {
+        var user = NewCustomer();
+        _context.Users.Add(user);
+        var only = await OwnAsync(user, Now);
+        await SuspendAsync(user, only);
+
+        var resolved = await new ActiveAccountResolver(_context).ResolveAsync(user, only, CancellationToken.None);
+
+        Assert.False(resolved.IsSuccess);
+        Assert.Equal("AccountMembershipSuspended", resolved.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, resolved.Error.Type);
+    }
+
+    /// <summary>A customer with no membership at all is not a suspended one.</summary>
+    [Fact]
+    public async Task A_customer_with_no_membership_at_all_resolves_to_no_account()
+    {
+        var user = NewCustomer();
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+        var resolver = new ActiveAccountResolver(_context);
+
+        var resolved = await resolver.ResolveAsync(user, null, CancellationToken.None);
+
+        Assert.True(resolved.IsSuccess);
+        Assert.Null(resolved.Value);
+        Assert.False(await resolver.IsSuspendedEverywhereAsync(user, CancellationToken.None));
+    }
+
+    /// <summary>Holding one active account among suspended ones is not being suspended everywhere.</summary>
+    [Fact]
+    public async Task One_active_account_among_suspended_ones_is_not_suspended_everywhere()
+    {
+        var user = NewCustomer();
+        _context.Users.Add(user);
+        var suspended = await OwnAsync(user, Now.AddDays(-2));
+        await OwnAsync(user, Now);
+        await SuspendAsync(user, suspended);
+
+        Assert.False(await new ActiveAccountResolver(_context).IsSuspendedEverywhereAsync(user, CancellationToken.None));
     }
 }

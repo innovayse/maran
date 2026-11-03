@@ -3,6 +3,7 @@
 pub mod cron_service;
 pub mod cron_status;
 pub mod entry_output;
+pub mod environment_variables;
 pub mod listed_entry;
 pub mod run_outcome;
 pub mod validated_creation;

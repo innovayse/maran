@@ -349,7 +349,6 @@ public sealed class BackupScheduleTests : IAsyncLifetime
             Guid.NewGuid(), "admin", "admin@example.com", hasher.Hash(Password), UserRole.Admin, now));
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        customer.AssignAccount(account.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, account.Id, now));
         identity.Users.Add(customer);
         await identity.SaveChangesAsync();
@@ -377,7 +376,7 @@ public sealed class BackupScheduleTests : IAsyncLifetime
     /// <returns>The booted factory.</returns>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

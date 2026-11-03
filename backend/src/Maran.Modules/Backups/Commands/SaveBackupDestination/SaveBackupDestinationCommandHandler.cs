@@ -65,7 +65,7 @@ public sealed class SaveBackupDestinationCommandHandler
         // refused destination they can search for. No account is involved, and the entry's whole
         // point is which storage was asked for and refused.
         await _journal.RecordFailureAsync(
-            AuditActions.BackupDestinationSaved,
+            BackupAuditActions.BackupDestinationSaved,
             command.Name,
             command.IpAddress,
             command.UserAgent,

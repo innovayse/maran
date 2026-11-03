@@ -38,6 +38,7 @@ public static class RateLimitingExtensions
             SiteLogStreamRateLimitPolicy.Configure(options, limits);
             PasswordResetRateLimitPolicy.Configure(options, limits);
             InvitationRateLimitPolicy.Configure(options, limits);
+            InvitationSendingRateLimitPolicy.Configure(options, limits);
             BackupRestoreRateLimitPolicy.Configure(options, limits);
 
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

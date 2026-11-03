@@ -13,6 +13,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::child_input::ChildInput;
 use maran_agent_core::utils::child_output::ChildOutput;
 use maran_agent_core::utils::run_bounded::run_bounded;
+use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::utils::spawn_request::SpawnRequest;
 use maran_agent_core::validation::system::cron_command::CronCommand;
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
@@ -30,8 +31,12 @@ use crate::cron::model::cron_entry::CronEntry;
 use crate::cron::model::cron_environment::CronEnvironment;
 use crate::cron::model::cron_run::CronRun;
 use crate::cron::model::cron_run_record::CronRunRecord;
+use crate::cron::model::run_unit_name::RunUnitName;
 use crate::cron::run_now_arguments::{RUN_NOW_OUTPUT_CEILING, run_now_arguments};
 use crate::cron::run_now_outcome::run_now_outcome;
+use crate::cron::run_unit_must_stop::run_unit_must_stop;
+use crate::cron::stop_run_unit_arguments::stop_run_unit_arguments;
+use crate::cron::stop_run_unit_outcome::stop_run_unit_outcome;
 
 /// The mode the account's cron directory is created with.
 ///
@@ -261,8 +266,14 @@ impl CronHost for ProcessCronHost {
         // account: the job must land in the account's cgroup, which a child of
         // the agent could not be moved into without a second privileged step.
         // The agent spawns only the client, through the bounded core.
+        //
+        // The unit is NAMED by the agent (issue #336), because the client is not
+        // the job: a ceiling that kills the client leaves the job running, and
+        // the only way to end it is to stop the unit by name.
         let program = self.distro.systemd_run_binary();
-        let arguments = run_now_arguments(account, entry, environment, self.distro.sh_binary());
+        let unit = RunUnitName::next(account.uid(), entry);
+        let arguments =
+            run_now_arguments(account, entry, &unit, environment, self.distro.sh_binary());
         let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
 
         let started = Instant::now();
@@ -277,6 +288,24 @@ impl CronHost for ProcessCronHost {
             },
         });
 
-        run_now_outcome(answer, started.elapsed())
+        let elapsed = started.elapsed();
+
+        // A run reported as stopped by a ceiling must BE stopped. The customer
+        // is told so, and without this the job runs on until its runtime
+        // ceiling, still holding its place in the account's slice.
+        if run_unit_must_stop(&answer) {
+            let service_manager = self.distro.service_manager();
+            let stop = stop_run_unit_arguments(&unit);
+            let stop: Vec<&str> = stop.iter().map(String::as_str).collect();
+            // The `Reload` class's deadline exists for the service manager's
+            // stop-then-kill sequence, and the stop is WAITED for.
+            stop_run_unit_outcome(spawn_argv(
+                service_manager.as_path(),
+                &stop,
+                CallClass::Reload,
+            ))?;
+        }
+
+        run_now_outcome(answer, elapsed)
     }
 }

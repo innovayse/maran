@@ -11,11 +11,13 @@ namespace Maran.Sdk.Contracts;
 /// adds the thing it names.
 /// </para>
 /// <para>
-/// <b>Who enforces what.</b> The Accounts module stores the set on the plan. Every customer-reachable
-/// controller of the module that owns the feature opts in with <c>[RequiresAccountFeature]</c>
-/// (<see cref="Filters.RequiresAccountFeatureAttribute"/>), so the refusal does not depend on the
-/// menu hiding anything. <see cref="Mail"/> and <see cref="Dns"/> have no module in the tree yet:
-/// the members exist so a plan can already state them and the menu can already filter on them, and
+/// <b>Who enforces what.</b> The Accounts module stores the set on the plan, and the Identity module
+/// stores, per team member, the subset the owner gave them (issue #340 added <see cref="Sites"/>,
+/// <see cref="Ssl"/>, <see cref="Tasks"/> and <see cref="Php"/> to the features a member can be
+/// refused). Every customer-reachable controller of the module that owns the feature opts in with
+/// <c>[RequiresAccountFeature]</c> (<see cref="Filters.RequiresAccountFeatureAttribute"/>), so the
+/// refusal does not depend on the menu hiding anything. <see cref="Mail"/> and <see cref="Dns"/> have no
+/// module in the tree yet: the members exist so a plan can already state them and the menu can already filter on them, and
 /// the module that arrives adds its one attribute line.
 /// </para>
 /// <para>
@@ -49,6 +51,18 @@ public enum AccountFeature : long
     /// <summary>The account's backups, served by the Backups module.</summary>
     Backups = 1L << 5,
 
+    /// <summary>The account's websites, served by the Sites module: listing, creating, enabling, disabling, deleting and reading the logs of a site.</summary>
+    Sites = 1L << 6,
+
+    /// <summary>The account's certificates, served by the Ssl module: listing, issuing, installing and removing them.</summary>
+    Ssl = 1L << 7,
+
+    /// <summary>The account's background tasks, served by the Tasks module: the list, a task's progress and its streams.</summary>
+    Tasks = 1L << 8,
+
+    /// <summary>The choice of a site's PHP version, served by the Sites module: switching a site to another installed version.</summary>
+    Php = 1L << 9,
+
     /// <summary>The full set: every feature above. What a plan that predates the set, and every shipped plan, includes.</summary>
-    All = Mail | Dns | Databases | Cron | FileTransfer | Backups,
+    All = Mail | Dns | Databases | Cron | FileTransfer | Backups | Sites | Ssl | Tasks | Php,
 }

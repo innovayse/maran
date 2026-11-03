@@ -121,7 +121,7 @@ pub trait MonitorHost: Send + Sync {
 
     /// The text of the OpenSSH server's main configuration file.
     ///
-    /// `path` is [`maran_distro::DistroAdapter::sshd_config_path`], passed in
+    /// `path` is [`FileTransferFacts::sshd_config_path`](maran_distro::FileTransferFacts::sshd_config_path), passed in
     /// for the same reason `read_password_database` takes a path rather than
     /// knowing one: this seam names no platform location of its own.
     ///

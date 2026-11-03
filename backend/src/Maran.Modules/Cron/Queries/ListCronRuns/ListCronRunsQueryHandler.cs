@@ -4,6 +4,7 @@ using Maran.Modules.Cron.Domain.Policies;
 using Maran.Modules.Cron.Mappers;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Resources;
+using Maran.Modules.Cron.Services;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Extensions;
 using Maran.SharedKernel.Utilities.Text;
@@ -25,13 +26,18 @@ public sealed class ListCronRunsQueryHandler
     /// <summary>The one window onto the owning account.</summary>
     private readonly IAccountDirectory _accounts;
 
+    /// <summary>Names each run's outcome in the request's culture.</summary>
+    private readonly CronRunDisplayNames _names;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">Where the runs are recorded.</param>
     /// <param name="accounts">The owning account.</param>
-    public ListCronRunsQueryHandler(CronDbContext dbContext, IAccountDirectory accounts)
+    /// <param name="names">Names each run's outcome in the request's culture.</param>
+    public ListCronRunsQueryHandler(CronDbContext dbContext, IAccountDirectory accounts, CronRunDisplayNames names)
     {
         _dbContext = dbContext;
         _accounts = accounts;
+        _names = names;
     }
 
     /// <summary>Reads one page.</summary>
@@ -71,6 +77,10 @@ public sealed class ListCronRunsQueryHandler
 
         var page = await runs.ToPagedAsync(query, ListCronRunsSorts.Map, cancellationToken);
 
-        return Result<PagedResult<CronRunSummaryDto>>.Ok(page.Map(CronRunMapper.Summary));
+        return Result<PagedResult<CronRunSummaryDto>>.Ok(
+            page.Map(run =>
+            {
+                return CronRunMapper.Summary(run, _names.Of(run.Outcome));
+            }));
     }
 }

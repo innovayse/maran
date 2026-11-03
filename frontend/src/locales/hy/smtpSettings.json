@@ -9,11 +9,6 @@
       "hostLabel": "Փոստային սերվեր",
       "portLabel": "Պորտ",
       "securityLabel": "Կապի պաշտպանություն",
-      "security": {
-        "none": "Առանց",
-        "startTls": "STARTTLS",
-        "implicitTls": "Անուղղակի TLS"
-      },
       "usernameLabel": "Օգտվողի անուն",
       "passwordLabel": "Գաղտնաբառ",
       "passwordPlaceholder": "Թողեք դատարկ՝ պահպանվածը պահելու համար",

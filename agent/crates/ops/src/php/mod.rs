@@ -21,6 +21,7 @@ mod classify_install_failure;
 #[path = "../tests/php/fake_php_host.rs"]
 pub(crate) mod fake_php_host;
 mod install_php_version;
+mod list_installable_php_versions;
 mod list_php_versions;
 pub mod model;
 mod php_host;
@@ -34,7 +35,9 @@ mod supported_versions;
 pub(crate) mod write_pool;
 
 pub use install_php_version::install_php_version;
+pub use list_installable_php_versions::list_installable_php_versions;
 pub use list_php_versions::list_php_versions;
+pub use model::installable_php_version::InstallablePhpVersion;
 pub use model::installed_php_version::InstalledPhpVersion;
 pub use model::override_kind::OverrideKind;
 pub use model::php_override::PhpOverride;

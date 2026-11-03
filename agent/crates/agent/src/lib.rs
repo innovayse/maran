@@ -19,6 +19,7 @@ pub mod peercred;
 pub mod server;
 pub mod services;
 pub mod shutdown;
+pub(crate) mod startup;
 
 /// Types generated from the proto contract — never edited by hand
 /// (rules/proto.md). Included once here so the whole crate shares one copy.

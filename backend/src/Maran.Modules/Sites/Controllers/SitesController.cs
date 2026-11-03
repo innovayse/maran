@@ -6,12 +6,15 @@ using Maran.Modules.Sites.Commands.EnableSite;
 using Maran.Modules.Sites.Commands.InstallPhpVersion;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Queries.GetSite;
+using Maran.Modules.Sites.Queries.GetSiteChoices;
 using Maran.Modules.Sites.Queries.GetSiteLimits;
+using Maran.Modules.Sites.Queries.ListInstallablePhpVersions;
 using Maran.Modules.Sites.Queries.ListPhpVersions;
 using Maran.Modules.Sites.Queries.ListSites;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -23,14 +26,20 @@ namespace Maran.Modules.Sites.Controllers;
 /// the request, dispatches through Wolverine, translates the <see cref="Result{T}"/>. No business
 /// logic, no data access.
 ///
-/// Open to any signed-in caller, because a site belongs to a customer and a customer manages their
-/// own. What they can SEE is not decided here: every read and every mutation goes through
+/// Open to any signed-in caller whose plan sells the Sites feature and, when the caller is a team
+/// member, whose owner gave it to them (issue #340), because a site belongs to a customer and a
+/// customer manages their own. Switching a site's PHP version is a feature of its own (Php), asked in
+/// addition on that one action: the list of installed versions stays under Sites, since the site form
+/// reads it and it names nothing but what the host has installed.
+///
+/// What they can SEE is not decided here: every read and every mutation goes through
 /// <c>SitesDbContext</c>, whose global query filter scopes rows to the caller's account, so a site
 /// belonging to somebody else answers 404 — never 403, which would confirm it exists (spec §8,
 /// rules/testing.md item 3).
 /// </summary>
 [Route("api/v1/sites")]
 [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
+[RequiresAccountFeature(AccountFeature.Sites)]
 [Tags("Sites")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
@@ -69,6 +78,7 @@ public sealed class SitesController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<SiteDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -84,6 +94,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="id">The site to read.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(SiteDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -99,6 +110,7 @@ public sealed class SitesController : BaseApiController
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("limits")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(SiteLimitsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetLimitsAsync(CancellationToken cancellationToken)
@@ -107,10 +119,27 @@ public sealed class SitesController : BaseApiController
         return ToActionResult(result);
     }
 
+    /// <summary>
+    /// Reads the closed sets the site form and list filters select from — what can serve a site and
+    /// whether it serves — labelled in the caller's language. The create endpoint keeps validating
+    /// every submitted value against the same enums (rules/security.md item 1).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("choices")]
+    [ViewAsAccess(ViewAsAccess.Read)]
+    [ProducesResponseType(typeof(SiteChoicesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetChoicesAsync(CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<SiteChoicesDto>>(new GetSiteChoicesQuery(), cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Creates a site: its document root, vhost and pool on the host, then the row.</summary>
     /// <param name="command">The site's account, domain, aliases and backend.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -141,6 +170,8 @@ public sealed class SitesController : BaseApiController
     /// <param name="command">The version to switch to.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/php-version")]
+    [RequiresAccountFeature(AccountFeature.Php)]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -158,6 +189,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="id">The site to enable.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/enable")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -171,6 +203,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="id">The site to disable.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/disable")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -184,6 +217,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="id">The site to remove.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -201,12 +235,36 @@ public sealed class SitesController : BaseApiController
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("php-versions")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(IReadOnlyList<PhpVersionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetPhpVersionsAsync(CancellationToken cancellationToken)
     {
         var query = new ListPhpVersionsQuery();
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<PhpVersionDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Lists the PHP versions this server can install, newest first, each flagged as installed or
+    /// not — the reference data the operator's install picker selects from, so a version is never
+    /// typed. The install command is validated against this same set.
+    /// </summary>
+    /// <remarks>
+    /// Administrator only, like the install it feeds: the class-level policy is
+    /// <c>AnyAuthenticated</c> and this attribute is added to it. The class-level <c>api</c> rate
+    /// limit covers it. A customer has no use for the list and no right to the repository's range.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("php-versions/installable")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [ProducesResponseType(typeof(IReadOnlyList<InstallablePhpVersionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetInstallablePhpVersionsAsync(CancellationToken cancellationToken)
+    {
+        var query = new ListInstallablePhpVersionsQuery();
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<IReadOnlyList<InstallablePhpVersionDto>>>(query, cancellationToken));
     }
 
     /// <summary>
@@ -272,6 +330,7 @@ public sealed class SitesController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancelled when the caller disconnects.</param>
     [HttpGet("{id:guid}/logs")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [EnableRateLimiting(RateLimitPolicies.SiteLogs)]
     [Produces(SiteLogStreamWriter.EventStreamContentType)]
     [ProducesResponseType(StatusCodes.Status200OK)]

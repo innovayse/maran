@@ -115,6 +115,34 @@ public sealed class ResilientAgentSftpClientTests
         Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
+    /// <summary>Ending a login's sessions retries a transport failure and carries its arguments unchanged.</summary>
+    [Fact]
+    public async Task Ending_sessions_retries_a_transport_failure_and_carries_its_arguments_unchanged()
+    {
+        var inner = new RecordingAgentSftpClient { FailuresBeforeSuccess = 1 };
+
+        var result = await Decorate(inner).EndSessionsAsync("alice", "web", default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("alice", inner.LastAccountUsername);
+        Assert.Equal("web", inner.LastSftpUsername);
+    }
+
+    /// <summary>Ending a login's sessions is abandoned by the pipeline's timeout when the agent hangs.</summary>
+    [Fact]
+    public async Task Ending_sessions_that_never_returns_is_abandoned_by_the_pipelines_timeout()
+    {
+        var inner = new RecordingAgentSftpClient { Hangs = true };
+
+        var result = await Decorate(inner).EndSessionsAsync("alice", "web", default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+    }
+
     /// <summary>Wraps the recording client in the decorator under the real pipeline.</summary>
     /// <param name="inner">The recording client to wrap.</param>
     /// <returns>The decorated client.</returns>

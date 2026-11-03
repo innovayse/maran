@@ -117,7 +117,7 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var entry = await identity.AuditEvents.AsNoTracking()
-            .SingleAsync(e => e.Action == AuditActions.PlanUpdated);
+            .SingleAsync(e => e.Action == AccountAuditActions.PlanUpdated);
         Assert.Equal("NoDb [features: Cron, Backups -> Databases, Cron]", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.Equal("admin", entry.ActorUsername);
@@ -169,7 +169,7 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await listed.Content.ReadAsStringAsync());
         var rows = body.RootElement.EnumerateArray().ToList();
         Assert.Equal(
-            ["mail", "dns", "databases", "cron", "fileTransfer", "backups"],
+            ["mail", "dns", "databases", "cron", "fileTransfer", "backups", "sites", "ssl", "tasks", "php"],
             rows.Select(row =>
             {
                 return row.GetProperty("feature").GetString();

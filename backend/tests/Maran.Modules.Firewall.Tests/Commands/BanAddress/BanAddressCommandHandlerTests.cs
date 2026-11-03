@@ -221,7 +221,7 @@ public sealed class BanAddressCommandHandlerTests
         await world.BanAsync("::ffff:203.0.113.7", durationMinutes: 60);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.AddressBanned, entry.Action);
+        Assert.Equal(FirewallAuditActions.AddressBanned, entry.Action);
         Assert.Equal("203.0.113.7", entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -236,7 +236,7 @@ public sealed class BanAddressCommandHandlerTests
         await world.BanAsync("203.0.113.7", durationMinutes: 60);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.AddressBanned, entry.Action);
+        Assert.Equal(FirewallAuditActions.AddressBanned, entry.Action);
         Assert.Equal("203.0.113.7", entry.Subject);
         Assert.False(entry.Succeeded);
     }

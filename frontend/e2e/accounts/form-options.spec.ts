@@ -114,6 +114,52 @@ test('the owner language starts as the operator own interface language', async (
   await expect(page.getByRole('combobox', { name: 'Язык владельца' })).toHaveText('Русский')
 })
 
+test('the owner language choices are exactly the languages the panel lists', async ({ page }) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED_ACCOUNTS)
+  await stubAccounts(page, [])
+  await stubPlans(page)
+  // Installed after the shared stub, so it answers first: a panel that ships two languages only.
+  await page.route('**/api/v1/accounts/owner-languages', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { language: 'en', languageDisplayName: 'English' },
+        { language: 'hy', languageDisplayName: 'Հայերեն' },
+      ]),
+    })
+  })
+  await page.goto('/accounts/new')
+  await expect(page.getByRole('heading', { name: 'New account' })).toBeVisible()
+
+  await page.getByRole('combobox', { name: 'Owner language' }).click()
+
+  await expect(page.getByRole('option')).toHaveText(['English', 'Հայերեն'])
+})
+
+test('a language list the panel could not give says so instead of offering a made-up one', async ({ page }) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED_ACCOUNTS)
+  await stubAccounts(page, [])
+  await stubPlans(page)
+  await page.route('**/api/v1/accounts/owner-languages', async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ title: 'The language list is unavailable.' }),
+    })
+  })
+  await page.goto('/accounts/new')
+  await expect(page.getByRole('heading', { name: 'New account' })).toBeVisible()
+
+  await page.getByRole('combobox', { name: 'Owner language' }).click()
+
+  await expect(page.getByText('The language list is unavailable.')).toBeVisible()
+})
+
 test('the panel beside the form says what creating the account makes on the server', async ({ page }) => {
   await openForm(page)
 

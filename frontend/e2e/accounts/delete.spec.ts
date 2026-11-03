@@ -14,6 +14,7 @@ const ACCOUNT: Account = {
   primaryDomain: 'acme.example.com',
   planId: '00000000-0000-0000-0000-0000000000d1',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
 }
 

@@ -37,7 +37,7 @@ namespace Maran.Modules.Databases.Commands.RepairDatabaseGrants;
 /// </para>
 /// <para>
 /// <b>What the journal entry records, and why a refusal gets one too.</b> Both outcomes are written
-/// through <c>DatabaseAuditJournal</c> under <c>AuditActions.DatabaseGrantsRepaired</c>. The success
+/// through <c>DatabaseAuditJournal</c> under <c>DatabaseAuditActions.DatabaseGrantsRepaired</c>. The success
 /// entry is the panel's only attributable record of who narrowed live access for every customer on
 /// this host at once — the agent logs the rows it touched, but the host's log does not know which
 /// operator asked. The refusal entry records that the figure the caller confirmed did not describe
@@ -153,7 +153,7 @@ public sealed class RepairDatabaseGrantsCommandHandler
         if (succeeded)
         {
             await _journal.RecordSuccessAsync(
-                AuditActions.DatabaseGrantsRepaired,
+                DatabaseAuditActions.DatabaseGrantsRepaired,
                 subject,
                 command.IpAddress,
                 command.UserAgent,
@@ -163,7 +163,7 @@ public sealed class RepairDatabaseGrantsCommandHandler
         }
 
         await _journal.RecordFailureAsync(
-            AuditActions.DatabaseGrantsRepaired,
+            DatabaseAuditActions.DatabaseGrantsRepaired,
             subject,
             command.IpAddress,
             command.UserAgent,

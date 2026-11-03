@@ -80,13 +80,6 @@ public sealed class UserTests
         Assert.Equal("a-new-hash", user.PasswordHash);
     }
 
-    /// <summary>An administrator owns no account until one is assigned.</summary>
-    [Fact]
-    public void An_administrator_owns_no_account_until_one_is_assigned()
-    {
-        Assert.Null(NewUser().AccountId);
-    }
-
     /// <summary>A new user is not locked out.</summary>
     [Fact]
     public void A_new_user_is_not_locked_out()
@@ -157,32 +150,6 @@ public sealed class UserTests
         Assert.False(user.IsLockedOut(Now));
     }
 
-    /// <summary>Unassigning the account the older column names clears it.</summary>
-    [Fact]
-    public void Unassigning_the_account_the_older_column_names_clears_it()
-    {
-        var user = NewUser();
-        var accountId = Guid.NewGuid();
-        user.AssignAccount(accountId);
-
-        user.UnassignAccount(accountId);
-
-        Assert.Null(user.AccountId);
-    }
-
-    /// <summary>Unassigning some other account leaves the older column alone.</summary>
-    [Fact]
-    public void Unassigning_some_other_account_leaves_the_older_column_alone()
-    {
-        var user = NewUser();
-        var accountId = Guid.NewGuid();
-        user.AssignAccount(accountId);
-
-        user.UnassignAccount(Guid.NewGuid());
-
-        Assert.Equal(accountId, user.AccountId);
-    }
-
     /// <summary>A claimed login reads as active.</summary>
     [Fact]
     public void A_claimed_login_reads_as_active()
@@ -190,43 +157,28 @@ public sealed class UserTests
         Assert.Equal(UserLifecycle.Active, NewUser().Lifecycle);
     }
 
-    /// <summary>An unclaimed invitation reads as invited, and as invited-on-a-suspended-account once suspended.</summary>
+    /// <summary>An unclaimed invitation reads as invited, and as active once the password is chosen.</summary>
     [Fact]
-    public void An_unclaimed_invitation_reads_as_invited_and_stays_distinguishable_once_its_account_is_suspended()
+    public void An_unclaimed_invitation_reads_as_invited_and_as_active_once_accepted()
     {
-        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Guid.NewGuid(), Now);
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
         Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
-
-        user.Suspend();
-        Assert.Equal(UserLifecycle.InvitedAccountSuspended, user.Lifecycle);
-
-        user.Resume();
-        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
-    }
-
-    /// <summary>A claimed login reads as suspended while its account is, and active again after the resume.</summary>
-    [Fact]
-    public void A_claimed_login_reads_as_suspended_while_its_account_is_and_active_after_the_resume()
-    {
-        var user = NewUser();
-
-        user.Suspend();
-        Assert.Equal(UserLifecycle.Suspended, user.Lifecycle);
-
-        user.Resume();
-        Assert.Equal(UserLifecycle.Active, user.Lifecycle);
-    }
-
-    /// <summary>An invitation accepted during a suspension reads as suspended, not active.</summary>
-    [Fact]
-    public void An_invitation_accepted_during_a_suspension_reads_as_suspended_not_active()
-    {
-        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Guid.NewGuid(), Now);
-        user.Suspend();
+        Assert.False(user.MayAuthenticate);
 
         user.Activate("hash");
 
-        Assert.Equal(UserLifecycle.Suspended, user.Lifecycle);
+        Assert.Equal(UserLifecycle.Active, user.Lifecycle);
+        Assert.True(user.MayAuthenticate);
+        Assert.Equal("hash", user.PasswordHash);
+    }
+
+    /// <summary>A login holds no account: the factory takes none and the lifecycle has no suspended value.</summary>
+    [Fact]
+    public void A_login_has_only_the_two_lifecycles_it_can_really_be_in()
+    {
+        Assert.Equal(
+            [nameof(UserLifecycle.Active), nameof(UserLifecycle.Invited)],
+            Enum.GetNames<UserLifecycle>().Order().ToArray());
     }
 
     /// <summary>Two-factor reads as enabled exactly while a secret is stored.</summary>
@@ -264,27 +216,56 @@ public sealed class UserTests
     [Fact]
     public void The_legacy_state_pair_is_restated_from_the_lifecycle_at_every_step()
     {
-        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Guid.NewGuid(), Now);
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
         Assert.Equal((UserState.Invited, false), (user.LegacyState, user.LegacyAccountSuspended));
 
-        user.Suspend();
-        Assert.Equal((UserState.Invited, true), (user.LegacyState, user.LegacyAccountSuspended));
-
         user.Activate("hash");
-        Assert.Equal((UserState.Suspended, true), (user.LegacyState, user.LegacyAccountSuspended));
-
-        user.Resume();
         Assert.Equal((UserState.Active, false), (user.LegacyState, user.LegacyAccountSuspended));
     }
 
-    /// <summary>A pending invitation is reported for both invited lifecycles and for no other.</summary>
+    /// <summary>The legacy pair of a claimed owner reads suspended while the owner membership is, and clears on resume.</summary>
     [Fact]
-    public void A_pending_invitation_is_reported_for_both_invited_lifecycles_and_no_other()
+    public void The_legacy_pair_of_a_claimed_owner_reads_suspended_until_the_membership_is_active_again()
     {
-        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Guid.NewGuid(), Now);
-        Assert.True(user.HasPendingInvitation);
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
+        user.Activate("hash");
 
-        user.Suspend();
+        user.SyncLegacyColumns(MembershipState.Suspended);
+        Assert.Equal((UserState.Suspended, true), (user.LegacyState, user.LegacyAccountSuspended));
+        Assert.Equal(UserLifecycle.Active, user.Lifecycle);
+
+        user.SyncLegacyColumns(MembershipState.Active);
+        Assert.Equal((UserState.Active, false), (user.LegacyState, user.LegacyAccountSuspended));
+    }
+
+    /// <summary>An invited owner of a suspended account stays Invited in the legacy state, with the flag set.</summary>
+    [Fact]
+    public void An_invited_owner_of_a_suspended_account_keeps_the_invited_state_with_the_flag_set()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
+
+        user.SyncLegacyColumns(MembershipState.Suspended);
+
+        Assert.Equal((UserState.Invited, true), (user.LegacyState, user.LegacyAccountSuspended));
+    }
+
+    /// <summary>Accepting an invitation never lifts the suspension the legacy flag records.</summary>
+    [Fact]
+    public void Accepting_an_invitation_does_not_lift_the_legacy_suspension()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
+        user.SyncLegacyColumns(MembershipState.Suspended);
+
+        user.Activate("hash");
+
+        Assert.Equal((UserState.Suspended, true), (user.LegacyState, user.LegacyAccountSuspended));
+    }
+
+    /// <summary>A pending invitation is reported while invited and no longer once accepted.</summary>
+    [Fact]
+    public void A_pending_invitation_is_reported_while_invited_and_not_after_acceptance()
+    {
+        var user = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
         Assert.True(user.HasPendingInvitation);
 
         user.Activate("hash");

@@ -22,6 +22,7 @@ const SIGNED_IN: AuditEvent = {
   subject: 'verifier',
   ipAddress: '127.0.0.1',
   succeeded: true,
+  outcomeName: 'Succeeded',
 }
 
 /**

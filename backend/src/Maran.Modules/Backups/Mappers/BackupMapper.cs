@@ -27,13 +27,18 @@ public static class BackupMapper
     /// translates and never decides, and because resolving a localized name needs the request's
     /// culture, which a static translation has no business holding.
     /// </param>
+    /// <param name="statusName">The row's status named in the caller's language, from <c>BackupDisplayNames</c>.</param>
+    /// <param name="kindName">The row's kind named in the caller's language, from <c>BackupDisplayNames</c>.</param>
     /// <returns>
-    /// The wire shape carrying exactly what the row holds, its owner's name and the name for its code.
+    /// The wire shape carrying exactly what the row holds, its owner's name and the names for its code,
+    /// status and kind.
     /// </returns>
     public static BackupDto From(
         Backup backup,
         IReadOnlyDictionary<Guid, string> ownerNames,
-        string? failureDisplayName)
+        string? failureDisplayName,
+        string statusName,
+        string kindName)
     {
         ArgumentNullException.ThrowIfNull(backup);
         ArgumentNullException.ThrowIfNull(ownerNames);
@@ -44,7 +49,9 @@ public static class BackupMapper
             ownerNames.GetValueOrDefault(backup.AccountId, string.Empty),
             backup.DeletedAccountUsername,
             backup.Status,
+            statusName,
             backup.Kind,
+            kindName,
             backup.SizeBytes,
             backup.ArtifactSha256,
             backup.DatabaseCount,

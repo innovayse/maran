@@ -27,7 +27,7 @@ public sealed class AddWhitelistEntryCommandHandlerTests
         Assert.Equal(Now, result.Value.CreatedAt);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.FirewallWhitelistChanged, entry.Action);
+        Assert.Equal(FirewallAuditActions.FirewallWhitelistChanged, entry.Action);
         Assert.Equal("203.0.113.7/32", entry.Subject);
         Assert.True(entry.Succeeded);
     }

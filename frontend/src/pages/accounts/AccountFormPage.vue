@@ -17,7 +17,7 @@
  * (see the template comment): an option that exists in the DOM but cannot be
  * hit is a plan an operator cannot choose.
  */
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -33,7 +33,7 @@ import AccountCreationSummary from '../../components/accounts/AccountCreationSum
 import { usePlanChoice } from '../../composables/usePlanChoice'
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
-import { SUPPORTED_LOCALES } from '../../types/app'
+import { useOwnerLanguagesStore } from '../../stores/ownerLanguages'
 import { accountNameFromDomain } from '../../utils/accountNameFromDomain'
 import { flashNoticeState } from '../../utils/flashNotice'
 
@@ -69,6 +69,7 @@ const { t } = useI18n()
 const router = useRouter()
 const store = useAccountsStore()
 const localeStore = useLocaleStore()
+const languagesStore = useOwnerLanguagesStore()
 const { picker: planPicker, search: searchPlans } = usePlanChoice()
 
 /** Current value of the username field (the account's system name). */
@@ -106,10 +107,10 @@ const nameError: ComputedRef<string | null> = computed(() => {
   return null
 })
 
-/** The owner-language choices: every language the panel ships, each named in itself. */
+/** The owner-language choices exactly as the panel lists them, each named in itself. */
 const languageOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return SUPPORTED_LOCALES.map((code): { value: string; label: string } => {
-    return { value: code, label: t(`app.locale.names.${code}`) }
+  return languagesStore.languages.map((choice) => {
+    return { value: choice.language, label: choice.languageDisplayName }
   })
 })
 
@@ -221,6 +222,19 @@ const submit = async (): Promise<void> => {
 const cancel = async (): Promise<void> => {
   await router.push({ name: 'accounts' })
 }
+
+onMounted(async () => {
+  await languagesStore.load()
+  // The operator's own interface language is the likeliest choice, but only the panel says which
+  // languages an owner may be written to: when it is not one of them, start from the panel's first.
+  const [first] = languagesStore.languages
+  const offered = languagesStore.languages.some((choice) => {
+    return choice.language === ownerLanguage.value
+  })
+  if (first !== undefined && !offered) {
+    ownerLanguage.value = first.language
+  }
+})
 </script>
 
 <template>
@@ -294,6 +308,7 @@ const cancel = async (): Promise<void> => {
                 v-model="ownerLanguage"
                 :label="t('accounts.form.fields.ownerLanguage')"
                 :options="languageOptions"
+                :load-error="languagesStore.errorMessage"
                 required
               />
               <UiFieldHint>{{ t('accounts.form.hints.ownerLanguage') }}</UiFieldHint>

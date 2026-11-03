@@ -45,6 +45,24 @@ public sealed class SitesControllerPolicyTests
         Assert.Equal(new[] { AuthorizationPolicies.AdminOnly }, policies);
     }
 
+    /// <summary>The installable-versions list feeds the administrator-only install and is administrator-only too.</summary>
+    [Fact]
+    public void Listing_the_installable_php_versions_names_the_administrator_policy()
+    {
+        var method = typeof(SitesController).GetMethod(nameof(SitesController.GetInstallablePhpVersionsAsync));
+
+        Assert.NotNull(method);
+        var policies = method!
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>()
+            .Select(attribute =>
+            {
+                return attribute.Policy;
+            })
+            .ToArray();
+        Assert.Equal(new[] { AuthorizationPolicies.AdminOnly }, policies);
+    }
+
     /// <summary>No Sites controller grants anonymity on the class.</summary>
     [Fact]
     public void No_sites_controller_grants_anonymity()

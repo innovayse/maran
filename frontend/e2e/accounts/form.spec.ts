@@ -142,6 +142,7 @@ test('a valid submission posts the typed values and opens the new account, where
         primaryDomain: 'alpha.example.com',
         planId: THE_PLAN.id,
         status: 'active',
+        statusName: 'Active',
         createdAt: '2026-08-29T10:00:00Z',
       }),
     })

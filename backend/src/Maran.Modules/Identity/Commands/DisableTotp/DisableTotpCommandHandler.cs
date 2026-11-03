@@ -85,7 +85,7 @@ public sealed class DisableTotpCommandHandler
         await _journal.RecordClaimAsync(
             user.Id,
             user.Username,
-            AuditActions.TwoFactorDisabled,
+            IdentityAuditActions.TwoFactorDisabled,
             command.IpAddress,
             command.UserAgent,
             succeeded: true,

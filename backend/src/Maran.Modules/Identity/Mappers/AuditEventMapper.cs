@@ -17,8 +17,12 @@ public static class AuditEventMapper
     /// <c>AuditActionDisplayNames</c>. Passed in because a mapper translates and never decides, and a
     /// resource lookup is a decision about culture.
     /// </param>
+    /// <param name="outcomeName">
+    /// The row's outcome as an administrator reads it, already resolved for the request's culture by
+    /// <c>AuditOutcomeDisplayNames</c>, for the same reason as the action's name.
+    /// </param>
     /// <returns>The entry as the audit screens see it.</returns>
-    public static AuditEventDto From(AuditEvent auditEvent, string actionName)
+    public static AuditEventDto From(AuditEvent auditEvent, string actionName, string outcomeName)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
 
@@ -31,6 +35,7 @@ public static class AuditEventMapper
             auditEvent.Subject,
             auditEvent.IpAddress,
             auditEvent.Succeeded,
+            outcomeName,
             auditEvent.Impersonator?.Username);
     }
 }

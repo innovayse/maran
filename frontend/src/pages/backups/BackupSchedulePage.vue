@@ -26,6 +26,11 @@
  * The copy is written to this server and is not encrypted at rest. Every one of those is said on
  * the screen, because `retainCount` on its own reads as a promise none of them keep.
  *
+ * **Nothing the operator picks here is typed.** The cadence, the weekday, the hour (UTC) and the number
+ * of copies to keep are selects over lists the panel supplies (`GET /api/v1/backup-options`, held by
+ * the backup options store), so a value outside what the server's validator accepts cannot be
+ * written; the validator still decides, and its refusal is still shown on the field it names.
+ *
  * **Layout (redesign 2026-10).** The page header carries the navigation group as its eyebrow; whatever
  * needs attention (a refusal, a blank field, the save result, and an unscheduled scope as an amber
  * warning) comes before the controls; then the scope card, and below it the form beside a column
@@ -35,33 +40,22 @@
 import { computed, ref, watch, type ComputedRef, type Ref, type WritableComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
-import UiBadge from '../../components/ui/UiBadge.vue'
-import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
-import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
-import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
-import UiForm from '../../components/ui/UiForm.vue'
-import type { UiIconName } from '../../components/ui/UiIcon.vue'
-import UiIconTile from '../../components/ui/UiIconTile.vue'
-import UiInput from '../../components/ui/UiInput.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiCombobox from '../../components/ui/UiCombobox.vue'
-import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
-import UiSwitch from '../../components/ui/UiSwitch.vue'
+import BackupRetentionCard from '../../components/backups/BackupRetentionCard.vue'
+import BackupScheduleForm from '../../components/backups/BackupScheduleForm.vue'
+import BackupScheduleSummary from '../../components/backups/BackupScheduleSummary.vue'
 import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
+import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
+import { useBackupOptionsStore } from '../../stores/backupOptions'
 import { useBackupSchedulesStore } from '../../stores/backupSchedules'
-import { useLocaleStore } from '../../stores/locale'
-import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
-import { weekdayName } from '../../utils/weekdayName'
-import {
-  BACKUP_FREQUENCIES,
-  BACKUP_SCHEDULE_DAYS,
-  type BackupFrequency,
-  type BackupSchedule,
-  type BackupScheduleDay,
-  type BackupScheduleScope,
+import type {
+  BackupFrequencyWire,
+  BackupSchedule,
+  BackupScheduleDay,
+  BackupScheduleScope,
 } from '../../types/backupSchedule'
 
 /**
@@ -70,16 +64,6 @@ import {
  * only inside the adapter below, and the page's own state is a {@link BackupScheduleScope}.
  */
 const HOST_WIDE_OPTION = 'host-wide'
-
-/** One caveat about what retention does not cover, with the glyph that marks its row. */
-interface RetentionPoint {
-  /** Stable key for the list row. */
-  key: string
-  /** The glyph marking the row; decorative, the sentence beside it says everything. */
-  icon: UiIconName
-  /** The caveat, already translated. */
-  text: string
-}
 
 /** Problem codes that name one field, and the field each of them marks invalid. */
 const FIELD_OF_CODE: Readonly<Record<string, string>> = {
@@ -91,22 +75,22 @@ const FIELD_OF_CODE: Readonly<Record<string, string>> = {
 
 const { t } = useI18n()
 const store = useBackupSchedulesStore()
+const optionsStore = useBackupOptionsStore()
 const { picker: accountPicker, search: searchAccounts } = useAccountChoice()
-const localeStore = useLocaleStore()
 
 /** The schedule being edited: the host-wide policy, or one account's override. */
 const scope: Ref<BackupScheduleScope> = ref({ kind: 'hostWide' })
 
 /** How often a backup is taken; `null` while nothing is scheduled or none has been chosen. */
-const frequency: Ref<BackupFrequency | null> = ref(null)
+const frequency: Ref<BackupFrequencyWire | null> = ref(null)
 
-/** The hour of the day in UTC, as typed. Text, because the form is `novalidate` and the server bounds it. */
+/** The hour of the day in UTC as chosen, or the empty string while none is. The server bounds it. */
 const hourUtc: Ref<string> = ref('')
 
 /** The weekday a weekly schedule fires on; `null` until one is chosen. */
 const dayOfWeekUtc: Ref<BackupScheduleDay | null> = ref(null)
 
-/** How many successful backups to keep, as typed. */
+/** How many successful backups to keep as chosen, or the empty string while none is. */
 const retainCount: Ref<string> = ref('')
 
 /** Whether the schedule runs at all. */
@@ -130,30 +114,6 @@ const scopeOption: WritableComputedRef<string> = computed({
   },
 })
 
-/** The cadence as its select binds it: the wire value, or the empty string while none is chosen. */
-const frequencyOption: WritableComputedRef<string> = computed({
-  get: (): string => {
-    return frequency.value ?? ''
-  },
-  set: (value: string): void => {
-    frequency.value = BACKUP_FREQUENCIES.find((candidate) => {
-      return candidate === value
-    }) ?? null
-  },
-})
-
-/** The weekday as its select binds it: the wire value, or the empty string while none is chosen. */
-const dayOption: WritableComputedRef<string> = computed({
-  get: (): string => {
-    return dayOfWeekUtc.value ?? ''
-  },
-  set: (value: string): void => {
-    dayOfWeekUtc.value = BACKUP_SCHEDULE_DAYS.find((candidate) => {
-      return candidate === value
-    }) ?? null
-  },
-})
-
 /**
  * The scope picker: the host-wide policy first, then the page of accounts matching its search that
  * the policy can be overridden for. The host-wide entry is counted into the total so the "more
@@ -168,21 +128,6 @@ const scopePicker: ComputedRef<AccountPickerState> = computed(() => {
   }
 })
 
-/** The two cadences, labelled in the interface language. */
-const frequencyOptions: ComputedRef<readonly SelectOption[]> = computed(() => {
-  return [
-    { value: 'daily', label: t('backups.schedule.frequency.daily') },
-    { value: 'weekly', label: t('backups.schedule.frequency.weekly') },
-  ]
-})
-
-/** The weekdays, named in the interface language by the date library rather than by this panel. */
-const dayOptions: ComputedRef<readonly SelectOption[]> = computed(() => {
-  return BACKUP_SCHEDULE_DAYS.map((day) => {
-    return { value: day, label: weekdayName(day, localeStore.current) }
-  })
-})
-
 /** Whether the day picker applies at all — a daily schedule has no weekday and must send none. */
 const isWeekly: ComputedRef<boolean> = computed(() => {
   return frequency.value === 'weekly'
@@ -191,30 +136,6 @@ const isWeekly: ComputedRef<boolean> = computed(() => {
 /** True when the panel answered and reported that this scope has no schedule at all. */
 const isUnscheduled: ComputedRef<boolean> = computed(() => {
   return store.loadState === 'loaded' && !store.isConfigured
-})
-
-/** The four things `retainCount` alone would be read as promising and does not, in reading order. */
-const retentionPoints: ComputedRef<readonly RetentionPoint[]> = computed(() => {
-  return [
-    { key: 'cadence', icon: 'clock', text: t('backups.schedule.retention.cadence') },
-    { key: 'neverBlind', icon: 'hardDrive', text: t('backups.schedule.retention.neverBlind') },
-    { key: 'preDeletion', icon: 'archive', text: t('backups.schedule.retention.preDeletion') },
-    { key: 'storage', icon: 'lock', text: t('backups.schedule.retention.storage') },
-  ]
-})
-
-/** When the schedule last ran, or a placeholder saying it never has. */
-const lastRun: ComputedRef<string> = computed(() => {
-  const at = store.schedule?.lastRunAt ?? null
-  return at === null
-    ? t('backups.schedule.summary.neverRan')
-    : formatIsoTimestamp(at, localeStore.current)
-})
-
-/** When the schedule will next run, or `null` while it is switched off and nothing is coming. */
-const nextRun: ComputedRef<string | null> = computed(() => {
-  const at = store.schedule?.nextRunAt ?? null
-  return at === null ? null : formatIsoTimestamp(at, localeStore.current)
 })
 
 /**
@@ -328,6 +249,10 @@ watch(
   { immediate: true },
 )
 
+// The form's cadences, weekdays, hours and retention counts are named by the panel in the interface
+// language, so they are read when the screen opens and again when the language changes.
+useReloadOnLocale(optionsStore.load)
+
 // A change of scope is a different schedule, so it is read again rather than edited in place.
 watch(
   scopeAccountId,
@@ -398,104 +323,26 @@ watch(
       </template>
       <div class="@container">
       <div class="grid items-start gap-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <UiCard class="@container">
-          <UiSectionHeading
-            class="mb-4"
-            :title="t('backups.schedule.form.heading')"
-            :subtitle="t('backups.schedule.form.subtitle')"
-          />
-          <UiForm :loading="store.loadState === 'loading'" @submit="submit">
-            <div class="flex flex-col gap-4">
-              <div class="grid gap-4 @lg:grid-cols-2">
-                <UiSelect
-                  v-model="frequencyOption"
-                  class="min-w-0"
-                  :label="t('backups.schedule.form.frequencyLabel')"
-                  :placeholder="t('backups.schedule.form.frequencyPlaceholder')"
-                  :options="frequencyOptions"
-                  required
-                />
-
-                <UiSelect
-                  v-if="isWeekly"
-                  v-model="dayOption"
-                  class="min-w-0"
-                  :label="t('backups.schedule.form.dayLabel')"
-                  :placeholder="t('backups.schedule.form.dayPlaceholder')"
-                  :options="dayOptions"
-                  :error="fieldError('day')"
-                  required
-                />
-              </div>
-
-              <div class="grid gap-4 @lg:grid-cols-2">
-                <UiInput
-                  v-model="hourUtc"
-                  class="min-w-0"
-                  :label="t('backups.schedule.form.hourLabel')"
-                  :placeholder="t('backups.schedule.form.hourPlaceholder')"
-                  :error="fieldError('hour')"
-                  required
-                />
-
-                <UiInput
-                  v-model="retainCount"
-                  class="min-w-0"
-                  :label="t('backups.schedule.form.retainLabel')"
-                  :placeholder="t('backups.schedule.form.retainPlaceholder')"
-                  :error="fieldError('retain')"
-                  required
-                />
-              </div>
-
-              <div class="flex flex-col gap-2 rounded-control border border-border-subtle bg-surface-2 p-4">
-                <UiSwitch v-model="enabled" :label="t('backups.schedule.form.enabledLabel')" />
-                <p class="text-sm text-text-muted break-words">{{ t('backups.schedule.form.enabledHint') }}</p>
-              </div>
-
-              <UiButton class="w-full @lg:w-auto @lg:self-start" type="submit" :disabled="store.saving">
-                {{ store.saving ? t('common.saving') : t('backups.schedule.form.submit') }}
-              </UiButton>
-            </div>
-          </UiForm>
-        </UiCard>
+        <BackupScheduleForm
+          v-model:frequency="frequency"
+          v-model:hour-utc="hourUtc"
+          v-model:day-of-week-utc="dayOfWeekUtc"
+          v-model:retain-count="retainCount"
+          v-model:enabled="enabled"
+          :loading="store.loadState === 'loading'"
+          :saving="store.saving"
+          :day-error="fieldError('day')"
+          :hour-error="fieldError('hour')"
+          :retain-error="fieldError('retain')"
+          @submit="submit"
+        />
 
         <div class="flex min-w-0 flex-col gap-4">
-          <UiCard v-if="store.isConfigured">
-            <UiSectionHeading class="mb-4" :title="t('backups.schedule.summary.heading')" />
-            <UiDescriptionList>
-              <UiDescriptionItem :term="t('backups.schedule.summary.state')">
-                <UiBadge :variant="store.schedule?.enabled === true ? 'success' : 'warning'">
-                  {{
-                    store.schedule?.enabled === true
-                      ? t('backups.schedule.summary.on')
-                      : t('backups.schedule.summary.off')
-                  }}
-                </UiBadge>
-              </UiDescriptionItem>
-              <UiDescriptionItem v-if="nextRun !== null" :term="t('backups.schedule.summary.nextRun')" mono>
-                {{ nextRun }}
-              </UiDescriptionItem>
-              <UiDescriptionItem :term="t('backups.schedule.summary.lastRun')" mono>
-                {{ lastRun }}
-              </UiDescriptionItem>
-            </UiDescriptionList>
-          </UiCard>
+          <BackupScheduleSummary v-if="store.isConfigured" :schedule="store.schedule" />
 
-          <UiCard>
-            <UiSectionHeading class="mb-4" :title="t('backups.schedule.retention.heading')" />
-            <!-- Every one of these is something `retainCount` on its own would be read as promising and
-                 does not. They are on the screen rather than in a doc comment because the operator who
-                 types a number is the person who would otherwise believe all four. -->
-            <ul class="flex flex-col gap-4">
-              <li v-for="point in retentionPoints" :key="point.key" class="flex items-start gap-3">
-                <UiIconTile :name="point.icon" size="sm" />
-                <p class="min-w-0 pt-1 text-sm text-text-secondary break-words">
-                  {{ point.text }}
-                </p>
-              </li>
-            </ul>
-          </UiCard>
+          <!-- Every caveat in this card is something `retainCount` on its own would be read as
+               promising and does not. -->
+          <BackupRetentionCard />
         </div>
       </div>
       </div>

@@ -1,3 +1,4 @@
+using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Queries.GetBackup;
 using Maran.Modules.Backups.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -30,7 +31,8 @@ public sealed class GetBackupQueryHandlerTests
             new AccountSnapshot(mine, "cust01", 1, 1, 1, 1, 1, 1024, AccountState.Active));
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var result = await new GetBackupQueryHandler(context, BackupsTestContext.FailureNames(), accounts)
+        var result = await new GetBackupQueryHandler(
+                context, BackupsTestContext.FailureNames(), BackupsTestContext.BackupNames(), accounts)
             .HandleAsync(new GetBackupQuery(row.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -56,7 +58,10 @@ public sealed class GetBackupQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
         var result = await new GetBackupQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new GetBackupQuery(theirRow.Id), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -80,7 +85,10 @@ public sealed class GetBackupQueryHandlerTests
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
         var result = await new GetBackupQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new GetBackupQuery(row.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -92,10 +100,45 @@ public sealed class GetBackupQueryHandlerTests
     {
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin());
         var result = await new GetBackupQueryHandler(
-                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
             .HandleAsync(new GetBackupQuery(Guid.NewGuid()), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ErrorType.NotFound, result.Error!.Type);
+    }
+
+    /// <summary>A backup is returned with its status and kind named in the backend's own words.</summary>
+    /// <remarks>
+    /// The names are asserted against the real resource files, so the wire carries "Before deletion"
+    /// and "Completed" and not the machine constants <c>preDeletion</c> and <c>completed</c> the SPA
+    /// used to translate for itself.
+    /// </remarks>
+    [Fact]
+    public async Task A_backup_carries_its_status_and_kind_named_in_words()
+    {
+        var mine = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var row = BackupsTestContext.CompletedRow(mine, kind: BackupKind.PreDeletion);
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.Backups.Add(row);
+            await seeding.SaveChangesAsync();
+        }
+
+        await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
+        var result = await new GetBackupQueryHandler(
+                context,
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames(),
+                new StubAccountDirectory())
+            .HandleAsync(new GetBackupQuery(row.Id), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Completed", result.Value.StatusName);
+        Assert.Equal("Before deletion", result.Value.KindName);
     }
 }

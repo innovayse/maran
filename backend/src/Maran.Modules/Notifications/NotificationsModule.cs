@@ -95,6 +95,10 @@ public sealed class NotificationsModule : IPanelModule
         // booted bus.
         services.AddScoped<IntegrationEvents.Handlers.SendMailRequestedHandler>();
 
+        // Scoped, because it reads the request's culture through the localizer: the settings read-back
+        // and the security-mode list name a protection mode through the one resolver.
+        services.AddScoped<SmtpSecurityDisplayNames>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T> instead.
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(NotificationsModule).Assembly));

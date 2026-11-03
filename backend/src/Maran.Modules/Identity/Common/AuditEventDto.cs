@@ -17,6 +17,10 @@ namespace Maran.Modules.Identity.Common;
 /// <param name="Subject">What it was attempted on.</param>
 /// <param name="IpAddress">Where it came from.</param>
 /// <param name="Succeeded">Whether it worked.</param>
+/// <param name="OutcomeName">
+/// Whether it worked, in words, localized for the request's culture by
+/// <c>AuditOutcomeDisplayNames</c>: what the outcome badge prints, so the SPA holds no copy of it.
+/// </param>
 /// <param name="ImpersonatorUsername">
 /// The operator who was viewing the panel as the actor when it happened; null when the actor acted
 /// as themselves (issue #317).
@@ -30,4 +34,5 @@ public sealed record AuditEventDto(
     string Subject,
     string IpAddress,
     bool Succeeded,
+    string OutcomeName,
     string? ImpersonatorUsername);

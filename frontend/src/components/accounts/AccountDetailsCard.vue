@@ -8,10 +8,10 @@
  * (`UiDescriptionList loading`), so the account lands in the space held for it.
  */
 import { useI18n } from 'vue-i18n'
-import UiBadge from '../ui/UiBadge.vue'
 import UiCard from '../ui/UiCard.vue'
 import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../ui/UiDescriptionList.vue'
+import AccountStatusBadge from './AccountStatusBadge.vue'
 import type { AccountDetail } from '../../types/account'
 import type { AppLocale } from '../../types/app'
 import { formatDate } from '../../utils/formatDate'
@@ -39,9 +39,7 @@ const { t } = useI18n()
         {{ account?.primaryDomain }}
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('accounts.detail.statusLabel')">
-        <UiBadge v-if="account !== null" :variant="account.status === 'active' ? 'success' : 'warning'">
-          {{ t(`accounts.status.${account.status}`) }}
-        </UiBadge>
+        <AccountStatusBadge v-if="account !== null" :status="account.status" :label="account.statusName" />
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('accounts.detail.planLabel')">
         {{ account?.planDisplayName }}

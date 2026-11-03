@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
+import { stubInstallablePhpVersions, stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 
 // Sidebar submenus (issue #195): a module with several pages is a collapsible section whose
@@ -34,6 +34,7 @@ const open = async (page: Page, path: string): Promise<void> => {
   await stubModules(page, MODULES)
   await stubSites(page, [])
   await stubPhpVersions(page, [])
+  await stubInstallablePhpVersions(page, () => {return []})
   await page.goto(path)
 }
 

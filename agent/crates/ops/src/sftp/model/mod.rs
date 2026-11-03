@@ -5,4 +5,5 @@ pub mod account_jail;
 pub mod account_ownership;
 pub mod authorized_key_set;
 pub mod login_key_file;
+pub mod login_session_matcher;
 pub mod sftp_user_request;

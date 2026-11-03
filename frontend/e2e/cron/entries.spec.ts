@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import {
   stubCronEntries,
@@ -25,6 +26,7 @@ const ALICE: Account = {
   primaryDomain: 'alice.example.com',
   planId: '44444444-4444-4444-4444-444444444444',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -46,6 +48,7 @@ const RAN: CronEntryOutput = {
 const openCronPage = async (page: Page, entries: CronEntry[]): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubCronEntries(page, entries)
@@ -168,6 +171,7 @@ test('the cron screen renders the panel’s RFC 7807 detail verbatim when the re
   const backendDetail = 'That account is not available on this server.'
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubCronEnvironment(page, [])

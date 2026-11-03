@@ -105,6 +105,17 @@ public static class TasksTestContext
             new StringLocalizer<DisplayNames>(factory));
     }
 
+    /// <summary>Builds the status-name resolver over this module's REAL resource files.</summary>
+    /// <returns>The resolver, reading <c>Resources/DisplayNames*.resx</c> as it does in the panel.</returns>
+    public static TaskStatusDisplayNames StatusNames()
+    {
+        var factory = new ResourceManagerStringLocalizerFactory(
+            new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+            NullLoggerFactory.Instance);
+
+        return new TaskStatusDisplayNames(new StringLocalizer<DisplayNames>(factory));
+    }
+
     /// <summary>
     /// Builds the failure describer over the panel's REAL error-text resolution, reading this
     /// module's shipped <c>ErrorMessages</c> tables.

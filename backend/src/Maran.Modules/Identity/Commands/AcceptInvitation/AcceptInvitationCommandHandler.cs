@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
 using Maran.Modules.Identity.Services;
@@ -72,8 +73,9 @@ public sealed class AcceptInvitationCommandHandler
     /// <summary>Spends the token and sets the login's first password.</summary>
     /// <param name="command">The token and the chosen password.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>The login's username, which the person signs in with next, or the single refusal
-    /// every unusable token gets. Only a usable token earns the username, and it is spent here.</returns>
+    /// <returns>The login's username, which the person signs in with next; the single refusal every
+    /// unusable token gets; or <c>PasswordSameAsUsername</c> when a valid token's password is the
+    /// login's own username. Only a usable token earns the username, and it is spent here.</returns>
     public async Task<Result<AcceptInvitationResultDto>> HandleAsync(AcceptInvitationCommand command, CancellationToken cancellationToken)
     {
         var now = _clock.UtcNow;
@@ -95,6 +97,17 @@ public sealed class AcceptInvitationCommandHandler
             return await RefuseAsync(token.UserId, command, cancellationToken);
         }
 
+        // The username half of the password policy, which the validator cannot apply because it sees
+        // the password alone. Only here, after the token has matched a real, usable token and a real
+        // user: the refusal depends on the account the token names, so giving it earlier would tell
+        // an unauthenticated caller the token is real. The token is NOT spent by this refusal, so
+        // the invitee may choose another password with the same link.
+        if (!PasswordPolicy.DiffersFromUsername(command.NewPassword, user.Username))
+        {
+            return Result<AcceptInvitationResultDto>.Fail(
+                Error.Of(nameof(ErrorMessages.PasswordSameAsUsername), ErrorType.Validation));
+        }
+
         token.Consume(now);
 
         foreach (var outstanding in await _dbContext.InvitationTokens
@@ -111,7 +124,7 @@ public sealed class AcceptInvitationCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             user.Id,
-            AuditActions.InvitationAccepted,
+            IdentityAuditActions.InvitationAccepted,
             user.Username,
             command.IpAddress,
             command.UserAgent,
@@ -141,7 +154,7 @@ public sealed class AcceptInvitationCommandHandler
         {
             await _journal.RecordIdentifiedAsync(
                 identified,
-                AuditActions.InvitationAcceptRefused,
+                IdentityAuditActions.InvitationAcceptRefused,
                 identified.ToString(),
                 command.IpAddress,
                 command.UserAgent,
@@ -151,7 +164,7 @@ public sealed class AcceptInvitationCommandHandler
         else
         {
             await _journal.RecordUnidentifiedAsync(
-                AuditActions.InvitationAcceptRefused,
+                IdentityAuditActions.InvitationAcceptRefused,
                 string.Empty,
                 command.IpAddress,
                 command.UserAgent,

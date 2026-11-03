@@ -9,6 +9,7 @@ using Maran.Modules.Accounts.Queries.GetAccount;
 using Maran.Modules.Accounts.Queries.GetAccountResourceSummary;
 using Maran.Modules.Accounts.Queries.ListAccountChoices;
 using Maran.Modules.Accounts.Queries.ListAccounts;
+using Maran.Modules.Accounts.Queries.ListOwnerLanguages;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
 using Microsoft.AspNetCore.Authorization;
@@ -71,6 +72,20 @@ public sealed class AccountsController : BaseApiController
         CancellationToken cancellationToken)
     {
         var result = await _bus.InvokeAsync<Result<PagedResult<AccountChoiceDto>>>(query, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Lists every language an account owner's invitation can be written in, each named in itself, so
+    /// the create-account form offers exactly the set the create endpoint accepts.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("owner-languages")]
+    [ProducesResponseType(typeof(IReadOnlyList<OwnerLanguageDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetOwnerLanguagesAsync(CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<IReadOnlyList<OwnerLanguageDto>>>(
+            new ListOwnerLanguagesQuery(), cancellationToken);
         return ToActionResult(result);
     }
 

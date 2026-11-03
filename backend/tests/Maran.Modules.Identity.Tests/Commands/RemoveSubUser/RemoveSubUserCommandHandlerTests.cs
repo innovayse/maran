@@ -86,7 +86,7 @@ public sealed class RemoveSubUserCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Command(member.Id), CancellationToken.None);
 
         var entry = Assert.Single(_world.Audit.Written);
-        Assert.Equal(AuditActions.SubUserRemoved, entry.Action);
+        Assert.Equal(IdentityAuditActions.SubUserRemoved, entry.Action);
         Assert.Equal("deploy", entry.Subject);
         Assert.True(entry.Succeeded);
     }

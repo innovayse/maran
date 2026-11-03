@@ -105,7 +105,7 @@ const close = (): void => {
     <div v-else class="flex min-w-0 flex-col gap-4">
       <UiDescriptionList class="rounded-control bg-surface-2 px-4 py-3">
         <UiDescriptionItem :term="t('cron.runs.columns.outcome')">
-          <CronRunOutcomeBadge :outcome="result.run.outcome" />
+          <CronRunOutcomeBadge :outcome="result.run.outcome" :label="result.run.outcomeName" />
         </UiDescriptionItem>
         <UiDescriptionItem :term="t('cron.output.exitCode')" mono>
           <span data-testid="cron-run-exit-code">{{ result.run.end.kind === 'exited' ? result.run.end.exitCode : t('cron.output.notReported') }}</span>

@@ -1,8 +1,11 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Resources;
 using Maran.SharedKernel.Extensions;
 using Maran.SharedKernel.Utilities.Text;
+using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Accounts.Queries.ListAccounts;
 
@@ -12,11 +15,16 @@ public sealed class ListAccountsQueryHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
-    /// <summary>Creates the handler with the module's own database context.</summary>
+    /// <summary>Names the account's state in the response, in the request's culture.</summary>
+    private readonly IStringLocalizer<DisplayNames> _displayNames;
+
+    /// <summary>Creates the handler with the module's own database context and display names.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
-    public ListAccountsQueryHandler(AccountsDbContext dbContext)
+    /// <param name="displayNames">Names each account's state in the response, in the request's culture.</param>
+    public ListAccountsQueryHandler(AccountsDbContext dbContext, IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _displayNames = displayNames;
     }
 
     /// <summary>
@@ -56,7 +64,13 @@ public sealed class ListAccountsQueryHandler
         return Result<PagedResult<AccountDto>>.Ok(page.Map(account =>
         {
             return new AccountDto(
-                account.Id, account.Name, account.PrimaryDomain, account.PlanId, account.Status, account.CreatedAt);
+                account.Id,
+                account.Name,
+                account.PrimaryDomain,
+                account.PlanId,
+                account.Status,
+                AccountStatusMapper.NameOf(account.Status, _displayNames),
+                account.CreatedAt);
         }));
     }
 }

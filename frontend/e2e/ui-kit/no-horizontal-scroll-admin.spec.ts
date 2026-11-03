@@ -101,6 +101,7 @@ const ACCOUNT: Account = {
   primaryDomain: LONG_DOMAIN,
   planId: THREE_PLANS[1]?.id ?? '',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
 }
 
@@ -109,6 +110,7 @@ const SECOND_ACCOUNT: Account = {
   id: '00000000-0000-0000-0000-0000000000c2',
   name: 'bob',
   status: 'suspended',
+  statusName: 'Suspended',
 }
 
 const SITE_ID = CERTIFICATE_SITE_ID
@@ -119,8 +121,10 @@ const SITE: Site = {
   ownerName: ACCOUNT.name,
   domain: LONG_DOMAIN,
   backendType: 'php',
+  backendTypeName: 'PHP',
   phpVersion: '8.3',
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -171,6 +175,7 @@ const DASHBOARD: Dashboard = {
       subject: LONG_ACCOUNT,
       ipAddress: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
       succeeded: true,
+      outcomeName: 'Succeeded',
     },
     {
       id: '22222222-2222-2222-2222-222222222222',
@@ -181,6 +186,7 @@ const DASHBOARD: Dashboard = {
       subject: 'admin',
       ipAddress: '203.0.113.9',
       succeeded: false,
+      outcomeName: 'Failed',
     },
   ]),
 }
@@ -289,7 +295,9 @@ const BACKUPS: Backup[] = [
     ownerName: ACCOUNT.name,
     orphanedAccountUsername: null,
     status: 'completed',
+    statusName: 'Completed',
     kind: 'scheduled',
+    kindName: 'Scheduled',
     sizeBytes: 3_221_225_472,
     sha256: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
     databaseCount: 2,
@@ -304,7 +312,9 @@ const BACKUPS: Backup[] = [
     ownerName: ACCOUNT.name,
     orphanedAccountUsername: null,
     status: 'failed',
+    statusName: 'Failed',
     kind: 'manual',
+    kindName: 'Manual',
     sizeBytes: 0,
     sha256: null,
     databaseCount: 0,
@@ -319,7 +329,9 @@ const BACKUPS: Backup[] = [
     ownerName: '',
     orphanedAccountUsername: 'removed-customer-account-name',
     status: 'completed',
+    statusName: 'Completed',
     kind: 'preDeletion',
+    kindName: 'Before deletion',
     sizeBytes: 1_572_864,
     sha256: 'b1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
     databaseCount: 1,
@@ -376,6 +388,7 @@ const TASKS: PanelTask[] = [
     subject: LONG_ACCOUNT + '-' + LONG_DOMAIN,
     correlationId: null,
     status: 'running',
+    statusName: 'Running',
     percent: 42,
     log: 'Compressing the account home directory\n',
     logIncluded: true,
@@ -390,6 +403,7 @@ const TASKS: PanelTask[] = [
     subject: 'bob',
     correlationId: null,
     status: 'failed',
+    statusName: 'Failed',
     percent: 100,
     log: 'The agent refused the request\n',
     logIncluded: true,
@@ -407,6 +421,7 @@ const TASKS: PanelTask[] = [
     subject: LONG_DOMAIN,
     correlationId: null,
     status: 'completed',
+    statusName: 'Completed',
     percent: 100,
     log: 'Done\n',
     logIncluded: true,

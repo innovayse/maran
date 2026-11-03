@@ -139,7 +139,7 @@ public sealed class RequestPasswordResetCommandHandler
         await _journal.RecordClaimAsync(
             user?.Id,
             command.Email,
-            AuditActions.PasswordResetRequested,
+            IdentityAuditActions.PasswordResetRequested,
             command.IpAddress,
             command.UserAgent,
             succeeded: true,

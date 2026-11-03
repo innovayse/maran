@@ -91,6 +91,7 @@ public sealed class TasksModule : IPanelModule
         // display name and failure sentence must follow the reader's language rather than the
         // process's.
         services.AddScoped<TaskKindDisplayNames>();
+        services.AddScoped<TaskStatusDisplayNames>();
         services.AddScoped<TaskFailureMessages>();
 
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and

@@ -221,7 +221,7 @@ public sealed class UpdatePlanCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.PlanUpdated,
+            AccountAuditActions.PlanUpdated,
             DescribeEdit(subject, renames ? name : null, featuresBefore, plan.Features),
             command.IpAddress,
             command.UserAgent,
@@ -347,7 +347,7 @@ public sealed class UpdatePlanCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.PlanUpdated, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.PlanUpdated, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<PlanDto>.Fail(error);
     }

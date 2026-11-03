@@ -76,7 +76,7 @@ public sealed class SaveSecurityPolicyCommandHandlerTests : IDisposable
         await NewHandler(TestSecurityPolicyCache.Over(_context)).HandleAsync(Command(), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.SecurityPolicySaved, entry.Action);
+        Assert.Equal(IdentityAuditActions.SecurityPolicySaved, entry.Action);
         Assert.True(entry.Succeeded);
     }
 }

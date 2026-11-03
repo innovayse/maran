@@ -276,7 +276,7 @@ public sealed class CreateDatabaseCommandHandlerTests
         var result = await world.HandleAsync("shop", "shopuser");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.DatabaseCreated, entry.Action);
+        Assert.Equal(DatabaseAuditActions.DatabaseCreated, entry.Action);
         Assert.Equal("shop", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain(result.Value.Password.Reveal(), entry.Subject, StringComparison.Ordinal);
@@ -291,7 +291,7 @@ public sealed class CreateDatabaseCommandHandlerTests
         await world.HandleAsync("shop", "shopuser");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.DatabaseCreated, entry.Action);
+        Assert.Equal(DatabaseAuditActions.DatabaseCreated, entry.Action);
         Assert.False(entry.Succeeded);
     }
 

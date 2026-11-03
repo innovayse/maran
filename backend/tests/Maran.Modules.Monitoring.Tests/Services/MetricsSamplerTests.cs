@@ -148,7 +148,7 @@ public sealed class MetricsSamplerTests
         Assert.Equal(20, dbContext.Samples.Count());
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == Sdk.Contracts.AuditActions.AlertRaised;
+            return entry.Action == Sdk.Contracts.MonitoringAuditActions.AlertRaised;
         });
     }
 
@@ -182,7 +182,7 @@ public sealed class MetricsSamplerTests
         Assert.Equal(20, agent.SftpJailStatusCalls);
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == Sdk.Contracts.AuditActions.AlertRaised
+            return entry.Action == Sdk.Contracts.MonitoringAuditActions.AlertRaised
                 && entry.Subject == $"SftpJailDrifted:{Monitoring.Services.AlertEvaluator.SftpJailSubject}";
         });
     }

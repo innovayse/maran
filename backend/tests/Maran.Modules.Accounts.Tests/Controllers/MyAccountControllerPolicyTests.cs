@@ -20,6 +20,18 @@ public sealed class MyAccountControllerPolicyTests
         Assert.Equal(new[] { AuthorizationPolicies.AnyAuthenticated }, policies);
     }
 
+    /// <summary>
+    /// The account-state names controller names the customer-level policy, alone: a customer's own
+    /// account page prints its state with the same names the administrator's filter offers.
+    /// </summary>
+    [Fact]
+    public void The_account_statuses_controller_names_the_any_authenticated_policy()
+    {
+        var policies = PoliciesOf(typeof(AccountStatusesController));
+
+        Assert.Equal(new[] { AuthorizationPolicies.AnyAuthenticated }, policies);
+    }
+
     /// <summary>The administrator-managed account controllers keep the administrator policy.</summary>
     /// <param name="controller">The controller type.</param>
     [Theory]

@@ -134,7 +134,7 @@ watch(
       <h2 class="min-w-0 font-display text-lg font-extrabold text-text-primary wrap-anywhere">
         {{ kindLabel(task.kind) }}
       </h2>
-      <TaskStatusBadge :status="task.status" />
+      <TaskStatusBadge :status="task.status" :label="task.statusName" />
       <span class="hidden flex-1 sm:block"></span>
       <UiButton variant="secondary" @click="close">{{ t('common.close') }}</UiButton>
     </div>

@@ -175,7 +175,7 @@ public sealed class StartupBanReconciler : BackgroundService
                 exempt++;
 
                 await journal.RecordSystemAsync(
-                    AuditActions.BanSkippedWhitelisted, episode.IpAddress, succeeded: true, cancellationToken);
+                    FirewallAuditActions.BanSkippedWhitelisted, episode.IpAddress, succeeded: true, cancellationToken);
 
                 continue;
             }

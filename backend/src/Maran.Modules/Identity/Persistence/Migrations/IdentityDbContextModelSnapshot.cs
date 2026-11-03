@@ -43,6 +43,13 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Active");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
@@ -50,6 +57,11 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
                     b.HasIndex("AccountId")
                         .HasDatabaseName("IX_AccountMemberships_AccountId");
+
+                    b.HasIndex("AccountId", "Role")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AccountMemberships_AccountId_Owner")
+                        .HasFilter("\"Role\" = 'Owner'");
 
                     b.HasIndex("UserId", "AccountId")
                         .IsUnique()
@@ -361,9 +373,6 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("AccountId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -380,6 +389,10 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
                     b.Property<long?>("LastTotpWindow")
                         .HasColumnType("bigint");
+
+                    b.Property<Guid?>("LegacyAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("AccountId");
 
                     b.Property<bool>("LegacyAccountSuspended")
                         .ValueGeneratedOnAdd()
@@ -430,14 +443,14 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AccountId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Users_AccountId")
-                        .HasFilter("\"AccountId\" IS NOT NULL");
-
                     b.HasIndex("Email")
                         .IsUnique()
                         .HasDatabaseName("IX_Users_Email");
+
+                    b.HasIndex("LegacyAccountId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_AccountId")
+                        .HasFilter("\"AccountId\" IS NOT NULL");
 
                     b.HasIndex("Username")
                         .IsUnique()

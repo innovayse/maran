@@ -47,23 +47,20 @@ import UiTable from '../../components/ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue'
 import type { AccountPickerState } from '../../composables/useAccountChoice'
+import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
 import { useListLabels } from '../../composables/useListLabels'
 import { usePlanChoice } from '../../composables/usePlanChoice'
 import { useServerTable } from '../../composables/useServerTable'
 import { useAccountsStore } from '../../stores/accounts'
+import { useAccountStatusesStore } from '../../stores/accountStatuses'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
-import type { Account, AccountStatus } from '../../types/account'
+import type { Account } from '../../types/account'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
-
-/**
- * The states an account can be in, mirroring the `AccountStatus` union the panel serializes. The
- * filter offers them by the same translated names the status badge shows.
- */
-const ACCOUNT_STATUSES: readonly AccountStatus[] = ['active', 'suspended']
 
 const { t } = useI18n()
 const store = useAccountsStore()
+const statusesStore = useAccountStatusesStore()
 const localeStore = useLocaleStore()
 const labels = useListLabels()
 const { picker: planPicker, search: searchPlans } = usePlanChoice()
@@ -73,13 +70,13 @@ const table = useServerTable<Account>({
     plan: {},
     status: {
       /**
-       * Honours only a state the panel has, so a hand-edited link never reaches the server.
+       * Honours only a state the panel listed, so a hand-edited link never reaches the server as a
+       * filter the page cannot show. Permissive until the list has arrived, and the accounts
+       * endpoint refuses an unknown state regardless.
        * @param value The `?status=` value.
-       * @returns True for a known account state.
+       * @returns True for a state the panel has, or while the panel's list is not read yet.
        */
-      accepts: (value: string): boolean => {
-        return (ACCOUNT_STATUSES as readonly string[]).includes(value)
-      },
+      accepts: statusesStore.accepts,
     },
   },
   /**
@@ -118,12 +115,12 @@ const planFilterPicker: ComputedRef<AccountPickerState> = computed(() => {
   }
 })
 
-/** The account states the filter offers, after an "any state" choice. */
+/** The account states the filter offers, as the panel named them, after an "any state" choice. */
 const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
   return [
     { value: '', label: t('common.list.any') },
-    ...ACCOUNT_STATUSES.map((status) => {
-      return { value: status, label: t(`accounts.status.${status}`) }
+    ...statusesStore.statuses.map((choice) => {
+      return { value: choice.status, label: choice.statusName }
     }),
   ]
 })
@@ -146,7 +143,7 @@ const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
     result.push(labels.chip('plan', t('accounts.list.filters.plan'), planName(applied.plan)))
   }
   if (applied.status !== '') {
-    result.push(labels.chip('status', t('accounts.list.filters.status'), t(`accounts.status.${applied.status}`)))
+    result.push(labels.chip('status', t('accounts.list.filters.status'), statusesStore.nameOf(applied.status)))
   }
   return result
 })
@@ -199,6 +196,9 @@ watch(
   },
   { immediate: true },
 )
+
+// The state names are the panel's, in the interface language, so a language switch asks again.
+useReloadOnLocale(statusesStore.load)
 </script>
 
 <template>
@@ -285,7 +285,7 @@ watch(
                 </div>
               </template>
               <template #cell-primaryDomain="{ row }">{{ row.primaryDomain }}</template>
-              <template #cell-status="{ row }"><AccountStatusBadge :status="row.status" /></template>
+              <template #cell-status="{ row }"><AccountStatusBadge :status="row.status" :label="row.statusName" /></template>
               <template #cell-createdAt="{ row }">{{ formatDate(row.createdAt, localeStore.current) }}</template>
             </UiTable>
 

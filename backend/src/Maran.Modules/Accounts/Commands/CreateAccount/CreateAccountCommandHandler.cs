@@ -1,11 +1,13 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Wolverine;
 
@@ -74,6 +76,9 @@ public sealed class CreateAccountCommandHandler
     /// <summary>Where a subscriber's failure to issue the owner's login is recorded.</summary>
     private readonly ILogger<CreateAccountCommandHandler> _logger;
 
+    /// <summary>Names the account's state in the response, in the request's culture.</summary>
+    private readonly IStringLocalizer<DisplayNames> _displayNames;
+
     /// <summary>Creates the handler with the module's own database context, the agent, the clock and the bus.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="agent">The agent client that provisions the system user.</param>
@@ -82,6 +87,7 @@ public sealed class CreateAccountCommandHandler
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="bus">The bus <see cref="AccountCreated"/> is invoked on.</param>
     /// <param name="logger">Where a subscriber's failure to issue the owner's login is recorded.</param>
+    /// <param name="displayNames">Names the account's state in the response, in the request's culture.</param>
     public CreateAccountCommandHandler(
         AccountsDbContext dbContext,
         IAgentAccountsClient agent,
@@ -89,7 +95,8 @@ public sealed class CreateAccountCommandHandler
         IClock clock,
         AccountAuditJournal journal,
         IMessageBus bus,
-        ILogger<CreateAccountCommandHandler> logger)
+        ILogger<CreateAccountCommandHandler> logger,
+        IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
         _agent = agent;
@@ -98,6 +105,7 @@ public sealed class CreateAccountCommandHandler
         _journal = journal;
         _bus = bus;
         _logger = logger;
+        _displayNames = displayNames;
     }
 
     /// <summary>
@@ -173,7 +181,7 @@ public sealed class CreateAccountCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.AccountCreated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountCreated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         // INVOKED, not published: a failure to issue the login must reach the caller. The account
         // already exists at this point and is not rolled back — see AccountCreated's remarks — so
@@ -200,7 +208,14 @@ public sealed class CreateAccountCommandHandler
         }
 
         return Result<AccountDto>.Ok(
-            new AccountDto(account.Id, account.Name, account.PrimaryDomain, account.PlanId, account.Status, account.CreatedAt));
+            new AccountDto(
+                account.Id,
+                account.Name,
+                account.PrimaryDomain,
+                account.PlanId,
+                account.Status,
+                AccountStatusMapper.NameOf(account.Status, _displayNames),
+                account.CreatedAt));
     }
 
     /// <summary>Journals a refused creation and returns it as the typed failure.</summary>
@@ -220,7 +235,7 @@ public sealed class CreateAccountCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.AccountCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<AccountDto>.Fail(error);
     }

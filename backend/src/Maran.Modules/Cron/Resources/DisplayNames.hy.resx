@@ -15,4 +15,49 @@
   <data name="CronModuleDisplayName">
     <value>Պլանավորիչ</value>
   </data>
+  <data name="CronFrequencyEveryMinute">
+    <value>Ամեն րոպե</value>
+  </data>
+  <data name="CronFrequencyHourly">
+    <value>Ամեն ժամ</value>
+  </data>
+  <data name="CronFrequencyDaily">
+    <value>Ամեն օր</value>
+  </data>
+  <data name="CronFrequencyWeekly">
+    <value>Ամեն շաբաթ</value>
+  </data>
+  <data name="CronFrequencyMonthly">
+    <value>Ամեն ամիս</value>
+  </data>
+  <data name="CronWeekdaySunday">
+    <value>կիրակի</value>
+  </data>
+  <data name="CronWeekdayMonday">
+    <value>երկուշաբթի</value>
+  </data>
+  <data name="CronWeekdayTuesday">
+    <value>երեքշաբթի</value>
+  </data>
+  <data name="CronWeekdayWednesday">
+    <value>չորեքշաբթի</value>
+  </data>
+  <data name="CronWeekdayThursday">
+    <value>հինգշաբթի</value>
+  </data>
+  <data name="CronWeekdayFriday">
+    <value>ուրբաթ</value>
+  </data>
+  <data name="CronWeekdaySaturday">
+    <value>շաբաթ</value>
+  </data>
+  <data name="CronRunOutcomeSucceeded">
+    <value>Հաջողված</value>
+  </data>
+  <data name="CronRunOutcomeFailed">
+    <value>Ձախողված</value>
+  </data>
+  <data name="CronRunOutcomeStopped">
+    <value>Կանգնեցված</value>
+  </data>
 </root>

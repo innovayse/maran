@@ -150,7 +150,7 @@ public sealed class WhitelistSeeder
         // itself with nobody signed in — so without the entry the whitelist's first row is the only
         // one in it with no history at all.
         await _journal.RecordSystemAsync(
-            AuditActions.FirewallWhitelistSeeded, normalized, succeeded: true, cancellationToken);
+            FirewallAuditActions.FirewallWhitelistSeeded, normalized, succeeded: true, cancellationToken);
 
         LogSeeded(_logger, normalized, null);
         return true;

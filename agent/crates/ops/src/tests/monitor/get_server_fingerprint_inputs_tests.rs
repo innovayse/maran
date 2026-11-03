@@ -10,7 +10,7 @@
 use super::get_server_fingerprint_inputs;
 use crate::monitor::fake_monitor_host::FakeMonitorHost;
 use crate::monitor::{MachineIdentity, MonitorError, PrimaryInterface};
-use maran_distro::DistroAdapter;
+use maran_distro::ServiceManagerFacts;
 use maran_distro::debian::DebianAdapter;
 
 #[test]

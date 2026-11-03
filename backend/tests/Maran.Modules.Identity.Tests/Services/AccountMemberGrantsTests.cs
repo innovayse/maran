@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Identity.Tests.Services;
 
@@ -57,5 +58,17 @@ public sealed class AccountMemberGrantsTests : IDisposable
 
         Assert.False(await Window().PermitsAsync(
             member.Id, SubUserWorld.AccountId, AccountFeature.Databases, CancellationToken.None));
+    }
+
+    /// <summary>A suspended membership is refused every feature, owner's included, and the other account is unaffected.</summary>
+    [Fact]
+    public async Task A_suspended_membership_is_refused_every_feature_even_the_owners()
+    {
+        (await _world.Context.AccountMemberships.SingleAsync(
+            candidate => candidate.UserId == _world.Owner.Id)).Suspend();
+        await _world.Context.SaveChangesAsync();
+
+        Assert.False(await Window().PermitsAsync(
+            _world.Owner.Id, SubUserWorld.AccountId, AccountFeature.Mail, CancellationToken.None));
     }
 }

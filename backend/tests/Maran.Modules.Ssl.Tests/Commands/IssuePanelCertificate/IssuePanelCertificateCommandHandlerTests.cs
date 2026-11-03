@@ -47,7 +47,7 @@ public sealed class IssuePanelCertificateCommandHandlerTests
         var stored = await fixture.DbContext.PanelCertificates.SingleAsync();
         Assert.Equal(SslHandlerFixture.Now, stored.IssuedAt);
         var entry = Assert.Single(fixture.Audit.Entries);
-        Assert.Equal((AuditActions.CertificateIssued, PanelName, true), (entry.Action, entry.Subject, entry.Succeeded));
+        Assert.Equal((CertificateAuditActions.CertificateIssued, PanelName, true), (entry.Action, entry.Subject, entry.Succeeded));
         var task = Assert.Single(fixture.Tasks.Tasks);
         Assert.Equal(TaskAudience.AdministratorOnly, task.Audience);
         Assert.Null(task.AccountId);

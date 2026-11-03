@@ -1,31 +1,34 @@
 <script setup lang="ts">
 /**
- * The two port presets that sit beside the raw rule form: the ports an operator opens so often that
+ * The port presets that sit beside the raw rule form: the ports an operator opens so often that
  * typing them into three fields is friction, and nothing more than that.
  *
- * A preset is a shortcut to the SAME request the form sends — never a second way of doing it. It
- * composes rules out of the reported list and emits them; the page sends them through the store and
- * the panel re-validates every one, exactly as it does a hand-typed rule.
+ * The panel produces every preset, its name and the exact rules it installs; this component holds
+ * no port and no label. A preset is a shortcut to the SAME request the form sends — never a second
+ * way of doing it. It composes rules out of the preset and the reported list and emits them; the
+ * page sends them through the store and the panel re-validates every one, exactly as it does a
+ * hand-typed rule.
  *
- * **Both presets read their own state out of the rules the panel reported**, rather than keeping a
- * flag of their own. A toggle holding its own idea of whether MySQL is open would disagree with the
+ * **Every preset reads its own state out of the rules the panel reported**, rather than keeping a
+ * flag of its own. A toggle holding its own idea of whether MySQL is open would disagree with the
  * firewall the moment somebody changed the rule from the table beside it, or from another session —
  * and the toggle is the one the operator would believe.
  */
-import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiCard from '../ui/UiCard.vue'
 import UiSwitch from '../ui/UiSwitch.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
-import { ANY_IPV4_SOURCE } from '../../utils/anySourceRange'
-import type { FirewallRule } from '../../types/firewall'
+import { portRangeLabel } from '../../utils/portRangeLabel'
+import type { FirewallPreset, FirewallRule } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallPresetButtons}. */
 const props = defineProps<{
-  /** The rules the panel reported, which are what both presets read their state from. */
+  /** The presets the panel offers, in the order it lists them. */
+  presets: readonly FirewallPreset[]
+  /** The rules the panel reported, which are what every preset reads its state from. */
   rules: readonly FirewallRule[]
-  /** Whether a rule change is already in flight, which disables both controls. */
+  /** Whether a rule change is already in flight, which disables every control. */
   busy: boolean
 }>()
 
@@ -37,72 +40,100 @@ const emit = defineEmits<{
   (e: 'deny', rules: FirewallRule[]): void
 }>()
 
-/** The ports a web server answers on: plain HTTP and HTTPS. */
-const WEB_PORTS = [80, 443]
-
-/** The port MySQL listens on, which is the one this toggle opens to the outside world or does not. */
-const MYSQL_PORT = 3306
-
-/** The rules the web preset installs, open to every source as a public web server must be. */
-const WEB_RULES: FirewallRule[] = WEB_PORTS.map((port) => {
-  return { port, portTo: null, protocol: 'tcp', sourceCidr: ANY_IPV4_SOURCE }
-})
-
 const { t } = useI18n()
 
-/** The web ports the panel is not already running a TCP rule for. */
-const missingWebRules: ComputedRef<FirewallRule[]> = computed(() => {
-  return WEB_RULES.filter((candidate) => {
-    return !props.rules.some((rule) => {
-      // `portTo === null` and not merely a matching port: a range that happens to start at 80
-      // is a different rule, and treating it as this preset's would offer a toggle that removes
-      // something else.
-      return rule.protocol === 'tcp' && rule.port === candidate.port && rule.portTo === null
-    })
-  })
-})
-
 /**
- * Every TCP rule the panel is running for MySQL's port, whatever source each is scoped to.
+ * Whether a running rule names the same port, range and protocol as a preset's rule.
  *
- * The scoped ones are included on purpose: turning the toggle off has to remove what is actually
- * there, and a deny naming a source range the rule was not installed with matches nothing while
- * still reporting success — the operator would then read a closed toggle over an open port.
+ * The source range is deliberately not compared: a rule scoped to a narrower range still holds the
+ * port open, and `portTo` is compared rather than only the port because a range that happens to
+ * start at 80 is a different rule, and treating it as the preset's would offer a switch that
+ * removes something else.
+ * @param running A rule the panel reported.
+ * @param candidate A rule of a preset.
+ * @returns True when they name the same ports over the same protocol.
  */
-const mysqlRules: ComputedRef<FirewallRule[]> = computed(() => {
-  return props.rules.filter((rule) => {
-    return rule.protocol === 'tcp' && rule.port === MYSQL_PORT && rule.portTo === null
-  })
-})
-
-/** Whether MySQL's port is reachable from outside the host at all. */
-const isMysqlOpen: ComputedRef<boolean> = computed(() => {
-  return mysqlRules.value.length > 0
-})
-
-/**
- * Opens the web ports the host is not already serving.
- *
- * Only the missing ones are sent: the panel answers a duplicate rule with a conflict, so a preset
- * that re-sent both every time would fail on the second press for no reason an operator could act
- * on.
- * @returns Nothing; emits synchronously.
- */
-const applyWebPreset = (): void => {
-  emit('allow', missingWebRules.value)
+const sameTarget = (running: FirewallRule, candidate: FirewallRule): boolean => {
+  return (
+    running.protocol === candidate.protocol && running.port === candidate.port && running.portTo === candidate.portTo
+  )
 }
 
 /**
- * Opens or closes MySQL's port to the outside world.
+ * The preset's rules the panel is not already running a rule for.
+ *
+ * Only these are sent: the panel answers a duplicate rule with a conflict, so a preset that
+ * re-sent everything every time would fail on the second press for no reason an operator could act on.
+ * @param preset The preset asked about.
+ * @returns The rules still to install.
+ */
+const missingRules = (preset: FirewallPreset): FirewallRule[] => {
+  return preset.rules.filter((candidate) => {
+    return !props.rules.some((running) => {
+      return sameTarget(running, candidate)
+    })
+  })
+}
+
+/**
+ * Every running rule on the preset's ports, whatever source each is scoped to.
+ *
+ * The scoped ones are included on purpose: turning a switch off has to remove what is actually
+ * there, and a deny naming a source range the rule was not installed with matches nothing while
+ * still reporting success — the operator would then read a closed switch over an open port.
+ * @param preset The preset asked about.
+ * @returns The running rules to remove.
+ */
+const runningRules = (preset: FirewallPreset): FirewallRule[] => {
+  return props.rules.filter((running) => {
+    return preset.rules.some((candidate) => {
+      return sameTarget(running, candidate)
+    })
+  })
+}
+
+/**
+ * The label a control carries: the panel's name for the preset and the ports it names.
+ * @param preset The preset to label.
+ * @returns For example `Open the web ports (80, 443)`.
+ */
+const labelOf = (preset: FirewallPreset): string => {
+  const ports = preset.rules.map((rule) => {
+    return portRangeLabel(rule.port, rule.portTo)
+  })
+  return `${preset.name} (${ports.join(', ')})`
+}
+
+/**
+ * Whether every rule of the preset is already running.
+ * @param preset The preset asked about.
+ * @returns True when nothing is left to install.
+ */
+const isOpen = (preset: FirewallPreset): boolean => {
+  return missingRules(preset).length === 0
+}
+
+/**
+ * Installs the preset's missing rules.
+ * @param preset The preset the operator pressed.
+ * @returns Nothing; emits synchronously.
+ */
+const apply = (preset: FirewallPreset): void => {
+  emit('allow', missingRules(preset))
+}
+
+/**
+ * Installs or removes a closable preset.
+ * @param preset The preset whose switch was flipped.
  * @param open The state the operator asked for.
  * @returns Nothing; emits synchronously.
  */
-const toggleMysql = (open: boolean): void => {
+const toggle = (preset: FirewallPreset, open: boolean): void => {
   if (open) {
-    emit('allow', [{ port: MYSQL_PORT, portTo: null, protocol: 'tcp', sourceCidr: ANY_IPV4_SOURCE }])
+    apply(preset)
     return
   }
-  emit('deny', [...mysqlRules.value])
+  emit('deny', runningRules(preset))
 }
 </script>
 
@@ -115,21 +146,25 @@ const toggleMysql = (open: boolean): void => {
     <!-- Stacked on a phone so a long translated label gets the full width instead of forcing the
          row wider than the screen; side by side from `sm`. -->
     <div class="flex flex-col items-start gap-4 sm:flex-row sm:flex-wrap sm:items-center">
-      <UiButton
-        class="max-w-full px-4"
-        variant="secondary"
-        :disabled="busy || missingWebRules.length === 0"
-        @click="applyWebPreset"
-      >
-        {{ t('firewall.presets.web') }}
-      </UiButton>
-      <UiSwitch
-        class="max-w-full"
-        :model-value="isMysqlOpen"
-        :label="t('firewall.presets.mysqlExternal')"
-        :disabled="busy"
-        @update:model-value="toggleMysql"
-      />
+      <template v-for="preset in presets" :key="preset.key">
+        <UiSwitch
+          v-if="preset.closable"
+          class="max-w-full"
+          :model-value="isOpen(preset)"
+          :label="labelOf(preset)"
+          :disabled="busy"
+          @update:model-value="toggle(preset, $event)"
+        />
+        <UiButton
+          v-else
+          class="max-w-full px-4"
+          variant="secondary"
+          :disabled="busy || isOpen(preset)"
+          @click="apply(preset)"
+        >
+          {{ labelOf(preset) }}
+        </UiButton>
+      </template>
     </div>
   </UiCard>
 </template>

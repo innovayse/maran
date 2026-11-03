@@ -94,7 +94,7 @@ public sealed class DeletePlanCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.PlanDeleted, plan.DisplayNameKey, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.PlanDeleted, plan.DisplayNameKey, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Ok();
     }
@@ -112,7 +112,7 @@ public sealed class DeletePlanCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.PlanDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.PlanDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Fail(error);
     }

@@ -1,6 +1,7 @@
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Resources;
+using Maran.Modules.Sites.Services;
 
 namespace Maran.Modules.Sites.Queries.GetSite;
 
@@ -16,11 +17,16 @@ public sealed class GetSiteQueryHandler
     /// <summary>The Sites module's database context.</summary>
     private readonly SitesDbContext _dbContext;
 
+    /// <summary>Names the site's backend and serving state in the request's culture.</summary>
+    private readonly SiteDisplayNames _siteNames;
+
     /// <summary>Creates the handler with the module's own database context.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
-    public GetSiteQueryHandler(SitesDbContext dbContext)
+    /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
+    public GetSiteQueryHandler(SitesDbContext dbContext, SiteDisplayNames siteNames)
     {
         _dbContext = dbContext;
+        _siteNames = siteNames;
     }
 
     /// <summary>Returns the site, or <c>SiteNotFound</c>.</summary>
@@ -44,11 +50,13 @@ public sealed class GetSiteQueryHandler
             site.Domain,
             site.Aliases,
             site.BackendType,
+            _siteNames.Of(site.BackendType),
             site.PhpVersion,
             site.ProxyUpstream,
             site.DocumentRoot,
             site.HasCertificate,
             site.Status,
+            _siteNames.Of(site.Status),
             site.CreatedAt));
     }
 }

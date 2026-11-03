@@ -549,7 +549,9 @@ public sealed class AgentSitesClientTests
 
         async Task DrainAsync()
         {
-            await foreach (var unused in client.TailLogAsync("acc1", "example.com", source, 10, default))
+            await using var drained = client.TailLogAsync("acc1", "example.com", source, 10, default)
+                .GetAsyncEnumerator();
+            while (await drained.MoveNextAsync())
             {
                 // The endings are asserted elsewhere; this test is about the request.
             }

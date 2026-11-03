@@ -274,7 +274,8 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
             // The fixture is asserted before the act, because every assertion below is satisfied by
             // a seed that never landed — the vacuity this suite has already been bitten by once.
             var seeded = before.ServiceProvider.GetRequiredService<IdentityDbContext>();
-            Assert.Equal(1, await seeded.Users.CountAsync(user => user.AccountId == accountId));
+            Assert.Equal(1, await seeded.AccountMemberships.CountAsync(membership => membership.AccountId == accountId));
+            Assert.Equal(1, await seeded.Users.CountAsync(user => user.Username == AccountName));
             Assert.Equal(1, await seeded.Sessions.CountAsync());
             Assert.Equal(1, await seeded.PasswordResetTokens.CountAsync());
             Assert.Equal(1, await seeded.RecoveryCodes.CountAsync());
@@ -287,7 +288,8 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
 
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        Assert.Empty(await identity.Users.Where(user => user.AccountId == accountId).ToListAsync());
+        Assert.Empty(await identity.AccountMemberships.Where(membership => membership.AccountId == accountId).ToListAsync());
+        Assert.Empty(await identity.Users.Where(user => user.Username == AccountName).ToListAsync());
         Assert.Equal(0, await identity.Sessions.CountAsync());
         Assert.Equal(0, await identity.PasswordResetTokens.CountAsync());
         Assert.Equal(0, await identity.RecoveryCodes.CountAsync());
@@ -337,7 +339,7 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         IAgentAccountsClient agent,
         IAgentSitesClient? sites = null)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
@@ -507,7 +509,6 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
 
         var user = new User(
             Guid.NewGuid(), AccountName, $"{AccountName}@example.com", "hash", UserRole.Customer, now);
-        user.AssignAccount(accountId);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, accountId, now));
         identity.Users.Add(user);
 

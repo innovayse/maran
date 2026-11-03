@@ -66,7 +66,7 @@ public sealed class AllowPortCommandHandlerTests
         await world.AllowAsync(8080, AgentFirewallProtocol.Tcp, "0.0.0.0/0");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.FirewallRuleAllowed, entry.Action);
+        Assert.Equal(FirewallAuditActions.FirewallRuleAllowed, entry.Action);
         Assert.Equal("tcp/8080 from 0.0.0.0/0", entry.Subject);
         Assert.True(entry.Succeeded);
     }

@@ -21,6 +21,13 @@ service PhpService {
   // Idempotent: installing a version that is already present completes
   // immediately with a success terminal message.
   rpc InstallPhpVersion(InstallPhpVersionRequest) returns (stream InstallPhpVersionResponse);
+
+  // Lists the PHP versions this host can install, newest first, each flagged
+  // as installed or not. Read-only. A version is listed when the panel's
+  // supported set and the host's package repository both carry it, which is
+  // the same test InstallPhpVersion applies, so an install picker built on
+  // this list never offers a version the install would refuse.
+  rpc ListInstallablePhpVersions(ListInstallablePhpVersionsRequest) returns (ListInstallablePhpVersionsResponse);
 }
 
 // Request for ListPhpVersions. Carries no parameters: the list is always
@@ -92,4 +99,30 @@ message InstallPhpVersionOk {
   // The version now installed, echoed back so a caller that retried a
   // cancelled stream can confirm what it got.
   string version = 1;
+}
+
+// Request for ListInstallablePhpVersions. Carries no parameters: the list is
+// always scoped to the host the agent runs on.
+message ListInstallablePhpVersionsRequest {}
+
+// Response for ListInstallablePhpVersions.
+message ListInstallablePhpVersionsResponse {
+  oneof result {
+    ListInstallablePhpVersionsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Terminal success payload for ListInstallablePhpVersions.
+message ListInstallablePhpVersionsOk {
+  // The installable versions, newest first, installed ones included.
+  repeated InstallablePhpVersion versions = 1;
+}
+
+// One PHP version this host can install.
+message InstallablePhpVersion {
+  // Two-component version as the packages name it, e.g. "8.3".
+  string version = 1;
+  // True when this version is already installed on the host.
+  bool installed = 2;
 }

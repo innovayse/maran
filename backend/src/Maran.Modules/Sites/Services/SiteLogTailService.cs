@@ -140,7 +140,7 @@ public sealed class SiteLogTailService
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.SiteLogTailed, site.Domain, ipAddress, userAgent, cancellationToken);
+            SiteAuditActions.SiteLogTailed, site.Domain, ipAddress, userAgent, cancellationToken);
 
         return Result<SiteLogTailTarget>.Ok(new SiteLogTailTarget(
             account.Username, site.Domain, logSource.Value, (uint)historyLines));
@@ -269,7 +269,7 @@ public sealed class SiteLogTailService
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SiteLogTailed, subject, ipAddress, userAgent, cancellationToken);
+            SiteAuditActions.SiteLogTailed, subject, ipAddress, userAgent, cancellationToken);
 
         return Result<SiteLogTailTarget>.Fail(error);
     }

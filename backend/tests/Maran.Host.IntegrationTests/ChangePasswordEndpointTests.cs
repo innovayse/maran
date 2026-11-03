@@ -187,7 +187,7 @@ public sealed class ChangePasswordEndpointTests : IAsyncLifetime
 
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.PasswordChanged;
+            return candidate.Action == IdentityAuditActions.PasswordChanged;
         });
         Assert.True(entry.Succeeded);
         Assert.Equal("admin", entry.ActorUsername);
@@ -234,7 +234,7 @@ public sealed class ChangePasswordEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.DoesNotContain(_audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.PasswordChanged;
+            return entry.Action == IdentityAuditActions.PasswordChanged;
         });
     }
 }

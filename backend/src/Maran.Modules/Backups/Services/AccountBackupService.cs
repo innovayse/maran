@@ -117,7 +117,7 @@ public sealed class AccountBackupService : IAccountBackupService
                 await _dbContext.SaveChangesAsync(cancellationToken);
 
                 await _journal.RecordSuccessAsync(
-                    AuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
+                    AccountAuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
                 break;
 
             case FailedBackupOutcome failed:
@@ -125,7 +125,7 @@ public sealed class AccountBackupService : IAccountBackupService
                 await _dbContext.SaveChangesAsync(cancellationToken);
 
                 await _journal.RecordFailureAsync(
-                    AuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
+                    AccountAuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
 
                 return Result<Guid>.Fail(Error.Of(nameof(ErrorMessages.FinalBackupFailed), ErrorType.Failure));
 

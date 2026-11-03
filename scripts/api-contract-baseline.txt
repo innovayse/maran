@@ -130,9 +130,9 @@ POST /api/v1/me/pinned-pages  ->  PinPageCommand
 POST /api/v1/me/sub-users  ->  InviteSubUserCommand
   username: string
   email: string
-  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/me/sub-users/{}/features  ->  ChangeSubUserGrantsCommand
-  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
   host: string
   port: number
@@ -159,7 +159,7 @@ POST /api/v1/plans  ->  CreatePlanCommand
   memoryMaxMb<limited>.maximum: number
   maxProcesses: union(kind: limited|unlimited)
   maxProcesses<limited>.maximum: number
-  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   name: string
   diskQuotaMb: number
@@ -175,7 +175,7 @@ PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   memoryMaxMb<limited>.maximum: number
   maxProcesses: union(kind: limited|unlimited)
   maxProcesses<limited>.maximum: number
-  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/security-policy  ->  SaveSecurityPolicyCommand
   minimumPasswordLength: number
   forceTwoFactorForAdmins: boolean
@@ -240,11 +240,15 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/accounts/choices
   GET /api/v1/accounts/me
   GET /api/v1/accounts/me/resource-summary
+  GET /api/v1/accounts/owner-languages
+  GET /api/v1/accounts/statuses
   GET /api/v1/accounts/{}
   GET /api/v1/accounts/{}/resource-summary
   GET /api/v1/audit
   GET /api/v1/audit/actions
+  GET /api/v1/audit/outcomes
   GET /api/v1/backup-destinations
+  GET /api/v1/backup-options
   GET /api/v1/backup-schedules
   GET /api/v1/backups
   GET /api/v1/backups/attention
@@ -255,11 +259,14 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/cron-entries/{}/runs
   GET /api/v1/cron-entries/{}/runs/{}
   GET /api/v1/cron-environment
+  GET /api/v1/cron-options
   GET /api/v1/database-grants
   GET /api/v1/databases
   GET /api/v1/databases/{}
   GET /api/v1/firewall/bans
   GET /api/v1/firewall/rules
+  GET /api/v1/firewall/rules/presets
+  GET /api/v1/firewall/rules/protocols
   GET /api/v1/firewall/whitelist
   GET /api/v1/ftp-users
   GET /api/v1/ftp-users/{}
@@ -277,6 +284,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/monitoring/metrics
   GET /api/v1/monitoring/services
   GET /api/v1/notifications/smtp
+  GET /api/v1/notifications/smtp/security-modes
   GET /api/v1/panel-certificate
   GET /api/v1/plans
   GET /api/v1/plans/choices
@@ -290,8 +298,10 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/sftp-users
   GET /api/v1/sftp-users/{}
   GET /api/v1/sites
+  GET /api/v1/sites/choices
   GET /api/v1/sites/limits
   GET /api/v1/sites/php-versions
+  GET /api/v1/sites/php-versions/installable
   GET /api/v1/sites/{}
   GET /api/v1/sites/{}/logs
   GET /api/v1/tasks
@@ -299,6 +309,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/tasks/kinds
   GET /api/v1/tasks/running
   GET /api/v1/tasks/running/stream
+  GET /api/v1/tasks/statuses
   GET /api/v1/tasks/{}
   GET /api/v1/tasks/{}/stream
   GET /api/v1/view-as

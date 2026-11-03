@@ -37,7 +37,7 @@ public static class SftpManifest
     /// for renaming it. The schema name is its own constant (<c>SftpDbContext.SchemaName</c>), so
     /// the two spell "sftp" separately and only rules/architecture.md keeps them equal; and this
     /// module's audit rows carry the authenticated principal as their actor, never a module prefix
-    /// — what says "Sftp" there is the action name, and those are <c>AuditActions</c> constants in
+    /// — what says "Sftp" there is the action name, and those are <c>*AuditActions</c> constants in
     /// the Sdk that no rename of this id would reach.
     /// </para>
     /// <para>

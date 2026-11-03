@@ -1,4 +1,4 @@
-import type { ListRequest, Paged } from './list'
+import type { ListRequest, Paged } from "./list";
 
 /**
  * The transport protocol a port rule applies to, mirroring the backend's `AgentFirewallProtocol`.
@@ -7,7 +7,42 @@ import type { ListRequest, Paged } from './list'
  * `JsonStringEnumConverter` writes enums as their camelCase member name, so `tcp` and `udp` are
  * literally what arrives and what a request has to send back.
  */
-export type FirewallProtocol = 'tcp' | 'udp'
+export type FirewallProtocol = "tcp" | "udp";
+
+/**
+ * One protocol the rule form's picker offers, mirroring the backend's `FirewallProtocolChoiceDto`.
+ *
+ * The panel produces the list and the name: the SPA holds no list of protocols and no label for
+ * one (rules/architecture.md "The backend owns the data, the SPA renders it"). The allow and deny
+ * endpoints keep validating the value against the same set.
+ */
+export interface FirewallProtocolChoice {
+  /** The protocol, which is what a rule sends back. */
+  protocol: FirewallProtocol;
+  /** The protocol as the operator reads it, already localized by the panel. */
+  protocolName: string;
+}
+
+/**
+ * One port preset the rule screen offers, mirroring the backend's `FirewallPresetDto`.
+ *
+ * The panel produces the preset, its name and the exact rules it installs: the SPA holds no port
+ * and no label for one (rules/architecture.md "The backend owns the data, the SPA renders it"). The
+ * allow endpoint validates each rule of a preset exactly as it validates a hand-typed one.
+ */
+export interface FirewallPreset {
+  /** The preset's identity, which is the camelCase name of the backend's preset key. */
+  key: string;
+  /** The preset as the operator reads it, already localized by the panel. */
+  name: string;
+  /**
+   * Whether the card offers switching the preset off again: a switch whose off position removes
+   * every running rule on the preset's ports when true, a button that only installs when false.
+   */
+  closable: boolean;
+  /** The rules installing the preset sends, in the order they are sent. */
+  rules: FirewallRule[];
+}
 
 /**
  * One port rule, mirroring the backend's `FirewallRuleDto` field-for-field.
@@ -25,7 +60,7 @@ export type FirewallProtocol = 'tcp' | 'udp'
  */
 export interface FirewallRule {
   /** The port the rule names, or the lower bound of a range, 1-65535. */
-  port: number
+  port: number;
   /**
    * The inclusive upper bound when the rule opens a RANGE of ports, and `null` when it names a
    * single port.
@@ -39,15 +74,15 @@ export interface FirewallRule {
    * It is part of the rule's identity, like the source range: a removal sends it back exactly as
    * the listing reported it.
    */
-  portTo: number | null
+  portTo: number | null;
   /** The transport protocol it applies to. */
-  protocol: FirewallProtocol
+  protocol: FirewallProtocol;
   /**
    * The source range it is scoped to, as the firewall is actually running it. This is the value a
    * removal has to send back verbatim: a deny whose source range is spelled differently matches
    * nothing and still reports success.
    */
-  sourceCidr: string
+  sourceCidr: string;
 }
 
 /**
@@ -59,7 +94,7 @@ export interface FirewallRule {
  * dialog only reads it back. A type two of those three would have to import from the third belongs
  * to the contract they share.
  */
-export type FirewallRuleChange = 'allow' | 'deny'
+export type FirewallRuleChange = "allow" | "deny";
 
 /**
  * Why an address was banned, mirroring the backend's `BanReason`.
@@ -69,60 +104,60 @@ export type FirewallRuleChange = 'allow' | 'deny'
  * are the whole of the product's answer to "why is this address cut off", and the reason column is
  * the reason this screen reads the panel's table rather than the kernel's ban set.
  */
-export type BanReason = 'manual' | 'bruteForce'
+export type BanReason = "manual" | "bruteForce";
 
 /** One ban still in force, mirroring the backend's `BanDto` field-for-field. */
 export interface Ban {
   /** The episode's identity. */
-  id: string
+  id: string;
   /** The banned address, in the plain form the agent holds it under. */
-  ipAddress: string
+  ipAddress: string;
   /** Why it was banned. */
-  reason: BanReason
+  reason: BanReason;
   /** How many failures the detector counted; zero for a ban an administrator placed by hand. */
-  failures: number
+  failures: number;
   /** When the ban was placed, as an ISO-8601 instant. */
-  bannedAt: string
+  bannedAt: string;
   /** When it runs out as an ISO-8601 instant, or `null` for one that lasts until somebody lifts it. */
-  expiresAt: string | null
+  expiresAt: string | null;
 }
 
 /** Request body for `POST /api/v1/firewall/bans`, binding the backend's `BanAddressCommand`. */
 export interface BanAddressRequest {
   /** The address to ban. */
-  address: string
+  address: string;
   /**
    * How long the ban lasts in minutes, or `null` for one that lasts until somebody lifts it.
    *
    * Absent means permanent on purpose, on the backend and here alike: a permanent ban should be
    * something the operator chose by leaving the field empty, never something a zero produced.
    */
-  durationMinutes: number | null
+  durationMinutes: number | null;
 }
 
 /** One exempt range, mirroring the backend's `WhitelistEntryDto` field-for-field. */
 export interface WhitelistEntry {
   /** The row's identity, and the only identifier a request may name. */
-  id: string
+  id: string;
   /** The exempt range, exactly as it was written. */
-  cidr: string
+  cidr: string;
   /**
    * What the range is, in the administrator's own words — or in the installer's, for the row the
    * panel seeds from the address the server was installed from. The panel writes that note, so it
    * is the only thing distinguishing the seeded row from a hand-written one, and this screen shows
    * it verbatim rather than deciding for itself which row is which.
    */
-  note: string
+  note: string;
   /** When the row was added, as an ISO-8601 instant. */
-  createdAt: string
+  createdAt: string;
 }
 
 /** Request body for `POST /api/v1/firewall/whitelist`, binding the backend's `AddWhitelistEntryCommand`. */
 export interface AddWhitelistEntryRequest {
   /** The range to exempt, in CIDR notation. */
-  cidr: string
+  cidr: string;
   /** What the range is, for whoever reads it later; at most 200 characters. */
-  note: string
+  note: string;
 }
 
 /**
@@ -136,7 +171,21 @@ export interface FirewallApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The rules, in the order the panel reports them.
    */
-  listRules: (signal?: AbortSignal) => Promise<FirewallRule[]>
+  listRules: (signal?: AbortSignal) => Promise<FirewallRule[]>;
+
+  /**
+   * Lists the transport protocols a rule may name, for the rule form's protocol picker.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The protocols, each named for the operator by the panel.
+   */
+  listProtocolChoices: (signal?: AbortSignal) => Promise<FirewallProtocolChoice[]>;
+
+  /**
+   * Lists the port presets the preset card offers, as the panel defines them.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The presets, each named for the operator by the panel.
+   */
+  listPortPresets: (signal?: AbortSignal) => Promise<FirewallPreset[]>;
 
   /**
    * Opens a port, scoped to one source range.
@@ -144,7 +193,7 @@ export interface FirewallApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns Resolves once the panel installed the rule; the answer is an empty 204.
    */
-  allowPort: (rule: FirewallRule, signal?: AbortSignal) => Promise<void>
+  allowPort: (rule: FirewallRule, signal?: AbortSignal) => Promise<void>;
 
   /**
    * Closes a port that was opened, matching the source range the allow was scoped to.
@@ -152,7 +201,7 @@ export interface FirewallApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns Resolves once the panel removed the rule; the answer is an empty 204.
    */
-  denyPort: (rule: FirewallRule, signal?: AbortSignal) => Promise<void>
+  denyPort: (rule: FirewallRule, signal?: AbortSignal) => Promise<void>;
 
   /**
    * Lists one page of the bans still in force, newest first unless a sort is named.
@@ -160,7 +209,7 @@ export interface FirewallApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The page and the total in force.
    */
-  listBans: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<Ban>>
+  listBans: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<Ban>>;
 
   /**
    * Bans an address, for a duration or until somebody lifts it.
@@ -168,7 +217,7 @@ export interface FirewallApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns Resolves once the panel placed the ban; the answer is an empty 204.
    */
-  banAddress: (request: BanAddressRequest, signal?: AbortSignal) => Promise<void>
+  banAddress: (request: BanAddressRequest, signal?: AbortSignal) => Promise<void>;
 
   /**
    * Lifts every ban in force for one address.
@@ -176,7 +225,7 @@ export interface FirewallApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns Resolves once the panel lifted the ban; the answer is an empty 204.
    */
-  unbanAddress: (address: string, signal?: AbortSignal) => Promise<void>
+  unbanAddress: (address: string, signal?: AbortSignal) => Promise<void>;
 
   /**
    * Lists one page of the ranges the automatic bans never touch, oldest first unless a sort is named.
@@ -184,7 +233,7 @@ export interface FirewallApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The page and the total that matched.
    */
-  listWhitelist: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<WhitelistEntry>>
+  listWhitelist: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<WhitelistEntry>>;
 
   /**
    * Exempts a range from the automatic bans.
@@ -192,7 +241,7 @@ export interface FirewallApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The row as the panel created it.
    */
-  addWhitelistEntry: (request: AddWhitelistEntryRequest, signal?: AbortSignal) => Promise<WhitelistEntry>
+  addWhitelistEntry: (request: AddWhitelistEntryRequest, signal?: AbortSignal) => Promise<WhitelistEntry>;
 
   /**
    * Removes an exemption, so the automatic bans may reach the range again.
@@ -200,7 +249,7 @@ export interface FirewallApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns Resolves once the panel removed the row; the answer is an empty 204.
    */
-  removeWhitelistEntry: (id: string, signal?: AbortSignal) => Promise<void>
+  removeWhitelistEntry: (id: string, signal?: AbortSignal) => Promise<void>;
 }
 
 /**
@@ -211,22 +260,22 @@ export interface FirewallApi {
 export type PendingFirewallChange =
   | {
       /** The change installs rules. */
-      intent: 'allow'
+      intent: "allow";
       /** The rules the change covers, spelled as they will be sent. */
-      rules: readonly FirewallRule[]
+      rules: readonly FirewallRule[];
       /** Whether the raw form produced them, whose fields are emptied once the change lands. */
-      fromForm: boolean
+      fromForm: boolean;
     }
   | {
       /** The change removes rules. */
-      intent: 'deny'
+      intent: "deny";
       /** The rules the change covers, spelled as they will be sent. */
-      rules: readonly FirewallRule[]
+      rules: readonly FirewallRule[];
       /**
        * Whether the change would leave the host with no rule at all for one of the ports it names.
        *
        * True is the case the plan calls "removing the last one": if that port is the SSH port, the
        * panel's unconditional accept comes back and SSH is reachable from every source again.
        */
-      leavesPortsUnruled: boolean
-    }
+      leavesPortsUnruled: boolean;
+    };

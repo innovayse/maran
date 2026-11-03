@@ -76,7 +76,7 @@ public sealed class LogoutEverywhereAuditTests : IAsyncLifetime
         var userId = await FindUserIdAsync(factory, "customer");
         var entry = Assert.Single(audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.LoggedOutEverywhere;
+            return candidate.Action == IdentityAuditActions.LoggedOutEverywhere;
         });
         Assert.Equal(userId, entry.ActorUserId);
         Assert.Equal(userId.ToString(), entry.Subject);
@@ -100,7 +100,7 @@ public sealed class LogoutEverywhereAuditTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.DoesNotContain(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.LoggedOutEverywhere;
+            return entry.Action == IdentityAuditActions.LoggedOutEverywhere;
         });
     }
 

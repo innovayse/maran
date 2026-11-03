@@ -96,7 +96,7 @@ public sealed class ChangeAccountOwnerEmailCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.AccountOwnerEmailChanged, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountOwnerEmailChanged, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         var plan = await _dbContext.Plans.AsNoTracking().SingleAsync(p => p.Id == account.PlanId, cancellationToken);
         return Result<AccountDetailDto>.Ok(AccountDetailMapper.ToDto(account, plan, _displayNames));
@@ -115,7 +115,7 @@ public sealed class ChangeAccountOwnerEmailCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.AccountOwnerEmailChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountOwnerEmailChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<AccountDetailDto>.Fail(error);
     }

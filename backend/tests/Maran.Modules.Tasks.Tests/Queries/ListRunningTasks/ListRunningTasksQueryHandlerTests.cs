@@ -28,7 +28,7 @@ public sealed class ListRunningTasksQueryHandlerTests
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin, database);
         var result = await new ListRunningTasksQueryHandler(
-            context, admin, TasksTestContext.KindNames(), TasksTestContext.FailureMessages())
+            context, admin, TasksTestContext.KindNames(), TasksTestContext.StatusNames(), TasksTestContext.FailureMessages())
             .HandleAsync(new ListRunningTasksQuery(), CancellationToken.None);
 
         Assert.Equal(["newer.example", "older.example"], result.Value.Select(task =>
@@ -57,7 +57,7 @@ public sealed class ListRunningTasksQueryHandlerTests
         var customer = FakeCurrentUser.Customer(mine);
         await using var context = TasksTestContext.Create(customer, database);
         var result = await new ListRunningTasksQueryHandler(
-            context, customer, TasksTestContext.KindNames(), TasksTestContext.FailureMessages())
+            context, customer, TasksTestContext.KindNames(), TasksTestContext.StatusNames(), TasksTestContext.FailureMessages())
             .HandleAsync(new ListRunningTasksQuery(), CancellationToken.None);
 
         var task = Assert.Single(result.Value);

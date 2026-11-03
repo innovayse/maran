@@ -150,4 +150,29 @@ public sealed class AgentSftpClient : IAgentSftpClient
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<int>> EndSessionsAsync(
+        string accountUsername,
+        string sftpUsername,
+        CancellationToken cancellationToken)
+    {
+        var request = new EndSftpSessionsRequest
+        {
+            AccountUsername = accountUsername,
+            SftpUsername = sftpUsername,
+        };
+        var response = await _invoker.EndSftpSessionsAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            // Clamped and not cast: the wire carries a uint, the panel counts in int, and a host
+            // with more than two billion processes of one login is not a state worth a negative.
+            EndSftpSessionsResponse.ResultOneofCase.Ok => Result<int>.Ok(
+                (int)Math.Min(response.Ok.ProcessesSignalled, int.MaxValue)),
+            EndSftpSessionsResponse.ResultOneofCase.Error => Result<int>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(EndSessionsAsync))),
+            _ => Result<int>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
 }

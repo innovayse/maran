@@ -15,4 +15,16 @@
   <data name="FirewallModuleDisplayName">
     <value>Брандмауэр</value>
   </data>
+  <data name="FirewallPresetMysqlExternal">
+    <value>MySQL доступен снаружи</value>
+  </data>
+  <data name="FirewallPresetWeb">
+    <value>Открыть веб-порты</value>
+  </data>
+  <data name="FirewallProtocolTcp">
+    <value>TCP</value>
+  </data>
+  <data name="FirewallProtocolUdp">
+    <value>UDP</value>
+  </data>
 </root>

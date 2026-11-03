@@ -18,7 +18,7 @@ public static class SpaLocaleKeys
 
     /// <summary>Every key one language's bundle defines, in dotted form.</summary>
     /// <param name="language">The language folder to read, e.g. <c>ru</c>.</param>
-    /// <returns>The full key paths, such as <c>backups.status.running</c>.</returns>
+    /// <returns>The full key paths, such as <c>backups.list.heading</c>.</returns>
     public static IReadOnlySet<string> KeysOf(string language)
     {
         var folder = Path.Combine(RepositoryRoot(), "frontend", "src", "locales", language);

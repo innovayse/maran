@@ -62,6 +62,20 @@ public sealed class RateLimitOptions
     [Range(1, 86_400)]
     public int InvitationWindowSeconds { get; set; } = 900;
 
+    /// <summary>Invitations one hosting account may send within <see cref="InvitationSendWindowSeconds"/>.</summary>
+    /// <remarks>
+    /// Its own number and its own bucket (<c>RateLimitPolicies.InvitationSending</c>), distinct from
+    /// <see cref="InvitationMaxRequests"/>, which bounds acceptance. Every permitted request makes
+    /// the panel mail an address the owner typed, so the figure is small: twenty a window is a whole
+    /// team being onboarded at once, and anything beyond is somebody using the panel to send mail.
+    /// </remarks>
+    [Range(1, 1_000)]
+    public int InvitationSendMaxRequests { get; set; } = 20;
+
+    /// <summary>Length of the window invitation sending is counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int InvitationSendWindowSeconds { get; set; } = 3600;
+
     /// <summary>Requests allowed per authenticated account (or IP, when anonymous) within <see cref="ApiWindowSeconds"/>.</summary>
     [Range(1, 100_000)]
     public int ApiPermitLimit { get; set; } = 300;

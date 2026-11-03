@@ -84,4 +84,21 @@ public interface ISessionService
         Guid keptSessionId,
         SessionRevocationReason reason,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Revokes every live session, whoever's, that is currently speaking for one hosting account.
+    /// </summary>
+    /// <remarks>
+    /// Sessions of the same people speaking for another account are left alone: ending those would
+    /// make suspending one account sign a person out of the others. This is what the suspension of
+    /// an account needs, and it is deliberately not <see cref="RevokeAllAsync"/> per login.
+    /// </remarks>
+    /// <param name="accountId">The account whose sessions end.</param>
+    /// <param name="reason">Why the sessions are ending.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>Resolves once every revocation is stored.</returns>
+    Task RevokeSpeakingForAccountAsync(
+        Guid accountId,
+        SessionRevocationReason reason,
+        CancellationToken cancellationToken);
 }

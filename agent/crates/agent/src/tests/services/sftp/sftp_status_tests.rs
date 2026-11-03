@@ -29,6 +29,8 @@ fn every_variant() -> Vec<SftpError> {
         SftpError::AccountNotManaged,
         SftpError::TooManyKeys { count: 33 },
         SftpError::KeyFileFailed,
+        SftpError::PasswdUnreadable,
+        SftpError::SessionsNotEnded { code: 2 },
     ]
 }
 
@@ -267,6 +269,28 @@ fn too_many_keys_is_the_requests_fault_and_a_failed_key_file_the_hosts() {
     );
     assert_eq!(
         code_of(&SftpError::KeyFileFailed),
+        ErrorCode::SystemFailure as i32
+    );
+}
+
+#[test]
+fn sessions_that_could_not_be_ended_are_a_fault_and_never_a_revocation_that_took_effect() {
+    // `pkill` refusing means some of the login's processes may still be alive;
+    // the panel must see a failure, not a success with a count.
+    let error = to_agent_error(&SftpError::SessionsNotEnded { code: 2 });
+
+    assert_eq!(error.code, ErrorCode::SystemFailure as i32);
+    assert!(
+        error.message.contains('2'),
+        "an operator needs pkill's own exit status: {}",
+        error.message
+    );
+}
+
+#[test]
+fn an_unreadable_password_database_is_a_fault_of_the_host() {
+    assert_eq!(
+        code_of(&SftpError::PasswdUnreadable),
         ErrorCode::SystemFailure as i32
     );
 }

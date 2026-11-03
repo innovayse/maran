@@ -94,7 +94,7 @@ public sealed class RemoveWhitelistEntryCommandHandler
         if (entry is null)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.FirewallWhitelistChanged,
+                FirewallAuditActions.FirewallWhitelistChanged,
                 command.EntryId.ToString(),
                 command.IpAddress,
                 command.UserAgent,
@@ -110,7 +110,7 @@ public sealed class RemoveWhitelistEntryCommandHandler
         if (await WouldStrandTheCallerAsync(command, cancellationToken))
         {
             await _journal.RecordFailureAsync(
-                AuditActions.FirewallWhitelistChanged,
+                FirewallAuditActions.FirewallWhitelistChanged,
                 cidr,
                 command.IpAddress,
                 command.UserAgent,
@@ -124,7 +124,7 @@ public sealed class RemoveWhitelistEntryCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.FirewallWhitelistChanged,
+            FirewallAuditActions.FirewallWhitelistChanged,
             cidr,
             command.IpAddress,
             command.UserAgent,

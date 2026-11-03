@@ -76,7 +76,7 @@ public sealed class AllowPortCommandHandler
         if (!allowed.IsSuccess)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.FirewallRuleAllowed,
+                FirewallAuditActions.FirewallRuleAllowed,
                 subject,
                 command.IpAddress,
                 command.UserAgent,
@@ -86,7 +86,7 @@ public sealed class AllowPortCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.FirewallRuleAllowed,
+            FirewallAuditActions.FirewallRuleAllowed,
             subject,
             command.IpAddress,
             command.UserAgent,

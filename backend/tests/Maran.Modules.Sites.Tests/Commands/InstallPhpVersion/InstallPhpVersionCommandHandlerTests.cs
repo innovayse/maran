@@ -156,6 +156,46 @@ public sealed class InstallPhpVersionCommandHandlerTests
         Assert.False(audit.Entries.Single().Succeeded);
     }
 
+    /// <summary>A version the agent does not offer as installable is refused before anything runs.</summary>
+    /// <remarks>
+    /// The SPA's select is advice and this is the boundary: a typed or replayed body naming a version
+    /// outside the agent's installable set must never reach the installer, begin a task, or be
+    /// answered as a success.
+    /// </remarks>
+    [Fact]
+    public async Task A_version_the_agent_does_not_offer_is_refused_before_anything_is_installed()
+    {
+        var php = new RecordingAgentPhpClient("8.3");
+        php.OfferOnly("8.3", "8.2");
+        var tasks = new RecordingTaskRecorder();
+        var audit = new RecordingAuditWriter();
+        var handler = Handler(php, tasks, audit);
+
+        var result = await handler.HandleAsync(Command("8.4"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PhpVersionNotInstallable", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        Assert.Empty(php.InstallCalls);
+        Assert.Empty(tasks.Tasks);
+        Assert.False(audit.Entries.Single().Succeeded);
+    }
+
+    /// <summary>An agent that cannot list the installable versions refuses the install.</summary>
+    [Fact]
+    public async Task An_agent_that_cannot_list_the_installable_versions_refuses_the_install()
+    {
+        var php = new RecordingAgentPhpClient(Error.Of("AgentUnavailable", ErrorType.Unavailable));
+        var tasks = new RecordingTaskRecorder();
+        var audit = new RecordingAuditWriter();
+        var handler = Handler(php, tasks, audit);
+
+        var result = await handler.HandleAsync(Command("8.4"), CancellationToken.None);
+
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Empty(php.InstallCalls);
+    }
+
     /// <summary>Builds the handler over the given doubles.</summary>
     /// <param name="php">The agent's PHP surface.</param>
     /// <param name="tasks">Records the long-running task.</param>

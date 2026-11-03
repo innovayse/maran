@@ -25,6 +25,10 @@ namespace Maran.Modules.Notifications.Common;
 /// itself across a single round trip: the read answered <c>StartTls</c> while the PUT beside it
 /// bound <c>startTls</c>, so a client could not send back what it had just been given.
 /// </param>
+/// <param name="SecurityName">
+/// The mode as an administrator reads it, resolved for the request's culture, so the form can show the
+/// current choice without holding the vocabulary itself.
+/// </param>
 /// <param name="Username">The submission user name, or empty when the server takes no credentials.</param>
 /// <param name="HasPassword">Whether a password is stored. Never the value, in any form.</param>
 /// <param name="FromAddress">The address the panel's mail is sent from.</param>
@@ -40,6 +44,7 @@ public sealed record SmtpSettingsDto(
     string Host,
     int Port,
     SmtpSecurity Security,
+    string SecurityName,
     string Username,
     bool HasPassword,
     string FromAddress,

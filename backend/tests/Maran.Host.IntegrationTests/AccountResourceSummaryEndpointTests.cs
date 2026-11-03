@@ -194,7 +194,7 @@ public sealed class AccountResourceSummaryEndpointTests : IAsyncLifetime
     /// <returns>The factory.</returns>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
@@ -305,7 +305,6 @@ public sealed class AccountResourceSummaryEndpointTests : IAsyncLifetime
 
         var customer = new User(
             Guid.NewGuid(), username, $"{username}@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        customer.AssignAccount(accountId);
         context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, accountId, now));
         context.Users.Add(customer);
         await context.SaveChangesAsync();

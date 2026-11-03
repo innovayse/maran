@@ -61,6 +61,21 @@ public static class RateLimitPolicies
     public const string Invitation = "invitation";
 
     /// <summary>
+    /// The invitation-sending limit: its own bucket, keyed by the signed-in caller's hosting account,
+    /// separate from <see cref="Invitation"/> (acceptance).
+    /// </summary>
+    /// <remarks>
+    /// Acceptance is anonymous, keyed by address and spent once per person; sending is authenticated
+    /// and spends an outgoing message with the operator's return address on it, to an address the
+    /// caller typed. Sharing one meter made each starve or flatter the other: an owner inviting a
+    /// team from an office would use up the budget a new customer behind the same address needs to
+    /// accept, and a prober guessing acceptance tokens would lock the owner out of inviting. The two
+    /// questions — how fast may mail be sent for an account, how fast may one address guess tokens —
+    /// have different keys and different numbers, so they are different policies.
+    /// </remarks>
+    public const string InvitationSending = "invitation-sending";
+
+    /// <summary>
     /// The site-log stream limit: a CONCURRENCY limit on how many tails one account may hold
     /// open at once, which is a different question from how fast it may open them.
     /// </summary>

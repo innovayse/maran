@@ -115,7 +115,7 @@ public sealed class EnableSiteCommandHandlerTests
             CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.SiteEnabled, entry.Action);
+        Assert.Equal(SiteAuditActions.SiteEnabled, entry.Action);
         Assert.Equal("example.com", entry.Subject);
     }
 
@@ -228,7 +228,8 @@ public sealed class EnableSiteCommandHandlerTests
             context,
             accounts,
             agent,
-            new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)));
+            new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
+            SitesTestContext.SiteNames());
     }
 
     /// <summary>Seeds one site in the state this operation acts from, and returns its id.</summary>

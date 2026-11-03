@@ -39,11 +39,12 @@ public static class ObservabilityExtensions
     public static IHostBuilder AddPanelObservability(this IHostBuilder builder, bool commandLineMode = false)
     {
         var levelSwitch = new LoggingLevelSwitch();
+        var thirdParty = new ThirdPartyLogSwitches(ThirdPartyLogPins.All);
 
         builder.ConfigureServices((context, services) =>
         {
             levelSwitch.MinimumLevel = ConfiguredMinimumLevel.Read(context.Configuration);
-            services.AddSingleton<IPanelLogLevelSwitch>(new SerilogPanelLogLevelSwitch(levelSwitch));
+            services.AddSingleton<IPanelLogLevelSwitch>(new SerilogPanelLogLevelSwitch(levelSwitch, thirdParty));
         });
 
         return builder.UseSerilog((context, configuration) =>
@@ -54,7 +55,7 @@ public static class ObservabilityExtensions
                 return;
             }
 
-            ConfigureLogger(context, configuration, levelSwitch);
+            ConfigureLogger(context, configuration, levelSwitch, thirdParty);
         });
     }
 
@@ -83,18 +84,27 @@ public static class ObservabilityExtensions
     /// <c>MinimumLevel.Information()</c> this method used to apply after reading configuration, which
     /// silently overrode a configured <c>Default</c> — the Development file's <c>Debug</c> among them.
     /// </param>
+    /// <param name="thirdParty">
+    /// The pins for namespaces the panel does not own, applied AFTER configuration is read so that no
+    /// configured override can make a library more verbose than its floor (issue #337).
+    /// </param>
     private static void ConfigureLogger(
         HostBuilderContext context,
         LoggerConfiguration configuration,
-        LoggingLevelSwitch levelSwitch)
+        LoggingLevelSwitch levelSwitch,
+        ThirdPartyLogSwitches thirdParty)
     {
         configuration
             .ReadFrom.Configuration(context.Configuration)
             .MinimumLevel.ControlledBy(levelSwitch)
-            // ASP.NET Core's own request logs are replaced by UseSerilogRequestLogging below:
-            // one summary line per request instead of three framework lines.
-            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-            .Enrich.FromLogContext()
+            .Enrich.FromLogContext();
+
+        // ASP.NET Core's own request logs are replaced by UseSerilogRequestLogging below (one summary
+        // line per request instead of three framework lines), and every other library the panel
+        // does not own is held at Warning or above whatever level the panel is raised to.
+        thirdParty.ApplyTo(configuration);
+
+        configuration
             // Invariant culture: log lines are machine-parsed and compared across servers, so they
             // must not vary with the host's locale.
             .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture);

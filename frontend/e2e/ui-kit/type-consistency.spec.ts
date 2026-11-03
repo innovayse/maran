@@ -26,11 +26,13 @@ const SITE: SiteDetail = {
   domain: 'alpha.example.com',
   aliases: [],
   backendType: 'php',
+  backendTypeName: 'PHP',
   phpVersion: '8.3',
   proxyUpstream: '',
   documentRoot: '/home/alpha/sites/alpha.example.com/public',
   hasCertificate: false,
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -40,6 +42,7 @@ const ACCOUNT: Account = {
   primaryDomain: 'alpha.example.com',
   planId: '44444444-4444-4444-4444-444444444444',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
 }
 

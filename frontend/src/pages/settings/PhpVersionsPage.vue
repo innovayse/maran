@@ -16,6 +16,12 @@
  * and the copy in the browser is the one that cannot be trusted. A customer who
  * types this URL sees the panel's own refusal rendered on the page.
  *
+ * **The version to install is chosen, never typed.** The select is fed by
+ * `GET /api/v1/sites/php-versions/installable`: the versions the agent reports the host can install,
+ * minus the ones already installed. A typed version invited typos and versions that do not exist,
+ * and pushed the refusal to after the submit. The select is only advice: the backend validates the
+ * chosen version against the same set again.
+ *
  * **The install does not resolve quickly and the screen says so.** It is the
  * host's package manager fetching over whatever mirror it has. The button holds
  * its pending state for the whole run, and the tasks screen carries the progress
@@ -40,9 +46,9 @@ import UiBadge from '../../components/ui/UiBadge.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
-import UiInput from '../../components/ui/UiInput.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import type { PhpDefaultStatus } from '../../types/phpVersion'
@@ -52,9 +58,19 @@ import { usePhpVersionsStore } from '../../stores/phpVersions'
 const { t } = useI18n()
 const phpVersionsStore = usePhpVersionsStore()
 
-/** The version typed into the install field, e.g. `8.4`. */
+/** The version chosen in the install select, e.g. `8.4`, or the empty string while nothing is chosen. */
 const version: Ref<string> = ref('')
 
+/** The versions the host can install and does not have yet, as the select's options. */
+const installOptions: ComputedRef<SelectOption[]> = computed(() => {
+  return phpVersionsStore.installablePhpVersions
+    .filter((candidate) => {
+      return !candidate.installed
+    })
+    .map((candidate) => {
+      return { value: candidate.version, label: t('php.install.option', { version: candidate.version }) }
+    })
+})
 
 /** The table's columns: its header, its cells and its loading placeholder all read this one list. */
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
@@ -85,15 +101,15 @@ const defaultLabel = (status: PhpDefaultStatus): string => {
 }
 
 /**
- * Asks the server to install the typed version.
+ * Asks the server to install the chosen version.
  *
- * The field is cleared only when the server reports the version among those
+ * The selection is cleared only when the server reports the version among those
  * installed afterwards. A field cleared on "the request did not throw" would
  * read as done for an install that failed.
  * @returns Resolves once the attempt has settled.
  */
 const install = async (): Promise<void> => {
-  const wanted = version.value.trim()
+  const wanted = version.value
   if (wanted.length === 0) {
     return
   }
@@ -105,7 +121,7 @@ const install = async (): Promise<void> => {
 }
 
 onMounted(async () => {
-  await phpVersionsStore.loadPhpVersions()
+  await Promise.all([phpVersionsStore.loadPhpVersions(), phpVersionsStore.loadInstallablePhpVersions()])
 })
 </script>
 
@@ -154,10 +170,13 @@ onMounted(async () => {
       <UiCard>
         <UiSectionHeading class="mb-4" :title="t('php.install.heading')" />
         <div class="flex flex-col gap-3">
-          <UiInput
+          <UiSelect
             v-model="version"
             :label="t('php.install.label')"
-            placeholder="8.4"
+            :placeholder="t('php.install.placeholder')"
+            :options="installOptions"
+            :empty-text="t('php.install.nothingToInstall')"
+            :load-error="phpVersionsStore.installableErrorMessage"
             :disabled="phpVersionsStore.installingPhpVersion !== null"
           />
           <p class="text-sm text-text-secondary">{{ t('php.install.hint') }}</p>
@@ -168,7 +187,7 @@ onMounted(async () => {
 
           <div>
             <UiButton
-              :disabled="version.trim().length === 0 || phpVersionsStore.installingPhpVersion !== null"
+              :disabled="version.length === 0 || phpVersionsStore.installingPhpVersion !== null"
               @click="install"
             >
               {{

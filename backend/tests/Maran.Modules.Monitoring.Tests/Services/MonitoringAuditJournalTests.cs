@@ -18,7 +18,7 @@ public sealed class MonitoringAuditJournalTests
         var audit = new RecordingAuditWriter();
         var journal = new MonitoringAuditJournal(audit, new FakeCurrentUser());
 
-        await journal.RecordSystemAsync(AuditActions.AlertRaised, "DiskFull:/", succeeded: true, CancellationToken.None);
+        await journal.RecordSystemAsync(MonitoringAuditActions.AlertRaised, "DiskFull:/", succeeded: true, CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
         Assert.Equal(SystemAuditEntry.NameFor(MonitoringAuditJournal.ModuleName), entry.ActorUsername);
@@ -31,7 +31,7 @@ public sealed class MonitoringAuditJournalTests
         var audit = new RecordingAuditWriter();
         var journal = new MonitoringAuditJournal(audit, new FakeCurrentUser());
 
-        await journal.RecordSystemAsync(AuditActions.AlertRaised, "DiskFull:/", succeeded: true, CancellationToken.None);
+        await journal.RecordSystemAsync(MonitoringAuditActions.AlertRaised, "DiskFull:/", succeeded: true, CancellationToken.None);
 
         Assert.Null(Assert.Single(audit.Entries).ActorUserId);
     }
@@ -43,7 +43,7 @@ public sealed class MonitoringAuditJournalTests
         var audit = new RecordingAuditWriter();
         var journal = new MonitoringAuditJournal(audit, new FakeCurrentUser());
 
-        await journal.RecordSystemAsync(AuditActions.AlertRaised, "DiskFull:/", succeeded: true, CancellationToken.None);
+        await journal.RecordSystemAsync(MonitoringAuditActions.AlertRaised, "DiskFull:/", succeeded: true, CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
         Assert.Equal(string.Empty, entry.IpAddress);
@@ -60,7 +60,7 @@ public sealed class MonitoringAuditJournalTests
         var journal = new MonitoringAuditJournal(audit, user);
 
         await journal.RecordRequestAsync(
-            AuditActions.SmtpSettingsSaved,
+            MailAuditActions.SmtpSettingsSaved,
             "smtp.example.com",
             "203.0.113.7",
             "Mozilla/5.0",

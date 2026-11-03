@@ -113,7 +113,7 @@ public sealed class CreateBackupCommandHandlerTests
         var result = await world.Handler.HandleAsync(Command(accountId), CancellationToken.None);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupCreated, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupCreated, entry.Action);
 
         // The account, not the backup id: AuditEntry's subject is "what the operation acts on, as
         // an operator would search for it" — the same asymmetry the tasks screen carried, measured
@@ -245,7 +245,7 @@ public sealed class CreateBackupCommandHandlerTests
         });
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupCreated, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupCreated, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(World.Username, entry.Subject);
 
@@ -306,7 +306,7 @@ public sealed class CreateBackupCommandHandlerTests
         Assert.Empty(world.Tasks.Tasks);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupCreated, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupCreated, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -410,7 +410,8 @@ public sealed class CreateBackupCommandHandlerTests
                 new FakeClock(Now),
                 Tasks,
                 new StubCorrelationIdAccessor(CorrelationId),
-                BackupsTestContext.FailureNames());
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames());
         }
 
         /// <summary>Assembles a world whose caller owns <paramref name="ownedAccountId"/>.</summary>

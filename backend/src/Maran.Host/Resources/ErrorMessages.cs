@@ -8,7 +8,7 @@ namespace Maran.Host.Resources;
 /// <c>HostValidationFailed</c>, written by <see cref="Middleware.ExceptionMiddleware"/>;
 /// <c>HostRateLimited</c>, written by the rejection handler in
 /// <see cref="Extensions.RateLimitingExtensions"/>; and <c>HostForbidden</c> and
-/// <c>HostTwoFactorSetupRequired</c>, written for a policy refusal by
+/// <c>HostTwoFactorSetupRequired</c> and <c>HostViewAsNotAllowed</c>, written for a policy refusal by
 /// <see cref="Authorization.ProblemDetailsAuthorizationResultWriter"/>. Each key equals the machine code placed in the
 /// RFC 7807 payload exactly, so there is one identifier rather than a code plus a separate resource
 /// key that can drift apart.

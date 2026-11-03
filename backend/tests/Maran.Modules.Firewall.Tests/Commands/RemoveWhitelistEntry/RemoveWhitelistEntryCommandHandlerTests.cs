@@ -36,7 +36,7 @@ public sealed class RemoveWhitelistEntryCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.FirewallWhitelistChanged, entry.Action);
+        Assert.Equal(FirewallAuditActions.FirewallWhitelistChanged, entry.Action);
         Assert.Equal(Office, entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -109,7 +109,7 @@ public sealed class RemoveWhitelistEntryCommandHandlerTests
         await world.RemoveAsync(seededId, from: InsideOffice);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.FirewallWhitelistChanged, entry.Action);
+        Assert.Equal(FirewallAuditActions.FirewallWhitelistChanged, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(Office, entry.Subject);
     }

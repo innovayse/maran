@@ -220,7 +220,7 @@ public sealed class IssueCertificateCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.CertificateIssued, command.Domain, command.IpAddress, command.UserAgent, cancellationToken);
+            CertificateAuditActions.CertificateIssued, command.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
@@ -244,7 +244,7 @@ public sealed class IssueCertificateCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.CertificateIssued, command.Domain, command.IpAddress, command.UserAgent, cancellationToken);
+            CertificateAuditActions.CertificateIssued, command.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         await _tasks.FailAsync(taskId, error.Code, cancellationToken);
 

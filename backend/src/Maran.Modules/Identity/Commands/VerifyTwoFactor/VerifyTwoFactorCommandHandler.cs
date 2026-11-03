@@ -97,8 +97,9 @@ public sealed class VerifyTwoFactorCommandHandler
         // field's own remarks — so a suspended login with two-factor enrolled could still mint a
         // fresh session through this endpoint after AccountSuspendingHandler had revoked every other
         // one. AuthenticationCompleter enforces it again below; the two calls answer the identical
-        // question so neither can silently stop asking it.
-        if (!user.MayAuthenticate)
+        // question so neither can silently stop asking it. A customer whose every account is
+        // suspended is refused here too, for the same reason (issue #326).
+        if (!await _authenticationCompleter.MayCompleteAsync(user, cancellationToken))
         {
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
@@ -120,7 +121,7 @@ public sealed class VerifyTwoFactorCommandHandler
         }
         else
         {
-            await WriteAuditAsync(user.Id, user.Username, AuditActions.LoginFailed, command, false, cancellationToken);
+            await WriteAuditAsync(user.Id, user.Username, IdentityAuditActions.LoginFailed, command, false, cancellationToken);
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
             return Result<AuthenticatedOutcome>.Fail(await _rejection.ErrorAsync(cancellationToken));
         }
@@ -142,10 +143,10 @@ public sealed class VerifyTwoFactorCommandHandler
         {
             // Worth its own entry: a spent recovery code means the user has lost their
             // authenticator, or somebody else has found their codes. Both deserve to be visible.
-            await WriteAuditAsync(user.Id, user.Username, AuditActions.RecoveryCodeUsed, command, true, cancellationToken);
+            await WriteAuditAsync(user.Id, user.Username, IdentityAuditActions.RecoveryCodeUsed, command, true, cancellationToken);
         }
 
-        await WriteAuditAsync(user.Id, user.Username, AuditActions.LoginSucceeded, command, true, cancellationToken);
+        await WriteAuditAsync(user.Id, user.Username, IdentityAuditActions.LoginSucceeded, command, true, cancellationToken);
 
         return completed;
     }
@@ -153,7 +154,7 @@ public sealed class VerifyTwoFactorCommandHandler
     /// <summary>Writes one journal entry for this attempt.</summary>
     /// <param name="userId">The user involved.</param>
     /// <param name="username">Their login name.</param>
-    /// <param name="action">What happened, from <see cref="AuditActions"/>.</param>
+    /// <param name="action">What happened, from the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="command">The attempt, for its address and client. Its secrets never travel.</param>
     /// <param name="succeeded">Whether it worked.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>

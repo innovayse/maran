@@ -113,13 +113,14 @@ public sealed class LoginCommandHandler
         // Same refusal as a wrong password, deliberately. A distinct "your account is suspended"
         // tells an attacker which usernames exist and which of them belong to real customers. An
         // invited user's empty password hash already fails verification above, so this is what
-        // makes a SUSPENDED user refuse too, and what makes the invited case refuse for a stated
-        // reason rather than by accident.
+        // makes an invited user refuse too, and what makes that case refuse for a stated reason
+        // rather than by accident. A customer whose every account is suspended refuses here as well,
+        // before a second factor is asked for.
         //
         // Checked BEFORE the rehash below, and before any other write: a refused sign-in must not
         // touch the database, and a rehash performed here would be exactly that for a suspended
         // account whose correct-but-stale password happens to verify.
-        if (!user.MayAuthenticate)
+        if (!await _authenticationCompleter.MayCompleteAsync(user, cancellationToken))
         {
             return await RefuseAsync(user, command, cancellationToken);
         }
@@ -155,7 +156,7 @@ public sealed class LoginCommandHandler
         await _journal.RecordClaimAsync(
             user.Id,
             user.Username,
-            AuditActions.LoginSucceeded,
+            IdentityAuditActions.LoginSucceeded,
             command.IpAddress,
             command.UserAgent,
             succeeded: true,
@@ -192,7 +193,7 @@ public sealed class LoginCommandHandler
         await _journal.RecordClaimAsync(
             user?.Id,
             command.Username,
-            AuditActions.LoginFailed,
+            IdentityAuditActions.LoginFailed,
             command.IpAddress,
             command.UserAgent,
             succeeded: false,

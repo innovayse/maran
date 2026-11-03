@@ -102,6 +102,7 @@ const ACCOUNTS: Account[] = [
     primaryDomain: LONG_DOMAIN,
     planId: THREE_PLANS[1]?.id ?? '',
     status: 'active',
+    statusName: 'Active',
     createdAt: '2026-08-30T09:00:00+00:00',
   },
   {
@@ -110,6 +111,7 @@ const ACCOUNTS: Account[] = [
     primaryDomain: 'bob.example.com',
     planId: THREE_PLANS[1]?.id ?? '',
     status: 'suspended',
+    statusName: 'Suspended',
     createdAt: '2026-08-31T09:00:00+00:00',
   },
 ]
@@ -121,7 +123,9 @@ const BACKUPS: Backup[] = [
     ownerName: ACCOUNTS[0]?.name ?? '',
     orphanedAccountUsername: null,
     status: 'completed',
+    statusName: 'Completed',
     kind: 'scheduled',
+    kindName: 'Scheduled',
     sizeBytes: 3_221_225_472,
     sha256: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
     databaseCount: 2,
@@ -136,7 +140,9 @@ const BACKUPS: Backup[] = [
     ownerName: ACCOUNTS[0]?.name ?? '',
     orphanedAccountUsername: null,
     status: 'failed',
+    statusName: 'Failed',
     kind: 'manual',
+    kindName: 'Manual',
     sizeBytes: 0,
     sha256: null,
     databaseCount: 0,
@@ -151,7 +157,9 @@ const BACKUPS: Backup[] = [
     ownerName: '',
     orphanedAccountUsername: 'removed-customer-account-name',
     status: 'completed',
+    statusName: 'Completed',
     kind: 'preDeletion',
+    kindName: 'Before deletion',
     sizeBytes: 1_572_864,
     sha256: 'b1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
     databaseCount: 1,
@@ -172,6 +180,7 @@ const AUDIT_EVENTS: AuditEvent[] = [
     subject: 'customer-account-with-a-rather-long-name',
     ipAddress: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
     succeeded: true,
+    outcomeName: 'Succeeded',
   },
   {
     id: '00000000-0000-0000-0000-0000000000e2',
@@ -182,6 +191,7 @@ const AUDIT_EVENTS: AuditEvent[] = [
     subject: 'admin',
     ipAddress: '198.51.100.4',
     succeeded: false,
+    outcomeName: 'Failed',
   },
 ]
 
@@ -192,6 +202,7 @@ const TASKS: PanelTask[] = [
     subject: LONG_ACCOUNT + '-' + LONG_DOMAIN,
     correlationId: null,
     status: 'running',
+    statusName: 'Running',
     percent: 42,
     log: 'Compressing the account home directory\n',
     logIncluded: true,
@@ -206,6 +217,7 @@ const TASKS: PanelTask[] = [
     subject: 'bob',
     correlationId: null,
     status: 'failed',
+    statusName: 'Failed',
     percent: 100,
     log: 'The agent refused the request\n',
     logIncluded: true,
@@ -223,6 +235,7 @@ const TASKS: PanelTask[] = [
     subject: LONG_DOMAIN,
     correlationId: null,
     status: 'completed',
+    statusName: 'Completed',
     percent: 100,
     log: 'Done\n',
     logIncluded: true,
@@ -284,20 +297,41 @@ const SCREENS: Screen[] = [
 ]
 
 /**
- * Installs the shell and every endpoint the four screens read.
+ * Installs the shell and every endpoint the four screens read. The task statuses and the audit
+ * outcomes arrive named by the panel, so the stub names them in the language under test.
  * @param page The Playwright page whose network the routes are installed on.
+ * @param locale The interface language the status and outcome names are written in.
  * @returns Resolves once every route is installed.
  */
-const stubScreens = async (page: Page): Promise<void> => {
+const stubScreens = async (page: Page, locale: (typeof LOCALES)[number] = 'en'): Promise<void> => {
+  const words: Readonly<Record<string, string>> = LABELS[locale]
+  const tasks = TASKS.map((task): PanelTask => {
+    return { ...task, statusName: words[task.status] }
+  })
+  const auditEvents = AUDIT_EVENTS.map((event): AuditEvent => {
+    return { ...event, outcomeName: event.succeeded ? words.succeeded : words.failed }
+  })
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
-  await stubTasks(page, TASKS)
-  await stubTaskStream(page, taskFrame(TASKS[0]) + taskEndFrame('completed'))
+  await stubTasks(page, tasks)
+  await stubTaskStream(page, taskFrame(tasks[0] ?? TASKS[0]) + taskEndFrame('completed'))
   await stubPlans(page, THREE_PLANS)
-  await stubAccounts(page, [...ACCOUNTS])
-  await stubBackups(page, [...BACKUPS])
-  await stubAudit(page, AUDIT_EVENTS)
+  // The account states arrive named by the panel, so each row carries its name in the language under test.
+  await stubAccounts(
+    page,
+    ACCOUNTS.map((account) => {
+      return { ...account, statusName: words[account.status] }
+    }),
+  )
+  // The backup states arrive named by the panel as well.
+  await stubBackups(
+    page,
+    BACKUPS.map((backup) => {
+      return { ...backup, statusName: words[backup.status] ?? backup.statusName }
+    }),
+  )
+  await stubAudit(page, auditEvents)
 }
 
 /** What one cell measurement reports. */
@@ -436,7 +470,7 @@ for (const viewport of VIEWPORTS) {
       test(`${screen.name} table holds up at ${viewport.name} width in ${locale}`, async ({ page }) => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height })
         await setPersistedLocale(page, locale)
-        await stubScreens(page)
+        await stubScreens(page, locale)
 
         await page.goto(screen.path)
         const table = page.getByRole('main').getByRole('table')

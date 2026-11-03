@@ -45,9 +45,9 @@ public sealed class DeleteAccountAuditTests : IDisposable
         // actions. Naming the action is what keeps this test about the deletion.
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.AccountDeleted;
+            return candidate.Action == AccountAuditActions.AccountDeleted;
         });
-        Assert.Equal(AuditActions.AccountDeleted, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountDeleted, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.Equal(Ip, entry.IpAddress);
@@ -74,9 +74,9 @@ public sealed class DeleteAccountAuditTests : IDisposable
         // actions. Naming the action is what keeps this test about the deletion.
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.AccountDeleted;
+            return candidate.Action == AccountAuditActions.AccountDeleted;
         });
-        Assert.Equal(AuditActions.AccountDeleted, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountDeleted, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.False(entry.Succeeded);
         Assert.Equal(1, await _context.Accounts.CountAsync());
@@ -97,9 +97,9 @@ public sealed class DeleteAccountAuditTests : IDisposable
         // actions. Naming the action is what keeps this test about the deletion.
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.AccountDeleted;
+            return candidate.Action == AccountAuditActions.AccountDeleted;
         });
-        Assert.Equal(AuditActions.AccountDeleted, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountDeleted, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.False(entry.Succeeded);
     }
@@ -118,9 +118,9 @@ public sealed class DeleteAccountAuditTests : IDisposable
         // actions. Naming the action is what keeps this test about the deletion.
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.AccountDeleted;
+            return candidate.Action == AccountAuditActions.AccountDeleted;
         });
-        Assert.Equal(AuditActions.AccountDeleted, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountDeleted, entry.Action);
         Assert.Equal(probed.ToString(), entry.Subject);
         Assert.False(entry.Succeeded);
     }
@@ -140,7 +140,7 @@ public sealed class DeleteAccountAuditTests : IDisposable
         // actions. Naming the action is what keeps this test about the deletion.
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.AccountDeleted;
+            return candidate.Action == AccountAuditActions.AccountDeleted;
         });
         Assert.Equal("acme", entry.Subject);
         Assert.DoesNotContain("/", entry.Subject, StringComparison.Ordinal);

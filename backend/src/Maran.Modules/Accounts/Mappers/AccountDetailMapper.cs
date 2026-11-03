@@ -25,6 +25,7 @@ public static class AccountDetailMapper
             account.PrimaryDomain,
             account.PlanId,
             account.Status,
+            AccountStatusMapper.NameOf(account.Status, displayNames),
             account.CreatedAt,
             PlanMapper.DisplayNameOf(plan, displayNames),
             account.OwnerEmail);

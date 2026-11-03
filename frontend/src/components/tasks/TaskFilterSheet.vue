@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * The tasks list's filter sheet: account (not offered to a customer, whose tasks are already their
- * own), status, operation, and the start-date window. The operations offered are the ones the panel
- * says the caller can see, named by the panel. The window is picked as calendar days with
+ * own), status, operation, and the start-date window. The statuses and the operations offered are the
+ * ones the panel lists for the caller, named by the panel. The window is picked as calendar days with
  * `UiDateInput`; turning a day into an instant is the API composable's job. Values go out on Apply
  * exactly as `UiFilterSheet` emits them; the page writes them to the URL.
  */
@@ -13,7 +13,7 @@ import UiDateInput from '../ui/UiDateInput.vue'
 import UiFilterSheet from '../ui/UiFilterSheet.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import type { AccountPickerState } from '../../composables/useAccountChoice'
-import { TASK_STATUSES, type TaskKindChoice } from '../../types/panelTask'
+import type { TaskKindChoice, TaskStatusChoice } from '../../types/panelTask'
 
 /** Props accepted by {@link TaskFilterSheet}. */
 const props = defineProps<{
@@ -29,6 +29,8 @@ const props = defineProps<{
   accountName: string
   /** The kinds of task the caller can see, as the panel named them. */
   kinds: TaskKindChoice[]
+  /** The statuses a task can be in, as the panel named them. */
+  statuses: TaskStatusChoice[]
 }>()
 
 /** Events emitted by {@link TaskFilterSheet}. */
@@ -57,8 +59,8 @@ const accountChoices: ComputedRef<AccountPickerState> = computed(() => {
 const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
   return [
     { value: '', label: t('common.list.any') },
-    ...TASK_STATUSES.map((status) => {
-      return { value: status, label: t(`tasks.statuses.${status}`) }
+    ...props.statuses.map((choice) => {
+      return { value: choice.status, label: choice.statusName }
     }),
   ]
 })

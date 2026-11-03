@@ -6,7 +6,7 @@
 /// The shape both families answer with, so it sits flat in this crate beside
 /// [`crate::VsftpdTlsVersionKeys`] rather than in a family folder: what each
 /// family's package manager PRINTS differs, and the reading of it is
-/// [`crate::DistroAdapter::classify_package_failure`]; what the panel needs to
+/// [`crate::PackageFacts::classify_package_failure`]; what the panel needs to
 /// know does not.
 ///
 /// The three cases need different things from an operator, which is why they

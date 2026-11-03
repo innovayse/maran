@@ -9,11 +9,13 @@ namespace Maran.Modules.Sites.Common;
 /// <param name="Domain">The primary domain served by this site.</param>
 /// <param name="Aliases">Additional hostnames answered by the same vhost.</param>
 /// <param name="BackendType">Which backend serves this site's content.</param>
+/// <param name="BackendTypeName">The backend as an operator reads it, localized for the request's culture by <c>SiteDisplayNames</c>.</param>
 /// <param name="PhpVersion">The bound PHP version, or the empty string when the backend is not PHP.</param>
 /// <param name="ProxyUpstream">The upstream forwarded to, or the empty string when the backend is not a proxy.</param>
 /// <param name="DocumentRoot">The absolute document root the agent allocated.</param>
 /// <param name="HasCertificate">Whether a TLS certificate is currently installed for this site.</param>
 /// <param name="Status">Whether the site serves its own content or a suspension response.</param>
+/// <param name="StatusName">The serving state as an operator reads it, localized for the request's culture by <c>SiteDisplayNames</c>.</param>
 /// <param name="CreatedAt">The instant the site was created.</param>
 public sealed record SiteDetailDto(
     Guid Id,
@@ -21,9 +23,11 @@ public sealed record SiteDetailDto(
     string Domain,
     IReadOnlyList<string> Aliases,
     SiteBackendType BackendType,
+    string BackendTypeName,
     string PhpVersion,
     string ProxyUpstream,
     string DocumentRoot,
     bool HasCertificate,
     SiteStatus Status,
+    string StatusName,
     DateTimeOffset CreatedAt);

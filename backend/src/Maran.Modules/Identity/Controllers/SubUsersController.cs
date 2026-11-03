@@ -1,4 +1,3 @@
-using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.ChangeSubUserGrants;
 using Maran.Modules.Identity.Commands.InviteSubUser;
 using Maran.Modules.Identity.Commands.RemoveSubUser;
@@ -29,7 +28,7 @@ namespace Maran.Modules.Identity.Controllers;
 [Produces("application/json")]
 [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
 [EnableRateLimiting(RateLimitPolicies.Api)]
-[RefusedWhileViewingAs]
+[ViewAsAccess(ViewAsAccess.Refused)]
 public sealed class SubUsersController : BaseApiController
 {
     /// <summary>Dispatches each request to its handler.</summary>
@@ -75,16 +74,23 @@ public sealed class SubUsersController : BaseApiController
     }
 
     /// <summary>
-    /// Adds a person to the caller's account and mails them an invitation. Rate limited by the
-    /// invitation policy and not the general one: this is the one action that makes the panel send mail
-    /// to an address the caller typed, so it must not be a way to send a stranger a stream of mail.
+    /// Asks for a person to be added to the caller's account and invited by mail. Rate limited by the
+    /// invitation-SENDING policy (per account), which is neither the general one nor the acceptance
+    /// bucket: this is the one action that makes the panel send mail to an address the caller typed,
+    /// so it must not be a way to send a stranger a stream of mail, and it must not share a meter
+    /// with people accepting their own invitations.
     /// </summary>
+    /// <remarks>
+    /// Answers <c>202 Accepted</c> with the same body whether or not the login name or address was
+    /// already in use anywhere on the server: that is not the caller's to learn (issue #341). The
+    /// person appears in the list when the invitation was created.
+    /// </remarks>
     /// <param name="command">Their login name, address and features.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The new sub-user.</returns>
+    /// <returns>The request as accepted — an echo of the caller's own input.</returns>
     [HttpPost]
-    [EnableRateLimiting(RateLimitPolicies.Invitation)]
-    [ProducesResponseType(typeof(SubUserDto), StatusCodes.Status201Created)]
+    [EnableRateLimiting(RateLimitPolicies.InvitationSending)]
+    [ProducesResponseType(typeof(SubUserInvitationDto), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -96,9 +102,8 @@ public sealed class SubUsersController : BaseApiController
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        var result = await _bus.InvokeAsync<Result<SubUserDto>>(command, cancellationToken);
-        return ToCreatedActionResult(
-            result, $"/api/v1/me/sub-users/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
+        var result = await _bus.InvokeAsync<Result<SubUserInvitationDto>>(command, cancellationToken);
+        return result.IsSuccess ? Accepted(result.Value) : ToActionResult(result);
     }
 
     /// <summary>Replaces the features a sub-user may use.</summary>

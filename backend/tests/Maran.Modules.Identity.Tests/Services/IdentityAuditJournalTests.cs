@@ -22,7 +22,7 @@ public sealed class IdentityAuditJournalTests
         await NewJournal(new StubCurrentUser()).RecordClaimAsync(
             null,
             "nosuchuser",
-            AuditActions.LoginFailed,
+            IdentityAuditActions.LoginFailed,
             Address,
             Client,
             succeeded: false,
@@ -42,7 +42,7 @@ public sealed class IdentityAuditJournalTests
         await NewJournal(new StubCurrentUser()).RecordClaimAsync(
             matched,
             "operator",
-            AuditActions.LoginSucceeded,
+            IdentityAuditActions.LoginSucceeded,
             Address,
             Client,
             succeeded: true,
@@ -60,7 +60,7 @@ public sealed class IdentityAuditJournalTests
         await NewJournal(new StubCurrentUser()).RecordClaimAsync(
             null,
             "victim@example.com",
-            AuditActions.PasswordResetRequested,
+            IdentityAuditActions.PasswordResetRequested,
             Address,
             Client,
             succeeded: true,
@@ -76,7 +76,7 @@ public sealed class IdentityAuditJournalTests
         await NewJournal(new StubCurrentUser()).RecordClaimAsync(
             null,
             "nosuchuser",
-            AuditActions.LoginFailed,
+            IdentityAuditActions.LoginFailed,
             Address,
             Client,
             succeeded: false,
@@ -95,7 +95,7 @@ public sealed class IdentityAuditJournalTests
 
         await NewJournal(new StubCurrentUser(actor, "owner")).RecordIdentifiedAsync(
             actor,
-            AuditActions.SessionRevoked,
+            IdentityAuditActions.SessionRevoked,
             "a-session",
             Address,
             Client,
@@ -115,7 +115,7 @@ public sealed class IdentityAuditJournalTests
 
         await NewJournal(new StubCurrentUser(Guid.NewGuid(), "somebody-else")).RecordIdentifiedAsync(
             actor,
-            AuditActions.LoggedOut,
+            IdentityAuditActions.LoggedOut,
             actor.ToString(),
             Address,
             Client,
@@ -135,7 +135,7 @@ public sealed class IdentityAuditJournalTests
 
         await NewJournal(new StubCurrentUser(Guid.Empty, string.Empty)).RecordIdentifiedAsync(
             actor,
-            AuditActions.LoggedOut,
+            IdentityAuditActions.LoggedOut,
             actor.ToString(),
             Address,
             Client,
@@ -150,7 +150,7 @@ public sealed class IdentityAuditJournalTests
     public async Task A_caller_who_claimed_nothing_nameable_is_recorded_against_the_panel_itself()
     {
         await NewJournal(new StubCurrentUser()).RecordUnidentifiedAsync(
-            AuditActions.RefreshTokenReuseDetected,
+            IdentityAuditActions.RefreshTokenReuseDetected,
             string.Empty,
             Address,
             Client,
@@ -170,7 +170,7 @@ public sealed class IdentityAuditJournalTests
     public async Task An_unidentified_caller_still_leaves_the_address_behind()
     {
         await NewJournal(new StubCurrentUser()).RecordUnidentifiedAsync(
-            AuditActions.PasswordResetRefused,
+            IdentityAuditActions.PasswordResetRefused,
             string.Empty,
             Address,
             Client,
@@ -186,7 +186,7 @@ public sealed class IdentityAuditJournalTests
     public async Task An_unidentified_caller_is_always_recorded_as_refused()
     {
         await NewJournal(new StubCurrentUser()).RecordUnidentifiedAsync(
-            AuditActions.RefreshTokenReuseDetected,
+            IdentityAuditActions.RefreshTokenReuseDetected,
             string.Empty,
             Address,
             Client,

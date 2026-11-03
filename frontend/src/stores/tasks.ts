@@ -3,7 +3,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useTasksApi } from '../composables/apis/useTasksApi'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
-import type { PanelTask, TaskFailureCount, TaskKindChoice } from '../types/panelTask'
+import type { PanelTask, TaskFailureCount, TaskKindChoice, TaskStatusChoice } from '../types/panelTask'
 
 /** How long the running-tasks stream waits before its first reconnect after the connection ended. */
 const RECONNECT_FIRST_DELAY_MS = 1000
@@ -51,6 +51,9 @@ export const useTasksStore = defineStore('tasks', () => {
 
   /** The kinds of task the caller can see, for the kind filter; empty until read or when unreadable. */
   const kinds: Ref<TaskKindChoice[]> = ref([])
+
+  /** The statuses a task can be in, for the status filter; empty until read or when unreadable. */
+  const statuses: Ref<TaskStatusChoice[]> = ref([])
 
   /** Where the failed-task count stands, for the notice above the list. */
   const failures: Ref<TaskFailureCount> = ref({ state: 'loading' })
@@ -319,6 +322,19 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   /**
+   * Reads the statuses a task can be in into {@link statuses}.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadStatuses = async (): Promise<void> => {
+    try {
+      statuses.value = await api.statuses()
+    } catch {
+      // The filter is an aid, not the list: an unreadable set leaves it offering "any status".
+      statuses.value = []
+    }
+  }
+
+  /**
    * Asks the panel how many tasks failed, across every page, into {@link failures}. A failure is
    * recorded as `unavailable`, never as "nothing failed".
    * @returns Resolves once the request has settled, successfully or not.
@@ -360,10 +376,12 @@ export const useTasksStore = defineStore('tasks', () => {
     running,
     openTask,
     kinds,
+    statuses,
     failures,
     runningCount,
     list,
     loadKinds,
+    loadStatuses,
     loadFailures,
     watch,
     stopWatching,

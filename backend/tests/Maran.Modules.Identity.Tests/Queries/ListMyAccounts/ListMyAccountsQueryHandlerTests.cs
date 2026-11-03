@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Queries.ListMyAccounts;
 using Maran.Modules.Identity.Tests.TestSupport;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Identity.Tests.Queries.ListMyAccounts;
 
@@ -94,5 +95,24 @@ public sealed class ListMyAccountsQueryHandlerTests : IDisposable
         {
             return row.AccountId;
         }));
+    }
+
+    /// <summary>A suspended account is not a choice the selector offers, and is not even asked about.</summary>
+    [Fact]
+    public async Task A_suspended_account_is_left_out_and_not_asked_about()
+    {
+        var userId = Guid.NewGuid();
+        var mine = await OwnAsync(userId, "mine");
+        var suspended = await OwnAsync(userId, "suspended");
+        (await _context.AccountMemberships.SingleAsync(candidate => candidate.AccountId == suspended)).Suspend();
+        await _context.SaveChangesAsync();
+
+        var result = await NewHandler().HandleAsync(new ListMyAccountsQuery(userId, mine), CancellationToken.None);
+
+        Assert.Equal(new[] { mine }, result.Value.Select(row =>
+        {
+            return row.AccountId;
+        }));
+        Assert.DoesNotContain(suspended, _names.Asked);
     }
 }

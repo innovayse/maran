@@ -84,4 +84,31 @@
   <data name="AccountFeatureBackups">
     <value>Backups</value>
   </data>
+  <data name="AccountFeatureSites">
+    <value>Websites</value>
+  </data>
+  <data name="AccountFeatureSsl">
+    <value>SSL certificates</value>
+  </data>
+  <data name="AccountFeatureTasks">
+    <value>Background tasks</value>
+  </data>
+  <data name="AccountFeaturePhp">
+    <value>PHP versions</value>
+  </data>
+  <data name="OwnerLanguageEN">
+    <value>English</value>
+  </data>
+  <data name="OwnerLanguageRU">
+    <value>Русский</value>
+  </data>
+  <data name="OwnerLanguageHY">
+    <value>Հայերեն</value>
+  </data>
+  <data name="AccountStatusActive">
+    <value>Active</value>
+  </data>
+  <data name="AccountStatusSuspended">
+    <value>Suspended</value>
+  </data>
 </root>

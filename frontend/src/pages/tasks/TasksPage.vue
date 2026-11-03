@@ -54,7 +54,9 @@ const { spec: accountSpec, name: accountFilterName } = useAccountFilter()
 const { isCustomer } = useCallerRole()
 const labels = useListLabels()
 const kindLabel = useTaskKindLabel()
-const taskFilters = useTaskFilters(accountSpec)
+const taskFilters = useTaskFilters(accountSpec, () => {
+  return store.statuses
+})
 
 const table = useServerTable<PanelTask>({
   filters: taskFilters.schema,
@@ -95,9 +97,17 @@ const kindName: ComputedRef<string> = computed(() => {
   })?.kindName ?? kindLabel(applied)
 })
 
+/** The applied status as an operator reads it: the panel's name, or the value itself while the list is unknown. */
+const statusName: ComputedRef<string> = computed(() => {
+  const applied = table.filters.value.status ?? ''
+  return store.statuses.find((choice) => {
+    return choice.status === applied
+  })?.statusName ?? applied
+})
+
 /** One removable chip per applied filter. */
 const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
-  return taskFilters.chips(table.filters.value, accountFilterName.value, kindName.value)
+  return taskFilters.chips(table.filters.value, accountFilterName.value, kindName.value, statusName.value)
 })
 
 /**
@@ -151,7 +161,7 @@ const clearAll = async (): Promise<void> => {
 }
 
 onMounted(async () => {
-  await Promise.all([store.loadFailures(), store.loadKinds()])
+  await Promise.all([store.loadFailures(), store.loadKinds(), store.loadStatuses()])
 })
 </script>
 
@@ -259,6 +269,7 @@ onMounted(async () => {
       :account-picker="accountPicker"
       :account-name="accountFilterName"
       :kinds="store.kinds"
+      :statuses="store.statuses"
       @update:model-value="table.setFilters"
       @close="closeFilters"
       @search-accounts="searchAccounts"

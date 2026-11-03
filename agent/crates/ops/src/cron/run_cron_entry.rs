@@ -1,5 +1,7 @@
 //! RunCronEntry: start one of the account's entries now, as the account.
 
+use std::sync::LazyLock;
+
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
 use maran_agent_core::validation::system::name::AccountName;
 
@@ -7,6 +9,11 @@ use crate::cron::cron_error::CronError;
 use crate::cron::cron_host::CronHost;
 use crate::cron::model::cron_run::CronRun;
 use crate::cron::model::crontab_document::CrontabDocument;
+use crate::cron::run_now_slots::{ACCOUNT_RUN_NOW_SLOTS, HOST_RUN_NOW_SLOTS, RunNowSlots};
+
+/// The runs by hand this process has admitted and not yet seen end (issue #333).
+static RUN_NOW_SLOTS: LazyLock<RunNowSlots> =
+    LazyLock::new(|| RunNowSlots::new(HOST_RUN_NOW_SLOTS, ACCOUNT_RUN_NOW_SLOTS));
 
 /// Runs entry `id` of `account` now and waits for it (issue #158).
 ///
@@ -28,21 +35,48 @@ use crate::cron::model::crontab_document::CrontabDocument;
 /// `get_cron_entry_output` reads it; an entry deleted while it runs finishes
 /// the run it was already on, which is what cron does too.
 ///
+/// **Bounded, and refused rather than queued** (issue #333). A run holds a
+/// thread of the agent's blocking pool until the job ends, so the agent admits
+/// a fixed number at once for the host and a smaller one for each account
+/// (`run_now_slots`). The slot is taken as the first statement, before the
+/// crontab is read, and given back by every path out of the call, so a refused
+/// call has read nothing and a finished one holds nothing.
+///
 /// Not idempotent, and it cannot be: every call is a new run of the customer's
 /// program.
 ///
 /// # Errors
 ///
-/// Returns [`CronError::NotFound`] when the account has no such entry or no
+/// Returns [`CronError::RunCapacityReached`] when the account or the host
+/// already has as many runs going as it is admitted, [`CronError::NotFound`] when the account has no such entry or no
 /// such account exists, [`CronError::Account`] when it is not a hosting account,
 /// [`CronError::Suspended`] when the account is suspended,
-/// [`CronError::RunUnavailable`] when the run could not be started, and any
-/// failure reading the crontab.
+/// [`CronError::RunUnavailable`] when the run could not be started,
+/// [`CronError::RunNotStopped`] when a ceiling ended the run and its unit could
+/// not be confirmed stopped, and any failure reading the crontab.
 pub fn run_cron_entry(
     host: &dyn CronHost,
     account: &AccountName,
     id: &CronEntryId,
 ) -> Result<CronRun, CronError> {
+    run_within(&RUN_NOW_SLOTS, host, account, id)
+}
+
+/// [`run_cron_entry`] against the slots it is given, so a test can state the
+/// ceilings instead of sharing the process-wide count with every other test.
+///
+/// # Errors
+///
+/// Every variant [`run_cron_entry`] documents.
+pub(crate) fn run_within(
+    slots: &RunNowSlots,
+    host: &dyn CronHost,
+    account: &AccountName,
+    id: &CronEntryId,
+) -> Result<CronRun, CronError> {
+    // Held to the end of the call and given back by every path out of it.
+    let _slot = slots.try_acquire(account)?;
+
     let managed = host.managed_account(account)?;
     let existing = host.read_crontab(&managed)?.unwrap_or_default();
     let document = CrontabDocument::parse(&existing);

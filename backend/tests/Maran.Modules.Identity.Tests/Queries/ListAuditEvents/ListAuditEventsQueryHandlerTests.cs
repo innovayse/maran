@@ -77,9 +77,9 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     public async Task The_action_filter_keeps_only_that_action()
     {
         await WriteAsync(Now, "signed-in");
-        await WriteAsync(Now, "refused", AuditActions.LoginFailed, succeeded: false);
+        await WriteAsync(Now, "refused", IdentityAuditActions.LoginFailed, succeeded: false);
 
-        Assert.Equal(["refused"], await SubjectsAsync(new ListAuditEventsQuery(Action: FilterValue.Of(AuditActions.LoginFailed))));
+        Assert.Equal(["refused"], await SubjectsAsync(new ListAuditEventsQuery(Action: FilterValue.Of(IdentityAuditActions.LoginFailed))));
     }
 
     /// <summary>The outcome filter keeps one side and the other keeps the other.</summary>
@@ -112,7 +112,7 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     [Fact]
     public async Task A_rows_action_is_named_in_the_requests_language_beside_the_machine_code()
     {
-        await WriteAsync(Now, "livecust", AuditActions.BackupRestored);
+        await WriteAsync(Now, "livecust", BackupAuditActions.BackupRestored);
 
         var previous = CultureInfo.CurrentUICulture;
         try
@@ -131,6 +131,39 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
         }
     }
 
+    /// <summary>A row's outcome reaches the caller as words in the request's language beside the flag.</summary>
+    [Fact]
+    public async Task A_rows_outcome_is_named_in_the_requests_language_beside_the_flag()
+    {
+        await WriteAsync(Now, "worked");
+        await WriteAsync(Now.AddMinutes(-1), "broke", succeeded: false);
+
+        var previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("en");
+
+            var result = await Handler().HandleAsync(new ListAuditEventsQuery(), CancellationToken.None);
+
+            Assert.Collection(
+                result.Value.Items,
+                worked =>
+                {
+                    Assert.True(worked.Succeeded);
+                    Assert.Equal("Succeeded", worked.OutcomeName);
+                },
+                broke =>
+                {
+                    Assert.False(broke.Succeeded);
+                    Assert.Equal("Failed", broke.OutcomeName);
+                });
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
     /// <summary>Records one entry.</summary>
     /// <param name="at">When it happened.</param>
     /// <param name="subject">What it was done to; the tests identify rows by it.</param>
@@ -140,7 +173,7 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     private async Task WriteAsync(
         DateTimeOffset at,
         string subject,
-        string action = AuditActions.LoginSucceeded,
+        string action = IdentityAuditActions.LoginSucceeded,
         bool succeeded = true)
     {
         _context.AuditEvents.Add(new AuditEvent(
@@ -152,7 +185,7 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     /// <returns>The handler.</returns>
     private ListAuditEventsQueryHandler Handler()
     {
-        return new ListAuditEventsQueryHandler(_context, IdentityTestContext.ActionNames());
+        return new ListAuditEventsQueryHandler(_context, IdentityTestContext.ActionNames(), IdentityTestContext.OutcomeNames());
     }
 
     /// <summary>Reads one page and answers the subjects on it, in order.</summary>

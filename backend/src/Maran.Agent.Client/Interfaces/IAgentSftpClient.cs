@@ -125,4 +125,34 @@ public interface IAgentSftpClient
         string accountUsername,
         bool locked,
         CancellationToken cancellationToken);
+
+    /// <summary>Ends every session ONE SFTP login has open right now.</summary>
+    /// <param name="accountUsername">System username of the owning account.</param>
+    /// <param name="sftpUsername">Login name suffix, namespaced under the account exactly as at creation.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// How many host processes were signalled — a session is two of them, so this is NOT a session
+    /// count, and zero means the login had nothing open — or a typed failure: <c>AgentNotFound</c>
+    /// when the account holds no such login, and <c>AgentSystemFailure</c> when the host could not
+    /// say that every process was signalled, in which case the revocation must not be reported as
+    /// having taken effect.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this call has to exist.</b> Replacing or removing a login's public keys changes who may
+    /// authenticate NEXT. sshd never re-reads a key file for a session it has already admitted, so a
+    /// session opened with a key the customer has since revoked keeps reading and writing the
+    /// account's home. A caller that revokes keys calls this afterwards.
+    /// </para>
+    /// <para>
+    /// It ends the sessions of that login alone. A login shares its account's uid, so the host
+    /// finds them by the title sshd gives them and never by uid, which would also cut the account's
+    /// other logins. Idempotent: a login with nothing open answers success with zero. An upload in
+    /// flight is cut at whatever byte it had reached and the partial file stays.
+    /// </para>
+    /// </remarks>
+    Task<Result<int>> EndSessionsAsync(
+        string accountUsername,
+        string sftpUsername,
+        CancellationToken cancellationToken);
 }

@@ -85,7 +85,7 @@ public sealed class SetCronEnvironmentCommandHandlerTests
         ]);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEnvironmentChanged, entry.Action);
+        Assert.Equal(CronAuditActions.CronEnvironmentChanged, entry.Action);
         Assert.Equal("DATABASE_URL,TZ", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain("HUNTER2", entry.Subject, StringComparison.Ordinal);
@@ -127,7 +127,7 @@ public sealed class SetCronEnvironmentCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEnvironmentChanged, entry.Action);
+        Assert.Equal(CronAuditActions.CronEnvironmentChanged, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -140,7 +140,7 @@ public sealed class SetCronEnvironmentCommandHandlerTests
         await world.HandleAsync([]);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEnvironmentChanged, entry.Action);
+        Assert.Equal(CronAuditActions.CronEnvironmentChanged, entry.Action);
         Assert.NotEmpty(entry.Subject);
     }
 

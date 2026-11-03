@@ -122,7 +122,7 @@ public sealed class SaveSmtpSettingsCommandHandlerTests
         await handler.HandleAsync(Command(), CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.SmtpSettingsSaved, entry.Action);
+        Assert.Equal(MailAuditActions.SmtpSettingsSaved, entry.Action);
         Assert.Equal("smtp.example.com", entry.Subject);
 
         var serialized = System.Text.Json.JsonSerializer.Serialize(audit.Entries);

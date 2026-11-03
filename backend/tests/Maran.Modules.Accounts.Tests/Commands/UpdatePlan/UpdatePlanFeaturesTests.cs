@@ -90,7 +90,7 @@ public sealed class UpdatePlanFeaturesTests : IDisposable
         await NewHandler().HandleAsync(Edit([AccountFeature.Mail]), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanUpdated, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanUpdated, entry.Action);
         Assert.Equal("Agency [features: Mail, Dns -> Mail]", entry.Subject);
         Assert.True(entry.Succeeded);
     }

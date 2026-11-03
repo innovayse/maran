@@ -2,7 +2,7 @@ namespace Maran.Sdk.Contracts;
 
 /// <summary>
 /// The machine-stable kind names written onto a panel task. Constants rather than an enum, for the
-/// reason <see cref="AuditActions"/> is: a marketplace module records kinds this assembly was never
+/// reason <c>*AuditActions</c> is: a marketplace module records kinds this assembly was never
 /// compiled knowing about, and an enum could not be extended from outside.
 /// </summary>
 /// <remarks>
@@ -33,8 +33,8 @@ public static class TaskKinds
     /// </summary>
     /// <remarks>
     /// It earns a task rather than being a plain request/response because the stage line is the only
-    /// place an operator is told what the suspension did NOT cover — the account's databases and the
-    /// panel's own web login, plus any crontab line the panel did not write and any passwd entry
+    /// place an operator is told what the suspension did NOT cover — the account's databases,
+    /// plus any crontab line the panel did not write and any passwd entry
     /// sharing the account's uid that is none of its jailed logins — and a completion with no such
     /// qualification would read as a full stop.
     ///

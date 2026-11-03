@@ -47,4 +47,12 @@ internal sealed class GrpcSftpServiceInvoker : ISftpServiceInvoker
     {
         return await _client.SetAccountLoginsLockedAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<EndSftpSessionsResponse> EndSftpSessionsAsync(
+        EndSftpSessionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.EndSftpSessionsAsync(request, cancellationToken: cancellationToken);
+    }
 }

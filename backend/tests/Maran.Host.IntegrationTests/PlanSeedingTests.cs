@@ -127,7 +127,7 @@ public sealed class PlanSeedingTests : IAsyncLifetime
     /// <returns>The factory, which the caller disposes.</returns>
     private WebApplicationFactory<Program> BuildHost()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

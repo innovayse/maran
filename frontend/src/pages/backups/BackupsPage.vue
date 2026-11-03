@@ -46,38 +46,23 @@ import BackupHistoryTable from '../../components/backups/BackupHistoryTable.vue'
 import BackupRestoreDialog from '../../components/backups/BackupRestoreDialog.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
+import { useBackupDialogs } from '../../composables/useBackupDialogs'
 import { useBackupHistoryFilters } from '../../composables/useBackupHistoryFilters'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
+import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
 import { useServerTable } from '../../composables/useServerTable'
+import { useBackupOptionsStore } from '../../stores/backupOptions'
 import { useBackupsStore } from '../../stores/backups'
-import { useLocaleStore } from '../../stores/locale'
-import { backupAccountName } from '../../utils/backupAccountName'
-import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { Backup, CreateBackupRequest } from '../../types/backup'
 
-/** The dialog open over the history: a deletion awaiting its answer, or a restore. */
-type BackupDialog =
-  | {
-      /** The backup is about to be deleted. */
-      kind: 'remove'
-      /** The backup the confirmation is for; its row supplies the wording. */
-      backupId: string
-    }
-  | {
-      /** The backup is about to be restored. */
-      kind: 'restore'
-      /** The backup, whole, because the dialog states what it holds. */
-      backup: Backup
-    }
-
 const { t } = useI18n()
 const store = useBackupsStore()
+const optionsStore = useBackupOptionsStore()
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { filter: accountListFilter, spec: accountSpec, name: accountFilterName } = useAccountFilter()
 const { isAdmin, isCustomer } = useCallerRole()
-const localeStore = useLocaleStore()
 const labels = useListLabels()
 
 const historyFilters = useBackupHistoryFilters(accountSpec)
@@ -94,12 +79,18 @@ const table = useServerTable<Backup>({
   },
 })
 
-/**
- * The dialog open over the list, or `null` when none is. A deletion names the backup by id (the
- * confirmation reads its row); a restore holds the backup whole, as the dialog states what it holds.
- * The two are modals, so one value says which.
- */
-const dialog: Ref<BackupDialog | null> = ref(null)
+const {
+  dialog,
+  confirmationTitle,
+  accountUsername,
+  askRestore,
+  closeRestore,
+  ask,
+  cancel,
+  confirm,
+} = useBackupDialogs((): Promise<void> => {
+  return refresh()
+})
 
 /** The create form, so an accepted backup can empty the picker it owns. */
 const createForm = useTemplateRef<{ reset: () => void }>('createForm')
@@ -122,28 +113,6 @@ const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
   return historyFilters.chips(table.filters.value, accountFilterName.value)
 })
 
-/** The backup the confirmation is open for, or `null` when none is. */
-const pendingBackup: ComputedRef<Backup | null> = computed(() => {
-  const open = dialog.value
-  if (open === null || open.kind !== 'remove') {
-    return null
-  }
-  return store.backups.find((backup) => {
-    return backup.id === open.backupId
-  }) ?? null
-})
-
-/** The confirmation's accessible name, naming the copy that would be destroyed. */
-const confirmationTitle: ComputedRef<string> = computed(() => {
-  const pending = pendingBackup.value
-  return pending === null
-    ? ''
-    : t('backups.list.confirmDeleteTitle', {
-        account: backupAccountName(pending, t('common.emptyValue')),
-        startedAt: formatIsoTimestamp(pending.startedAt, localeStore.current),
-      })
-})
-
 /**
  * Reads the current page and the attention answer again, after a backup was taken or deleted.
  * @returns Resolves once both have settled.
@@ -160,71 +129,6 @@ const refresh = async (): Promise<void> => {
 const create = async (request: CreateBackupRequest): Promise<void> => {
   if (await store.create(request)) {
     createForm.value?.reset()
-    await refresh()
-  }
-}
-
-/**
- * Names the account a restore would replace, or `null` when the panel did not name it on the row.
- *
- * `null` rather than a placeholder: the dialog compares what is typed against it, and a translated
- * "unknown account" would be a confirmation nobody can satisfy; the server judges instead.
- * @param backup The backup a restore is asked of.
- * @returns The live account's system user name, or `null` when it is not known here.
- */
-const accountUsername = (backup: Backup): string | null => {
-  return backup.ownerName === '' ? null : backup.ownerName
-}
-
-/**
- * Opens the restore dialog on one row.
- * @param backup The backup the operator acted on.
- * @returns Nothing.
- */
-const askRestore = (backup: Backup): void => {
-  dialog.value = { kind: 'restore', backup }
-}
-
-/**
- * Closes the restore dialog.
- * @returns Nothing.
- */
-const closeRestore = (): void => {
-  dialog.value = null
-}
-
-/**
- * Starts a deletion on one row, which then waits for confirmation.
- * @param id The backup the operator acted on.
- * @returns Nothing.
- */
-const ask = (id: string): void => {
-  dialog.value = { kind: 'remove', backupId: id }
-}
-
-/**
- * Abandons a pending deletion.
- * @returns Nothing.
- */
-const cancel = (): void => {
-  dialog.value = null
-}
-
-/**
- * Carries out the confirmed deletion, then reads the history again.
- * @returns Resolves once the request and the reread have settled.
- */
-const confirm = async (): Promise<void> => {
-  const open = dialog.value
-  if (open === null || open.kind !== 'remove') {
-    return
-  }
-  const removed = await store.remove(open.backupId)
-
-  // Closed after the request settles rather than before it is sent: the dialog holds the
-  // spinner that tells the operator the panel is working.
-  dialog.value = null
-  if (removed) {
     await refresh()
   }
 }
@@ -265,6 +169,9 @@ watch(
   },
   { immediate: true },
 )
+
+// The filter sheet's statuses and reasons are named by the panel in the interface language.
+useReloadOnLocale(optionsStore.load)
 </script>
 
 <template>

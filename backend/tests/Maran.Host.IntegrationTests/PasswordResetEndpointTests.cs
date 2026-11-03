@@ -94,7 +94,7 @@ public sealed class PasswordResetEndpointTests : IAsyncLifetime
     /// <returns>The configured factory.</returns>
     private WebApplicationFactory<Program> CreateFactory(int passwordResetLimit = 50)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

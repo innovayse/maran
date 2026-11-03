@@ -63,7 +63,8 @@ public sealed class CreateAccountRuntimeLimitsTests
             new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
             new AccountAuditJournal(new RecordingAuditWriter(), FakeCurrentUser.Admin()),
             new StubMessageBus(),
-            NullLogger<CreateAccountCommandHandler>.Instance);
+            NullLogger<CreateAccountCommandHandler>.Instance,
+            new StubDisplayNames());
     }
 
     /// <summary>Builds the creation of account <c>acme</c> on <paramref name="planId"/>.</summary>

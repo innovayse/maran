@@ -15,4 +15,13 @@
   <data name="NotificationsModuleDisplayName">
     <value>Ծանուցումներ</value>
   </data>
+  <data name="SmtpSecurityNone">
+    <value>Առանց գաղտնագրման</value>
+  </data>
+  <data name="SmtpSecurityStartTls">
+    <value>STARTTLS (կապի պաշտպանության բարձրացում)</value>
+  </data>
+  <data name="SmtpSecurityImplicitTls">
+    <value>Անուղղակի TLS (գաղտնագրված սկզբից)</value>
+  </data>
 </root>

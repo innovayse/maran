@@ -9,6 +9,7 @@ use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
 use maran_agent_core::validation::system::managed_account::ManagedAccount;
 
 use crate::cron::model::cron_environment::CronEnvironment;
+use crate::cron::model::run_unit_name::RunUnitName;
 
 /// How long a run started by hand may last before the service manager stops it.
 ///
@@ -20,6 +21,16 @@ use crate::cron::model::cron_environment::CronEnvironment;
 /// A run by hand is for checking that a job works; a job that needs longer
 /// still runs on its schedule, where no ceiling of this agent applies.
 pub(crate) const RUN_NOW_RUNTIME_CEILING: Duration = Duration::from_secs(120);
+
+/// How long the service manager waits for a stopping job to exit on `SIGTERM`
+/// before it sends `SIGKILL`, in the unit of a run started by hand.
+///
+/// The service manager's default is 90 s, which would make the agent's own
+/// `systemctl stop` of a run that passed its output ceiling (issue #336) wait
+/// that long for a job that ignores `SIGTERM`. Ten seconds is enough for a
+/// well-behaved program to flush and exit, and short enough that the stop
+/// finishes inside the `Reload` class's deadline with room to spare.
+pub(crate) const RUN_NOW_STOP_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The most bytes each output stream of a run started by hand may carry.
 ///
@@ -46,6 +57,9 @@ pub(crate) const RUN_NOW_OUTPUT_CEILING: u64 = 64 * 1024;
 ///   as root.
 /// - `--slice`: the job lands in the account's `user-<uid>.slice`, so the CPU,
 ///   memory and task ceilings set on it (issue #133) hold it.
+/// - `--unit`: the transient unit gets the name the agent chose
+///   ([`RunUnitName`]), so that when a ceiling kills the CLIENT the agent can
+///   stop the JOB by name (issue #336).
 /// - `--wait --pipe`: the client stays until the job ends and passes the job's
 ///   standard output and error through, so the agent captures them under its
 ///   own ceiling.
@@ -55,6 +69,8 @@ pub(crate) const RUN_NOW_OUTPUT_CEILING: u64 = 64 * 1024;
 ///   back is the job's output only.
 /// - `RuntimeMaxSec`: the service manager stops the whole unit — every process
 ///   in it, not one process group — when the ceiling passes.
+/// - `TimeoutStopSec`: how long a stop (this ceiling's, or the agent's own)
+///   waits for the job before it is killed outright ([`RUN_NOW_STOP_TIMEOUT`]).
 /// - `WorkingDirectory=~`: the account's home, where cron runs a job too.
 ///
 /// [`END_OF_OPTIONS`] ends the client's options before the shell's path, and
@@ -63,6 +79,7 @@ pub(crate) const RUN_NOW_OUTPUT_CEILING: u64 = 64 * 1024;
 pub(crate) fn run_now_arguments(
     account: &ManagedAccount,
     entry: &CronEntryId,
+    unit: &RunUnitName,
     environment: &[CronEnvironment],
     sh_binary: &str,
 ) -> Vec<String> {
@@ -70,6 +87,7 @@ pub(crate) fn run_now_arguments(
         format!("--uid={}", account.uid()),
         format!("--gid={}", account.gid()),
         format!("--slice={}", account_slice_unit(account.uid())),
+        format!("--unit={}", unit.stem()),
         "--wait".to_owned(),
         "--pipe".to_owned(),
         "--collect".to_owned(),
@@ -77,6 +95,10 @@ pub(crate) fn run_now_arguments(
         format!(
             "--property=RuntimeMaxSec={}",
             RUN_NOW_RUNTIME_CEILING.as_secs()
+        ),
+        format!(
+            "--property=TimeoutStopSec={}",
+            RUN_NOW_STOP_TIMEOUT.as_secs()
         ),
         "--property=WorkingDirectory=~".to_owned(),
     ];

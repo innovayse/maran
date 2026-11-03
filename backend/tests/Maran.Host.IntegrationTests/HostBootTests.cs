@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -34,7 +33,7 @@ public sealed class HostBootTests : IAsyncLifetime
     [Fact]
     public async Task Host_boots_with_postgres_and_serves_health()
     {
-        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
+        await using var factory = new ConfiguredHostFactory(b =>
         {
             // Testing, not Development: appsettings.Development.json points at a developer's own
             // PostgreSQL, and inheriting it made these tests pass locally by accident while

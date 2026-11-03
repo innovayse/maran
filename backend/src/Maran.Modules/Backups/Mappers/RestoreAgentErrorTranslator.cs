@@ -23,11 +23,20 @@ namespace Maran.Modules.Backups.Mappers;
 /// made once in <c>RestoreRunner</c> and this type is never asked.
 /// </para>
 /// <para>
-/// <b>Every ending this type names itself is <see cref="ErrorType.Failure"/>, and that is a
-/// decision, not a default.</b> A dropped, idle, truncated or cancelled stream is the SERVER
-/// failing to finish something the caller asked for correctly; telling the caller their request was
-/// malformed would be both wrong and a dead end. The one ending whose kind this type does NOT
-/// decide is <see cref="BackupRestoreEventKind.Failed"/>, where the agent has already stated it and
+/// <b>The kind of each ending this type names itself is a decision, not a default.</b> A
+/// <see cref="BackupRestoreEventKind.Dropped"/> or <see cref="BackupRestoreEventKind.Idle"/> stream
+/// is a TRANSIENT condition of the link to the agent — the agent went away, or stopped talking, and
+/// may be back in a moment — so it is <see cref="ErrorType.Unavailable"/> (HTTP 503), which tells
+/// the caller that retrying later is the advice. Reporting it as a 500 claimed a defect in the
+/// panel where the honest statement is "could not be reached now". A
+/// <see cref="BackupRestoreEventKind.Truncated"/> or <see cref="BackupRestoreEventKind.Cancelled"/>
+/// stream is the SERVER failing to finish something the caller asked for correctly, and is not
+/// transient in that sense (a truncated restore must NOT be blindly retried, see below), so it stays
+/// <see cref="ErrorType.Failure"/>. Telling the caller their request was malformed would be wrong
+/// for all four and a dead end. The kinds are pinned to the shipped-code census by
+/// <c>RaisedErrorKindsMatchCensusTests</c> (issue #299), which is how a disagreement between the
+/// two cannot recur unnoticed. The one ending whose kind this type does NOT decide is
+/// <see cref="BackupRestoreEventKind.Failed"/>, where the agent has already stated it and
 /// re-deciding it here is exactly the flattening this method exists to stop.
 /// </para>
 /// <para>
@@ -115,9 +124,9 @@ public static class RestoreAgentErrorTranslator
         return terminal.Kind switch
         {
             BackupRestoreEventKind.Dropped =>
-                Error.Of(nameof(ErrorMessages.RestoreStreamDropped), ErrorType.Failure),
+                Error.Of(nameof(ErrorMessages.RestoreStreamDropped), ErrorType.Unavailable),
             BackupRestoreEventKind.Idle =>
-                Error.Of(nameof(ErrorMessages.RestoreStreamIdle), ErrorType.Failure),
+                Error.Of(nameof(ErrorMessages.RestoreStreamIdle), ErrorType.Unavailable),
             BackupRestoreEventKind.Truncated =>
                 Error.Of(nameof(ErrorMessages.RestoreTruncated), ErrorType.Failure),
             BackupRestoreEventKind.Cancelled =>

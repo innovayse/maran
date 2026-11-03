@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
@@ -82,6 +83,7 @@ public sealed class ChangePasswordCommandHandler
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
     /// Success; <c>CurrentPasswordIncorrect</c> for a wrong current password or a locked account;
+    /// <c>PasswordSameAsUsername</c> when the new password is the caller's own username;
     /// <c>UserNotFound</c> when the token names a user that no longer exists.
     /// </returns>
     public async Task<Result> HandleAsync(ChangePasswordCommand command, CancellationToken cancellationToken)
@@ -108,6 +110,14 @@ public sealed class ChangePasswordCommandHandler
             return await RefuseAsync(user, command, cancellationToken);
         }
 
+        // The username half of the password policy, which the validator cannot apply because it sees
+        // the password alone. After the current password is proven, so a guess still counts against
+        // the account, and before anything is stored.
+        if (!PasswordPolicy.DiffersFromUsername(command.NewPassword, user.Username))
+        {
+            return Result.Fail(Error.Of(nameof(ErrorMessages.PasswordSameAsUsername), ErrorType.Validation));
+        }
+
         user.ChangePassword(_passwordHasher.Hash(command.NewPassword));
 
         // The current password was just proven, which is what a failed-attempt count is a count of
@@ -123,7 +133,7 @@ public sealed class ChangePasswordCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             user.Id,
-            AuditActions.PasswordChanged,
+            IdentityAuditActions.PasswordChanged,
             user.Id.ToString(),
             command.IpAddress,
             command.UserAgent,
@@ -145,7 +155,7 @@ public sealed class ChangePasswordCommandHandler
     {
         await _journal.RecordIdentifiedAsync(
             user.Id,
-            AuditActions.PasswordChanged,
+            IdentityAuditActions.PasswordChanged,
             user.Id.ToString(),
             command.IpAddress,
             command.UserAgent,

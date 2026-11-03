@@ -15,7 +15,10 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use super::DebianAdapter;
 use crate::AdapterBinary;
-use crate::DistroAdapter;
+use crate::{
+    AccountPrograms, BackupFacts, DatabaseFacts, FileTransferFacts, FirewallFacts, PackageFacts,
+    PhpFacts, SchedulingFacts, ServiceManagerFacts, WebServerFacts,
+};
 
 /// The Debian family spawns the MariaDB client from the path its package installs it at.
 #[test]
@@ -202,9 +205,21 @@ fn no_tool_is_named_by_something_path_would_resolve() {
     }
 }
 
-/// The trait's own source, read as text so the table below is checked against
-/// the trait and not against a number somebody has to remember to bump.
-const TRAIT_SOURCE: &str = include_str!("../../adapter.rs");
+/// The adapter traits' own sources (every concern trait `DistroAdapter` composes),
+/// read as text so the table below is checked against the traits and not against a
+/// number somebody has to remember to bump.
+const TRAIT_SOURCES: [&str; 10] = [
+    include_str!("../../account_programs.rs"),
+    include_str!("../../backup_facts.rs"),
+    include_str!("../../database_facts.rs"),
+    include_str!("../../file_transfer_facts.rs"),
+    include_str!("../../firewall_facts.rs"),
+    include_str!("../../package_facts.rs"),
+    include_str!("../../php_facts.rs"),
+    include_str!("../../scheduling_facts.rs"),
+    include_str!("../../service_manager_facts.rs"),
+    include_str!("../../web_server_facts.rs"),
+];
 
 /// How many methods the trait declares that return an `AdapterBinary`.
 ///
@@ -214,8 +229,9 @@ const TRAIT_SOURCE: &str = include_str!("../../adapter.rs");
 /// table, so the completeness assertion goes red without anyone editing a
 /// literal.
 fn declared_binary_methods() -> usize {
-    TRAIT_SOURCE
-        .lines()
+    TRAIT_SOURCES
+        .iter()
+        .flat_map(|source| source.lines())
         .map(str::trim)
         .filter(|line| !line.starts_with("//"))
         .filter(|line| line.ends_with("-> AdapterBinary;"))

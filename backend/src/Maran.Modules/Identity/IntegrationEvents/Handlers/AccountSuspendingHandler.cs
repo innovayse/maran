@@ -1,4 +1,6 @@
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Events;
@@ -6,28 +8,44 @@ using Maran.Sdk.Events;
 namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 
 /// <summary>
-/// Blocks the panel login of an account that is about to be suspended, and ends every session
-/// already open on it (<see cref="AccountSuspending"/>).
+/// Suspends every membership of an account that is about to be suspended, and ends the sessions
+/// that were speaking for it (<see cref="AccountSuspending"/>).
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Closing the door is not enough on its own.</b> Marking the login <see cref="UserLifecycle.Suspended"/>
-/// only stops the NEXT sign-in; an access token issued before the suspension keeps authenticating
-/// for the rest of its own lifetime unless the sessions behind it are revoked here. That is the half
-/// of a suspension that actually matters — a customer already signed in must not go on working
-/// normally until their token happens to expire.
+/// <b>It acts on the account's memberships, not on a login.</b> A login can hold several accounts,
+/// so suspending one must close that account's door and leave the others open: each membership of
+/// the account (the owner's and every added member's) becomes
+/// <see cref="MembershipState.Suspended"/>, and sign-in, refresh, account switching and the
+/// feature gate all read that state. The login's lifecycle is untouched; only its legacy
+/// <c>State</c> / <c>IsAccountSuspended</c> pair is restated (see below). Added members used to keep
+/// working in a suspended account because only the owner's login was found; they are memberships
+/// of the account like the owner's, and are suspended with it.
 /// </para>
 /// <para>
-/// <b>An invited login is left invited, by <see cref="Domain.Entities.User.Suspend"/>'s own rule.</b>
-/// Suspending an account whose owner never accepted their invitation must not silently consume it;
-/// such a login cannot sign in anyway, and it holds no session to revoke.
+/// <b>The owner login's legacy pair is kept in step.</b> The previous release (beta.4) refuses a
+/// sign-in from <c>Users."State"</c> / <c>"IsAccountSuspended"</c>, so a rollback to it would let a
+/// suspended account's owner in again if this release left them at Active. The pair is restated
+/// from the owner membership by <see cref="LegacyOwnerSuspensionPolicy"/>; this release never
+/// reads it.
 /// </para>
 /// <para>
-/// <b>The ordinary case is a repeat rather than a genuine miss.</b> An account with no login at all
-/// is possible only for the administrator, whose <c>AccountId</c> is null and who is therefore never
-/// named by this event — <see cref="AccountSuspending.AccountId"/> always names a hosting account,
-/// and <c>UX_Users_AccountId</c> guarantees at most one login owns it. A missing row here means this
-/// account's login was already removed, not that one was never issued.
+/// <b>Closing the door is not enough on its own.</b> Only the NEXT sign-in or refresh reads the
+/// state; an access token issued before the suspension keeps authenticating for the rest of its own
+/// lifetime unless the sessions behind it are revoked here. Sessions that were speaking for THIS
+/// account end; a session of the same person speaking for another, still active, account is left
+/// alone. A person whose every account is now suspended has no such session to keep: their refresh
+/// is refused on its own.
+/// </para>
+/// <para>
+/// <b>An invited owner is not touched beyond the membership.</b> Suspending an account whose owner
+/// never accepted their invitation must not consume the invitation: the login stays
+/// <see cref="UserLifecycle.Invited"/>, and the suspended membership is what keeps an invitation
+/// accepted meanwhile from producing a way in.
+/// </para>
+/// <para>
+/// <b>Repeating it is harmless.</b> A membership already suspended stays so, and an account that
+/// has no membership at all (its login was already removed) has nothing to do.
 /// </para>
 /// <para>
 /// <b>The failure is not swallowed.</b> Anything thrown here propagates to the Accounts handler,
@@ -56,27 +74,67 @@ public sealed class AccountSuspendingHandler
         _sessionService = sessionService;
     }
 
-    /// <summary>Suspends the account's login and revokes every session already issued to it.</summary>
+    /// <summary>Suspends the account's memberships and revokes the sessions speaking for the account.</summary>
     /// <param name="message">The account about to be suspended.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>Resolves once the login is blocked and its sessions are gone.</returns>
+    /// <returns>Resolves once the memberships are suspended and the sessions are gone.</returns>
     public async Task HandleAsync(AccountSuspending message, CancellationToken cancellationToken)
     {
-        var user = await _dbContext.Users
-            .SingleOrDefaultAsync(candidate => candidate.AccountId == message.AccountId, cancellationToken);
-        if (user is null)
+        var memberships = await _dbContext.AccountMemberships
+            .Where(membership => membership.AccountId == message.AccountId)
+            .ToListAsync(cancellationToken);
+        if (memberships.Count == 0)
         {
-            // No login owns this account. See the type's remarks: only the administrator, who is
-            // never named here, can be without one.
+            // No login acts for this account: nothing to close. See the type's remarks.
             return;
         }
 
-        user.Suspend();
+        foreach (var membership in memberships)
+        {
+            membership.Suspend();
+        }
+
+        await RestateLegacyColumnsAsync(memberships, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         // Revoking the sessions is the half that matters: a suspension that only blocks the NEXT
         // sign-in leaves whoever is already signed in working normally until their access token
         // expires, which is exactly the window a suspension exists to close.
-        await _sessionService.RevokeAllAsync(user.Id, SessionRevocationReason.AccountSuspended, cancellationToken);
+        await _sessionService.RevokeSpeakingForAccountAsync(
+            message.AccountId, SessionRevocationReason.AccountSuspended, cancellationToken);
+    }
+
+    /// <summary>
+    /// Keeps the owner logins' legacy suspension columns in step with their owner memberships, which
+    /// the previous release still reads (<see cref="LegacyOwnerSuspensionPolicy"/>).
+    /// </summary>
+    /// <param name="memberships">The account's memberships, already changed.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    private async Task RestateLegacyColumnsAsync(
+        IReadOnlyCollection<AccountMembership> memberships,
+        CancellationToken cancellationToken)
+    {
+        var ownerIds = memberships
+            .Where(membership =>
+            {
+                return membership.Role == MembershipRole.Owner;
+            })
+            .Select(membership =>
+            {
+                return membership.UserId;
+            })
+            .ToList();
+        if (ownerIds.Count == 0)
+        {
+            return;
+        }
+
+        var owners = await _dbContext.Users
+            .Where(user => ownerIds.Contains(user.Id))
+            .ToListAsync(cancellationToken);
+        var ownerMemberships = await _dbContext.AccountMemberships
+            .Where(membership => membership.Role == MembershipRole.Owner && ownerIds.Contains(membership.UserId))
+            .ToListAsync(cancellationToken);
+        LegacyOwnerSuspensionPolicy.Apply(owners, ownerMemberships);
     }
 }

@@ -7,6 +7,7 @@ using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 using Maran.Modules.Sites.Queries.CountSites;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Callers;
 using Wolverine;
 
@@ -85,7 +86,9 @@ public static class DashboardEndpoint
             // describes what this build composed, while this route describes what the server holds.
             // Any signed-in caller, customer included — the payload is shaped by who is asking — so
             // the policy is named rather than left to the administrator-only fallback.
-            .RequireAuthorization(RolePolicies.AnyAuthenticated);
+            .RequireAuthorization(RolePolicies.AnyAuthenticated)
+            // A read the shell opens on: an operator viewing as a login lands here first (issue #334).
+            .WithMetadata(new ViewAsAccessAttribute(ViewAsAccess.Read));
         return endpoints;
     }
 

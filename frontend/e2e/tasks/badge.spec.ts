@@ -29,6 +29,7 @@ const SETTLED: PanelTask = {
   subject: 'alice.example.com',
   correlationId: null,
   status: 'completed',
+  statusName: 'Completed',
   percent: 100,
   log: 'ordered\n',
   logIncluded: true,
@@ -42,6 +43,7 @@ const SETTLED: PanelTask = {
 const RUNNING: PanelTask = {
   ...SETTLED,
   status: 'running',
+  statusName: 'Running',
   percent: 40,
   finishedAt: null,
   revision: 5,

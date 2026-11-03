@@ -41,17 +41,6 @@
         "to": "Started until"
       }
     },
-    "status": {
-      "running": "Running",
-      "completed": "Completed",
-      "failed": "Failed"
-    },
-    "kind": {
-      "manual": "Manual",
-      "scheduled": "Scheduled",
-      "preDeletion": "Before deletion",
-      "preRestore": "Before restore"
-    },
     "form": {
       "fields": {
         "account": "Account"
@@ -117,10 +106,6 @@
         "hostWideHint": "This is the policy every account without a schedule of its own is backed up by.",
         "overrideHint": "This account's own schedule. It replaces the host-wide policy for this account only."
       },
-      "frequency": {
-        "daily": "Every day",
-        "weekly": "Every week"
-      },
       "summary": {
         "heading": "What the server holds",
         "state": "Schedule",
@@ -138,9 +123,9 @@
         "dayLabel": "Day of the week",
         "dayPlaceholder": "Choose a day",
         "hourLabel": "Hour of the day (UTC)",
-        "hourPlaceholder": "0 to 23",
+        "hourPlaceholder": "Choose an hour",
         "retainLabel": "Copies to keep",
-        "retainPlaceholder": "1 to 365",
+        "retainPlaceholder": "Choose how many",
         "enabledLabel": "Run this schedule",
         "enabledHint": "Switching it off keeps the cadence and the retention where they can be read and turned back on. There is no way to delete a schedule, and nothing here removes the copies it has already taken.",
         "submit": "Save schedule"

@@ -260,7 +260,7 @@ public sealed class CreateSftpUserCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.SftpUserCreated, sftpUser.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            SftpAuditActions.SftpUserCreated, sftpUser.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         // Asked of the directory exactly as the reads ask it, so the row a screen adds from this
         // answer is labelled the same way a later read of it will be.
@@ -370,7 +370,7 @@ public sealed class CreateSftpUserCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SftpUserCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            SftpAuditActions.SftpUserCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         return error;
     }

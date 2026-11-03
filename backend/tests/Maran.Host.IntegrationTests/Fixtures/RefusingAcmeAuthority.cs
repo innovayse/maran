@@ -43,6 +43,7 @@ public sealed class RefusingAcmeAuthority : HttpMessageHandler
 
         if (request.Method == HttpMethod.Head || request.Method == HttpMethod.Get)
         {
+            // The response is handed to the HTTP client, which owns and disposes it from here.
             return Task.FromResult(WithNonce(new HttpResponseMessage(HttpStatusCode.OK)));
         }
 

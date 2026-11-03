@@ -107,7 +107,7 @@ public sealed class PanelLogLevelEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var entries = await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().AuditEvents
             .AsNoTracking()
-            .Where(entry => entry.Action == AuditActions.PanelLogLevelChanged)
+            .Where(entry => entry.Action == MonitoringAuditActions.PanelLogLevelChanged)
             .ToListAsync();
         var entry = Assert.Single(entries);
         Assert.Equal("admin", entry.ActorUsername);
@@ -154,7 +154,7 @@ public sealed class PanelLogLevelEndpointTests : IAsyncLifetime
     /// <returns>The host factory.</returns>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

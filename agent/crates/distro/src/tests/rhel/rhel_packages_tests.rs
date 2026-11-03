@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::{classify_package_failure, package_manager};
+use super::{classify_package_failure, installable_php_versions, package_manager};
 use crate::PackageFailure;
 
 /// `dnf install` against a repository answering its metadata with 404.
@@ -94,4 +94,12 @@ fn a_status_code_line_without_a_three_digit_status_is_not_a_refusal() {
 #[test]
 fn the_package_manager_is_dnf() {
     assert_eq!(package_manager(), "/usr/bin/dnf");
+}
+
+#[test]
+fn the_installable_php_versions_run_from_seven_four_to_eight_four_oldest_first() {
+    assert_eq!(
+        installable_php_versions(),
+        &["7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]
+    );
 }

@@ -34,18 +34,16 @@ namespace Maran.Modules.Identity.Services;
 /// what keeps "two live invitations to one account" from ever existing.
 /// </para>
 /// <para>
-/// <b>A login that is not <see cref="UserLifecycle.Invited"/> is refused, not only an active one.</b> A
-/// fresh token for a live account is a password reset in disguise that bypasses
-/// <c>reset-password</c>'s own rate limit, and a <see cref="UserLifecycle.Suspended"/> login was active
-/// before it was suspended, so it already has a real password: <see cref="User.Activate"/> would
-/// overwrite it and silently lift the suspension.
+/// <b>A login that is not <see cref="UserLifecycle.Invited"/> is refused, not only a suspended
+/// one.</b> A fresh token for a live login is a password reset in disguise that bypasses
+/// <c>reset-password</c>'s own rate limit, and a login that has accepted its invitation already has a
+/// real password: <see cref="User.Activate"/> would overwrite it.
 /// </para>
 /// <para>
-/// <b>An invited login whose account is suspended is refused too</b>
-/// (<c>InvitationAccountSuspended</c>). Suspension moves an invited login to
-/// <see cref="UserLifecycle.InvitedAccountSuspended"/> rather than <see cref="UserLifecycle.Suspended"/>
-/// (<see cref="User.Suspend"/>), so the lifecycle test above does not mistake it for a pending one. Accepting such an invitation would still leave the login suspended
-/// (<see cref="User.Activate"/>), but handing a suspended account's owner a fresh credential —
+/// <b>An invited owner whose account is suspended is refused too</b>
+/// (<c>InvitationAccountSuspended</c>), decided by the owner's membership
+/// (<see cref="MembershipState.Suspended"/>). Accepting such an invitation would still leave the
+/// login unable to act for the account, but handing a suspended account's owner a fresh credential —
 /// mailed, or as a link the administrator passes on — is an offer the suspension exists to withdraw.
 /// An account with no login at all is refused the same way: its directory entry carries the
 /// account's state (<see cref="AccountSnapshot.State"/>), and a suspended one gets no login created
@@ -54,8 +52,8 @@ namespace Maran.Modules.Identity.Services;
 /// <para>
 /// <b>The missing-login insert races, and the loser is told so.</b> Two administrators asking at
 /// once — or one double-click — can both read "no login for this account" before either writes one;
-/// only <c>UX_Users_AccountId</c>, the partial unique index on <c>User.AccountId</c>, actually
-/// stops the second row. The loser's insert fails with a unique-violation
+/// only <c>UX_AccountMemberships_AccountId_Owner</c>, the partial unique index on the owner
+/// membership, actually stops the second row. The loser's insert fails with a unique-violation
 /// <see cref="DbUpdateException"/>, which is caught here, the loser's entity is detached, and the
 /// call answers <see cref="InvitationAlreadyBeingIssued"/>: the winner's request issues its own token,
 /// and what the loser does about that is its caller's decision (a resend answers success; a link
@@ -73,13 +71,18 @@ public sealed class InvitationIssuer
     /// </summary>
     private readonly IAccountDirectory _accountDirectory;
 
+    /// <summary>Finds the account's owner login through the owner membership.</summary>
+    private readonly AccountOwnerFinder _owners;
+
     /// <summary>Creates the service.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="accountDirectory">The read-only window onto the Accounts module.</param>
-    public InvitationIssuer(IdentityDbContext dbContext, IAccountDirectory accountDirectory)
+    /// <param name="owners">Finds the account's owner login through the owner membership.</param>
+    public InvitationIssuer(IdentityDbContext dbContext, IAccountDirectory accountDirectory, AccountOwnerFinder owners)
     {
         _dbContext = dbContext;
         _accountDirectory = accountDirectory;
+        _owners = owners;
     }
 
     /// <summary>
@@ -109,10 +112,10 @@ public sealed class InvitationIssuer
                 Error.Of(nameof(ErrorMessages.InvitationAccountNotFound), ErrorType.NotFound));
         }
 
-        var user = await _dbContext.Users
-            .SingleOrDefaultAsync(candidate => candidate.AccountId == accountId, cancellationToken);
+        var owner = await _owners.FindAsync(accountId, cancellationToken);
 
-        if (user is null)
+        User user;
+        if (owner is null)
         {
             var prepared = PrepareMissingLogin(account, now);
             if (!prepared.IsSuccess)
@@ -126,18 +129,23 @@ public sealed class InvitationIssuer
                 return Result<InvitationIssueOutcome>.Ok(new InvitationAlreadyBeingIssued());
             }
         }
-        else if (user.Lifecycle != UserLifecycle.Invited)
+        else if (owner.Login.Lifecycle != UserLifecycle.Invited)
         {
-            // The one lifecycle in which an invitation may be (re)issued is a pending one on a live
-            // account. A pending one on a suspended account is refused with its own code (see the
-            // type's remarks: a suspended account is offered no way in); every other lifecycle already
-            // has a password, and a fresh token for it would be a password reset in disguise.
+            // Every lifecycle but a pending one already has a password, and a fresh token for it
+            // would be a password reset in disguise.
             return Result<InvitationIssueOutcome>.Fail(
-                Error.Of(
-                    user.Lifecycle == UserLifecycle.InvitedAccountSuspended
-                        ? nameof(ErrorMessages.InvitationAccountSuspended)
-                        : nameof(ErrorMessages.InvitationLoginNotPending),
-                    ErrorType.Conflict));
+                Error.Of(nameof(ErrorMessages.InvitationLoginNotPending), ErrorType.Conflict));
+        }
+        else if (owner.Membership.State == MembershipState.Suspended)
+        {
+            // A pending invitation on a suspended account is refused with its own code (see the
+            // type's remarks: a suspended account is offered no way in).
+            return Result<InvitationIssueOutcome>.Fail(
+                Error.Of(nameof(ErrorMessages.InvitationAccountSuspended), ErrorType.Conflict));
+        }
+        else
+        {
+            user = owner.Login;
         }
 
         var minted = await MintAsync(user, now, cancellationToken);
@@ -159,6 +167,12 @@ public sealed class InvitationIssuer
     /// <param name="now">The current instant, taken from <see cref="IClock"/> by the caller.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>The plaintext token, once, and when it expires.</returns>
+    /// <remarks>
+    /// The save runs on the module's context, so it joins a transaction the caller has open on it and
+    /// is undone with that transaction. The sub-user invitation relies on this: it stages a decoy
+    /// login through this very method and rolls the transaction back, so the work is the same and
+    /// nothing is kept.
+    /// </remarks>
     public async Task<MintedInvitationToken> MintAsync(User user, DateTimeOffset now, CancellationToken cancellationToken)
     {
         foreach (var outstanding in await _dbContext.InvitationTokens
@@ -203,7 +217,7 @@ public sealed class InvitationIssuer
                 $"Account {account.Id} has no login and no recorded owner e-mail; it predates " +
                 "Account.OwnerEmail and cannot be recovered by resending an invitation.");
 
-        return Result<User>.Ok(User.Invite(Guid.NewGuid(), account.Username, ownerEmail, account.Id, now));
+        return Result<User>.Ok(User.Invite(Guid.NewGuid(), account.Username, ownerEmail, now));
     }
 
     /// <summary>Inserts a prepared login with its owner membership, and says whether this call did.</summary>
@@ -233,8 +247,8 @@ public sealed class InvitationIssuer
             exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             // A concurrent call (or a double-click) won the race between the lookup in IssueAsync
-            // and this insert — UX_Users_AccountId is what actually stopped the second row, not that
-            // lookup. Nothing this call added exists (SaveChanges rolled the insert back), so the
+            // and this insert — UX_AccountMemberships_AccountId_Owner is what actually stopped the
+            // second row, not that lookup. Nothing this call added exists (SaveChanges rolled the insert back), so the
             // entity is detached rather than left tracked as a still-pending add on a context the
             // rest of the caller keeps using.
             _dbContext.Entry(user).State = EntityState.Detached;

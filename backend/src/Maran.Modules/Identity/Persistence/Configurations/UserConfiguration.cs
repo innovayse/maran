@@ -47,25 +47,14 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(16);
 
         // The one lifecycle column the code reads. Required with a database default so the additive
-        // migration can add it to a table that already has rows; the default is Active because that
-        // is what the previous release's rows overwhelmingly are, and the migration's backfill then
-        // corrects every row the legacy pair says is anything else. A previous release rolled back
-        // onto this schema keeps writing only the legacy pair, so re-running the same backfill
-        // statement (it is idempotent) after the next upgrade restores agreement.
-        //
-        // MIGRATION MUST CONTAIN this backfill in Up, after AddColumn, with an // raw-sql: comment:
-        //   migrationBuilder.Sql("""
-        //       UPDATE identity."Users" SET "Lifecycle" = CASE
-        //           WHEN "State" = 'Suspended' THEN 'Suspended'
-        //           WHEN "State" = 'Invited' AND "IsAccountSuspended" THEN 'InvitedAccountSuspended'
-        //           WHEN "State" = 'Invited' THEN 'Invited'
-        //           ELSE 'Active' END;
-        //       """);
-        // Down is empty for the data and drops only the new column. Legacy columns that stay mapped
-        // and are written by User.SyncLegacyColumns until the contract release: "State" (LegacyState),
-        // "IsAccountSuspended" (LegacyAccountSuspended). The "IsTotpEnabled" column (LegacyTotpEnabled)
-        // is likewise kept and written by EnableTotp/DisableTotp; the code reads TotpSecret instead,
-        // which already holds the same fact, so TOTP needs no new column and no backfill.
+        // migration could add it to a table that already has rows; Active is what the previous
+        // release's rows overwhelmingly are. Legacy columns that stay mapped and are written by
+        // User.SyncLegacyColumns until the contract release: "State" (LegacyState) and
+        // "IsAccountSuspended" (LegacyAccountSuspended). They restate the suspension of the account
+        // the login owns, which the previous release reads to refuse a sign-in; this release's truth
+        // for it is the owner membership's state. The "IsTotpEnabled" column (LegacyTotpEnabled) is likewise kept and
+        // written by EnableTotp/DisableTotp; the code reads TotpSecret instead, which already holds
+        // the same fact.
         builder.Property(u => u.Lifecycle)
             .IsRequired()
             .HasConversion<string>()
@@ -107,13 +96,16 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasIndex(u => u.Username).IsUnique().HasDatabaseName("IX_Users_Username");
         builder.HasIndex(u => u.Email).IsUnique().HasDatabaseName("IX_Users_Email");
 
-        // At most one login per hosting account: two would be two keys to the same account and
-        // neither would be wrong, so the second is refused by the database rather than only by
-        // AccountCreatedHandler's own pre-check, which a concurrent redelivery of AccountCreated can
-        // race past. Partial, because PostgreSQL counts NULLs as distinct in a unique index and an
-        // administrator's AccountId is NULL — several administrators, all with AccountId == null,
-        // must stay legal.
-        builder.HasIndex(u => u.AccountId)
+        // EXPAND-ONLY: the previous release (1.0.0-beta.4) reads and writes Users."AccountId" and its
+        // partial unique index, so both stay in the schema for one more release. This release neither
+        // reads nor writes the column: it is a SHADOW property, so no entity member exposes it and a
+        // new login stores NULL there (the column has always been nullable, an administrator's is
+        // NULL). The account a login may act for is its AccountMembership rows. It is named
+        // LegacyAccountId, not AccountId, so the tenant census (TenantScopeTests) does not mistake a
+        // login for an account's row. The release after beta.5 drops the column and the index.
+        // Partial, because PostgreSQL counts NULLs as distinct in a unique index.
+        builder.Property<Guid?>("LegacyAccountId").HasColumnName("AccountId");
+        builder.HasIndex("LegacyAccountId")
             .IsUnique()
             .HasFilter("\"AccountId\" IS NOT NULL")
             .HasDatabaseName("UX_Users_AccountId");

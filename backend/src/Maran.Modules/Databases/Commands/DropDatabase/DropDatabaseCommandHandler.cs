@@ -108,7 +108,7 @@ public sealed class DropDatabaseCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.DatabaseDropped, fullName, command.IpAddress, command.UserAgent, cancellationToken);
+            DatabaseAuditActions.DatabaseDropped, fullName, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Ok();
     }
@@ -126,7 +126,7 @@ public sealed class DropDatabaseCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.DatabaseDropped, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            DatabaseAuditActions.DatabaseDropped, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Fail(error);
     }

@@ -41,7 +41,7 @@ public sealed class TaskStreamServiceTests
         var service = new TaskStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             watcher);
 
@@ -94,7 +94,7 @@ public sealed class TaskStreamServiceTests
         var service = new TaskStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             watcher);
 
@@ -107,7 +107,8 @@ public sealed class TaskStreamServiceTests
 
         Assert.Equal(2, collected.Count);
         Assert.NotNull(collected[0].Snapshot);
-        Assert.Equal(PanelTaskStatus.Failed, collected[1].EndStatus);
+        Assert.Equal(PanelTaskStatus.Failed, collected[1].End!.Status);
+        Assert.Equal("Failed", collected[1].End!.StatusName);
     }
 
     /// <summary>A watcher who may not see a task is answered not found rather than an empty stream.</summary>
@@ -132,7 +133,7 @@ public sealed class TaskStreamServiceTests
         var service = new TaskStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             watcher);
 
@@ -161,7 +162,7 @@ public sealed class TaskStreamServiceTests
         var service = new TaskStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             watcher);
 
@@ -180,7 +181,7 @@ public sealed class TaskStreamServiceTests
         var service = new TaskStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             watcher);
 
@@ -214,7 +215,7 @@ public sealed class TaskStreamServiceTests
         var service = new TaskStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             watcher);
 
@@ -266,7 +267,7 @@ public sealed class TaskStreamServiceTests
         var service = new TaskStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             watcher);
 
@@ -295,7 +296,7 @@ public sealed class TaskStreamServiceTests
         var service = new TaskStreamService(
             context,
             TasksTestContext.StreamOptions(),
-            TasksTestContext.KindNames(),
+            TasksTestContext.KindNames(), TasksTestContext.StatusNames(),
             TasksTestContext.FailureMessages(),
             watcher);
 

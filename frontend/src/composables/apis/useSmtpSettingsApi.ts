@@ -1,5 +1,5 @@
 import { useApi } from '../useApi'
-import type { SaveSmtpSettingsRequest, SmtpSettings, SmtpSettingsApi } from '../../types/smtpSettings'
+import type { SaveSmtpSettingsRequest, SmtpSecurityChoice, SmtpSettings, SmtpSettingsApi } from '../../types/smtpSettings'
 
 /** The endpoint the panel's outgoing mail settings are read from and written to. */
 const SMTP_PATH = '/api/v1/notifications/smtp'
@@ -35,6 +35,15 @@ export const useSmtpSettingsApi = (): SmtpSettingsApi => {
   }
 
   /**
+   * Lists the ways the connection to the mail server can be protected, for the security picker.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The modes with their backend-localized names.
+   */
+  const securityModes = (signal?: AbortSignal): Promise<SmtpSecurityChoice[]> => {
+    return api.get<SmtpSecurityChoice[]>(`${SMTP_PATH}/security-modes`, signal)
+  }
+
+  /**
    * Sends one fixed test message, so an administrator can see whether the settings work.
    *
    * This is the one mail path that reports its failure to a caller, which is why the
@@ -48,5 +57,5 @@ export const useSmtpSettingsApi = (): SmtpSettingsApi => {
     return api.post<void>(`${SMTP_PATH}/test`, { recipient }, signal)
   }
 
-  return { get, save, sendTest }
+  return { get, save, securityModes, sendTest }
 }

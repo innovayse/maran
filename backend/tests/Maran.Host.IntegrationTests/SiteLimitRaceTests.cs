@@ -2,10 +2,13 @@ using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Sites.Commands.CreateSite;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Resources;
 using Maran.Modules.Sites.Services;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -192,15 +195,21 @@ public sealed class SiteLimitRaceTests : IAsyncLifetime
         await using var context = OpenContext();
 
         var principal = new AccountCustomer(AccountId);
+        var claims = new SiteHostnameClaims(context);
         var handler = new CreateSiteCommandHandler(
             context,
             new OneAccountDirectory(AccountId, AccountUsername, maxSites: maxSites),
             agent,
             new ThrowingAgentPhpClient(),
-            new SiteSlotGate(context),
+            claims,
+            new SiteRecorder(
+                new SiteSlotGate(context),
+                new SiteVhostCompensator(claims, agent, NullLogger<SiteVhostCompensator>.Instance)),
             new SiteAuditJournal(new DiscardingAuditWriter(), principal),
             new FixedInstantClock(),
-            NullLogger<CreateSiteCommandHandler>.Instance);
+            new SiteDisplayNames(new StringLocalizer<DisplayNames>(new ResourceManagerStringLocalizerFactory(
+                new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+                NullLoggerFactory.Instance))));
 
         return await handler.HandleAsync(
             new CreateSiteCommand(AccountId, domain, SiteBackendType.Static, []), CancellationToken.None);

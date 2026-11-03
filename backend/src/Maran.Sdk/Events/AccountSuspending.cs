@@ -34,10 +34,11 @@ namespace Maran.Sdk.Events;
 /// their home until this cascade grew that half.
 /// </para>
 /// <para>
-/// It does <b>not</b> stop the account's DATABASES, does <b>not</b> block the panel's own web login,
-/// and does <b>not</b> touch crontab lines the panel did not write — a crontab is not the panel's
-/// file, so a hand-added job keeps firing and is counted rather than deleted. A subscriber must not
-/// assume otherwise.
+/// It does <b>not</b> stop the account's DATABASES and does <b>not</b> touch crontab lines the panel
+/// did not write — a crontab is not the panel's file, so a hand-added job keeps firing and is counted
+/// rather than deleted. It does close the panel's own web login, but through the Identity subscriber
+/// (which suspends the account's memberships), not through the host. A subscriber must not assume
+/// otherwise.
 /// </para>
 /// <para>
 /// <b>It is not the thing that PROVES the suspension either.</b> A subscriber that does not exist
