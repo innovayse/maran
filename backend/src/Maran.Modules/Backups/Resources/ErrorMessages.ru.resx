@@ -123,4 +123,13 @@
   <data name="BackupDateRangeInverted">
     <value>Начало периода не может быть позже его конца.</value>
   </data>
+  <data name="BackupNotVerifiable">
+    <value>Эту резервную копию нельзя проверить: она не была создана успешно.</value>
+  </data>
+  <data name="BackupVerificationFailed">
+    <value>Сохранённый архив больше не совпадает с записью о нём.</value>
+  </data>
+  <data name="BackupVerificationArtifactMissing">
+    <value>Сохранённый архив не найден.</value>
+  </data>
 </root>

@@ -140,7 +140,9 @@ public sealed class ListBackupsQueryHandler
                 ownerNames,
                 _failureNames.Of(backup.RunFailureCode),
                 _backupNames.Of(backup.Status),
-                _backupNames.Of(backup.Kind));
+                _backupNames.Of(backup.Kind),
+                _backupNames.Of(backup.VerificationState),
+                _failureNames.Of(backup.VerificationFailureCode));
         }));
     }
 }

@@ -1,6 +1,7 @@
 using Maran.Modules.Backups.Commands.CreateBackup;
 using Maran.Modules.Backups.Commands.DeleteBackup;
 using Maran.Modules.Backups.Commands.RestoreBackup;
+using Maran.Modules.Backups.Commands.VerifyBackup;
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Queries.GetBackup;
 using Maran.Modules.Backups.Queries.GetBackupAttention;
@@ -183,6 +184,41 @@ public sealed class BackupsController : BaseApiController
         };
 
         return ToActionResult(await _bus.InvokeAsync<Result<RestoreOutcomeDto>>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Has the agent read a backup's stored artifact back and answers with the backup as the panel now
+    /// records it. Another customer's backup answers 404, not 403.
+    /// </summary>
+    /// <param name="id">The backup to verify.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <remarks>
+    /// <para>
+    /// It answers 200 for every verification that CONCLUDED, damaged artifact included: the finding is
+    /// the backup's verification state and its code in the body, as a backup that failed to run is
+    /// returned by the create endpoint rather than as an error. An error status means the verification
+    /// could not be performed — the account's backup lock was held, the agent was saturated or
+    /// unreachable — and in that case the recorded state is unchanged.
+    /// </para>
+    /// <para>
+    /// A verified backup is verified at the moment of the read; it is not a promise that the backup
+    /// will restore. Refused while viewing as a customer: it starts work on the server, and the
+    /// result outlives the look.
+    /// </para>
+    /// </remarks>
+    [HttpPost("{id:guid}/verify")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
+    [ProducesResponseType(typeof(BackupDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> VerifyAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var command = new VerifyBackupCommand(id, ClientIpAddress, CallerUserAgent);
+        return ToActionResult(await _bus.InvokeAsync<Result<BackupDto>>(command, cancellationToken));
     }
 
     /// <summary>

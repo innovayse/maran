@@ -108,6 +108,9 @@ public static class ExpectedErrorStatuses
             ["BackupStreamDropped"] = ErrorType.Unavailable,
             ["BackupStreamIdle"] = ErrorType.Unavailable,
             ["BackupNotRestorable"] = ErrorType.Conflict,
+            ["BackupNotVerifiable"] = ErrorType.Conflict,
+            ["BackupVerificationFailed"] = ErrorType.Validation,
+            ["BackupVerificationArtifactMissing"] = ErrorType.NotFound,
             // The schedule form's four refusals are Validation — a field outside its range or a
             // weekday paired with the wrong frequency is a malformed request, not a server fault.
             // NotFound is the honest answer for a server that has never configured a schedule, and

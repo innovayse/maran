@@ -52,6 +52,25 @@ namespace Maran.Modules.Backups.Common;
 /// "Не удалась AgentSystemFailure" — and a wire that carried only the name would have taken the
 /// machine-stable value away from every reader that needs it.
 /// </param>
+/// <param name="VerificationState">
+/// Whether the stored artifact has been read back since the backup was taken, and what that found.
+/// <c>NotVerified</c> until the first verification concludes. It is its own fact beside
+/// <paramref name="Status"/>: a completed run whose artifact later fails verification stays completed.
+/// </param>
+/// <param name="VerificationStateName">The verification state as an operator reads it, localized for the request's culture by <c>BackupDisplayNames</c>.</param>
+/// <param name="VerifiedAt">
+/// When the last verification concluded, or <c>null</c> when none has. Dated because a verification
+/// is true of the moment of the read and says nothing about the artifact afterwards.
+/// </param>
+/// <param name="VerificationFailureCode">
+/// The machine-stable code of what the last verification found wrong with the artifact, or
+/// <c>null</c> when it did not fail. A closed set of this module's own codes: never the agent's
+/// message, a path, a member name or a digest.
+/// </param>
+/// <param name="VerificationFailureDisplayName">
+/// The same finding named in the caller's language, or <c>null</c> when nothing failed. Beside the
+/// code for the reason <paramref name="FailureDisplayName"/> sits beside <paramref name="FailureCode"/>.
+/// </param>
 public sealed record BackupDto(
     Guid Id,
     Guid AccountId,
@@ -67,4 +86,9 @@ public sealed record BackupDto(
     DateTimeOffset StartedAt,
     DateTimeOffset? FinishedAt,
     string? FailureCode,
-    string? FailureDisplayName);
+    string? FailureDisplayName,
+    BackupVerificationState VerificationState,
+    string VerificationStateName,
+    DateTimeOffset? VerifiedAt,
+    string? VerificationFailureCode,
+    string? VerificationFailureDisplayName);

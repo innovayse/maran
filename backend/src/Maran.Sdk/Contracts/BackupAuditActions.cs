@@ -63,4 +63,22 @@ public static class BackupAuditActions
     /// to build it should be answered from.
     /// </summary>
     public const string BackupDestinationSaved = "BackupDestinationSaved";
+
+    /// <summary>
+    /// A stored backup artifact was read back by the agent and found to match its record. Written for
+    /// every verification that concluded, after a run and on request alike. Recorded as failed when the
+    /// verification could NOT be performed — the agent busy, unreachable or refusing the destination —
+    /// because that is a different fact from a finding about the artifact and must not read as one: it
+    /// changes no recorded state. The subject is the account's name, never a path, a member name or a
+    /// digest (rules/security.md item 8).
+    /// </summary>
+    public const string BackupVerified = "BackupVerified";
+
+    /// <summary>
+    /// The agent read a stored backup artifact back and found it does not match its record: corrupt,
+    /// missing or changed. Only a finding about the artifact is written under this action; a
+    /// verification that could not run is <see cref="BackupVerified"/> recorded as failed. The subject
+    /// is the account's name, and nothing the artifact contained is recorded.
+    /// </summary>
+    public const string BackupVerificationFailed = "BackupVerificationFailed";
 }

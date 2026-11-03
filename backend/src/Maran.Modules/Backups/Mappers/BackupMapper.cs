@@ -29,16 +29,23 @@ public static class BackupMapper
     /// </param>
     /// <param name="statusName">The row's status named in the caller's language, from <c>BackupDisplayNames</c>.</param>
     /// <param name="kindName">The row's kind named in the caller's language, from <c>BackupDisplayNames</c>.</param>
+    /// <param name="verificationStateName">The row's verification state named in the caller's language, from <c>BackupDisplayNames</c>.</param>
+    /// <param name="verificationFailureDisplayName">
+    /// The row's verification failure code named in the caller's language, from
+    /// <c>BackupFailureDisplayNames</c>, and <c>null</c> when the last verification did not fail.
+    /// </param>
     /// <returns>
-    /// The wire shape carrying exactly what the row holds, its owner's name and the names for its code,
-    /// status and kind.
+    /// The wire shape carrying exactly what the row holds, its owner's name and the names for its codes,
+    /// status, kind and verification state.
     /// </returns>
     public static BackupDto From(
         Backup backup,
         IReadOnlyDictionary<Guid, string> ownerNames,
         string? failureDisplayName,
         string statusName,
-        string kindName)
+        string kindName,
+        string verificationStateName,
+        string? verificationFailureDisplayName)
     {
         ArgumentNullException.ThrowIfNull(backup);
         ArgumentNullException.ThrowIfNull(ownerNames);
@@ -58,6 +65,11 @@ public static class BackupMapper
             backup.StartedAt,
             backup.FinishedAt,
             backup.RunFailureCode,
-            failureDisplayName);
+            failureDisplayName,
+            backup.VerificationState,
+            verificationStateName,
+            backup.VerifiedAt,
+            backup.VerificationFailureCode,
+            verificationFailureDisplayName);
     }
 }

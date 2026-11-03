@@ -123,4 +123,13 @@
   <data name="BackupDateRangeInverted">
     <value>The start of the date range must not be later than its end.</value>
   </data>
+  <data name="BackupNotVerifiable">
+    <value>This backup cannot be verified: it did not finish successfully.</value>
+  </data>
+  <data name="BackupVerificationFailed">
+    <value>The stored archive no longer matches its record.</value>
+  </data>
+  <data name="BackupVerificationArtifactMissing">
+    <value>The stored archive could not be found.</value>
+  </data>
 </root>

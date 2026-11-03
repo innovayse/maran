@@ -123,4 +123,13 @@
   <data name="BackupDateRangeInverted">
     <value>Ժամանակահատվածի սկիզբը չի կարող լինել դրա ավարտից ուշ։</value>
   </data>
+  <data name="BackupNotVerifiable">
+    <value>Այս պահուստային պատճենը հնարավոր չէ ստուգել՝ այն հաջողությամբ չի ավարտվել։</value>
+  </data>
+  <data name="BackupVerificationFailed">
+    <value>Պահված արխիվն այլևս չի համապատասխանում իր գրառմանը։</value>
+  </data>
+  <data name="BackupVerificationArtifactMissing">
+    <value>Պահված արխիվը չի գտնվել։</value>
+  </data>
 </root>

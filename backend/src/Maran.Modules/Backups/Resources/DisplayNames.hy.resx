@@ -156,4 +156,19 @@
   <data name="BackupFailureAgentRunNotStopped">
     <value>Սերվերը չկարողացավ հաստատել կանգնեցումը, ուստի գործողությունը կարող էր շարունակել աշխատել</value>
   </data>
+  <data name="BackupVerificationStateNotVerified">
+    <value>Չստուգված</value>
+  </data>
+  <data name="BackupVerificationStateVerified">
+    <value>Ստուգված</value>
+  </data>
+  <data name="BackupVerificationStateFailed">
+    <value>Ստուգումը ձախողվել է</value>
+  </data>
+  <data name="BackupFailureBackupVerificationFailed">
+    <value>Արխիվը չի համապատասխանում իր գրառմանը</value>
+  </data>
+  <data name="BackupFailureBackupVerificationArtifactMissing">
+    <value>Արխիվը չի գտնվել</value>
+  </data>
 </root>

@@ -247,7 +247,9 @@ public sealed class CreateBackupCommandHandler
             ownerNames,
             _failureNames.Of(backup.RunFailureCode),
             _backupNames.Of(backup.Status),
-            _backupNames.Of(backup.Kind)));
+            _backupNames.Of(backup.Kind),
+            _backupNames.Of(backup.VerificationState),
+            _failureNames.Of(backup.VerificationFailureCode)));
     }
 
     /// <summary>Closes out a run whose answer this request will never hear.</summary>
