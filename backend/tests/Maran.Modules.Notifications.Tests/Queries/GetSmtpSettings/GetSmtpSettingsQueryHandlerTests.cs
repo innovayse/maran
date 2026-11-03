@@ -24,7 +24,7 @@ public sealed class GetSmtpSettingsQueryHandlerTests
         dbContext.SmtpSettings.Add(Configured());
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetSmtpSettingsQueryHandler(dbContext);
+        var handler = new GetSmtpSettingsQueryHandler(dbContext, NotificationsTestContext.SecurityNames());
 
         var result = await handler.HandleAsync(new GetSmtpSettingsQuery(), CancellationToken.None);
 
@@ -43,13 +43,14 @@ public sealed class GetSmtpSettingsQueryHandlerTests
         dbContext.SmtpSettings.Add(Configured());
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetSmtpSettingsQueryHandler(dbContext);
+        var handler = new GetSmtpSettingsQueryHandler(dbContext, NotificationsTestContext.SecurityNames());
 
         var result = await handler.HandleAsync(new GetSmtpSettingsQuery(), CancellationToken.None);
 
         Assert.Equal("smtp.example.com", result.Value.Host);
         Assert.Equal(587, result.Value.Port);
         Assert.Equal(SmtpSecurity.StartTls, result.Value.Security);
+        Assert.Equal(NotificationsTestContext.SecurityNames().Of(SmtpSecurity.StartTls), result.Value.SecurityName);
         Assert.Equal("panel", result.Value.Username);
         Assert.Equal("panel@example.com", result.Value.FromAddress);
         Assert.Equal("ops@example.com", result.Value.AlertRecipient);
@@ -66,7 +67,7 @@ public sealed class GetSmtpSettingsQueryHandlerTests
     public async Task A_panel_with_no_settings_reads_back_blank_ones_rather_than_a_failure()
     {
         await using var dbContext = NotificationsTestContext.Create();
-        var handler = new GetSmtpSettingsQueryHandler(dbContext);
+        var handler = new GetSmtpSettingsQueryHandler(dbContext, NotificationsTestContext.SecurityNames());
 
         var result = await handler.HandleAsync(new GetSmtpSettingsQuery(), CancellationToken.None);
 
@@ -86,7 +87,7 @@ public sealed class GetSmtpSettingsQueryHandlerTests
             "panel@example.com", "Panel", "ops@example.com", Saved));
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetSmtpSettingsQueryHandler(dbContext);
+        var handler = new GetSmtpSettingsQueryHandler(dbContext, NotificationsTestContext.SecurityNames());
 
         var result = await handler.HandleAsync(new GetSmtpSettingsQuery(), CancellationToken.None);
 

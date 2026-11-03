@@ -244,6 +244,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/accounts/{}/resource-summary
   GET /api/v1/audit
   GET /api/v1/audit/actions
+  GET /api/v1/audit/outcomes
   GET /api/v1/backup-destinations
   GET /api/v1/backup-schedules
   GET /api/v1/backups
@@ -277,6 +278,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/monitoring/metrics
   GET /api/v1/monitoring/services
   GET /api/v1/notifications/smtp
+  GET /api/v1/notifications/smtp/security-modes
   GET /api/v1/panel-certificate
   GET /api/v1/plans
   GET /api/v1/plans/choices
@@ -300,6 +302,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/tasks/kinds
   GET /api/v1/tasks/running
   GET /api/v1/tasks/running/stream
+  GET /api/v1/tasks/statuses
   GET /api/v1/tasks/{}
   GET /api/v1/tasks/{}/stream
   GET /api/v1/view-as

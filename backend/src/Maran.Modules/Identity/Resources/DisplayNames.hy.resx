@@ -331,4 +331,10 @@
   <data name="AuditActionViewAsEnded">
     <value>Ավարտվեց դիտումը հաշվի անունից</value>
   </data>
+  <data name="AuditOutcomeSucceeded">
+    <value>Հաջողվեց</value>
+  </data>
+  <data name="AuditOutcomeFailed">
+    <value>Ձախողվեց</value>
+  </data>
 </root>

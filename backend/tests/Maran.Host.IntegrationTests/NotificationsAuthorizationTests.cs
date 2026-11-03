@@ -57,6 +57,7 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
         return new TheoryData<string, string>
         {
             { "GET", "/api/v1/notifications/smtp" },
+            { "GET", "/api/v1/notifications/smtp/security-modes" },
             { "PUT", "/api/v1/notifications/smtp" },
             { "POST", "/api/v1/notifications/smtp/test" },
         };
@@ -171,6 +172,49 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
 
         // Exactly what was sent, character for character: the round trip is the contract.
         Assert.Equal("startTls", body.RootElement.GetProperty("security").GetString());
+    }
+
+    /// <summary>The protection-mode list names every mode the save accepts, spelled the way the save binds it.</summary>
+    /// <remarks>
+    /// The picker sends back what it was given, so the list's spelling and the PUT's binder must be the
+    /// same converter's: this reads the list and feeds each value straight into the save.
+    /// </remarks>
+    [Fact]
+    public async Task The_security_mode_list_offers_exactly_the_modes_the_save_accepts()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/notifications/smtp/security-modes");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(payload);
+        var modes = body.RootElement.EnumerateArray()
+            .Select(choice =>
+            {
+                return choice.GetProperty("security").GetString();
+            })
+            .ToArray();
+        Assert.Equal(new[] { "none", "startTls", "implicitTls" }, modes);
+
+        foreach (var mode in modes)
+        {
+            var saved = await client.PutAsJsonAsync("/api/v1/notifications/smtp", new
+            {
+                host = "smtp.example.com",
+                port = 587,
+                security = mode,
+                username = "panel",
+                password = "hunter2",
+                fromAddress = "panel@example.com",
+                fromName = "Maran Panel",
+                alertRecipient = "ops@example.com",
+            });
+            Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+        }
     }
 
     /// <summary>Mail settings whose sender name carries a newline are refused as the caller's mistake.</summary>
@@ -330,7 +374,7 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
     /// <returns>The booted host factory.</returns>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

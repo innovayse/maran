@@ -99,19 +99,20 @@ public static class DisplayNameExemptions
         new(
             "Maran.Modules.Backups.Common.BackupScheduleDto",
             "Frequency",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "backups.schedule.frequency.{member}",
-            "Daily and weekly are the options of a form control the SPA renders; the same words "
-            + "have to exist in the bundle for the picker regardless."),
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/pages/backups/BackupSchedulePage.vue",
+            "The cadence is only echoed back into the schedule form's own picker, whose choices and "
+            + "their names are the backend's (GET /api/v1/backup-options, issue #330), not a label "
+            + "drawn from this field; no screen prints the field as a name."),
         new(
             "Maran.Modules.Backups.Common.BackupScheduleDto",
             "DayOfWeekUtc",
             DisplayNameExemptionKind.NotAnOperatorFacingName,
             "frontend/src/pages/backups/BackupSchedulePage.vue",
-            "A weekday is named by the platform's own locale data, not by anything this product "
-            + "authored: the picker labels it through Intl in the interface language. A display "
-            + "name on the wire would be a second, worse translation of a word every operating "
-            + "system already knows."),
+            "A weekday is only echoed back into the schedule form's own picker, whose choices and "
+            + "their names are the backend's (GET /api/v1/backup-options, issue #330): the "
+            + "picker never prints this field as a name, so a display name beside it on the wire "
+            + "would be a second, redundant translation of a word the options list already names."),
         new(
             "Maran.Modules.Firewall.Common.BanDto",
             "Reason",
@@ -164,13 +165,6 @@ public static class DisplayNameExemptions
             "monitoring.clock.{member}",
             "The clock card's badge, a tone as much as a word, like ServiceStatusDto.State. The "
             + "sentence saying what the state means is the backend's, in Description (issue #150)."),
-        new(
-            "Maran.Modules.Notifications.Common.SmtpSettingsDto",
-            "Security",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "app.smtp.security.{member}",
-            "The options of the settings form's own picker, which the bundle has to word anyway to "
-            + "offer the choice."),
         new(
             "Maran.Modules.Sites.Common.SiteDto",
             "Status",

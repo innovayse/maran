@@ -36,4 +36,13 @@
   <data name="TaskKindBackupRestore">
     <value>Restoring a backup</value>
   </data>
+  <data name="TaskStatusRunning">
+    <value>Running</value>
+  </data>
+  <data name="TaskStatusCompleted">
+    <value>Completed</value>
+  </data>
+  <data name="TaskStatusFailed">
+    <value>Failed</value>
+  </data>
 </root>

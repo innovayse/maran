@@ -94,6 +94,7 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<PasswordResetLinkBuilder>();
         services.AddScoped<AdminRecoveryIssuer>();
         services.AddScoped<AuditActionDisplayNames>();
+        services.AddScoped<AuditOutcomeDisplayNames>();
 
         // Singleton: it holds one row for the life of the process and is read on the sign-in path,
         // the token-issuing path and every password validator. It resolves its scoped DbContext

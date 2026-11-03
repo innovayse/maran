@@ -15,4 +15,13 @@
   <data name="NotificationsModuleDisplayName">
     <value>Уведомления</value>
   </data>
+  <data name="SmtpSecurityNone">
+    <value>Без шифрования</value>
+  </data>
+  <data name="SmtpSecurityStartTls">
+    <value>STARTTLS (повышение защиты соединения)</value>
+  </data>
+  <data name="SmtpSecurityImplicitTls">
+    <value>Неявный TLS (шифрование с самого начала)</value>
+  </data>
 </root>

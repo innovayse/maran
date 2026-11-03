@@ -3,6 +3,7 @@ using Maran.Modules.Tasks.Queries.CountFailedTasks;
 using Maran.Modules.Tasks.Queries.GetTask;
 using Maran.Modules.Tasks.Queries.ListRunningTasks;
 using Maran.Modules.Tasks.Queries.ListTaskKindChoices;
+using Maran.Modules.Tasks.Queries.ListTaskStatusChoices;
 using Maran.Modules.Tasks.Queries.ListTasks;
 using Maran.Modules.Tasks.Services;
 using Maran.Sdk.Contracts;
@@ -154,6 +155,18 @@ public sealed class TasksController : BaseApiController
     {
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<TaskKindChoiceDto>>>(
             new ListTaskKindChoicesQuery(), cancellationToken));
+    }
+
+    /// <summary>Lists the statuses a task can be in, named for the caller's language, for the status filter.</summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The choices, in the order the filter offers them.</returns>
+    [HttpGet("statuses")]
+    [ProducesResponseType(typeof(IReadOnlyList<TaskStatusChoiceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetStatusesAsync(CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<TaskStatusChoiceDto>>>(
+            new ListTaskStatusChoicesQuery(), cancellationToken));
     }
 
     /// <summary>Reads one task. A task the caller may not see answers 404, not 403.</summary>

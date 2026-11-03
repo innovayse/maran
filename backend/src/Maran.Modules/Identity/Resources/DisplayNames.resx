@@ -330,4 +330,10 @@
   <data name="AuditActionViewAsEnded">
     <value>Stopped viewing as an account</value>
   </data>
+  <data name="AuditOutcomeSucceeded">
+    <value>Succeeded</value>
+  </data>
+  <data name="AuditOutcomeFailed">
+    <value>Failed</value>
+  </data>
 </root>

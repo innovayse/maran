@@ -331,4 +331,10 @@
   <data name="AuditActionViewAsEnded">
     <value>Завершён просмотр от имени аккаунта</value>
   </data>
+  <data name="AuditOutcomeSucceeded">
+    <value>Успешно</value>
+  </data>
+  <data name="AuditOutcomeFailed">
+    <value>Отказ</value>
+  </data>
 </root>
