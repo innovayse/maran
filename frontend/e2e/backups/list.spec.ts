@@ -116,9 +116,9 @@ test('a row names the owning account, its status and how many databases the copy
   // The databases column, read as the CELL'S WHOLE TEXT rather than as "a 2 appears somewhere in
   // this row". Containment could not fail here: the row carries `2026-09-06` in two timestamp
   // columns, so `toContainText('2')` was satisfied by the date whatever the Databases cell held —
-  // an empty cell, the size beside it, any number at all. Column five is Databases (Account,
-  // Status, Reason, Size, Databases, Started, Finished, Actions).
-  await expect(row.getByRole('cell').nth(4)).toHaveText('2')
+  // an empty cell, the size beside it, any number at all. Column six is Databases (Account,
+  // Status, Verification, Reason, Size, Databases, Started, Finished, Actions).
+  await expect(row.getByRole('cell').nth(5)).toHaveText('2')
   // The identifier is not a fact an operator reads, and printing it where the account's name
   // belongs is what this column exists to prevent.
   await expect(row).not.toContainText(ALICE.id)
