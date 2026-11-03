@@ -61,7 +61,9 @@ public sealed class TenantScopeTests
     /// user id across every account a login holds, at sign-in (before a principal exists) and when the
     /// person switches account. Filtered by the account claim, it would show only the account already
     /// active and make a switch impossible. The endpoints that read it stamp the user id from the token;
-    /// none takes a membership id.
+    /// none takes a membership id. <c>AccountMembershipOffer</c> is exempt for the same reason from the
+    /// other side: it is read by the person an account's owner offered a place to, whose session speaks
+    /// for a different account or for none.
     /// </para>
     /// <para>
     /// <b>What is no longer listed, and why that is not a loss of coverage.</b> <c>User</c>,
@@ -81,6 +83,8 @@ public sealed class TenantScopeTests
         {
             ["Maran.Modules.Identity.Domain.Entities.AccountMembership"] =
                 "read by the login's own user id across ALL its accounts, to decide which one a session may act for; a tenant filter would hide every account but the active one",
+            ["Maran.Modules.Identity.Domain.Entities.AccountMembershipOffer"] =
+                "the offered login's row as much as the account's: the invitee reads, accepts and declines it from a session that speaks for another account or none, so an account filter would hide it from them; every read compares the caller's own user id, and the owner's reads are scoped to the account their token names",
         };
 
     /// <summary>Every entity that belongs to a tenant is scoped by a global query filter.</summary>

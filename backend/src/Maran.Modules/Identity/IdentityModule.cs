@@ -88,6 +88,7 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<IAuditWriter, DatabaseAuditWriter>();
         services.AddScoped<IdentityAuditJournal>();
         services.AddScoped<InvitationMailComposer>();
+        services.AddScoped<MembershipOfferMailComposer>();
         services.AddScoped<InvitationLinkBuilder>();
         services.AddScoped<InvitationIssuer>();
         services.AddScoped<AccountOwnerFinder>();

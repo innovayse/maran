@@ -20,7 +20,7 @@ public static class SubUserMapper
         ArgumentNullException.ThrowIfNull(row);
 
         return new SubUserDto(
-            row.Id, row.Username, row.Email, row.Lifecycle, row.Grants.Members(), row.CreatedAt, row.LastLoginAt);
+            row.Id, row.Username, row.Email, row.State, row.Grants.Members(), row.CreatedAt, row.LastLoginAt);
     }
 
     /// <summary>Projects a login and its membership into the outward view.</summary>
