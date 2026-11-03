@@ -9,7 +9,11 @@ import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { mainNavigation } from '../fixtures/open-full-shell'
 import { stubViewAs, stubViewAsRefused } from '../fixtures/stub-view-as-routes'
-import type { Account } from '../../src/types/account'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
+import type { Account, MyAccount } from '../../src/types/account'
+import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { ViewingAs } from '../../src/types/viewAs'
 
@@ -27,6 +31,34 @@ const ACME: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
+}
+
+/**
+ * The account as its own login reads it. While viewing, the shell asks `GET /api/v1/accounts/me`
+ * for the plan's features; an unanswered read is a 401, which the SPA correctly treats as an
+ * expired token and answers by renewing back to the operator's own session.
+ */
+const OWN_ACCOUNT: MyAccount = {
+  id: ACME.id,
+  name: 'acme',
+  primaryDomain: 'acme.example.com',
+  status: 'active',
+  statusName: 'Active',
+  plan: {
+    displayName: 'Starter',
+    diskQuotaMb: 1024,
+    maxSites: 5,
+    maxDatabases: 5,
+    maxSftpUsers: 5,
+    maxFtpUsers: 5,
+    maxCronEntries: 5,
+  },
+}
+
+/** What the customer dashboard reads about the account's use of its plan while viewing. */
+const OWN_RESOURCES: AccountResourceSummary = {
+  accountId: ACME.id,
+  resources: [{ kind: 'sites', count: { state: 'counted', used: 0 }, limit: { kind: 'limited', maximum: 5 } }],
 }
 
 /** The account's login, which the view-as token signs in as. */
@@ -56,6 +88,9 @@ const VIEWING: ViewingAs = {
 const stubPanel = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, OWN_RESOURCES)
   await stubModules(page, [
     { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
     { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
