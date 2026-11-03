@@ -137,6 +137,12 @@ public sealed class SecurityPolicyAuthorizationTests : IAsyncLifetime
         Assert.Equal(
             SecurityPolicy.DefaultForceTwoFactorForAdmins,
             body.RootElement.GetProperty("forceTwoFactorForAdmins").GetBoolean());
+
+        // Resellers are forced by default (issue #179, decision D4), unlike administrators.
+        Assert.True(SecurityPolicy.DefaultForceTwoFactorForResellers);
+        Assert.Equal(
+            SecurityPolicy.DefaultForceTwoFactorForResellers,
+            body.RootElement.GetProperty("forceTwoFactorForResellers").GetBoolean());
     }
 
     /// <summary>An administrator saves the policy and reads back exactly what was saved.</summary>
@@ -152,6 +158,7 @@ public sealed class SecurityPolicyAuthorizationTests : IAsyncLifetime
         {
             minimumPasswordLength = 16,
             forceTwoFactorForAdmins = true,
+            forceTwoFactorForResellers = false,
             maxFailedLoginAttempts = 5,
             lockoutMinutes = 30,
         });
@@ -162,6 +169,7 @@ public sealed class SecurityPolicyAuthorizationTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await readBack.Content.ReadAsStringAsync());
         Assert.Equal(16, body.RootElement.GetProperty("minimumPasswordLength").GetInt32());
         Assert.True(body.RootElement.GetProperty("forceTwoFactorForAdmins").GetBoolean());
+        Assert.False(body.RootElement.GetProperty("forceTwoFactorForResellers").GetBoolean());
         Assert.Equal(5, body.RootElement.GetProperty("maxFailedLoginAttempts").GetInt32());
         Assert.Equal(30, body.RootElement.GetProperty("lockoutMinutes").GetInt32());
     }

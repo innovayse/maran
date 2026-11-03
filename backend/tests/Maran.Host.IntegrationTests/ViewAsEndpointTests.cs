@@ -18,7 +18,11 @@ namespace Maran.Host.IntegrationTests;
 /// <c>/api/v1/view-as</c> over real HTTP and a real journal (issues #317, #314): an administrator
 /// views the panel as an account's login through a scoped customer token that names them as actor,
 /// every start and end is journalled with both identities, and every way the token could be stretched
-/// or escalated is refused. Threat note: docs/superpowers/notes/2026-11-02-view-as-impersonation-threat-note.md.
+/// or escalated is refused. The reseller edges (administrator to reseller, reseller to its own account)
+/// are in <c>ViewAsResellerEndpointTests</c> and <c>ViewAsResellerOperatorEndpointTests</c>, and the
+/// one-hop rule in <c>ViewAsNoChainingEndpointTests</c> (issue #179). Threat notes:
+/// docs/superpowers/notes/2026-11-02-view-as-impersonation-threat-note.md and
+/// docs/superpowers/notes/2026-11-03-reseller-role-threat-note.md.
 /// </summary>
 [Collection(SharedDatabase.Name)]
 public sealed class ViewAsEndpointTests : IAsyncLifetime
@@ -75,14 +79,24 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
             Assert.Equal("admin", actor.RootElement.GetProperty(PanelClaimTypes.Username).GetString());
         }
 
-        Assert.Equal("acme", body.RootElement.GetProperty("viewing").GetProperty("accountName").GetString());
+        var viewing = body.RootElement.GetProperty("viewing");
+        Assert.Equal("account", viewing.GetProperty("kind").GetString());
+        Assert.Equal(acme, viewing.GetProperty("subjectId").GetGuid());
+        Assert.Equal("acme", viewing.GetProperty("subjectName").GetString());
+        Assert.Equal("olive", viewing.GetProperty("username").GetString());
+        Assert.Equal("admin", viewing.GetProperty("operatorUsername").GetString());
+
+        // One field, one meaning: the account-only members the banner shape used to carry are gone.
+        Assert.False(viewing.TryGetProperty("accountId", out _));
+        Assert.False(viewing.TryGetProperty("accountName", out _));
         Assert.False(response.Headers.Contains("Set-Cookie"));
 
-        using var viewing = ClientWith(factory, accessToken);
-        using var me = JsonDocument.Parse(await viewing.GetStringAsync("/api/v1/accounts/me"));
+        using var viewingClient = ClientWith(factory, accessToken);
+        using var me = JsonDocument.Parse(await viewingClient.GetStringAsync("/api/v1/accounts/me"));
         Assert.Equal("acme.example.com", me.RootElement.GetProperty("primaryDomain").GetString());
 
-        using var state = JsonDocument.Parse(await viewing.GetStringAsync(Endpoint));
+        using var state = JsonDocument.Parse(await viewingClient.GetStringAsync(Endpoint));
+        Assert.Equal("account", state.RootElement.GetProperty("viewing").GetProperty("kind").GetString());
         Assert.Equal("admin", state.RootElement.GetProperty("viewing").GetProperty("operatorUsername").GetString());
     }
 

@@ -8,7 +8,7 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 /// <summary>
 /// Reads the authorization metadata of composed endpoints and names every one that does not state
 /// its audience: an endpoint must either be marked anonymous AND be pinned, or name one of the
-/// panel's two policies.
+/// panel's four policies.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -34,6 +34,8 @@ public static class EndpointAuthorizationCensus
     {
         AuthorizationPolicies.AdminOnly,
         AuthorizationPolicies.AnyAuthenticated,
+        AuthorizationPolicies.ResellerOnly,
+        AuthorizationPolicies.AdminOrReseller,
     };
 
     /// <summary>Spells an endpoint as <c>VERB /path</c>, constraints stripped.</summary>
