@@ -12,7 +12,6 @@
       "addressColumn": "Որտեղից",
       "outcomeColumn": "Արդյունք",
       "heading": "Աուդիտի մատյան",
-      "failedNotice": "Մատյանում ձախողվել է {count} գրառում։",
       "searchLabel": "Մատյանի որոնում",
       "searchPlaceholder": "Որոնել ըստ կատարողի, օբյեկտի կամ հասցեի…",
       "searchClear": "Մաքրել որոնումը",

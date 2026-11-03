@@ -38,11 +38,11 @@ const PHP_VERSIONS_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
-    await stubInstallablePhpVersions(page, () => [{ version: '8.3', installed: true }])
+    await stubInstallablePhpVersions(page, () => {return [{ version: '8.3', installed: true }]})
   },
   stubFailure: async (page) => {
     await signIn(page)
-    await stubInstallablePhpVersions(page, () => [])
+    await stubInstallablePhpVersions(page, () => {return []})
     await page.route(PHP_VERSIONS, async (route) => {
       await route.fulfill({
         status: 500,

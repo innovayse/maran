@@ -17,10 +17,19 @@ public sealed class ListInstallablePhpVersionsQueryHandlerTests
         var result = await handler.HandleAsync(new ListInstallablePhpVersionsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(["8.4", "8.3", "8.2", "8.1", "8.0", "7.4"], result.Value.Select(version => version.Version));
+        Assert.Equal(["8.4", "8.3", "8.2", "8.1", "8.0", "7.4"], result.Value.Select(version =>
+        {
+            return version.Version;
+        }));
         Assert.Equal(
             ["8.3", "7.4"],
-            result.Value.Where(version => version.Installed).Select(version => version.Version));
+            result.Value.Where(version =>
+            {
+                return version.Installed;
+            }).Select(version =>
+{
+    return version.Version;
+}));
     }
 
     /// <summary>Listing carries nothing but the version and its installed flag.</summary>
@@ -31,7 +40,10 @@ public sealed class ListInstallablePhpVersionsQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListInstallablePhpVersionsQuery(), CancellationToken.None);
 
-        var properties = result.Value[0].GetType().GetProperties().Select(property => property.Name);
+        var properties = result.Value[0].GetType().GetProperties().Select(property =>
+        {
+            return property.Name;
+        });
         Assert.Equal([nameof(InstallablePhpVersionDto.Version), nameof(InstallablePhpVersionDto.Installed)], properties);
     }
 

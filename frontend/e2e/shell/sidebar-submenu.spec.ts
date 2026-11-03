@@ -34,7 +34,7 @@ const open = async (page: Page, path: string): Promise<void> => {
   await stubModules(page, MODULES)
   await stubSites(page, [])
   await stubPhpVersions(page, [])
-  await stubInstallablePhpVersions(page, () => [])
+  await stubInstallablePhpVersions(page, () => {return []})
   await page.goto(path)
 }
 

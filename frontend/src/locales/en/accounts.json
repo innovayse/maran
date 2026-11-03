@@ -1,9 +1,5 @@
 {
   "accounts": {
-    "status": {
-      "active": "Active",
-      "suspended": "Suspended"
-    },
     "list": {
       "heading": "Accounts",
       "subtitle": "Hosting accounts on this server.",

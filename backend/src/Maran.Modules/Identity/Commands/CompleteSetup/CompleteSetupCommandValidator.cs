@@ -64,7 +64,10 @@ public sealed class CompleteSetupCommandValidator : AbstractValidator<CompleteSe
             .WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak));
 
         RuleFor(command => command.Password)
-            .Must((command, password) => PasswordPolicy.DiffersFromUsername(password, command.Username))
+            .Must((command, password) =>
+            {
+                return PasswordPolicy.DiffersFromUsername(password, command.Username);
+            })
             .WithMessage(nameof(Resources.ErrorMessages.PasswordSameAsUsername));
     }
 }

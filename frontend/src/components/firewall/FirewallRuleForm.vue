@@ -214,7 +214,7 @@ const reset = (): void => {
 // The picker starts on the panel's first choice as soon as the list arrives, so the common case
 // (opening a TCP port) stays one click shorter without the SPA naming a protocol.
 watch(
-  () => props.protocols,
+  () => {return props.protocols},
   (choices) => {
     if (protocol.value === '' && choices.length > 0) {
       protocol.value = choices[0].protocol

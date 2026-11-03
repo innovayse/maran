@@ -111,7 +111,10 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var login = await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Users
             .AsNoTracking()
-            .SingleAsync(user => user.AccountId == accountId);
+            .SingleAsync(user =>
+            {
+                return user.AccountId == accountId;
+            });
         Assert.Equal("new@example.com", login.Email);
         var account = await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Accounts
             .AsNoTracking()
@@ -238,7 +241,10 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Conflict, resend.StatusCode);
         using var check = factory.Services.CreateScope();
         Assert.False(await check.ServiceProvider.GetRequiredService<IdentityDbContext>().Users
-            .AnyAsync(user => user.AccountId == accountId));
+            .AnyAsync(user =>
+            {
+                return user.AccountId == accountId;
+            }));
     }
 
     /// <summary>Boots the host with the given agent double and this test's journal.</summary>

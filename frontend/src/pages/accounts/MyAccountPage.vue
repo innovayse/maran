@@ -37,7 +37,6 @@
 import { computed, onMounted, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
-import UiBadge from '../../components/ui/UiBadge.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
@@ -47,6 +46,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
+import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue'
 import { useAccountsStore } from '../../stores/accounts'
 import type { MyAccountPlan } from '../../types/account'
 import { formatMegabytes } from '../../utils/formatBytes'
@@ -153,9 +153,7 @@ onMounted(async () => {
               {{ store.mine?.primaryDomain }}
             </UiDescriptionItem>
             <UiDescriptionItem :term="t('myAccount.statusLabel')">
-              <UiBadge v-if="store.mine !== null" :variant="store.mine.status === 'active' ? 'success' : 'warning'">
-                {{ t(`accounts.status.${store.mine.status}`) }}
-              </UiBadge>
+              <AccountStatusBadge v-if="store.mine !== null" :status="store.mine.status" :label="store.mine.statusName" />
             </UiDescriptionItem>
           </UiDescriptionList>
         </UiCard>

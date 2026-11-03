@@ -3,7 +3,8 @@
  * Small colored label rendering a hosting account's lifecycle state. Used by
  * the accounts list so status is scannable without reading a text column
  * closely; the color carries no meaning on its own (text label is always
- * present) so it stays accessible without relying on color alone.
+ * present) so it stays accessible without relying on color alone. The text is the backend's
+ * (`statusName` on the account), printed as given.
  *
  * The rendering itself belongs to `UiBadge` — this component's only job is
  * mapping one domain state onto a badge tone and a label. An active account is the
@@ -12,7 +13,6 @@
  * recedes (a grey badge draws no dot at all, so it would read as "no status").
  */
 import { computed, type ComputedRef } from 'vue'
-import { useI18n } from 'vue-i18n'
 import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
 import type { AccountStatus } from '../../types/account'
 
@@ -20,19 +20,15 @@ import type { AccountStatus } from '../../types/account'
 const props = defineProps<{
   /** The account's current lifecycle state. */
   status: AccountStatus
+  /** The state as a reader reads it, already in their language; the badge's text. */
+  label: string
 }>()
-
-const { t } = useI18n()
 
 /** Badge tone for the current status; the label below is what actually carries the meaning. */
 const variant: ComputedRef<BadgeVariant> = computed(() => {
   return props.status === 'active' ? 'success' : 'warning'
 })
 
-/** i18n-resolved label for the current status. */
-const label: ComputedRef<string> = computed(() => {
-  return t(`accounts.status.${props.status}`)
-})
 </script>
 
 <template>

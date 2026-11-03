@@ -51,7 +51,10 @@ public sealed class ScriptedAgentPhpClient : IAgentPhpClient
             {
                 return new InstallablePhpVersionDto(
                     version,
-                    _installed.Any(item => string.Equals(item.Version, version, StringComparison.Ordinal)));
+                    _installed.Any(item =>
+                    {
+                        return string.Equals(item.Version, version, StringComparison.Ordinal);
+                    }));
             })
             .ToList();
 

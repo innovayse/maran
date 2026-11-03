@@ -39,7 +39,7 @@ const openPhpVersions = async (page: Page): Promise<unknown[]> => {
   await stubHealthy(page)
   await stubModules(page, MODULES)
   await stubPhpVersions(page, installed)
-  await stubInstallablePhpVersions(page, () => installable)
+  await stubInstallablePhpVersions(page, () => {return installable})
   await page.route('**/api/v1/sites/php-versions/install', async (route) => {
     const body = route.request().postDataJSON() as { version: string }
     installBodies.push(body)
@@ -89,7 +89,7 @@ test('choosing an option and pressing install sends exactly that version and dro
   await expect(install).toBeEnabled()
   await install.click()
 
-  await expect.poll(() => installBodies).toEqual([{ version: '8.4' }])
+  await expect.poll(() => {return installBodies}).toEqual([{ version: '8.4' }])
   await page.getByRole('combobox', { name: 'Version to install' }).click()
   await expect(page.getByRole('option')).toHaveText(['PHP 8.2'])
 })

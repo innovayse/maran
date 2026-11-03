@@ -26,6 +26,8 @@ export interface Account {
   planId: string
   /** The account's current lifecycle state. */
   status: AccountStatus
+  /** The state as a reader reads it, already in the request's language; what the status badge prints. */
+  statusName: string
   /** The instant the account was created, as an ISO-8601 string. */
   createdAt: string
 }
@@ -187,6 +189,8 @@ export interface MyAccount {
   primaryDomain: string
   /** The account's current lifecycle state. */
   status: AccountStatus
+  /** The state as a reader reads it, already in the request's language; what the status badge prints. */
+  statusName: string
   /** The limits of the plan this account is created against. */
   plan: MyAccountPlan
 }
@@ -204,11 +208,31 @@ export interface OwnerLanguageChoice {
 }
 
 /**
+ * One state a hosting account can be in, mirroring the backend's `AccountStatusChoiceDto`. The
+ * accounts list's status filter and its chips print `statusName`: the SPA holds no names for the
+ * states, and the set the filter offers is the one the panel's list endpoint validates.
+ */
+export interface AccountStatusChoice {
+  /** The state on the wire (`active`, `suspended`), exactly what an account's own `status` field reads. */
+  status: AccountStatus
+  /** The state as a reader reads it, already in the request's language. */
+  statusName: string
+}
+
+/**
  * Typed access to the hosting accounts endpoints.
  *
  * Called from Pinia stores only — never from a component (rules/vue.md).
  */
 export interface AccountsApi {
+  /**
+   * Lists the states a hosting account can be in, with their names. Readable by any signed-in
+   * caller, because a customer's own account page prints its state with the same names.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The states in the panel's order, each named in the request's language.
+   */
+  statuses: (signal?: AbortSignal) => Promise<AccountStatusChoice[]>
+
   /**
    * Lists the languages an account owner's invitation can be written in.
    * @param signal Optional abort signal to cancel the in-flight request.

@@ -273,7 +273,11 @@ async fn the_installable_list_names_every_supported_version_and_flags_the_instal
     let Some(list_installable_php_versions_response::Result::Ok(ok)) = response.result else {
         panic!("expected the ok payload");
     };
-    let versions: Vec<&str> = ok.versions.iter().map(|item| item.version.as_str()).collect();
+    let versions: Vec<&str> = ok
+        .versions
+        .iter()
+        .map(|item| item.version.as_str())
+        .collect();
     assert_eq!(versions, vec!["8.4", "8.3", "8.2", "8.1", "8.0", "7.4"]);
     let installed: Vec<&str> = ok
         .versions

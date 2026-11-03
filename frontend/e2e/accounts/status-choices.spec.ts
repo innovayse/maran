@@ -24,6 +24,7 @@ const ACCOUNTS: Account[] = [
     primaryDomain: 'harbor.example.com',
     planId: '22222222-2222-2222-2222-222222222222',
     status: 'active',
+    statusName: 'Live',
     createdAt: '2026-09-01T10:00:00Z',
   },
   {
@@ -32,6 +33,7 @@ const ACCOUNTS: Account[] = [
     primaryDomain: 'lantern.example.com',
     planId: '22222222-2222-2222-2222-222222222222',
     status: 'suspended',
+    statusName: 'Paused',
     createdAt: '2026-09-02T10:00:00Z',
   },
 ]
@@ -39,7 +41,7 @@ const ACCOUNTS: Account[] = [
 /**
  * Signs in, serves the accounts and answers the state list with the given body.
  * @param page The Playwright page.
- * @param statuses The state list the panel answers with, or the HTTP status of a refusal.
+ * @param statuses The state list the panel answers with, or `'unreadable'` for a refused read.
  * @returns Every list request the page made so far.
  */
 const openWith = async (

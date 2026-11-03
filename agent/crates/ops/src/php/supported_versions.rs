@@ -57,7 +57,10 @@ pub(crate) fn ensure_installable(
     distro: &dyn DistroAdapter,
     version: &PhpVersion,
 ) -> Result<(), crate::php::PhpOpError> {
-    if distro.installable_php_versions().contains(&version.as_str()) {
+    if distro
+        .installable_php_versions()
+        .contains(&version.as_str())
+    {
         return Ok(());
     }
 
