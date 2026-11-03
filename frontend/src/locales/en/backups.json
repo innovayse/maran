@@ -17,7 +17,8 @@
         "size": "Size",
         "databases": "Databases",
         "startedAt": "Started",
-        "finishedAt": "Finished"
+        "finishedAt": "Finished",
+        "verification": "Verification"
       },
       "confirmDelete": "Delete this backup? The copy is gone, and nothing here can bring it back.",
       "confirmDeleteTitle": "Delete the backup of {account} from {startedAt}",
@@ -39,7 +40,8 @@
         "kind": "Reason",
         "from": "Started from",
         "to": "Started until"
-      }
+      },
+      "verifiedAt": "Checked {when}"
     },
     "form": {
       "fields": {
@@ -192,6 +194,11 @@
       "filters": {
         "kind": "Kind of storage"
       }
+    },
+    "verify": {
+      "action": "Verify now",
+      "actionFor": "Verify now: backup of {account}",
+      "working": "Verifying…"
     }
   }
 }

@@ -28,7 +28,7 @@ const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
 /**
  * Builds the backups API on top of the shared low-level client.
  *
- * Six calls, matching the six routes `BackupsController` publishes, and no seventh. In particular
+ * Seven calls, matching the seven routes `BackupsController` publishes, and no seventh. In particular
  * there is **no download**: the panel deliberately exposes no endpoint that returns an archive's
  * bytes, because an archive holds an account's files and the contents of its databases, and an
  * operator retrieves one from the server where the file already is.
@@ -92,6 +92,16 @@ export const useBackupsApi = (): BackupsApi => {
   }
 
   /**
+   * Asks the panel to re-read a backup's artifact and record whether it is sound.
+   * @param id The backup to verify.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The backup with its verification state as the panel now holds it.
+   */
+  const verify = (id: string, signal?: AbortSignal): Promise<Backup> => {
+    return api.post<Backup>(`${BACKUPS_PATH}/${id}/verify`, {}, signal)
+  }
+
+  /**
    * Replaces an account from one of its backups.
    *
    * The body carries the typed confirmation and nothing else. The backup id travels in the PATH
@@ -114,5 +124,5 @@ export const useBackupsApi = (): BackupsApi => {
     return api.post<RestoreOutcome>(`${BACKUPS_PATH}/${id}/restore`, request, signal)
   }
 
-  return { list, attention, get, create, remove, restore }
+  return { list, attention, get, create, remove, verify, restore }
 }

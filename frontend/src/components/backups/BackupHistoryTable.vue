@@ -17,11 +17,13 @@
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiButton from '../ui/UiButton.vue'
 import UiDropdown from '../ui/UiDropdown.vue'
 import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiTable from '../ui/UiTable.vue'
 import BackupStatusBadge from './BackupStatusBadge.vue'
+import BackupVerificationBadge from './BackupVerificationBadge.vue'
 import { useLocaleStore } from '../../stores/locale'
 import { backupAccountName } from '../../utils/backupAccountName'
 import { formatBytes } from '../../utils/formatBytes'
@@ -31,6 +33,8 @@ import type { UiTableColumn } from '../../types/tableColumn'
 
 /** Props accepted by {@link BackupHistoryTable}. */
 defineProps<{
+  /** The backup whose verification is in flight, or `null`; its Verify now button is disabled. */
+  verifyingId: string | null
   /** The rows of the page on screen, in the server's order. */
   rows: Backup[]
   /** Whether a page is being fetched, so the rows are drawn as placeholders. */
@@ -47,6 +51,8 @@ const emit = defineEmits<{
   (e: 'sort', field: string): void
   /** Restore was chosen on a completed row. */
   (e: 'restore', backup: Backup): void
+  /** Verify now was pressed on a completed row; carries its id. */
+  (e: 'verify', id: string): void
   /** Delete was chosen on a row; carries its id. */
   (e: 'delete', id: string): void
 }>()
@@ -59,6 +65,7 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
     { key: 'account', label: t('backups.list.columns.account'), kind: 'identifier' },
     { key: 'status', label: t('backups.list.columns.status'), kind: 'badge' },
+    { key: 'verification', label: t('backups.list.columns.verification'), kind: 'badge' },
     { key: 'kind', label: t('backups.list.columns.kind'), kind: 'text' },
     { key: 'size', label: t('backups.list.columns.size'), kind: 'number', sortField: 'size' },
     { key: 'databases', label: t('backups.list.columns.databases'), kind: 'number' },
@@ -98,6 +105,15 @@ const failureName = (backup: Backup): string | null => {
   // the key not at all. A screen that threw on the row it exists to explain would be worse.
   const name: unknown = backup.failureDisplayName
   return typeof name === 'string' ? name : null
+}
+
+/**
+ * When a row's artifact was last verified.
+ * @param backup The backup the row is drawn for.
+ * @returns The formatted instant, or `null` when it never was.
+ */
+const verified = (backup: Backup): string | null => {
+  return backup.verifiedAt === null ? null : formatIsoTimestamp(backup.verifiedAt, localeStore.current)
 }
 
 /**
@@ -147,6 +163,32 @@ const sortBy = (field: string): void => {
       <span v-if="row.failureCode !== null" class="mt-0.5 block font-mono text-xs text-text-muted">
         {{ t('backups.list.failureCode', { code: row.failureCode }) }}
       </span>
+    </template>
+    <template #cell-verification="{ row }">
+      <BackupVerificationBadge :state="row.verificationState" :label="row.verificationStateName" />
+      <!-- The failure's sentence is the backend's, beside its code: the same two halves a failed run shows. -->
+      <template v-if="row.verificationFailure !== null">
+        <span class="mt-1.5 block max-w-64 text-sm whitespace-normal text-text-secondary wrap-anywhere">
+          {{ row.verificationFailure.message }}
+        </span>
+        <span class="mt-0.5 block font-mono text-xs text-text-muted">
+          {{ t('backups.list.failureCode', { code: row.verificationFailure.code }) }}
+        </span>
+      </template>
+      <span v-if="verified(row) !== null" class="mt-0.5 block text-xs text-text-muted">
+        {{ t('backups.list.verifiedAt', { when: verified(row) }) }}
+      </span>
+      <!-- Offered on a completed backup only: a running or failed run has no artifact to read. -->
+      <UiButton
+        v-if="row.status === 'completed'"
+        class="mt-2"
+        variant="secondary"
+        :disabled="verifyingId === row.id"
+        :aria-label="t('backups.verify.actionFor', { account: accountName(row) })"
+        @click="emit('verify', row.id)"
+      >
+        {{ verifyingId === row.id ? t('backups.verify.working') : t('backups.verify.action') }}
+      </UiButton>
     </template>
     <template #cell-kind="{ row }">{{ row.kindName }}</template>
     <template #cell-size="{ row }">{{ size(row) }}</template>

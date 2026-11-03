@@ -134,6 +134,15 @@ const create = async (request: CreateBackupRequest): Promise<void> => {
 }
 
 /**
+ * Asks the panel to verify one backup's artifact. The store replaces the row with the answer.
+ * @param id The backup to verify.
+ * @returns Resolves once the request has settled.
+ */
+const verify = async (id: string): Promise<void> => {
+  await store.verify(id)
+}
+
+/**
  * Opens the filter sheet.
  * @returns Nothing.
  */
@@ -197,6 +206,10 @@ useReloadOnLocale(optionsStore.load)
 
     <UiAlert v-if="store.removeErrorMessage !== null" variant="error">
       {{ store.removeErrorMessage }}
+    </UiAlert>
+
+    <UiAlert v-if="store.verifyErrorMessage !== null" variant="error">
+      {{ store.verifyErrorMessage }}
     </UiAlert>
 
     <BackupCreateForm
@@ -268,7 +281,9 @@ useReloadOnLocale(optionsStore.load)
               :loading="table.state.value.status === 'loading'"
               :skeleton-rows="table.pageSize.value"
               :sort="table.sort.value"
+              :verifying-id="store.verifyingId"
               @sort="table.toggleSort"
+              @verify="verify"
               @restore="askRestore"
               @delete="ask"
             />
