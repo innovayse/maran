@@ -71,6 +71,10 @@ const localeStore = useLocaleStore()
         <div class="min-w-0 flex-1 basis-40">
           <p class="m-0 text-sm font-semibold text-text-primary break-words">{{ entry.actionName }}</p>
           <p v-if="entry.subject !== ''" class="m-0 text-xs text-text-muted break-words">{{ entry.subject }}</p>
+          <!-- An entry written while an administrator was viewing as the actor names that administrator. -->
+          <p v-if="entry.impersonatorUsername !== null" class="m-0 text-xs text-text-muted break-words">
+            {{ t('app.audit.viewedBy', { name: entry.impersonatorUsername }) }}
+          </p>
         </div>
 
         <div class="ml-auto flex max-w-full flex-wrap items-center justify-end gap-x-2 gap-y-1">

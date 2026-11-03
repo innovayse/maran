@@ -17,11 +17,11 @@ export const AUDIT_OUTCOME_CHOICES: AuditOutcomeChoice[] = [
   { outcome: 'failed', outcomeName: 'Failed' },
 ]
 
-/** How the journal endpoint searches (actor, subject, address), sorts and filters, as the panel does. */
+/** How the journal endpoint searches (actor, impersonator, subject, address), sorts and filters, as the panel does. */
 const AUDIT_RULES: PagedRules<AuditEvent> = {
   matches: (event, term) => {
-    return [event.actorUsername, event.subject, event.ipAddress].some((text) => {
-      return text.toLowerCase().includes(term)
+    return [event.actorUsername, event.impersonatorUsername, event.subject, event.ipAddress].some((text) => {
+      return text !== null && text.toLowerCase().includes(term)
     })
   },
   sorts: {
@@ -49,6 +49,16 @@ const AUDIT_RULES: PagedRules<AuditEvent> = {
       return Date.parse(event.occurredAt) <= Date.parse(value)
     },
   },
+}
+
+/**
+ * Builds a journal entry written while an administrator was viewing the panel as the actor.
+ * @param base The entry as it would read had the actor acted for themselves.
+ * @param impersonatorUsername The administrator who was viewing as the actor.
+ * @returns The same entry, carrying the operator's name.
+ */
+export const viewedAs = (base: AuditEvent, impersonatorUsername: string): AuditEvent => {
+  return { ...base, impersonatorUsername }
 }
 
 /**

@@ -112,6 +112,7 @@ const DASHBOARD: Dashboard = {
       id: '22222222-2222-2222-2222-222222222222',
       occurredAt: '2026-10-05T11:00:00+00:00',
       actorUsername: 'administrator-on-call',
+      impersonatorUsername: null,
       action: 'SignInFailed',
       actionName: 'Sign-in failed',
       subject: 'storefront.acme-industrial-holdings.example.com',

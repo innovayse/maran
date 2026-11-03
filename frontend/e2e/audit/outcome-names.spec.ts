@@ -13,6 +13,7 @@ const REFUSED: AuditEvent = {
   id: '00000000-0000-0000-0000-0000000000c2',
   occurredAt: '2026-09-09T08:00:00+00:00',
   actorUsername: 'mallory',
+  impersonatorUsername: null,
   action: 'LoginFailed',
   actionName: 'Sign-in refused',
   subject: 'mallory',

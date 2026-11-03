@@ -26,6 +26,7 @@ const WITH_REFUSAL: Dashboard = {
       id: '00000000-0000-0000-0000-0000000000d1',
       occurredAt: '2026-09-09T08:00:00+00:00',
       actorUsername: 'mallory',
+      impersonatorUsername: null,
       action: 'LoginFailed',
       actionName: 'Sign-in refused',
       subject: 'mallory',

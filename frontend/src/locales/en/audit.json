@@ -12,6 +12,7 @@
       "subjectColumn": "Subject",
       "addressColumn": "From",
       "outcomeColumn": "Outcome",
+      "viewedBy": "via {name}",
       "searchLabel": "Search the journal",
       "searchPlaceholder": "Search by who, subject or address…",
       "searchClear": "Clear the search",

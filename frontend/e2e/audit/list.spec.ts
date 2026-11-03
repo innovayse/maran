@@ -11,6 +11,7 @@ const SIGN_IN: AuditEvent = {
   id: '00000000-0000-0000-0000-0000000000c1',
   occurredAt: '2026-09-10T09:00:00+00:00',
   actorUsername: 'admin',
+  impersonatorUsername: null,
   action: 'LoginSucceeded',
   actionName: 'Signed in',
   subject: 'admin',
@@ -23,6 +24,7 @@ const REFUSED: AuditEvent = {
   id: '00000000-0000-0000-0000-0000000000c2',
   occurredAt: '2026-09-09T08:00:00+00:00',
   actorUsername: 'mallory',
+  impersonatorUsername: null,
   action: 'LoginFailed',
   actionName: 'Sign-in refused',
   subject: 'mallory',
@@ -36,6 +38,7 @@ const AUGUST: AuditEvent = {
   id: '00000000-0000-0000-0000-0000000000c3',
   occurredAt: '2026-08-15T12:00:00+00:00',
   actorUsername: 'zoe',
+  impersonatorUsername: null,
   subject: 'zoe',
 }
 

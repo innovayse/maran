@@ -12,6 +12,7 @@
       "subjectColumn": "Объект",
       "addressColumn": "Откуда",
       "outcomeColumn": "Результат",
+      "viewedBy": "через {name}",
       "searchLabel": "Поиск по журналу",
       "searchPlaceholder": "Поиск по автору, объекту или адресу…",
       "searchClear": "Очистить поиск",
