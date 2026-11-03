@@ -110,6 +110,24 @@ public sealed class CronAgentErrorTranslatorTests
         Assert.Equal(ErrorType.Unavailable, translated.Type);
     }
 
+    /// <summary>An agent that refuses a run for saturation answers its own unavailable code, not the passed-through one.</summary>
+    [Fact]
+    public void An_agent_saturation_refusal_becomes_the_modules_own_unavailable_code()
+    {
+        // The agent client delivers it as Unavailable, which this translator otherwise passes through
+        // unchanged — so without the explicit arm the customer would read the machine code
+        // AgentSaturated, and an operator could not tell it from the panel's own CronRunServerBusy.
+        var translated = CronAgentErrorTranslator.Translate(
+            new CapturingLogger<CronAgentErrorTranslatorTests>(),
+            Error.Of("AgentSaturated", ErrorType.Unavailable),
+            "RunEntryAsync",
+            EntryId);
+
+        Assert.Equal("CronRunAgentSaturated", translated.Code);
+        Assert.Equal(ErrorType.Unavailable, translated.Type);
+        Assert.NotEqual("CronRunServerBusy", translated.Code);
+    }
+
     /// <summary>Translates one agent code through a throwaway logger.</summary>
     /// <param name="agentCode">The code the agent client produced.</param>
     /// <returns>The error this module answers with.</returns>

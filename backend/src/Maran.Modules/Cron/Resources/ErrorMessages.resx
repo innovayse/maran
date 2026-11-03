@@ -72,4 +72,7 @@
   <data name="CronRunServerBusy">
     <value>The server is running a lot of scheduled tasks right now, so this one was not started. Nothing was changed; please try again in a moment.</value>
   </data>
+  <data name="CronRunAgentSaturated">
+    <value>The server's scheduler is already running as many scheduled tasks as it allows, so this one was not started. Nothing was changed; wait a moment for one to finish, then try again.</value>
+  </data>
 </root>

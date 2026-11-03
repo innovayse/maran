@@ -152,6 +152,7 @@ public static class ExpectedErrorStatuses
             ["CronEnvironmentValueInvalid"] = ErrorType.Validation,
             ["CronOperationFailed"] = ErrorType.Failure,
             ["CronRunAccountLimitReached"] = ErrorType.Conflict,
+            ["CronRunAgentSaturated"] = ErrorType.Unavailable,
             ["CronRunNotFound"] = ErrorType.NotFound,
             ["CronRunOutcomeUnknown"] = ErrorType.Validation,
             ["CronRunServerBusy"] = ErrorType.Unavailable,

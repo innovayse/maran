@@ -47,6 +47,15 @@ namespace Maran.Modules.Cron.Mappers;
 /// is simply full from a race that was lost.
 /// </para>
 /// <para>
+/// <b>The agent's own saturation refusal is the exception to that pass-through, and it is checked
+/// first.</b> <c>AgentSaturated</c> also arrives as <see cref="ErrorType.Unavailable"/>, but it is
+/// not an outage: the agent is up and refusing a run by hand because it already runs as many as it
+/// admits (issue #333). It gets <c>CronRunAgentSaturated</c> — a sentence that says nothing was
+/// started and that waiting clears it — distinct from <c>CronRunServerBusy</c>, which is the PANEL's
+/// own host bound, so an operator reading a journal can tell which side refused. Its kind stays
+/// <see cref="ErrorType.Unavailable"/> (503): the request and the account are sound.
+/// </para>
+/// <para>
 /// The agent codes are matched as string literals because <c>Maran.Agent.Client</c>'s generated
 /// <c>ErrorMessages</c> class is internal to that project, so no module can name its members. That
 /// makes this file the one place the coupling exists rather than five, and the mapping's behaviour
@@ -66,6 +75,9 @@ public static class CronAgentErrorTranslator
     /// already met.
     /// </summary>
     private const string AgentLimitReachedCode = "AgentLimitReached";
+
+    /// <summary>The Agent.Client code for a run the agent refused because it already runs as many as it admits.</summary>
+    private const string AgentSaturatedCode = "AgentSaturated";
 
     /// <summary>The Agent.Client code for an account the agent found suspended (issue #158).</summary>
     private const string AgentAccountSuspendedCode = "AgentAccountSuspended";
@@ -99,6 +111,11 @@ public static class CronAgentErrorTranslator
     public static Error Translate(ILogger logger, Error agentError, string operation, string subject)
     {
         LogAgentRefusal(logger, operation, subject, agentError.Code, null);
+
+        if (agentError.Code == AgentSaturatedCode)
+        {
+            return Error.Of(nameof(ErrorMessages.CronRunAgentSaturated), ErrorType.Unavailable);
+        }
 
         return agentError.Type == ErrorType.Unavailable
             ? Error.Of(agentError.Code, ErrorType.Unavailable)
