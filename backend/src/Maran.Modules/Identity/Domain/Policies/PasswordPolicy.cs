@@ -16,13 +16,21 @@ public static class PasswordPolicy
     /// <summary>Longest password accepted, bounding the work Argon2id is asked to do.</summary>
     public const int MaxLength = 256;
 
-    /// <summary>Whether a password is non-empty, no longer than the ceiling and at least the minimum.</summary>
+    /// <summary>Whether a password is non-empty and at least the minimum length.</summary>
     /// <param name="password">The password as typed; null is treated as empty.</param>
     /// <param name="minimumLength">The shortest password the panel accepts.</param>
-    /// <returns>True when the password's length is acceptable.</returns>
-    public static bool HasAcceptableLength(string? password, int minimumLength)
+    /// <returns>True when the password is long enough.</returns>
+    public static bool MeetsMinimumLength(string? password, int minimumLength)
     {
-        return !string.IsNullOrEmpty(password) && password.Length >= minimumLength && password.Length <= MaxLength;
+        return !string.IsNullOrEmpty(password) && password.Length >= minimumLength;
+    }
+
+    /// <summary>Whether a password is no longer than the ceiling.</summary>
+    /// <param name="password">The password as typed; null is within the ceiling.</param>
+    /// <returns>True when the password is not longer than <see cref="MaxLength"/>.</returns>
+    public static bool IsWithinMaximumLength(string? password)
+    {
+        return password is null || password.Length <= MaxLength;
     }
 
     /// <summary>Whether a password is something other than the login's own username.</summary>

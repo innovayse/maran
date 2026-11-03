@@ -69,6 +69,9 @@
   <data name="PasswordTooWeak">
     <value>Choose a password of at least {1} characters.</value>
   </data>
+  <data name="PasswordTooLong">
+    <value>That password is too long. Choose a shorter one.</value>
+  </data>
   <data name="PasswordSameAsUsername">
     <value>Choose a password that is different from your username.</value>
   </data>

@@ -5,6 +5,7 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
 using Maran.SharedKernel.Utilities.Tokens;
 using Microsoft.EntityFrameworkCore;
@@ -53,9 +54,9 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
         return token;
     }
 
-    private static AcceptInvitationCommand Command(string token)
+    private static AcceptInvitationCommand Command(string token, string password = NewPassword)
     {
-        return new AcceptInvitationCommand(token, NewPassword, "203.0.113.7", "agent");
+        return new AcceptInvitationCommand(token, password, "203.0.113.7", "agent");
     }
 
     /// <summary>A valid token sets the password and activates the login.</summary>
@@ -219,5 +220,40 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
         Assert.Equal(UserLifecycle.Active, resumed.Lifecycle);
         Assert.False(await new ActiveAccountResolver(_context).IsSuspendedEverywhereAsync(resumed, CancellationToken.None));
         Assert.True(_hasher.Verify(NewPassword, resumed.PasswordHash));
+    }
+
+    /// <summary>A valid token with a password equal to the login's username is refused and not spent.</summary>
+    /// <remarks>
+    /// The token is left usable on purpose: the refusal is about the password, so the invitee may
+    /// pick another with the same link, and the login stays invited.
+    /// </remarks>
+    [Fact]
+    public async Task A_valid_token_with_the_username_as_password_is_refused_and_not_spent()
+    {
+        var token = await IssueTokenAsync();
+
+        var result = await NewHandler().HandleAsync(Command(token, password: "owner-one"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PasswordSameAsUsername", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        var user = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
+        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
+        Assert.Null((await _context.InvitationTokens.SingleAsync()).UsedAt);
+        Assert.True((await NewHandler().HandleAsync(Command(token), CancellationToken.None)).IsSuccess);
+    }
+
+    /// <summary>An invalid token with the username as password still gets the token refusal, not the password one.</summary>
+    /// <remarks>
+    /// The username rule never runs before the token is validated: an unauthenticated caller must
+    /// not learn from a password refusal that the token was real.
+    /// </remarks>
+    [Fact]
+    public async Task An_invalid_token_with_the_username_as_password_still_gets_the_token_refusal()
+    {
+        var result = await NewHandler().HandleAsync(Command("not-a-token-anybody-issued", password: "owner-one"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("InvitationTokenInvalid", result.Error!.Code);
     }
 }

@@ -71,7 +71,8 @@ public sealed class ChangePasswordCommandValidatorTests : IAsyncLifetime
 
         var result = await validator.TestValidateAsync(Command(next: new string('x', 257)));
 
-        result.ShouldHaveValidationErrorFor(c => c.NewPassword).WithErrorMessage("PasswordTooWeak");
+        var failure = Assert.Single(result.Errors);
+        Assert.Equal("PasswordTooLong", failure.ErrorMessage);
     }
 
     /// <summary>An empty or over-long current password carries the wrong-password code.</summary>

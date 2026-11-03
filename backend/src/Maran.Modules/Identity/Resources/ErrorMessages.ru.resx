@@ -69,6 +69,9 @@
   <data name="PasswordTooWeak">
     <value>Выберите пароль не короче {1} символов.</value>
   </data>
+  <data name="PasswordTooLong">
+    <value>Этот пароль слишком длинный. Выберите более короткий.</value>
+  </data>
   <data name="PasswordSameAsUsername">
     <value>Выберите пароль, отличающийся от имени пользователя.</value>
   </data>

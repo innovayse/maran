@@ -7,6 +7,7 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
 using Maran.SharedKernel.Utilities.Tokens;
 using Microsoft.EntityFrameworkCore;
@@ -65,9 +66,9 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
         return token;
     }
 
-    private static ResetPasswordCommand Command(string token)
+    private static ResetPasswordCommand Command(string token, string password = NewPassword)
     {
-        return new ResetPasswordCommand(token, NewPassword, "203.0.113.7", "agent");
+        return new ResetPasswordCommand(token, password, "203.0.113.7", "agent");
     }
 
     /// <summary>A valid token sets the new password and spends itself.</summary>
@@ -318,5 +319,40 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
         {
             return entry.Action == AuditActions.PasswordChanged && entry.Succeeded;
         });
+    }
+
+    /// <summary>A valid token with a password equal to the login's username is refused and not spent.</summary>
+    /// <remarks>
+    /// The token is left usable on purpose: the refusal is about the password, so the holder may pick
+    /// another with the same link. Nothing about the account changes.
+    /// </remarks>
+    [Fact]
+    public async Task A_valid_token_with_the_username_as_password_is_refused_and_not_spent()
+    {
+        var token = await IssueTokenAsync();
+
+        var result = await NewHandler().HandleAsync(Command(token, password: "admin"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PasswordSameAsUsername", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        var user = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
+        Assert.True(_hasher.Verify("the old password", user.PasswordHash));
+        Assert.Null((await _context.PasswordResetTokens.SingleAsync()).UsedAt);
+        Assert.True((await NewHandler().HandleAsync(Command(token), CancellationToken.None)).IsSuccess);
+    }
+
+    /// <summary>An invalid token with the username as password still gets the token refusal, not the password one.</summary>
+    /// <remarks>
+    /// The property this pins is that the username rule never runs before the token is validated: an
+    /// unauthenticated caller must not learn from a password refusal that the token was real.
+    /// </remarks>
+    [Fact]
+    public async Task An_invalid_token_with_the_username_as_password_still_gets_the_token_refusal()
+    {
+        var result = await NewHandler().HandleAsync(Command("not-a-token-anybody-issued", password: "admin"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PasswordResetTokenInvalid", result.Error!.Code);
     }
 }

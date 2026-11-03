@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
@@ -108,7 +109,10 @@ public sealed class ResetPasswordCommandHandler
     /// <summary>Spends the token and sets the new password.</summary>
     /// <param name="command">The token and the new password.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>Success, or the single refusal every unusable token gets.</returns>
+    /// <returns>
+    /// Success; <c>PasswordResetTokenInvalid</c>, the single refusal every unusable token gets; or
+    /// <c>PasswordSameAsUsername</c> when a valid token's new password is the login's own username.
+    /// </returns>
     public async Task<Result> HandleAsync(ResetPasswordCommand command, CancellationToken cancellationToken)
     {
         var now = _clock.UtcNow;
@@ -128,6 +132,16 @@ public sealed class ResetPasswordCommandHandler
         if (user is null)
         {
             return await RefuseAsync(token.UserId, command, cancellationToken);
+        }
+
+        // The username half of the password policy, which the validator cannot apply because it sees
+        // the password alone. Only here, after the token has matched a real, usable token and a real
+        // user: the refusal depends on the account the token names, so giving it earlier would tell
+        // an unauthenticated caller the token is real. The token is NOT spent by this refusal, so
+        // the holder may choose another password with the same link.
+        if (!PasswordPolicy.DiffersFromUsername(command.NewPassword, user.Username))
+        {
+            return Result.Fail(Error.Of(nameof(ErrorMessages.PasswordSameAsUsername), ErrorType.Validation));
         }
 
         token.Consume(now);

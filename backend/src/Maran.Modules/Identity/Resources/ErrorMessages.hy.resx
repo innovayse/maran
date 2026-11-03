@@ -69,6 +69,9 @@
   <data name="PasswordTooWeak">
     <value>Ընտրեք առնվազն {1} նիշ գաղտնաբառ։</value>
   </data>
+  <data name="PasswordTooLong">
+    <value>Այս գաղտնաբառը չափազանց երկար է։ Ընտրեք ավելի կարճ գաղտնաբառ։</value>
+  </data>
   <data name="PasswordSameAsUsername">
     <value>Ընտրեք օգտանունից տարբերվող գաղտնաբառ։</value>
   </data>

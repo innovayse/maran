@@ -29,6 +29,16 @@ public sealed class CompleteSetupCommandValidatorTests
         Assert.Equal(12, failure.FormattedMessagePlaceholderValues[NewPasswordValidator.MinimumLengthPlaceholder]);
     }
 
+    /// <summary>A password over the ceiling is rejected as too long, not as too weak.</summary>
+    [Fact]
+    public void A_password_over_the_ceiling_is_rejected_as_too_long()
+    {
+        var result = _validator.TestValidate(Command(password: new string('x', 257)));
+
+        var failure = Assert.Single(result.Errors);
+        Assert.Equal("PasswordTooLong", failure.ErrorMessage);
+    }
+
     /// <summary>A password equal to the username is rejected.</summary>
     [Fact]
     public void A_password_equal_to_the_username_is_rejected()

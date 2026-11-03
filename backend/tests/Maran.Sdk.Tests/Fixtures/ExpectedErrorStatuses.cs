@@ -222,6 +222,7 @@ public static class ExpectedErrorStatuses
             ["AdminRecoveryNotAdministrator"] = ErrorType.Conflict,
             ["AdminRecoveryLoginNotActive"] = ErrorType.Conflict,
             ["PasswordTooWeak"] = ErrorType.Validation,
+            ["PasswordTooLong"] = ErrorType.Validation,
             ["PasswordSameAsUsername"] = ErrorType.Validation,
             // Failure, not Validation: nothing the caller sent is wrong. The server could not say
             // whether the packages landed, which is the host's problem and a 500's meaning, and

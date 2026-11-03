@@ -5,31 +5,32 @@ namespace Maran.Modules.Identity.Tests.Domain.Policies;
 /// <summary>Behavioural contract of the rules about a password a person chooses.</summary>
 public sealed class PasswordPolicyTests
 {
-    /// <summary>A password at the minimum and one at the ceiling are both acceptable.</summary>
+    /// <summary>A password at the minimum and one at the ceiling are both long enough.</summary>
     [Theory]
     [InlineData(16)]
     [InlineData(PasswordPolicy.MaxLength)]
-    public void A_password_between_the_minimum_and_the_ceiling_has_an_acceptable_length(int length)
+    public void A_password_at_or_above_the_minimum_meets_it(int length)
     {
-        Assert.True(PasswordPolicy.HasAcceptableLength(new string('x', length), 16));
+        Assert.True(PasswordPolicy.MeetsMinimumLength(new string('x', length), 16));
     }
 
-    /// <summary>Null, empty, one short of the minimum and one over the ceiling are all refused.</summary>
+    /// <summary>Null, empty and one short of the minimum do not meet it.</summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void A_missing_password_has_no_acceptable_length(string? password)
+    [InlineData("123456789012345")]
+    public void A_missing_or_short_password_does_not_meet_the_minimum(string? password)
     {
-        Assert.False(PasswordPolicy.HasAcceptableLength(password, 16));
+        Assert.False(PasswordPolicy.MeetsMinimumLength(password, 16));
     }
 
-    /// <summary>One character short of the minimum, and one over the ceiling, are refused.</summary>
+    /// <summary>A password at the ceiling is within it; one over is not.</summary>
     [Theory]
-    [InlineData(15)]
-    [InlineData(PasswordPolicy.MaxLength + 1)]
-    public void A_password_outside_the_bounds_has_no_acceptable_length(int length)
+    [InlineData(PasswordPolicy.MaxLength, true)]
+    [InlineData(PasswordPolicy.MaxLength + 1, false)]
+    public void The_ceiling_admits_its_own_length_and_refuses_one_more(int length, bool expected)
     {
-        Assert.False(PasswordPolicy.HasAcceptableLength(new string('x', length), 16));
+        Assert.Equal(expected, PasswordPolicy.IsWithinMaximumLength(new string('x', length)));
     }
 
     /// <summary>A password equal to the username is refused, and a different one is accepted.</summary>

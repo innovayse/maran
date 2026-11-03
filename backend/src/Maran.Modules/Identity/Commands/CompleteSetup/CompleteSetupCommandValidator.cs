@@ -54,12 +54,15 @@ public sealed class CompleteSetupCommandValidator : AbstractValidator<CompleteSe
         // row can exist before the first administrator does, so the length floor is the built-in
         // default; both rules are PasswordPolicy's, the same definitions the signed-in change reads.
         RuleFor(command => command.Password)
+            .Cascade(CascadeMode.Stop)
+            .Must(PasswordPolicy.IsWithinMaximumLength)
+            .WithMessage(nameof(Resources.ErrorMessages.PasswordTooLong))
             .Must((_, password, context) =>
             {
                 context.MessageFormatter.AppendArgument(
                     NewPasswordValidator.MinimumLengthPlaceholder,
                     SecurityPolicy.DefaultMinimumPasswordLength);
-                return PasswordPolicy.HasAcceptableLength(password, SecurityPolicy.DefaultMinimumPasswordLength);
+                return PasswordPolicy.MeetsMinimumLength(password, SecurityPolicy.DefaultMinimumPasswordLength);
             })
             .WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak));
 

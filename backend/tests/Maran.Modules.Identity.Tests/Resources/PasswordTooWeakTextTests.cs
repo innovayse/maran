@@ -25,6 +25,19 @@ public sealed class PasswordTooWeakTextTests
         Assert.DoesNotContain("12", formatted);
     }
 
+    /// <summary>PasswordTooLong exists in en, ru and hy and, unlike PasswordTooWeak, asks for no length.</summary>
+    [Theory]
+    [InlineData("en")]
+    [InlineData("ru")]
+    [InlineData("hy")]
+    public void PasswordTooLong_has_a_translation_that_asks_for_no_length(string culture)
+    {
+        var text = Messages.GetString("PasswordTooLong", CultureInfo.GetCultureInfo(culture));
+
+        Assert.False(string.IsNullOrWhiteSpace(text));
+        Assert.DoesNotContain("{", text);
+    }
+
     /// <summary>PasswordSameAsUsername exists in en, ru and hy and states no length.</summary>
     [Theory]
     [InlineData("en")]

@@ -107,7 +107,7 @@ public sealed class ExceptionMiddleware
 
         var (code, arguments) = ResolveValidationCode(validation);
         var errorTextProvider = context.RequestServices.GetService<IErrorTextProvider>();
-        var detail = errorTextProvider?.Resolve(code, arguments) ?? code;
+        var detail = ResolveValidationDetail(errorTextProvider, code, arguments);
 
         var problem = new ProblemDetails
         {
@@ -160,6 +160,45 @@ public sealed class ExceptionMiddleware
         }
 
         return (ValidationFailedCode, [string.Empty]);
+    }
+
+    /// <summary>
+    /// Resolves the sentence for a validation failure's code, and never throws while doing it: an
+    /// answer to a bad request must not turn into a 500 because of how a resource text is written.
+    /// </summary>
+    /// <remarks>
+    /// A text that wants the validator's <c>MinLength</c> as <c>{1}</c> cannot be formatted when the
+    /// failure carried none (<see cref="FormatException"/> from the provider) — a validator that
+    /// forgot to append it, or a code reused by another rule. The code stays what the caller
+    /// receives, since it identifies the rule broken; the sentence falls back to the generic
+    /// validation text, which takes no argument but the field, and then to the bare code.
+    /// </remarks>
+    /// <param name="errorTextProvider">The localizer, or null in a host that registers none.</param>
+    /// <param name="code">The failure's machine-stable code.</param>
+    /// <param name="arguments">The text's format arguments: the field, then the bound when there is one.</param>
+    /// <returns>The localized sentence, the generic one, or the code itself.</returns>
+    private static string ResolveValidationDetail(IErrorTextProvider? errorTextProvider, string code, object[] arguments)
+    {
+        if (errorTextProvider is null)
+        {
+            return code;
+        }
+
+        try
+        {
+            return errorTextProvider.Resolve(code, arguments);
+        }
+        catch (FormatException)
+        {
+            try
+            {
+                return errorTextProvider.Resolve(ValidationFailedCode, string.Empty);
+            }
+            catch (FormatException)
+            {
+                return code;
+            }
+        }
     }
 
     /// <summary>Writes the generic 500 problem response. Never includes exception detail.</summary>
