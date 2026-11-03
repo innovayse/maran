@@ -281,6 +281,14 @@ public static class ExpectedErrorStatuses
             ["SubUserNotFound"] = ErrorType.NotFound,
             ["SubUserLimitReached"] = ErrorType.Conflict,
             ["SubUserFeatureInvalid"] = ErrorType.Validation,
+            // Resending an invitation and offering membership to an existing login (#328). Resending to
+            // a login that already accepted only discloses the state of the owner's own team member, so
+            // it is a Conflict. An offer another login holds, an expired one and a resolved one are all
+            // the same NotFound, so the answer says nothing about which. A suspended account cannot
+            // take a member, which is the account's own state and therefore a Conflict.
+            ["SubUserNotPending"] = ErrorType.Conflict,
+            ["MembershipOfferNotFound"] = ErrorType.NotFound,
+            ["MembershipOfferAccountSuspended"] = ErrorType.Conflict,
             ["ViewAsAccountNotFound"] = ErrorType.NotFound,
             ["ViewAsLoginUnavailable"] = ErrorType.Conflict,
             ["ViewAsNotViewing"] = ErrorType.Conflict,
