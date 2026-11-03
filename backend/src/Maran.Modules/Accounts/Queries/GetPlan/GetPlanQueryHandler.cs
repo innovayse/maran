@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Services;
 using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Accounts.Queries.GetPlan;
@@ -16,22 +17,33 @@ public sealed class GetPlanQueryHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Names the owning reseller.</summary>
+    private readonly ResellerNameDirectory _resellerNames;
+
     /// <summary>Resolves a shipped plan's display-name key in the current request culture.</summary>
     private readonly IStringLocalizer<DisplayNames> _displayNames;
 
     /// <summary>Creates the handler with the module's own database context and its typed resource localizer.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="resellerNames">Names the owning reseller.</param>
     /// <param name="displayNames">Resolves a shipped plan's display-name key in the current request culture.</param>
-    public GetPlanQueryHandler(AccountsDbContext dbContext, IStringLocalizer<DisplayNames> displayNames)
+    public GetPlanQueryHandler(
+        AccountsDbContext dbContext,
+        ResellerNameDirectory resellerNames,
+        IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _resellerNames = resellerNames;
         _displayNames = displayNames;
     }
 
     /// <summary>Reads the plan and its headcount.</summary>
     /// <param name="query">The plan to read.</param>
     /// <param name="cancellationToken">Cancels the reads.</param>
-    /// <returns>The plan, or <c>PlanNotFound</c> when no plan has that id.</returns>
+    /// <returns>
+    /// The plan, or <c>PlanNotFound</c> when no plan has that id — also for a plan another reseller owns,
+    /// which the context's filter hides.
+    /// </returns>
     public async Task<Result<PlanDto>> HandleAsync(GetPlanQuery query, CancellationToken cancellationToken)
     {
         var plan = await _dbContext.Plans
@@ -44,6 +56,7 @@ public sealed class GetPlanQueryHandler
 
         var accountCount = await _dbContext.Accounts.CountAsync(a => a.PlanId == plan.Id, cancellationToken);
 
-        return Result<PlanDto>.Ok(PlanMapper.ToDto(plan, _displayNames, accountCount));
+        var resellerName = await _resellerNames.NameOfAsync(plan.ResellerId, cancellationToken);
+        return Result<PlanDto>.Ok(PlanMapper.ToDto(plan, _displayNames, accountCount, resellerName));
     }
 }

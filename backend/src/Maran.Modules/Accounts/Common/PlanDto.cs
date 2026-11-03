@@ -26,6 +26,8 @@ namespace Maran.Modules.Accounts.Common;
 /// editing a plan (an edit reaches every one of them) or deleting it (a plan with accounts cannot be
 /// deleted), so the screen does not have to fetch every account and count them itself.
 /// </param>
+/// <param name="ResellerId">The reseller that owns the plan, or <c>null</c> for the administrator's own.</param>
+/// <param name="ResellerName">The owning reseller's name, or <c>null</c> for the administrator's own.</param>
 public sealed record PlanDto(
     Guid Id,
     string DisplayName,
@@ -40,4 +42,6 @@ public sealed record PlanDto(
     ResourceCeilingDto MemoryMaxMb,
     ResourceCeilingDto MaxProcesses,
     IReadOnlyList<AccountFeature> Features,
-    int AccountCount);
+    int AccountCount,
+    Guid? ResellerId,
+    string? ResellerName);

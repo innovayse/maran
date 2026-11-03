@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Services;
 using Maran.SharedKernel.Extensions;
 using Microsoft.Extensions.Localization;
 
@@ -40,15 +41,23 @@ public sealed class ListPlansQueryHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Names each plan's owning reseller, in one read for the page.</summary>
+    private readonly ResellerNameDirectory _resellerNames;
+
     /// <summary>Resolves each shipped plan's display-name key in the current request culture.</summary>
     private readonly IStringLocalizer<DisplayNames> _displayNames;
 
     /// <summary>Creates the handler with the module's own database context and its typed resource localizer.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="resellerNames">Names each plan's owning reseller, in one read for the page.</param>
     /// <param name="displayNames">Resolves each plan's display-name key in the current request culture.</param>
-    public ListPlansQueryHandler(AccountsDbContext dbContext, IStringLocalizer<DisplayNames> displayNames)
+    public ListPlansQueryHandler(
+        AccountsDbContext dbContext,
+        ResellerNameDirectory resellerNames,
+        IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _resellerNames = resellerNames;
         _displayNames = displayNames;
     }
 
@@ -61,7 +70,19 @@ public sealed class ListPlansQueryHandler
     /// <returns>A successful result carrying the page; this operation never fails.</returns>
     public async Task<Result<PagedResult<PlanDto>>> HandleAsync(ListPlansQuery query, CancellationToken cancellationToken)
     {
-        var plans = await _dbContext.Plans.AsNoTracking().ToListAsync(cancellationToken);
+        IQueryable<Domain.Entities.Plan> owned = _dbContext.Plans.AsNoTracking();
+        if (query.ResellerId is { } resellerId)
+        {
+            owned = owned.Where(plan => plan.ResellerId == resellerId);
+        }
+
+        var plans = await owned.ToListAsync(cancellationToken);
+
+        var ownerIds = plans
+            .Where(plan => plan.ResellerId is not null)
+            .Select(plan => plan.ResellerId!.Value)
+            .ToList();
+        var resellerNames = await _resellerNames.NamesOfAsync(ownerIds, cancellationToken);
 
         var accountCounts = await _dbContext.Accounts
             .AsNoTracking()
@@ -80,7 +101,11 @@ public sealed class ListPlansQueryHandler
 
         var rows = plans.Select(plan =>
         {
-            return PlanMapper.ToDto(plan, _displayNames, accountCounts.GetValueOrDefault(plan.Id));
+            return PlanMapper.ToDto(
+                plan,
+                _displayNames,
+                accountCounts.GetValueOrDefault(plan.Id),
+                plan.ResellerId is { } owner ? resellerNames.GetValueOrDefault(owner) : null);
         });
 
         return Result<PagedResult<PlanDto>>.Ok(rows.ToPaged(query, ListPlansSorts.Map, SearchFields));

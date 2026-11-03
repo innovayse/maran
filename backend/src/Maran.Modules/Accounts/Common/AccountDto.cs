@@ -11,6 +11,11 @@ namespace Maran.Modules.Accounts.Common;
 /// <param name="Status">The account's current lifecycle state.</param>
 /// <param name="StatusName">The state as a reader reads it, localized for the request's culture.</param>
 /// <param name="CreatedAt">The instant the account was created.</param>
+/// <param name="ResellerId">The reseller that owns the account, or <c>null</c> for the administrator's own.</param>
+/// <param name="ResellerName">
+/// The owning reseller's name, or <c>null</c> for the administrator's own — and for an owner the
+/// caller may not see, which a reseller never meets, since it is shown only its own accounts.
+/// </param>
 public sealed record AccountDto(
     Guid Id,
     string Name,
@@ -18,4 +23,6 @@ public sealed record AccountDto(
     Guid PlanId,
     AccountStatus Status,
     string StatusName,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    Guid? ResellerId,
+    string? ResellerName);

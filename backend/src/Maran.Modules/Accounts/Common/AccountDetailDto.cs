@@ -21,6 +21,8 @@ namespace Maran.Modules.Accounts.Common;
 /// The account's own contact address, which its login's invitation and password resets follow;
 /// <c>null</c> only for an account that predates the column (see <see cref="Account.OwnerEmail"/>).
 /// </param>
+/// <param name="ResellerId">The reseller that owns the account, or <c>null</c> for the administrator's own.</param>
+/// <param name="ResellerName">The owning reseller's name, or <c>null</c> for the administrator's own.</param>
 public sealed record AccountDetailDto(
     Guid Id,
     string Name,
@@ -30,4 +32,6 @@ public sealed record AccountDetailDto(
     string StatusName,
     DateTimeOffset CreatedAt,
     string PlanDisplayName,
-    string? OwnerEmail);
+    string? OwnerEmail,
+    Guid? ResellerId,
+    string? ResellerName);

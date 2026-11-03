@@ -16,8 +16,15 @@ namespace Maran.Modules.Accounts.Queries.ListPlanChoices;
 /// <param name="Sort">
 /// <see cref="PlanChoiceSortFields.Name"/> either way, or <see cref="SortRequest.Default"/> for alphabetical.
 /// </param>
+/// <param name="ForResellerId">
+/// The reseller an account is being created or moved for: only the plans that reseller owns are offered,
+/// because an account is sold only from its owner's plans. <c>null</c> offers the administrator's own
+/// plans. A reseller caller is always offered its own plans, and naming another reseller is answered
+/// <c>ResellerNotFound</c>, the same as for one that does not exist.
+/// </param>
 public sealed record ListPlanChoicesQuery(
     int Page = PageDefaults.FirstPage,
     int PageSize = PageDefaults.Size,
     SearchTerm Search = default,
-    SortRequest Sort = default) : IPagedQuery;
+    SortRequest Sort = default,
+    Guid? ForResellerId = null) : IPagedQuery;

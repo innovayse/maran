@@ -4,7 +4,7 @@ using Maran.SharedKernel.Pagination;
 namespace Maran.Modules.Accounts.Queries.ListAccounts;
 
 /// <summary>
-/// Reads one page of the hosting accounts, optionally searched and narrowed to a plan or a status.
+/// Reads one page of the hosting accounts, optionally searched and narrowed to a plan, a status or an owning reseller.
 /// Bound straight from the query string (<c>GET /api/v1/accounts?page=2&amp;search=olive</c>);
 /// <see cref="ListAccountsQueryValidator"/> holds every member to its bounds before the handler runs.
 /// </summary>
@@ -22,10 +22,16 @@ namespace Maran.Modules.Accounts.Queries.ListAccounts;
 /// </param>
 /// <param name="PlanId">Only accounts on this plan, or <c>null</c> for every plan.</param>
 /// <param name="Status">Only accounts in this state, or <c>null</c> for every state.</param>
+/// <param name="ResellerId">
+/// Only accounts this reseller owns, or <c>null</c> for every owner. A reseller caller is held to its
+/// own accounts by the context's filter whatever this says, so naming another reseller answers an
+/// empty page, the same as naming one that does not exist.
+/// </param>
 public sealed record ListAccountsQuery(
     int Page = PageDefaults.FirstPage,
     int PageSize = PageDefaults.Size,
     SearchTerm Search = default,
     SortRequest Sort = default,
     Guid? PlanId = null,
-    AccountStatus? Status = null) : IPagedQuery;
+    AccountStatus? Status = null,
+    Guid? ResellerId = null) : IPagedQuery;
