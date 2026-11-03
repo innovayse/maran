@@ -192,7 +192,7 @@ public sealed class SmtpMailer : IMailer
         string body,
         CancellationToken cancellationToken)
     {
-        var message = new MimeMessage();
+        using var message = new MimeMessage();
         message.From.Add(new MailboxAddress(profile.FromName, profile.FromAddress));
         message.To.Add(MailboxAddress.Parse(recipient));
         message.Subject = subject;

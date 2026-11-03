@@ -55,7 +55,7 @@ public static class AgentStreamGuard
 
         while (true)
         {
-            var current = default(TEvent)!;
+            TEvent current;
             var failed = false;
 
             // A yield cannot sit inside a try block that has a catch, so the failure is recorded here
