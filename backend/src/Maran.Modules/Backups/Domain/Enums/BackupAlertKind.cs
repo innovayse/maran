@@ -17,4 +17,7 @@ public enum BackupAlertKind
 
     /// <summary>A schedule started so long after its named hour that the run at that hour was missed.</summary>
     ScheduledRunMissed = 3,
+
+    /// <summary>The re-read of a finished run's artifact found a problem with it.</summary>
+    VerificationFailed = 4,
 }

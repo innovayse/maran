@@ -9,7 +9,8 @@ namespace Maran.Modules.Backups.Services;
 
 /// <summary>
 /// Tells the administrator that an unattended backup did not happen the way its schedule promised:
-/// a run that failed, a destination that refused it, a run that missed its hour (issue #134).
+/// a run that failed, a destination that refused it, a run that missed its hour, an artifact that
+/// failed verification after it was written (issue #134).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -24,7 +25,16 @@ namespace Maran.Modules.Backups.Services;
 /// <para>
 /// <b>No deduplication, on purpose.</b> Every alert here is one event — one run, one refusal, one
 /// missed hour — and the caller reaches each at most once: the sweep stamps a schedule as run before
-/// it calls anything here, so the next tick cannot meet the same occurrence again.
+/// it calls anything here, so the next tick cannot meet the same occurrence again. A failed
+/// verification is one event of one backup, raised once when the run that wrote it is verified; a
+/// repeated "Verify now" raises nothing here, so no account can use it to mail the administrator.
+/// </para>
+/// <para>
+/// <b>The verification mail says what kind of problem and nothing about where.</b> It names the
+/// account, the backup and when it was taken, and the failure code's localized words. It never
+/// carries a path, a member name, a digest, a size or the agent's text (rules/security.md item 8),
+/// and it never says the backup is unrestorable: verification is advisory, and the sentence says
+/// the artifact failed its check.
 /// </para>
 /// </remarks>
 public sealed class BackupAlertMailer
@@ -46,6 +56,12 @@ public sealed class BackupAlertMailer
 
     /// <summary>Resource key of the body of a run that missed its named hour.</summary>
     private const string ScheduledRunMissedBody = "AlertScheduledRunMissedBody";
+
+    /// <summary>Resource key of the subject of an artifact that failed verification.</summary>
+    private const string VerificationFailedSubject = "AlertVerificationFailedSubject";
+
+    /// <summary>Resource key of the body of an artifact that failed verification.</summary>
+    private const string VerificationFailedBody = "AlertVerificationFailedBody";
 
     /// <summary>How an instant is written into a mail: ISO 8601 to the minute, always UTC.</summary>
     private const string InstantFormat = "yyyy-MM-dd HH:mm";
@@ -138,6 +154,32 @@ public sealed class BackupAlertMailer
                 FormatInstant(dueAt),
                 FormatInstant(startedAt),
                 string.Join(", ", accountUsernames)].Value,
+            cancellationToken);
+    }
+
+    /// <summary>Reports a finished backup whose artifact failed the check made after the run.</summary>
+    /// <param name="backupId">The backup, which is the journal's subject.</param>
+    /// <param name="accountUsername">The account the backup is of.</param>
+    /// <param name="backupAt">When the backup was taken: the instant its run finished.</param>
+    /// <param name="failureCode">The closed code the verification failed with.</param>
+    /// <param name="cancellationToken">Cancels the journal writes.</param>
+    /// <returns>A task that completes once the alert is journalled and the mail requested.</returns>
+    public Task VerificationFailedAsync(
+        Guid backupId,
+        string accountUsername,
+        DateTimeOffset backupAt,
+        string failureCode,
+        CancellationToken cancellationToken)
+    {
+        return AlertAsync(
+            BackupAlertKind.VerificationFailed,
+            backupId.ToString(),
+            _text[VerificationFailedSubject, accountUsername].Value,
+            _text[
+                VerificationFailedBody,
+                accountUsername,
+                FormatInstant(backupAt),
+                _failures.Of(failureCode) ?? failureCode].Value,
             cancellationToken);
     }
 

@@ -30,4 +30,10 @@
   <data name="AlertScheduledRunMissedBody">
     <value>A backup schedule was due at {0} UTC and did not start until {1} UTC, so the run at its named hour was missed. It covers: {2}. The panel was probably not running at that hour.</value>
   </data>
+  <data name="AlertVerificationFailedSubject">
+    <value>The backup of {0} failed its verification</value>
+  </data>
+  <data name="AlertVerificationFailedBody">
+    <value>The backup of the account {0} taken at {1} UTC failed the check made after it was written: {2}. The run itself finished; the artifact did not pass its check, so take a new backup and look at the storage it sits on.</value>
+  </data>
 </root>
