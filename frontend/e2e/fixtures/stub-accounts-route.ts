@@ -1,12 +1,22 @@
 import type { Page, Request } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { Account, AccountDetail, AccountOption } from '../../src/types/account'
+import type { Account, AccountDetail, AccountOption, OwnerLanguageChoice } from '../../src/types/account'
 
 /** The accounts collection: the paged list (`GET`) and the create form (`POST`), with or without a query. */
 const ACCOUNTS_PATTERN = /\/api\/v1\/accounts(\?.*)?$/
 
 /** The account choices pickers read, with or without a query. */
 const CHOICES_PATTERN = /\/api\/v1\/accounts\/choices(\?.*)?$/
+
+/** The owner languages the create form's select reads. */
+const OWNER_LANGUAGES_PATTERN = /\/api\/v1\/accounts\/owner-languages(\?.*)?$/
+
+/** The languages the panel answers with, each named in itself, in the panel's order. */
+export const OWNER_LANGUAGES: readonly OwnerLanguageChoice[] = [
+  { language: 'en', languageDisplayName: 'English' },
+  { language: 'ru', languageDisplayName: 'Русский' },
+  { language: 'hy', languageDisplayName: 'Հայերեն' },
+]
 
 /** How the accounts endpoint searches, sorts and filters, as the panel does. */
 const ACCOUNT_RULES: PagedRules<Account> = {
@@ -46,7 +56,7 @@ const CHOICE_RULES: PagedRules<Account> = {
 /**
  * Fulfils the accounts endpoints from one catalogue: `GET /api/v1/accounts` as a page honouring
  * `page`, `pageSize`, `search`, `sort`, `planId` and `status`; `GET /api/v1/accounts/choices` as a
- * page of identity and name; and a `POST` by echoing the submitted body back as a created account,
+ * page of identity and name; `GET /api/v1/accounts/owner-languages` as the three shipped languages; and a `POST` by echoing the submitted body back as a created account,
  * which joins the catalogue so the list read after the form's redirect shows it.
  * @param page The Playwright page whose network the route is installed on.
  * @param accounts The accounts the stub knows, in their default order.
@@ -82,6 +92,14 @@ export const stubAccounts = async (page: Page, accounts: Account[]): Promise<() 
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(pagedAnswer(accounts, request.url(), ACCOUNT_RULES)),
+    })
+  })
+
+  await page.route(OWNER_LANGUAGES_PATTERN, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(OWNER_LANGUAGES),
     })
   })
 

@@ -192,11 +192,30 @@ export interface MyAccount {
 }
 
 /**
+ * One language an account owner can be written to in, mirroring the backend's `OwnerLanguageDto`.
+ * The SPA holds no list of languages for this field: the create-account form draws exactly what
+ * the panel answers with, which is the set its create endpoint accepts.
+ */
+export interface OwnerLanguageChoice {
+  /** The language's two-letter name on the wire (`en`, `ru`, `hy`), sent back unchanged on create. */
+  language: string
+  /** The language's name, written in that language itself. */
+  languageDisplayName: string
+}
+
+/**
  * Typed access to the hosting accounts endpoints.
  *
  * Called from Pinia stores only — never from a component (rules/vue.md).
  */
 export interface AccountsApi {
+  /**
+   * Lists the languages an account owner's invitation can be written in.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The languages in the panel's order, each named in itself.
+   */
+  ownerLanguages: (signal?: AbortSignal) => Promise<OwnerLanguageChoice[]>
+
   /**
    * Lists the plans a picker offers: the first page, alphabetical, of those matching the search.
    * @param search Narrows by name; empty for the first plans in alphabetical order.

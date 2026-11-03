@@ -9,6 +9,7 @@ import type {
   ChangeAccountPlanRequest,
   CreateAccountRequest,
   MyAccount,
+  OwnerLanguageChoice,
   Plan,
 } from '../../types/account'
 import type { AccountResourceSummary } from '../../types/accountResourceSummary'
@@ -176,6 +177,15 @@ export const useAccountsApi = (): AccountsApi => {
   }
 
   /**
+   * Lists the languages an account owner's invitation can be written in.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The languages in the panel's order, each named in itself.
+   */
+  const ownerLanguages = (signal?: AbortSignal): Promise<OwnerLanguageChoice[]> => {
+    return api.get<OwnerLanguageChoice[]>(`${ACCOUNTS_PATH}/owner-languages`, signal)
+  }
+
+  /**
    * Reads the account the caller owns.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The caller's own account, its status, and its plan's limits.
@@ -204,6 +214,7 @@ export const useAccountsApi = (): AccountsApi => {
   }
 
   return {
+    ownerLanguages,
     list,
     choices,
     create,

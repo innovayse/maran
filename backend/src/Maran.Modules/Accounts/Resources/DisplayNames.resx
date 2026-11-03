@@ -84,4 +84,13 @@
   <data name="AccountFeatureBackups">
     <value>Backups</value>
   </data>
+  <data name="OwnerLanguageEN">
+    <value>English</value>
+  </data>
+  <data name="OwnerLanguageRU">
+    <value>Русский</value>
+  </data>
+  <data name="OwnerLanguageHY">
+    <value>Հայերեն</value>
+  </data>
 </root>
