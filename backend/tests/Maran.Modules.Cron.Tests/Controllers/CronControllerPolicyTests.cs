@@ -20,6 +20,7 @@ public sealed class CronControllerPolicyTests
     [InlineData(typeof(CronEntriesController), AuthorizationPolicies.AnyAuthenticated)]
     [InlineData(typeof(CronEnvironmentController), AuthorizationPolicies.AnyAuthenticated)]
     [InlineData(typeof(CronRunsController), AuthorizationPolicies.AnyAuthenticated)]
+    [InlineData(typeof(CronOptionsController), AuthorizationPolicies.AnyAuthenticated)]
     public void A_controller_names_its_policy_on_the_class(Type controller, string policy)
     {
         var policies = controller

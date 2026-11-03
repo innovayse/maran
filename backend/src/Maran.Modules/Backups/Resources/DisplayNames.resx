@@ -87,4 +87,58 @@
   <data name="BackupFailureBackupArtifactUnvouched">
     <value>Archive present, checksum not recorded</value>
   </data>
+  <data name="BackupStatusRunning">
+    <value>Running</value>
+  </data>
+  <data name="BackupStatusCompleted">
+    <value>Completed</value>
+  </data>
+  <data name="BackupStatusFailed">
+    <value>Failed</value>
+  </data>
+  <data name="BackupKindManual">
+    <value>Manual</value>
+  </data>
+  <data name="BackupKindScheduled">
+    <value>Scheduled</value>
+  </data>
+  <data name="BackupKindPreDeletion">
+    <value>Before deletion</value>
+  </data>
+  <data name="BackupKindPreRestore">
+    <value>Before restore</value>
+  </data>
+  <data name="BackupDestinationKindLocal">
+    <value>This server's disk</value>
+  </data>
+  <data name="BackupDestinationKindS3">
+    <value>S3-compatible storage</value>
+  </data>
+  <data name="BackupFrequencyDaily">
+    <value>Every day</value>
+  </data>
+  <data name="BackupFrequencyWeekly">
+    <value>Every week</value>
+  </data>
+  <data name="BackupWeekdayMonday">
+    <value>Monday</value>
+  </data>
+  <data name="BackupWeekdayTuesday">
+    <value>Tuesday</value>
+  </data>
+  <data name="BackupWeekdayWednesday">
+    <value>Wednesday</value>
+  </data>
+  <data name="BackupWeekdayThursday">
+    <value>Thursday</value>
+  </data>
+  <data name="BackupWeekdayFriday">
+    <value>Friday</value>
+  </data>
+  <data name="BackupWeekdaySaturday">
+    <value>Saturday</value>
+  </data>
+  <data name="BackupWeekdaySunday">
+    <value>Sunday</value>
+  </data>
 </root>

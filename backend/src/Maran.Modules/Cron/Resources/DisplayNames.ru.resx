@@ -15,4 +15,49 @@
   <data name="CronModuleDisplayName">
     <value>Планировщик</value>
   </data>
+  <data name="CronFrequencyEveryMinute">
+    <value>Каждую минуту</value>
+  </data>
+  <data name="CronFrequencyHourly">
+    <value>Каждый час</value>
+  </data>
+  <data name="CronFrequencyDaily">
+    <value>Каждый день</value>
+  </data>
+  <data name="CronFrequencyWeekly">
+    <value>Каждую неделю</value>
+  </data>
+  <data name="CronFrequencyMonthly">
+    <value>Каждый месяц</value>
+  </data>
+  <data name="CronWeekdaySunday">
+    <value>воскресенье</value>
+  </data>
+  <data name="CronWeekdayMonday">
+    <value>понедельник</value>
+  </data>
+  <data name="CronWeekdayTuesday">
+    <value>вторник</value>
+  </data>
+  <data name="CronWeekdayWednesday">
+    <value>среда</value>
+  </data>
+  <data name="CronWeekdayThursday">
+    <value>четверг</value>
+  </data>
+  <data name="CronWeekdayFriday">
+    <value>пятница</value>
+  </data>
+  <data name="CronWeekdaySaturday">
+    <value>суббота</value>
+  </data>
+  <data name="CronRunOutcomeSucceeded">
+    <value>Успешно</value>
+  </data>
+  <data name="CronRunOutcomeFailed">
+    <value>Ошибка</value>
+  </data>
+  <data name="CronRunOutcomeStopped">
+    <value>Остановлен</value>
+  </data>
 </root>

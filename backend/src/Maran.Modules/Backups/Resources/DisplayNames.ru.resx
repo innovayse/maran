@@ -87,4 +87,58 @@
   <data name="BackupFailureBackupArtifactUnvouched">
     <value>Копия есть, контрольная сумма не записана</value>
   </data>
+  <data name="BackupStatusRunning">
+    <value>Выполняется</value>
+  </data>
+  <data name="BackupStatusCompleted">
+    <value>Завершена</value>
+  </data>
+  <data name="BackupStatusFailed">
+    <value>Не удалась</value>
+  </data>
+  <data name="BackupKindManual">
+    <value>Вручную</value>
+  </data>
+  <data name="BackupKindScheduled">
+    <value>По расписанию</value>
+  </data>
+  <data name="BackupKindPreDeletion">
+    <value>Перед удалением</value>
+  </data>
+  <data name="BackupKindPreRestore">
+    <value>Перед восстановлением</value>
+  </data>
+  <data name="BackupDestinationKindLocal">
+    <value>Диск этого сервера</value>
+  </data>
+  <data name="BackupDestinationKindS3">
+    <value>S3-совместимое хранилище</value>
+  </data>
+  <data name="BackupFrequencyDaily">
+    <value>Каждый день</value>
+  </data>
+  <data name="BackupFrequencyWeekly">
+    <value>Каждую неделю</value>
+  </data>
+  <data name="BackupWeekdayMonday">
+    <value>понедельник</value>
+  </data>
+  <data name="BackupWeekdayTuesday">
+    <value>вторник</value>
+  </data>
+  <data name="BackupWeekdayWednesday">
+    <value>среда</value>
+  </data>
+  <data name="BackupWeekdayThursday">
+    <value>четверг</value>
+  </data>
+  <data name="BackupWeekdayFriday">
+    <value>пятница</value>
+  </data>
+  <data name="BackupWeekdaySaturday">
+    <value>суббота</value>
+  </data>
+  <data name="BackupWeekdaySunday">
+    <value>воскресенье</value>
+  </data>
 </root>
