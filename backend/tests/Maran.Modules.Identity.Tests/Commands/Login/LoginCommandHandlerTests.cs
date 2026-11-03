@@ -52,6 +52,25 @@ public sealed class LoginCommandHandlerTests : IDisposable
         return user;
     }
 
+    private async Task<User> SeedResellerAsync(string passwordHash, bool suspended = false, bool withTotp = false)
+    {
+        var login = User.InviteReseller(Guid.NewGuid(), "northwind", "northwind@example.com", Guid.NewGuid(), Now);
+        login.Activate(passwordHash);
+        if (suspended)
+        {
+            login.Suspend();
+        }
+
+        if (withTotp)
+        {
+            login.EnableTotp("JBSWY3DPEHPK3PXP");
+        }
+
+        _context.Users.Add(login);
+        await _context.SaveChangesAsync();
+        return login;
+    }
+
     private LoginCommandHandler NewHandler(IPasswordHasher? hasher = null, BruteForceOptions? bruteForce = null)
     {
         var options = new OptionsWrapper<JwtOptions>(new JwtOptions
@@ -465,5 +484,64 @@ public sealed class LoginCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Attempt(), CancellationToken.None);
 
         Assert.Equal(0, user.FailedLoginAttempts);
+    }
+
+    /// <summary>A reseller signs in to a token naming it as a reseller with no account, steered into enrolment by default.</summary>
+    [Fact]
+    public async Task A_reseller_signs_in_to_a_reseller_token_with_no_account_and_is_steered_into_enrolment()
+    {
+        var login = await SeedResellerAsync(_hasher.Hash(Password));
+
+        var result = await NewHandler().HandleAsync(Attempt("northwind"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var authenticated = result.Value.Authenticated!;
+        Assert.True(authenticated.AccessToken.RequiresTwoFactorSetup);
+        Assert.Equal(login.Id, authenticated.User.Id);
+        var session = await _context.Sessions.SingleAsync();
+        Assert.Null(session.ActiveAccountId);
+        Assert.Null(session.ViewAs);
+    }
+
+    /// <summary>A suspended reseller with the right password is refused exactly as a wrong password is, and no session is issued.</summary>
+    [Fact]
+    public async Task A_suspended_reseller_is_refused_as_a_wrong_password_is_and_gets_no_session()
+    {
+        await SeedResellerAsync(_hasher.Hash(Password), suspended: true);
+
+        var suspended = await NewHandler().HandleAsync(Attempt("northwind"), CancellationToken.None);
+        var wrong = await NewHandler().HandleAsync(Attempt("northwind", "wrong"), CancellationToken.None);
+
+        Assert.False(suspended.IsSuccess);
+        Assert.Equal(wrong.Error!.Code, suspended.Error!.Code);
+        Assert.Equal(wrong.Error.Type, suspended.Error.Type);
+        Assert.Empty(await _context.Sessions.ToListAsync());
+    }
+
+    /// <summary>A reseller that never accepted its invitation cannot sign in, even with a password someone typed.</summary>
+    [Fact]
+    public async Task A_reseller_that_never_accepted_its_invitation_cannot_sign_in()
+    {
+        var login = User.InviteReseller(Guid.NewGuid(), "northwind", "northwind@example.com", Guid.NewGuid(), Now);
+        _context.Users.Add(login);
+        await _context.SaveChangesAsync();
+
+        var result = await NewHandler().HandleAsync(Attempt("northwind", Password), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(await _context.Sessions.ToListAsync());
+    }
+
+    /// <summary>A reseller who enrolled a second factor is asked for it, like an administrator, and gets no session yet.</summary>
+    [Fact]
+    public async Task A_reseller_with_two_factor_enrolled_gets_no_session_until_the_code_is_verified()
+    {
+        await SeedResellerAsync(_hasher.Hash(Password), withTotp: true);
+
+        var result = await NewHandler().HandleAsync(Attempt("northwind"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value.Authenticated);
+        Assert.Empty(await _context.Sessions.ToListAsync());
     }
 }

@@ -3,6 +3,7 @@ using Maran.Modules.Identity.Resources;
 using Maran.Modules.Identity.Services;
 using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -26,6 +27,23 @@ public static class IdentityTestContext
     {
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new IdentityDbContext(options, new AesGcmEncryptionService(EncryptionKey));
+    }
+
+    /// <summary>
+    /// Creates a context over a named in-memory database, so a second context over the same name sees
+    /// the rows the first stored — how a test plays a concurrent writer.
+    /// </summary>
+    /// <param name="databaseName">The in-memory database to open.</param>
+    /// <param name="interceptors">Interceptors to attach to this context only.</param>
+    /// <returns>A context over the named database.</returns>
+    public static IdentityDbContext CreateOver(string databaseName, params IInterceptor[] interceptors)
+    {
+        var options = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddInterceptors(interceptors)
             .Options;
 
         return new IdentityDbContext(options, new AesGcmEncryptionService(EncryptionKey));

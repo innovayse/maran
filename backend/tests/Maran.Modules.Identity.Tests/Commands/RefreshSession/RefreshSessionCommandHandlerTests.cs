@@ -152,6 +152,57 @@ public sealed class RefreshSessionCommandHandlerTests
         Assert.Equal(1, _issuer.Issued);
     }
 
+    /// <summary>Seeds a claimed reseller login holding a live session, optionally suspended afterwards, and returns its refresh token.</summary>
+    /// <param name="suspended">Whether the login is suspended after the session was issued, sessions left unrevoked.</param>
+    private async Task<string> SeedResellerHoldingALiveSessionAsync(bool suspended)
+    {
+        var login = User.InviteReseller(Guid.NewGuid(), "northwind", "northwind@example.com", Guid.NewGuid(), Now);
+        login.Activate("hash");
+        _context.Users.Add(login);
+        await _context.SaveChangesAsync();
+
+        var issued = await NewSessions().IssueAsync(login.Id, "203.0.113.7", "agent", null, CancellationToken.None);
+
+        // The first half of the suspension only, as above: the sessions are deliberately not revoked.
+        if (suspended)
+        {
+            login.Suspend();
+        }
+
+        await _context.SaveChangesAsync();
+        return issued.RefreshToken;
+    }
+
+    /// <summary>A suspended reseller holding a live session cannot refresh, and no token is signed for it.</summary>
+    [Fact]
+    public async Task A_suspended_reseller_cannot_refresh()
+    {
+        var token = await SeedResellerHoldingALiveSessionAsync(suspended: true);
+
+        var result = await NewHandler(NewSessions()).HandleAsync(
+            new RefreshSessionCommand(token, "203.0.113.7", "agent"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("RefreshTokenInvalidUnauthorized", result.Error!.Code);
+        Assert.Equal(0, _issuer.Issued);
+    }
+
+    /// <summary>The inverse control: an active reseller refreshes normally and its token speaks for no account.</summary>
+    [Fact]
+    public async Task An_active_reseller_still_refreshes_and_its_token_speaks_for_no_account()
+    {
+        var token = await SeedResellerHoldingALiveSessionAsync(suspended: false);
+
+        var result = await NewHandler(NewSessions()).HandleAsync(
+            new RefreshSessionCommand(token, "203.0.113.7", "agent"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, _issuer.Issued);
+        Assert.Null(_issuer.LastAccountId);
+    }
+
     /// <summary>
     /// A refresh of a session speaking for an account that was suspended moves it to the account the
     /// login still holds active, and stores the correction on the session.

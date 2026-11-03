@@ -400,6 +400,7 @@ public sealed class AccountDeletingHandlerTests
         context.SecurityPolicies.Add(new SecurityPolicy(
             PolicyMinimumPasswordLength,
             SecurityPolicy.DefaultForceTwoFactorForAdmins,
+            SecurityPolicy.DefaultForceTwoFactorForResellers,
             PolicyMaxFailedLoginAttempts,
             SecurityPolicy.DefaultLockoutMinutes,
             Now));

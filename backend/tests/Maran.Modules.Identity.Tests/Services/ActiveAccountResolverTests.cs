@@ -189,4 +189,25 @@ public sealed class ActiveAccountResolverTests : IDisposable
 
         Assert.False(await new ActiveAccountResolver(_context).IsSuspendedEverywhereAsync(user, CancellationToken.None));
     }
+
+    /// <summary>A reseller acts for no account: it resolves to none, and it is never "suspended everywhere".</summary>
+    /// <remarks>
+    /// Even a stray membership row on a reseller login is not read: a reseller reaches an account only
+    /// through a view-as, never by acting for it.
+    /// </remarks>
+    [Fact]
+    public async Task A_reseller_resolves_to_no_account_and_is_never_suspended_everywhere()
+    {
+        var reseller = User.InviteReseller(Guid.NewGuid(), "northwind", "n@example.com", Guid.NewGuid(), Now);
+        reseller.Activate("hash");
+        _context.Users.Add(reseller);
+        await OwnAsync(reseller, Now);
+        var resolver = new ActiveAccountResolver(_context);
+
+        var resolved = await resolver.ResolveAsync(reseller, null, CancellationToken.None);
+
+        Assert.True(resolved.IsSuccess);
+        Assert.Null(resolved.Value);
+        Assert.False(await resolver.IsSuspendedEverywhereAsync(reseller, CancellationToken.None));
+    }
 }

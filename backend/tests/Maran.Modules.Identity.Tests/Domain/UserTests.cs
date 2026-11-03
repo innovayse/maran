@@ -11,9 +11,16 @@ public sealed class UserTests
 
     private static readonly SecurityPolicySnapshot Policy = SecurityPolicySnapshot.Default;
 
+    private static readonly Guid ResellerId = new("aaaaaaaa-0000-4000-8000-0000000000e1");
+
     private static User NewUser()
     {
         return new User(Guid.NewGuid(), "admin", "admin@example.com", "hash", UserRole.Admin, Now);
+    }
+
+    private static User NewReseller()
+    {
+        return User.InviteReseller(Guid.NewGuid(), "northwind", "contact@example.com", ResellerId, Now);
     }
 
     /// <summary>A new user has two factor disabled.</summary>
@@ -270,5 +277,138 @@ public sealed class UserTests
 
         user.Activate("hash");
         Assert.False(user.HasPendingInvitation);
+    }
+
+    /// <summary>A reseller's invited login has the Reseller role, its reseller id and waits for its invitation.</summary>
+    [Fact]
+    public void An_invited_reseller_login_has_the_role_the_reseller_id_and_a_pending_invitation()
+    {
+        var login = NewReseller();
+
+        Assert.Equal(UserRole.Reseller, login.Role);
+        Assert.Equal(ResellerId, login.ResellerId);
+        Assert.Equal("northwind", login.Username);
+        Assert.Equal("contact@example.com", login.Email);
+        Assert.Equal(UserLifecycle.Invited, login.Lifecycle);
+        Assert.True(login.HasPendingInvitation);
+        Assert.Equal(string.Empty, login.PasswordHash);
+        Assert.False(login.IsSuspended);
+        Assert.Equal((UserState.Invited, false), (login.LegacyState, login.LegacyAccountSuspended));
+    }
+
+    /// <summary>Every login that is not a reseller's carries no reseller id.</summary>
+    [Fact]
+    public void A_login_that_is_not_a_resellers_carries_no_reseller_id()
+    {
+        Assert.Null(NewUser().ResellerId);
+        Assert.Null(User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now).ResellerId);
+    }
+
+    /// <summary>An invited reseller cannot authenticate; accepting the invitation lets it.</summary>
+    [Fact]
+    public void A_reseller_may_authenticate_only_once_it_accepted_its_invitation()
+    {
+        var login = NewReseller();
+        Assert.False(login.MayAuthenticate);
+
+        login.Activate("hash");
+
+        Assert.True(login.MayAuthenticate);
+        Assert.Equal("hash", login.PasswordHash);
+    }
+
+    /// <summary>Suspending a claimed reseller stops it authenticating, and resuming lets it back.</summary>
+    [Fact]
+    public void Suspending_a_claimed_reseller_stops_it_authenticating_and_resuming_restores_it()
+    {
+        var login = NewReseller();
+        login.Activate("hash");
+
+        login.Suspend();
+        Assert.True(login.IsSuspended);
+        Assert.False(login.MayAuthenticate);
+        Assert.Equal(UserLifecycle.Active, login.Lifecycle);
+
+        login.Resume();
+        Assert.False(login.IsSuspended);
+        Assert.True(login.MayAuthenticate);
+    }
+
+    /// <summary>Suspending and resuming repeat harmlessly.</summary>
+    [Fact]
+    public void Suspending_and_resuming_twice_change_nothing_the_second_time()
+    {
+        var login = NewReseller();
+        login.Activate("hash");
+
+        login.Suspend();
+        login.Suspend();
+        Assert.True(login.IsSuspended);
+
+        login.Resume();
+        login.Resume();
+        Assert.False(login.IsSuspended);
+        Assert.True(login.MayAuthenticate);
+    }
+
+    /// <summary>Accepting an invitation does not lift a suspension: the suspended reseller stays unable to sign in.</summary>
+    [Fact]
+    public void Accepting_an_invitation_does_not_lift_a_resellers_suspension()
+    {
+        var login = NewReseller();
+        login.Suspend();
+
+        login.Activate("hash");
+
+        Assert.True(login.IsSuspended);
+        Assert.False(login.MayAuthenticate);
+        Assert.Equal(UserLifecycle.Active, login.Lifecycle);
+        Assert.False(login.HasPendingInvitation);
+    }
+
+    /// <summary>A suspended reseller still waiting for its invitation is both at once, and resuming leaves it invited.</summary>
+    [Fact]
+    public void Resuming_a_reseller_that_never_accepted_leaves_it_invited_and_unable_to_authenticate()
+    {
+        var login = NewReseller();
+        login.Suspend();
+
+        login.Resume();
+
+        Assert.False(login.IsSuspended);
+        Assert.True(login.HasPendingInvitation);
+        Assert.False(login.MayAuthenticate);
+    }
+
+    /// <summary>Only a reseller's login is suspended on the login: an administrator and a customer refuse it.</summary>
+    [Fact]
+    public void Suspending_or_resuming_a_login_that_is_not_a_resellers_throws_and_changes_nothing()
+    {
+        var admin = NewUser();
+        var customer = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
+        customer.Activate("hash");
+
+        Assert.Throws<InvalidOperationException>(() => { admin.Suspend(); });
+        Assert.Throws<InvalidOperationException>(() => { admin.Resume(); });
+        Assert.Throws<InvalidOperationException>(() => { customer.Suspend(); });
+        Assert.Throws<InvalidOperationException>(() => { customer.Resume(); });
+
+        Assert.False(admin.IsSuspended);
+        Assert.True(admin.MayAuthenticate);
+        Assert.False(customer.IsSuspended);
+        Assert.True(customer.MayAuthenticate);
+    }
+
+    /// <summary>A customer's membership suspension never reaches the login's own flag.</summary>
+    [Fact]
+    public void A_customers_legacy_suspension_never_sets_the_login_suspension_flag()
+    {
+        var customer = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
+        customer.Activate("hash");
+
+        customer.SyncLegacyColumns(MembershipState.Suspended);
+
+        Assert.False(customer.IsSuspended);
+        Assert.True(customer.MayAuthenticate);
     }
 }

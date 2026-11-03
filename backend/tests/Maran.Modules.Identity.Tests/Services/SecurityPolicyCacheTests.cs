@@ -23,6 +23,7 @@ public sealed class SecurityPolicyCacheTests
 
         Assert.Equal(SecurityPolicySnapshot.Default, policy);
         Assert.Equal(SecurityPolicy.DefaultMinimumPasswordLength, policy.MinimumPasswordLength);
+        Assert.True(policy.ForceTwoFactorForResellers);
         Assert.Equal(TimeSpan.FromMinutes(SecurityPolicy.DefaultLockoutMinutes), policy.LockoutDuration());
     }
 
@@ -37,6 +38,25 @@ public sealed class SecurityPolicyCacheTests
 
         Assert.Equal(20, policy.MinimumPasswordLength);
         Assert.True(policy.ForceTwoFactorForAdmins);
+    }
+
+    /// <summary>A saved policy reports the reseller switch exactly as saved, in both directions.</summary>
+    /// <remarks>
+    /// Both values are pinned because the default is on: a cache that dropped the column and fell
+    /// back to the default would still pass the "on" half, and only the "off" half can tell.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_saved_policy_reports_the_reseller_switch_exactly_as_saved(bool forceForResellers)
+    {
+        using var context = IdentityTestContext.Create();
+        var cache = TestSecurityPolicyCache.Saved(context, forceTwoFactorForResellers: forceForResellers);
+
+        var policy = await cache.GetAsync(CancellationToken.None);
+
+        Assert.Equal(forceForResellers, policy.ForceTwoFactorForResellers);
+        Assert.False(policy.ForceTwoFactorForAdmins);
     }
 
     /// <summary>A cached policy is re-read only after the cache is invalidated.</summary>
@@ -54,7 +74,7 @@ public sealed class SecurityPolicyCacheTests
             SecurityPolicy.DefaultMinimumPasswordLength,
             (await cache.GetAsync(CancellationToken.None)).MinimumPasswordLength);
 
-        context.SecurityPolicies.Add(new SecurityPolicy(24, true, 5, 30, DateTimeOffset.UnixEpoch));
+        context.SecurityPolicies.Add(new SecurityPolicy(24, true, false, 5, 30, DateTimeOffset.UnixEpoch));
         await context.SaveChangesAsync();
 
         Assert.Equal(
@@ -97,7 +117,7 @@ public sealed class SecurityPolicyCacheTests
         // Runs after the load has read the (absent) row and before it publishes what it read.
         var factory = new CallbackScopeFactory(context, () =>
         {
-            context.SecurityPolicies.Add(new SecurityPolicy(24, true, 5, 30, DateTimeOffset.UnixEpoch));
+            context.SecurityPolicies.Add(new SecurityPolicy(24, true, false, 5, 30, DateTimeOffset.UnixEpoch));
             context.SaveChanges();
 
             invalidation = Task.Run(() =>

@@ -22,9 +22,19 @@ public sealed class SaveSecurityPolicyCommandHandlerTests : IDisposable
         _context.Dispose();
     }
 
-    private static SaveSecurityPolicyCommand Command(int minimumPasswordLength = 16, bool force = true)
+    private static SaveSecurityPolicyCommand Command(
+        int minimumPasswordLength = 16,
+        bool force = true,
+        bool forceForResellers = true)
     {
-        return new SaveSecurityPolicyCommand(minimumPasswordLength, force, 5, 30, "203.0.113.7", "agent");
+        return new SaveSecurityPolicyCommand(
+            minimumPasswordLength,
+            force,
+            5,
+            30,
+            forceForResellers,
+            "203.0.113.7",
+            "agent");
     }
 
     private SaveSecurityPolicyCommandHandler NewHandler(SecurityPolicyCache cache)
@@ -67,6 +77,44 @@ public sealed class SaveSecurityPolicyCommandHandlerTests : IDisposable
         await NewHandler(cache).HandleAsync(Command(minimumPasswordLength: 22), CancellationToken.None);
 
         Assert.Equal(22, (await cache.GetAsync(CancellationToken.None)).MinimumPasswordLength);
+    }
+
+    /// <summary>The reseller switch is stored as sent, on the first save and on a replacement.</summary>
+    /// <remarks>
+    /// The first save goes through the constructor and the second through <c>Replace</c>; both take
+    /// the flag, and a handler that forgot it on either path would keep the default (on).
+    /// </remarks>
+    [Fact]
+    public async Task The_reseller_switch_is_stored_as_sent_on_the_first_save_and_on_a_replacement()
+    {
+        var cache = TestSecurityPolicyCache.Over(_context);
+
+        await NewHandler(cache).HandleAsync(Command(forceForResellers: false), CancellationToken.None);
+        var created = Assert.Single(await _context.SecurityPolicies.ToListAsync());
+        Assert.False(created.ForceTwoFactorForResellers);
+        Assert.False((await cache.GetAsync(CancellationToken.None)).ForceTwoFactorForResellers);
+
+        await NewHandler(cache).HandleAsync(Command(forceForResellers: true), CancellationToken.None);
+        var replaced = Assert.Single(await _context.SecurityPolicies.ToListAsync());
+        Assert.True(replaced.ForceTwoFactorForResellers);
+        Assert.True((await cache.GetAsync(CancellationToken.None)).ForceTwoFactorForResellers);
+    }
+
+    /// <summary>A body that leaves the reseller switch out reads as on, never as off.</summary>
+    /// <remarks>
+    /// A client written before resellers existed saves the whole policy; reading its silence as off
+    /// would turn off the protection of every reseller login.
+    /// </remarks>
+    [Fact]
+    public async Task A_command_that_leaves_the_reseller_switch_out_means_on_not_off()
+    {
+        var command = new SaveSecurityPolicyCommand(16, false, 5, 30);
+
+        Assert.True(command.ForceTwoFactorForResellers);
+
+        await NewHandler(TestSecurityPolicyCache.Over(_context)).HandleAsync(command, CancellationToken.None);
+
+        Assert.True(Assert.Single(await _context.SecurityPolicies.ToListAsync()).ForceTwoFactorForResellers);
     }
 
     /// <summary>Saving the policy is journalled.</summary>
