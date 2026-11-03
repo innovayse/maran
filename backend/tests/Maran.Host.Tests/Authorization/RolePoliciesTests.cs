@@ -137,6 +137,94 @@ public sealed class RolePoliciesTests : IClassFixture<PanelTestFactory>
         });
     }
 
+    /// <summary>The reseller-only policy admits a reseller and refuses an administrator and a customer.</summary>
+    /// <returns>Completes once the assertions have run.</returns>
+    [Fact]
+    public async Task The_reseller_only_policy_admits_a_reseller_and_refuses_everyone_else()
+    {
+        var policy = RequirePolicy(RolePolicies.ResellerOnly);
+
+        Assert.True((await EvaluateAsync(policy, SignedIn(nameof(UserRole.Reseller)))).Succeeded);
+        Assert.False((await EvaluateAsync(policy, SignedIn(nameof(UserRole.Admin)))).Succeeded);
+        Assert.False((await EvaluateAsync(policy, SignedIn(nameof(UserRole.Customer)))).Succeeded);
+        Assert.False((await EvaluateAsync(policy, new ClaimsPrincipal(new ClaimsIdentity()))).Succeeded);
+    }
+
+    /// <summary>The admin-or-reseller policy admits both and refuses a customer and an anonymous caller.</summary>
+    /// <returns>Completes once the assertions have run.</returns>
+    [Fact]
+    public async Task The_admin_or_reseller_policy_admits_both_and_refuses_a_customer_and_an_anonymous_caller()
+    {
+        var policy = RequirePolicy(RolePolicies.AdminOrReseller);
+
+        Assert.True((await EvaluateAsync(policy, SignedIn(nameof(UserRole.Admin)))).Succeeded);
+        Assert.True((await EvaluateAsync(policy, SignedIn(nameof(UserRole.Reseller)))).Succeeded);
+        Assert.False((await EvaluateAsync(policy, SignedIn(nameof(UserRole.Customer)))).Succeeded);
+        Assert.False((await EvaluateAsync(policy, new ClaimsPrincipal(new ClaimsIdentity()))).Succeeded);
+    }
+
+    /// <summary>The administrator-only policy refuses a reseller: the new role gains no administrator power.</summary>
+    /// <returns>Completes once the assertion has run.</returns>
+    [Fact]
+    public async Task The_administrator_only_policy_refuses_a_reseller()
+    {
+        var result = await EvaluateAsync(RequirePolicy(RolePolicies.AdminOnly), SignedIn(nameof(UserRole.Reseller)));
+
+        Assert.False(result.Succeeded);
+    }
+
+    /// <summary>The fallback policy refuses a reseller, as it refuses a customer.</summary>
+    /// <returns>Completes once the assertion has run.</returns>
+    [Fact]
+    public async Task The_fallback_policy_refuses_a_reseller()
+    {
+        var result = await EvaluateFallbackAsync(SignedIn(nameof(UserRole.Reseller)));
+
+        Assert.False(result.Succeeded);
+    }
+
+    /// <summary>A reseller who still has to enrol in two-factor is refused by both reseller policies.</summary>
+    /// <returns>Completes once the assertions have run.</returns>
+    [Fact]
+    public async Task A_reseller_who_must_still_enrol_is_refused_by_both_reseller_policies()
+    {
+        var reseller = SignedIn(nameof(UserRole.Reseller), steeredIntoEnrolment: true);
+
+        Assert.False((await EvaluateAsync(RequirePolicy(RolePolicies.ResellerOnly), reseller)).Succeeded);
+        Assert.False((await EvaluateAsync(RequirePolicy(RolePolicies.AdminOrReseller), reseller)).Succeeded);
+    }
+
+    /// <summary>The two reseller policies carry the two-factor and the view-as boundary requirements.</summary>
+    [Fact]
+    public void The_reseller_policies_carry_the_two_factor_and_the_view_as_boundary_requirements()
+    {
+        foreach (var name in new[] { RolePolicies.ResellerOnly, RolePolicies.AdminOrReseller })
+        {
+            var policy = RequirePolicy(name);
+
+            Assert.Contains(policy.Requirements, requirement =>
+            {
+                return requirement is TwoFactorEnrolmentCompleteRequirement;
+            });
+            Assert.Contains(policy.Requirements, requirement =>
+            {
+                return requirement is ViewAsBoundaryRequirement;
+            });
+        }
+    }
+
+    /// <summary>Reads a registered policy off the host, failing if it is not registered.</summary>
+    /// <param name="name">The policy name.</param>
+    /// <returns>The policy.</returns>
+    private AuthorizationPolicy RequirePolicy(string name)
+    {
+        var policy = ResolveOptions().GetPolicy(name);
+
+        // NotNull first: an unregistered policy is not a refusing one, it is an unknown name.
+        Assert.NotNull(policy);
+        return policy;
+    }
+
     /// <summary>The host's authorization options, as the running server resolves them.</summary>
     /// <returns>The options carrying the registered policies.</returns>
     private AuthorizationOptions ResolveOptions()

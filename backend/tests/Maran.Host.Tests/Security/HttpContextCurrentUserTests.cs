@@ -13,8 +13,8 @@ namespace Maran.Host.Tests.Security;
 /// becomes the caller every authorization check then trusts.
 /// </summary>
 /// <remarks>
-/// A request with nobody signed in is an anonymous caller. A signed-in request is an administrator
-/// or a customer (with or without an account), read exactly. Anything else about a signed-in request —
+/// A request with nobody signed in is an anonymous caller. A signed-in request is an administrator,
+/// a reseller or a customer (with or without an account), read exactly. Anything else about a signed-in request —
 /// a role this build does not know, a missing or unreadable id, a damaged account claim — is refused with
 /// <see cref="UnrecognisedPrincipalException"/> and is never folded into anonymous or a customer,
 /// because that would be a caller silently treated as somebody else.
@@ -22,6 +22,7 @@ namespace Maran.Host.Tests.Security;
 public sealed class HttpContextCurrentUserTests
 {
     private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid ResellerId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly Guid AccountId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid OperatorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid OperatorSessionId = Guid.Parse("44444444-4444-4444-4444-444444444444");
@@ -56,6 +57,89 @@ public sealed class HttpContextCurrentUserTests
         Assert.Equal("acme", customer.Username);
         Assert.Equal(AccountId, customer.AccountId);
         Assert.Null(customer.ViewedBy);
+    }
+
+    /// <summary>A reseller's reseller is read out of the token's claims.</summary>
+    [Fact]
+    public void A_resellers_reseller_is_read_out_of_the_tokens_claims()
+    {
+        var user = CurrentUser(
+            (PanelClaimTypes.UserId, UserId.ToString()),
+            (PanelClaimTypes.Username, "seller"),
+            (PanelClaimTypes.Role, nameof(UserRole.Reseller)),
+            (PanelClaimTypes.ResellerId, ResellerId.ToString()));
+
+        var reseller = Assert.IsType<ResellerCaller>(user.Caller);
+        Assert.Equal(UserId, reseller.UserId);
+        Assert.Equal("seller", reseller.Username);
+        Assert.Equal(ResellerId, reseller.ResellerId);
+        Assert.Null(reseller.ViewedBy);
+    }
+
+    /// <summary>A reseller token with no reseller claim is refused, not read as a caller with no reseller.</summary>
+    [Fact]
+    public void A_reseller_token_with_no_reseller_claim_is_refused()
+    {
+        var user = CurrentUser(
+            (PanelClaimTypes.UserId, UserId.ToString()),
+            (PanelClaimTypes.Role, nameof(UserRole.Reseller)));
+
+        Assert.Throws<UnrecognisedPrincipalException>(() =>
+        {
+            return user.Caller;
+        });
+    }
+
+    /// <summary>A reseller token whose reseller claim is not an id is refused.</summary>
+    [Fact]
+    public void A_reseller_token_with_a_malformed_reseller_claim_is_refused()
+    {
+        var user = CurrentUser(
+            (PanelClaimTypes.UserId, UserId.ToString()),
+            (PanelClaimTypes.Role, nameof(UserRole.Reseller)),
+            (PanelClaimTypes.ResellerId, "not-a-guid"));
+
+        Assert.Throws<UnrecognisedPrincipalException>(() =>
+        {
+            return user.Caller;
+        });
+    }
+
+    /// <summary>A reseller claim on a customer token does not turn it into a reseller.</summary>
+    [Fact]
+    public void A_reseller_claim_on_a_customer_token_does_not_make_it_a_reseller()
+    {
+        var user = CurrentUser(
+            (PanelClaimTypes.UserId, UserId.ToString()),
+            (PanelClaimTypes.Role, nameof(UserRole.Customer)),
+            (PanelClaimTypes.AccountId, AccountId.ToString()),
+            (PanelClaimTypes.ResellerId, ResellerId.ToString()));
+
+        Assert.IsType<CustomerCaller>(user.Caller);
+    }
+
+    /// <summary>A reseller view-as token names the operator while the reseller stays the caller.</summary>
+    [Fact]
+    public void A_reseller_view_as_token_names_the_operator_while_the_reseller_stays_the_caller()
+    {
+        var actor = JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            [PanelClaimTypes.UserId] = OperatorId.ToString(),
+            [PanelClaimTypes.Username] = "root",
+            [PanelClaimTypes.SessionId] = OperatorSessionId.ToString(),
+        });
+        var user = CurrentUser(
+            (PanelClaimTypes.UserId, UserId.ToString()),
+            (PanelClaimTypes.Username, "seller"),
+            (PanelClaimTypes.Role, nameof(UserRole.Reseller)),
+            (PanelClaimTypes.ResellerId, ResellerId.ToString()),
+            (PanelClaimTypes.SessionKind, "ViewAs"),
+            (PanelClaimTypes.Actor, actor));
+
+        var reseller = Assert.IsType<ResellerCaller>(user.Caller);
+        Assert.Equal(UserId, reseller.UserId);
+        Assert.Equal(ResellerId, reseller.ResellerId);
+        Assert.Equal(new ViewingOperator(OperatorId, "root"), reseller.ViewedBy);
     }
 
     /// <summary>A view-as token names the operator while the viewed login stays the caller.</summary>
