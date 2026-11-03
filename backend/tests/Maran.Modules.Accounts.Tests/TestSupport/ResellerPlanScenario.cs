@@ -180,7 +180,8 @@ public sealed class ResellerPlanScenario : IDisposable
     public static UpdatePlanCommand Same(Plan plan)
     {
         return new UpdatePlanCommand(
-            plan.Name, plan.DiskQuotaMb, 5, 5, 5, 5, 5, 5,
+            plan.Name ?? throw new InvalidOperationException("The plan under edit carries no operator-written name."),
+            plan.DiskQuotaMb, 5, 5, 5, 5, 5, 5,
             ResourceCeilingTestValues.Unlimited,
             ResourceCeilingTestValues.Unlimited,
             ResourceCeilingTestValues.Unlimited,

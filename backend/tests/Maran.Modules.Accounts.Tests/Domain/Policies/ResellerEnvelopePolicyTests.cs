@@ -8,6 +8,9 @@ namespace Maran.Modules.Accounts.Tests.Domain.Policies;
 /// <summary>The arithmetic of <see cref="ResellerEnvelopePolicy"/>: every comparison is inclusive.</summary>
 public sealed class ResellerEnvelopePolicyTests
 {
+    /// <summary>The three figures a plan over three ceilings is named for, in the order the policy lists them.</summary>
+    private static readonly string[] ThreeViolations = { "DiskQuotaMb", "MaxCronEntries", "Features" };
+
     /// <summary>A plan equal to every ceiling at once is accepted: the limits are inclusive.</summary>
     [Fact]
     public void A_plan_equal_to_every_ceiling_is_accepted()
@@ -55,7 +58,7 @@ public sealed class ResellerEnvelopePolicyTests
 
         var violations = ResellerEnvelopePolicy.Violations(Envelope(), limits);
 
-        Assert.Equal(new[] { "Features" }, violations);
+        Assert.Equal("Features", Assert.Single(violations));
     }
 
     /// <summary>A plan holding a strict subset of the envelope's features, or none, is accepted.</summary>
@@ -78,7 +81,7 @@ public sealed class ResellerEnvelopePolicyTests
         var envelope = ResellerTestData.Envelope(features: AccountFeature.None);
         var limits = ResellerTestData.Limits(features: AccountFeature.Sites);
 
-        Assert.Equal(new[] { "Features" }, ResellerEnvelopePolicy.Violations(envelope, limits));
+        Assert.Equal("Features", Assert.Single(ResellerEnvelopePolicy.Violations(envelope, limits)));
     }
 
     /// <summary>An unlimited envelope ceiling is no ceiling: any plan figure, even none, passes.</summary>
@@ -127,7 +130,7 @@ public sealed class ResellerEnvelopePolicyTests
                 ResourceLimit.Unlimited()));
         var limits = ResellerTestData.Limits(runtimeLimits: RuntimeLimits.Unlimited());
 
-        Assert.Equal(new[] { "CpuQuotaPercent" }, ResellerEnvelopePolicy.Violations(envelope, limits));
+        Assert.Equal("CpuQuotaPercent", Assert.Single(ResellerEnvelopePolicy.Violations(envelope, limits)));
     }
 
     /// <summary>Several breaches are all named, in the stable order the policy checks them.</summary>
@@ -143,7 +146,7 @@ public sealed class ResellerEnvelopePolicyTests
 
         var violations = ResellerEnvelopePolicy.Violations(Envelope(), limits);
 
-        Assert.Equal(new[] { "DiskQuotaMb", "MaxCronEntries", "Features" }, violations);
+        Assert.Equal(ThreeViolations, violations);
     }
 
     /// <summary>One more plan is allowed while the count is below the maximum, refused at it.</summary>

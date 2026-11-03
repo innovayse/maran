@@ -1,6 +1,7 @@
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Persistence;
 
@@ -36,7 +37,7 @@ public sealed class AccountsDbContextResellerFilterTests
 
         var names = await dbContext.Accounts.Select(account => account.Name).ToListAsync();
 
-        Assert.Equal(new[] { "alphaaccount" }, names);
+        Assert.Equal("alphaaccount", Assert.Single(names));
     }
 
     /// <summary>A reseller's context hides other owners' accounts: the refusing control.</summary>
@@ -84,7 +85,7 @@ public sealed class AccountsDbContextResellerFilterTests
 
         var names = await dbContext.Resellers.Select(reseller => reseller.Name).ToListAsync();
 
-        Assert.Equal(new[] { "alpha" }, names);
+        Assert.Equal("alpha", Assert.Single(names));
     }
 
     /// <summary>A reseller's context hides every other reseller row, so it cannot learn that one exists.</summary>
@@ -165,8 +166,8 @@ public sealed class AccountsDbContextResellerFilterTests
         var alphaNames = await alpha.Accounts.Select(account => account.Name).ToListAsync();
         var betaNames = await beta.Accounts.Select(account => account.Name).ToListAsync();
 
-        Assert.Equal(new[] { "alphaaccount" }, alphaNames);
-        Assert.Equal(new[] { "betaaccount" }, betaNames);
+        Assert.Equal("alphaaccount", Assert.Single(alphaNames));
+        Assert.Equal("betaaccount", Assert.Single(betaNames));
     }
 
     /// <summary>Asserts the context shows all three accounts, all three plans and both resellers.</summary>
@@ -190,9 +191,9 @@ public sealed class AccountsDbContextResellerFilterTests
         seed.Plans.Add(Plan.Define(_planIds[0], "admin-plan", 100, 5, 5, 5, 5, 5, 5));
         seed.Plans.Add(Plan.Define(_planIds[1], "alpha-plan", 100, 5, 5, 5, 5, 5, 5, resellerId: _alpha.Id));
         seed.Plans.Add(Plan.Define(_planIds[2], "beta-plan", 100, 5, 5, 5, 5, 5, 5, resellerId: _beta.Id));
-        seed.Accounts.Add(Account(Guid.NewGuid(), "adminaccount", _planIds[0], null));
-        seed.Accounts.Add(Account(Guid.NewGuid(), "alphaaccount", _planIds[1], _alpha.Id));
-        seed.Accounts.Add(Account(BetaAccountId, "betaaccount", _planIds[2], _beta.Id));
+        seed.Accounts.Add(BuildAccount(Guid.NewGuid(), "adminaccount", _planIds[0], null));
+        seed.Accounts.Add(BuildAccount(Guid.NewGuid(), "alphaaccount", _planIds[1], _alpha.Id));
+        seed.Accounts.Add(BuildAccount(BetaAccountId, "betaaccount", _planIds[2], _beta.Id));
         await seed.SaveChangesAsync();
     }
 

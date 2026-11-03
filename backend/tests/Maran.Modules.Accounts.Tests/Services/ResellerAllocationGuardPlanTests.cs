@@ -65,7 +65,7 @@ public sealed class ResellerAllocationGuardPlanTests
         Assert.Equal(ErrorType.Validation, refusal.Error.Type);
         Assert.Equal("envelope", refusal.Extension!.Key);
         var violations = Assert.IsType<PlanEnvelopeViolationsDto>(refusal.Extension.Value);
-        Assert.Equal(new[] { "diskQuotaMb" }, violations.Fields);
+        Assert.Equal("diskQuotaMb", Assert.Single(violations.Fields));
         Assert.Equal(0, fixture.Reseller.AllocationRevision);
     }
 
@@ -180,7 +180,7 @@ public sealed class ResellerAllocationGuardPlanTests
 
         Assert.Equal("ResellerPlanExceedsEnvelope", refusal!.Error.Code);
         var violations = Assert.IsType<PlanEnvelopeViolationsDto>(refusal.Extension!.Value);
-        Assert.Equal(new[] { "maxSites" }, violations.Fields);
+        Assert.Equal("maxSites", Assert.Single(violations.Fields));
     }
 
     /// <summary>An edit that leaves the disk quota alone is admitted and does not claim the reseller.</summary>

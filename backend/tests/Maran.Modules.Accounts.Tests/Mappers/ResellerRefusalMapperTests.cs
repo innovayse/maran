@@ -1,7 +1,6 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Models;
-using Maran.Modules.Accounts.Resources;
 using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Accounts.Tests.Mappers;
@@ -17,7 +16,7 @@ public sealed class ResellerRefusalMapperTests
     public void A_refusal_with_no_facts_becomes_a_plain_failure_with_its_code_and_kind()
     {
         var refusal = new ResellerRefusal(
-            Error.Of(nameof(ErrorMessages.ResellerAccountLimitReached), ErrorType.Conflict));
+            Error.Of("ResellerAccountLimitReached", ErrorType.Conflict));
 
         var result = ResellerRefusalMapper.ToFailure<string>(refusal);
 
@@ -33,7 +32,7 @@ public sealed class ResellerRefusalMapperTests
     {
         var facts = ProblemExtension.Of("envelope", new PlanEnvelopeViolationsDto(["diskQuotaMb"]));
         var refusal = new ResellerRefusal(
-            Error.Of(nameof(ErrorMessages.ResellerPlanExceedsEnvelope), ErrorType.Validation), facts);
+            Error.Of("ResellerPlanExceedsEnvelope", ErrorType.Validation), facts);
 
         var result = ResellerRefusalMapper.ToFailure<string>(refusal);
 
