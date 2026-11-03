@@ -141,10 +141,7 @@ const REVISIONS: &[(u32, u64)] = &[
     (14, 0xe775_6ebf_86a6_74ca),
     (15, 0x79fb_aa5c_2e22_2194),
     (16, 0x6d9e_fca8_8145_5caa),
-    // The digest below is a placeholder until `maran proto --accept` has recorded the
-    // contract baseline that adds `ListPendingUpdates`; the lead fills it with the digest
-    // of that file, and until then the test below fails by name.
-    (17, 0x0000_0000_0000_0000),
+    (17, 0x8462_2503_bd18_b072),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to
