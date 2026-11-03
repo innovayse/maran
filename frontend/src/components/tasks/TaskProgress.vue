@@ -15,12 +15,11 @@
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiMeter, { type UiMeterStatus } from '../ui/UiMeter.vue'
-import type { PanelTaskStatus } from '../../types/panelTask'
 
 /** Props accepted by {@link TaskProgress}. */
 const props = defineProps<{
   /** The task's status, which decides whether a bar is drawn and its colour. */
-  status: PanelTaskStatus
+  status: string
   /** How far the task got, 0 to 100. */
   percent: number
   /** Where it is drawn: a table row's cell, or the live pane. */

@@ -1,22 +1,6 @@
 import type { ListRequest, Paged } from './list'
 
 /**
- * Where a panel task has got to, mirroring the backend's `PanelTaskStatus`.
- *
- * The wire form is the camelCase member name, not a number: the Host registers
- * `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)` on both of its API surfaces, so this union
- * is the contract on the plain endpoints and inside the stream alike.
- */
-export type PanelTaskStatus = 'running' | 'completed' | 'failed'
-
-/**
- * Every {@link PanelTaskStatus}, for reading a status off a stream frame. The status filter does NOT
- * take its options from here: the panel lists them, named for the reader's language
- * ({@link TaskStatusChoice}).
- */
-export const TASK_STATUSES: readonly PanelTaskStatus[] = ['running', 'completed', 'failed']
-
-/**
  * One kind of task the caller can see, as the kind filter offers it: the machine-stable kind the
  * filter sends, and the name an operator reads, localized by the backend.
  */
@@ -93,8 +77,12 @@ export interface PanelTask {
   subject: string
   /** The correlation id of the request that started it, or null. */
   correlationId: string | null
-  /** Where it has got to. */
-  status: PanelTaskStatus
+  /**
+   * Where it has got to: the backend's `PanelTaskStatus` as its camelCase member name. The set of
+   * values is the panel's (`GET /api/v1/tasks/statuses`), so the SPA holds no list of them and
+   * treats the value as text; the badge and the progress bar only pick a tone from it.
+   */
+  status: string
   /** The status as an operator reads it, in the request's language: the word the status badge prints. */
   statusName: string
   /** How far along, 0-100. */
@@ -142,11 +130,11 @@ export interface PanelTaskStreamHandlers {
   /**
    * Called exactly once, whatever happened — the module's own ending, an abort, or a transport
    * failure — so a caller never has to infer that a stream is over from frames having stopped.
-   * @param status The final status the module named, or `null` when the stream ended without one
+   * @param status The final status the module named, as text, or `null` when the stream ended without one
    * (a dropped connection, an abort). An ending is never upgraded to a friendlier one.
    * @returns Nothing.
    */
-  onEnd: (status: PanelTaskStatus | null) => void
+  onEnd: (status: string | null) => void
 }
 
 /**

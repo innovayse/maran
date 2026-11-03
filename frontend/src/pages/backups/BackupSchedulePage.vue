@@ -61,9 +61,7 @@ import { useBackupSchedulesStore } from '../../stores/backupSchedules'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import {
-  BACKUP_FREQUENCIES,
   BACKUP_SCHEDULE_DAYS,
-  type BackupFrequency,
   type BackupSchedule,
   type BackupScheduleDay,
   type BackupScheduleScope,
@@ -104,7 +102,7 @@ const localeStore = useLocaleStore()
 const scope: Ref<BackupScheduleScope> = ref({ kind: 'hostWide' })
 
 /** How often a backup is taken; `null` while nothing is scheduled or none has been chosen. */
-const frequency: Ref<BackupFrequency | null> = ref(null)
+const frequency: Ref<string | null> = ref(null)
 
 /** The hour of the day in UTC as chosen, or the empty string while none is. The server bounds it. */
 const hourUtc: Ref<string> = ref('')
@@ -142,9 +140,10 @@ const frequencyOption: WritableComputedRef<string> = computed({
     return frequency.value ?? ''
   },
   set: (value: string): void => {
-    frequency.value = BACKUP_FREQUENCIES.find((candidate) => {
-      return candidate === value
-    }) ?? null
+    // Only a cadence the panel listed is accepted; the backend's validator still has the last word.
+    frequency.value = optionsStore.options.frequencies.find((candidate) => {
+      return candidate.value === value
+    })?.value ?? null
   },
 })
 

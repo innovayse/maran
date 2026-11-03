@@ -1,18 +1,4 @@
 /**
- * How often a schedule takes a backup, mirroring the backend's `BackupFrequency`.
- *
- * The values are lowercase because the panel registers
- * `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)` for every enum it sends and binds, so
- * `BackupFrequency.Daily` is `"daily"` on the wire. Two values and no third: the backend refused a
- * cron expression deliberately, because "daily at 03:00" is the whole of what the product promises
- * and a cron field is a parsing surface at an administrator-only boundary.
- */
-export type BackupFrequency = 'daily' | 'weekly'
-
-/** Every {@link BackupFrequency}, in the order a picker offers them. */
-export const BACKUP_FREQUENCIES: readonly BackupFrequency[] = ['daily', 'weekly']
-
-/**
  * The weekday a weekly schedule fires on, mirroring the backend's `DayOfWeek?` and likewise a
  * camelCase name on the wire.
  *
@@ -79,8 +65,12 @@ export interface BackupSchedule {
    * another. A field with one possible value is not information.
    */
   destinationId: string | null
-  /** How often a backup is taken. */
-  frequency: BackupFrequency
+  /**
+   * How often a backup is taken: the backend's `BackupFrequency` as its camelCase member name. The
+   * cadences on offer are the panel's (`GET /api/v1/backup-options`), so the SPA holds no list of
+   * them and the backend's validator decides what is accepted.
+   */
+  frequency: string
   /** The hour of the day, in UTC, at which it is taken. */
   hourUtc: number
   /** The weekday a weekly schedule fires on; `null` for a daily one. */
@@ -144,8 +134,8 @@ export interface SaveBackupScheduleRequest {
    * default one and the endpoint that would record another refuses every request today.
    */
   destinationId: string | null
-  /** How often the backup is taken. */
-  frequency: BackupFrequency
+  /** How often the backup is taken: one of the cadence values the panel listed. */
+  frequency: string
   /** The hour of the day, in UTC. The server bounds it to 0..23. */
   hourUtc: number
   /** The weekday for a weekly schedule; must be `null` for a daily one. */
