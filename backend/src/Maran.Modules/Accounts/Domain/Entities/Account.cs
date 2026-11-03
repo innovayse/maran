@@ -59,6 +59,14 @@ public sealed class Account
     /// </summary>
     public string OwnerLanguage { get; private set; }
 
+    /// <summary>
+    /// The reseller that owns the account, or <c>null</c> for an account the administrator owns, which
+    /// is what every account that existed before resellers is. Set once, at creation, and never
+    /// edited: moving an account between owners is not an operation the panel has. An account and its
+    /// plan always share an owner (<see cref="Plan.ResellerId"/>).
+    /// </summary>
+    public Guid? ResellerId { get; private set; }
+
     /// <summary>The instant the account was created.</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -81,6 +89,11 @@ public sealed class Account
     /// <paramref name="ownerEmail"/>; <c>CreateAccountCommandHandler</c> always passes the validated
     /// choice.
     /// </param>
+    /// <param name="resellerId">
+    /// The reseller that owns the account, or <c>null</c> for the administrator. Defaulted to the
+    /// administrator for the same test-site reason as <paramref name="ownerEmail"/>; the account
+    /// creation handler always states it.
+    /// </param>
     public Account(
         Guid id,
         string name,
@@ -88,7 +101,8 @@ public sealed class Account
         Guid planId,
         DateTimeOffset createdAt,
         string ownerEmail = "",
-        string ownerLanguage = PanelLanguages.English)
+        string ownerLanguage = PanelLanguages.English,
+        Guid? resellerId = null)
     {
         Id = id;
         Name = name;
@@ -96,6 +110,7 @@ public sealed class Account
         PlanId = planId;
         OwnerEmail = ownerEmail;
         OwnerLanguage = ownerLanguage;
+        ResellerId = resellerId;
         Status = AccountStatus.Active;
         CreatedAt = createdAt;
     }
