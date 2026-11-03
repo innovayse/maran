@@ -6,3 +6,9 @@ contact_links:
   - name: Contributing guide
     url: https://github.com/innovayse/maran/blob/dev/CONTRIBUTING.md
     about: How to set up, which gates to run, and which changes need a threat note.
+  - name: Ask a question or share an idea
+    url: https://github.com/innovayse/maran/discussions
+    about: Questions, ideas and show-and-tell that are not a task yet.
+  - name: Chat on Discord
+    url: https://discord.gg/NfqTkyTgD
+    about: The Innovayse community, for quick questions and help getting started.
