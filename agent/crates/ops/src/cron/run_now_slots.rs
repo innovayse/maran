@@ -41,6 +41,15 @@ pub(crate) const ACCOUNT_RUN_NOW_SLOTS: usize = 2;
 /// wait-for edge and no argument about lock order depends on it. It is
 /// process-local like they are, and says nothing about a second agent.
 ///
+/// **The counts live in this process's memory only.** Nothing is persisted and
+/// nothing is shared with the panel's own run counter, which is likewise
+/// process-local to each panel instance. After an agent restart every count is
+/// full again, so a run the previous process left running is not counted until
+/// it ends; for that window the host can briefly carry more than
+/// [`HOST_RUN_NOW_SLOTS`]. A second panel instance has its own counter, so the
+/// panel-side bound is per instance; this table is then the only bound that
+/// spans both, which is why it is kept even though the panel refuses first.
+///
 /// The per-account map only grows, one small entry per account name that ever
 /// ran something by hand, as `cron_lock`'s does.
 #[derive(Debug)]

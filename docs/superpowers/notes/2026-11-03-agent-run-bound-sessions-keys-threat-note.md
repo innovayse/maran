@@ -62,6 +62,12 @@ two new root spawns (`pkill --full` by pattern, `systemctl stop` of a named unit
 
 ## Accepted residue
 
+- **The run slot table is process-local.** The agent's semaphores (`run_now_slots.rs`) exist only in the
+  agent's memory: an agent restart makes every count full again, so a run its previous process left going
+  is not counted until it ends and the host can briefly carry more than 16. The panel's own counter
+  (`CronRunSlots`) is a separate table in each panel process, so a second panel instance multiplies the
+  panel-side bound and leaves this table as the only one that spans both; it still holds the host at 16
+  and an account at 2 and refuses with `AGENT_SATURATED`. Neither table is shared or persisted.
 - **A restart of the agent resets the unit counter**, so a run started in the first seconds can meet a
   still-running unit of the old process with the same name; the service manager refuses the name and the
   run reports unavailable. It never collides with a live job.

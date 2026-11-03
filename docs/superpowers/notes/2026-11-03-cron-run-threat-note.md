@@ -45,6 +45,14 @@ rules/security.md "Sensitive change escalation" applies. It may land on a branch
 2. That the panel-wide counter is correct under a restart: it starts at zero, which is true only while a
    restart ends every call the old process was waiting on. A run the agent kept going after the panel died
    is not counted, so right after a restart the agent can briefly hold more than the bound.
+   Both slot tables are process-local and nothing persists them: the panel's `CronRunSlots` lives in the
+   panel process's memory and the agent's semaphore table (`run_now_slots.rs`) in the agent's. After a
+   panel restart the panel counts from zero; after an agent restart the agent's counts are full again and
+   a run its previous process left going is not counted until it ends. With a second panel instance, each
+   instance holds its own `CronRunSlots`, so the per-account and panel-wide bounds are per instance (N
+   instances admit up to N times the figures) and only the agent's single table bounds the host as a
+   whole, answering `AGENT_SATURATED` past it. The bounds therefore assume one panel instance per agent;
+   running two is outside what this note argues.
 3. Whether a 503 for the global bound (the closest `ErrorType`; the enum has no rate-limited kind) should be
    a 429 with `Retry-After`, which would need a new `ErrorType` value and mapper arm in `SharedKernel`.
 4. That writing the audit entry before the row is right when the row then fails: the journal says the run
