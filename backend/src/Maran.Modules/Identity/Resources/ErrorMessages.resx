@@ -138,11 +138,8 @@
   <data name="SubUserNotFound">
     <value>That sub-user does not exist.</value>
   </data>
-  <data name="SubUserLoginTaken">
-    <value>That login name is already taken. Choose another.</value>
-  </data>
-  <data name="SubUserEmailTaken">
-    <value>A login with that e-mail address already exists. Use another address.</value>
+  <data name="SubUserLimitReached">
+    <value>Your account already has the most sub-users it may hold. Remove one before inviting another.</value>
   </data>
   <data name="SubUserFeatureInvalid">
     <value>Choose the features from the list the panel offers.</value>

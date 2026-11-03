@@ -138,11 +138,8 @@
   <data name="SubUserNotFound">
     <value>Такого пользователя нет.</value>
   </data>
-  <data name="SubUserLoginTaken">
-    <value>Это имя для входа уже занято. Выберите другое.</value>
-  </data>
-  <data name="SubUserEmailTaken">
-    <value>Учётная запись с таким адресом электронной почты уже существует. Укажите другой адрес.</value>
+  <data name="SubUserLimitReached">
+    <value>В вашем аккаунте уже максимально допустимое число дополнительных пользователей. Удалите одного, прежде чем приглашать следующего.</value>
   </data>
   <data name="SubUserFeatureInvalid">
     <value>Выберите возможности из списка, который предлагает панель.</value>

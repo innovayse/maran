@@ -65,6 +65,12 @@ public sealed class IdentityModule : IPanelModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        // The cap on one account's team; a nonsensical value stops the boot (SubUserOptions).
+        services.AddOptions<SubUserOptions>()
+            .Bind(configuration.GetSection(SubUserOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         // The panel's own public address, for the link in a password-reset mail and in an invitation
         // mail alike. Never taken from the request's Host header, which the caller controls — see
         // PanelOptions.

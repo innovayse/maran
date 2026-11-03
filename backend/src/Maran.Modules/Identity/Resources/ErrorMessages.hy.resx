@@ -138,11 +138,8 @@
   <data name="SubUserNotFound">
     <value>Այդպիսի օգտատեր չկա։</value>
   </data>
-  <data name="SubUserLoginTaken">
-    <value>Մուտքի այդ անունն արդեն զբաղված է։ Ընտրեք մեկ ուրիշը։</value>
-  </data>
-  <data name="SubUserEmailTaken">
-    <value>Այդ էլ. փոստի հասցեով օգտատեր արդեն կա։ Նշեք այլ հասցե։</value>
+  <data name="SubUserLimitReached">
+    <value>Ձեր հաշվում արդեն կա թույլատրելի առավելագույն թվով ենթաօգտատեր։ Նոր հրավերից առաջ հեռացրեք մեկին։</value>
   </data>
   <data name="SubUserFeatureInvalid">
     <value>Ընտրեք հնարավորությունները վահանակի առաջարկած ցանկից։</value>

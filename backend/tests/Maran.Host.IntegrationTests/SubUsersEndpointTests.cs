@@ -9,7 +9,9 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Notifications.Interfaces;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Extensions;
 using Maran.SharedKernel.Interfaces;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -87,11 +89,18 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
             "/api/v1/me/sub-users",
             new { Username = "deploy", Email = "deploy@example.com", Features = DatabasesFeatures });
 
-        Assert.Equal(HttpStatusCode.Created, invited.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, invited.StatusCode);
         using (var body = JsonDocument.Parse(await invited.Content.ReadAsStringAsync()))
         {
-            Assert.Equal("invited", body.RootElement.GetProperty("state").GetString());
-            Assert.Equal("databases", Assert.Single(body.RootElement.GetProperty("features").EnumerateArray()).GetString());
+            Assert.Equal("deploy", body.RootElement.GetProperty("username").GetString());
+            Assert.Equal("deploy@example.com", body.RootElement.GetProperty("email").GetString());
+        }
+
+        using (var list = JsonDocument.Parse(await (await owner.GetAsync("/api/v1/me/sub-users")).Content.ReadAsStringAsync()))
+        {
+            var row = Assert.Single(list.RootElement.GetProperty("items").EnumerateArray());
+            Assert.Equal("invited", row.GetProperty("state").GetString());
+            Assert.Equal("databases", Assert.Single(row.GetProperty("features").EnumerateArray()).GetString());
         }
 
         var token = await MailedTokenAsync("deploy@example.com");
@@ -226,26 +235,84 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
         Assert.Equal("SubUsersOwnerOnly", body.RootElement.GetProperty("code").GetString());
     }
 
-    /// <summary>A login name or an address that is taken is a conflict, and a feature that does not exist is a bad request.</summary>
+    /// <summary>
+    /// A login name or an address that is taken answers exactly as a free one does — same status, same
+    /// body shape — and nothing is created or mailed for it; a feature that does not exist is still a bad request.
+    /// </summary>
     [Fact]
-    public async Task Taken_names_conflict_and_unknown_features_are_refused()
+    public async Task A_taken_name_or_address_is_answered_exactly_like_a_free_one()
     {
         await using var factory = await BootAsync();
         using var owner = await EndpointHarness.SignInAsync(factory, "owner-a");
 
+        var free = await owner.PostAsJsonAsync(
+            "/api/v1/me/sub-users",
+            new { Username = "fresh", Email = "fresh@example.com", Features = Array.Empty<string>() });
         var takenName = await owner.PostAsJsonAsync(
             "/api/v1/me/sub-users",
-            new { Username = "owner-b", Email = "fresh@example.com", Features = Array.Empty<string>() });
+            new { Username = "owner-b", Email = "other@example.com", Features = Array.Empty<string>() });
         var takenAddress = await owner.PostAsJsonAsync(
             "/api/v1/me/sub-users",
-            new { Username = "fresh", Email = "owner-b@example.com", Features = Array.Empty<string>() });
+            new { Username = "another", Email = "owner-b@example.com", Features = Array.Empty<string>() });
         var unknownFeature = await owner.PostAsJsonAsync(
             "/api/v1/me/sub-users",
-            new { Username = "fresh", Email = "fresh@example.com", Features = UnknownFeatures });
+            new { Username = "fresh2", Email = "fresh2@example.com", Features = UnknownFeatures });
 
-        Assert.Equal(HttpStatusCode.Conflict, takenName.StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, takenAddress.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, free.StatusCode);
+        Assert.Equal(free.StatusCode, takenName.StatusCode);
+        Assert.Equal(free.StatusCode, takenAddress.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, unknownFeature.StatusCode);
+        Assert.Equal(PropertyNames(free), PropertyNames(takenName));
+        Assert.Equal(PropertyNames(free), PropertyNames(takenAddress));
+
+        // Only the free request left a trace: one pending person, one mail. The taken ones are
+        // visible in the administrator's audit log and nowhere the owner reads.
+        using var list = JsonDocument.Parse(await (await owner.GetAsync("/api/v1/me/sub-users")).Content.ReadAsStringAsync());
+        Assert.Equal("fresh", Assert.Single(list.RootElement.GetProperty("items").EnumerateArray()).GetProperty("username").GetString());
+        await MailedTokenAsync("fresh@example.com");
+        Assert.DoesNotContain(_mailer.Sent, mail => { return mail.Recipient == "other@example.com"; });
+        Assert.DoesNotContain(_mailer.Sent, mail => { return mail.Recipient == "owner-b@example.com"; });
+    }
+
+    /// <summary>An account that already holds its configured number of sub-users is refused with its own code.</summary>
+    [Fact]
+    public async Task An_account_at_its_sub_user_cap_cannot_invite_another()
+    {
+        await using var factory = await BootAsync(builder => { builder.UseSetting("SubUsers:MaxPerAccount", "1"); });
+        using var owner = await EndpointHarness.SignInAsync(factory, "owner-a");
+
+        var first = await owner.PostAsJsonAsync(
+            "/api/v1/me/sub-users", new { Username = "one", Email = "one@example.com", Features = Array.Empty<string>() });
+        var second = await owner.PostAsJsonAsync(
+            "/api/v1/me/sub-users", new { Username = "two", Email = "two@example.com", Features = Array.Empty<string>() });
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        using var body = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
+        Assert.Equal("SubUserLimitReached", body.RootElement.GetProperty("code").GetString());
+    }
+
+    /// <summary>Sending invitations spends its own bucket: exhausting it leaves invitation acceptance untouched.</summary>
+    [Fact]
+    public async Task Sending_invitations_has_its_own_rate_limit_separate_from_acceptance()
+    {
+        await using var factory = await BootAsync(builder =>
+        {
+            builder.UseSetting("RateLimiting:InvitationSendMaxRequests", "1");
+        });
+        using var owner = await EndpointHarness.SignInAsync(factory, "owner-a");
+
+        var first = await owner.PostAsJsonAsync(
+            "/api/v1/me/sub-users", new { Username = "one", Email = "one@example.com", Features = Array.Empty<string>() });
+        var second = await owner.PostAsJsonAsync(
+            "/api/v1/me/sub-users", new { Username = "two", Email = "two@example.com", Features = Array.Empty<string>() });
+        using var anonymous = factory.CreateClient();
+        var acceptance = await anonymous.PostAsJsonAsync(
+            "/api/v1/auth/accept-invitation", new { Token = "not-a-token", NewPassword = EndpointHarness.Password });
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, acceptance.StatusCode);
     }
 
     /// <summary>The list searches by name literally, and the features endpoint lists every feature with a label.</summary>
@@ -265,7 +332,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
         // The underscore matches itself only: "deploy" does not match "dep_oy".
         var row = Assert.Single(wildcard.RootElement.GetProperty("items").EnumerateArray());
         Assert.Equal("dep_oy", row.GetProperty("username").GetString());
-        Assert.Equal(6, features.RootElement.GetArrayLength());
+        Assert.Equal(AccountFeature.All.Members().Count, features.RootElement.GetArrayLength());
         Assert.All(features.RootElement.EnumerateArray(), feature =>
         {
             Assert.False(string.IsNullOrWhiteSpace(feature.GetProperty("featureDisplayName").GetString()));
@@ -278,11 +345,10 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
     {
         await using var factory = await BootAsync();
         using var owner = await EndpointHarness.SignInAsync(factory, "owner-a");
-        var invited = await owner.PostAsJsonAsync(
+        await owner.PostAsJsonAsync(
             "/api/v1/me/sub-users",
             new { Username = "deploy", Email = "deploy@example.com", Features = CronFeatures });
-        using var body = JsonDocument.Parse(await invited.Content.ReadAsStringAsync());
-        var id = body.RootElement.GetProperty("id").GetGuid();
+        var id = await UserIdAsync(factory, "deploy");
         await owner.PutAsJsonAsync($"/api/v1/me/sub-users/{id}/features", new { Features = BackupsFeatures });
         await owner.DeleteAsync($"/api/v1/me/sub-users/{id}");
         await owner.DeleteAsync($"/api/v1/me/sub-users/{Guid.NewGuid()}");
@@ -303,8 +369,9 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
     }
 
     /// <summary>Boots the panel with two accounts, an owner each, and an administrator.</summary>
+    /// <param name="configure">Extra host settings a test needs, or <c>null</c>.</param>
     /// <returns>The booted factory, which the caller disposes.</returns>
-    private async Task<WebApplicationFactory<Program>> BootAsync()
+    private async Task<WebApplicationFactory<Program>> BootAsync(Action<IWebHostBuilder>? configure = null)
     {
         var factory = EndpointHarness.CreateFactory(
                 _pg,
@@ -317,6 +384,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
             .WithWebHostBuilder(builder =>
             {
                 builder.UseSetting("PasswordReset:PanelUrl", "https://panel.example.com");
+                configure?.Invoke(builder);
             });
         await EndpointHarness.MigrateAsync(factory);
         using (var scope = factory.Services.CreateScope())
@@ -362,6 +430,29 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
         await identity.SaveChangesAsync();
 
         return member.Id;
+    }
+
+    /// <summary>Reads a login's id from the database, since the invitation's answer does not carry it.</summary>
+    /// <param name="factory">The booted host.</param>
+    /// <param name="username">The login name.</param>
+    /// <returns>The login's id.</returns>
+    private static async Task<Guid> UserIdAsync(WebApplicationFactory<Program> factory, string username)
+    {
+        using var scope = factory.Services.CreateScope();
+        var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        return await identity.Users.AsNoTracking()
+            .Where(candidate => candidate.Username == username)
+            .Select(candidate => candidate.Id)
+            .SingleAsync();
+    }
+
+    /// <summary>The names of the properties of a JSON response body, in order.</summary>
+    /// <param name="response">The response to read.</param>
+    /// <returns>The top-level property names.</returns>
+    private static string[] PropertyNames(HttpResponseMessage response)
+    {
+        using var body = JsonDocument.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+        return body.RootElement.EnumerateObject().Select(property => { return property.Name; }).ToArray();
     }
 
     /// <summary>Waits for the invitation mail to <paramref name="recipient"/> and reads the token out of its link.</summary>
