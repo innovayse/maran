@@ -12,6 +12,10 @@
  * account count and the disk sort; the name sorts and searches as the reader sees it, in their
  * language.
  *
+ * **An administrator can narrow the list to one reseller's plans** with `?reseller=<id>`, the link
+ * the reseller's page opens. It is one filter of the schema, shown as a removable chip; there is no
+ * filter sheet, because the link is the only way in and the chip is the way out.
+ *
  * **Two kinds of nothing.** The panel reporting no plans at all is the empty state, with the way to
  * define the first. A search matching none is the no-results state, with the way back to every
  * plan; confusing them would tell an operator their plans were gone.
@@ -40,8 +44,9 @@
  * primary pill, then one panel whose table scrolls inside its own container so the page never
  * moves sideways on a phone.
  */
-import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
@@ -59,17 +64,20 @@ import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { usePlansStore } from '../../stores/plans'
+import { useResellersStore } from '../../stores/resellers'
 import { formatMegabytes } from '../../utils/formatBytes'
-import type { ListLoad, ListRequest } from '../../types/list'
+import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { ManagedPlan } from '../../types/plan'
 import { takeFlashNotice } from '../../utils/flashNotice'
 
 const { t } = useI18n()
 const store = usePlansStore()
+const resellersStore = useResellersStore()
 const labels = useListLabels()
 const { isAdmin } = useCallerRole()
 
 const table = useServerTable<ManagedPlan>({
+  filters: { reseller: {} },
   /**
    * Reads one page through the store.
    * @param request The page the URL describes.
@@ -86,9 +94,9 @@ const pending: Ref<ManagedPlan | null> = ref(null)
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
 
-/** Whether the list is narrowed by a search, so an empty answer means "no match". */
+/** Whether the list is narrowed by a search or a filter, so an empty answer means "no match". */
 const isNarrowed: ComputedRef<boolean> = computed(() => {
-  return table.request.value.search !== ''
+  return table.request.value.search !== '' || table.activeFilterCount.value > 0
 })
 
 /** Whether the latest answer arrived and holds no rows at all. */
@@ -114,6 +122,15 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
     { key: 'phpWorkers', label: t('plans.list.columns.phpWorkers'), kind: 'number' },
     { key: 'actions', label: t('common.actions'), kind: 'actions' },
   ]
+})
+
+/** One removable chip per applied filter, for an administrator; a reseller's list is already its own. */
+const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
+  const id = table.filters.value.reseller
+  if (id === '' || !isAdmin.value) {
+    return []
+  }
+  return [labels.chip('reseller', t('plans.list.filters.reseller'), resellersStore.resellerNames[id] ?? id)]
 })
 
 /**
@@ -163,11 +180,12 @@ const confirm = async (): Promise<void> => {
 }
 
 /**
- * Clears the search, the way back from a question that matched nothing.
- * @returns Nothing; the URL follows after the box's pause.
+ * Clears the search and the reseller filter, the way back from a question that matched nothing.
+ * @returns Resolves once the filter left the URL; the search follows after the box's pause.
  */
-const clearSearch = (): void => {
+const clearSearch = async (): Promise<void> => {
   table.search.value = ''
+  await table.clearFilters()
 }
 
 /**
@@ -177,6 +195,19 @@ const clearSearch = (): void => {
 const dismissNotice = (): void => {
   notice.value = null
 }
+
+// The reseller the URL narrows to is named for its chip; the list does not wait for it.
+watch(
+  (): string => {
+    return table.filters.value.reseller
+  },
+  (id: string): void => {
+    if (id !== '' && isAdmin.value) {
+      void resellersStore.loadName(id)
+    }
+  },
+  { immediate: true },
+)
 
 onMounted(() => {
   notice.value = takeFlashNotice()
@@ -219,6 +250,14 @@ onMounted(() => {
           :label="t('plans.list.searchLabel')"
           :placeholder="t('plans.list.searchPlaceholder')"
           :clear-label="t('plans.list.searchClear')"
+        />
+
+        <UiActiveFilter
+          v-if="chips.length > 0"
+          :chips="chips"
+          :clear-label="t('common.list.clearAll')"
+          @remove="table.clearFilter"
+          @clear="table.clearFilters"
         />
 
         <UiLoadingRegion :state="table.loadingState.value">

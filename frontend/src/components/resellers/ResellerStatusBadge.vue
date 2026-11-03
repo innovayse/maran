@@ -2,15 +2,13 @@
 /**
  * Small coloured label rendering a reseller's lifecycle state, so the state is scannable in a
  * column without reading it closely. The colour carries no meaning on its own: the text label is
- * always present. An active reseller is the green dot; a suspended one is the amber dot, because
- * its login is blocked and its writes are refused, which an operator should notice in a column of
- * green.
+ * always present, and it is the backend's (`statusName` on the reseller), printed as given. An active
+ * reseller is the green dot; a suspended one is the amber dot, because its login is blocked and its
+ * writes are refused, which an operator should notice in a column of green.
  *
- * The rendering belongs to `UiBadge`; this component only maps one domain state onto a tone and a
- * label.
+ * The rendering belongs to `UiBadge`; this component only maps one domain state onto a tone.
  */
 import { computed, type ComputedRef } from 'vue'
-import { useI18n } from 'vue-i18n'
 import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
 import type { ResellerStatus } from '../../types/reseller'
 
@@ -18,9 +16,9 @@ import type { ResellerStatus } from '../../types/reseller'
 const props = defineProps<{
   /** The reseller's current lifecycle state. */
   status: ResellerStatus
+  /** The state as a reader reads it, already in their language; the badge's text. */
+  label: string
 }>()
-
-const { t } = useI18n()
 
 /** Badge tone for the current status. */
 const variant: ComputedRef<BadgeVariant> = computed(() => {
@@ -29,5 +27,5 @@ const variant: ComputedRef<BadgeVariant> = computed(() => {
 </script>
 
 <template>
-  <UiBadge :variant="variant">{{ t(`resellers.status.${status}`) }}</UiBadge>
+  <UiBadge :variant="variant">{{ label }}</UiBadge>
 </template>

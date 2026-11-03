@@ -32,7 +32,10 @@
       "deleteBlocked": "{count} account is on this plan, so it cannot be deleted. | {count} accounts are on this plan, so it cannot be deleted.",
       "deleteBlockedHowTo": "Move each account to another plan first: open the account and use \"Change plan\". Then delete this plan.",
       "showAccountsOnPlan": "Show the account on this plan | Show the {count} accounts on this plan",
-      "noReseller": "Administrator"
+      "noReseller": "Administrator",
+      "filters": {
+        "reseller": "Reseller"
+      }
     },
     "form": {
       "headingNew": "New plan",

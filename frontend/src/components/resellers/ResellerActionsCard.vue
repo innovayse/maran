@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The actions one reseller offers its administrator: change the envelope, show the reseller's
- * accounts, suspend or reactivate, and apart, under a rule, delete.
+ * accounts and plans, suspend or reactivate, and apart, under a rule, delete.
  *
  * Dumb: it emits which action was clicked and the reseller page asks the confirming question. Which
  * of suspend and reactivate applies depends on the status, so while the reseller loads no action is
@@ -45,6 +45,9 @@ const { t } = useI18n()
       </UiButton>
       <UiButton variant="secondary" :to="{ name: 'accounts', query: { reseller: resellerId } }">
         {{ t('resellers.detail.showAccounts') }}
+      </UiButton>
+      <UiButton variant="secondary" :to="{ name: 'plans', query: { reseller: resellerId } }">
+        {{ t('resellers.detail.showPlans') }}
       </UiButton>
       <UiButton v-if="status === 'active'" variant="secondary" @click="emit('suspend')">
         {{ t('resellers.detail.suspend') }}

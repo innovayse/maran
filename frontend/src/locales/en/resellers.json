@@ -105,7 +105,8 @@
       "confirmReactivateAction": "Reactivate reseller",
       "confirmDeleteTitle": "Delete reseller {name}",
       "confirmDelete": "The reseller and its login are removed for good. The panel refuses while the reseller still owns accounts or plans: move or delete those first.",
-      "confirmDeleteAction": "Delete reseller"
+      "confirmDeleteAction": "Delete reseller",
+      "showPlans": "Show its plans"
     },
     "envelope": {
       "heading": "Envelope",

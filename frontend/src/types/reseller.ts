@@ -60,6 +60,8 @@ export interface Reseller {
   contactEmail: string
   /** The reseller's current lifecycle state. */
   status: ResellerStatus
+  /** The state as a reader reads it, already in the request's language; what the status badge prints. */
+  statusName: string
   /** The instant the reseller was created, as an ISO-8601 string. */
   createdAt: string
   /** How many accounts the reseller owns right now, whatever their state. */

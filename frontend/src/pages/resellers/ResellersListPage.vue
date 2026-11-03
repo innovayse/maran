@@ -75,7 +75,11 @@ const answeredNothing: ComputedRef<boolean> = computed(() => {
   return table.state.value.status === 'loaded' && table.total.value === 0
 })
 
-/** The states the filter offers, after an "any state" choice. The two names are the panel's chrome for its own enum. */
+/**
+ * The states the filter offers, after an "any state" choice. The panel has no endpoint listing the
+ * two states of a reseller, so the filter's own option names are chrome; every status a row or a
+ * detail page prints is the panel's `statusName`.
+ */
 const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
   return [
     { value: '', label: t('common.list.any') },
@@ -214,7 +218,7 @@ const clearAll = async (): Promise<void> => {
                 </div>
               </template>
               <template #cell-contactEmail="{ row }">{{ row.contactEmail }}</template>
-              <template #cell-status="{ row }"><ResellerStatusBadge :status="row.status" /></template>
+              <template #cell-status="{ row }"><ResellerStatusBadge :status="row.status" :label="row.statusName" /></template>
               <template #cell-accounts="{ row }">{{ row.accountCount }}</template>
               <template #cell-plans="{ row }">{{ row.planCount }}</template>
               <template #cell-disk="{ row }">{{ formatMegabytes(row.diskAllocatedMb) }}</template>

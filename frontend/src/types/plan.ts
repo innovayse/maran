@@ -106,7 +106,8 @@ export interface PlanRequest {
 export interface PlansApi {
   /**
    * Lists one page of plans with their limits and how many accounts are on each.
-   * @param request The page, size, search (the name) and sort (`name`, `diskQuota`, `accounts`).
+   * @param request The page, size, search (the name), sort (`name`, `diskQuota`, `accounts`) and the
+   * `reseller` filter, sent as the endpoint's `resellerId`.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The page, in the order the panel sorted it, with the total across every page.
    */

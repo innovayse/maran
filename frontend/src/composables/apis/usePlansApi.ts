@@ -9,8 +9,8 @@ import type { ManagedPlan, PlanFeatureChoice, PlanRequest, PlansApi } from '../.
  */
 const PLANS_PATH = '/api/v1/plans'
 
-/** The plans list takes no typed filter; its only parameters are the page, search and sort. */
-const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {}
+/** The list endpoint's parameter for the one filter the plans list page reads from its URL: an administrator's `?reseller=` link. */
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = { reseller: 'resellerId' }
 
 /**
  * Builds the plans API on top of the shared low-level client.
@@ -25,7 +25,7 @@ export const usePlansApi = (): PlansApi => {
 
   /**
    * Lists one page of plans.
-   * @param request The page, size, search and sort.
+   * @param request The page, size, search, sort and the `reseller` filter.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The page the panel answered, each plan with its limits and account count.
    */
