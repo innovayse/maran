@@ -217,7 +217,8 @@ backend/
 │   │   ├── Callers/                     # who a request or message runs as, ONE closed type: Caller and its
 │   │   │                                 #   cases AnonymousCaller, AdministratorCaller, CustomerCaller,
 │   │   │                                 #   AccountlessCustomerCaller (a customer login acting for no
-│   │   │                                 #   account), the shared PrincipalCaller base and ViewingOperator
+│   │   │                                 #   account), ResellerCaller (a reseller login: it carries the
+│   │   │                                 #   reseller id and no account id), the shared PrincipalCaller base and ViewingOperator
 │   │   │                                 #   (the operator viewing as a login). ICurrentUser.Caller hands it
 │   │   │                                 #   out; a member exists only on the case that has it
 │   │   ├── Results/                     # Error.cs, Result.cs, ResultOfT.cs, PagedResult.cs
