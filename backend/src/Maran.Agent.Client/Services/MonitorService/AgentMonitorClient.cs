@@ -173,6 +173,23 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
         };
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<IReadOnlyList<AgentPendingUpdate>>> ListPendingUpdatesAsync(
+        CancellationToken cancellationToken)
+    {
+        var response = await _invoker.ListPendingUpdatesAsync(new ListPendingUpdatesRequest(), cancellationToken);
+
+        return response.ResultCase switch
+        {
+            ListPendingUpdatesResponse.ResultOneofCase.Ok => Result<IReadOnlyList<AgentPendingUpdate>>.Ok(
+                ToPendingUpdates(response.Ok)),
+            ListPendingUpdatesResponse.ResultOneofCase.Error => Result<IReadOnlyList<AgentPendingUpdate>>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListPendingUpdatesAsync))),
+            _ => Result<IReadOnlyList<AgentPendingUpdate>>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
     /// <summary>Projects the wire pair onto the panel's own, keeping "there is none" a state.</summary>
     /// <param name="ok">The success payload of <c>GetServerFingerprintInputs</c>.</param>
     /// <returns>The two values, each null where the host has none.</returns>
@@ -412,5 +429,32 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
         }
 
         return usage;
+    }
+
+    /// <summary>Projects the wire update listing onto the panel's own rows.</summary>
+    /// <param name="ok">The success payload of <c>ListPendingUpdates</c>.</param>
+    /// <returns>One row per package, in the order the agent sent them.</returns>
+    /// <remarks>
+    /// The wire's empty <c>installed_version</c> means "this family does not report it" (dnf's
+    /// <c>check-update</c> names only the new version), and protobuf cannot tell that from a version
+    /// that is the empty string. The reading is made here, once, so the panel's row carries
+    /// <c>null</c> for "not reported" and never an empty string a screen would print as a version.
+    /// <c>source</c> may be empty on the wire and stays an empty string.
+    /// </remarks>
+    private static List<AgentPendingUpdate> ToPendingUpdates(ListPendingUpdatesOk ok)
+    {
+        var updates = new List<AgentPendingUpdate>(ok.Updates.Count);
+
+        foreach (var update in ok.Updates)
+        {
+            updates.Add(
+                new AgentPendingUpdate(
+                    update.PackageName,
+                    update.AvailableVersion,
+                    update.InstalledVersion.Length == 0 ? null : update.InstalledVersion,
+                    update.Source));
+        }
+
+        return updates;
     }
 }

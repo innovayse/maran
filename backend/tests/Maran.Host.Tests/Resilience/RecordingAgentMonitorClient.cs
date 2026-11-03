@@ -75,6 +75,15 @@ internal sealed class RecordingAgentMonitorClient : IAgentMonitorClient
         return Result<AgentClockSyncState>.Ok(AgentClockSyncState.Synchronized);
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<IReadOnlyList<AgentPendingUpdate>>> ListPendingUpdatesAsync(
+        CancellationToken cancellationToken)
+    {
+        await EnterAsync(cancellationToken);
+
+        return Result<IReadOnlyList<AgentPendingUpdate>>.Ok([]);
+    }
+
     /// <summary>Counts the call and applies whichever misbehaviour the test asked for.</summary>
     /// <param name="cancellationToken">The token the pipeline's timeout cancels.</param>
     /// <returns>A task that completes once the call may return.</returns>

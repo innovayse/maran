@@ -47,6 +47,10 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     public Result<AgentClockSyncState> ClockSync { get; set; } =
         Result<AgentClockSyncState>.Ok(AgentClockSyncState.Synchronized);
 
+    /// <summary>What a request for the pending updates is answered with; an empty catalogue by default.</summary>
+    public Result<IReadOnlyList<AgentPendingUpdate>> PendingUpdates { get; set; } =
+        Result<IReadOnlyList<AgentPendingUpdate>>.Ok([]);
+
     /// <summary>What <see cref="GetServerFingerprintAsync"/> answers.</summary>
     /// <remarks>
     /// Both halves null by default: a fixture that has not been told which machine it is on should
@@ -93,6 +97,13 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     public Task<Result<AgentClockSyncState>> GetClockSyncAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult(ClockSync);
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<IReadOnlyList<AgentPendingUpdate>>> ListPendingUpdatesAsync(
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(PendingUpdates);
     }
 
     /// <inheritdoc/>

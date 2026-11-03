@@ -72,6 +72,9 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// revision-15 agent reports a run whose unit it could not confirm stopped as a bare
 /// <c>SystemFailure</c>, which the panel would answer with a sentence saying nothing was altered
 /// over a job that may still be running.
+/// Revision 17 adds <c>MonitorService.ListPendingUpdates</c> (issue #324), and both ends moved to it:
+/// a revision-16 agent answers the rpc <c>UNIMPLEMENTED</c>, so the Updates page could never be filled
+/// and the navigation badge could never be fed against it.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -98,10 +101,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 16;
+    public const uint Minimum = 17;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 16;
+    public const uint Maximum = 17;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

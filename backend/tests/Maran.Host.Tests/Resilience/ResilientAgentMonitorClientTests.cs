@@ -75,6 +75,30 @@ public sealed class ResilientAgentMonitorClientTests
         Assert.Equal(2, inner.Calls);
     }
 
+    /// <summary>The pending updates read retries a transport failure through the pipeline.</summary>
+    [Fact]
+    public async Task The_pending_updates_read_retries_a_transport_failure_through_the_pipeline()
+    {
+        var inner = new RecordingAgentMonitorClient { FailuresBeforeSuccess = 1 };
+
+        var result = await Decorate(inner).ListPendingUpdatesAsync(default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+    }
+
+    /// <summary>A pending updates read that never returns is abandoned by the pipelines timeout, never answered empty.</summary>
+    [Fact]
+    public async Task A_pending_updates_read_that_never_returns_is_abandoned_not_answered_empty()
+    {
+        var inner = new RecordingAgentMonitorClient { Hangs = true };
+
+        var result = await Decorate(inner).ListPendingUpdatesAsync(default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+    }
+
     /// <summary>A metrics read that never returns is abandoned by the pipelines timeout.</summary>
     [Fact]
     public async Task A_metrics_read_that_never_returns_is_abandoned_by_the_pipelines_timeout()

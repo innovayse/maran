@@ -45,6 +45,12 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     /// <summary>Response returned from <see cref="GetClockSyncAsync"/>.</summary>
     public GetClockSyncResponse ClockSyncResponse { get; set; } = new();
 
+    /// <summary>Response returned from <see cref="ListPendingUpdatesAsync"/>.</summary>
+    public ListPendingUpdatesResponse PendingUpdatesResponse { get; set; } = new();
+
+    /// <summary>The last pending-updates request the stub received, for asserting the call was made.</summary>
+    public ListPendingUpdatesRequest? LastPendingUpdatesRequest { get; private set; }
+
     /// <summary>The reply this stub returns for a fingerprint-inputs call.</summary>
     public GetServerFingerprintInputsResponse ServerFingerprintInputsResponse { get; set; } = new();
 
@@ -135,6 +141,15 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
         CancellationToken cancellationToken)
     {
         return Task.FromResult(ClockSyncResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<ListPendingUpdatesResponse> ListPendingUpdatesAsync(
+        ListPendingUpdatesRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastPendingUpdatesRequest = request;
+        return Task.FromResult(PendingUpdatesResponse);
     }
 
     /// <inheritdoc/>

@@ -71,4 +71,12 @@ internal sealed class GrpcMonitorServiceInvoker : IMonitorServiceInvoker
     {
         return await _client.GetServerFingerprintInputsAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<ListPendingUpdatesResponse> ListPendingUpdatesAsync(
+        ListPendingUpdatesRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.ListPendingUpdatesAsync(request, cancellationToken: cancellationToken);
+    }
 }
