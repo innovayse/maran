@@ -70,6 +70,60 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("AccountMemberships", "identity");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AccountMembershipOffer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Grants")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Identifier")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("IX_AccountMembershipOffers_AccountId");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_AccountMembershipOffers_UserId");
+
+                    b.HasIndex("UserId", "AccountId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AccountMembershipOffers_UserId_AccountId_Open")
+                        .HasFilter("\"ResolvedAt\" IS NULL");
+
+                    b.ToTable("AccountMembershipOffers", "identity");
+                });
+
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AuditEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -467,6 +521,16 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_AccountMemberships_Users_UserId");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AccountMembershipOffer", b =>
+                {
+                    b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_AccountMembershipOffers_Users_UserId");
                 });
 
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AuditEvent", b =>
