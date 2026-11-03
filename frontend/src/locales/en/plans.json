@@ -21,7 +21,8 @@
         "sftpUsers": "SFTP logins",
         "ftpUsers": "FTPS logins",
         "cronEntries": "Cron entries",
-        "phpWorkers": "PHP workers"
+        "phpWorkers": "PHP workers",
+        "reseller": "Owner"
       },
       "edit": "Edit {name}",
       "delete": "Delete {name}",
@@ -30,7 +31,8 @@
       "working": "Deleting the plan…",
       "deleteBlocked": "{count} account is on this plan, so it cannot be deleted. | {count} accounts are on this plan, so it cannot be deleted.",
       "deleteBlockedHowTo": "Move each account to another plan first: open the account and use \"Change plan\". Then delete this plan.",
-      "showAccountsOnPlan": "Show the account on this plan | Show the {count} accounts on this plan"
+      "showAccountsOnPlan": "Show the account on this plan | Show the {count} accounts on this plan",
+      "noReseller": "Administrator"
     },
     "form": {
       "headingNew": "New plan",
@@ -84,7 +86,8 @@
         "runtime": "Changed CPU, memory or process limits are applied to every account on the server at once. A lowered memory limit can stop an account's own processes that already use more."
       },
       "diskLowered": "The disk quota goes down from {from} to {to}. If any account on this plan already uses more than {to}, the server refuses the edit and nothing is changed.",
-      "created": "Plan {name} created."
+      "created": "Plan {name} created.",
+      "envelopeMax": "At most {max} (your envelope)"
     }
   }
 }

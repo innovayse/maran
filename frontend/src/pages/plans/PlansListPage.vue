@@ -16,9 +16,12 @@
  * define the first. A search matching none is the no-results state, with the way back to every
  * plan; confusing them would tell an operator their plans were gone.
  *
- * **Administrators only, by the endpoints and not by this page.** A customer who reaches the
- * screen gets the panel's own refusal rendered in place of the table; no role check here would be
- * more than a second copy of a decision the server already makes (rules/architecture.md).
+ * **Administrators and resellers, by the endpoints and not by this page.** A customer who reaches
+ * the screen gets the panel's own refusal rendered in place of the table; no role check here would
+ * be more than a second copy of a decision the server already makes (rules/architecture.md). A
+ * reseller's list holds only its own plans. An administrator's holds every plan, so it also gets an
+ * owner column naming the reseller each belongs to; that is presentation, drawn from the caller's
+ * role, and the server decides what a list contains.
  *
  * **The figures are figures.** Every limit is a number right-aligned in the monospace face, so a
  * column lines up on the digit and "25600" is not read as "2560". Zero is only ever a real
@@ -52,6 +55,7 @@ import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import PlanDeleteDialog from '../../components/plans/PlanDeleteDialog.vue'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { usePlansStore } from '../../stores/plans'
@@ -63,6 +67,7 @@ import { takeFlashNotice } from '../../utils/flashNotice'
 const { t } = useI18n()
 const store = usePlansStore()
 const labels = useListLabels()
+const { isAdmin } = useCallerRole()
 
 const table = useServerTable<ManagedPlan>({
   /**
@@ -93,8 +98,12 @@ const answeredNothing: ComputedRef<boolean> = computed(() => {
 
 /** The table's columns: its header, its cells and its loading placeholder all read this one list. */
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  const owner: UiTableColumn[] = isAdmin.value
+    ? [{ key: 'reseller', label: t('plans.list.columns.reseller'), kind: 'text' }]
+    : []
   return [
     { key: 'name', label: t('common.name'), kind: 'identity', sortField: 'name' },
+    ...owner,
     { key: 'accounts', label: t('plans.list.columns.accounts'), kind: 'number', sortField: 'accounts' },
     { key: 'diskQuota', label: t('plans.list.columns.diskQuota'), kind: 'number', sortField: 'diskQuota' },
     { key: 'sites', label: t('plans.list.columns.sites'), kind: 'number' },
@@ -240,6 +249,7 @@ onMounted(() => {
               @sort="table.toggleSort"
             >
               <template #cell-name="{ row }">{{ row.displayName }}</template>
+              <template #cell-reseller="{ row }">{{ row.resellerName ?? t('plans.list.noReseller') }}</template>
               <template #cell-accounts="{ row }">{{ row.accountCount }}</template>
               <template #cell-diskQuota="{ row }">{{ formatMegabytes(row.diskQuotaMb) }}</template>
               <template #cell-sites="{ row }">{{ row.maxSites }}</template>

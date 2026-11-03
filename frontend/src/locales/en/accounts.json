@@ -13,14 +13,17 @@
       "columns": {
         "primaryDomain": "Primary domain",
         "status": "Status",
-        "createdAt": "Created"
+        "createdAt": "Created",
+        "reseller": "Reseller"
       },
       "noResultsTitle": "No accounts match",
       "noResultsDescription": "Change the search or the filters, or clear them to see every account.",
       "filters": {
         "plan": "Plan",
-        "status": "Status"
-      }
+        "status": "Status",
+        "reseller": "Reseller"
+      },
+      "noReseller": "Administrator"
     },
     "form": {
       "heading": "New account",
@@ -30,7 +33,8 @@
         "plan": "Plan",
         "ownerEmail": "Owner email",
         "username": "Username",
-        "ownerLanguage": "Owner language"
+        "ownerLanguage": "Owner language",
+        "reseller": "Owner (reseller)"
       },
       "placeholders": {
         "name": "example",
@@ -54,7 +58,8 @@
       "hints": {
         "primaryDomain": "Without \"www.\", for example example.com.",
         "username": "The account's system user. Filled in from the domain until you change it.",
-        "ownerLanguage": "The owner's invitation is written in this language."
+        "ownerLanguage": "The owner's invitation is written in this language.",
+        "reseller": "Leave it as the administrator to own the account yourself. The plan must belong to the same owner as the account."
       },
       "summary": {
         "title": "What will be created",
@@ -65,7 +70,8 @@
           "limits": "The plan's CPU, memory and process limits on everything the user runs.",
           "login": "The owner's panel login, and an invitation mailed to the owner email so they set their own password."
         }
-      }
+      },
+      "noReseller": "Administrator (no reseller)"
     },
     "detail": {
       "heading": "Account",
@@ -89,7 +95,9 @@
       "confirmReactivateAction": "Reactivate account",
       "planLabel": "Plan",
       "ownerEmailLabel": "Owner email",
-      "ownerEmailUnknown": "Not recorded"
+      "ownerEmailUnknown": "Not recorded",
+      "resellerLabel": "Owner",
+      "noReseller": "Administrator"
     },
     "delete": {
       "title": "Delete {account}",

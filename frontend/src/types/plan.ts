@@ -56,6 +56,10 @@ export interface ManagedPlan {
    * N customers, and that a plan with any cannot be deleted.
    */
   accountCount: number
+  /** The reseller that owns the plan, or `null` for a plan the administrator owns directly. */
+  resellerId: string | null
+  /** The owning reseller's name, or `null` when {@link resellerId} is `null`. */
+  resellerName: string | null
 }
 
 /**

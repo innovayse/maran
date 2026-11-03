@@ -30,6 +30,10 @@ export interface Account {
   statusName: string
   /** The instant the account was created, as an ISO-8601 string. */
   createdAt: string
+  /** The reseller that owns the account, or `null` for an account the administrator owns directly. */
+  resellerId: string | null
+  /** The owning reseller's name, or `null` when {@link resellerId} is `null`. */
+  resellerName: string | null
 }
 
 /**
@@ -141,6 +145,12 @@ export interface CreateAccountRequest {
    * other value.
    */
   ownerLanguage: string
+  /**
+   * The reseller that is to own the account. Only an administrator sends it: a reseller's own
+   * accounts are always its own, stamped by the server from its token, and the server refuses a
+   * different id from a reseller. Left out, the account is the administrator's own.
+   */
+  resellerId?: string
 }
 
 /**
@@ -266,8 +276,8 @@ export interface AccountsApi {
   getMine: (signal?: AbortSignal) => Promise<MyAccount>
 
   /**
-   * Lists one page of hosting accounts. The request's `plan` and `status` filters are sent as the
-   * endpoint's `planId` and `status`.
+   * Lists one page of hosting accounts. The request's `plan`, `status` and `reseller` filters are sent as the
+   * endpoint's `planId`, `status` and `resellerId`.
    * @param request The page, size, search, sort and filters.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The page the panel answered.

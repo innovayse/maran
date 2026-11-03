@@ -29,7 +29,7 @@ const PLAN_CHOICES_PATH = '/api/v1/plans/choices'
 const PLANS_PATH = '/api/v1/plans'
 
 /** The list endpoint's parameter for each filter the accounts list page reads from its URL. */
-const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = { plan: 'planId', status: 'status' }
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = { plan: 'planId', status: 'status', reseller: 'resellerId' }
 
 /** The endpoint a customer's own account, plan and limits are read through. */
 const MY_ACCOUNT_PATH = '/api/v1/accounts/me'
@@ -47,7 +47,7 @@ export const useAccountsApi = (): AccountsApi => {
 
   /**
    * Lists one page of hosting accounts.
-   * @param request The page, size, search, sort and the `plan` and `status` filters.
+   * @param request The page, size, search, sort and the `plan`, `status` and `reseller` filters.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The page the panel answered.
    */

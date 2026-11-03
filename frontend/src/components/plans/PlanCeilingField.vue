@@ -8,6 +8,7 @@
  * Dumb by the usual contract: the parent holds the state and the validation, this draws it.
  */
 import UiCheckbox from '../ui/UiCheckbox.vue'
+import UiFieldHint from '../ui/UiFieldHint.vue'
 import UiInput from '../ui/UiInput.vue'
 
 /** Props accepted by {@link PlanCeilingField}. */
@@ -18,6 +19,8 @@ defineProps<{
   unlimitedLabel: string
   /** The already-translated validation message for the figure, or `null`. */
   error: string | null
+  /** What the reseller's envelope allows for this ceiling, already translated, or `null` for no hint. */
+  hint?: string | null
 }>()
 
 /** Whether the plan states no ceiling for this resource. */
@@ -37,6 +40,7 @@ const figure = defineModel<string>('figure', { required: true })
       inputmode="numeric"
       mono
     />
+    <UiFieldHint v-if="hint !== undefined && hint !== null">{{ hint }}</UiFieldHint>
     <UiCheckbox v-model="unlimited" :label="unlimitedLabel" />
   </div>
 </template>

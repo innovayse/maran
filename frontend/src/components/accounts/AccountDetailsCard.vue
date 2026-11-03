@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The facts of one hosting account, as a description list: its name, primary domain, status, plan,
- * owner's address and creation date.
+ * owner's address, the reseller that owns it and creation date.
  *
  * Dumb: the account page passes the account and whether it is still on its way. While it loads, the
  * card is drawn already with its real terms and a placeholder line in place of each value
@@ -43,6 +43,9 @@ const { t } = useI18n()
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('accounts.detail.planLabel')">
         {{ account?.planDisplayName }}
+      </UiDescriptionItem>
+      <UiDescriptionItem :term="t('accounts.detail.resellerLabel')">
+        {{ account === null ? '' : (account.resellerName ?? t('accounts.detail.noReseller')) }}
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('accounts.detail.ownerEmailLabel')" mono>
         {{ account?.ownerEmail ?? t('accounts.detail.ownerEmailUnknown') }}
