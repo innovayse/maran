@@ -104,13 +104,13 @@ public sealed class ExceptionMiddlewareTests
         Assert.Equal("at least 16 characters", title);
     }
 
-    /// <summary>A text asking for {1} when the failure carried no bound degrades to the generic sentence and never throws.</summary>
+    /// <summary>A text asking for {1} when the failure carried no bound still formats and never throws.</summary>
     /// <remarks>
-    /// Without the fallback the provider's <see cref="FormatException"/> escaped the validation
-    /// handler and the caller's 400 became a 500. The code is kept: it still names the rule broken.
+    /// Without a default for the bound the provider's <see cref="FormatException"/> escaped the
+    /// validation handler and the caller's 400 became a 500. The code is kept: it names the rule broken.
     /// </remarks>
     [Fact]
-    public async Task A_text_wanting_a_bound_the_failure_did_not_carry_degrades_to_the_generic_sentence()
+    public async Task A_text_wanting_a_bound_the_failure_did_not_carry_formats_with_an_empty_bound()
     {
         var failure = new ValidationFailure("NewPassword", "PasswordTooWeak");
 
@@ -118,6 +118,20 @@ public sealed class ExceptionMiddlewareTests
 
         Assert.Equal(StatusCodes.Status400BadRequest, status);
         Assert.Equal("PasswordTooWeak", code);
+        Assert.Equal("at least  characters", title);
+    }
+
+    /// <summary>A text naming an argument nobody supplies degrades to the generic sentence and never throws.</summary>
+    /// <remarks>The last-resort guard: the code is kept, the sentence becomes the generic validation text.</remarks>
+    [Fact]
+    public async Task A_text_naming_an_argument_nobody_supplies_degrades_to_the_generic_sentence()
+    {
+        var failure = new ValidationFailure("Name", "NeedsAThirdArgument");
+
+        var (status, code, title) = await InvokeWithValidationFailureAsync(failure);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, status);
+        Assert.Equal("NeedsAThirdArgument", code);
         Assert.Equal("Some details are not valid.", title);
     }
 
@@ -215,6 +229,7 @@ public sealed class ExceptionMiddlewareTests
         private static readonly Dictionary<string, string> Texts = new()
         {
             ["PasswordTooWeak"] = "at least {1} characters",
+            ["NeedsAThirdArgument"] = "{2}",
             ["HostValidationFailed"] = "Some details are not valid.",
         };
 

@@ -137,10 +137,11 @@ public sealed class ExceptionMiddleware
     /// <para>
     /// The text lookup receives the field name as <c>{0}</c>, so a sentence may name the value it
     /// refuses — <c>RequestParameterInvalid</c> does, because a value MVC could not bind is
-    /// otherwise anonymous. When the validator appended a <c>MinLength</c> placeholder the bound
-    /// follows as <c>{1}</c>, so a sentence states the length the operator's policy requires rather
-    /// than a number written into the resource (<c>PasswordTooWeak</c>). A sentence with no
-    /// placeholder ignores both.
+    /// otherwise anonymous. The bound always follows as <c>{1}</c>: the <c>MinLength</c> the
+    /// validator appended, so a sentence states the length the operator's policy requires rather
+    /// than a number written into the resource (<c>PasswordTooWeak</c>), or an empty string when
+    /// the failure carried none, so a text naming <c>{1}</c> is formatted instead of throwing. A
+    /// sentence with no placeholder ignores both.
     /// </para>
     /// </remarks>
     /// <param name="validation">The failure raised by the command's validator.</param>
@@ -153,9 +154,14 @@ public sealed class ExceptionMiddleware
             if (!string.IsNullOrEmpty(message) && message.All(char.IsLetterOrDigit))
             {
                 var field = failure.PropertyName ?? string.Empty;
-                return failure.FormattedMessagePlaceholderValues.TryGetValue(MinimumLengthPlaceholder, out var bound)
-                    ? (message, [field, bound])
-                    : (message, [field]);
+                object bound = string.Empty;
+                if (failure.FormattedMessagePlaceholderValues is { } placeholders
+                    && placeholders.TryGetValue(MinimumLengthPlaceholder, out var minimum))
+                {
+                    bound = minimum;
+                }
+
+                return (message, [field, bound]);
             }
         }
 
@@ -167,11 +173,12 @@ public sealed class ExceptionMiddleware
     /// answer to a bad request must not turn into a 500 because of how a resource text is written.
     /// </summary>
     /// <remarks>
-    /// A text that wants the validator's <c>MinLength</c> as <c>{1}</c> cannot be formatted when the
-    /// failure carried none (<see cref="FormatException"/> from the provider) — a validator that
-    /// forgot to append it, or a code reused by another rule. The code stays what the caller
-    /// receives, since it identifies the rule broken; the sentence falls back to the generic
-    /// validation text, which takes no argument but the field, and then to the bare code.
+    /// <see cref="ResolveValidationCode"/> supplies the field as <c>{0}</c> and the bound as
+    /// <c>{1}</c> (empty when the failure carried none), so every text that names only those two
+    /// formats. This guard is the last resort for a text that names a third argument nobody
+    /// supplies, which the provider reports as a <see cref="FormatException"/>. The code stays what
+    /// the caller receives, since it identifies the rule broken; the sentence falls back to the
+    /// generic validation text, which takes no argument but the field, and then to the bare code.
     /// </remarks>
     /// <param name="errorTextProvider">The localizer, or null in a host that registers none.</param>
     /// <param name="code">The failure's machine-stable code.</param>
