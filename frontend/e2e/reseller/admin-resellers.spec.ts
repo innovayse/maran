@@ -125,7 +125,7 @@ const openReseller = async (page: Page, name: string): Promise<void> => {
 const fillValidReseller = async (page: Page, name: string): Promise<void> => {
   await page.getByLabel('Name', { exact: true }).fill(name)
   await page.getByLabel('Contact address', { exact: true }).fill(`owner@${name}.example.com`)
-  await page.getByLabel('Accounts', { exact: true }).fill('10')
+  await page.getByRole('textbox', { name: 'Accounts', exact: true }).fill('10')
   await page.getByLabel('Plans', { exact: true }).fill('4')
   await page.getByLabel('Disk pool (MB)', { exact: true }).fill('51200')
   await page.getByLabel('Disk per account (MB)', { exact: true }).fill('10240')
@@ -354,9 +354,9 @@ test('changing the envelope starts from the current figures and puts the whole e
 
   await page.getByRole('link', { name: 'Change envelope' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Change the envelope' })).toBeVisible()
-  await expect(page.getByLabel('Accounts', { exact: true })).toHaveValue('20')
+  await expect(page.getByRole('textbox', { name: 'Accounts', exact: true })).toHaveValue('20')
 
-  await page.getByLabel('Accounts', { exact: true }).fill('30')
+  await page.getByRole('textbox', { name: 'Accounts', exact: true }).fill('30')
   await page.getByRole('button', { name: 'Save envelope' }).click()
 
   await expect(page).toHaveURL(`/resellers/${ACME_HOSTING.id}`)
