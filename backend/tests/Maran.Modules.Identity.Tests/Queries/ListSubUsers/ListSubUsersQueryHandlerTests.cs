@@ -23,7 +23,7 @@ public sealed class ListSubUsersQueryHandlerTests : IDisposable
 
     private ListSubUsersQueryHandler NewHandler(StubCustomerUser? caller = null)
     {
-        return new ListSubUsersQueryHandler(_world.Context, _world.Guard(caller));
+        return new ListSubUsersQueryHandler(_world.Context, _world.Guard(caller), _world.Clock);
     }
 
     /// <summary>The owner sees their own members with the features they hold, and not themselves.</summary>
