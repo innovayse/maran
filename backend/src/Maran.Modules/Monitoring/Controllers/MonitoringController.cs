@@ -3,7 +3,9 @@ using Maran.Modules.Monitoring.Domain.Enums;
 using Maran.Modules.Monitoring.Queries.GetClockSync;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.GetMetricsChart;
+using Maran.Modules.Monitoring.Queries.GetPendingUpdateCount;
 using Maran.Modules.Monitoring.Queries.ListAccountDiskUsage;
+using Maran.Modules.Monitoring.Queries.ListPendingUpdates;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -148,5 +150,51 @@ public sealed class MonitoringController : BaseApiController
     {
         return ToActionResult(
             await _bus.InvokeAsync<Result<PagedResult<AccountDiskUsageDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Reads one page of the package updates the host's package manager already knows are pending,
+    /// live from the agent (issue #324).
+    /// </summary>
+    /// <param name="query">Page, page size, package-name search and sort, bound from the query string.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <remarks>
+    /// The agent reads the package manager's local cache and never refreshes it, so the list is what
+    /// the host already knows, not the result of a check made for this request. A cache the agent could
+    /// not read is the agent's own typed failure and never an empty page: "nothing to update" is only
+    /// ever the answer to a read that succeeded.
+    /// </remarks>
+    [HttpGet("updates")]
+    [ProducesResponseType(typeof(PagedResult<PendingUpdateDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> GetUpdatesAsync(
+        [FromQuery] ListPendingUpdatesQuery query,
+        CancellationToken cancellationToken)
+    {
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<PagedResult<PendingUpdateDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>Reads how many package updates are pending, live from the agent (issue #324).</summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <remarks>
+    /// The figure behind the navigation badge. A failed read is the agent's own typed failure and
+    /// never a count of zero, so the interface draws no badge instead of a false "up to date".
+    /// </remarks>
+    [HttpGet("updates/count")]
+    [ProducesResponseType(typeof(PendingUpdateCountDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> GetUpdateCountAsync(CancellationToken cancellationToken)
+    {
+        var query = new GetPendingUpdateCountQuery();
+        return ToActionResult(await _bus.InvokeAsync<Result<PendingUpdateCountDto>>(query, cancellationToken));
     }
 }
