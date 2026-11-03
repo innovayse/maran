@@ -1,5 +1,4 @@
 using Maran.Agent.Client.Services.CronService;
-using Maran.Modules.Cron.Commands.RunCronEntry;
 using Maran.Modules.Cron.Common;
 using Maran.Modules.Cron.Domain.Entities;
 using Maran.Modules.Cron.Domain.Enums;

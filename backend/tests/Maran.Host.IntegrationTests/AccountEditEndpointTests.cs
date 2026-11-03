@@ -109,12 +109,11 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var scope = factory.Services.CreateScope();
-        var login = await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Users
+        var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var login = await identity.Users
             .AsNoTracking()
-            .SingleAsync(user =>
-            {
-                return user.AccountId == accountId;
-            });
+            .SingleAsync(user => identity.AccountMemberships.Any(
+                membership => membership.UserId == user.Id && membership.AccountId == accountId));
         Assert.Equal("new@example.com", login.Email);
         var account = await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Accounts
             .AsNoTracking()
@@ -240,11 +239,8 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         Assert.Contains("InvitationAccountSuspended", await link.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.Conflict, resend.StatusCode);
         using var check = factory.Services.CreateScope();
-        Assert.False(await check.ServiceProvider.GetRequiredService<IdentityDbContext>().Users
-            .AnyAsync(user =>
-            {
-                return user.AccountId == accountId;
-            }));
+        Assert.False(await check.ServiceProvider.GetRequiredService<IdentityDbContext>().AccountMemberships
+            .AnyAsync(membership => membership.AccountId == accountId));
     }
 
     /// <summary>Boots the host with the given agent double and this test's journal.</summary>

@@ -123,7 +123,10 @@ public sealed class ResetSftpUserPasswordCommandHandlerTests
 
         var result = await world.ResetAsync(world.OwnSftpUserId);
 
-        var entry = Assert.Single(world.Audit.Entries, e => e.Action == AuditActions.SftpUserPasswordReset);
+        var entry = Assert.Single(world.Audit.Entries, e =>
+        {
+            return e.Action == AuditActions.SftpUserPasswordReset;
+        });
         Assert.Equal("deploy", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain(result.Value.Password.Reveal(), entry.Subject, StringComparison.Ordinal);
@@ -165,7 +168,10 @@ public sealed class ResetSftpUserPasswordCommandHandlerTests
 
         await world.ResetAsync(world.OwnSftpUserId);
 
-        var entry = Assert.Single(world.Audit.Entries, e => e.Action == AuditActions.SftpUserSessionsEnded);
+        var entry = Assert.Single(world.Audit.Entries, e =>
+        {
+            return e.Action == AuditActions.SftpUserSessionsEnded;
+        });
         Assert.Equal("deploy", entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -183,7 +189,10 @@ public sealed class ResetSftpUserPasswordCommandHandlerTests
         var result = await world.ResetAsync(world.OwnSftpUserId);
 
         Assert.True(result.IsSuccess);
-        var entry = Assert.Single(world.Audit.Entries, e => e.Action == AuditActions.SftpUserSessionsEnded);
+        var entry = Assert.Single(world.Audit.Entries, e =>
+        {
+            return e.Action == AuditActions.SftpUserSessionsEnded;
+        });
         Assert.False(entry.Succeeded);
         Assert.Equal("deploy", entry.Subject);
     }

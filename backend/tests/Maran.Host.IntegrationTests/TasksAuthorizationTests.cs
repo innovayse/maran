@@ -42,6 +42,10 @@ namespace Maran.Host.IntegrationTests;
 [Collection(SharedDatabase.Name)]
 public sealed class TasksAuthorizationTests : IAsyncLifetime
 {
+    /// <summary>The task statuses on the wire, in the order the panel lists them.</summary>
+    private static readonly string[] TaskStatuses =
+        new[] { "running", "completed", "failed" };
+
     private const string Password = "correct horse battery staple";
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
@@ -259,7 +263,7 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
         // customer is offered all of them — what is hidden is the tasks, not the words for their state.
         using var statuses = await ReadJsonAsync(client, "/api/v1/tasks/statuses");
         Assert.Equal(
-            new[] { "running", "completed", "failed" },
+            TaskStatuses,
             statuses.RootElement.EnumerateArray()
                 .Select(choice =>
                 {

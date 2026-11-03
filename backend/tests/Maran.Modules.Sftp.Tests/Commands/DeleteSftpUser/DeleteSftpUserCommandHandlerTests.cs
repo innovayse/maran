@@ -53,8 +53,14 @@ public sealed class DeleteSftpUserCommandHandlerTests
         // once the login is gone: a session admitted before the delete would outlive it.
         var world = await WorldAsync();
         var order = new List<string>();
-        world.Agent.OnEndSessions = () => order.Add("end");
-        world.Agent.OnDelete = () => order.Add("delete");
+        world.Agent.OnEndSessions = () =>
+        {
+            order.Add("end");
+        };
+        world.Agent.OnDelete = () =>
+        {
+            order.Add("delete");
+        };
 
         var result = await world.DeleteAsync(world.OwnSftpUserId);
 

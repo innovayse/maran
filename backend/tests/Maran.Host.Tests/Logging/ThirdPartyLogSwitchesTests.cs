@@ -156,7 +156,7 @@ public sealed class ThirdPartyLogSwitchesTests
     private sealed class World
     {
         /// <summary>The logger under test.</summary>
-        private readonly ILogger _logger;
+        private readonly Logger _logger;
 
         /// <summary>The panel's window onto the logger's level.</summary>
         private readonly SerilogPanelLogLevelSwitch _panelSwitch;

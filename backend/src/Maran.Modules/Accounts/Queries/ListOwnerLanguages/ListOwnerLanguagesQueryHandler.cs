@@ -1,6 +1,5 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Resources;
-using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Constants;
 using Microsoft.Extensions.Localization;
 

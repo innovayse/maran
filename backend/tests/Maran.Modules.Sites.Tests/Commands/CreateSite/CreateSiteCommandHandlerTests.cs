@@ -20,6 +20,7 @@ namespace Maran.Modules.Sites.Tests.Commands.CreateSite;
 /// </summary>
 public sealed class CreateSiteCommandHandlerTests
 {
+    /// <inheritdoc/>
     [Fact]
     public async Task Creating_a_site_provisions_it_on_the_host_and_then_records_the_row()
     {

@@ -304,7 +304,7 @@ const SCREENS: Screen[] = [
  * @returns Resolves once every route is installed.
  */
 const stubScreens = async (page: Page, locale: (typeof LOCALES)[number] = 'en'): Promise<void> => {
-  const words = LABELS[locale]
+  const words: Readonly<Record<string, string>> = LABELS[locale]
   const tasks = TASKS.map((task): PanelTask => {
     return { ...task, statusName: words[task.status] }
   })

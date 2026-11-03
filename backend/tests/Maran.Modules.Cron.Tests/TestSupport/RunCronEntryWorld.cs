@@ -4,6 +4,7 @@ using Maran.Modules.Cron.Options;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Services;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Results;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Cron.Tests.TestSupport;

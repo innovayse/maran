@@ -15,6 +15,13 @@ export type BackupScheduleDay =
   | 'friday'
   | 'saturday'
 
+/**
+ * The cadence names as the wire carries them: the backend's `BackupFrequency` members. This is the
+ * request contract only (`maran api` reads it against the command); the cadences a picker offers
+ * and their names come from `GET /api/v1/backup-options`.
+ */
+export type BackupFrequencyWire = 'daily' | 'weekly'
+
 /** Every {@link BackupScheduleDay}, in the order a week is read. */
 export const BACKUP_SCHEDULE_DAYS: readonly BackupScheduleDay[] = [
   'monday',
@@ -70,7 +77,7 @@ export interface BackupSchedule {
    * cadences on offer are the panel's (`GET /api/v1/backup-options`), so the SPA holds no list of
    * them and the backend's validator decides what is accepted.
    */
-  frequency: string
+  frequency: BackupFrequencyWire
   /** The hour of the day, in UTC, at which it is taken. */
   hourUtc: number
   /** The weekday a weekly schedule fires on; `null` for a daily one. */
@@ -135,7 +142,7 @@ export interface SaveBackupScheduleRequest {
    */
   destinationId: string | null
   /** How often the backup is taken: one of the cadence values the panel listed. */
-  frequency: string
+  frequency: BackupFrequencyWire
   /** The hour of the day, in UTC. The server bounds it to 0..23. */
   hourUtc: number
   /** The weekday for a weekly schedule; must be `null` for a daily one. */

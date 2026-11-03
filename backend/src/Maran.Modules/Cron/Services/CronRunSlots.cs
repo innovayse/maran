@@ -73,7 +73,10 @@ public sealed class CronRunSlots
             _total++;
         }
 
-        return Result<CronRunLease>.Ok(new CronRunLease(() => Release(accountId)));
+        return Result<CronRunLease>.Ok(new CronRunLease(() =>
+        {
+            Release(accountId);
+        }));
     }
 
     /// <summary>Gives back one slot taken for <paramref name="accountId"/>.</summary>

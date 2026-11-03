@@ -3,7 +3,6 @@ using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
-using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Commands.SuspendAccount;

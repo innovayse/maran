@@ -378,9 +378,10 @@ agent/
     │       │                  released by drop), model/run_unit_name.rs (the unit
     │       │                  the run is started under, named by the agent),
     │       │                  run_unit_must_stop.rs (whether a ceiling killed the
-    │       │                  CLIENT and left the job) and stop_run_unit.rs
-    │       │                  (`systemctl stop` of that unit through the adapter's
-    │       │                  service manager).
+    │       │                  CLIENT and left the job) and stop_run_unit_arguments.rs +
+    │       │                  stop_run_unit_outcome.rs (the argv and the reading of
+    │       │                  `systemctl stop` of that unit, which process_cron_host.rs
+    │       │                  runs through the adapter's service manager).
     │       │                  ftps/ is vsftpd: system logins gated by a PAM group,
     │       │                  chrooted into /var/lib/maran-ftps/<account> (0711, NOT
     │       │                  0700 — vsftpd chdirs into the home AFTER dropping to the

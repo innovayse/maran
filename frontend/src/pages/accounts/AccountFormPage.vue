@@ -109,7 +109,7 @@ const nameError: ComputedRef<string | null> = computed(() => {
 
 /** The owner-language choices exactly as the panel lists them, each named in itself. */
 const languageOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return languagesStore.languages.map((choice): SelectOption => {
+  return languagesStore.languages.map((choice) => {
     return { value: choice.language, label: choice.languageDisplayName }
   })
 })

@@ -318,7 +318,7 @@ impl SftpHost for ProcessSftpHost {
             .collect())
     }
 
-    /// Lists the key directory the agent owns, through [`file_names_in`].
+    /// Lists the key directory the agent owns, through `file_names_in`.
     fn key_file_names(&self) -> Result<Vec<String>, SftpError> {
         file_names_in(Path::new(AgentPaths::SFTP_AUTHORIZED_KEYS_DIRECTORY))
     }

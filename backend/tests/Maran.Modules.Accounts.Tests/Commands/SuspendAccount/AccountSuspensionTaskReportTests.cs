@@ -3,7 +3,6 @@ using Maran.Modules.Accounts.Commands.ReactivateAccount;
 using Maran.Modules.Accounts.Commands.SuspendAccount;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Events;
-using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Accounts.Tests.Commands.SuspendAccount;
 

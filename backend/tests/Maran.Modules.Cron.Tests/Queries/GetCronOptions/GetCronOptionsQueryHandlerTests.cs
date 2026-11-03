@@ -19,6 +19,22 @@ namespace Maran.Modules.Cron.Tests.Queries.GetCronOptions;
 /// </remarks>
 public sealed class GetCronOptionsQueryHandlerTests
 {
+    /// <summary>The weekday values, cron's own numbers with Sunday as zero.</summary>
+    private static readonly string[] WeekdayNumbers =
+        new[] { "0", "1", "2", "3", "4", "5", "6" };
+
+    /// <summary>The weekday labels in English, Sunday first.</summary>
+    private static readonly string[] WeekdayNames =
+        new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+
+    /// <summary>The schedule frequencies on the wire.</summary>
+    private static readonly string[] FrequencyValues =
+        new[] { "everyMinute", "hourly", "daily", "weekly", "monthly" };
+
+    /// <summary>The run outcomes on the wire.</summary>
+    private static readonly string[] OutcomeValues =
+        new[] { "succeeded", "failed", "stopped" };
+
     /// <summary>Asks the handler for the lists in the named culture.</summary>
     /// <param name="culture">The culture of the request.</param>
     /// <returns>The lists.</returns>
@@ -67,10 +83,10 @@ public sealed class GetCronOptionsQueryHandlerTests
         var options = await OptionsInAsync("en");
 
         Assert.Equal(
-            new[] { "0", "1", "2", "3", "4", "5", "6" },
+            WeekdayNumbers,
             options.Weekdays.Select(choice => { return choice.Value; }).ToArray());
         Assert.Equal(
-            new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" },
+            WeekdayNames,
             options.Weekdays.Select(choice => { return choice.Label; }).ToArray());
     }
 
@@ -81,10 +97,10 @@ public sealed class GetCronOptionsQueryHandlerTests
         var options = await OptionsInAsync("en");
 
         Assert.Equal(
-            new[] { "everyMinute", "hourly", "daily", "weekly", "monthly" },
+            FrequencyValues,
             options.Frequencies.Select(choice => { return choice.Value; }).ToArray());
         Assert.Equal(
-            new[] { "succeeded", "failed", "stopped" },
+            OutcomeValues,
             options.RunOutcomes.Select(choice => { return choice.Value; }).ToArray());
     }
 

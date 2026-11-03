@@ -115,7 +115,7 @@ public sealed class ListPortPresetsQueryHandlerTests
 
     /// <summary>Builds the localizer over this module's real display-name resources.</summary>
     /// <returns>The localizer, resolving through the same factory the panel registers.</returns>
-    private static IStringLocalizer<DisplayNames> RealNames()
+    private static StringLocalizer<DisplayNames> RealNames()
     {
         var factory = new ResourceManagerStringLocalizerFactory(
             new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),

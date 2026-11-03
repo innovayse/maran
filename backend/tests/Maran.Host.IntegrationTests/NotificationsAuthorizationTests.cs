@@ -36,6 +36,10 @@ namespace Maran.Host.IntegrationTests;
 [Collection(SharedDatabase.Name)]
 public sealed class NotificationsAuthorizationTests : IAsyncLifetime
 {
+    /// <summary>The SMTP security choices, in the order the panel lists them.</summary>
+    private static readonly string[] SecurityModes =
+        new[] { "none", "startTls", "implicitTls" };
+
     /// <summary>A well-known development key; the host refuses to boot without one.</summary>
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
@@ -198,7 +202,7 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
                 return choice.GetProperty("security").GetString();
             })
             .ToArray();
-        Assert.Equal(new[] { "none", "startTls", "implicitTls" }, modes);
+        Assert.Equal(SecurityModes, modes);
 
         foreach (var mode in modes)
         {

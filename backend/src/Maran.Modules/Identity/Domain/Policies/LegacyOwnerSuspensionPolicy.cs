@@ -25,7 +25,10 @@ public static class LegacyOwnerSuspensionPolicy
         foreach (var owner in owners)
         {
             var anySuspended = ownerMemberships.Any(
-                membership => membership.UserId == owner.Id && membership.State == MembershipState.Suspended);
+                membership =>
+                {
+                    return membership.UserId == owner.Id && membership.State == MembershipState.Suspended;
+                });
             owner.SyncLegacyColumns(anySuspended ? MembershipState.Suspended : MembershipState.Active);
         }
     }

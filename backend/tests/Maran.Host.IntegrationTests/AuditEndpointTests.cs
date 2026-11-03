@@ -27,6 +27,10 @@ namespace Maran.Host.IntegrationTests;
 [Collection(SharedDatabase.Name)]
 public sealed class AuditEndpointTests : IAsyncLifetime
 {
+    /// <summary>The audit outcome choices, in the order the panel lists them.</summary>
+    private static readonly string[] OutcomeValues =
+        new[] { "succeeded", "failed" };
+
     private const string Password = "correct horse battery staple";
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
@@ -162,7 +166,7 @@ public sealed class AuditEndpointTests : IAsyncLifetime
                 return choice.GetProperty("outcome").GetString();
             })
             .ToArray();
-        Assert.Equal(new[] { "succeeded", "failed" }, outcomes);
+        Assert.Equal(OutcomeValues, outcomes);
 
         foreach (var outcome in outcomes)
         {

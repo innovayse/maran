@@ -75,7 +75,12 @@ fn a_refusal_by_the_host_gives_back_the_account_permit_it_had_taken() {
 fn the_shipped_ceilings_are_a_small_share_of_the_blocking_pool() {
     // tokio's default blocking pool is 512 threads. The host ceiling must stay
     // far below it, and an account's must stay below the host's.
-    assert!(HOST_RUN_NOW_SLOTS * 8 <= 512);
-    assert!(ACCOUNT_RUN_NOW_SLOTS < HOST_RUN_NOW_SLOTS);
-    assert!(ACCOUNT_RUN_NOW_SLOTS >= 1);
+    //
+    // Both are constants, so the comparisons are decided when the test binary is
+    // compiled: a ceiling raised past these bounds stops the build.
+    const {
+        assert!(HOST_RUN_NOW_SLOTS * 8 <= 512);
+        assert!(ACCOUNT_RUN_NOW_SLOTS < HOST_RUN_NOW_SLOTS);
+        assert!(ACCOUNT_RUN_NOW_SLOTS >= 1);
+    }
 }

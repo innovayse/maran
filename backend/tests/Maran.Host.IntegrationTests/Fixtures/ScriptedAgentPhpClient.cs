@@ -14,6 +14,10 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 /// </remarks>
 public sealed class ScriptedAgentPhpClient : IAgentPhpClient
 {
+    /// <summary>The supported range, newest first.</summary>
+    private static readonly string[] OfferedVersions =
+        new[] { "8.4", "8.3", "8.2", "8.1", "8.0", "7.4" };
+
     /// <summary>The versions the host reports, with a recognisable FPM socket directory on each.</summary>
     private readonly List<PhpVersionDto> _installed;
 
@@ -46,7 +50,7 @@ public sealed class ScriptedAgentPhpClient : IAgentPhpClient
     public Task<Result<IReadOnlyList<InstallablePhpVersionDto>>> ListInstallableVersionsAsync(
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<InstallablePhpVersionDto> offered = new[] { "8.4", "8.3", "8.2", "8.1", "8.0", "7.4" }
+        IReadOnlyList<InstallablePhpVersionDto> offered = OfferedVersions
             .Select(version =>
             {
                 return new InstallablePhpVersionDto(

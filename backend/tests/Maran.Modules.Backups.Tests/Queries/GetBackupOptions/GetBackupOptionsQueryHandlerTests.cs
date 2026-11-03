@@ -18,6 +18,22 @@ namespace Maran.Modules.Backups.Tests.Queries.GetBackupOptions;
 /// </remarks>
 public sealed class GetBackupOptionsQueryHandlerTests
 {
+    /// <summary>The weekday values a schedule stores, Monday first.</summary>
+    private static readonly string[] WeekdayValues =
+        new[] { "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday" };
+
+    /// <summary>The run statuses on the wire.</summary>
+    private static readonly string[] StatusValues = new[] { "running", "completed", "failed" };
+
+    /// <summary>The backup kinds on the wire.</summary>
+    private static readonly string[] KindValues = new[] { "manual", "scheduled", "preDeletion", "preRestore" };
+
+    /// <summary>The destination kinds on the wire.</summary>
+    private static readonly string[] DestinationKindValues = new[] { "local", "s3" };
+
+    /// <summary>The schedule frequencies on the wire.</summary>
+    private static readonly string[] FrequencyValues = new[] { "daily", "weekly" };
+
     /// <summary>Asks the handler for the lists in the named culture.</summary>
     /// <param name="culture">The culture of the request.</param>
     /// <returns>The lists.</returns>
@@ -64,7 +80,7 @@ public sealed class GetBackupOptionsQueryHandlerTests
         var options = await OptionsInAsync("en");
 
         Assert.Equal(
-            new[] { "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday" },
+            WeekdayValues,
             options.Weekdays.Select(choice => { return choice.Value; }).ToArray());
         Assert.Equal("Monday", options.Weekdays[0].Label);
     }
@@ -76,16 +92,16 @@ public sealed class GetBackupOptionsQueryHandlerTests
         var options = await OptionsInAsync("en");
 
         Assert.Equal(
-            new[] { "running", "completed", "failed" },
+            StatusValues,
             options.Statuses.Select(choice => { return choice.Value; }).ToArray());
         Assert.Equal(
-            new[] { "manual", "scheduled", "preDeletion", "preRestore" },
+            KindValues,
             options.Kinds.Select(choice => { return choice.Value; }).ToArray());
         Assert.Equal(
-            new[] { "local", "s3" },
+            DestinationKindValues,
             options.DestinationKinds.Select(choice => { return choice.Value; }).ToArray());
         Assert.Equal(
-            new[] { "daily", "weekly" },
+            FrequencyValues,
             options.Frequencies.Select(choice => { return choice.Value; }).ToArray());
     }
 

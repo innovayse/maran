@@ -382,8 +382,8 @@ public sealed class AccountDeletingHandlerTests
         // The role follows the shape of the login: a login owning an account is a customer, and
         // the one owning none is the administrator. It is what the panel would really write, and the
         // administrator's row is the one that must survive.
-        var role = accountId is null ? UserRole.Admin : UserRole.Customer;
-        var user = new User(Guid.NewGuid(), name, $"{name}@example.com", "hash", role, Now);
+        var userRole = accountId is null ? UserRole.Admin : UserRole.Customer;
+        var user = new User(Guid.NewGuid(), name, $"{name}@example.com", "hash", userRole, Now);
         context.Users.Add(user);
         if (accountId is { } actsFor)
         {

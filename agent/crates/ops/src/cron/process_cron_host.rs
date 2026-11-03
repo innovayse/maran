@@ -13,6 +13,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::child_input::ChildInput;
 use maran_agent_core::utils::child_output::ChildOutput;
 use maran_agent_core::utils::run_bounded::run_bounded;
+use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::utils::spawn_request::SpawnRequest;
 use maran_agent_core::validation::system::cron_command::CronCommand;
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
@@ -34,7 +35,8 @@ use crate::cron::model::run_unit_name::RunUnitName;
 use crate::cron::run_now_arguments::{RUN_NOW_OUTPUT_CEILING, run_now_arguments};
 use crate::cron::run_now_outcome::run_now_outcome;
 use crate::cron::run_unit_must_stop::run_unit_must_stop;
-use crate::cron::stop_run_unit::stop_run_unit;
+use crate::cron::stop_run_unit_arguments::stop_run_unit_arguments;
+use crate::cron::stop_run_unit_outcome::stop_run_unit_outcome;
 
 /// The mode the account's cron directory is created with.
 ///
@@ -292,7 +294,16 @@ impl CronHost for ProcessCronHost {
         // is told so, and without this the job runs on until its runtime
         // ceiling, still holding its place in the account's slice.
         if run_unit_must_stop(&answer) {
-            stop_run_unit(&self.distro.service_manager(), &unit)?;
+            let service_manager = self.distro.service_manager();
+            let stop = stop_run_unit_arguments(&unit);
+            let stop: Vec<&str> = stop.iter().map(String::as_str).collect();
+            // The `Reload` class's deadline exists for the service manager's
+            // stop-then-kill sequence, and the stop is WAITED for.
+            stop_run_unit_outcome(spawn_argv(
+                service_manager.as_path(),
+                &stop,
+                CallClass::Reload,
+            ))?;
         }
 
         run_now_outcome(answer, elapsed)

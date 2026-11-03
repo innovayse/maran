@@ -49,7 +49,7 @@ const TITLE_TAIL: &str = r"( \[priv\]|@)";
 /// **Why that is safe to hand to a regular expression.** The login name is a
 /// [`SftpUserName`], whose alphabet is `[a-z0-9_]` and which has no constructor
 /// taking a whole name off the wire, so it contains no regex metacharacter. The
-/// anchor `^` and the shape of [`TITLE_HEAD`] mean the pattern matches a
+/// anchor `^` and the shape of `TITLE_HEAD` mean the pattern matches a
 /// process whose command line BEGINS with sshd's own title, not one that merely
 /// mentions it. A customer can retitle a process of their own to match, and the
 /// only effect is that their own process is signalled when their own login is

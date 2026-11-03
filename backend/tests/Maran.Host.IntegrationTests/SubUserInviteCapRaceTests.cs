@@ -1,10 +1,10 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Notifications.Interfaces;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -175,7 +175,7 @@ public sealed class SubUserInviteCapRaceTests : IAsyncLifetime
                 })
             .WithWebHostBuilder(builder =>
             {
-                builder.UseSetting("SubUsers:MaxPerAccount", cap.ToString());
+                builder.UseSetting("SubUsers:MaxPerAccount", cap.ToString(CultureInfo.InvariantCulture));
                 builder.UseSetting("RateLimiting:InvitationSendMaxRequests", "1000");
             });
         await EndpointHarness.MigrateAsync(factory);

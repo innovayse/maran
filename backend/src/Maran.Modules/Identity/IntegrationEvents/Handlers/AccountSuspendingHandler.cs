@@ -115,8 +115,14 @@ public sealed class AccountSuspendingHandler
         CancellationToken cancellationToken)
     {
         var ownerIds = memberships
-            .Where(membership => membership.Role == MembershipRole.Owner)
-            .Select(membership => membership.UserId)
+            .Where(membership =>
+            {
+                return membership.Role == MembershipRole.Owner;
+            })
+            .Select(membership =>
+            {
+                return membership.UserId;
+            })
             .ToList();
         if (ownerIds.Count == 0)
         {
