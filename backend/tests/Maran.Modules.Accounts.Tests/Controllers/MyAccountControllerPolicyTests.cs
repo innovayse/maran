@@ -32,15 +32,31 @@ public sealed class MyAccountControllerPolicyTests
         Assert.Equal(new[] { AuthorizationPolicies.AnyAuthenticated }, policies);
     }
 
-    /// <summary>The administrator-managed account controllers keep the administrator policy.</summary>
+    /// <summary>The account and plan controllers admit an administrator or a reseller, and name nothing else.</summary>
     /// <param name="controller">The controller type.</param>
     [Theory]
     [InlineData(typeof(AccountsController))]
     [InlineData(typeof(PlansController))]
+    public void A_managed_controller_names_the_administrator_or_reseller_policy(Type controller)
+    {
+        Assert.Equal(new[] { AuthorizationPolicies.AdminOrReseller }, PoliciesOf(controller));
+    }
+
+    /// <summary>The controllers only an administrator may drive keep the administrator policy.</summary>
+    /// <param name="controller">The controller type.</param>
+    [Theory]
     [InlineData(typeof(AccountHomeGroupsController))]
+    [InlineData(typeof(ResellersController))]
     public void An_administrator_controller_names_the_administrator_policy(Type controller)
     {
         Assert.Equal(new[] { AuthorizationPolicies.AdminOnly }, PoliciesOf(controller));
+    }
+
+    /// <summary>The reseller's own profile controller names the reseller policy, alone.</summary>
+    [Fact]
+    public void The_reseller_controller_names_the_reseller_only_policy()
+    {
+        Assert.Equal(new[] { AuthorizationPolicies.ResellerOnly }, PoliciesOf(typeof(ResellerController)));
     }
 
     /// <summary>No Accounts controller grants anonymity on the class.</summary>

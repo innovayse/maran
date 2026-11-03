@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListPlanChoices;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Pagination;
 using Maran.SharedKernel.Results;
@@ -89,7 +90,10 @@ public sealed class ListPlanChoicesQueryHandlerTests
         AccountsDbContext dbContext,
         ListPlanChoicesQuery query)
     {
-        return new ListPlanChoicesQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer())
+        return new ListPlanChoicesQueryHandler(
+            dbContext,
+            new ResellerScope(dbContext, FakeCurrentUser.Admin()),
+            new UppercasingDisplayNamesLocalizer())
             .HandleAsync(query, CancellationToken.None);
     }
 
