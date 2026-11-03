@@ -66,7 +66,7 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         // A shadow foreign key, not a navigation property: Account exposes only the scalar PlanId
         // (rules/csharp.md "Vertical slice shape" — no speculative cross-aggregate references), but
         // the relationship is still declared so the database enforces that PlanId always names a
-        // real plan (defense in depth alongside CreateAccountCommandValidator's existence check).
+        // real plan (defense in depth alongside the plan lookup in CreateAccountCommandHandler).
         builder.HasOne<Plan>()
             .WithMany()
             .HasForeignKey(a => a.PlanId)

@@ -1,6 +1,5 @@
 using FluentValidation;
 using Maran.Modules.Accounts.Domain.Policies;
-using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.SharedKernel.Constants;
 using Maran.SharedKernel.Utilities.Mail;
@@ -16,15 +15,6 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// </summary>
 public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAccountCommand>
 {
-    /// <summary>
-    /// The <c>PlanNotFound</c> machine code, attached to the plan existence rule below so a caller
-    /// translating validation failures into typed errors (rather than letting an unknown plan id
-    /// reach the database as a foreign-key violation) uses the same code — and therefore the same
-    /// translated sentence — the rest of the module does. It names an entry in
-    /// <c>Resources/ErrorMessages.resx</c>, which is where that sentence lives.
-    /// </summary>
-    private const string PlanNotFoundErrorCode = nameof(ErrorMessages.PlanNotFound);
-
     /// <summary>
     /// The agent's account-name alphabet, exactly: a lowercase letter, then 2 to 29 lowercase
     /// letters, digits or underscores (3 to 30 characters). It mirrors <c>AccountName::parse</c> in
@@ -88,15 +78,9 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
     /// </summary>
     private const int MaxOwnerEmailLength = 256;
 
-    /// <summary>The Accounts module's database context, used to confirm a submitted plan id exists.</summary>
-    private readonly AccountsDbContext _dbContext;
-
     /// <summary>Configures the field rules for <see cref="CreateAccountCommand"/>.</summary>
-    /// <param name="dbContext">The Accounts module's database context.</param>
-    public CreateAccountCommandValidator(AccountsDbContext dbContext)
+    public CreateAccountCommandValidator()
     {
-        _dbContext = dbContext;
-
         // Stop at the first failure so a malformed name is told it is malformed, and only a
         // well-formed one is asked whether it is reserved.
         RuleFor(command => command.Name)
@@ -128,14 +112,13 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
             .Must(PanelLanguages.IsSupported)
             .WithMessage(OwnerLanguageUnsupportedMessage);
 
+        // Whether the plan exists is NOT asked here, on purpose. A plan a caller may not see is the
+        // same as a plan that does not exist (a reseller is narrowed to its own plans), and the
+        // handler is the one place that answers it: 404 PlanNotFound, journalled as a refusal. A
+        // validator rule here answered the caller 400 with the generic code instead, before the
+        // handler ran, so the refusal was neither the contract's status nor in the audit trail.
         RuleFor(command => command.PlanId)
-            .NotEmpty()
-            .MustAsync(PlanExistsAsync)
-            .WithErrorCode(PlanNotFoundErrorCode)
-            .WithMessage(command =>
-            {
-                return $"Plan '{command.PlanId}' was not found.";
-            });
+            .NotEmpty();
 
         // EmailAddressRule, not FluentValidation's .EmailAddress(), for the reason
         // CompleteSetupCommandValidator's own comment states: the built-in asks only for an "@"
@@ -148,13 +131,5 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
             .NotEmpty()
             .MaximumLength(MaxOwnerEmailLength)
             .Must(EmailAddressRule.IsAddress);
-    }
-
-    /// <summary>Confirms <paramref name="planId"/> names a real, seeded plan — never a bare foreign-key violation reaching the customer.</summary>
-    /// <param name="planId">The plan id submitted on the command.</param>
-    /// <param name="cancellationToken">Cancels the lookup.</param>
-    private async Task<bool> PlanExistsAsync(Guid planId, CancellationToken cancellationToken)
-    {
-        return await _dbContext.Plans.AsNoTracking().AnyAsync(p => p.Id == planId, cancellationToken);
     }
 }
