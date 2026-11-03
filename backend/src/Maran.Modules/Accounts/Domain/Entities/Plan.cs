@@ -130,6 +130,14 @@ public sealed class Plan
     /// </remarks>
     public AccountFeature Features { get; private set; } = AccountFeature.All;
 
+    /// <summary>
+    /// The reseller that owns the plan, or <c>null</c> for a plan the administrator owns, which is
+    /// every plan that existed before resellers and every plan the panel ships. Set once, at
+    /// creation, and never edited. A reseller sees and sells only its own plans, and an account and
+    /// its plan always share an owner (<see cref="Account.ResellerId"/>).
+    /// </summary>
+    public Guid? ResellerId { get; private set; }
+
     /// <summary>Creates a plan.</summary>
     /// <param name="id">The plan's identity, stable across seeding runs so re-seeding is idempotent.</param>
     /// <param name="displayNameKey">
@@ -185,6 +193,10 @@ public sealed class Plan
     /// The features the plan sells. Defaults to every feature, the plan every customer had before the
     /// set existed, so a caller that does not state one removes nothing from anybody.
     /// </param>
+    /// <param name="resellerId">
+    /// The reseller that owns the plan, or <c>null</c> for the administrator. Every plan the panel
+    /// ships is the administrator's, so the default is the owner those callers mean.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="maxDatabases"/>, <paramref name="maxSftpUsers"/> or
     /// <paramref name="maxPhpWorkersPerPool"/> is not positive, when
@@ -201,7 +213,8 @@ public sealed class Plan
         int maxCronEntries,
         int maxPhpWorkersPerPool,
         int maxFtpUsers = 0,
-        AccountFeature features = AccountFeature.All)
+        AccountFeature features = AccountFeature.All,
+        Guid? resellerId = null)
         : this(
             id,
             displayNameKey,
@@ -213,7 +226,8 @@ public sealed class Plan
             maxCronEntries,
             maxPhpWorkersPerPool,
             maxFtpUsers,
-            features)
+            features,
+            resellerId)
     {
     }
 
@@ -229,6 +243,7 @@ public sealed class Plan
     /// <param name="maxPhpWorkersPerPool">The maximum number of php-fpm workers one pool may run.</param>
     /// <param name="maxFtpUsers">The maximum number of FTPS logins the account may create.</param>
     /// <param name="features">The features the plan sells.</param>
+    /// <param name="resellerId">The reseller that owns the plan, or <c>null</c> for the administrator.</param>
     private Plan(
         Guid id,
         string displayNameKey,
@@ -240,7 +255,8 @@ public sealed class Plan
         int maxCronEntries,
         int maxPhpWorkersPerPool,
         int maxFtpUsers,
-        AccountFeature features)
+        AccountFeature features,
+        Guid? resellerId)
     {
         GuardLimits(maxDatabases, maxSftpUsers, maxCronEntries, maxPhpWorkersPerPool, maxFtpUsers);
         GuardFeatures(features);
@@ -256,6 +272,7 @@ public sealed class Plan
         MaxPhpWorkersPerPool = maxPhpWorkersPerPool;
         MaxFtpUsers = maxFtpUsers;
         Features = features;
+        ResellerId = resellerId;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>
@@ -279,6 +296,7 @@ public sealed class Plan
     /// <param name="maxCronEntries">The maximum number of cron entries the account may keep. Zero sells none.</param>
     /// <param name="maxPhpWorkersPerPool">The maximum number of php-fpm workers one pool may run. Must be positive.</param>
     /// <param name="features">The features the plan sells; every feature when not stated.</param>
+    /// <param name="resellerId">The reseller that owns the plan, or <c>null</c> when the administrator does.</param>
     /// <returns>The new plan.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is empty or white space.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a limit breaks its guard.</exception>
@@ -292,7 +310,8 @@ public sealed class Plan
         int maxFtpUsers,
         int maxCronEntries,
         int maxPhpWorkersPerPool,
-        AccountFeature features = AccountFeature.All)
+        AccountFeature features = AccountFeature.All,
+        Guid? resellerId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -309,7 +328,8 @@ public sealed class Plan
             maxCronEntries,
             maxPhpWorkersPerPool,
             maxFtpUsers,
-            features);
+            features,
+            resellerId);
     }
 
     /// <summary>

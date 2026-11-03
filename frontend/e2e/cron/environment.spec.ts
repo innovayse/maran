@@ -21,6 +21,8 @@ const ALICE: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
+  resellerId: null,
+  resellerName: null,
 }
 
 const PATH_VARIABLE: CronEnvironmentVariable = { name: 'PATH', value: '/usr/local/bin:/usr/bin' }

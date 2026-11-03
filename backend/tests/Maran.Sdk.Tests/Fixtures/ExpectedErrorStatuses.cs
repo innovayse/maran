@@ -44,6 +44,7 @@ public static class ExpectedErrorStatuses
             ["AccountCleanupFailed"] = ErrorType.Failure,
             ["AccountDomainTaken"] = ErrorType.Conflict,
             ["AccountDomainWwwPrefix"] = ErrorType.Validation,
+            ["AccountFinalBackupSkipForbidden"] = ErrorType.Forbidden,
             ["AccountHomeGroupRepairCountInvalid"] = ErrorType.Validation,
             ["AccountHomeGroupRepairPlanChanged"] = ErrorType.Conflict,
             ["AccountLoginIssuanceFailed"] = ErrorType.Failure,
@@ -289,6 +290,23 @@ public static class ExpectedErrorStatuses
             ["SubUserNotPending"] = ErrorType.Conflict,
             ["MembershipOfferNotFound"] = ErrorType.NotFound,
             ["MembershipOfferAccountSuspended"] = ErrorType.Conflict,
+            // Resellers (#179). A reseller another reseller owns is the same NotFound as a random id, so
+            // the answer says nothing about which. Every refusal that only restates the reseller's own
+            // standing or envelope is a Conflict; an envelope or a plan that is itself malformed is a
+            // Validation; failing to issue the login is the server's own failure.
+            ["ResellerNotFound"] = ErrorType.NotFound,
+            ["ResellerNameTaken"] = ErrorType.Conflict,
+            ["ResellerNameInvalid"] = ErrorType.Validation,
+            ["ResellerSuspended"] = ErrorType.Conflict,
+            ["ResellerHasAccounts"] = ErrorType.Conflict,
+            ["ResellerAccountLimitReached"] = ErrorType.Conflict,
+            ["ResellerDiskPoolExceeded"] = ErrorType.Conflict,
+            ["ResellerPlanLimitReached"] = ErrorType.Conflict,
+            ["ResellerPlanExceedsEnvelope"] = ErrorType.Validation,
+            ["PlanOwnerMismatch"] = ErrorType.Conflict,
+            ["ResellerLoginIssuanceFailed"] = ErrorType.Failure,
+            ["ResellerEnvelopeInvalid"] = ErrorType.Validation,
+            ["ViewAsResellerNotFound"] = ErrorType.NotFound,
             ["ViewAsAccountNotFound"] = ErrorType.NotFound,
             ["ViewAsLoginUnavailable"] = ErrorType.Conflict,
             ["ViewAsNotViewing"] = ErrorType.Conflict,

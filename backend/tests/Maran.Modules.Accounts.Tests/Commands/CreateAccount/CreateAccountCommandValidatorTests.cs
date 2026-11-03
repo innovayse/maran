@@ -1,52 +1,26 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Accounts.Commands.CreateAccount;
-using Maran.Modules.Accounts.Domain.Entities;
-using Maran.Modules.Accounts.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreateAccount;
 
 /// <summary>
 /// Behavioral contract of <see cref="CreateAccountCommandValidator"/>. <see cref="CreateAccountCommand.Name"/>
 /// becomes the account's eventual Linux user name, so its pattern is a security boundary
-/// (rules/security.md "Input") and is covered exhaustively here, not just happy-path. The plan
-/// existence rule runs against a real (InMemory) <see cref="AccountsDbContext"/> seeded with one
-/// known plan, since that is the validator's own dependency.
+/// (rules/security.md "Input") and is covered exhaustively here, not just happy-path. Whether a
+/// plan exists is not the validator's question — the handler answers it with <c>PlanNotFound</c>.
 /// </summary>
-public sealed class CreateAccountCommandValidatorTests : IDisposable
+public sealed class CreateAccountCommandValidatorTests
 {
-    /// <summary>The id of the one plan seeded into <see cref="_dbContext"/> for every test.</summary>
-    private static readonly Guid SeededPlanId = Guid.NewGuid();
-
-    /// <summary>A fresh, isolated in-memory <see cref="AccountsDbContext"/>, seeded with one plan.</summary>
-    private readonly AccountsDbContext _dbContext;
+    /// <summary>An id that names no plan anywhere: the validator never looks plans up.</summary>
+    private static readonly Guid SomePlanId = Guid.NewGuid();
 
     /// <summary>The validator under test.</summary>
-    private readonly CreateAccountCommandValidator _validator;
-
-    /// <summary>Builds the shared database double and the validator under test.</summary>
-    public CreateAccountCommandValidatorTests()
-    {
-        var options = new DbContextOptionsBuilder<AccountsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        _dbContext = new AccountsDbContext(options);
-        _dbContext.Plans.Add(new Plan(SeededPlanId, "PlanStarterName", 5_120, 5, 2, 3, 5, 5));
-        _dbContext.SaveChanges();
-
-        _validator = new CreateAccountCommandValidator(_dbContext);
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _dbContext.Dispose();
-    }
+    private readonly CreateAccountCommandValidator _validator = new();
 
     /// <summary>Builds a command that satisfies every rule, so a single field can be broken per test.</summary>
     private static CreateAccountCommand ValidCommand()
     {
-        return new("acme", "acme.example.com", SeededPlanId, "owner@example.com", IpAddress: "203.0.113.7", UserAgent: "unit-tests");
+        return new("acme", "acme.example.com", SomePlanId, "owner@example.com", IpAddress: "203.0.113.7", UserAgent: "unit-tests");
     }
 
     /// <summary>Fully valid command passes every rule.</summary>
@@ -287,23 +261,13 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.PlanId);
     }
 
-    /// <summary>Plan id that does not exist fails on the plan id property with the plan not found code.</summary>
+    /// <summary>A plan id the validator cannot know passes the plan id rule, because existence is the handler's question.</summary>
     [Fact]
-    public async Task Plan_id_that_does_not_exist_fails_on_the_plan_id_property_with_the_plan_not_found_code()
+    public async Task A_plan_id_that_names_no_plan_passes_the_plan_id_rule_because_existence_is_the_handlers_question()
     {
         var command = ValidCommand() with { PlanId = Guid.NewGuid() };
 
         var result = await _validator.TestValidateAsync(command);
-
-        result.ShouldHaveValidationErrorFor(c => c.PlanId)
-            .WithErrorCode("PlanNotFound");
-    }
-
-    /// <summary>Plan id that exists passes the plan id rule.</summary>
-    [Fact]
-    public async Task Plan_id_that_exists_passes_the_plan_id_rule()
-    {
-        var result = await _validator.TestValidateAsync(ValidCommand());
 
         result.ShouldNotHaveValidationErrorFor(c => c.PlanId);
     }

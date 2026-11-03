@@ -37,6 +37,13 @@ public sealed class StubAccountDirectory : IAccountDirectory
     }
 
     /// <inheritdoc />
+    public Task<AccountSnapshot?> FindForViewAsAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        // Refused rather than answered: only a view-as start asks this question, and nothing here starts one.
+        throw new NotSupportedException("Databases tests start no view-as session.");
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken)
     {
         // Unscoped, exactly as the contract says the real one is: every snapshot this double was

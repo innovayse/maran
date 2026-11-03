@@ -29,6 +29,13 @@ public sealed class FixedAccountDirectory : IAccountDirectory
     }
 
     /// <inheritdoc />
+    public Task<AccountSnapshot?> FindForViewAsAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        // Refused rather than answered: only a view-as start asks this question, and nothing here starts one.
+        throw new NotSupportedException("These tests start no view-as session.");
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult(_snapshots);

@@ -58,6 +58,26 @@ public sealed class AccountsModule : IPanelModule
         // request's culture.
         services.AddScoped<PlanNameDirectory>();
 
+        // Scoped, because it reads the request's own DbContext: what a reseller owns, measured for the
+        // reseller screens and the answers that carry an envelope beside its usage.
+        services.AddScoped<ResellerUsageReader>();
+
+        // Scoped, because it reads the request's own ICurrentUser and DbContext: which reseller, if any,
+        // the caller is, and whether that reseller may still write.
+        services.AddScoped<ResellerScope>();
+
+        // Scoped, because it loads the reseller row into the handler's own DbContext: the one place an
+        // allocation is checked against the envelope and claimed before an account or a plan is saved.
+        services.AddScoped<ResellerAllocationGuard>();
+
+        // Scoped, because it reads the request's own DbContext: restates an owner id as the reseller's
+        // name for the owner columns the screens show.
+        services.AddScoped<ResellerNameDirectory>();
+
+        // Scoped, because it reads the request's own DbContext, deliberately past the tenant filters: an
+        // account name or a domain is claimed once across every owner.
+        services.AddScoped<AccountNamespaceClaims>();
+
         // Holds no state of its own; scoped like the handlers that take it. Shared by a plan's quota
         // edit and an account's plan change, so both measure and refuse the same way.
         services.AddScoped<AccountDiskQuotaEnforcer>();
@@ -67,6 +87,11 @@ public sealed class AccountsModule : IPanelModule
         // "Cross-module needs go through Wolverine messages or Sdk abstractions"). Scoped, because
         // it reads the request's own DbContext and applies the request's own tenant scope.
         services.AddScoped<IAccountDirectory, AccountDirectory>();
+
+        // The reseller counterpart of the window above, for the facts Identity needs about a reseller it
+        // may not read the tables of: its name and whether it is suspended. Scoped, because it applies
+        // the request's own tenant scope.
+        services.AddScoped<IResellerDirectory, ResellerDirectory>();
 
         // The unscoped, names-only window behind the header's account selector: a login that holds
         // several accounts must read the names of all of them, not only the one it is acting for.

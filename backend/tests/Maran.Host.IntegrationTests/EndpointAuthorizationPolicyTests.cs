@@ -16,7 +16,7 @@ namespace Maran.Host.IntegrationTests;
 
 /// <summary>
 /// The route table the composed host actually serves, read endpoint by endpoint: every one either
-/// names one of the panel's two policies or is marked anonymous and listed, with a reason, in
+/// names one of the panel's four policies or is marked anonymous and listed, with a reason, in
 /// <see cref="AnonymousEndpointPin"/>.
 /// </summary>
 /// <remarks>
@@ -289,6 +289,27 @@ public sealed class EndpointAuthorizationPolicyTests : IAsyncLifetime
         var violations = EndpointAuthorizationCensus.FindViolations([admin, customer, doubled], []);
 
         Assert.Empty(violations);
+    }
+
+    /// <summary>The two reseller policies are known to the census, and a near-miss spelling of one is not.</summary>
+    /// <remarks>
+    /// The accepting half and the refusing half in one place, because a census that accepted every name
+    /// would pass the first and one that knew only the old two would fail it (issue #179).
+    /// </remarks>
+    [Fact]
+    public void The_census_accepts_the_reseller_policies_and_refuses_a_misspelling_of_them()
+    {
+        var reseller = Planted(new AuthorizeAttribute { Policy = AuthorizationPolicies.ResellerOnly });
+        var either = Planted(new AuthorizeAttribute { Policy = AuthorizationPolicies.AdminOrReseller });
+
+        var accepted = EndpointAuthorizationCensus.FindViolations([reseller, either], []);
+        var refused = EndpointAuthorizationCensus.FindViolations(
+            [Planted(new AuthorizeAttribute { Policy = "ResellerOnIy" })],
+            []);
+
+        Assert.Empty(accepted);
+        var violation = Assert.Single(refused);
+        Assert.Contains("ResellerOnIy", violation, StringComparison.Ordinal);
     }
 
     /// <summary>A pinned anonymous endpoint is accepted, and its pin is not stale.</summary>

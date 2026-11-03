@@ -21,9 +21,12 @@ namespace Maran.ArchitectureTests;
 /// listed in <see cref="ViewAsSafeMutationPin"/> with its reason.
 /// </para>
 /// <para>
-/// <b>Which actions it asks about.</b> The token a view-as session issues carries the customer role and
-/// the customer's account, so an action that also names the administrator policy is unreachable to it,
-/// and an anonymous action reads no token. Everything else is asked.
+/// <b>Which actions it asks about.</b> The token a view-as session issues carries the VIEWED login's
+/// role: a customer's, or a reseller's when an administrator views as a reseller. Neither is an
+/// administrator, so an action that names the administrator-only policy is unreachable to it, and an
+/// anonymous action reads no token. Everything else is asked — including an action that names the
+/// reseller-only or the admin-or-reseller policy, which a reseller-kind token reaches. Reading this as
+/// "a view-as token is a customer" would exempt exactly those actions from the declaration.
 /// </para>
 /// <para>
 /// <b>What it cannot see.</b> Minimal endpoints (<c>/api/v1/dashboard</c>) are not controller actions;
@@ -35,7 +38,10 @@ public static class ViewAsAccessCensus
     /// <summary>Whether a view-as token can reach the action, so that it must be classified.</summary>
     /// <param name="controller">The controller declaring the action.</param>
     /// <param name="action">The action method.</param>
-    /// <returns><c>false</c> for an anonymous action and for one that also names the administrator policy.</returns>
+    /// <returns>
+    /// <c>false</c> for an anonymous action and for one that names the administrator-only policy; <c>true</c>
+    /// for every other, the reseller policies included.
+    /// </returns>
     public static bool IsReachableByViewAsToken(Type controller, MethodInfo action)
     {
         if (ControllerAuthorizationCensus.IsAnonymous(action))

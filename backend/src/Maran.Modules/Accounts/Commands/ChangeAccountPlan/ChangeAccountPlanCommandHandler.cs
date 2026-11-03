@@ -44,6 +44,14 @@ namespace Maran.Modules.Accounts.Commands.ChangeAccountPlan;
 /// <c>PlanNotFound</c> — journalled as a refusal, never a server error.
 /// </para>
 /// <para>
+/// <b>A reseller's account moves only between its owner's own plans, and only while the pool holds.</b>
+/// The target plan must have the account's owner (<c>PlanOwnerMismatch</c> otherwise — for an
+/// administrator too, or the account would vanish from the reseller's list), and a larger disk quota
+/// must fit the owner's disk pool (<c>ResellerDiskPoolExceeded</c>), both decided before anything is
+/// pushed to the host. The owner's row is claimed in the same save as the account's new plan; a
+/// concurrent claim loses there, and the host is put back on the account's current plan's figures.
+/// </para>
+/// <para>
 /// <b>The journal subject is the account's name and both plans' stored identities</b>
 /// (<c>name: old -&gt; new</c>) — the operator's text or a shipped plan's resource key, never a
 /// translation, because an entry that reads differently per reader's language cannot be searched.
@@ -53,6 +61,15 @@ public sealed class ChangeAccountPlanCommandHandler
 {
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
+
+    /// <summary>Refuses a write by a suspended reseller.</summary>
+    private readonly ResellerScope _scope;
+
+    /// <summary>Holds the move to the owner's plan ownership and disk pool, and claims the owner's row.</summary>
+    private readonly ResellerAllocationGuard _allocation;
+
+    /// <summary>Names the owning reseller in the answer.</summary>
+    private readonly ResellerNameDirectory _resellerNames;
 
     /// <summary>Measures and applies the disk quota on the host.</summary>
     private readonly AccountDiskQuotaEnforcer _quotas;
@@ -68,18 +85,27 @@ public sealed class ChangeAccountPlanCommandHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="scope">Refuses a write by a suspended reseller.</param>
+    /// <param name="allocation">Holds the move to the owner's plan ownership and disk pool, and claims the owner's row.</param>
+    /// <param name="resellerNames">Names the owning reseller in the answer.</param>
     /// <param name="quotas">Measures and applies the disk quota on the host.</param>
     /// <param name="runtimeLimits">Applies the runtime ceilings on the host.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="displayNames">Resolves a shipped plan's name in the request's culture.</param>
     public ChangeAccountPlanCommandHandler(
         AccountsDbContext dbContext,
+        ResellerScope scope,
+        ResellerAllocationGuard allocation,
+        ResellerNameDirectory resellerNames,
         AccountDiskQuotaEnforcer quotas,
         AccountRuntimeLimitsEnforcer runtimeLimits,
         AccountAuditJournal journal,
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _scope = scope;
+        _allocation = allocation;
+        _resellerNames = resellerNames;
         _quotas = quotas;
         _runtimeLimits = runtimeLimits;
         _journal = journal;
@@ -91,6 +117,7 @@ public sealed class ChangeAccountPlanCommandHandler
     /// <param name="cancellationToken">Cancels the work.</param>
     /// <returns>
     /// The account as it now stands; <c>AccountNotFound</c>; <c>PlanNotFound</c>;
+    /// <c>ResellerSuspended</c>; <c>PlanOwnerMismatch</c>; <c>ResellerDiskPoolExceeded</c>;
     /// <c>AccountPlanQuotaBelowUsage</c> when the account already uses more disk than the new plan
     /// allows; or the agent's own typed failure when usage could not be read or the quota not applied.
     /// </returns>
@@ -98,6 +125,12 @@ public sealed class ChangeAccountPlanCommandHandler
         ChangeAccountPlanCommand command,
         CancellationToken cancellationToken)
     {
+        var inactive = await _scope.RequireActiveAsync(cancellationToken);
+        if (inactive is not null)
+        {
+            return await FailAsync(command, command.AccountId.ToString("D"), inactive, cancellationToken);
+        }
+
         var account = await _dbContext.Accounts
             .SingleOrDefaultAsync(a => a.Id == command.AccountId, cancellationToken);
         if (account is null)
@@ -121,13 +154,22 @@ public sealed class ChangeAccountPlanCommandHandler
                 cancellationToken);
         }
 
+        var resellerName = await _resellerNames.NameOfAsync(account.ResellerId, cancellationToken);
         if (target.Id == current.Id)
         {
             // Already there: nothing to measure, push or journal.
-            return Result<AccountDetailDto>.Ok(AccountDetailMapper.ToDto(account, current, _displayNames));
+            return Result<AccountDetailDto>.Ok(
+                AccountDetailMapper.ToDto(account, current, _displayNames, resellerName));
         }
 
         var subject = $"{account.Name}: {current.DisplayNameKey} -> {target.DisplayNameKey}";
+
+        var refusal = ResellerAllocationGuard.RequirePlanOwnedBy(account.ResellerId, target)
+            ?? await _allocation.AdmitPlanChangeAsync(account.ResellerId, current, target, cancellationToken);
+        if (refusal is not null)
+        {
+            return await FailAsync(command, subject, refusal.Error, cancellationToken);
+        }
 
         var quotaFailure = await ReconcileDiskQuotaAsync(account, current, target, cancellationToken);
         if (quotaFailure is not null)
@@ -150,6 +192,20 @@ public sealed class ChangeAccountPlanCommandHandler
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The owner's row was claimed by another write between the admission above and this save,
+            // so the pool the admission counted is no longer the pool. The host already holds the
+            // target's figures and the row still says the current plan, which an account over its
+            // sold disk must not be left in: the current plan's figures are put back.
+            await RestoreCurrentPlanAsync(account, current, target, cancellationToken);
+
+            return await FailAsync(
+                command,
+                subject,
+                Error.Of(nameof(ErrorMessages.ResellerDiskPoolExceeded), ErrorType.Conflict),
+                cancellationToken);
+        }
         catch (DbUpdateException exception)
             when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
         {
@@ -161,7 +217,35 @@ public sealed class ChangeAccountPlanCommandHandler
         await _journal.RecordSuccessAsync(
             AccountAuditActions.AccountPlanChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<AccountDetailDto>.Ok(AccountDetailMapper.ToDto(account, target, _displayNames));
+        return Result<AccountDetailDto>.Ok(AccountDetailMapper.ToDto(account, target, _displayNames, resellerName));
+    }
+
+    /// <summary>
+    /// Puts the host back on the current plan's disk quota and runtime ceilings after a move whose row
+    /// could not be written. Best effort: the failure the caller answers with is the refused move, and a
+    /// restore that fails too converges when the move is repeated or the plan edited, the agent's
+    /// calls being replacements.
+    /// </summary>
+    /// <param name="account">The account that was being moved.</param>
+    /// <param name="current">The plan the row still says it is on.</param>
+    /// <param name="target">The plan whose figures were pushed ahead of the row.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    private async Task RestoreCurrentPlanAsync(
+        Account account,
+        Plan current,
+        Plan target,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> accountNames = [account.Name];
+        if (target.DiskQuotaMb != current.DiskQuotaMb)
+        {
+            await _quotas.ApplyAsync(accountNames, current.DiskQuotaMb, cancellationToken);
+        }
+
+        if (target.RuntimeLimits != current.RuntimeLimits)
+        {
+            await _runtimeLimits.ApplyAsync(accountNames, current.RuntimeLimits, cancellationToken);
+        }
     }
 
     /// <summary>

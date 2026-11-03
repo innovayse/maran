@@ -110,7 +110,7 @@ public sealed class DeleteAccountUncheckedModuleTests : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Runs one deletion against the given audit.</summary>
@@ -121,6 +121,7 @@ public sealed class DeleteAccountUncheckedModuleTests : IDisposable
     {
         var handler = new DeleteAccountCommandHandler(
             _context,
+            new ResellerScope(_context, FakeCurrentUser.Admin()),
             new RecordingAgentAccountsClient(),
             new StubMessageBus(),
             NullLogger<DeleteAccountCommandHandler>.Instance,

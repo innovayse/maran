@@ -33,6 +33,14 @@ namespace Maran.ArchitectureTests;
 /// follows required relationships as well, and states what that traversal still cannot see.
 /// </para>
 /// <para>
+/// <b>The reseller axis (issue #179).</b> What an account's rows are to <c>AccountId</c>, the accounts and
+/// plans a reseller sells are to <c>ResellerId</c>: an entity that carries it, and the entity it points at,
+/// need a query filter too, or one reseller is separated from another only by a <c>Where</c> somebody
+/// remembered. <see cref="TenantScopeCensus"/> reads both; the real walk is held by a second source
+/// (the entity types declaring the property) and by a planted unfiltered entity it must refuse and a
+/// planted filtered one it must accept.
+/// </para>
+/// <para>
 /// <b>Exemptions are named, reasoned and checked for staleness.</b> The entities here that are a
 /// customer's rows and must NOT be filtered are Identity's, and the reason is written beside them.
 /// An exemption for an entity that no longer exists fails
@@ -85,6 +93,8 @@ public sealed class TenantScopeTests
                 "read by the login's own user id across ALL its accounts, to decide which one a session may act for; a tenant filter would hide every account but the active one",
             ["Maran.Modules.Identity.Domain.Entities.AccountMembershipOffer"] =
                 "the offered login's row as much as the account's: the invitee reads, accepts and declines it from a session that speaks for another account or none, so an account filter would hide it from them; every read compares the caller's own user id, and the owner's reads are scoped to the account their token names",
+            ["Maran.Modules.Identity.Domain.Entities.User"] =
+                "carries the reseller id of a RESELLER LOGIN, which is what a token's reseller claim is minted from; it is read at sign-in, before any principal exists, and by the login's own user id, so a filter keyed on the caller's reseller would hide the row from the very person signing in. Reseller isolation of the data a reseller sells is the Accounts filters' job, not this table's",
         };
 
     /// <summary>Every entity that belongs to a tenant is scoped by a global query filter.</summary>
@@ -116,6 +126,108 @@ public sealed class TenantScopeTests
         {
             Dispose(contexts);
         }
+    }
+
+    /// <summary>Every entity a reseller owns, and the owner they point at, is scoped by a global query filter.</summary>
+    [Fact]
+    public void Every_reseller_owned_entity_is_scoped_by_a_query_filter()
+    {
+        var contexts = ModuleDbContexts.CreateAll();
+        try
+        {
+            var owned = Unscoped(TenantScopeCensus.CarryingOwnerProperty(contexts));
+            var owners = Unscoped(TenantScopeCensus.OwnersOfRows(contexts));
+
+            Assert.True(
+                owned.Count == 0,
+                $"These entities carry a {TenantScopeCensus.OwnerProperty} and no global query filter, so one "
+                + "reseller's rows are separated from another's only by whatever each handler remembers to "
+                + $"write: {string.Join(", ", owned)}. Register a filter in the module's DbContext, or add "
+                + "the entity to TenantScopeTests.Exempt with the reason it is safe.");
+
+            Assert.True(
+                owners.Count == 0,
+                "These entities are the owner a reseller-owned row points at, and they have no global query "
+                + $"filter, so one reseller can read another's own row: {string.Join(", ", owners)}. Filter "
+                + "them on the caller's reseller, or add the entity to TenantScopeTests.Exempt with the "
+                + "reason it is safe.");
+        }
+        finally
+        {
+            Dispose(contexts);
+        }
+    }
+
+    /// <summary>The census finds every entity type that declares a reseller id, and the owner they point at.</summary>
+    /// <remarks>
+    /// The second source for the reseller axis, as the account axis has: reflection over the module
+    /// assemblies' entity types, a different source from the models the walk reads. The owner control
+    /// shows the foreign-key walk reaches the entity the owned rows belong to; without it the owner
+    /// check above is satisfied by a census that never finds one.
+    /// </remarks>
+    [Fact]
+    public void Census_finds_every_entity_type_that_declares_a_reseller_id_and_their_owner()
+    {
+        var expected = TenantScopeCensus.EntityTypesDeclaringOwnerProperty();
+
+        Assert.True(
+            expected.Count > 0,
+            $"No entity type declaring a {TenantScopeCensus.OwnerProperty} was found in any Maran.Modules.* "
+            + "assembly beside the test binary, so this control derived its expectation from nothing and "
+            + "would agree with a census that found nothing.");
+
+        var contexts = ModuleDbContexts.CreateAll();
+        try
+        {
+            var census = TenantScopeCensus.CarryingOwnerProperty(contexts)
+                .Select(entity => { return entity.ClrType; })
+                .ToHashSet();
+
+            var unseen = expected
+                .Where(type => { return !census.Contains(type); })
+                .Select(type => { return type.FullName ?? type.Name; })
+                .OrderBy(name => { return name; }, StringComparer.Ordinal)
+                .ToList();
+
+            Assert.True(
+                unseen.Count == 0,
+                $"These entity types declare a {TenantScopeCensus.OwnerProperty} and the tenant census did "
+                + $"not see them, so their filter is not checked by anything: {string.Join(", ", unseen)}. "
+                + $"The census saw {census.Count} of {expected.Count}.");
+
+            Assert.NotEmpty(TenantScopeCensus.OwnersOfRows(contexts));
+        }
+        finally
+        {
+            Dispose(contexts);
+        }
+    }
+
+    /// <summary>The reseller axis names an unfiltered entity and accepts a filtered one.</summary>
+    /// <remarks>
+    /// The positive and refusing controls in one planted model. The census must SEE both entities
+    /// (or the refusal below could be a census that finds nothing), name only the unfiltered one, and say
+    /// nothing about the filtered one (or the refusal could be a census that names everything).
+    /// </remarks>
+    [Fact]
+    public void The_reseller_axis_names_a_planted_unfiltered_entity_and_accepts_a_planted_filtered_one()
+    {
+        var options = new DbContextOptionsBuilder<PlantedResellerContext>()
+            .UseNpgsql("Host=planted.invalid;Database=maran")
+            .Options;
+        using var context = new PlantedResellerContext(options);
+        var contexts = new List<DbContext> { context };
+
+        var seen = TenantScopeCensus.CarryingOwnerProperty(contexts)
+            .Select(TenantScopeCensus.NameOf)
+            .OrderBy(name => { return name; }, StringComparer.Ordinal)
+            .ToList();
+        var unscoped = Unscoped(TenantScopeCensus.CarryingOwnerProperty(contexts));
+
+        Assert.Equal(
+            new[] { typeof(PlantedFilteredResellerRow).FullName!, typeof(PlantedUnfilteredResellerRow).FullName! },
+            seen);
+        Assert.Equal(new[] { typeof(PlantedUnfilteredResellerRow).FullName! }, unscoped);
     }
 
     /// <summary>Every exemption still names an entity the census can see.</summary>

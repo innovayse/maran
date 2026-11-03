@@ -198,6 +198,14 @@ public static class DisplayNameExemptions
             "Default, not default and not established are the three answers of the versions table's "
             + "default column, which the page words as yes, no and not established beside the badge tone."),
         new(
+            "Maran.Modules.Identity.Common.ViewingAsDto",
+            "Kind",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/shell/ShellViewingAsBanner.vue",
+            "Chooses which of the banner's two sentences is drawn, account or reseller, and is never "
+            + "printed as a name: each sentence is the shell's own chrome and the viewed subject's own "
+            + "name travels beside it as SubjectName (issues #317, #314)."),
+        new(
             "Maran.Modules.Tasks.Common.TaskFailureDto",
             "Code",
             DisplayNameExemptionKind.NotAnOperatorFacingName,

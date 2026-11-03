@@ -18,9 +18,10 @@ namespace Maran.ArchitectureTests;
 /// metadata is not an open door — but it is not a reviewed decision either, and a marketplace module
 /// is code this repository never tests. An action therefore either is anonymous and listed in
 /// <see cref="AnonymousActionPin"/>, or carries at least one <c>[Authorize]</c> (its own or its
-/// class's) and every one of them names <see cref="AuthorizationPolicies.AdminOnly"/> or
-/// <see cref="AuthorizationPolicies.AnyAuthenticated"/> — no bare form, no <c>Roles</c>, no
-/// authentication schemes, no unknown name.
+/// class's) and every one of them names one of the four panel policies
+/// (<see cref="AuthorizationPolicies.AdminOnly"/>, <see cref="AuthorizationPolicies.ResellerOnly"/>,
+/// <see cref="AuthorizationPolicies.AdminOrReseller"/>, <see cref="AuthorizationPolicies.AnyAuthenticated"/>)
+/// — no bare form, no <c>Roles</c>, no authentication schemes, no unknown name.
 /// </para>
 /// <para>
 /// <b>What it cannot see.</b> Minimal endpoints (<c>/health</c>, <c>/api/v1/modules</c>,
@@ -35,6 +36,8 @@ public static class ControllerAuthorizationCensus
     private static readonly string[] KnownPolicies =
     {
         AuthorizationPolicies.AdminOnly,
+        AuthorizationPolicies.ResellerOnly,
+        AuthorizationPolicies.AdminOrReseller,
         AuthorizationPolicies.AnyAuthenticated,
     };
 

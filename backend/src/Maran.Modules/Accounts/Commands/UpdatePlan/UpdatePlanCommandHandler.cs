@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Mappers;
+using Maran.Modules.Accounts.Models;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
@@ -89,6 +90,17 @@ namespace Maran.Modules.Accounts.Commands.UpdatePlan;
 /// the same way, never as a server error.
 /// </para>
 /// <para>
+/// <b>A reseller's plan stays inside its reseller's envelope, whoever edits it.</b> The owner is the
+/// PLAN's (<c>Plan.ResellerId</c>), so an administrator's edit of a reseller's plan is held to the
+/// same ceilings as the reseller's own. Every ceiling is judged on every edit, and the disk pool is
+/// recomputed with the new quota in place of the old one for every account already on the plan, because
+/// raising the quota raises all of their disk at once (<see cref="ResellerAllocationGuard.AdmitPlanEditAsync"/>).
+/// A suspended reseller's live token is refused before the plan is read. The admission is decided
+/// before anything is pushed to the host, and it claims the owner's row in the same save as the plan's
+/// new figures: a concurrent claim loses there, and the host is put back on the plan's previous quota
+/// and ceilings.
+/// </para>
+/// <para>
 /// <b>The journal subject is the plan's stored identity as it was before the edit</b> — the
 /// operator's text, or a shipped plan's resource key, never a translation, because the journal is
 /// never deleted and an entry that reads differently per reader's language cannot be searched. A
@@ -107,6 +119,15 @@ public sealed class UpdatePlanCommandHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Refuses a write by a suspended reseller.</summary>
+    private readonly ResellerScope _scope;
+
+    /// <summary>Holds the edit to the owner's envelope and claims the owner's row.</summary>
+    private readonly ResellerAllocationGuard _allocation;
+
+    /// <summary>Names the owning reseller in the answer.</summary>
+    private readonly ResellerNameDirectory _resellerNames;
+
     /// <summary>Measures and applies disk quotas on the host, shared with an account's plan change.</summary>
     private readonly AccountDiskQuotaEnforcer _quotas;
 
@@ -124,6 +145,9 @@ public sealed class UpdatePlanCommandHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="scope">Refuses a write by a suspended reseller.</param>
+    /// <param name="allocation">Holds the edit to the owner's envelope and claims the owner's row.</param>
+    /// <param name="resellerNames">Names the owning reseller in the answer.</param>
     /// <param name="quotas">Measures and applies disk quotas on the host.</param>
     /// <param name="runtimeLimits">Applies runtime ceilings on the host.</param>
     /// <param name="names">Decides whether the requested name is already some other plan's.</param>
@@ -131,6 +155,9 @@ public sealed class UpdatePlanCommandHandler
     /// <param name="displayNames">Resolves display names in the request's culture.</param>
     public UpdatePlanCommandHandler(
         AccountsDbContext dbContext,
+        ResellerScope scope,
+        ResellerAllocationGuard allocation,
+        ResellerNameDirectory resellerNames,
         AccountDiskQuotaEnforcer quotas,
         AccountRuntimeLimitsEnforcer runtimeLimits,
         PlanNameDirectory names,
@@ -138,6 +165,9 @@ public sealed class UpdatePlanCommandHandler
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _scope = scope;
+        _allocation = allocation;
+        _resellerNames = resellerNames;
         _quotas = quotas;
         _runtimeLimits = runtimeLimits;
         _names = names;
@@ -150,11 +180,19 @@ public sealed class UpdatePlanCommandHandler
     /// <param name="cancellationToken">Cancels the work.</param>
     /// <returns>
     /// The plan as it now stands, <c>PlanNotFound</c>, <c>PlanNameTaken</c>,
-    /// <c>PlanQuotaBelowUsage</c> when an account already uses more than the new disk quota, or the
-    /// agent's own typed failure when usage could not be read or a quota could not be applied.
+    /// <c>PlanQuotaBelowUsage</c> when an account already uses more than the new disk quota,
+    /// <c>ResellerSuspended</c>, for a reseller's plan <c>ResellerPlanExceedsEnvelope</c> (carrying the
+    /// offending figures) or <c>ResellerDiskPoolExceeded</c>, or the agent's own typed failure when
+    /// usage could not be read or a quota could not be applied.
     /// </returns>
     public async Task<Result<PlanDto>> HandleAsync(UpdatePlanCommand command, CancellationToken cancellationToken)
     {
+        var inactive = await _scope.RequireActiveAsync(cancellationToken);
+        if (inactive is not null)
+        {
+            return await FailAsync(command, command.PlanId.ToString("D"), inactive, cancellationToken);
+        }
+
         var plan = await _dbContext.Plans.SingleOrDefaultAsync(p => p.Id == command.PlanId, cancellationToken);
         if (plan is null)
         {
@@ -168,11 +206,21 @@ public sealed class UpdatePlanCommandHandler
         var name = command.Name.Trim();
         var renames = !string.Equals(name, PlanMapper.DisplayNameOf(plan, _displayNames), StringComparison.Ordinal);
 
-        if (renames && await _names.IsTakenAsync(name, plan.Id, cancellationToken))
+        if (renames && await _names.IsTakenAsync(name, plan.ResellerId, plan.Id, cancellationToken))
         {
             return await FailAsync(
                 command, subject, Error.Of(nameof(ErrorMessages.PlanNameTaken), ErrorType.Conflict), cancellationToken);
         }
+
+        var refusal = await _allocation.AdmitPlanEditAsync(
+            plan.ResellerId, plan, PlanLimitsMapper.ToLimits(command), cancellationToken);
+        if (refusal is not null)
+        {
+            return await RefuseAsync(command, subject, refusal, cancellationToken);
+        }
+
+        var previousQuotaMb = plan.DiskQuotaMb;
+        var previousRuntimeLimits = plan.RuntimeLimits;
 
         var quotaFailure = await ReconcileDiskQuotaAsync(plan, command.DiskQuotaMb, cancellationToken);
         if (quotaFailure is not null)
@@ -211,6 +259,25 @@ public sealed class UpdatePlanCommandHandler
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The owner's row was claimed by another write between the admission above and this save, so
+            // the pool the admission counted is no longer the pool. The host already holds the new
+            // quota and ceilings and the row still holds the old ones; the old ones are put back.
+            await RestoreHostAsync(
+                plan.Id,
+                previousQuotaMb,
+                previousRuntimeLimits,
+                command.DiskQuotaMb,
+                runtimeLimits,
+                cancellationToken);
+
+            return await FailAsync(
+                command,
+                subject,
+                Error.Of(nameof(ErrorMessages.ResellerDiskPoolExceeded), ErrorType.Conflict),
+                cancellationToken);
+        }
         catch (DbUpdateException exception)
             when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
@@ -229,7 +296,67 @@ public sealed class UpdatePlanCommandHandler
 
         var accountCount = await _dbContext.Accounts.AsNoTracking().CountAsync(a => a.PlanId == plan.Id, cancellationToken);
 
-        return Result<PlanDto>.Ok(PlanMapper.ToDto(plan, _displayNames, accountCount));
+        return Result<PlanDto>.Ok(
+            PlanMapper.ToDto(
+                plan,
+                _displayNames,
+                accountCount,
+                await _resellerNames.NameOfAsync(plan.ResellerId, cancellationToken)));
+    }
+
+    /// <summary>
+    /// Puts every account on the plan back on the quota and runtime ceilings the plan row still holds,
+    /// after an edit whose row could not be written. Best effort: the answer is the refused edit, and a
+    /// restore that fails too converges when the edit is repeated, the agent's calls being replacements.
+    /// </summary>
+    /// <param name="planId">The plan whose accounts were reached.</param>
+    /// <param name="previousQuotaMb">The quota the plan row still holds.</param>
+    /// <param name="previousRuntimeLimits">The ceilings the plan row still holds.</param>
+    /// <param name="pushedQuotaMb">The quota the edit pushed ahead of the row.</param>
+    /// <param name="pushedRuntimeLimits">The ceilings the edit pushed ahead of the row.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    private async Task RestoreHostAsync(
+        Guid planId,
+        int previousQuotaMb,
+        RuntimeLimits previousRuntimeLimits,
+        int pushedQuotaMb,
+        RuntimeLimits pushedRuntimeLimits,
+        CancellationToken cancellationToken)
+    {
+        var accountNames = await _dbContext.Accounts
+            .AsNoTracking()
+            .Where(a => a.PlanId == planId)
+            .OrderBy(a => a.Name)
+            .Select(a => a.Name)
+            .ToListAsync(cancellationToken);
+
+        if (pushedQuotaMb != previousQuotaMb)
+        {
+            await _quotas.ApplyAsync(accountNames, previousQuotaMb, cancellationToken);
+        }
+
+        if (pushedRuntimeLimits != previousRuntimeLimits)
+        {
+            await _runtimeLimits.ApplyAsync(accountNames, previousRuntimeLimits, cancellationToken);
+        }
+    }
+
+    /// <summary>Journals an edit the reseller rules refused and returns it as the typed failure.</summary>
+    /// <param name="command">The edit that was refused.</param>
+    /// <param name="subject">What it was attempted on.</param>
+    /// <param name="refusal">The refusal to answer with, with the offending figures when it has any.</param>
+    /// <param name="cancellationToken">Cancels the journal write.</param>
+    /// <returns>The failed result carrying the refusal.</returns>
+    private async Task<Result<PlanDto>> RefuseAsync(
+        UpdatePlanCommand command,
+        string subject,
+        ResellerRefusal refusal,
+        CancellationToken cancellationToken)
+    {
+        await _journal.RecordFailureAsync(
+            AccountAuditActions.PlanUpdated, subject, command.IpAddress, command.UserAgent, cancellationToken);
+
+        return ResellerRefusalMapper.ToFailure<PlanDto>(refusal);
     }
 
     /// <summary>

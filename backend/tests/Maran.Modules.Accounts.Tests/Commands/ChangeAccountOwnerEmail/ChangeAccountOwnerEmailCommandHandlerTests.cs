@@ -1,7 +1,6 @@
 using Maran.Modules.Accounts.Commands.ChangeAccountOwnerEmail;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -53,11 +52,7 @@ public sealed class ChangeAccountOwnerEmailCommandHandlerTests : IDisposable
     /// <param name="bus">The bus the login's change is requested on.</param>
     private ChangeAccountOwnerEmailCommandHandler NewHandler(StubMessageBus bus)
     {
-        return new ChangeAccountOwnerEmailCommandHandler(
-            _dbContext,
-            bus,
-            new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
-            new StubDisplayNames());
+        return AccountHandlerFactory.ChangeOwnerEmail(_dbContext, FakeCurrentUser.Admin(), bus, _audit);
     }
 
     /// <summary>Builds a bus whose login answers every request with <paramref name="answer"/>.</summary>

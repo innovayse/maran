@@ -10,8 +10,11 @@ namespace Maran.Modules.Accounts.Services;
 /// <remarks>
 /// No scope is applied here, deliberately and by contract — see the interface, which puts the
 /// authorization burden on the caller. There is no <c>IgnoreQueryFilters()</c> call either:
-/// <see cref="AccountsDbContext"/> declares no global query filter on <c>Account</c>, so the call
-/// would suppress nothing (the same reasoning <see cref="AccountDirectory.ListAsync"/> records).
+/// <see cref="AccountsDbContext"/>'s query filter narrows a reseller caller and no other, and this
+/// window answers the header's account selector, which a reseller does not have, so the call would
+/// suppress nothing any caller of this window sees (the same reasoning
+/// <see cref="AccountDirectory.ListAsync"/> records). A reseller that did reach it would be shown the
+/// names of its own accounts only, which is the safe direction.
 /// </remarks>
 public sealed class AccountNameDirectory : IAccountNameDirectory
 {

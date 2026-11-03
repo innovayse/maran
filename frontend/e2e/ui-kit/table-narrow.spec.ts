@@ -104,6 +104,8 @@ const ACCOUNTS: Account[] = [
     status: 'active',
     statusName: 'Active',
     createdAt: '2026-08-30T09:00:00+00:00',
+    resellerId: null,
+    resellerName: null,
   },
   {
     id: '00000000-0000-0000-0000-0000000000c2',
@@ -113,6 +115,8 @@ const ACCOUNTS: Account[] = [
     status: 'suspended',
     statusName: 'Suspended',
     createdAt: '2026-08-31T09:00:00+00:00',
+    resellerId: null,
+    resellerName: null,
   },
 ]
 

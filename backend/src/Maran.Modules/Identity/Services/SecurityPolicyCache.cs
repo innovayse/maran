@@ -191,6 +191,7 @@ public sealed class SecurityPolicyCache : IDisposable
         return new SecurityPolicySnapshot(
             policy.MinimumPasswordLength,
             policy.ForceTwoFactorForAdmins,
+            policy.ForceTwoFactorForResellers,
             policy.MaxFailedLoginAttempts,
             policy.LockoutMinutes);
     }

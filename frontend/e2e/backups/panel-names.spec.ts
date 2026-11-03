@@ -22,6 +22,8 @@ const ALICE: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
+  resellerId: null,
+  resellerName: null,
 }
 
 /** Names no bundle contains, so a screen printing one can only have read it off the panel's answer. */

@@ -37,8 +37,13 @@ public static class PlanMapper
     /// <param name="plan">The plan to project.</param>
     /// <param name="displayNames">Resolves a shipped plan's resource key in the request's culture.</param>
     /// <param name="accountCount">How many accounts are on the plan right now.</param>
+    /// <param name="resellerName">The owning reseller's name, or <c>null</c> for the administrator's own plan.</param>
     /// <returns>The plan's outward view.</returns>
-    public static PlanDto ToDto(Plan plan, IStringLocalizer<DisplayNames> displayNames, int accountCount)
+    public static PlanDto ToDto(
+        Plan plan,
+        IStringLocalizer<DisplayNames> displayNames,
+        int accountCount,
+        string? resellerName)
     {
         return new PlanDto(
             plan.Id,
@@ -54,7 +59,9 @@ public static class PlanMapper
             RuntimeLimitsMapper.ToDto(plan.RuntimeLimits.MemoryMaxMb),
             RuntimeLimitsMapper.ToDto(plan.RuntimeLimits.MaxProcesses),
             plan.Features.Members(),
-            accountCount);
+            accountCount,
+            plan.ResellerId,
+            resellerName);
     }
 
     /// <summary>Projects one plan onto the picker's wire shape.</summary>

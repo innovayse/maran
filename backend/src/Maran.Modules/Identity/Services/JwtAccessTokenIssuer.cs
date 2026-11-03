@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Options;
@@ -48,15 +50,28 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The token carries the VIEWED login's role, so an administrator viewing as a reseller holds a
+    /// <c>Reseller</c> token and every administrator-only endpoint refuses it. Two kinds, one rule
+    /// (<see cref="ViewAsKindPolicy.TryDescribe"/>): a customer login is viewed through the session's
+    /// active account and the token writes the <c>account</c> claim; a reseller login is viewed
+    /// through none and the token writes the <c>reseller</c> claim from the login's own reseller id.
+    /// Any disagreement between the session and the login throws.
+    /// </remarks>
     public AccessToken IssueViewAs(User viewedUser, Session session, User actor)
     {
-        // Refuse rather than sign: a session of the other kind, or one belonging to somebody else,
-        // reaching here is a caller bug, and a token is the one thing that must not be produced on a
-        // bug (issue #317).
+        // Refuse rather than sign: a session of the other kind, one belonging to somebody else, or
+        // one whose facts do not agree with the login it speaks for reaching here is a caller bug,
+        // and a token is the one thing that must not be produced on a bug (issues #317, #179).
         if (session.ViewAs is not { } origin
             || session.UserId != viewedUser.Id
             || origin.ActorUserId != actor.Id
-            || session.ActiveAccountId is not { } viewedAccountId)
+            || !ViewAsKindPolicy.TryDescribe(
+                viewedUser.Role,
+                viewedUser.ResellerId,
+                session.ActiveAccountId,
+                out var kind,
+                out var subjectId))
         {
             throw new InvalidOperationException("A view-as token was requested for a session that is not a view-as session of these two users.");
         }
@@ -69,7 +84,6 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
             [PanelClaimTypes.Username] = viewedUser.Username,
             [PanelClaimTypes.Role] = viewedUser.Role.ToString(),
             [PanelClaimTypes.SessionId] = session.Id.ToString(),
-            [PanelClaimTypes.AccountId] = viewedAccountId.ToString(),
             [PanelClaimTypes.SessionKind] = ViewAsClaimValue,
 
             // RFC 8693 §4.1: the party actually acting, as a JSON object nested in the token. The
@@ -83,9 +97,21 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
             },
         };
 
-        // No forced-two-factor steering: the token speaks for a customer login, and the steering is
-        // an administrator's own obligation, already met (or refused) on the operator's own token.
-        // The expiry is the SESSION's, so the token and the row it is checked against die together.
+        switch (kind)
+        {
+            case ViewAsKind.Account:
+                claims[PanelClaimTypes.AccountId] = subjectId.ToString();
+                break;
+            case ViewAsKind.Reseller:
+                claims[PanelClaimTypes.ResellerId] = subjectId.ToString();
+                break;
+            default:
+                throw new UnreachableException("ViewAsKind has exactly two cases: Account and Reseller.");
+        }
+
+        // No forced-two-factor steering: the token speaks for a customer or reseller login, and the
+        // steering is the operator's own obligation, already met (or refused) on the operator's own
+        // token. The expiry is the SESSION's, so the token and the row it is checked against die together.
         var token = Sign(claims, session.IssuedAt, session.ExpiresAt);
         return new AccessToken(token, session.ExpiresAt, RequiresTwoFactorSetup: false);
     }
@@ -98,9 +124,7 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
         CancellationToken cancellationToken)
     {
         var policy = await _policyCache.GetAsync(cancellationToken);
-        var requiresSetup = policy.ForceTwoFactorForAdmins
-            && user.Role == UserRole.Admin
-            && !user.IsTotpEnabled;
+        var requiresSetup = RequiresTwoFactor(policy, user.Role) && !user.IsTotpEnabled;
 
         var issuedAt = _clock.UtcNow;
         var expiresAt = issuedAt.AddMinutes(_options.AccessTokenMinutes);
@@ -122,6 +146,19 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
             claims[PanelClaimTypes.AccountId] = activeAccountId.ToString();
         }
 
+        // A reseller login acts for one reseller and for no account. Both halves are refused rather
+        // than repaired: a token naming an account beside a reseller, or a reseller role with no
+        // reseller, would be a token the host's principal reading refuses on every request.
+        if (user.Role == UserRole.Reseller)
+        {
+            if (accountId is not null || user.ResellerId is not { } resellerId)
+            {
+                throw new InvalidOperationException("A reseller token needs the login's reseller id and no active account.");
+            }
+
+            claims[PanelClaimTypes.ResellerId] = resellerId.ToString();
+        }
+
         // Written only when the steering applies. The claim's PRESENCE is the restriction, so a
         // token from a panel that does not force enrolment carries nothing to misread, and a claim
         // spelled "false" — which every reader would then have to parse correctly — cannot exist.
@@ -130,20 +167,29 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
             claims[PanelClaimTypes.TwoFactorSetupRequired] = "true";
         }
 
-        var descriptor = new SecurityTokenDescriptor
-        {
-            Issuer = _options.Issuer,
-            Audience = _options.Audience,
-            IssuedAt = issuedAt.UtcDateTime,
-            NotBefore = issuedAt.UtcDateTime,
-            Expires = expiresAt.UtcDateTime,
-            Claims = claims,
-            SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(Convert.FromBase64String(_options.SigningKey)),
-                SecurityAlgorithms.HmacSha256),
-        };
+        return new AccessToken(Sign(claims, issuedAt, expiresAt), expiresAt, requiresSetup);
+    }
 
-        return new AccessToken(new JsonWebTokenHandler().CreateToken(descriptor), expiresAt, requiresSetup);
+    /// <summary>
+    /// Reports whether the panel's policy obliges a login of this role to hold a second factor. One
+    /// arm per role, so a new role cannot be forgotten into "not required" by a default.
+    /// </summary>
+    /// <param name="policy">The panel's security policy.</param>
+    /// <param name="role">The signing-in login's role.</param>
+    /// <returns>True when the role is forced to enrol.</returns>
+    private static bool RequiresTwoFactor(SecurityPolicySnapshot policy, UserRole role)
+    {
+        switch (role)
+        {
+            case UserRole.Admin:
+                return policy.ForceTwoFactorForAdmins;
+            case UserRole.Reseller:
+                return policy.ForceTwoFactorForResellers;
+            case UserRole.Customer:
+                return false;
+            default:
+                throw new UnreachableException("UserRole has exactly three cases: Admin, Customer and Reseller.");
+        }
     }
 
     /// <summary>Signs a set of claims with the panel's key, issuer and audience.</summary>

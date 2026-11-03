@@ -2,7 +2,6 @@ using Maran.Modules.Accounts.Commands.ChangeAccountPlan;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -28,9 +27,6 @@ public sealed class ChangeAccountPlanCommandHandlerTests : IDisposable
 
     /// <summary>The agent double that owns the account's disk quota and usage.</summary>
     private readonly RecordingAgentAccountsClient _agent = new();
-
-    /// <summary>The display names of the plans the panel ships.</summary>
-    private readonly StubDisplayNames _displayNames = new();
 
     /// <summary>The plan the account starts on: 10 GB.</summary>
     private readonly Plan _large = Plan.Define(Guid.NewGuid(), "Large", 10_240, 10, 5, 4, 2, 3, 8);
@@ -70,12 +66,7 @@ public sealed class ChangeAccountPlanCommandHandlerTests : IDisposable
     /// <param name="agent">The agent double; this test's own unless a test needs a failing one.</param>
     private ChangeAccountPlanCommandHandler NewHandler(RecordingAgentAccountsClient? agent = null)
     {
-        return new ChangeAccountPlanCommandHandler(
-            _dbContext,
-            new AccountDiskQuotaEnforcer(agent ?? _agent),
-            new AccountRuntimeLimitsEnforcer(agent ?? _agent),
-            new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
-            _displayNames);
+        return AccountHandlerFactory.ChangePlan(_dbContext, FakeCurrentUser.Admin(), agent ?? _agent, _audit);
     }
 
     /// <summary>Builds a move of the test account to <paramref name="planId"/>.</summary>

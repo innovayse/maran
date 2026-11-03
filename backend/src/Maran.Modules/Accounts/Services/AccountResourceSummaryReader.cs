@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Accounts.Services;
@@ -26,21 +27,38 @@ namespace Maran.Modules.Accounts.Services;
 /// Every count runs in the caller's tenant scope, so a customer's summary can only ever count the
 /// customer's own rows; nothing here bypasses a query filter.
 /// </para>
+/// <para>
+/// <b>A reseller is shown the limits and not the usage.</b> A reseller's request runs as a reseller in
+/// every module, and in every module that owns a resource a reseller sees no row — it reaches a
+/// customer's sites, databases and logins only through a view-as session. Asking those counters would
+/// therefore answer zero for an account that owns plenty, and <c>zero is a real count</c> on the wire.
+/// So for a reseller each kind is stated as unavailable, which is the statement that carries no number.
+/// The account itself is still resolved through this module's own filtered context first, so another
+/// reseller's account is <c>AccountNotFound</c> before anything is asked.
+/// </para>
 /// </remarks>
 public sealed class AccountResourceSummaryReader
 {
     /// <summary>The Accounts module's database context, carrying the caller's tenant scope.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Says whether the caller is a reseller, which no counter can answer for.</summary>
+    private readonly ResellerScope _scope;
+
     /// <summary>One counter per composed module that owns a resource kind.</summary>
     private readonly IEnumerable<IAccountResourceCounter> _counters;
 
     /// <summary>Creates the reader.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="scope">Says whether the caller is a reseller, which no counter can answer for.</param>
     /// <param name="counters">Every registered counter; empty when no counting module is composed.</param>
-    public AccountResourceSummaryReader(AccountsDbContext dbContext, IEnumerable<IAccountResourceCounter> counters)
+    public AccountResourceSummaryReader(
+        AccountsDbContext dbContext,
+        ResellerScope scope,
+        IEnumerable<IAccountResourceCounter> counters)
     {
         _dbContext = dbContext;
+        _scope = scope;
         _counters = counters;
     }
 
@@ -66,13 +84,16 @@ public sealed class AccountResourceSummaryReader
                 Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound));
         }
 
+        var countable = _scope.CallerResellerId is null;
         var rows = new List<AccountResourceUsageDto>();
         foreach (var counter in _counters.OrderBy(registered =>
         {
             return registered.Kind;
         }))
         {
-            var count = await counter.CountAsync(accountId, cancellationToken);
+            var count = countable
+                ? await counter.CountAsync(accountId, cancellationToken)
+                : AccountResourceCount.Unavailable(counter.Kind);
             var limit = plan.LimitFor(count.Kind);
             rows.Add(AccountResourceUsageMapper.ToDto(count, limit));
         }

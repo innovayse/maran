@@ -19,16 +19,23 @@ namespace Maran.Modules.Accounts.Controllers;
 /// shape is fixed"): binds the request, dispatches through Wolverine, translates the
 /// <see cref="Result{T}"/>. No business logic, no data access.
 ///
-/// Administrators only. Defining what a hosting package contains, and what happens to the accounts on
-/// it when that changes, is the server owner's decision (spec §8); a customer sees only their own
-/// plan's limits, through <c>GET /api/v1/accounts/me</c>.
+/// Administrators and resellers. Defining what a hosting package contains, and what happens to the
+/// accounts on it when that changes, is the server owner's decision (spec §8), which a reseller makes
+/// for its own plans inside the envelope it was sold; the policy admits both roles and WHICH plans a
+/// caller sees is decided below the controller, by the context's query filter, so another reseller's
+/// plan answers 404 exactly as one that does not exist. A customer sees only their own plan's limits,
+/// through <c>GET /api/v1/accounts/me</c>.
+///
+/// Every action declares what a view-as token may do here, because an operator viewing as a reseller
+/// holds the reseller role and reaches it: reads are allowed, and everything that changes a plan is
+/// refused while looking.
 ///
 /// Separate from <see cref="AccountsController"/> now that a plan has a lifecycle of its own: this is
 /// where a plan is listed, made, changed and retired, and where a picker reads its choices
 /// (<c>GET /api/v1/plans/choices</c>).
 /// </summary>
 [Route("api/v1/plans")]
-[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+[Authorize(Policy = AuthorizationPolicies.AdminOrReseller)]
 [Tags("Plans")]
 [Produces("application/json")]
 [EnableRateLimiting(RateLimitPolicies.Api)]
@@ -53,6 +60,7 @@ public sealed class PlansController : BaseApiController
     /// <param name="query">Paging, search and sort, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<PlanDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAllAsync([FromQuery] ListPlansQuery query, CancellationToken cancellationToken)
@@ -67,6 +75,7 @@ public sealed class PlansController : BaseApiController
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("features")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(IReadOnlyList<PlanFeatureDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetFeaturesAsync(CancellationToken cancellationToken)
     {
@@ -83,6 +92,7 @@ public sealed class PlansController : BaseApiController
     /// <param name="query">Paging, search and sort, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("choices")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<PlanChoiceDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetChoicesAsync(
@@ -97,6 +107,7 @@ public sealed class PlansController : BaseApiController
     /// <param name="id">The plan to read.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PlanDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken)
@@ -113,6 +124,7 @@ public sealed class PlansController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(PlanDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -136,6 +148,7 @@ public sealed class PlansController : BaseApiController
     /// refused with 409 and changes nothing. See <c>UpdatePlanCommandHandler</c> for why.
     /// </remarks>
     [HttpPut("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(PlanDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -154,6 +167,7 @@ public sealed class PlansController : BaseApiController
     /// <param name="id">The plan to delete.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

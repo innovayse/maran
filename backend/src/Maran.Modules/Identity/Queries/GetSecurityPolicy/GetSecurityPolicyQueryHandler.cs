@@ -35,6 +35,7 @@ public sealed class GetSecurityPolicyQueryHandler
         return Result<SecurityPolicyDto>.Ok(new SecurityPolicyDto(
             policy.MinimumPasswordLength,
             policy.ForceTwoFactorForAdmins,
+            policy.ForceTwoFactorForResellers,
             policy.MaxFailedLoginAttempts,
             policy.LockoutMinutes));
     }

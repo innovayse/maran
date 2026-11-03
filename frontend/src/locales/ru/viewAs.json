@@ -1,10 +1,14 @@
 {
   "viewAs": {
     "action": "Посмотреть как этот аккаунт",
+    "actionReseller": "Посмотреть как этот реселлер",
     "starting": "Открываем аккаунт…",
-    "banner": "Вы просматриваете как {account} ({username}).",
+    "startingReseller": "Открываем реселлера…",
+    "banner": "Вы просматриваете как {subject} ({username}).",
+    "bannerReseller": "Вы просматриваете как реселлер {subject} ({username}).",
     "back": "Вернуться к {operator}",
     "backing": "Возвращаемся…",
-    "regionLabel": "Просмотр от имени другого аккаунта"
+    "regionLabel": "Просмотр от имени другого аккаунта",
+    "regionLabelReseller": "Просмотр от имени другого реселлера"
   }
 }

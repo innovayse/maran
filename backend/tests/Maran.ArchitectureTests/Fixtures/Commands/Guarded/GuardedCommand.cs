@@ -19,9 +19,13 @@ namespace Maran.ArchitectureTests.Fixtures.Commands.Guarded;
 /// <param name="IpAddress">Server-established, guarded on both targets.</param>
 /// <param name="UserAgent">Server-established, guarded on both targets.</param>
 /// <param name="UserId">Server-established, guarded on both targets.</param>
+/// <param name="OperatorUserId">The operator a view-as start is stamped with, guarded on both targets.</param>
+/// <param name="OperatorSessionId">The operator's own session, guarded on both targets.</param>
 public sealed record GuardedCommand(
     string Name,
     [property: JsonIgnore][property: BindNever][BindNever] Guid WidgetId,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress,
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent,
-    [property: JsonIgnore][property: BindNever][BindNever] Guid UserId);
+    [property: JsonIgnore][property: BindNever][BindNever] Guid UserId,
+    [property: JsonIgnore][property: BindNever][BindNever] Guid OperatorUserId,
+    [property: JsonIgnore][property: BindNever][BindNever] Guid OperatorSessionId);

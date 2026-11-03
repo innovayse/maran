@@ -110,6 +110,21 @@ public sealed class RequiresAccountFeatureFilterTests
         Assert.Empty(run.Directory.Asked);
     }
 
+    /// <summary>A reseller is refused as a customer without the feature is, and neither the directory nor the person window is asked.</summary>
+    [Fact]
+    public async Task A_reseller_is_refused_and_the_action_never_runs()
+    {
+        var run = await RunAsync(RequestCaller.Reseller(), included: true);
+
+        Assert.False(run.ActionRan);
+        var refusal = Assert.IsType<ObjectResult>(run.Context.Result);
+        Assert.Equal(StatusCodes.Status403Forbidden, refusal.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(refusal.Value);
+        Assert.Equal("PlanFeatureNotIncluded", problem.Extensions["code"]);
+        Assert.Empty(run.Directory.Asked);
+        Assert.Empty(run.Grants.Asked);
+    }
+
     /// <summary>The attribute carries its feature to the filter as an argument.</summary>
     [Fact]
     public void The_attribute_carries_its_feature_to_the_filter_as_an_argument()
@@ -188,6 +203,20 @@ public sealed class RequiresAccountFeatureFilterTests
             {
                 Caller = new AccountlessCustomerCaller(Id, "caller");
             }
+        }
+
+        /// <summary>Creates a caller that is a reseller.</summary>
+        /// <param name="resellerId">The reseller the login acts for.</param>
+        private RequestCaller(Guid resellerId)
+        {
+            Caller = new ResellerCaller(Id, "caller", resellerId);
+        }
+
+        /// <summary>Creates a reseller caller.</summary>
+        /// <returns>The caller.</returns>
+        public static RequestCaller Reseller()
+        {
+            return new RequestCaller(Guid.NewGuid());
         }
     }
 

@@ -31,6 +31,7 @@ public static class TestSecurityPolicyCache
     /// <param name="dbContext">The test's context.</param>
     /// <param name="minimumPasswordLength">The shortest password the panel accepts.</param>
     /// <param name="forceTwoFactorForAdmins">Whether administrators must hold a second factor.</param>
+    /// <param name="forceTwoFactorForResellers">Whether resellers must hold a second factor.</param>
     /// <param name="maxFailedLoginAttempts">Consecutive failed sign-ins that lock an account.</param>
     /// <param name="lockoutMinutes">How long a locked account stays locked, in minutes.</param>
     /// <returns>The cache, reading the row just written.</returns>
@@ -38,12 +39,14 @@ public static class TestSecurityPolicyCache
         IdentityDbContext dbContext,
         int minimumPasswordLength = SecurityPolicy.DefaultMinimumPasswordLength,
         bool forceTwoFactorForAdmins = SecurityPolicy.DefaultForceTwoFactorForAdmins,
+        bool forceTwoFactorForResellers = SecurityPolicy.DefaultForceTwoFactorForResellers,
         int maxFailedLoginAttempts = SecurityPolicy.DefaultMaxFailedLoginAttempts,
         int lockoutMinutes = SecurityPolicy.DefaultLockoutMinutes)
     {
         dbContext.SecurityPolicies.Add(new SecurityPolicy(
             minimumPasswordLength,
             forceTwoFactorForAdmins,
+            forceTwoFactorForResellers,
             maxFailedLoginAttempts,
             lockoutMinutes,
             DateTimeOffset.UnixEpoch));

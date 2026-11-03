@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The panel's security policy: how short a password may be, whether administrators
- * must hold a second factor, and how many wrong passwords lock an account for how
+ * must hold a second factor, whether resellers must, and how many wrong passwords lock an account for how
  * long. Renders a `<section>`, not a `<main>` — the single `<main>` landmark lives
  * in the layout this page is nested under.
  *
@@ -34,6 +34,9 @@ const minimumPasswordLength: Ref<string> = ref('')
 /** Whether administrators are steered into two-factor enrolment. */
 const forceTwoFactorForAdmins: Ref<boolean> = ref(false)
 
+/** Whether resellers are steered into two-factor enrolment. */
+const forceTwoFactorForResellers: Ref<boolean> = ref(false)
+
 /** Consecutive failures that lock an account, as typed. */
 const maxFailedLoginAttempts: Ref<string> = ref('')
 
@@ -52,6 +55,7 @@ const fill = (policy: SecurityPolicy | null): void => {
 
   minimumPasswordLength.value = String(policy.minimumPasswordLength)
   forceTwoFactorForAdmins.value = policy.forceTwoFactorForAdmins
+  forceTwoFactorForResellers.value = policy.forceTwoFactorForResellers
   maxFailedLoginAttempts.value = String(policy.maxFailedLoginAttempts)
   lockoutMinutes.value = String(policy.lockoutMinutes)
 }
@@ -69,6 +73,7 @@ const submit = async (): Promise<void> => {
   await policyStore.save({
     minimumPasswordLength: Number(minimumPasswordLength.value),
     forceTwoFactorForAdmins: forceTwoFactorForAdmins.value,
+    forceTwoFactorForResellers: forceTwoFactorForResellers.value,
     maxFailedLoginAttempts: Number(maxFailedLoginAttempts.value),
     lockoutMinutes: Number(lockoutMinutes.value),
   })
@@ -148,6 +153,21 @@ void policyStore.load()
                    locked themselves out of their own panel, and the only way back is a
                    command on the server. -->
               <UiAlert variant="warning">{{ t('app.securityPolicy.forceTwoFactorWarning') }}</UiAlert>
+            </div>
+          </UiCard>
+
+          <UiCard>
+            <UiSectionHeading
+              class="mb-4"
+              :title="t('app.securityPolicy.resellersTitle')"
+              :subtitle="t('app.securityPolicy.resellersHint')"
+            />
+            <div class="flex flex-col gap-4">
+              <UiSwitch
+                v-model="forceTwoFactorForResellers"
+                :label="t('app.securityPolicy.forceTwoFactorForResellersLabel')"
+              />
+              <UiAlert variant="warning">{{ t('app.securityPolicy.forceTwoFactorForResellersWarning') }}</UiAlert>
             </div>
           </UiCard>
 

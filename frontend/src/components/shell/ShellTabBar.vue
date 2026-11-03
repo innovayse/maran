@@ -4,7 +4,7 @@
  * fifth a "More" button that opens the drawer, which holds everything else.
  *
  * **Which four.** The common destinations first, in a fixed order per role — for an operator the
- * landing screen, accounts, sites and databases; for a customer the landing screen, sites, mail and
+ * landing screen (the first entry of the role's own menu), accounts, sites and databases; for a customer the landing screen, sites, mail and
  * their own account (issue #312) — taken from the entries the navigation actually gave this person.
  * A preferred entry that is missing (a module not installed) is replaced by the next entry in
  * drawing order rather than leaving a gap. A preferred entry whose page is still planned is drawn in
@@ -42,7 +42,7 @@ import UiNavPlanned from '../ui/UiNavPlanned.vue'
 import { useNavigationRole } from '../../composables/useNavigationRole'
 import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { RouteLocationRaw } from 'vue-router'
-import type { NavigationEntry } from '../../types/navigation'
+import type { NavigationEntry, NavigationRole } from '../../types/navigation'
 
 /** One preferred tab: the entry key (the tree's own) and the locale key of its SHORT label. */
 interface PreferredTab {
@@ -52,21 +52,32 @@ interface PreferredTab {
   labelKey: string
 }
 
-/** The tabs an operator's bar prefers, in order. */
-const OPERATOR_PREFERRED: readonly PreferredTab[] = [
-  { key: 'dashboard', labelKey: 'app.shell.tabs.home' },
+/** Locale key of the short label under the Home tab. */
+const HOME_LABEL_KEY = 'app.shell.tabs.home'
+
+/** The tabs an administrator's bar prefers after Home, in order. */
+const ADMIN_PREFERRED: readonly PreferredTab[] = [
   { key: 'accounts', labelKey: 'app.shell.tabs.accounts' },
   { key: 'sites', labelKey: 'app.shell.tabs.sites' },
   { key: 'databases', labelKey: 'app.shell.tabs.databases' },
 ]
 
-/** The tabs a customer's bar prefers, in order (issue #312). */
+/** The tabs a reseller's bar prefers after Home, in order (issue #179). */
+const RESELLER_PREFERRED: readonly PreferredTab[] = [{ key: 'accounts', labelKey: 'app.shell.tabs.accounts' }]
+
+/** The tabs a customer's bar prefers after Home, in order (issue #312). */
 const CUSTOMER_PREFERRED: readonly PreferredTab[] = [
-  { key: 'dashboard', labelKey: 'app.shell.tabs.home' },
   { key: 'sites', labelKey: 'app.shell.tabs.sites' },
   { key: 'mail', labelKey: 'app.shell.tabs.mail' },
   { key: 'account', labelKey: 'app.shell.tabs.account' },
 ]
+
+/** The preferred tabs of each role, after Home. Keyed by role so a role added to the tree needs a list. */
+const PREFERRED_BY_ROLE: Record<NavigationRole, readonly PreferredTab[]> = {
+  admin: ADMIN_PREFERRED,
+  reseller: RESELLER_PREFERRED,
+  customer: CUSTOMER_PREFERRED,
+}
 
 /** How many destinations the bar holds besides "More". */
 const DESTINATIONS = 4
@@ -117,12 +128,21 @@ const tabs: ComputedRef<Tab[]> = computed(() => {
   const chosen: Tab[] = []
   const used = new Set<string>()
 
-  const preferredTabs = role.value === 'customer' ? CUSTOMER_PREFERRED : OPERATOR_PREFERRED
-  for (const preferred of preferredTabs) {
+  // Home is the role's own landing: the first entry of its menu that leads somewhere. A fixed key
+  // would be wrong for a role whose tree does not carry it (a reseller has no server dashboard).
+  const home = props.entries.find((candidate) => {
+    return candidate.state.kind !== 'planned'
+  })
+  if (home !== undefined && home.state.kind !== 'planned') {
+    chosen.push({ kind: 'open', entry: home, target: home.state.target, label: t(HOME_LABEL_KEY) })
+    used.add(home.key)
+  }
+
+  for (const preferred of PREFERRED_BY_ROLE[role.value]) {
     const entry = props.entries.find((candidate) => {
       return candidate.key === preferred.key
     })
-    if (entry === undefined) {
+    if (entry === undefined || used.has(entry.key)) {
       continue
     }
     const label = t(preferred.labelKey)

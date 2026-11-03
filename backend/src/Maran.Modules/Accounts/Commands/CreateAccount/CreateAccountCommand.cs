@@ -31,6 +31,15 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// predates the field keeps the behaviour it had, minus the creator's own language leaking into the
 /// owner's mail.
 /// </param>
+/// <param name="ResellerId">
+/// The reseller that is to own the account. An administrator may name one, or none for an account of
+/// its own; a reseller always creates for itself, whatever this says as long as it is itself or
+/// absent, and naming any other reseller is answered <c>ResellerNotFound</c>, the same as for one that
+/// does not exist. It is an input like the plan, validated against the caller, and not a
+/// server-established member: the owner of a reseller's account is established by the reseller's own
+/// token (<see cref="Services.ResellerScope.ResolveOwner"/>), so there is nothing here a body could
+/// forge that the caller's identity does not overrule.
+/// </param>
 /// <param name="IpAddress">
 /// The caller's address, recorded in the audit journal. Read from the connection by the controller
 /// and never bound from the request: <c>JsonIgnore</c> keeps it out of the JSON body — a
@@ -51,5 +60,6 @@ public sealed record CreateAccountCommand(
     Guid PlanId,
     string OwnerEmail,
     string OwnerLanguage = PanelLanguages.English,
+    Guid? ResellerId = null,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");

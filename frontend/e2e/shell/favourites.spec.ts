@@ -140,8 +140,8 @@ test('a page that is not built yet has no star', async ({ page }) => {
 })
 
 test('a pin for a page the person is no longer offered is stored but not drawn', async ({ page }) => {
-  // `resellers` is planned, `gone-page` names nothing: the panel keeps both, the menu draws neither.
-  const state: PinnedPagesState = { keys: ['gone-page', 'resellers', 'sites-list'], limit: 8 }
+  // `site-domains` is planned, `gone-page` names nothing: the panel keeps both, the menu draws neither.
+  const state: PinnedPagesState = { keys: ['gone-page', 'site-domains', 'sites-list'], limit: 8 }
   await openShell(page, state)
 
   await openFavourites(page)

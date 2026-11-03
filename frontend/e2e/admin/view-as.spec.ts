@@ -31,6 +31,8 @@ const ACME: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
+  resellerId: null,
+  resellerName: null,
 }
 
 /**
@@ -72,8 +74,9 @@ const OLIVE: AuthenticatedUser = {
 
 /** What the panel reports about the session while it lasts. */
 const VIEWING: ViewingAs = {
-  accountId: ACME.id,
-  accountName: 'acme',
+  kind: 'account',
+  subjectId: ACME.id,
+  subjectName: 'acme',
   username: 'olive',
   operatorUsername: 'admin',
   expiresAt: '2099-01-01T00:15:00+00:00',

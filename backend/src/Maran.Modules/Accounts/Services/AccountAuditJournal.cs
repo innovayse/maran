@@ -28,6 +28,11 @@ namespace Maran.Modules.Accounts.Services;
 /// are the same kind of operation nothing else keeps a record of; their subject is the plan's stored
 /// name (<c>Plan.DisplayNameKey</c>), which reads the same whoever asks and in whatever language.
 ///
+/// Reseller management is journalled through the same type, and so is everything a reseller does to
+/// its own accounts and plans: the entry's actor is the reseller's login, and an administrator viewing
+/// as that reseller is recorded beside it by the audit writer, not by this type. The subject of a
+/// reseller entry is the reseller's NAME and never its envelope's figures or its contact address.
+///
 /// For an account, the subject is always the account's NAME, never the agent's output and never a path: the agent's
 /// text names absolute paths, uids and mounts on the host, the home directory is derived from the
 /// name anyway, and the journal is never deleted (rules/security.md item 8).
@@ -103,10 +108,11 @@ public sealed class AccountAuditJournal
         var (actorId, actorName) = _currentUser.Caller switch
         {
             AdministratorCaller administrator => (administrator.UserId, administrator.Username),
+            ResellerCaller reseller => (reseller.UserId, reseller.Username),
             CustomerCaller customer => (customer.UserId, customer.Username),
             AccountlessCustomerCaller accountless => (accountless.UserId, accountless.Username),
             AnonymousCaller => (Guid.Empty, string.Empty),
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
         };
 
         await _auditWriter.WriteAsync(

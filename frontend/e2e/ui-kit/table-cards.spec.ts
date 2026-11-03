@@ -21,6 +21,8 @@ const ACCOUNT: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
+  resellerId: null,
+  resellerName: null,
 }
 
 const MODULES: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }]

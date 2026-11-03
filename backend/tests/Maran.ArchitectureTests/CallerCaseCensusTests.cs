@@ -3,8 +3,8 @@ using Maran.SharedKernel.Callers;
 namespace Maran.ArchitectureTests;
 
 /// <summary>
-/// Fails when the set of concrete <see cref="Caller"/> cases is not exactly the four the switches
-/// over it were written for, so a fifth case cannot arrive without every such switch being reviewed.
+/// Fails when the set of concrete <see cref="Caller"/> cases is not exactly the five the switches
+/// over it were written for, so a sixth case cannot arrive without every such switch being reviewed.
 /// </summary>
 /// <remarks>
 /// Every consumer that decides something by who is calling — the tenant query filters, the audit
@@ -15,18 +15,19 @@ namespace Maran.ArchitectureTests;
 /// </remarks>
 public sealed class CallerCaseCensusTests
 {
-    /// <summary>The four cases every switch over a caller names, in alphabetical order.</summary>
+    /// <summary>The five cases every switch over a caller names, in alphabetical order.</summary>
     private static readonly string[] KnownCases =
     [
         nameof(AccountlessCustomerCaller),
         nameof(AdministratorCaller),
         nameof(AnonymousCaller),
         nameof(CustomerCaller),
+        nameof(ResellerCaller),
     ];
 
-    /// <summary>The concrete cases of <see cref="Caller"/> are exactly the four known ones.</summary>
+    /// <summary>The concrete cases of <see cref="Caller"/> are exactly the five known ones.</summary>
     [Fact]
-    public void The_caller_cases_are_exactly_the_four_the_switches_name()
+    public void The_caller_cases_are_exactly_the_five_the_switches_name()
     {
         var found = ConcreteCases(typeof(Caller));
 

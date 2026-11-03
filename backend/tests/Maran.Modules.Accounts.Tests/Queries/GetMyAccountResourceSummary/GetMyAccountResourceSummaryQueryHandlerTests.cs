@@ -38,7 +38,7 @@ public sealed class GetMyAccountResourceSummaryQueryHandlerTests : IDisposable
         var sites = new StubAccountResourceCounter(AccountResourceCount.Counted(AccountResourceKind.Sites, 2));
 
         var result = await new GetMyAccountResourceSummaryQueryHandler(
-                FakeCurrentUser.Customer(account.Id), new AccountResourceSummaryReader(_context, [sites]))
+                FakeCurrentUser.Customer(account.Id), ReaderOf(sites))
             .HandleAsync(new GetMyAccountResourceSummaryQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -53,11 +53,19 @@ public sealed class GetMyAccountResourceSummaryQueryHandlerTests : IDisposable
         var sites = new StubAccountResourceCounter(AccountResourceCount.Counted(AccountResourceKind.Sites, 2));
 
         var result = await new GetMyAccountResourceSummaryQueryHandler(
-                FakeCurrentUser.Admin(), new AccountResourceSummaryReader(_context, [sites]))
+                FakeCurrentUser.Admin(), ReaderOf(sites))
             .HandleAsync(new GetMyAccountResourceSummaryQuery(), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ErrorType.NotFound, result.Error!.Type);
         Assert.Empty(sites.Asked);
+    }
+
+    /// <summary>Builds the shared reader over the fixture's context and one counter.</summary>
+    /// <param name="counter">The counter registered for this test.</param>
+    /// <returns>The reader.</returns>
+    private AccountResourceSummaryReader ReaderOf(StubAccountResourceCounter counter)
+    {
+        return new AccountResourceSummaryReader(_context, new ResellerScope(_context, FakeCurrentUser.Admin()), [counter]);
     }
 }

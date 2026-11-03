@@ -25,6 +25,14 @@ public static class PanelClaimTypes
     /// <summary>The hosting account a Customer owns. Absent for an administrator, who owns none.</summary>
     public const string AccountId = "account";
 
+    /// <summary>
+    /// The reseller a Reseller login acts for. Present only on a token whose <see cref="Role"/> is
+    /// <c>Reseller</c>, and then required: a reseller token without it, or with a value that is not a
+    /// GUID, is refused rather than read as anything else, exactly as a customer token without
+    /// <see cref="AccountId"/> is. Absent for an administrator and for a customer.
+    /// </summary>
+    public const string ResellerId = "reseller";
+
     /// <summary>The session this token was issued against, so revoking the session can disown it.</summary>
     public const string SessionId = "sid";
 

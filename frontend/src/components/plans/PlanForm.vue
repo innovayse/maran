@@ -35,6 +35,13 @@
  * until it has arrived (`usePlanFeatures`), while an edit whose list failed still saves the set the
  * plan already has.
  *
+ * **A reseller's envelope is shown as hints, not enforced here.** When the page passes the envelope of
+ * the reseller who is defining the plan (`envelope`), each figure it bounds says so under its field
+ * ("At most N (your envelope)"), so the reseller sees the ceiling before it sends a figure the server
+ * would refuse. The server checks every figure against the envelope and its refusal, naming the
+ * fields, is what the page shows; the hints are advice and err by saying nothing for a ceiling that
+ * states no cap.
+ *
  * **Numbers are typed as text.** The kit's input is a text field, and `type="number"` would bring
  * the browser's own spinner and its own validation bubble (rules/vue.md: "the browser never
  * validates"). The `numeric` keyboard is requested instead, and the text is parsed here.
@@ -44,6 +51,7 @@ import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiCard from '../ui/UiCard.vue'
+import UiFieldHint from '../ui/UiFieldHint.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
@@ -54,6 +62,7 @@ import { usePlanCeilings, type PlanCeilingKey } from '../../composables/usePlanC
 import { usePlanFeatures } from '../../composables/usePlanFeatures'
 import type { LoadingState } from '../../types/loading'
 import type { ManagedPlan, PlanFeatureChoice, PlanRequest } from '../../types/plan'
+import type { ResellerEnvelope } from '../../types/reseller'
 
 /** The count and disk limits a plan states, by the name the request and the locale file both use. */
 type LimitKey = Exclude<keyof PlanRequest, 'name' | 'features' | PlanCeilingKey>
@@ -86,6 +95,17 @@ const LIMIT_FIELDS: readonly LimitField[] = [
   { key: 'maxPhpWorkersPerPool', min: 1, max: 10_000 },
 ]
 
+/** The envelope figure that bounds each count and disk limit; the disk quota's is named for its unit. */
+const ENVELOPE_CEILING: Readonly<Record<LimitKey, keyof ResellerEnvelope>> = {
+  diskQuotaMb: 'maxDiskQuotaMb',
+  maxSites: 'maxSites',
+  maxDatabases: 'maxDatabases',
+  maxSftpUsers: 'maxSftpUsers',
+  maxFtpUsers: 'maxFtpUsers',
+  maxCronEntries: 'maxCronEntries',
+  maxPhpWorkersPerPool: 'maxPhpWorkersPerPool',
+}
+
 /** A control character anywhere in a name (the server refuses them). */
 const CONTROL_CHARACTER = /\p{Cc}/u
 
@@ -109,6 +129,11 @@ const props = defineProps<{
   featureChoices: PlanFeatureChoice[] | null
   /** Where the read of {@link featureChoices} stands. */
   featuresState: LoadingState
+  /**
+   * The envelope of the reseller defining the plan, which bounds its figures; `null` for an
+   * administrator's plan, which nothing bounds but the server's own validator.
+   */
+  envelope?: ResellerEnvelope | null
 }>()
 
 /** Events emitted by {@link PlanForm}. */
@@ -199,6 +224,26 @@ const diskIsLowered: ComputedRef<boolean> = computed(() => {
     typedDiskQuota.value < props.plan.diskQuotaMb
   )
 })
+
+/**
+ * Says what the reseller's envelope allows for one limit.
+ * @param key Which limit.
+ * @returns The hint, or `null` when no envelope bounds the plan.
+ */
+const envelopeHintOf = (key: LimitKey): string | null => {
+  const ceiling = props.envelope?.[ENVELOPE_CEILING[key]]
+  return typeof ceiling === 'number' ? t('plans.form.envelopeMax', { max: ceiling }) : null
+}
+
+/**
+ * Says what the reseller's envelope allows for one runtime ceiling.
+ * @param key Which ceiling.
+ * @returns The hint, or `null` when no envelope bounds the plan or the envelope states no cap for it.
+ */
+const envelopeCeilingHintOf = (key: PlanCeilingKey): string | null => {
+  const ceiling = props.envelope?.[key]
+  return ceiling?.kind === 'limited' ? t('plans.form.envelopeMax', { max: ceiling.maximum }) : null
+}
 
 /**
  * Reads typed text as a whole number.
@@ -306,7 +351,7 @@ const cancel = (): void => {
              two from a tablet, three once the content panel is wide. Each cell is `min-w-0` so a
              long label wraps inside its column instead of widening the grid. -->
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <div v-for="field in LIMIT_FIELDS" :key="field.key" class="min-w-0">
+          <div v-for="field in LIMIT_FIELDS" :key="field.key" class="flex min-w-0 flex-col gap-1">
             <UiInput
               v-model="values[field.key]"
               :label="t(`plans.form.fields.${field.key}`)"
@@ -315,6 +360,7 @@ const cancel = (): void => {
               mono
               required
             />
+            <UiFieldHint v-if="envelopeHintOf(field.key) !== null">{{ envelopeHintOf(field.key) }}</UiFieldHint>
           </div>
         </div>
 
@@ -343,6 +389,7 @@ const cancel = (): void => {
             :label="t(`plans.form.fields.${field.key}`)"
             :unlimited-label="t('plans.form.noLimit')"
             :error="runtime.errorOf(field)"
+            :hint="envelopeCeilingHintOf(field.key)"
           />
         </div>
 

@@ -93,6 +93,36 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         // exact-match: the handlers refuse a name that differs only by case, or that reads the same
         // as a shipped plan's translated name, before the database is asked.
         builder.HasIndex(p => p.DisplayNameKey).IsUnique().HasDatabaseName("IX_Plans_DisplayNameKey");
+
+        // A name is unique per owner. Two partial indexes and not one over (ResellerId, Name), because
+        // PostgreSQL treats nulls as distinct in a unique index and two administrator plans with one
+        // name would then both be accepted; NULLS NOT DISTINCT would close that in one index but is
+        // PostgreSQL 15 and later, and the supported floor is 13 (rules/architecture.md). A shipped
+        // plan has no Name (null), and nulls never collide.
+        //
+        // IX_Plans_DisplayNameKey above stays for one more release: the previous release's
+        // CreatePlan relies on it to detect a duplicate name, and dropping it now would break the
+        // promise that the previous release runs against the new schema. While it exists, a
+        // reseller's plan cannot share a name with ANY other owner's plan; removing it is a
+        // contract-phase migration of its own.
+        builder.HasIndex(p => p.Name)
+            .IsUnique()
+            .HasFilter("\"ResellerId\" IS NULL")
+            .HasDatabaseName("UX_Plans_Name_Unowned");
+        builder.HasIndex(p => new { p.ResellerId, p.Name })
+            .IsUnique()
+            .HasFilter("\"ResellerId\" IS NOT NULL")
+            .HasDatabaseName("UX_Plans_ResellerId_Name");
+
+        // Optional (null is the administrator's plan, so the migration needs no backfill), and
+        // RESTRICT, as the account's: a reseller that still owns a plan cannot be deleted from under
+        // it. Declared without a navigation, as the account's plan is. No plain index on ResellerId:
+        // the composite one above leads with it and already covers every owned row.
+        builder.HasOne<Reseller>()
+            .WithMany()
+            .HasForeignKey(p => p.ResellerId)
+            .HasConstraintName("FK_Plans_Resellers_ResellerId")
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     /// <summary>Maps one runtime ceiling onto its three columns of the plan's own table.</summary>

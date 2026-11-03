@@ -1,10 +1,14 @@
 {
   "viewAs": {
     "action": "View as this account",
+    "actionReseller": "View as this reseller",
     "starting": "Opening the account…",
-    "banner": "You are viewing as {account} ({username}).",
+    "startingReseller": "Opening the reseller…",
+    "banner": "You are viewing as {subject} ({username}).",
+    "bannerReseller": "You are viewing as the reseller {subject} ({username}).",
     "back": "Back to {operator}",
     "backing": "Returning…",
-    "regionLabel": "Viewing as another account"
+    "regionLabel": "Viewing as another account",
+    "regionLabelReseller": "Viewing as another reseller"
   }
 }

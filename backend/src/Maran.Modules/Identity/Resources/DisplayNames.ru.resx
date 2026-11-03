@@ -353,10 +353,28 @@
     <value>Участник команды</value>
   </data>
   <data name="AuditActionViewAsStarted">
-    <value>Начат просмотр от имени аккаунта</value>
+    <value>Начат просмотр от имени другого входа</value>
   </data>
   <data name="AuditActionViewAsEnded">
-    <value>Завершён просмотр от имени аккаунта</value>
+    <value>Завершён просмотр от имени другого входа</value>
+  </data>
+  <data name="AuditActionResellerInvited">
+    <value>Реселлер приглашён</value>
+  </data>
+  <data name="AuditActionResellerCreated">
+    <value>Создан реселлер</value>
+  </data>
+  <data name="AuditActionResellerEnvelopeChanged">
+    <value>Изменены лимиты реселлера</value>
+  </data>
+  <data name="AuditActionResellerSuspended">
+    <value>Реселлер приостановлен</value>
+  </data>
+  <data name="AuditActionResellerReactivated">
+    <value>Реселлер возобновлён</value>
+  </data>
+  <data name="AuditActionResellerDeleted">
+    <value>Реселлер удалён</value>
   </data>
   <data name="AuditOutcomeSucceeded">
     <value>Успешно</value>

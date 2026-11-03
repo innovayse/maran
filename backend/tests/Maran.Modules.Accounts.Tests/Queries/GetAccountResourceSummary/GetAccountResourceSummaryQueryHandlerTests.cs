@@ -130,6 +130,7 @@ public sealed class GetAccountResourceSummaryQueryHandlerTests : IDisposable
     /// <returns>The handler under test.</returns>
     private GetAccountResourceSummaryQueryHandler Handler(params IAccountResourceCounter[] counters)
     {
-        return new GetAccountResourceSummaryQueryHandler(new AccountResourceSummaryReader(_context, counters));
+        return new GetAccountResourceSummaryQueryHandler(new AccountResourceSummaryReader(
+            _context, new ResellerScope(_context, FakeCurrentUser.Admin()), counters));
     }
 }

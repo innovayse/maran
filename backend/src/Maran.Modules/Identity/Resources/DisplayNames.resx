@@ -352,10 +352,28 @@
     <value>Team member</value>
   </data>
   <data name="AuditActionViewAsStarted">
-    <value>Started viewing as an account</value>
+    <value>Started viewing as another login</value>
   </data>
   <data name="AuditActionViewAsEnded">
-    <value>Stopped viewing as an account</value>
+    <value>Stopped viewing as another login</value>
+  </data>
+  <data name="AuditActionResellerInvited">
+    <value>Reseller invited</value>
+  </data>
+  <data name="AuditActionResellerCreated">
+    <value>Reseller created</value>
+  </data>
+  <data name="AuditActionResellerEnvelopeChanged">
+    <value>Reseller envelope changed</value>
+  </data>
+  <data name="AuditActionResellerSuspended">
+    <value>Reseller suspended</value>
+  </data>
+  <data name="AuditActionResellerReactivated">
+    <value>Reseller reactivated</value>
+  </data>
+  <data name="AuditActionResellerDeleted">
+    <value>Reseller deleted</value>
   </data>
   <data name="AuditOutcomeSucceeded">
     <value>Succeeded</value>

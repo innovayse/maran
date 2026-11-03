@@ -1,8 +1,17 @@
 import { useApi } from '../useApi'
-import type { StartViewAsRequest, ViewAsApi, ViewAsSession, ViewAsState } from '../../types/viewAs'
+import type {
+  StartViewAsRequest,
+  StartViewAsResellerRequest,
+  ViewAsApi,
+  ViewAsSession,
+  ViewAsState,
+} from '../../types/viewAs'
 
 /** The endpoint an operator views the panel as an account through (issue #317). */
 const VIEW_AS_PATH = '/api/v1/view-as'
+
+/** The endpoint an administrator views the panel as a reseller through (issue #179). */
+const VIEW_AS_RESELLER_PATH = '/api/v1/view-as/reseller'
 
 /**
  * Builds the view-as API on top of the shared low-level client. Every call speaks for the caller's
@@ -26,14 +35,25 @@ export const useViewAsApi = (): ViewAsApi => {
   }
 
   /**
-   * Starts viewing as the login that owns an account. Administrators only; the panel answers 404
-   * for an account outside the caller's scope.
+   * Starts viewing as the login that owns an account. Administrators and resellers only; the panel
+   * answers 404 for an account outside the caller's scope.
    * @param request The account.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The view-as token and what the banner shows.
    */
   const start = (request: StartViewAsRequest, signal?: AbortSignal): Promise<ViewAsSession> => {
     return api.post<ViewAsSession>(VIEW_AS_PATH, request, signal)
+  }
+
+  /**
+   * Starts viewing as a reseller's login. Administrators only; the panel answers 404 for a reseller
+   * that does not exist.
+   * @param request The reseller.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The view-as token and what the banner shows.
+   */
+  const startReseller = (request: StartViewAsResellerRequest, signal?: AbortSignal): Promise<ViewAsSession> => {
+    return api.post<ViewAsSession>(VIEW_AS_RESELLER_PATH, request, signal)
   }
 
   /**
@@ -47,5 +67,5 @@ export const useViewAsApi = (): ViewAsApi => {
     return api.delete<void>(VIEW_AS_PATH, signal)
   }
 
-  return { current, start, stop }
+  return { current, start, startReseller, stop }
 }

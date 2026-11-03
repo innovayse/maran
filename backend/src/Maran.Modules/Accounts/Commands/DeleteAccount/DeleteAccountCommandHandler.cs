@@ -40,6 +40,9 @@ public sealed class DeleteAccountCommandHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Says whether the caller is a reseller, and whether a suspended one may still write.</summary>
+    private readonly ResellerScope _scope;
+
     /// <summary>The agent, which owns the system user and the home directory.</summary>
     private readonly IAgentAccountsClient _agent;
 
@@ -76,6 +79,7 @@ public sealed class DeleteAccountCommandHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="scope">Says whether the caller is a reseller, and whether a suspended one may still write.</param>
     /// <param name="agent">The agent client that removes the operating-system identity.</param>
     /// <param name="bus">The bus <see cref="AccountDeleting"/> is invoked on.</param>
     /// <param name="logger">Where a subscriber's refusal is recorded.</param>
@@ -99,6 +103,7 @@ public sealed class DeleteAccountCommandHandler
     /// </remarks>
     public DeleteAccountCommandHandler(
         AccountsDbContext dbContext,
+        ResellerScope scope,
         IAgentAccountsClient agent,
         IMessageBus bus,
         ILogger<DeleteAccountCommandHandler> logger,
@@ -109,6 +114,7 @@ public sealed class DeleteAccountCommandHandler
         IEnumerable<IAccountBackupService> backups)
     {
         _dbContext = dbContext;
+        _scope = scope;
         _agent = agent;
         _bus = bus;
         _logger = logger;
@@ -199,9 +205,32 @@ public sealed class DeleteAccountCommandHandler
     /// </remarks>
     /// <param name="command">Which account to remove.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>How many bytes the removal freed, or a typed failure.</returns>
+    /// <returns>
+    /// How many bytes the removal freed, or a typed failure: <c>ResellerSuspended</c> for a suspended
+    /// reseller, <c>AccountFinalBackupSkipForbidden</c> for a reseller asking to skip the final backup,
+    /// <c>AccountNotFound</c> for an account the caller's scope does not hold.
+    /// </returns>
     public async Task<Result<ulong>> HandleAsync(DeleteAccountCommand command, CancellationToken cancellationToken)
     {
+        var inactive = await _scope.RequireActiveAsync(cancellationToken);
+        if (inactive is not null)
+        {
+            return await FailAsync(command, command.AccountId.ToString(), inactive, Guid.Empty, cancellationToken);
+        }
+
+        // The one choice in this operation that cannot be undone is an administrator's: a reseller
+        // reaches this handler through a controller the administrator shares with it, so the refusal
+        // is made HERE, from the caller's own token, and not left to which controller was entered.
+        if (command.SkipFinalBackup && _scope.CallerResellerId is not null)
+        {
+            return await FailAsync(
+                command,
+                command.AccountId.ToString(),
+                Error.Of(nameof(ErrorMessages.AccountFinalBackupSkipForbidden), ErrorType.Forbidden),
+                Guid.Empty,
+                cancellationToken);
+        }
+
         var account = await _dbContext.Accounts.SingleOrDefaultAsync(a => a.Id == command.AccountId, cancellationToken);
         if (account is null)
         {

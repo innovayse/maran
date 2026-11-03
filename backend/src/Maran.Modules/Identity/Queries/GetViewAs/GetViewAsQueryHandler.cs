@@ -1,13 +1,12 @@
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Queries.GetViewAs;
 
 /// <summary>
 /// Handles <see cref="GetViewAsQuery"/>: reports the live view-as session behind the caller's token,
-/// or none (issues #317, #314).
+/// or none, for either kind of subject (issues #317, #314, #179).
 /// </summary>
 /// <remarks>
 /// This is where the SPA's banner comes from, so the answer is read from the SESSION ROW, not echoed
@@ -23,21 +22,21 @@ public sealed class GetViewAsQueryHandler
     /// <summary>Reads the live view-as session.</summary>
     private readonly ViewAsSessionVerifier _verifier;
 
-    /// <summary>The tenant-scoped window onto the accounts module, read for the account's name.</summary>
-    private readonly IAccountDirectory _accountDirectory;
+    /// <summary>Reads what the session is looking at: its kind, id and name.</summary>
+    private readonly ViewAsSubjectReader _subjectReader;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="verifier">Reads the live view-as session.</param>
-    /// <param name="accountDirectory">The tenant-scoped window onto the accounts module.</param>
+    /// <param name="subjectReader">Reads what the session is looking at: its kind, id and name.</param>
     public GetViewAsQueryHandler(
         IdentityDbContext dbContext,
         ViewAsSessionVerifier verifier,
-        IAccountDirectory accountDirectory)
+        ViewAsSubjectReader subjectReader)
     {
         _dbContext = dbContext;
         _verifier = verifier;
-        _accountDirectory = accountDirectory;
+        _subjectReader = subjectReader;
     }
 
     /// <summary>Reports the caller's view-as session.</summary>
@@ -49,19 +48,26 @@ public sealed class GetViewAsQueryHandler
         var session = await _verifier.FindLiveAsync(query.SessionId, cancellationToken);
         if (session is null
             || session.UserId != query.ViewedUserId
-            || session.ActiveAccountId is not { } accountId
             || session.ViewAs is not { } origin)
+        {
+            return Result<ViewAsStateDto>.Ok(new ViewAsStateDto(null));
+        }
+
+        // A session whose facts do not describe an allowed kind answers "not viewing": the banner
+        // must never claim a view the backend would not have started.
+        var subject = await _subjectReader.ReadAsync(session, cancellationToken);
+        if (subject is null)
         {
             return Result<ViewAsStateDto>.Ok(new ViewAsStateDto(null));
         }
 
         var viewedName = await UsernameOfAsync(session.UserId, cancellationToken);
         var operatorName = await UsernameOfAsync(origin.ActorUserId, cancellationToken);
-        var account = await _accountDirectory.FindAsync(accountId, cancellationToken);
 
         var viewing = new ViewingAsDto(
-            accountId,
-            account?.Username ?? string.Empty,
+            subject.Kind,
+            subject.Id,
+            subject.Name,
             viewedName,
             operatorName,
             session.ExpiresAt);

@@ -2,8 +2,8 @@ namespace Maran.Modules.Identity.Domain.Entities;
 
 /// <summary>
 /// The panel's operator-configurable security policy: at most one row, ever (R12). It is the single
-/// answer to "how long must a password be", "must an administrator hold a second factor", and "how
-/// many wrong passwords lock an account".
+/// answer to "how long must a password be", "must an administrator or a reseller hold a second
+/// factor", and "how many wrong passwords lock an account".
 /// </summary>
 /// <remarks>
 /// <para>
@@ -52,6 +52,14 @@ public sealed class SecurityPolicy
     public const bool DefaultForceTwoFactorForAdmins = false;
 
     /// <summary>
+    /// Whether a fresh panel forces resellers to enrol a second factor. On by default, unlike the
+    /// administrators' switch, because a reseller can start a view-as into every account it owns, so
+    /// its login is a privileged one, and because nobody is locked out by it on a fresh panel: no
+    /// reseller exists yet, and each one meets the enrolment screen on its first sign-in.
+    /// </summary>
+    public const bool DefaultForceTwoFactorForResellers = true;
+
+    /// <summary>
     /// Consecutive failures that lock an account on a fresh panel. Deliberately larger than the
     /// per-address rate limit: this is the last line, for an attacker with enough addresses to walk
     /// past the first one, and it must not fire on somebody who simply mistyped a few times.
@@ -70,6 +78,9 @@ public sealed class SecurityPolicy
     /// <summary>Whether an administrator without a second factor is steered into enrolment.</summary>
     public bool ForceTwoFactorForAdmins { get; private set; }
 
+    /// <summary>Whether a reseller without a second factor is steered into enrolment.</summary>
+    public bool ForceTwoFactorForResellers { get; private set; }
+
     /// <summary>Consecutive failed sign-ins that lock an account.</summary>
     public int MaxFailedLoginAttempts { get; private set; }
 
@@ -82,12 +93,14 @@ public sealed class SecurityPolicy
     /// <summary>Creates the panel's security policy for the first time.</summary>
     /// <param name="minimumPasswordLength">The shortest password the panel accepts.</param>
     /// <param name="forceTwoFactorForAdmins">Whether administrators must hold a second factor.</param>
+    /// <param name="forceTwoFactorForResellers">Whether resellers must hold a second factor.</param>
     /// <param name="maxFailedLoginAttempts">Consecutive failed sign-ins that lock an account.</param>
     /// <param name="lockoutMinutes">How long a locked account stays locked, in minutes.</param>
     /// <param name="updatedAt">When the policy was saved, from the panel's clock.</param>
     public SecurityPolicy(
         int minimumPasswordLength,
         bool forceTwoFactorForAdmins,
+        bool forceTwoFactorForResellers,
         int maxFailedLoginAttempts,
         int lockoutMinutes,
         DateTimeOffset updatedAt)
@@ -95,6 +108,7 @@ public sealed class SecurityPolicy
         Id = SingletonId;
         MinimumPasswordLength = minimumPasswordLength;
         ForceTwoFactorForAdmins = forceTwoFactorForAdmins;
+        ForceTwoFactorForResellers = forceTwoFactorForResellers;
         MaxFailedLoginAttempts = maxFailedLoginAttempts;
         LockoutMinutes = lockoutMinutes;
         UpdatedAt = updatedAt;
@@ -108,6 +122,7 @@ public sealed class SecurityPolicy
     /// <summary>Replaces every setting with the values just saved.</summary>
     /// <param name="minimumPasswordLength">The shortest password the panel accepts.</param>
     /// <param name="forceTwoFactorForAdmins">Whether administrators must hold a second factor.</param>
+    /// <param name="forceTwoFactorForResellers">Whether resellers must hold a second factor.</param>
     /// <param name="maxFailedLoginAttempts">Consecutive failed sign-ins that lock an account.</param>
     /// <param name="lockoutMinutes">How long a locked account stays locked, in minutes.</param>
     /// <param name="updatedAt">When the policy was saved, from the panel's clock.</param>
@@ -119,12 +134,14 @@ public sealed class SecurityPolicy
     public void Replace(
         int minimumPasswordLength,
         bool forceTwoFactorForAdmins,
+        bool forceTwoFactorForResellers,
         int maxFailedLoginAttempts,
         int lockoutMinutes,
         DateTimeOffset updatedAt)
     {
         MinimumPasswordLength = minimumPasswordLength;
         ForceTwoFactorForAdmins = forceTwoFactorForAdmins;
+        ForceTwoFactorForResellers = forceTwoFactorForResellers;
         MaxFailedLoginAttempts = maxFailedLoginAttempts;
         LockoutMinutes = lockoutMinutes;
         UpdatedAt = updatedAt;

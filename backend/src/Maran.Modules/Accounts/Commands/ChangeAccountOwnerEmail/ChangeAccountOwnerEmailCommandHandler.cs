@@ -36,6 +36,12 @@ public sealed class ChangeAccountOwnerEmailCommandHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Refuses a write by a suspended reseller.</summary>
+    private readonly ResellerScope _scope;
+
+    /// <summary>Names the owning reseller in the answer.</summary>
+    private readonly ResellerNameDirectory _resellerNames;
+
     /// <summary>The bus the login's change is requested on.</summary>
     private readonly IMessageBus _bus;
 
@@ -47,16 +53,22 @@ public sealed class ChangeAccountOwnerEmailCommandHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="scope">Refuses a write by a suspended reseller.</param>
+    /// <param name="resellerNames">Names the owning reseller in the answer.</param>
     /// <param name="bus">The bus the login's change is requested on.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="displayNames">Resolves a shipped plan's name in the request's culture.</param>
     public ChangeAccountOwnerEmailCommandHandler(
         AccountsDbContext dbContext,
+        ResellerScope scope,
+        ResellerNameDirectory resellerNames,
         IMessageBus bus,
         AccountAuditJournal journal,
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
+        _scope = scope;
+        _resellerNames = resellerNames;
         _bus = bus;
         _journal = journal;
         _displayNames = displayNames;
@@ -66,13 +78,19 @@ public sealed class ChangeAccountOwnerEmailCommandHandler
     /// <param name="command">The validated change; see <see cref="ChangeAccountOwnerEmailCommandValidator"/>.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
     /// <returns>
-    /// The account as it now stands, <c>AccountNotFound</c>, or <c>EmailTaken</c> when another login
-    /// already holds the address.
+    /// The account as it now stands, <c>AccountNotFound</c> (also for an account another reseller owns),
+    /// <c>ResellerSuspended</c>, or <c>EmailTaken</c> when another login already holds the address.
     /// </returns>
     public async Task<Result<AccountDetailDto>> HandleAsync(
         ChangeAccountOwnerEmailCommand command,
         CancellationToken cancellationToken)
     {
+        var inactive = await _scope.RequireActiveAsync(cancellationToken);
+        if (inactive is not null)
+        {
+            return await FailAsync(command, command.AccountId.ToString("D"), inactive, cancellationToken);
+        }
+
         var account = await _dbContext.Accounts
             .SingleOrDefaultAsync(a => a.Id == command.AccountId, cancellationToken);
         if (account is null)
@@ -99,7 +117,8 @@ public sealed class ChangeAccountOwnerEmailCommandHandler
             AccountAuditActions.AccountOwnerEmailChanged, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         var plan = await _dbContext.Plans.AsNoTracking().SingleAsync(p => p.Id == account.PlanId, cancellationToken);
-        return Result<AccountDetailDto>.Ok(AccountDetailMapper.ToDto(account, plan, _displayNames));
+        var resellerName = await _resellerNames.NameOfAsync(account.ResellerId, cancellationToken);
+        return Result<AccountDetailDto>.Ok(AccountDetailMapper.ToDto(account, plan, _displayNames, resellerName));
     }
 
     /// <summary>Journals a refused change and returns it as the typed failure.</summary>

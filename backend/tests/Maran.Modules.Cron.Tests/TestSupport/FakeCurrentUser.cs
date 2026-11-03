@@ -23,6 +23,13 @@ public sealed class FakeCurrentUser : ICurrentUser
         Caller = CallerFor(userId, accountId, isAdmin, username);
     }
 
+    /// <summary>Creates a principal that already is a particular caller.</summary>
+    /// <param name="caller">The caller this double hands out.</param>
+    private FakeCurrentUser(Caller caller)
+    {
+        Caller = caller;
+    }
+
     /// <summary>Creates a customer principal owning <paramref name="accountId"/>.</summary>
     /// <param name="accountId">The account the customer owns.</param>
     public static FakeCurrentUser Customer(Guid accountId)
@@ -34,6 +41,16 @@ public sealed class FakeCurrentUser : ICurrentUser
     public static FakeCurrentUser Admin()
     {
         return new FakeCurrentUser(Guid.NewGuid(), null, isAdmin: true);
+    }
+
+    /// <summary>
+    /// Creates a reseller principal, which owns accounts in the Accounts module and no row at all
+    /// in this one, so a tenant scope must show it nothing.
+    /// </summary>
+    /// <param name="resellerId">The reseller the login acts for.</param>
+    public static FakeCurrentUser Reseller(Guid resellerId)
+    {
+        return new FakeCurrentUser(new ResellerCaller(Guid.NewGuid(), "reseller", resellerId));
     }
 
     /// <summary>

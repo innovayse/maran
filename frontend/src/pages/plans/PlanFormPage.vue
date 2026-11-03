@@ -17,6 +17,11 @@
  * the real labels over placeholder controls (inside a {@link UiLoadingRegion}); once the plan is
  * known, a fresh form created from it takes the stand-in's place.
  *
+ * **A reseller defines plans inside its envelope.** For a reseller the page reads its own envelope
+ * (`GET /api/v1/reseller/me`) and hands it to the form, which says what each figure may be at most.
+ * That read is advice: a failed one only leaves the hints out, and the server checks every figure
+ * against the envelope whatever the form sent.
+ *
  * A refusal from the server — a name another plan has, a quota an account already exceeds — is
  * rendered verbatim above the form, and the form stays as the administrator left it so they can
  * correct the one figure and send it again.
@@ -30,8 +35,11 @@ import UiLink from '../../components/ui/UiLink.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import PlanForm from '../../components/plans/PlanForm.vue'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { usePlansStore } from '../../stores/plans'
+import { useResellersStore } from '../../stores/resellers'
 import type { ManagedPlan, PlanRequest } from '../../types/plan'
+import type { ResellerEnvelope } from '../../types/reseller'
 import { flashNoticeState } from '../../utils/flashNotice'
 
 /** Props the router passes (`props: true` on the edit route; absent on the create route). */
@@ -43,6 +51,8 @@ const props = defineProps<{
 const { t } = useI18n()
 const router = useRouter()
 const store = usePlansStore()
+const resellersStore = useResellersStore()
+const { isReseller } = useCallerRole()
 
 /** Whether this page edits an existing plan. */
 const isEditing: ComputedRef<boolean> = computed(() => {
@@ -52,6 +62,11 @@ const isEditing: ComputedRef<boolean> = computed(() => {
 /** The plan being edited, or `undefined` while it has not arrived or the panel has no such plan. */
 const plan: ComputedRef<ManagedPlan | undefined> = computed(() => {
   return props.id === undefined ? undefined : (store.selected ?? undefined)
+})
+
+/** The envelope bounding the plan being defined: the reseller's own, or `null` for an administrator (nothing bounds it) or while it is unread. */
+const envelope: ComputedRef<ResellerEnvelope | null> = computed(() => {
+  return isReseller.value ? (resellersStore.mine?.envelope ?? null) : null
 })
 
 /** The heading's key: it names the job the page is doing. */
@@ -66,7 +81,11 @@ const headingKey: ComputedRef<string> = computed(() => {
 const prepare = async (): Promise<void> => {
   store.clearErrors()
   // The panel's feature list and the plan are independent reads, so they go out together.
-  await Promise.all([store.loadFeatureChoices(), props.id === undefined ? undefined : store.loadOne(props.id)])
+  await Promise.all([
+    store.loadFeatureChoices(),
+    props.id === undefined ? undefined : store.loadOne(props.id),
+    isReseller.value ? resellersStore.loadMine() : undefined,
+  ])
 }
 
 /**
@@ -125,6 +144,7 @@ onMounted(prepare)
         :submitting="store.saving"
         :feature-choices="store.featureChoices"
         :features-state="store.featuresState"
+        :envelope="envelope"
       />
 
       <UiEmptyState
@@ -141,6 +161,7 @@ onMounted(prepare)
         :submitting="store.saving"
         :feature-choices="store.featureChoices"
         :features-state="store.featuresState"
+        :envelope="envelope"
         @submit="save"
         @cancel="cancel"
       />
@@ -152,6 +173,7 @@ onMounted(prepare)
       :submitting="store.saving"
       :feature-choices="store.featureChoices"
       :features-state="store.featuresState"
+      :envelope="envelope"
       @submit="save"
       @cancel="cancel"
     />

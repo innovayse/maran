@@ -1,8 +1,5 @@
 using System.Xml.Linq;
 using Maran.Modules.Accounts.Commands.CreateAccount;
-using Maran.Modules.Accounts.Domain.Entities;
-using Maran.Modules.Accounts.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Resources;
 
@@ -96,16 +93,8 @@ public sealed class ErrorMessagesTests
     [InlineData("ab", "AccountNameInvalid")]
     public async Task The_code_the_validator_emits_for_a_bad_name_is_a_key_in_every_language_file(string name, string code)
     {
-        var options = new DbContextOptionsBuilder<AccountsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        await using var dbContext = new AccountsDbContext(options);
-        var planId = Guid.NewGuid();
-        dbContext.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5, 5));
-        await dbContext.SaveChangesAsync();
-
-        var result = await new CreateAccountCommandValidator(dbContext).ValidateAsync(
-            new CreateAccountCommand(name, "acme.example.com", planId, "owner@example.com"));
+        var result = await new CreateAccountCommandValidator().ValidateAsync(
+            new CreateAccountCommand(name, "acme.example.com", Guid.NewGuid(), "owner@example.com"));
 
         var emitted = Assert.Single(result.Errors).ErrorMessage;
         Assert.Equal(code, emitted);

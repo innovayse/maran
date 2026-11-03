@@ -37,8 +37,9 @@
  * **The owner's invitation lives in {@link AccountInvitationCard}**, below the details (#78): where
  * it stands, a one-time link to hand over by hand (the way in on a panel that cannot send mail),
  * and "Resend invitation" as the recovery path for a login the owner never reached. All of it is
- * administrator-only on the server (`InvitationsController`); this page adds no matching role check
- * of its own (rules/architecture.md — the endpoint is the boundary).
+ * administrator-only on the server (`InvitationsController`), so the card is drawn for an administrator
+ * only: a reseller opening its own account would be shown a refusal it cannot act on. That is
+ * advice for the screen; the endpoint is the boundary (rules/architecture.md).
  *
  * **While the account loads**, the heading and the details card are drawn already, with their real
  * terms and a placeholder line in place of each value ({@link UiLoadingRegion},
@@ -64,6 +65,7 @@ import AccountOwnerEmailDialog from '../../components/accounts/AccountOwnerEmail
 import AccountPlanDialog from '../../components/accounts/AccountPlanDialog.vue'
 import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
 import { useAccountsStore } from '../../stores/accounts'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useAuthStore } from '../../stores/auth'
 import { useLocaleStore } from '../../stores/locale'
 import { useViewAsStore } from '../../stores/viewAs'
@@ -87,6 +89,7 @@ const accountsStore = useAccountsStore()
 const localeStore = useLocaleStore()
 const authStore = useAuthStore()
 const viewAsStore = useViewAsStore()
+const { isAdmin } = useCallerRole()
 
 /** Which dialog the operator has opened: a confirmation, the deletion, or one of the two edits. */
 const dialog: Ref<AccountDialog> = ref(null)
@@ -312,7 +315,7 @@ onMounted(async () => {
     <AccountResourcesCard v-if="accountsStore.selectedState !== 'error' && !isMissing" :read="accountsStore.resourceSummary" />
 
     <template v-if="accountsStore.selectedState === 'loaded' && accountsStore.selected !== null">
-      <AccountInvitationCard :account-id="id" :status="accountsStore.selected.status" />
+      <AccountInvitationCard v-if="isAdmin" :account-id="id" :status="accountsStore.selected.status" />
 
       <!-- `:open` is bound to a value that really changes, and this dialog needs no `v-if`: it has
            no props that are only valid while it is open, and `UiModal` renders nothing while

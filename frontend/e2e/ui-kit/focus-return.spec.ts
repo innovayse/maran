@@ -33,6 +33,8 @@ const ALICE: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
+  resellerId: null,
+  resellerName: null,
 }
 
 /** Two rows, so the first row's trigger has a next tabbable element and the second has a previous one. */

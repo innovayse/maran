@@ -10,21 +10,24 @@ namespace Maran.Host.Security;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Three outcomes, and a refusal for everything else.</b> A request with no authenticated
+/// <b>Five outcomes, and a refusal for everything else.</b> A request with no authenticated
 /// principal (or no request at all, as in background work) is an <see cref="AnonymousCaller"/>. An
 /// authenticated principal whose role claim is exactly <c>Admin</c> is an
-/// <see cref="AdministratorCaller"/>; exactly <c>Customer</c> with an account claim, a
+/// <see cref="AdministratorCaller"/>; exactly <c>Reseller</c> with a reseller claim, a
+/// <see cref="ResellerCaller"/>; exactly <c>Customer</c> with an account claim, a
 /// <see cref="CustomerCaller"/>, and without one an <see cref="AccountlessCustomerCaller"/> (the
-/// issuer omits the claim for a customer with no memberships, so its absence is a state, not damage).
-/// An authenticated principal that is none of these — an unknown or missing role, an unreadable user
-/// id, an account claim that is present but not an id, a view-as marker with no readable operator —
-/// is NOT folded into one of them: it raises <see cref="UnrecognisedPrincipalException"/>.
+/// issuer omits the claim for a customer with no memberships, so its absence is a state, not damage;
+/// a reseller always has its reseller, so there the absence is damage). An authenticated principal
+/// that is none of these — an unknown or missing role, an unreadable user id, an account or reseller
+/// claim that is present but not an id, a reseller token with no reseller claim, a view-as marker with
+/// no readable operator — is NOT folded into one of them: it raises
+/// <see cref="UnrecognisedPrincipalException"/>.
 /// </para>
 /// <para>
 /// <b>Why that refuses and does not degrade.</b> Degrading to anonymous would grant nothing, but it
 /// would also report a signed-in person as nobody and hide a broken token issuer behind "not signed
 /// in"; degrading to a customer would invent a tenant. The only token this class can see has
-/// already passed signature validation, so a principal outside the two roles is a defect to surface,
+/// already passed signature validation, so a principal outside the three roles is a defect to surface,
 /// and the request fails closed with a generic 500 that carries no claim value. Previously the same
 /// token answered "not an administrator, no account", which is the same denial; the difference is
 /// that it is now loud and that no part of the token is half-trusted.
@@ -44,7 +47,7 @@ public sealed class HttpContextCurrentUser : ICurrentUser
 
     /// <inheritdoc />
     /// <exception cref="UnrecognisedPrincipalException">
-    /// The request is authenticated but its token is not an administrator's or a customer's.
+    /// The request is authenticated but its token is not an administrator's, a reseller's or a customer's.
     /// </exception>
     public Caller Caller
     {
@@ -64,12 +67,17 @@ public sealed class HttpContextCurrentUser : ICurrentUser
             var username = principal.FindFirst(PanelClaimTypes.Username)?.Value ?? string.Empty;
             var viewedBy = ReadViewingOperator(principal);
 
-            // An exact, case-sensitive match against the two role names. Anything else — an older
+            // An exact, case-sensitive match against the three role names. Anything else — an older
             // token, or one carrying a role this build has never heard of — is refused, not demoted.
             var role = principal.FindFirst(PanelClaimTypes.Role)?.Value;
             if (string.Equals(role, nameof(UserRole.Admin), StringComparison.Ordinal))
             {
                 return new AdministratorCaller(userId, username, viewedBy);
+            }
+
+            if (string.Equals(role, nameof(UserRole.Reseller), StringComparison.Ordinal))
+            {
+                return ReadReseller(principal, userId, username, viewedBy);
             }
 
             if (!string.Equals(role, nameof(UserRole.Customer), StringComparison.Ordinal))
@@ -90,6 +98,32 @@ public sealed class HttpContextCurrentUser : ICurrentUser
 
             return new CustomerCaller(userId, username, accountId, viewedBy);
         }
+    }
+
+    /// <summary>Reads a reseller's caller out of a token whose role is <c>Reseller</c>.</summary>
+    /// <param name="principal">The validated principal of the request.</param>
+    /// <param name="userId">The login's user id, already read.</param>
+    /// <param name="username">The login's name.</param>
+    /// <param name="viewedBy">The operator viewing as this reseller, or null.</param>
+    /// <returns>The reseller caller.</returns>
+    /// <exception cref="UnrecognisedPrincipalException">
+    /// The token carries no reseller claim, or one that is not an id. Unlike a customer, a reseller
+    /// always acts for one reseller, so an absent claim is a damaged token and not a state: reading it
+    /// as a caller with no reseller would invent one that sees nothing, and reading it as anything else
+    /// would invent an owner.
+    /// </exception>
+    private static ResellerCaller ReadReseller(
+        ClaimsPrincipal principal,
+        Guid userId,
+        string username,
+        ViewingOperator? viewedBy)
+    {
+        if (!Guid.TryParse(principal.FindFirst(PanelClaimTypes.ResellerId)?.Value, out var resellerId))
+        {
+            throw new UnrecognisedPrincipalException("The reseller token carries no readable reseller.");
+        }
+
+        return new ResellerCaller(userId, username, resellerId, viewedBy);
     }
 
     /// <summary>Reads the operator viewing as this login, when the token is a view-as token.</summary>

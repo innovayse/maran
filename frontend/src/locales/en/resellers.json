@@ -1,0 +1,135 @@
+{
+  "resellers": {
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "list": {
+      "heading": "Resellers",
+      "subtitle": "Businesses that sell hosting from this panel, each within the envelope you gave it.",
+      "createAction": "New reseller",
+      "emptyTitle": "No resellers yet",
+      "emptyDescription": "A reseller creates its own plans and accounts inside an envelope you set. Create the first one to start.",
+      "tableCaption": "Resellers and what they use",
+      "searchLabel": "Search resellers",
+      "searchPlaceholder": "Search by name…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No resellers match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every reseller.",
+      "columns": {
+        "contactEmail": "Contact address",
+        "status": "Status",
+        "accounts": "Accounts",
+        "plans": "Plans",
+        "disk": "Disk allocated",
+        "createdAt": "Created"
+      },
+      "filters": {
+        "status": "Status"
+      }
+    },
+    "form": {
+      "headingNew": "New reseller",
+      "headingEdit": "Change the envelope",
+      "subtitleNew": "Name the reseller and set what it may sell. It receives an invitation to set its password. The panel checks these values before sending them, and the server checks them again.",
+      "subtitleEdit": "Replace the figures below. Lowering one under what the reseller already uses changes nothing that exists; it only refuses new plans and accounts that would pass it.",
+      "notFoundTitle": "Reseller not found",
+      "notFoundDescription": "It may have been deleted since this link was made.",
+      "backToList": "Back to resellers",
+      "identitySection": "Who the reseller is",
+      "limitsSection": "Envelope",
+      "limitsHint": "The reseller's accounts, plans and disk pool, and the most any one of its plans may give an account. Zero FTPS logins or cron entries lets it sell none. Every other figure must be at least 1.",
+      "runtimeSection": "Runtime ceilings",
+      "runtimeHint": "The most CPU, memory and processes a plan of the reseller may give one account. CPU is a share of one core: 50 is half a core, 200 is two cores. Tick no limit to leave a resource uncapped.",
+      "noLimit": "No limit",
+      "featuresSection": "Features",
+      "featuresHint": "The features the reseller may include in its plans. A feature left unticked cannot be sold by it.",
+      "featuresLoading": "Loading the features…",
+      "featuresUnavailable": "The list of features could not be loaded, so the envelope cannot be saved yet. Reload the page to try again.",
+      "fields": {
+        "name": "Name",
+        "contactEmail": "Contact address",
+        "language": "Invitation language",
+        "maxAccounts": "Accounts",
+        "maxPlans": "Plans",
+        "diskPoolMb": "Disk pool (MB)",
+        "maxDiskQuotaMb": "Disk per account (MB)",
+        "maxSites": "Sites per account",
+        "maxDatabases": "Databases per account",
+        "maxSftpUsers": "SFTP logins per account",
+        "maxFtpUsers": "FTPS logins per account",
+        "maxCronEntries": "Cron entries per account",
+        "maxPhpWorkersPerPool": "PHP workers per pool",
+        "cpuQuotaPercent": "CPU (% of one core)",
+        "memoryMaxMb": "Memory (MB)",
+        "maxProcesses": "Processes"
+      },
+      "placeholders": {
+        "name": "acmehosting",
+        "contactEmail": "owner{'@'}example.com"
+      },
+      "hints": {
+        "name": "Also the reseller's login name. It cannot be changed later.",
+        "language": "The invitation to set a password is written in this language."
+      },
+      "errors": {
+        "nameRequired": "Name is required.",
+        "nameTooLong": "Name must be at most {max} characters.",
+        "contactEmailRequired": "A contact address is required.",
+        "contactEmailInvalid": "Enter an email address like owner{'@'}example.com.",
+        "whole": "Enter a whole number.",
+        "range": "Enter a number from {min} to {max}."
+      },
+      "submitNew": "Create reseller",
+      "submitEdit": "Save envelope",
+      "created": "Reseller {name} created. An invitation is on its way to its contact address.",
+      "envelopeSaved": "The envelope was saved."
+    },
+    "detail": {
+      "heading": "Reseller",
+      "notFoundTitle": "Reseller not found",
+      "notFoundDescription": "It may have been deleted since this link was made.",
+      "statusLabel": "Status",
+      "createdAtLabel": "Created",
+      "editEnvelope": "Change envelope",
+      "showAccounts": "Show its accounts",
+      "suspend": "Suspend",
+      "reactivate": "Reactivate",
+      "suspendedNotice": "This reseller is suspended: its login is blocked and its writes are refused. Its customers' accounts keep running.",
+      "working": "Working…",
+      "confirmSuspendTitle": "Suspend reseller {name}",
+      "confirmSuspend": "The reseller can no longer sign in, and anything it is signed in to can only read. Its customers' accounts are not suspended: their sites keep serving and their owners can still sign in.",
+      "confirmSuspendAction": "Suspend reseller",
+      "confirmReactivateTitle": "Reactivate reseller {name}",
+      "confirmReactivate": "The reseller can sign in and create plans and accounts again, inside its envelope.",
+      "confirmReactivateAction": "Reactivate reseller",
+      "confirmDeleteTitle": "Delete reseller {name}",
+      "confirmDelete": "The reseller and its login are removed for good. The panel refuses while the reseller still owns accounts or plans: move or delete those first.",
+      "confirmDeleteAction": "Delete reseller",
+      "showPlans": "Show its plans"
+    },
+    "envelope": {
+      "heading": "Envelope",
+      "subtitle": "What this reseller may sell. The server enforces every figure on each plan and account it writes.",
+      "unlimited": "No limit",
+      "featuresLabel": "Features",
+      "noFeatures": "None"
+    },
+    "usage": {
+      "heading": "Usage",
+      "subtitle": "What the reseller has used of its envelope.",
+      "accounts": "Accounts",
+      "plans": "Plans",
+      "disk": "Disk allocated",
+      "ratio": "{used} of {max}",
+      "overEnvelope": "The envelope was lowered below what this reseller already uses. What exists keeps working; new plans and accounts that would pass the envelope are refused."
+    },
+    "overview": {
+      "heading": "Your reseller account",
+      "subtitle": "What you may sell and what you have used",
+      "plansAction": "Plans",
+      "accountsAction": "Accounts",
+      "suspendedNotice": "Your reseller account is suspended. You can read here, but creating or changing plans and accounts is refused. Contact the administrator of this panel."
+    }
+  }
+}

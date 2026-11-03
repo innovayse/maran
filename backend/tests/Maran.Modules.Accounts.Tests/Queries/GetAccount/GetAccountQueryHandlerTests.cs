@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.GetAccount;
+using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,13 +20,20 @@ public sealed class GetAccountQueryHandlerTests : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Releases what the fixture allocated.</summary>
     public void Dispose()
     {
         _context.Dispose();
+    }
+
+    /// <summary>Builds the handler over the fixture's context.</summary>
+    /// <returns>The handler under test.</returns>
+    private GetAccountQueryHandler Handler()
+    {
+        return new GetAccountQueryHandler(_context, new ResellerNameDirectory(_context), new StubDisplayNames());
     }
 
     private async Task<Account> SeedAsync()
@@ -44,7 +52,7 @@ public sealed class GetAccountQueryHandlerTests : IDisposable
     {
         var account = await SeedAsync();
 
-        var result = await new GetAccountQueryHandler(_context, new StubDisplayNames()).HandleAsync(
+        var result = await Handler().HandleAsync(
             new GetAccountQuery(account.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -61,7 +69,7 @@ public sealed class GetAccountQueryHandlerTests : IDisposable
     {
         await SeedAsync();
 
-        var result = await new GetAccountQueryHandler(_context, new StubDisplayNames()).HandleAsync(
+        var result = await Handler().HandleAsync(
             new GetAccountQuery(Guid.NewGuid()), CancellationToken.None);
 
         Assert.False(result.IsSuccess);

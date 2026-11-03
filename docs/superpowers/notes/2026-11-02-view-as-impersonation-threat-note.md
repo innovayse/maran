@@ -63,15 +63,15 @@ administrator's own, and it never left the administrator's cookie.
    suspension cannot start one either.
 2. **An administrator names an account that does not exist, or one with no customer login.** 404
    (`ViewAsAccountNotFound`), indistinguishable between the two, and journalled as a refused
-   `ViewAsStarted`. Today an administrator's scope is every account. **Reseller rule (blocked by
-   #179, not implemented):** a reseller may view as only accounts it owns. The handler resolves the
-   target through `IAccountDirectory.FindAsync`, which is already scoped to the caller and answers
-   `null` for an account outside it; when #179 gives that directory a reseller scope, a reseller
-   naming another reseller's account gets the same 404 from the same line. The policy on the
-   endpoint must then be widened from `AdminOnly` to "admin or reseller" — that is the only change
-   the endpoint needs, and it is a reviewer's item for #179, not something this change pre-builds.
-3. **Escalate from inside a view-as session.** The token's role is `Customer`, so every
-   administrator endpoint refuses it exactly as it refuses the customer. On top of that,
+   `ViewAsStarted`. An administrator's scope is every account. **Reseller rule (implemented in #179):**
+   a reseller may view as only accounts it owns. The handler resolves the target through
+   `IAccountDirectory.FindAsync`, which runs under the actor's own request caller and answers `null`
+   for an account outside it, so a reseller naming another reseller's account gets the same 404 from
+   the same line. The endpoint's policy is `AdminOrReseller`, and an administrator may also start a
+   view-as into a reseller through `POST /api/v1/view-as/reseller`. The edges, the token role and
+   the no-chaining rule are in `2026-11-03-reseller-role-threat-note.md`.
+3. **Escalate from inside a view-as session.** The token's role is the VIEWED login's (`Customer`, or
+   `Reseller` since #179), so every administrator endpoint refuses it exactly as it refuses that login. On top of that,
    `ViewAsBoundaryRequirement` is attached to BOTH panel policies (like the two-factor steering) and
    refuses, for a view-as token, every endpoint not declared reachable with `[ViewAsAccess]` (a deny-list when this note was
    written, an allow-list since issue #334 — see 2026-11-03-view-as-allow-list-threat-note.md): starting another
@@ -168,5 +168,5 @@ and each start is journalled.
 
 ## Not in this slice
 
-- Reseller → account and administrator → reseller (#179 has no reseller role yet).
+- Reseller → account and administrator → reseller: implemented by #179; see `2026-11-03-reseller-role-threat-note.md`.
 - Showing the impersonator column on the audit screen (the DTO carries it; the table does not yet).

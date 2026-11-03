@@ -60,14 +60,26 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.HasIndex(a => a.Name).IsUnique().HasDatabaseName("IX_Accounts_Name");
         builder.HasIndex(a => a.PrimaryDomain).IsUnique().HasDatabaseName("IX_Accounts_PrimaryDomain");
 
+        // The reseller's own list and the usage counts it is held to are read by this column.
+        builder.HasIndex(a => a.ResellerId).HasDatabaseName("IX_Accounts_ResellerId");
+
         // A shadow foreign key, not a navigation property: Account exposes only the scalar PlanId
         // (rules/csharp.md "Vertical slice shape" — no speculative cross-aggregate references), but
         // the relationship is still declared so the database enforces that PlanId always names a
-        // real plan (defense in depth alongside CreateAccountCommandValidator's existence check).
+        // real plan (defense in depth alongside the plan lookup in CreateAccountCommandHandler).
         builder.HasOne<Plan>()
             .WithMany()
             .HasForeignKey(a => a.PlanId)
             .HasConstraintName("FK_Accounts_Plans_PlanId")
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Optional (null is the administrator's own account, so the migration needs no backfill), and
+        // RESTRICT: a reseller that still owns an account cannot be deleted from under it. The
+        // relationship is a shadow one, like the plan's, so Account stays a scalar-only entity.
+        builder.HasOne<Reseller>()
+            .WithMany()
+            .HasForeignKey(a => a.ResellerId)
+            .HasConstraintName("FK_Accounts_Resellers_ResellerId")
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

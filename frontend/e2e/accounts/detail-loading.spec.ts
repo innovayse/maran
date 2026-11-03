@@ -27,6 +27,8 @@ const ACCOUNT: AccountDetail = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
+  resellerId: null,
+  resellerName: null,
   planDisplayName: 'Starter',
   ownerEmail: 'owner@acme.example.com',
 }

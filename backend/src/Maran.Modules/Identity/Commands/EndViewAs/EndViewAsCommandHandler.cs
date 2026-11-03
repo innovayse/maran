@@ -1,15 +1,15 @@
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Commands.EndViewAs;
 
 /// <summary>
 /// Handles <see cref="EndViewAsCommand"/>: revokes the caller's view-as session and journals the end
-/// with the operator as actor (issue #317).
+/// with the operator as actor (issues #317, #179).
 /// </summary>
 /// <remarks>
 /// It does not issue the operator a token. The operator's own refresh cookie was never touched while
@@ -22,8 +22,8 @@ public sealed class EndViewAsCommandHandler
     /// <summary>The module's database context.</summary>
     private readonly IdentityDbContext _dbContext;
 
-    /// <summary>The tenant-scoped window onto the accounts module, read for the account's name.</summary>
-    private readonly IAccountDirectory _accountDirectory;
+    /// <summary>Reads what the session was looking at, for the audit subject.</summary>
+    private readonly ViewAsSubjectReader _subjectReader;
 
     /// <summary>Records the end.</summary>
     private readonly IdentityAuditJournal _journal;
@@ -33,17 +33,17 @@ public sealed class EndViewAsCommandHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
-    /// <param name="accountDirectory">The tenant-scoped window onto the accounts module.</param>
+    /// <param name="subjectReader">Reads what the session was looking at, for the audit subject.</param>
     /// <param name="journal">Records the end.</param>
     /// <param name="clock">The panel's clock.</param>
     public EndViewAsCommandHandler(
         IdentityDbContext dbContext,
-        IAccountDirectory accountDirectory,
+        ViewAsSubjectReader subjectReader,
         IdentityAuditJournal journal,
         IClock clock)
     {
         _dbContext = dbContext;
-        _accountDirectory = accountDirectory;
+        _subjectReader = subjectReader;
         _journal = journal;
         _clock = clock;
     }
@@ -79,17 +79,18 @@ public sealed class EndViewAsCommandHandler
             .Select(u => u.Username)
             .SingleOrDefaultAsync(cancellationToken) ?? string.Empty;
 
-        // Read with the view-as token, whose scope is exactly the viewed account, so the directory
-        // answers for it; the id stands in only if the account was deleted meanwhile.
-        var accountName = session.ActiveAccountId is { } accountId
-            ? (await _accountDirectory.FindAsync(accountId, cancellationToken))?.Username ?? accountId.ToString()
-            : string.Empty;
+        // Read with the view-as token, whose scope is exactly the viewed account or reseller, so the
+        // directory answers for it. A session whose facts no longer describe an allowed kind (the
+        // viewed login was removed meanwhile) is still ended and journalled, naming the session as the subject.
+        var subject = await _subjectReader.ReadAsync(session, cancellationToken);
 
         await _journal.RecordViewAsAsync(
             origin.ActorUserId,
             operatorName,
             IdentityAuditActions.ViewAsEnded,
-            $"account {accountName} as {viewedName}",
+            subject is null
+                ? $"session {session.Id} as {viewedName}"
+                : ViewAsSubjectText.Of(subject.Kind, subject.Name, viewedName),
             command.IpAddress,
             command.UserAgent,
             succeeded: true,

@@ -548,8 +548,8 @@ rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processe
 # RE-KEYED 2026-11-01 (issue #289, perf off the PR path): edited by hand. Maran.Host.IntegrationTests.dll 833 is now two
 # rows: 814 (main part) + 19 (`[PerformanceBudget]` part, ListPerformanceBudgetTests); `--list-tests` lists 833.
 backend	Maran.Agent.Client.Tests.dll	466	0	0
-backend	Maran.SharedKernel.Tests.dll	353	0	0
-backend	Maran.Modules.Identity.Tests.dll	698	0	0
+backend	Maran.SharedKernel.Tests.dll	355	0	0
+backend	Maran.Modules.Identity.Tests.dll	856	0	0
 backend	Maran.Modules.Sftp.Tests.dll	111	0	0
 backend	Maran.Modules.Notifications.Tests.dll	63	0	0
 backend	Maran.Modules.Tasks.Tests.dll	113	0	0
@@ -559,20 +559,20 @@ backend	Maran.Modules.Backups.Tests.dll	261	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	293	0	0
 backend	Maran.Modules.Cron.Tests.dll	245	0	0
-backend	Maran.Modules.Accounts.Tests.dll	579	0	0
+backend	Maran.Modules.Accounts.Tests.dll	1056	0	0
 backend	Maran.Modules.Databases.Tests.dll	128	0	0
 backend	Maran.Modules.Ssl.Tests.dll	250	0	0
-backend	Maran.Sdk.Tests.dll	356	0	0
+backend	Maran.Sdk.Tests.dll	371	0	0
 backend	Maran.Modules.Sites.Tests.dll	290	0	0
-backend	Maran.ArchitectureTests.dll	100	0	0
-backend	Maran.Host.Tests.dll	498	0	0
-backend	Maran.Host.IntegrationTests.dll	976	0	0
+backend	Maran.ArchitectureTests.dll	104	0	0
+backend	Maran.Host.Tests.dll	516	0	0
+backend	Maran.Host.IntegrationTests.dll	1111	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
 # RAISED 2026-11-01 (issue #149, accessibility): edited by hand. Three new spa rows from e2e/accessibility/:
 # axe-scan 11 (5 screens x 2 themes + the planted-violation control), document-language 2, reduced-motion 2.
 # Measured by `maran test spa` (169 targets: 1132 passed / 1 failed / 2 ignored; the one failure,
 # shell/command-palette-a11y:98, passed 3/3 re-run alone at one load and its row is unchanged).
-spa	accessibility/axe-scan.spec.ts	13	0	0
+spa	accessibility/axe-scan.spec.ts	19	0	0
 spa	accessibility/document-language.spec.ts	2	0	0
 spa	accessibility/reduced-motion.spec.ts	2	0	0
 spa	accounts/delete.spec.ts	6	0	0
@@ -681,7 +681,7 @@ spa	settings/profile-loading.spec.ts	3	0	0
 spa	settings/security-policy-loading.spec.ts	3	0	0
 spa	settings/smtp-loading.spec.ts	3	0	0
 spa	settings/two-factor-loading.spec.ts	3	0	0
-spa	shell/admin-navigation.spec.ts	8	0	0
+spa	shell/admin-navigation.spec.ts	9	0	0
 spa	shell/account-menu.spec.ts	4	0	0
 spa	shell/app-bar-fits.spec.ts	16	0	0
 spa	shell/breadcrumb-trail.spec.ts	11	0	0
@@ -794,3 +794,9 @@ spa	customer/membership-offers.spec.ts	8	0	0
 spa	audit/impersonator.spec.ts	5	0	0
 # RE-MEASURED 2026-11-03 (issues #324 #327 #328), edited by hand from one gate pass: backend 21 targets 6187 passed / 0 failed (Agent.Client 460->466, Identity 625->698, Monitoring 136->159, Sdk 353->356, Host.Tests 495->498, Host.IntegrationTests 926->976); rust 36 targets 3164 passed / 0 failed; spa 197 targets 1284+ passed / 0 failed. New spa rows: shell/member-navigation 5, monitoring/pending-updates 15, customer/membership-offers 8, audit/impersonator 5; raised rows: axe-scan 11->13, sub-users 7->17, navigation-badges 6->9. CI re-measures every row.
 # 2026-11-03 (issue #324): monitor_on_a_real_host 8->9 (the pending-updates real-host test), measured by the polygon lane on Ubuntu 24.04 and AlmaLinux 9 (CI), edited by hand.
+spa	shell/reseller-tab-bar.spec.ts	2	0	0
+spa	reseller/view-as-reseller.spec.ts	8	0	0
+spa	reseller/reseller-role-exact.spec.ts	40	0	0
+spa	reseller/reseller-plans-accounts.spec.ts	10	0	0
+spa	reseller/admin-resellers.spec.ts	16	0	0
+# RE-MEASURED 2026-11-04 (issue #179, reseller role), edited by hand from one gate pass: backend 21 targets 6996 passed / 0 failed (SharedKernel 353->355, Identity 698->856, Accounts 579->1056, Sdk 356->371, Architecture 100->104, Host.Tests 498->516, Host.IntegrationTests 976->1111); spa 202 targets 1368 passed / 0 failed. New spa rows: reseller/admin-resellers 16, reseller-plans-accounts 10, reseller-role-exact 40, view-as-reseller 8, shell/reseller-tab-bar 2; raised: axe-scan 13->19, admin-navigation 8->9. Rust untouched. CI re-measures every row.

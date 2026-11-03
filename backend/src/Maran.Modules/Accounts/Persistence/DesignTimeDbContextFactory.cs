@@ -32,7 +32,7 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Acc
 
         var optionsBuilder = new DbContextOptionsBuilder<AccountsDbContext>();
         optionsBuilder.UseNpgsql(BuildConnectionString(configuration));
-        return new AccountsDbContext(optionsBuilder.Options);
+        return new AccountsDbContext(optionsBuilder.Options, new DesignTimeCurrentUser());
     }
 
     /// <summary>

@@ -17,7 +17,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 45 endpoints, 141 members
+covered: 48 endpoints, 183 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -25,6 +25,7 @@ POST /api/v1/accounts  ->  CreateAccountCommand
   planId: string
   ownerEmail: string
   ownerLanguage: string
+  resellerId: string?
 PUT /api/v1/accounts/{}/owner-email  ->  ChangeAccountOwnerEmailCommand
   ownerEmail: string
 PUT /api/v1/accounts/{}/plan  ->  ChangeAccountPlanCommand
@@ -179,11 +180,53 @@ PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   maxProcesses: union(kind: limited|unlimited)
   maxProcesses<limited>.maximum: number
   features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+POST /api/v1/resellers  ->  CreateResellerCommand
+  name: string
+  contactEmail: string
+  envelope: object
+  envelope.maxAccounts: number
+  envelope.diskPoolMb: number
+  envelope.maxPlans: number
+  envelope.maxDiskQuotaMb: number
+  envelope.maxSites: number
+  envelope.maxDatabases: number
+  envelope.maxSftpUsers: number
+  envelope.maxFtpUsers: number
+  envelope.maxCronEntries: number
+  envelope.maxPhpWorkersPerPool: number
+  envelope.features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+  envelope.cpuQuotaPercent: union(kind: limited|unlimited)
+  envelope.cpuQuotaPercent<limited>.maximum: number
+  envelope.memoryMaxMb: union(kind: limited|unlimited)
+  envelope.memoryMaxMb<limited>.maximum: number
+  envelope.maxProcesses: union(kind: limited|unlimited)
+  envelope.maxProcesses<limited>.maximum: number
+  language: string
+PUT /api/v1/resellers/{}/envelope  ->  ChangeResellerEnvelopeCommand
+  envelope: object
+  envelope.maxAccounts: number
+  envelope.diskPoolMb: number
+  envelope.maxPlans: number
+  envelope.maxDiskQuotaMb: number
+  envelope.maxSites: number
+  envelope.maxDatabases: number
+  envelope.maxSftpUsers: number
+  envelope.maxFtpUsers: number
+  envelope.maxCronEntries: number
+  envelope.maxPhpWorkersPerPool: number
+  envelope.features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+  envelope.cpuQuotaPercent: union(kind: limited|unlimited)
+  envelope.cpuQuotaPercent<limited>.maximum: number
+  envelope.memoryMaxMb: union(kind: limited|unlimited)
+  envelope.memoryMaxMb<limited>.maximum: number
+  envelope.maxProcesses: union(kind: limited|unlimited)
+  envelope.maxProcesses<limited>.maximum: number
 PUT /api/v1/security-policy  ->  SaveSecurityPolicyCommand
   minimumPasswordLength: number
   forceTwoFactorForAdmins: boolean
   maxFailedLoginAttempts: number
   lockoutMinutes: number
+  forceTwoFactorForResellers: boolean
 POST /api/v1/setup  ->  CompleteSetupCommand
   token: string
   username: string
@@ -205,6 +248,8 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   version: string
 POST /api/v1/view-as  ->  StartViewAsCommand
   accountId: string
+POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
+  resellerId: string
 
 # not covered — no JSON body crosses here, so this check says nothing about it
   DELETE /api/v1/accounts/{} — route-only call, no JSON body
@@ -219,6 +264,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   DELETE /api/v1/me/pinned-pages/{} — route-only call, no JSON body
   DELETE /api/v1/me/sub-users/{} — route-only call, no JSON body
   DELETE /api/v1/plans/{} — route-only call, no JSON body
+  DELETE /api/v1/resellers/{} — route-only call, no JSON body
   DELETE /api/v1/sessions/{} — route-only call, no JSON body
   DELETE /api/v1/sftp-users/{} — route-only call, no JSON body
   DELETE /api/v1/sites/{} — route-only call, no JSON body
@@ -238,6 +284,8 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   POST /api/v1/me/membership-offers/{}/decline — route-only call, no JSON body
   POST /api/v1/me/sub-users/{}/invitation — route-only call, no JSON body
   POST /api/v1/panel-certificate — route-only call, no JSON body
+  POST /api/v1/resellers/{}/reactivate — route-only call, no JSON body
+  POST /api/v1/resellers/{}/suspend — route-only call, no JSON body
   POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/sites/{}/disable — route-only call, no JSON body
   POST /api/v1/sites/{}/enable — route-only call, no JSON body
@@ -300,6 +348,10 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/plans/features
   GET /api/v1/plans/{}
   GET /api/v1/profile
+  GET /api/v1/reseller/me
+  GET /api/v1/resellers
+  GET /api/v1/resellers/choices
+  GET /api/v1/resellers/{}
   GET /api/v1/security-policy
   GET /api/v1/servers
   GET /api/v1/sessions

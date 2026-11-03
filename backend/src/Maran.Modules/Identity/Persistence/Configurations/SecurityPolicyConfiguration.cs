@@ -27,6 +27,15 @@ public sealed class SecurityPolicyConfiguration : IEntityTypeConfiguration<Secur
 
         builder.Property(policy => policy.MinimumPasswordLength).IsRequired();
         builder.Property(policy => policy.ForceTwoFactorForAdmins).IsRequired();
+
+        // Required with a database default of true, so the additive migration could add it to a table
+        // that already has a row, and a panel that saved its policy before resellers existed forces
+        // them too: the previous release never reads the column. The default is the same value as
+        // SecurityPolicy.DefaultForceTwoFactorForResellers, the one the entity states.
+        builder.Property(policy => policy.ForceTwoFactorForResellers)
+            .IsRequired()
+            .HasDefaultValue(SecurityPolicy.DefaultForceTwoFactorForResellers);
+
         builder.Property(policy => policy.MaxFailedLoginAttempts).IsRequired();
         builder.Property(policy => policy.LockoutMinutes).IsRequired();
         builder.Property(policy => policy.UpdatedAt).IsRequired();

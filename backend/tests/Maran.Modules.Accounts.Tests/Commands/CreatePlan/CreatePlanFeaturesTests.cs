@@ -1,6 +1,5 @@
 using Maran.Modules.Accounts.Commands.CreatePlan;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Extensions;
@@ -71,11 +70,7 @@ public sealed class CreatePlanFeaturesTests : IDisposable
     /// <returns>The handler.</returns>
     private CreatePlanCommandHandler NewHandler()
     {
-        return new CreatePlanCommandHandler(
-            _dbContext,
-            new PlanNameDirectory(_dbContext, _displayNames),
-            new AccountAuditJournal(new RecordingAuditWriter(), FakeCurrentUser.Admin()),
-            _displayNames);
+        return PlanHandlerFactory.Create(_dbContext, FakeCurrentUser.Admin(), new RecordingAuditWriter(), _displayNames);
     }
 
     /// <summary>Builds a creation request stating these features.</summary>

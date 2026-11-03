@@ -61,7 +61,12 @@ public sealed class IdentityEndpointPolicyDeclarationTests
     [Fact]
     public void Every_identity_action_is_anonymous_or_names_a_known_policy()
     {
-        var known = new[] { AuthorizationPolicies.AdminOnly, AuthorizationPolicies.AnyAuthenticated };
+        var known = new[]
+        {
+            AuthorizationPolicies.AdminOnly,
+            AuthorizationPolicies.AdminOrReseller,
+            AuthorizationPolicies.AnyAuthenticated,
+        };
         var violations = new List<string>();
 
         foreach (var method in AllActions())
@@ -142,6 +147,44 @@ public sealed class IdentityEndpointPolicyDeclarationTests
             });
     }
 
+    /// <summary>
+    /// Both view-as start endpoints are refused from inside a view-as session, and each names exactly
+    /// the policy its edge allows: accounts for an administrator or a reseller, resellers for an
+    /// administrator alone (issues #317, #179).
+    /// </summary>
+    /// <remarks>
+    /// The refusal is what makes a view-as one hop: a token a view-as produced can reach neither start.
+    /// The two policies are read from the actions themselves, so widening the reseller endpoint to
+    /// <c>AdminOrReseller</c>, or narrowing the account one back, turns this red.
+    /// </remarks>
+    [Fact]
+    public void The_two_view_as_start_endpoints_name_their_policy_and_refuse_a_view_as_token()
+    {
+        var starts = AllActions()
+            .Where(method =>
+            {
+                return method.DeclaringType == typeof(ViewAsController)
+                    && method.GetCustomAttributes<HttpPostAttribute>().Any();
+            })
+            .ToDictionary(NameOf);
+
+        Assert.Equal(2, starts.Count);
+        Assert.Equal(
+            new[] { AuthorizationPolicies.AdminOrReseller },
+            ActionPoliciesOf(starts["ViewAsController.StartAsync"]));
+        Assert.Equal(
+            new[] { AuthorizationPolicies.AdminOnly },
+            ActionPoliciesOf(starts["ViewAsController.StartResellerAsync"]));
+        Assert.All(
+            starts.Values,
+            method =>
+            {
+                Assert.Equal(
+                    ViewAsAccess.Refused,
+                    method.GetCustomAttribute<ViewAsAccessAttribute>()?.Access);
+            });
+    }
+
     /// <summary>Public methods of a controller that carry an HTTP verb attribute.</summary>
     /// <param name="controller">The controller type.</param>
     /// <returns>The action methods.</returns>
@@ -174,6 +217,19 @@ public sealed class IdentityEndpointPolicyDeclarationTests
     private static string NameOf(MethodInfo method)
     {
         return $"{method.DeclaringType!.Name}.{method.Name}";
+    }
+
+    /// <summary>The policies an action's own attributes name, leaving the class's out.</summary>
+    /// <param name="method">The action.</param>
+    /// <returns>The policy names the action itself declares.</returns>
+    private static string[] ActionPoliciesOf(MethodInfo method)
+    {
+        return method.GetCustomAttributes<AuthorizeAttribute>(inherit: false)
+            .Select(attribute =>
+            {
+                return attribute.Policy ?? string.Empty;
+            })
+            .ToArray();
     }
 
     /// <summary>The policies an action names, from its own attributes and its class's.</summary>

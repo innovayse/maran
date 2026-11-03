@@ -5,7 +5,7 @@ import { ApiError } from '../composables/useApi'
 import type { ViewAsSession, ViewingAs } from '../types/viewAs'
 
 /**
- * Owns what the panel says about viewing as an account (issues #317, #314): whether the current
+ * Owns what the panel says about viewing as an account or a reseller (issues #317, #314, #179): whether the current
  * token is a view-as one and of what, and the two actions that start and end viewing.
  *
  * **Nothing here decides anything.** `viewing` is only ever written from the panel's answer to
@@ -42,15 +42,16 @@ export const useViewAsStore = defineStore('viewAs', () => {
   }
 
   /**
-   * Starts viewing as the login that owns an account.
-   * @param accountId The account.
+   * Runs one start request with the shared busy and refusal handling, so the two kinds of viewing
+   * cannot drift apart in how they report a refusal.
+   * @param request Sends the start request for one kind of subject.
    * @returns The view-as session for the auth store to adopt, or `null` when the panel refused.
    */
-  const start = async (accountId: string): Promise<ViewAsSession | null> => {
+  const begin = async (request: () => Promise<ViewAsSession>): Promise<ViewAsSession | null> => {
     acting.value = true
     errorMessage.value = null
     try {
-      const session = await api.start({ accountId })
+      const session = await request()
       viewing.value = session.viewing
       return session
     } catch (error) {
@@ -59,6 +60,28 @@ export const useViewAsStore = defineStore('viewAs', () => {
     } finally {
       acting.value = false
     }
+  }
+
+  /**
+   * Starts viewing as the login that owns an account.
+   * @param accountId The account.
+   * @returns The view-as session for the auth store to adopt, or `null` when the panel refused.
+   */
+  const start = async (accountId: string): Promise<ViewAsSession | null> => {
+    return begin(() => {
+      return api.start({ accountId })
+    })
+  }
+
+  /**
+   * Starts viewing as a reseller's login. Administrators only.
+   * @param resellerId The reseller.
+   * @returns The view-as session for the auth store to adopt, or `null` when the panel refused.
+   */
+  const startReseller = async (resellerId: string): Promise<ViewAsSession | null> => {
+    return begin(() => {
+      return api.startReseller({ resellerId })
+    })
   }
 
   /**
@@ -88,5 +111,5 @@ export const useViewAsStore = defineStore('viewAs', () => {
     errorMessage.value = null
   }
 
-  return { viewing, acting, errorMessage, load, start, stop, clear }
+  return { viewing, acting, errorMessage, load, start, startReseller, stop, clear }
 })

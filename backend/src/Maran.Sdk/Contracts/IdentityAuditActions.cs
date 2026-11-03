@@ -93,6 +93,15 @@ public static class IdentityAuditActions
     public const string CustomerInvited = "CustomerInvited";
 
     /// <summary>
+    /// A reseller's contact was sent an invitation to set the first password of the reseller's login,
+    /// when the reseller was created. A distinct action from <see cref="CustomerInvited"/> because the
+    /// login is a different kind of principal: an auditor reading the journal should be able to tell
+    /// who was given a way into the panel with the power to create accounts and view as them. The
+    /// subject is the reseller's login name; the entry never carries the token.
+    /// </summary>
+    public const string ResellerInvited = "ResellerInvited";
+
+    /// <summary>
     /// An administrator asked the panel for a one-time invitation link to hand to a hosting
     /// account's owner themselves, instead of the panel mailing it. A distinct action from
     /// <see cref="CustomerInvited"/> on purpose: a link shown to an administrator is a credential

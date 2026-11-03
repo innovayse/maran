@@ -17,6 +17,7 @@ const POLICY_PATTERN = '**/api/v1/security-policy'
 const POLICY: SecurityPolicy = {
   minimumPasswordLength: 12,
   forceTwoFactorForAdmins: true,
+  forceTwoFactorForResellers: true,
   maxFailedLoginAttempts: 5,
   lockoutMinutes: 15,
 }

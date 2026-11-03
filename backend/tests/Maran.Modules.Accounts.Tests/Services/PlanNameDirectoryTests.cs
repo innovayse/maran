@@ -41,7 +41,7 @@ public sealed class PlanNameDirectoryTests : IDisposable
     [InlineData("AGENCY")]
     public async Task An_operators_name_is_taken_whatever_its_case(string name)
     {
-        Assert.True(await _directory.IsTakenAsync(name, null, CancellationToken.None));
+        Assert.True(await _directory.IsTakenAsync(name, null, null, CancellationToken.None));
     }
 
     /// <summary>A shipped plan's displayed name and its stored key are both taken.</summary>
@@ -51,7 +51,7 @@ public sealed class PlanNameDirectoryTests : IDisposable
     [InlineData("PlanStarterName")]
     public async Task A_shipped_plans_displayed_name_and_its_stored_key_are_both_taken(string name)
     {
-        Assert.True(await _directory.IsTakenAsync(name, null, CancellationToken.None));
+        Assert.True(await _directory.IsTakenAsync(name, null, null, CancellationToken.None));
     }
 
     /// <summary>A name no plan reads as is free.</summary>
@@ -59,14 +59,34 @@ public sealed class PlanNameDirectoryTests : IDisposable
     public async Task A_name_no_plan_reads_as_is_free()
     {
         // The inverse control: a directory that answered "taken" for everything would pass the above.
-        Assert.False(await _directory.IsTakenAsync("Studio", null, CancellationToken.None));
+        Assert.False(await _directory.IsTakenAsync("Studio", null, null, CancellationToken.None));
     }
 
     /// <summary>A plan's own name is free for that plan and taken for every other.</summary>
     [Fact]
     public async Task A_plans_own_name_is_free_for_that_plan_and_taken_for_every_other()
     {
-        Assert.False(await _directory.IsTakenAsync("Agency", _agency.Id, CancellationToken.None));
-        Assert.True(await _directory.IsTakenAsync("Agency", Guid.NewGuid(), CancellationToken.None));
+        Assert.False(await _directory.IsTakenAsync("Agency", null, _agency.Id, CancellationToken.None));
+        Assert.True(await _directory.IsTakenAsync("Agency", null, Guid.NewGuid(), CancellationToken.None));
+    }
+
+    /// <summary>A name an operator's plan holds is free for a reseller, because the two are never offered to one buyer.</summary>
+    [Fact]
+    public async Task A_name_the_administrator_holds_is_free_for_a_reseller()
+    {
+        Assert.False(await _directory.IsTakenAsync("Agency", Guid.NewGuid(), null, CancellationToken.None));
+    }
+
+    /// <summary>A name one reseller holds is taken for that reseller and free for another owner.</summary>
+    [Fact]
+    public async Task A_name_one_reseller_holds_is_taken_for_it_and_free_for_every_other_owner()
+    {
+        var reseller = Guid.NewGuid();
+        _dbContext.Plans.Add(Plan.Define(Guid.NewGuid(), "Gold", 1_024, 1, 1, 1, 0, 0, 1, resellerId: reseller));
+        await _dbContext.SaveChangesAsync();
+
+        Assert.True(await _directory.IsTakenAsync("gold", reseller, null, CancellationToken.None));
+        Assert.False(await _directory.IsTakenAsync("Gold", Guid.NewGuid(), null, CancellationToken.None));
+        Assert.False(await _directory.IsTakenAsync("Gold", null, null, CancellationToken.None));
     }
 }

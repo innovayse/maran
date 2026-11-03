@@ -74,7 +74,7 @@ public sealed class AccountFeatureDirectoryTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Seeds one plan with the given features and one account on it, returning the account id.</summary>

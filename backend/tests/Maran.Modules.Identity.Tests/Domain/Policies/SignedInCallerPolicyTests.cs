@@ -44,6 +44,35 @@ public sealed class SignedInCallerPolicyTests
         Assert.Equal(id, principal.UserId);
     }
 
+    /// <summary>A reseller is handed back as the principal it is, carrying its reseller id.</summary>
+    [Fact]
+    public void A_reseller_is_the_principal()
+    {
+        var id = Guid.NewGuid();
+        var resellerId = Guid.NewGuid();
+
+        var principal = SignedInCallerPolicy.Require(new StubResellerUser(id, "northwind", resellerId));
+
+        var reseller = Assert.IsType<ResellerCaller>(principal);
+        Assert.Equal(id, reseller.UserId);
+        Assert.Equal(resellerId, reseller.ResellerId);
+        Assert.Null(reseller.ViewedBy);
+    }
+
+    /// <summary>The operator viewing as a reseller's login travels with the reseller principal.</summary>
+    [Fact]
+    public void The_operator_viewing_as_a_reseller_is_kept()
+    {
+        var operatorId = Guid.NewGuid();
+        var viewing = ViewingAsCurrentUser.ForReseller(Guid.NewGuid(), "northwind", Guid.NewGuid(), operatorId, "root");
+
+        var principal = SignedInCallerPolicy.Require(viewing);
+
+        Assert.IsType<ResellerCaller>(principal);
+        Assert.Equal(operatorId, principal.ViewedBy!.UserId);
+        Assert.Equal("root", principal.ViewedBy.Username);
+    }
+
     /// <summary>The operator viewing as a login travels with the principal.</summary>
     [Fact]
     public void The_operator_viewing_as_a_login_is_kept()

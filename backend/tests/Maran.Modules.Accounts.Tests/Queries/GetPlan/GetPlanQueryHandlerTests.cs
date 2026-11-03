@@ -2,6 +2,8 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.GetPlan;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Services;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
@@ -25,7 +27,7 @@ public sealed class GetPlanQueryHandlerTests
             new Account(Guid.NewGuid(), "pepper", "pepper.example.com", other.Id, created));
         await dbContext.SaveChangesAsync();
 
-        var result = await new GetPlanQueryHandler(dbContext, new EchoingDisplayNamesLocalizer())
+        var result = await Handler(dbContext)
             .HandleAsync(new GetPlanQuery(plan.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -40,12 +42,20 @@ public sealed class GetPlanQueryHandlerTests
     {
         await using var dbContext = CreateDbContext();
 
-        var result = await new GetPlanQueryHandler(dbContext, new EchoingDisplayNamesLocalizer())
+        var result = await Handler(dbContext)
             .HandleAsync(new GetPlanQuery(Guid.NewGuid()), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("PlanNotFound", result.Error!.Code);
         Assert.Equal(ErrorType.NotFound, result.Error!.Type);
+    }
+
+    /// <summary>Builds the handler under test over a context.</summary>
+    /// <param name="dbContext">The context to read.</param>
+    /// <returns>The handler.</returns>
+    private static GetPlanQueryHandler Handler(AccountsDbContext dbContext)
+    {
+        return new GetPlanQueryHandler(dbContext, new ResellerNameDirectory(dbContext), new EchoingDisplayNamesLocalizer());
     }
 
     /// <summary>Builds a fresh, isolated in-memory <see cref="AccountsDbContext"/>.</summary>
@@ -55,7 +65,7 @@ public sealed class GetPlanQueryHandlerTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>A localizer double prefixing every key, so a resolved name is told from a stored one.</summary>

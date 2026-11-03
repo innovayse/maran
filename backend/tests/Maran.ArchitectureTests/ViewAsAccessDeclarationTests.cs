@@ -27,6 +27,13 @@ namespace Maran.ArchitectureTests;
 /// </remarks>
 public sealed class ViewAsAccessDeclarationTests
 {
+    /// <summary>The two violations the reseller-kind controller must be named for.</summary>
+    private static readonly string[] ResellerViewAsViolations =
+    {
+        "UndeclaredResellerViewAsController.OwnAsync declares no ViewAsAccess",
+        "UndeclaredResellerViewAsController.SharedAsync declares no ViewAsAccess",
+    };
+
     /// <summary>Every composed action a view-as token can reach declares its access, and declares it consistently.</summary>
     [Fact]
     public void Every_composed_action_a_view_as_token_can_reach_is_classified()
@@ -100,6 +107,24 @@ public sealed class ViewAsAccessDeclarationTests
                 "UndeclaredViewAsController.ReadOnAPostAsync is declared a Read but answers a method that changes things",
                 "UndeclaredViewAsController.UnpinnedMutationAsync is a SafeMutation but is not in ViewAsSafeMutationPin",
             },
+            violations);
+    }
+
+    /// <summary>The census asks about reseller-policy actions, which a reseller-kind view-as token reaches.</summary>
+    /// <remarks>
+    /// The refusing control for the reseller edge of issue #317: an administrator viewing as a reseller
+    /// holds the reseller role, so an action naming the reseller-only or the admin-or-reseller policy is
+    /// reachable and must declare itself; only the administrator-only action is left alone.
+    /// </remarks>
+    [Fact]
+    public void The_census_asks_about_actions_a_reseller_kind_view_as_token_reaches()
+    {
+        var violations = ViewAsAccessCensus.FindViolations(
+            new[] { typeof(UndeclaredResellerViewAsController) },
+            Array.Empty<PinnedSafeMutation>());
+
+        Assert.Equal(
+            ResellerViewAsViolations,
             violations);
     }
 

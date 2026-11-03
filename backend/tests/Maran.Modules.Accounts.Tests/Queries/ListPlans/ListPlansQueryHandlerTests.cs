@@ -2,6 +2,8 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListPlans;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Services;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Pagination;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
@@ -23,7 +25,16 @@ public sealed class ListPlansQueryHandlerTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
+    }
+
+    /// <summary>Builds the handler under test over a context, with the upper-casing localizer.</summary>
+    /// <param name="dbContext">The context to read.</param>
+    /// <returns>The handler.</returns>
+    private static ListPlansQueryHandler HandlerOf(AccountsDbContext dbContext)
+    {
+        return new ListPlansQueryHandler(
+            dbContext, new ResellerNameDirectory(dbContext), new UppercasingDisplayNamesLocalizer());
     }
 
     /// <summary>Empty store returns an empty page with a total of zero.</summary>
@@ -31,7 +42,7 @@ public sealed class ListPlansQueryHandlerTests
     public async Task Empty_store_returns_an_empty_page_with_a_total_of_zero()
     {
         await using var dbContext = CreateDbContext();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
@@ -48,7 +59,7 @@ public sealed class ListPlansQueryHandlerTests
         var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 5, 5);
         dbContext.Plans.Add(plan);
         await dbContext.SaveChangesAsync();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
@@ -72,7 +83,7 @@ public sealed class ListPlansQueryHandlerTests
         // Inserted out of size order so the assertion cannot pass by insertion-order accident.
         dbContext.Plans.AddRange(large, small, medium);
         await dbContext.SaveChangesAsync();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
@@ -89,7 +100,7 @@ public sealed class ListPlansQueryHandlerTests
         await using var dbContext = CreateDbContext();
         dbContext.Plans.Add(Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8));
         await dbContext.SaveChangesAsync();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
@@ -114,7 +125,7 @@ public sealed class ListPlansQueryHandlerTests
             new Account(Guid.NewGuid(), "olive", "olive.example.com", busy.Id, created),
             new Account(Guid.NewGuid(), "pepper", "pepper.example.com", busy.Id, created));
         await dbContext.SaveChangesAsync();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
@@ -139,7 +150,7 @@ public sealed class ListPlansQueryHandlerTests
         var second = Plan.Define(Guid.Parse("00000000-0000-4000-8000-000000000002"), "A", 5_120, 5, 2, 3, 0, 5, 5);
         dbContext.Plans.AddRange(second, first);
         await dbContext.SaveChangesAsync();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
@@ -163,7 +174,7 @@ public sealed class ListPlansQueryHandlerTests
         var middle = Plan.Define(Guid.NewGuid(), "Middle", 10_240, 5, 2, 3, 0, 5, 5);
         dbContext.Plans.AddRange(z, a, middle);
         await dbContext.SaveChangesAsync();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         var result = await handler.HandleAsync(
             new ListPlansQuery(Sort: SortRequest.Parse("name")), CancellationToken.None);
@@ -185,7 +196,7 @@ public sealed class ListPlansQueryHandlerTests
         dbContext.Plans.AddRange(quiet, busy);
         dbContext.Accounts.Add(new Account(Guid.NewGuid(), "olive", "olive.example.com", busy.Id, created));
         await dbContext.SaveChangesAsync();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         var result = await handler.HandleAsync(
             new ListPlansQuery(Sort: SortRequest.Parse("-accounts")), CancellationToken.None);
@@ -207,7 +218,7 @@ public sealed class ListPlansQueryHandlerTests
             new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 5, 5),
             Plan.Define(Guid.NewGuid(), "Agency", 10_240, 5, 2, 3, 0, 5, 5));
         await dbContext.SaveChangesAsync();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         // "starter" is found only in the resolved name "PLANSTARTERNAME", never in a column as typed.
         var result = await handler.HandleAsync(
@@ -229,7 +240,7 @@ public sealed class ListPlansQueryHandlerTests
         }
 
         await dbContext.SaveChangesAsync();
-        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+        var handler = HandlerOf(dbContext);
 
         var result = await handler.HandleAsync(new ListPlansQuery(Page: 2, PageSize: 10), CancellationToken.None);
 

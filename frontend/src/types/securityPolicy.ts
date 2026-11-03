@@ -13,6 +13,8 @@ export interface SecurityPolicy {
   minimumPasswordLength: number
   /** Whether an administrator without a second factor is steered into enrolment. */
   forceTwoFactorForAdmins: boolean
+  /** Whether a reseller without a second factor is steered into enrolment. */
+  forceTwoFactorForResellers: boolean
   /** Consecutive failed sign-ins that lock an account. */
   maxFailedLoginAttempts: number
   /** How long a locked account stays locked, in minutes. */

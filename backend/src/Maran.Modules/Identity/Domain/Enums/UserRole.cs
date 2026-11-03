@@ -8,4 +8,10 @@ public enum UserRole
 
     /// <summary>A hosting customer: their own accounts and nothing else.</summary>
     Customer,
+
+    /// <summary>
+    /// A reseller: the one login of a business that sells hosting on the server. It manages the plans
+    /// and accounts it owns and can view as them, and it holds no membership of any account.
+    /// </summary>
+    Reseller,
 }

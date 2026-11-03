@@ -45,7 +45,7 @@ public sealed class AccountSuspensionHarness : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Builds a journal writing into a writer nothing asserts on; the audit tests do that.</summary>
@@ -88,6 +88,8 @@ public sealed class AccountSuspensionHarness : IDisposable
     {
         var handler = new SuspendAccountCommandHandler(
             Context,
+            new ResellerScope(Context, FakeCurrentUser.Admin()),
+            new ResellerNameDirectory(Context),
             agent,
             bus,
             logger ?? NullLogger<SuspendAccountCommandHandler>.Instance,
@@ -116,6 +118,8 @@ public sealed class AccountSuspensionHarness : IDisposable
     {
         var handler = new ReactivateAccountCommandHandler(
             Context,
+            new ResellerScope(Context, FakeCurrentUser.Admin()),
+            new ResellerNameDirectory(Context),
             agent,
             bus,
             logger ?? NullLogger<ReactivateAccountCommandHandler>.Instance,

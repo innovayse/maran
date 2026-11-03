@@ -129,6 +129,52 @@ public sealed class AuditActionDisplayNamesTests
         Assert.True(ClosedSet.Count >= 61, $"only {ClosedSet.Count} actions enumerated");
     }
 
+    /// <summary>The six reseller actions are in the enumerated closed set, so the walks above cover them.</summary>
+    /// <remarks>
+    /// Positive control for the walks on the axis this change added to: if a renamed class or a
+    /// moved namespace dropped the reseller constants out of <c>ClosedSet</c>, every walk would still
+    /// pass over the remaining actions and say nothing about the six.
+    /// </remarks>
+    [Fact]
+    public void The_reseller_actions_are_in_the_enumerated_closed_set()
+    {
+        Assert.Contains(IdentityAuditActions.ResellerInvited, ClosedSet);
+        Assert.Contains(AccountAuditActions.ResellerCreated, ClosedSet);
+        Assert.Contains(AccountAuditActions.ResellerEnvelopeChanged, ClosedSet);
+        Assert.Contains(AccountAuditActions.ResellerSuspended, ClosedSet);
+        Assert.Contains(AccountAuditActions.ResellerReactivated, ClosedSet);
+        Assert.Contains(AccountAuditActions.ResellerDeleted, ClosedSet);
+    }
+
+    /// <summary>Each reseller action is named by its exact sentence in every language the panel speaks.</summary>
+    /// <remarks>
+    /// Values, not "a name came back": the Russian and Armenian sentences differ from English, which
+    /// a silently missing translation cannot satisfy, and each is stated exactly.
+    /// </remarks>
+    /// <param name="action">The machine action.</param>
+    /// <param name="english">The expected English name.</param>
+    /// <param name="russian">The expected Russian name.</param>
+    /// <param name="armenian">The expected Armenian name.</param>
+    [Theory]
+    [InlineData(IdentityAuditActions.ResellerInvited, "Reseller invited", "Реселлер приглашён", "Ռեսելլերը հրավիրվեց")]
+    [InlineData(AccountAuditActions.ResellerCreated, "Reseller created", "Создан реселлер", "Ստեղծվեց ռեսելլեր")]
+    [InlineData(AccountAuditActions.ResellerEnvelopeChanged, "Reseller envelope changed", "Изменены лимиты реселлера", "Ռեսելլերի սահմանաչափերը փոխվեցին")]
+    [InlineData(AccountAuditActions.ResellerSuspended, "Reseller suspended", "Реселлер приостановлен", "Ռեսելլերը կասեցվեց")]
+    [InlineData(AccountAuditActions.ResellerReactivated, "Reseller reactivated", "Реселлер возобновлён", "Ռեսելլերը վերսկսվեց")]
+    [InlineData(AccountAuditActions.ResellerDeleted, "Reseller deleted", "Реселлер удалён", "Ռեսելլերը ջնջվեց")]
+    public void Each_reseller_action_is_named_by_its_exact_sentence_in_every_language(
+        string action,
+        string english,
+        string russian,
+        string armenian)
+    {
+        var names = IdentityTestContext.ActionNames();
+
+        Assert.Equal(english, WithCulture("en", () => { return names.Of(action); }));
+        Assert.Equal(russian, WithCulture("ru", () => { return names.Of(action); }));
+        Assert.Equal(armenian, WithCulture("hy", () => { return names.Of(action); }));
+    }
+
     /// <summary>The english name is the sentence, stated exactly, not merely some string.</summary>
     /// <remarks>
     /// A test asserting "a name came back" would pass against a screen full of raw constants,

@@ -38,6 +38,8 @@ const catalogue = (count: number): ManagedPlan[] => {
       maxProcesses: { kind: 'unlimited' },
       features: [],
       accountCount: count - index,
+      resellerId: null,
+      resellerName: null,
     }
   })
 }

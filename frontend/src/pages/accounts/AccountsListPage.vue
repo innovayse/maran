@@ -10,6 +10,12 @@
  * through. The plan filter is a server-searched picker (`/api/v1/plans/choices`), and `?plan=<id>` is the link the plans screen opens when a plan cannot be deleted; it is one
  * filter of the schema like the other, shown as a removable chip.
  *
+ * **An administrator sees whose each account is.** The reseller column and the reseller filter (a
+ * server-searched picker on `/api/v1/resellers/choices`, and `?reseller=<id>` is the link a
+ * reseller's page opens) exist only for an administrator: a reseller's list holds only its own
+ * accounts, so a column that is the same on every row would say nothing. It is advice only; the
+ * server narrows a reseller's list whatever the screen asks for.
+ *
  * **Nothing is filtered here.** The search box, the filter sheet and the sort headers only change
  * the URL; the panel answers with the matching page and the total across every page.
  *
@@ -48,12 +54,15 @@ import type { UiTableColumn } from '../../types/tableColumn'
 import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue'
 import type { AccountPickerState } from '../../composables/useAccountChoice'
 import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
+import { useResellerChoice } from '../../composables/useResellerChoice'
 import { usePlanChoice } from '../../composables/usePlanChoice'
 import { useServerTable } from '../../composables/useServerTable'
 import { useAccountsStore } from '../../stores/accounts'
 import { useAccountStatusesStore } from '../../stores/accountStatuses'
 import { useLocaleStore } from '../../stores/locale'
+import { useResellersStore } from '../../stores/resellers'
 import { formatDate } from '../../utils/formatDate'
 import type { Account } from '../../types/account'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
@@ -62,12 +71,16 @@ const { t } = useI18n()
 const store = useAccountsStore()
 const statusesStore = useAccountStatusesStore()
 const localeStore = useLocaleStore()
+const resellersStore = useResellersStore()
 const labels = useListLabels()
+const { isAdmin } = useCallerRole()
 const { picker: planPicker, search: searchPlans } = usePlanChoice()
+const { picker: resellerPicker, search: searchResellers } = useResellerChoice()
 
 const table = useServerTable<Account>({
   filters: {
     plan: {},
+    reseller: {},
     status: {
       /**
        * Honours only a state the panel listed, so a hand-edited link never reaches the server as a
@@ -115,6 +128,16 @@ const planFilterPicker: ComputedRef<AccountPickerState> = computed(() => {
   }
 })
 
+/** The reseller filter's picker: the page of resellers matching its search, after an "any reseller" choice. */
+const resellerFilterPicker: ComputedRef<AccountPickerState> = computed(() => {
+  const state = resellerPicker.value
+  return {
+    ...state,
+    options: [{ value: '', label: t('common.list.any') }, ...state.options],
+    total: state.total + 1,
+  }
+})
+
 /** The account states the filter offers, as the panel named them, after an "any state" choice. */
 const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
   return [
@@ -127,9 +150,13 @@ const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
 
 /** The table's columns: its header, its cells and its loading placeholder all read this one list. */
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  const owner: UiTableColumn[] = isAdmin.value
+    ? [{ key: 'reseller', label: t('accounts.list.columns.reseller'), kind: 'text' }]
+    : []
   return [
     { key: 'name', label: t('common.name'), kind: 'identity', sortField: 'name' },
     { key: 'primaryDomain', label: t('accounts.list.columns.primaryDomain'), kind: 'mono' },
+    ...owner,
     { key: 'status', label: t('accounts.list.columns.status'), kind: 'badge', sortField: 'status' },
     { key: 'createdAt', label: t('accounts.list.columns.createdAt'), kind: 'date', align: 'end', sortField: 'createdAt' },
   ]
@@ -141,6 +168,9 @@ const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
   const result: ActiveFilterChip[] = []
   if (applied.plan !== '') {
     result.push(labels.chip('plan', t('accounts.list.filters.plan'), planName(applied.plan)))
+  }
+  if (applied.reseller !== '' && isAdmin.value) {
+    result.push(labels.chip('reseller', t('accounts.list.filters.reseller'), resellerName(applied.reseller)))
   }
   if (applied.status !== '') {
     result.push(labels.chip('status', t('accounts.list.filters.status'), statusesStore.nameOf(applied.status)))
@@ -156,6 +186,16 @@ const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
  */
 const planName = (id: string): string => {
   return store.planNames[id] ?? id
+}
+
+/**
+ * Names a reseller by its own read, so any reseller the URL names is named, not only one on some
+ * page of choices; the id while that read is in flight or if it failed.
+ * @param id The reseller's identity.
+ * @returns The reseller's name, or the id.
+ */
+const resellerName = (id: string): string => {
+  return resellersStore.resellerNames[id] ?? id
 }
 
 /**
@@ -192,6 +232,19 @@ watch(
   (id: string): void => {
     if (id !== '') {
       void store.loadPlanName(id)
+    }
+  },
+  { immediate: true },
+)
+
+// The reseller the URL narrows to is named for its chip and the picker, the same way the plan is.
+watch(
+  (): string => {
+    return table.filters.value.reseller
+  },
+  (id: string): void => {
+    if (id !== '' && isAdmin.value) {
+      void resellersStore.loadName(id)
     }
   },
   { immediate: true },
@@ -285,6 +338,7 @@ useReloadOnLocale(statusesStore.load)
                 </div>
               </template>
               <template #cell-primaryDomain="{ row }">{{ row.primaryDomain }}</template>
+              <template #cell-reseller="{ row }">{{ row.resellerName ?? t('accounts.list.noReseller') }}</template>
               <template #cell-status="{ row }"><AccountStatusBadge :status="row.status" :label="row.statusName" /></template>
               <template #cell-createdAt="{ row }">{{ formatDate(row.createdAt, localeStore.current) }}</template>
             </UiTable>
@@ -322,6 +376,15 @@ useReloadOnLocale(statusesStore.load)
           :placeholder="t('common.list.any')"
           :selected-label="table.filters.value.plan === '' ? undefined : planName(table.filters.value.plan)"
           @search="searchPlans"
+        />
+        <UiCombobox
+          v-if="isAdmin"
+          v-model="draft.reseller"
+          v-bind="resellerFilterPicker"
+          :label="t('accounts.list.filters.reseller')"
+          :placeholder="t('common.list.any')"
+          :selected-label="table.filters.value.reseller === '' ? undefined : resellerName(table.filters.value.reseller)"
+          @search="searchResellers"
         />
         <UiSelect v-model="draft.status" :label="t('accounts.list.filters.status')" :options="statusOptions" />
       </template>

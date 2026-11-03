@@ -78,4 +78,43 @@
   <data name="PlanFeatureUnknown">
     <value>A plan feature must be one of the features the panel lists.</value>
   </data>
+  <data name="ResellerNotFound">
+    <value>This reseller could not be found.</value>
+  </data>
+  <data name="ResellerNameTaken">
+    <value>This name is already used by another reseller or by a hosting account.</value>
+  </data>
+  <data name="ResellerNameInvalid">
+    <value>This reseller name is not valid. Use 3 to 30 lowercase letters, digits or underscores, starting with a letter. The reseller signs in with this same name.</value>
+  </data>
+  <data name="AccountFinalBackupSkipForbidden">
+    <value>A reseller cannot skip the final backup when deleting an account. Ask an administrator, or let the backup run.</value>
+  </data>
+  <data name="ResellerSuspended">
+    <value>This reseller is suspended, so it cannot make changes. An administrator has to reactivate it first.</value>
+  </data>
+  <data name="ResellerHasAccounts">
+    <value>The reseller was not deleted: it still owns accounts or plans. Delete them first.</value>
+  </data>
+  <data name="ResellerAccountLimitReached">
+    <value>The reseller has reached the number of accounts it was sold. Ask an administrator to raise its limit.</value>
+  </data>
+  <data name="ResellerDiskPoolExceeded">
+    <value>This would take the reseller past the disk space it was sold. Choose a smaller plan or ask an administrator to enlarge its disk pool.</value>
+  </data>
+  <data name="ResellerPlanLimitReached">
+    <value>The reseller has reached the number of plans it was sold. Delete a plan or ask an administrator to raise its limit.</value>
+  </data>
+  <data name="ResellerPlanExceedsEnvelope">
+    <value>This plan goes beyond what the reseller was sold: a figure is above its ceiling or a feature is not included. Lower the figures or remove the feature.</value>
+  </data>
+  <data name="PlanOwnerMismatch">
+    <value>This plan and this account belong to different owners. An account can only use a plan of its own reseller, and an administrator's account only an administrator's plan.</value>
+  </data>
+  <data name="ResellerLoginIssuanceFailed">
+    <value>The reseller was created, but its login could not be issued. Delete the reseller and create it again once the cause in the server log is fixed.</value>
+  </data>
+  <data name="ResellerEnvelopeInvalid">
+    <value>The reseller's limits are not valid. Every figure must be zero or more and within the allowed maximum, and every resource ceiling must be positive.</value>
+  </data>
 </root>

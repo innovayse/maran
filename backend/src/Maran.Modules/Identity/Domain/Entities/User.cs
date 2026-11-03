@@ -24,6 +24,27 @@ public sealed class User
     public UserRole Role { get; private set; }
 
     /// <summary>
+    /// The reseller this login is the one login of, or null for every login that is not a reseller's.
+    /// Set exactly once, by <see cref="InviteReseller"/>; a login's reseller never changes. A plain
+    /// identifier with no foreign key: the reseller row lives in the Accounts module's schema, which
+    /// this module does not read (rules/architecture.md), so the link is the id the Accounts module
+    /// announced in <c>ResellerCreated</c> and the database holds at most one login per reseller
+    /// (<c>UX_Users_ResellerId</c>).
+    /// </summary>
+    public Guid? ResellerId { get; private set; }
+
+    /// <summary>
+    /// Whether this login itself has been suspended, which only a reseller's login can be. A
+    /// customer's suspension belongs to one hosting account and is stored on the membership
+    /// (<see cref="AccountMembership.State"/>); a reseller holds no membership, so its suspension is
+    /// stored here. Separate from <see cref="Lifecycle"/> because the two are independent: a reseller
+    /// can be suspended before it accepted its invitation and must still be invited afterwards, and
+    /// accepting the invitation must not lift the suspension. Changed only by <see cref="Suspend"/>
+    /// and <see cref="Resume"/>.
+    /// </summary>
+    public bool IsSuspended { get; private set; }
+
+    /// <summary>
     /// Which of the two situations this login is in: usable, or waiting for its owner to set a
     /// password. The one stored fact about whether the login itself may be used. An invited login
     /// holds no password at all rather than an empty hash: a sentinel hash in the same field a real
@@ -83,7 +104,8 @@ public sealed class User
     /// account is the <see cref="AccountMembership.State"/> of that membership, asked of the
     /// memberships by <c>ActiveAccountResolver</c> wherever a token is minted. The two questions are
     /// separate because a person with two accounts is one login: suspending one account must not
-    /// make this property false.
+    /// make this property false. It is false for a reseller's login while that login
+    /// <see cref="IsSuspended"/>, because a reseller has no membership to say it.
     /// </para>
     /// <para>
     /// <b>This still is not a structural guarantee</b>, and <c>AuthenticationCompleter</c>'s remarks
@@ -95,7 +117,7 @@ public sealed class User
     /// </remarks>
     public bool MayAuthenticate
     {
-        get { return Lifecycle == UserLifecycle.Active; }
+        get { return Lifecycle == UserLifecycle.Active && !IsSuspended; }
     }
 
     /// <summary>
@@ -204,6 +226,29 @@ public sealed class User
     }
 
     /// <summary>
+    /// Creates the login of a reseller, before its contact has set a password. It is the only login
+    /// the reseller has and it owns no hosting account: what the reseller may do is stated by its
+    /// role and by the reseller row in the Accounts module.
+    /// </summary>
+    /// <param name="id">The login's identity.</param>
+    /// <param name="username">The login name: the reseller's name.</param>
+    /// <param name="email">The address the invitation is sent to: the reseller's contact address.</param>
+    /// <param name="resellerId">The reseller this login is the one login of.</param>
+    /// <param name="createdAt">The instant of creation, taken from <see cref="IClock"/>.</param>
+    /// <returns>A login in <see cref="UserLifecycle.Invited"/>, which cannot sign in.</returns>
+    public static User InviteReseller(Guid id, string username, string email, Guid resellerId, DateTimeOffset createdAt)
+    {
+        var user = new User(id, username, email, string.Empty, UserRole.Reseller, createdAt)
+        {
+            Lifecycle = UserLifecycle.Invited,
+            ResellerId = resellerId,
+        };
+
+        user.RestateLegacyColumns();
+        return user;
+    }
+
+    /// <summary>
     /// Accepts an invitation: stores the first password and makes the login usable. A login that
     /// already holds a password keeps its lifecycle.
     /// </summary>
@@ -220,6 +265,33 @@ public sealed class User
         PasswordHash = passwordHash;
         Lifecycle = UserLifecycle.Active;
         RestateLegacyColumns();
+    }
+
+    /// <summary>
+    /// Suspends a reseller's login: it can no longer be used to obtain a token. Repeating it changes
+    /// nothing. The sessions it already holds are ended by the caller, because a suspension that only
+    /// blocks the next sign-in leaves whoever is signed in working until their token expires.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The login is not a reseller's. A customer is suspended per account, on the membership, and an
+    /// administrator is never suspended; reaching this for either is a defect in the caller, and
+    /// silently suspending the login would block every account the person holds.
+    /// </exception>
+    public void Suspend()
+    {
+        RequireResellerLogin();
+        IsSuspended = true;
+    }
+
+    /// <summary>
+    /// Lifts the suspension of a reseller's login. Repeating it changes nothing. It restores the
+    /// ability to sign in and nothing else: the sessions the suspension ended stay ended.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The login is not a reseller's; see <see cref="Suspend"/>.</exception>
+    public void Resume()
+    {
+        RequireResellerLogin();
+        IsSuspended = false;
     }
 
     /// <summary>
@@ -336,6 +408,16 @@ public sealed class User
     {
         LegacyAccountSuspended = ownerMembershipState == MembershipState.Suspended;
         RestateLegacyColumns();
+    }
+
+    /// <summary>Refuses a suspension change on a login that is not a reseller's.</summary>
+    /// <exception cref="InvalidOperationException">The login is not a reseller's.</exception>
+    private void RequireResellerLogin()
+    {
+        if (Role != UserRole.Reseller)
+        {
+            throw new InvalidOperationException("Only a reseller's login is suspended on the login itself.");
+        }
     }
 
     /// <summary>

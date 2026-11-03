@@ -20,11 +20,13 @@ namespace Maran.Modules.Identity.Domain.ValueObjects;
 /// </remarks>
 /// <param name="MinimumPasswordLength">The shortest password the panel accepts.</param>
 /// <param name="ForceTwoFactorForAdmins">Whether an administrator without a second factor is steered into enrolment.</param>
+/// <param name="ForceTwoFactorForResellers">Whether a reseller without a second factor is steered into enrolment.</param>
 /// <param name="MaxFailedLoginAttempts">Consecutive failed sign-ins that lock an account.</param>
 /// <param name="LockoutMinutes">How long a locked account stays locked, in minutes.</param>
 public sealed record SecurityPolicySnapshot(
     int MinimumPasswordLength,
     bool ForceTwoFactorForAdmins,
+    bool ForceTwoFactorForResellers,
     int MaxFailedLoginAttempts,
     int LockoutMinutes)
 {
@@ -32,6 +34,7 @@ public sealed record SecurityPolicySnapshot(
     public static readonly SecurityPolicySnapshot Default = new(
         SecurityPolicy.DefaultMinimumPasswordLength,
         SecurityPolicy.DefaultForceTwoFactorForAdmins,
+        SecurityPolicy.DefaultForceTwoFactorForResellers,
         SecurityPolicy.DefaultMaxFailedLoginAttempts,
         SecurityPolicy.DefaultLockoutMinutes);
 

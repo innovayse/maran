@@ -154,7 +154,7 @@ public sealed class DeleteAccountAuditTests : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Seeds one active account named "acme".</summary>
@@ -179,6 +179,7 @@ public sealed class DeleteAccountAuditTests : IDisposable
     {
         var handler = new DeleteAccountCommandHandler(
             _context,
+            new ResellerScope(_context, FakeCurrentUser.Admin()),
             agent,
             bus,
             NullLogger<DeleteAccountCommandHandler>.Instance,

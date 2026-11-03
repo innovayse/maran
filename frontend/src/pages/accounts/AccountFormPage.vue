@@ -13,7 +13,10 @@
  * taken — a race the client check cannot catch) is rendered verbatim
  * (rules/vue.md: "the backend owns their text"). Renders a `<section>`, not
  * a `<main>` — the single `<main>` landmark lives in the layout this page
- * is nested under. The plan picker's option list must never be clipped by its card
+ * is nested under. **An administrator also chooses the account's owner**: the panel's own, or one of its
+ * resellers (a server-searched picker); a reseller never sees the field, because everything it
+ * creates is its own and the server stamps that from its token. The plan must belong to the same
+ * owner, which the server enforces and answers in its own words. The plan picker's option list must never be clipped by its card
  * (see the template comment): an option that exists in the DOM but cannot be
  * hit is a plan an operator cannot choose.
  */
@@ -30,7 +33,10 @@ import UiFieldHint from '../../components/ui/UiFieldHint.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import AccountCreationSummary from '../../components/accounts/AccountCreationSummary.vue'
+import type { AccountPickerState } from '../../composables/useAccountChoice'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { usePlanChoice } from '../../composables/usePlanChoice'
+import { useResellerChoice } from '../../composables/useResellerChoice'
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
 import { useOwnerLanguagesStore } from '../../stores/ownerLanguages'
@@ -70,7 +76,9 @@ const router = useRouter()
 const store = useAccountsStore()
 const localeStore = useLocaleStore()
 const languagesStore = useOwnerLanguagesStore()
+const { isAdmin } = useCallerRole()
 const { picker: planPicker, search: searchPlans } = usePlanChoice()
+const { picker: resellerPicker, search: searchResellers } = useResellerChoice()
 
 /** Current value of the username field (the account's system name). */
 const name: Ref<string> = ref('')
@@ -90,8 +98,20 @@ const ownerEmail: Ref<string> = ref('')
  * choice, and is sent as chosen: the invitation is written in it.
  */
 const ownerLanguage: Ref<string> = ref(localeStore.current)
+/** The owning reseller's id; empty for an account the administrator owns directly. Only an administrator sets it. */
+const resellerId: Ref<string> = ref('')
 /** Whether a submit has been attempted, so validation messages only show after the first try. */
 const submitted: Ref<boolean> = ref(false)
+
+/** The owner picker: "the panel's own" first, then the page of resellers matching the search. */
+const ownerPicker: ComputedRef<AccountPickerState> = computed(() => {
+  const state = resellerPicker.value
+  return {
+    ...state,
+    options: [{ value: '', label: t('accounts.form.noReseller') }, ...state.options],
+    total: state.total + 1,
+  }
+})
 
 /** Client-side validation message for the name field, mirroring the server's rule. */
 const nameError: ComputedRef<string | null> = computed(() => {
@@ -205,6 +225,8 @@ const submit = async (): Promise<void> => {
     planId: planId.value,
     ownerEmail: ownerEmail.value,
     ownerLanguage: ownerLanguage.value,
+    // Only an administrator names an owner; a reseller's accounts are stamped by the server.
+    ...(isAdmin.value && resellerId.value !== '' ? { resellerId: resellerId.value } : {}),
   })
   if (created !== null) {
     await router.push({
@@ -259,7 +281,7 @@ onMounted(async () => {
            edges, which would have needed the card to round (and so clip) them. -->
       <UiCard class="lg:col-span-2">
         <UiForm @submit="submit">
-          <div class="grid gap-x-4 gap-y-4 md:grid-cols-2">
+          <div class="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2">
             <div class="flex flex-col gap-1">
               <UiInput
                 :model-value="primaryDomain"
@@ -295,6 +317,16 @@ onMounted(async () => {
               :placeholder="t('accounts.form.placeholders.plan')"
               @search="searchPlans"
             />
+            <div v-if="isAdmin" class="flex flex-col gap-1">
+              <UiCombobox
+                v-model="resellerId"
+                v-bind="ownerPicker"
+                :label="t('accounts.form.fields.reseller')"
+                :placeholder="t('accounts.form.noReseller')"
+                @search="searchResellers"
+              />
+              <UiFieldHint>{{ t('accounts.form.hints.reseller') }}</UiFieldHint>
+            </div>
             <UiInput
               v-model="ownerEmail"
               :label="t('accounts.form.fields.ownerEmail')"

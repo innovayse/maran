@@ -111,4 +111,10 @@
   <data name="AccountStatusSuspended">
     <value>Կասեցված</value>
   </data>
+  <data name="ResellerStatusActive">
+    <value>Ակտիվ</value>
+  </data>
+  <data name="ResellerStatusSuspended">
+    <value>Կասեցված</value>
+  </data>
 </root>

@@ -157,9 +157,12 @@
     <value>That account was not found, or it has no login to view as.</value>
   </data>
   <data name="ViewAsLoginUnavailable">
-    <value>The account's login is suspended or locked, so the panel cannot be viewed as it.</value>
+    <value>That login is suspended or locked, so the panel cannot be viewed as it.</value>
   </data>
   <data name="ViewAsNotViewing">
-    <value>You are not viewing the panel as an account.</value>
+    <value>You are not viewing the panel as another login.</value>
+  </data>
+  <data name="ViewAsResellerNotFound">
+    <value>That reseller was not found, or it has no login to view as.</value>
   </data>
 </root>

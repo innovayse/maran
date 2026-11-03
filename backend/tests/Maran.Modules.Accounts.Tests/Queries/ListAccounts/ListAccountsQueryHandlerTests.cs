@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListAccounts;
+using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Pagination;
 using Maran.SharedKernel.Results;
@@ -180,7 +181,7 @@ public sealed class ListAccountsQueryHandlerTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Builds an account on a plan of its own.</summary>
@@ -201,7 +202,7 @@ public sealed class ListAccountsQueryHandlerTests
         var names = new StubDisplayNames()
             .With("AccountStatusActive", "Live")
             .With("AccountStatusSuspended", "Paused");
-        return new ListAccountsQueryHandler(dbContext, names).HandleAsync(query, CancellationToken.None);
+        return new ListAccountsQueryHandler(dbContext, new ResellerNameDirectory(dbContext), names).HandleAsync(query, CancellationToken.None);
     }
 
     /// <summary>The names of a page's rows, in order.</summary>

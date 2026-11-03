@@ -45,6 +45,8 @@ const catalogue = (count: number): Account[] => {
       status: index % 3 === 2 ? 'suspended' : 'active',
       statusName: index % 3 === 2 ? 'Suspended' : 'Active',
       createdAt: `2026-08-${number}T10:00:00Z`,
+      resellerId: null,
+      resellerName: null,
     }
   })
 }

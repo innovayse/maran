@@ -1,0 +1,99 @@
+using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Services;
+using Maran.Modules.Accounts.Tests.TestSupport;
+using Maran.Sdk.Contracts;
+
+namespace Maran.Modules.Accounts.Tests.Services;
+
+/// <summary>What <see cref="ResellerDirectory"/>, the window other modules read through, answers per caller.</summary>
+public sealed class ResellerDirectoryTests
+{
+    /// <summary>An administrator reads any reseller, with its state.</summary>
+    [Fact]
+    public async Task An_administrator_reads_any_reseller_with_its_state()
+    {
+        var active = ResellerTestData.Reseller("active");
+        var suspended = ResellerTestData.Reseller("suspended");
+        suspended.Suspend();
+        await using var dbContext = await SeedAsync(FakeCurrentUser.Admin(), active, suspended);
+        var directory = new ResellerDirectory(dbContext, FakeCurrentUser.Admin());
+
+        var first = await directory.FindAsync(active.Id, CancellationToken.None);
+        var second = await directory.FindAsync(suspended.Id, CancellationToken.None);
+
+        Assert.Equal(new ResellerSnapshot(active.Id, "active", ResellerState.Active), first);
+        Assert.Equal(new ResellerSnapshot(suspended.Id, "suspended", ResellerState.Suspended), second);
+    }
+
+    /// <summary>A reseller reads itself and not another reseller.</summary>
+    [Fact]
+    public async Task A_reseller_reads_itself_and_not_another_reseller()
+    {
+        var own = ResellerTestData.Reseller("mine");
+        var other = ResellerTestData.Reseller("theirs");
+        var currentUser = FakeCurrentUser.Reseller(own.Id);
+        await using var dbContext = await SeedAsync(currentUser, own, other);
+        var directory = new ResellerDirectory(dbContext, currentUser);
+
+        Assert.NotNull(await directory.FindAsync(own.Id, CancellationToken.None));
+        Assert.Null(await directory.FindAsync(other.Id, CancellationToken.None));
+    }
+
+    /// <summary>A reseller asking for another's id is answered exactly as for an id that does not exist.</summary>
+    [Fact]
+    public async Task Another_resellers_id_is_answered_like_an_id_that_does_not_exist()
+    {
+        var own = ResellerTestData.Reseller("mine");
+        var currentUser = FakeCurrentUser.Reseller(own.Id);
+        await using var dbContext = await SeedAsync(currentUser, own);
+        var directory = new ResellerDirectory(dbContext, currentUser);
+
+        Assert.Null(await directory.FindAsync(Guid.NewGuid(), CancellationToken.None));
+    }
+
+    /// <summary>A customer, an accountless customer and an anonymous caller read no reseller.</summary>
+    [Fact]
+    public async Task A_caller_that_is_neither_administrator_nor_reseller_reads_none()
+    {
+        var reseller = ResellerTestData.Reseller();
+        await using var dbContext = await SeedAsync(FakeCurrentUser.Admin(), reseller);
+
+        var callers = new[]
+        {
+            FakeCurrentUser.Customer(Guid.NewGuid()),
+            FakeCurrentUser.AccountlessCustomer(),
+            FakeCurrentUser.Anonymous(),
+        };
+        foreach (var caller in callers)
+        {
+            var directory = new ResellerDirectory(dbContext, caller);
+
+            Assert.Null(await directory.FindAsync(reseller.Id, CancellationToken.None));
+        }
+    }
+
+    /// <summary>An administrator asking for an id that does not exist is answered null.</summary>
+    [Fact]
+    public async Task An_unknown_id_is_answered_null_for_an_administrator()
+    {
+        await using var dbContext = AccountsTestContext.Create();
+        var directory = new ResellerDirectory(dbContext, FakeCurrentUser.Admin());
+
+        Assert.Null(await directory.FindAsync(Guid.NewGuid(), CancellationToken.None));
+    }
+
+    /// <summary>Seeds resellers into a context filtered for <paramref name="currentUser"/>.</summary>
+    /// <param name="currentUser">The principal the context is built for.</param>
+    /// <param name="resellers">The resellers to add.</param>
+    /// <returns>The context, which the caller disposes.</returns>
+    private static async Task<AccountsDbContext> SeedAsync(
+        FakeCurrentUser currentUser,
+        params Reseller[] resellers)
+    {
+        var dbContext = AccountsTestContext.Create(currentUser);
+        dbContext.Resellers.AddRange(resellers);
+        await dbContext.SaveChangesAsync();
+        return dbContext;
+    }
+}

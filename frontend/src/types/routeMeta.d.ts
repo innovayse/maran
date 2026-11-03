@@ -20,11 +20,23 @@ declare module 'vue-router' {
      */
     title?: string
     /**
-     * The screen is for administrators only. Advice, never enforcement: the endpoints behind it
-     * refuse a customer on their own. The role guard uses it to send a customer to the
-     * "not available" screen instead of showing admin chrome around a refusal (issue #202).
+     * The screen is for administrators only, and for nobody else: a reseller and a customer are both
+     * turned away. Advice, never enforcement: the endpoints behind it refuse every other role on
+     * their own. The role guard uses it to send them to the "not available" screen instead of
+     * showing administrator chrome around a refusal (issues #202 and #179).
      */
     adminOnly?: boolean
+    /**
+     * The screen is for administrators and resellers, the two roles that manage accounts, and a
+     * customer is turned away. Advice, never enforcement, exactly like `adminOnly` (issue #179).
+     */
+    managerOnly?: boolean
+    /**
+     * The screen is for resellers only, and for nobody else: an administrator and a customer are
+     * both turned away. Advice, never enforcement, exactly like `adminOnly`: the endpoint behind
+     * it refuses every other role on its own (issue #179).
+     */
+    resellerOnly?: boolean
     /**
      * Route name of the navigation destination this screen sits beneath, for a screen the
      * navigation does not list itself (a record, a form under a list). It places the screen in the

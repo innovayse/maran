@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Queries.ListPlanFeatures;
+using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Extensions;
@@ -12,13 +13,16 @@ public sealed class ListPlanFeaturesQueryHandlerTests
     [Fact]
     public async Task It_lists_every_feature_in_declaration_order_and_no_set()
     {
+        await using var dbContext = AccountsTestContext.Create();
         var names = new StubDisplayNames();
         foreach (var feature in AccountFeature.All.Members())
         {
             names = names.With($"AccountFeature{feature}", $"name of {feature}");
         }
 
-        var result = await new ListPlanFeaturesQueryHandler(names).HandleAsync(new ListPlanFeaturesQuery());
+        var result = await new ListPlanFeaturesQueryHandler(
+                dbContext, new ResellerScope(dbContext, FakeCurrentUser.Admin()), names)
+            .HandleAsync(new ListPlanFeaturesQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(AccountFeature.All.Members(), result.Value!.Select(row =>

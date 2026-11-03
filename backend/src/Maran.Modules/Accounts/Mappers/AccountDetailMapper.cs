@@ -16,8 +16,13 @@ public static class AccountDetailMapper
     /// <param name="account">The account.</param>
     /// <param name="plan">The plan <paramref name="account"/> is on.</param>
     /// <param name="displayNames">Resolves a shipped plan's name in the request's culture.</param>
+    /// <param name="resellerName">The owning reseller's name, or <c>null</c> for the administrator's own account.</param>
     /// <returns>The account's detail view.</returns>
-    public static AccountDetailDto ToDto(Account account, Plan plan, IStringLocalizer<DisplayNames> displayNames)
+    public static AccountDetailDto ToDto(
+        Account account,
+        Plan plan,
+        IStringLocalizer<DisplayNames> displayNames,
+        string? resellerName)
     {
         return new AccountDetailDto(
             account.Id,
@@ -28,6 +33,8 @@ public static class AccountDetailMapper
             AccountStatusMapper.NameOf(account.Status, displayNames),
             account.CreatedAt,
             PlanMapper.DisplayNameOf(plan, displayNames),
-            account.OwnerEmail);
+            account.OwnerEmail,
+            account.ResellerId,
+            resellerName);
     }
 }

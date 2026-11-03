@@ -6,9 +6,9 @@ import type { NavigationRole } from '../types/navigation'
 /**
  * The navigation role of a signed-in role: the one place the navigation maps {@link UserRole} to a
  * tree. Exhaustive on purpose — the `never` in the default branch makes a role added to `UserRole`
- * (the reseller, issue #179) a type error here until it is mapped to its own tree, instead of
- * silently receiving the administrator's (Servers, Security, SMTP). `vue-tsc` is that check: the
- * SPA has no unit runner by design (rules/testing.md).
+ * a type error here until it is mapped to its own tree, instead of silently receiving the
+ * administrator's (Servers, Security, SMTP); the reseller (issue #179) has its own. `vue-tsc` is
+ * that check: the SPA has no unit runner by design (rules/testing.md).
  * @param role The signed-in user's role, or undefined before sign-in has resolved.
  * @returns The role the tree is filtered for. Before sign-in resolves the administrator's menu is
  *   offered, which is advice that errs permissive (rules/security.md) — the endpoints still refuse.
@@ -17,6 +17,8 @@ const navigationRoleOf = (role: UserRole | undefined): NavigationRole => {
   switch (role) {
     case 'customer':
       return 'customer'
+    case 'reseller':
+      return 'reseller'
     case 'admin':
     case undefined:
       return 'admin'

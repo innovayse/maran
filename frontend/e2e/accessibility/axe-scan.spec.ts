@@ -8,14 +8,18 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
 import { stubPendingUpdates } from '../fixtures/stub-monitoring-routes'
 import { stubPlans } from '../fixtures/stub-plans-route'
+import { RESELLER_USER, stubMyReseller, stubResellerSession, stubViewAsChain } from '../fixtures/stub-reseller-session'
+import { ACME_HOSTING, stubResellers } from '../fixtures/stub-resellers-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
 import type { Dashboard } from '../../src/types/dashboard'
 import type { Database } from '../../src/types/database'
 import type { PanelModule } from '../../src/types/module'
 import type { Site } from '../../src/types/site'
+import type { ViewingAs } from '../../src/types/viewAs'
 
-// Issue #149: axe runs on the sign-in screen, the dashboard and the main lists, and finds no
+// Issue #149 (and #179 for the reseller screens): axe runs on the sign-in screen, the dashboard and the main lists, and finds no
 // serious or critical violation. Each screen is scanned with real rows in it, in both themes,
 // because a contrast failure lives in one theme's tokens and an empty list draws no table at all.
 
@@ -34,6 +38,8 @@ const ALICE: Account = {
   status: 'active',
   statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
+  resellerId: null,
+  resellerName: null,
 }
 
 const SUSPENDED: Account = {
@@ -124,6 +130,16 @@ const DASHBOARD: Dashboard = {
   ]),
 }
 
+/** What the panel reports while an administrator views as the reseller. */
+const VIEWING_RESELLER: ViewingAs = {
+  kind: 'reseller',
+  subjectId: ACME_HOSTING.id,
+  subjectName: ACME_HOSTING.name,
+  username: RESELLER_USER.username,
+  operatorUsername: 'admin',
+  expiresAt: '2099-01-01T00:15:00+00:00',
+}
+
 /**
  * Signs an administrator in with the three list modules licensed and every screen's data stubbed.
  * @param page The Playwright page under test.
@@ -137,6 +153,7 @@ const signInWithData = async (page: Page): Promise<void> => {
   await stubDashboard(page, DASHBOARD)
   await stubPlans(page)
   await stubAccounts(page, [ALICE, SUSPENDED])
+  await stubResellers(page)
   await stubSites(page, [ALPHA])
   await stubPhpVersions(page, [])
   await stubDatabases(page, [SHOP])
@@ -193,6 +210,41 @@ for (const theme of ['dark', 'light'] as const) {
 
       await page.goto('/databases')
       await expect(page.getByRole('cell', { name: 'alice_shop', exact: true })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the resellers list has no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+
+      await page.goto('/resellers')
+      await expect(page.getByRole('link', { name: 'acmehosting', exact: true })).toBeVisible()
+      await expect(page.getByRole('link', { name: 'bravohosting', exact: true })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the reseller overview has no serious accessibility violation', async ({ page }) => {
+      await stubResellerSession(page, ACME_HOSTING, LICENSED)
+
+      await page.goto('/reseller')
+      await expect(page.getByRole('heading', { level: 1, name: 'Your reseller account' })).toBeVisible()
+      await expect(page.getByText('Disk per account (MB)')).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('a page viewed as a reseller, with its banner, has no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+      await stubShellReads(page)
+      await stubMyReseller(page)
+      await stubViewAsChain(page, { viewedAs: RESELLER_USER, viewing: VIEWING_RESELLER })
+
+      await page.goto('/resellers')
+      await page.getByRole('link', { name: 'acmehosting', exact: true }).click()
+      await page.getByRole('button', { name: 'View as this reseller' }).click()
+      await expect(page.getByRole('region', { name: 'Viewing as another reseller' })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 1, name: 'Your reseller account' })).toBeVisible()
 
       await expectNoSeriousViolations(page)
     })

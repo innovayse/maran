@@ -18,8 +18,14 @@ namespace Maran.Modules.Accounts.Queries.ListPlans;
 /// One of <see cref="PlanSortFields"/> either way (<c>name</c>, <c>-accounts</c>, …), or
 /// <see cref="SortRequest.Default"/> for the smallest disk quota first.
 /// </param>
+/// <param name="ResellerId">
+/// Only the plans this reseller owns, or <c>null</c> for every plan the caller may see. It is how an
+/// administrator reads one reseller's plans; a reseller caller is held to its own plans by the
+/// context's filter whatever this says, so naming another reseller answers an empty page.
+/// </param>
 public sealed record ListPlansQuery(
     int Page = PageDefaults.FirstPage,
     int PageSize = PageDefaults.Size,
     SearchTerm Search = default,
-    SortRequest Sort = default) : IPagedQuery;
+    SortRequest Sort = default,
+    Guid? ResellerId = null) : IPagedQuery;

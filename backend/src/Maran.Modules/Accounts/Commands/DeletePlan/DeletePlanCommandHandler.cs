@@ -44,24 +44,43 @@ public sealed class DeletePlanCommandHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
+    /// <summary>Refuses a write by a suspended reseller.</summary>
+    private readonly ResellerScope _scope;
+
     /// <summary>This module's audit journal.</summary>
     private readonly AccountAuditJournal _journal;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
+    /// <param name="scope">Refuses a write by a suspended reseller.</param>
     /// <param name="journal">This module's audit journal.</param>
-    public DeletePlanCommandHandler(AccountsDbContext dbContext, AccountAuditJournal journal)
+    public DeletePlanCommandHandler(AccountsDbContext dbContext, ResellerScope scope, AccountAuditJournal journal)
     {
         _dbContext = dbContext;
+        _scope = scope;
         _journal = journal;
     }
 
     /// <summary>Deletes the plan, or refuses because accounts are still on it.</summary>
     /// <param name="command">The plan to delete.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
-    /// <returns>Success, <c>PlanNotFound</c>, or <c>PlanInUse</c> while any account references the plan.</returns>
+    /// <returns>
+    /// Success, <c>PlanNotFound</c> (also for a plan another reseller owns), <c>ResellerSuspended</c>, or
+    /// <c>PlanInUse</c> while any account references the plan.
+    /// </returns>
+    /// <remarks>
+    /// Deleting a plan frees a slot of its reseller's plan count and takes nothing from its disk pool, so
+    /// it claims nothing: a delete that races an admission can only leave the reseller with MORE room
+    /// than the admission counted, never less.
+    /// </remarks>
     public async Task<Result> HandleAsync(DeletePlanCommand command, CancellationToken cancellationToken)
     {
+        var inactive = await _scope.RequireActiveAsync(cancellationToken);
+        if (inactive is not null)
+        {
+            return await FailAsync(command, command.PlanId.ToString("D"), inactive, cancellationToken);
+        }
+
         var plan = await _dbContext.Plans.SingleOrDefaultAsync(p => p.Id == command.PlanId, cancellationToken);
         if (plan is null)
         {

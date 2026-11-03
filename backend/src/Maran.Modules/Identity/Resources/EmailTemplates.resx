@@ -40,6 +40,16 @@ The link stops working in one hour and can be used once. If this was not you, no
 
 The link stops working in seven days and can be used once.</value>
   </data>
+  <data name="ResellerInvitationSubject">
+    <value>Your reseller login is ready</value>
+  </data>
+  <data name="ResellerInvitationBody">
+    <value>A reseller login has been created for you on this hosting panel.
+
+{0}
+
+The link stops working in seven days and can be used once.</value>
+  </data>
   <data name="InvitationLink">
     <value>Open this address to choose your password:
 {0}</value>

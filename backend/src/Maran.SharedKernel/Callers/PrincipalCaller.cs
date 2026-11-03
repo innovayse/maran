@@ -2,7 +2,8 @@ namespace Maran.SharedKernel.Callers;
 
 /// <summary>
 /// A caller that is a signed-in panel login: what an <see cref="AdministratorCaller"/>, a
-/// <see cref="CustomerCaller"/> and an <see cref="AccountlessCustomerCaller"/> share.
+/// <see cref="ResellerCaller"/>, a <see cref="CustomerCaller"/> and an
+/// <see cref="AccountlessCustomerCaller"/> share.
 /// </summary>
 /// <remarks>
 /// Every member describes the login being acted as, because that is whose authority a request runs

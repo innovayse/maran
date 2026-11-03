@@ -153,8 +153,9 @@ public sealed class FtpAuditJournal
             AdministratorCaller administrator => (administrator.UserId, administrator.Username),
             CustomerCaller customer => (customer.UserId, customer.Username),
             AccountlessCustomerCaller accountless => (accountless.UserId, accountless.Username),
+            ResellerCaller reseller => (reseller.UserId, reseller.Username),
             AnonymousCaller => (Guid.Empty, string.Empty),
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
         };
 
         await _auditWriter.WriteAsync(

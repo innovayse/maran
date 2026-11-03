@@ -19,6 +19,11 @@ namespace Maran.Modules.Accounts.Services;
 /// from a plan that lacks the feature, so a guessed account id learns nothing about another tenant.
 /// </para>
 /// <para>
+/// A reseller is always answered <c>false</c>. It acts for no account and is sold no plan, so there is
+/// no plan whose features its own request could be gated by; what a customer's account includes is
+/// reached by the reseller only through a view-as session, which speaks as that customer.
+/// </para>
+/// <para>
 /// It reads the plan on every call and caches nothing, so a plan edit reaches the customer's next
 /// request. The cost is one indexed join per gated request, which is what an immediate refusal is
 /// worth; a cache would reintroduce a window in which a removed feature still works.
@@ -68,8 +73,8 @@ public sealed class AccountFeatureDirectory : IAccountFeatureDirectory
 
     /// <summary>
     /// Whether the caller may see the account <paramref name="accountId"/>: an administrator any
-    /// account, a customer only the one their own token names, and nobody else (an anonymous caller,
-    /// a customer login acting for no account) none.
+    /// account, a customer only the one their own token names, and nobody else (a reseller, an
+    /// anonymous caller, a customer login acting for no account) none.
     /// </summary>
     /// <param name="accountId">The account asked about.</param>
     /// <returns>True when the caller's tenant scope includes the account.</returns>
@@ -79,9 +84,10 @@ public sealed class AccountFeatureDirectory : IAccountFeatureDirectory
         {
             AdministratorCaller => true,
             CustomerCaller customer => customer.AccountId == accountId,
+            ResellerCaller => false,
             AnonymousCaller => false,
             AccountlessCustomerCaller => false,
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: four cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
         };
     }
 }

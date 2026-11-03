@@ -74,21 +74,23 @@ test('the list shows every plan with its limits as numbers, and "None" where a p
   await expect(rows).toHaveCount(4)
 
   const starter = page.getByRole('row', { name: /Starter/ })
-  await expect(starter.getByRole('cell').nth(1)).toHaveText('3')
+  // Cell 1 is the owner column an administrator sees (#179); the figures follow it.
+  await expect(starter.getByRole('cell').nth(1)).toHaveText('Administrator')
+  await expect(starter.getByRole('cell').nth(2)).toHaveText('3')
   // The quota in a human unit (#222): 5120 MB is 5 GiB, and 1048576 MB is 1 TiB.
-  await expect(starter.getByRole('cell').nth(2)).toHaveText('5 GiB')
-  await expect(page.getByRole('row', { name: /Unlimited/ }).getByRole('cell').nth(2)).toHaveText('1 TiB')
+  await expect(starter.getByRole('cell').nth(3)).toHaveText('5 GiB')
+  await expect(page.getByRole('row', { name: /Unlimited/ }).getByRole('cell').nth(3)).toHaveText('1 TiB')
   await expect(page.getByRole('columnheader', { name: 'Disk', exact: true })).toBeVisible()
   // Starter sells no FTPS logins and no cron entries: the word, not a bare zero.
-  await expect(starter.getByRole('cell').nth(6)).toHaveText('None')
   await expect(starter.getByRole('cell').nth(7)).toHaveText('None')
+  await expect(starter.getByRole('cell').nth(8)).toHaveText('None')
   const business = page.getByRole('row', { name: /Business/ })
-  await expect(business.getByRole('cell').nth(6)).toHaveText('10')
+  await expect(business.getByRole('cell').nth(7)).toHaveText('10')
 
   // A figure is mono and right-aligned, so a column lines up on the digit.
   const align = await starter
     .getByRole('cell')
-    .nth(2)
+    .nth(3)
     .evaluate((cell) => {
       const style = getComputedStyle(cell)
       return { textAlign: style.textAlign, family: style.fontFamily }
@@ -233,7 +235,7 @@ test('editing a plan starts from its figures and puts the whole plan', async ({ 
     page
       .getByRole('row', { name: /Business/ })
       .getByRole('cell')
-      .nth(2),
+      .nth(3),
   ).toHaveText('50 GiB')
 })
 

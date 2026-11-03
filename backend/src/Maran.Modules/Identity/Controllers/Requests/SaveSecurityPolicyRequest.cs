@@ -5,8 +5,10 @@ namespace Maran.Modules.Identity.Controllers.Requests;
 /// <param name="ForceTwoFactorForAdmins">Whether an administrator without a second factor is steered into enrolment.</param>
 /// <param name="MaxFailedLoginAttempts">Consecutive failed sign-ins that lock an account.</param>
 /// <param name="LockoutMinutes">How long a locked account stays locked, in minutes.</param>
+/// <param name="ForceTwoFactorForResellers">Whether a reseller without a second factor is steered into enrolment.</param>
 public sealed record SaveSecurityPolicyRequest(
     int MinimumPasswordLength,
     bool ForceTwoFactorForAdmins,
     int MaxFailedLoginAttempts,
-    int LockoutMinutes);
+    int LockoutMinutes,
+    bool ForceTwoFactorForResellers);

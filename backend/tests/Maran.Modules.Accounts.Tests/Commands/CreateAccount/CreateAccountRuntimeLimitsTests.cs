@@ -2,11 +2,9 @@ using Maran.Modules.Accounts.Commands.CreateAccount;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreateAccount;
 
@@ -56,15 +54,7 @@ public sealed class CreateAccountRuntimeLimitsTests
         AccountsDbContext dbContext,
         RecordingAgentAccountsClient agent)
     {
-        return new CreateAccountCommandHandler(
-            dbContext,
-            agent,
-            new AccountRuntimeLimitsEnforcer(agent),
-            new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
-            new AccountAuditJournal(new RecordingAuditWriter(), FakeCurrentUser.Admin()),
-            new StubMessageBus(),
-            NullLogger<CreateAccountCommandHandler>.Instance,
-            new StubDisplayNames());
+        return AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent);
     }
 
     /// <summary>Builds the creation of account <c>acme</c> on <paramref name="planId"/>.</summary>
