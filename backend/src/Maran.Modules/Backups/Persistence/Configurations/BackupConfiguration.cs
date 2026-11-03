@@ -1,4 +1,5 @@
 using Maran.Modules.Backups.Domain.Entities;
+using Maran.Modules.Backups.Domain.Enums;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Backups.Persistence.Configurations;
@@ -18,6 +19,9 @@ public sealed class BackupConfiguration : IEntityTypeConfiguration<Backup>
     /// <summary>The longest system user name a deleted account can have left behind.</summary>
     /// <remarks>The ceiling the panel already validates account names against.</remarks>
     private const int UsernameMaxLength = 32;
+
+    /// <summary>The longest verification failure CODE this table stores; codes are identifiers, not sentences.</summary>
+    private const int VerificationFailureCodeMaxLength = 64;
 
     /// <summary>Configures the table, keys, and column constraints for <see cref="Backup"/>.</summary>
     /// <param name="builder">The entity type builder supplied by EF Core.</param>
@@ -123,6 +127,24 @@ public sealed class BackupConfiguration : IEntityTypeConfiguration<Backup>
             .IsRequired()
             .HasMaxLength(UsernameMaxLength)
             .HasDefaultValue(string.Empty);
+
+        // Expand-only: all three columns are new. The state is NOT NULL with a default of the member's
+        // name, so every row the previous release wrote reads as not verified without a backfill and
+        // the previous release, which never writes the column, still inserts. The other two are
+        // nullable. Stored as the member's NAME, like Status and Kind. No check constraint ties them
+        // to Status, for the reason given above: a constraint over new columns would refuse a write
+        // after a rollback.
+        builder.Property(backup => backup.VerificationState)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(EnumNameMaxLength)
+            .HasDefaultValue(BackupVerificationState.NotVerified);
+
+        builder.Property(backup => backup.VerifiedAt);
+
+        // An error CODE, short by design, for the reason RunFailureCode is.
+        builder.Property(backup => backup.VerificationFailureCode)
+            .HasMaxLength(VerificationFailureCodeMaxLength);
 
         // The listing every screen asks for: one account's backups, newest first. Composite rather
         // than an index on AccountId alone, because the global query filter supplies the account
