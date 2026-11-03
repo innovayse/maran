@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { expectTablesAsCards } from '../fixtures/expect-table-cards'
-import { mainNavigation, openFullShell } from '../fixtures/open-full-shell'
+import { openFullShell } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { pendingUpdateRequests, stubPendingUpdates } from '../fixtures/stub-monitoring-routes'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
@@ -47,9 +47,13 @@ const openUpdates = async (
   await stubShellReads(page)
   await stubPendingUpdates(page, updates, options.failure ?? null)
 
-  const section = mainNavigation(page).locator('div.relative', { has: page.locator('[data-nav-section="servers"]') })
+  // The sidebar is found as the complementary landmark's navigation: its accessible name is
+  // translated, so a name-based lookup would only work in English. The section's own link also
+  // points at its first page, so the item is told apart by the `data-nav-parent` it carries.
+  const sidebar = page.getByRole('complementary').getByRole('navigation')
+  const section = sidebar.locator('div.relative', { has: page.locator('[data-nav-section="servers"]') })
   await section.getByRole('button').click()
-  await mainNavigation(page).locator('a[href="/servers/updates"]').click()
+  await sidebar.locator('a[data-nav-parent="servers"][href="/servers/updates"]').click()
   await expect(page).toHaveURL(/\/servers\/updates/)
 }
 
@@ -161,7 +165,7 @@ test('a successful read with no update says there is nothing to update', async (
 test('a failed read shows the backend message and never says nothing to update', async ({ page }) => {
   await openUpdates(page, UPDATES, { failure: CACHE_UNREADABLE })
 
-  await expect(page.getByRole('alert').filter({ hasText: CACHE_UNREADABLE })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: CACHE_UNREADABLE })).toBeVisible()
   await expect(page.getByText('Nothing to update')).toHaveCount(0)
   await expect(page.getByRole('table')).toHaveCount(0)
 })

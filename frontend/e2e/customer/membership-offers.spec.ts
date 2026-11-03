@@ -70,7 +70,7 @@ const ownAccountOnly = (): MembershipsState => {
   return { accounts: [{ accountId: OWN_ACCOUNT.id, name: 'olive' }], activeAccountId: OWN_ACCOUNT.id, switchRequests: [] }
 }
 
-/** Signs the customer in with the offers stubbed, then opens My account from the sidebar. */
+/** Signs the customer in with the offers stubbed, then opens My account from the sidebar, or from the bottom bar on a phone. */
 const openMyAccount = async (
   page: Page,
   offers: MembershipOffer[],
@@ -88,6 +88,11 @@ const openMyAccount = async (
   await stubAccountMemberships(page, state)
   const sent = await stubMembershipOffers(page, offers, behaviour)
   await page.goto('/')
+  // Below 1024px the sidebar is a drawer and the bottom bar carries the account destination.
+  if ((page.viewportSize()?.width ?? 1440) < 1024) {
+    await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Account', exact: true }).click()
+    return sent
+  }
   const toggle = page.getByRole('navigation').getByRole('button', { name: CHROME[language].section }).first()
   if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
     await toggle.click()
