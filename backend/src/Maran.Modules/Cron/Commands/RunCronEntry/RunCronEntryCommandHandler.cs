@@ -162,7 +162,7 @@ public sealed class RunCronEntryCommandHandler
         // The journal first, and nothing after the agent's answer takes the request's token: the run
         // has happened, and a caller who has gone away does not un-run it.
         await _journal.RecordSuccessAsync(
-            AuditActions.CronEntryRun, command.EntryId, command.IpAddress, command.UserAgent, CancellationToken.None);
+            CronAuditActions.CronEntryRun, command.EntryId, command.IpAddress, command.UserAgent, CancellationToken.None);
 
         var run = new CronRun(
             Guid.NewGuid(),
@@ -215,7 +215,7 @@ public sealed class RunCronEntryCommandHandler
     private async Task<Result<CronRunDto>> FailAsync(RunCronEntryCommand command, Error error)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.CronEntryRun, command.EntryId, command.IpAddress, command.UserAgent, CancellationToken.None);
+            CronAuditActions.CronEntryRun, command.EntryId, command.IpAddress, command.UserAgent, CancellationToken.None);
 
         return Result<CronRunDto>.Fail(error);
     }

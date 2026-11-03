@@ -73,7 +73,7 @@ public sealed class UnbanAddressCommandHandler
         if (!IpAddressNormalizer.TryNormalize(command.Address, out var address))
         {
             await _journal.RecordFailureAsync(
-                AuditActions.AddressUnbanned,
+                FirewallAuditActions.AddressUnbanned,
                 command.Address,
                 command.IpAddress,
                 command.UserAgent,
@@ -97,7 +97,7 @@ public sealed class UnbanAddressCommandHandler
         if (inForce.Count == 0)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
+                FirewallAuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
             return Result.Fail(Error.Of(nameof(ErrorMessages.BanNotFound), ErrorType.NotFound));
         }
@@ -106,7 +106,7 @@ public sealed class UnbanAddressCommandHandler
         if (!lifted.IsSuccess && !string.Equals(lifted.Error!.Code, AgentNotFoundCode, StringComparison.Ordinal))
         {
             await _journal.RecordFailureAsync(
-                AuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
+                FirewallAuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
             return Result.Fail(lifted.Error!);
         }
@@ -119,7 +119,7 @@ public sealed class UnbanAddressCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            FirewallAuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Ok();
     }

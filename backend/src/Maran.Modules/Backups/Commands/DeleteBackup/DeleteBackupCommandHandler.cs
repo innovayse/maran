@@ -164,7 +164,7 @@ public sealed class DeleteBackupCommandHandler
         // The account, not the backup id: the subject an operator will search for, resolved above
         // even for a deleted account's kept backup through the name the deletion stamped on it.
         await _journal.RecordSuccessAsync(
-            AuditActions.BackupDeleted, username, command.IpAddress, command.UserAgent, cancellationToken);
+            BackupAuditActions.BackupDeleted, username, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Ok();
     }
@@ -267,7 +267,7 @@ public sealed class DeleteBackupCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.BackupDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            BackupAuditActions.BackupDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Fail(error);
     }

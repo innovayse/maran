@@ -134,7 +134,7 @@ public sealed class CreateBackupCommandHandler
             // No account can be named for this caller, so the trace records the identifier that
             // was probed for — the journal's contract for a subject nobody could establish.
             await _journal.RecordFailureAsync(
-                AuditActions.BackupCreated,
+                BackupAuditActions.BackupCreated,
                 command.AccountId.ToString(),
                 command.IpAddress,
                 command.UserAgent,
@@ -151,7 +151,7 @@ public sealed class CreateBackupCommandHandler
         if (!destination.IsSuccess)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.BackupCreated, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
+                BackupAuditActions.BackupCreated, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
 
             return Result<BackupDto>.Fail(destination.Error!);
         }
@@ -208,7 +208,7 @@ public sealed class CreateBackupCommandHandler
                 // The account, not the backup id — the same subject the task above records, and the one
                 // AuditEntry asks for: what the operation acts on, as an operator would search for it.
                 await _journal.RecordSuccessAsync(
-                    AuditActions.BackupCreated,
+                    BackupAuditActions.BackupCreated,
                     account.Username,
                     command.IpAddress,
                     command.UserAgent,
@@ -221,7 +221,7 @@ public sealed class CreateBackupCommandHandler
                 await _dbContext.SaveChangesAsync(cancellationToken);
 
                 await _journal.RecordFailureAsync(
-                    AuditActions.BackupCreated,
+                    BackupAuditActions.BackupCreated,
                     account.Username,
                     command.IpAddress,
                     command.UserAgent,
@@ -318,7 +318,7 @@ public sealed class CreateBackupCommandHandler
         await _dbContext.SaveChangesAsync(CancellationToken.None);
 
         await _journal.RecordFailureAsync(
-            AuditActions.BackupCreated, username, command.IpAddress, command.UserAgent, CancellationToken.None);
+            BackupAuditActions.BackupCreated, username, command.IpAddress, command.UserAgent, CancellationToken.None);
         await _tasks.FailAsync(taskId, nameof(ErrorMessages.BackupOutcomeUnobserved), CancellationToken.None);
     }
 }

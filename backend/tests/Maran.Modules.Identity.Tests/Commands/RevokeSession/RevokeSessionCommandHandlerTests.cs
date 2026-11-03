@@ -60,7 +60,7 @@ public sealed class RevokeSessionCommandHandlerTests : IAsyncLifetime
 
         Assert.True(result.IsSuccess);
         Assert.False((await _context.Sessions.SingleAsync(s => s.Id == issued.SessionId)).IsActive(Now));
-        Assert.Equal(AuditActions.SessionRevoked, _audit.Written.Single().Action);
+        Assert.Equal(IdentityAuditActions.SessionRevoked, _audit.Written.Single().Action);
     }
 
     /// <summary>Revoking another users session answers not found rather than forbidden.</summary>

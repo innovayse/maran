@@ -77,9 +77,9 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     public async Task The_action_filter_keeps_only_that_action()
     {
         await WriteAsync(Now, "signed-in");
-        await WriteAsync(Now, "refused", AuditActions.LoginFailed, succeeded: false);
+        await WriteAsync(Now, "refused", IdentityAuditActions.LoginFailed, succeeded: false);
 
-        Assert.Equal(["refused"], await SubjectsAsync(new ListAuditEventsQuery(Action: FilterValue.Of(AuditActions.LoginFailed))));
+        Assert.Equal(["refused"], await SubjectsAsync(new ListAuditEventsQuery(Action: FilterValue.Of(IdentityAuditActions.LoginFailed))));
     }
 
     /// <summary>The outcome filter keeps one side and the other keeps the other.</summary>
@@ -112,7 +112,7 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     [Fact]
     public async Task A_rows_action_is_named_in_the_requests_language_beside_the_machine_code()
     {
-        await WriteAsync(Now, "livecust", AuditActions.BackupRestored);
+        await WriteAsync(Now, "livecust", BackupAuditActions.BackupRestored);
 
         var previous = CultureInfo.CurrentUICulture;
         try
@@ -173,7 +173,7 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     private async Task WriteAsync(
         DateTimeOffset at,
         string subject,
-        string action = AuditActions.LoginSucceeded,
+        string action = IdentityAuditActions.LoginSucceeded,
         bool succeeded = true)
     {
         _context.AuditEvents.Add(new AuditEvent(

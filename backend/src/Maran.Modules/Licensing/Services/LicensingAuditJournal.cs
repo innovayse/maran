@@ -17,7 +17,7 @@ namespace Maran.Modules.Licensing.Services;
 /// names the product, the tier and the expiry of the WHOLE installation (see
 /// <c>Controllers.LicensingController</c>'s own remarks on why the read is administrator-only for the
 /// identical reason), so who looked at that fact and when is exactly the kind of question an operator
-/// audit trail exists to answer — no different in kind from <c>AuditActions.SiteLogTailed</c>, which
+/// audit trail exists to answer — no different in kind from <c>SiteAuditActions.SiteLogTailed</c>, which
 /// this panel already journals on every read for the same reason: an installation-wide or otherwise
 /// sensitive fact being read is itself an event worth a date and an author, not only its being
 /// changed. The case AGAINST would be that a GET produces noise — but this GET is administrator-only,
@@ -83,11 +83,11 @@ public sealed class LicensingAuditJournal
         string userAgent,
         CancellationToken cancellationToken)
     {
-        await RecordSuccessAsync(AuditActions.LicenceStatusRead, SubjectFor(status), ipAddress, userAgent, cancellationToken);
+        await RecordSuccessAsync(LicenceAuditActions.LicenceStatusRead, SubjectFor(status), ipAddress, userAgent, cancellationToken);
     }
 
     /// <summary>Records an operation that took effect.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">The machine-readable, never-localized <c>key=value;key=value</c> subject.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
@@ -103,11 +103,11 @@ public sealed class LicensingAuditJournal
     }
 
     /// <summary>
-    /// Records an operation that was refused. This module's <c>AuditActions.LicenceStatusRead</c> entry
+    /// Records an operation that was refused. This module's <c>LicenceAuditActions.LicenceStatusRead</c> entry
     /// never reaches this method — a read never fails, see this type's own remarks — but
-    /// <c>AuditActions.LicenceInstalled</c> does, from <c>Commands.InstallLicence.InstallLicenceCommandHandler</c>.
+    /// <c>LicenceAuditActions.LicenceInstalled</c> does, from <c>Commands.InstallLicence.InstallLicenceCommandHandler</c>.
     /// </summary>
-    /// <param name="action">The action that was attempted, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action that was attempted, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">What it was attempted on.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
@@ -141,7 +141,7 @@ public sealed class LicensingAuditJournal
     }
 
     /// <summary>Builds and stores one entry.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">The machine-readable subject.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>

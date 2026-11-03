@@ -31,7 +31,7 @@ public sealed class CreateAccountAuditTests
 
         Assert.True(result.IsSuccess);
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.AccountCreated, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountCreated, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.Equal(Ip, entry.IpAddress);
@@ -50,7 +50,7 @@ public sealed class CreateAccountAuditTests
 
         Assert.Equal("AccountNameTaken", result.Error!.Code);
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.AccountCreated, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountCreated, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.False(entry.Succeeded);
     }
@@ -79,7 +79,7 @@ public sealed class CreateAccountAuditTests
 
         Assert.Equal("AgentUnavailable", result.Error!.Code);
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.AccountCreated, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountCreated, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -102,7 +102,7 @@ public sealed class CreateAccountAuditTests
 
         Assert.Equal("AgentInvalidInput", result.Error!.Code);
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.AccountCreated, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountCreated, entry.Action);
         Assert.Equal("root", entry.Subject);
         Assert.False(entry.Succeeded);
         Assert.Equal(Ip, entry.IpAddress);

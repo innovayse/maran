@@ -401,7 +401,7 @@ public sealed class AccountDeletingHandlerTests
             Now,
             user.Id,
             name,
-            AuditActions.LoginSucceeded,
+            IdentityAuditActions.LoginSucceeded,
             name,
             "203.0.113.10",
             "tests",

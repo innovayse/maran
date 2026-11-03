@@ -93,7 +93,7 @@ public sealed class AccountBackupServiceTests
         Assert.Equal("BackupStreamDropped", stored.RunFailureCode);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.FinalBackupTaken, entry.Action);
+        Assert.Equal(AccountAuditActions.FinalBackupTaken, entry.Action);
         Assert.False(entry.Succeeded);
     }
 

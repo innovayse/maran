@@ -181,7 +181,7 @@ public sealed class CreateAccountCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.AccountCreated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountCreated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         // INVOKED, not published: a failure to issue the login must reach the caller. The account
         // already exists at this point and is not rolled back — see AccountCreated's remarks — so
@@ -235,7 +235,7 @@ public sealed class CreateAccountCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.AccountCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<AccountDto>.Fail(error);
     }

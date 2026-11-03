@@ -35,7 +35,7 @@ public sealed class DatabaseAuditWriterTests : IDisposable
     public async Task A_written_entry_is_stamped_with_the_clock_and_the_correlation_id()
     {
         await NewWriter().WriteAsync(
-            new AuditEntry(Guid.NewGuid(), "admin", AuditActions.LoginSucceeded, "admin", "203.0.113.7", "agent", Succeeded: true),
+            new AuditEntry(Guid.NewGuid(), "admin", IdentityAuditActions.LoginSucceeded, "admin", "203.0.113.7", "agent", Succeeded: true),
             CancellationToken.None);
 
         var stored = await _context.AuditEvents.SingleAsync();
@@ -48,7 +48,7 @@ public sealed class DatabaseAuditWriterTests : IDisposable
     public async Task A_failed_login_is_recorded_with_no_actor_but_with_the_attempted_username()
     {
         await NewWriter().WriteAsync(
-            new AuditEntry(null, "nosuchuser", AuditActions.LoginFailed, "nosuchuser", "203.0.113.7", "agent", Succeeded: false),
+            new AuditEntry(null, "nosuchuser", IdentityAuditActions.LoginFailed, "nosuchuser", "203.0.113.7", "agent", Succeeded: false),
             CancellationToken.None);
 
         var stored = await _context.AuditEvents.SingleAsync();
@@ -68,7 +68,7 @@ public sealed class DatabaseAuditWriterTests : IDisposable
             new StubCurrentUser());
 
         await writer.WriteAsync(
-            new AuditEntry(null, "system", AuditActions.LoginFailed, "system", "203.0.113.7", "agent", Succeeded: false),
+            new AuditEntry(null, "system", IdentityAuditActions.LoginFailed, "system", "203.0.113.7", "agent", Succeeded: false),
             CancellationToken.None);
 
         Assert.Null((await _context.AuditEvents.SingleAsync()).CorrelationId);
@@ -89,7 +89,7 @@ public sealed class DatabaseAuditWriterTests : IDisposable
         var claimed = new string('a', 300) + "@example.com";
 
         await NewWriter().WriteAsync(
-            new AuditEntry(null, claimed, AuditActions.PasswordResetRequested, claimed, "203.0.113.7", "agent", Succeeded: true),
+            new AuditEntry(null, claimed, IdentityAuditActions.PasswordResetRequested, claimed, "203.0.113.7", "agent", Succeeded: true),
             CancellationToken.None);
 
         var stored = await _context.AuditEvents.SingleAsync();
@@ -113,7 +113,7 @@ public sealed class DatabaseAuditWriterTests : IDisposable
         var subject = "!" + string.Concat(Enumerable.Repeat("\U0001F600", 400));
 
         await NewWriter().WriteAsync(
-            new AuditEntry(null, "admin", AuditActions.AddressBanned, subject, "203.0.113.7", "agent", Succeeded: false),
+            new AuditEntry(null, "admin", FirewallAuditActions.AddressBanned, subject, "203.0.113.7", "agent", Succeeded: false),
             CancellationToken.None);
 
         var stored = await _context.AuditEvents.SingleAsync();

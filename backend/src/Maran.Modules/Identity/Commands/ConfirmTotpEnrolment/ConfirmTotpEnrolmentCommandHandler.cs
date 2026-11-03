@@ -78,7 +78,7 @@ public sealed class ConfirmTotpEnrolmentCommandHandler
         await _journal.RecordClaimAsync(
             user.Id,
             user.Username,
-            AuditActions.TwoFactorEnabled,
+            IdentityAuditActions.TwoFactorEnabled,
             command.IpAddress,
             command.UserAgent,
             succeeded: true,

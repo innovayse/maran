@@ -134,7 +134,7 @@ public sealed class CompleteSetupCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
         var entry = _audit.Written.Single();
-        Assert.Equal(AuditActions.AdministratorCreated, entry.Action);
+        Assert.Equal(IdentityAuditActions.AdministratorCreated, entry.Action);
         Assert.DoesNotContain(Token, entry.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain("correct horse", entry.Subject, StringComparison.Ordinal);
     }

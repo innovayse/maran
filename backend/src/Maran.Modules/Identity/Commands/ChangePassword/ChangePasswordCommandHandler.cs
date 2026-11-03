@@ -133,7 +133,7 @@ public sealed class ChangePasswordCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             user.Id,
-            AuditActions.PasswordChanged,
+            IdentityAuditActions.PasswordChanged,
             user.Id.ToString(),
             command.IpAddress,
             command.UserAgent,
@@ -155,7 +155,7 @@ public sealed class ChangePasswordCommandHandler
     {
         await _journal.RecordIdentifiedAsync(
             user.Id,
-            AuditActions.PasswordChanged,
+            IdentityAuditActions.PasswordChanged,
             user.Id.ToString(),
             command.IpAddress,
             command.UserAgent,

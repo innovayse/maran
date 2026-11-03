@@ -167,7 +167,7 @@ public sealed class BruteForceDetectedHandler
         if (await _guard.ExemptsAsync(address, cancellationToken))
         {
             await _journal.RecordSystemAsync(
-                AuditActions.BanSkippedWhitelisted, subject, succeeded: true, cancellationToken);
+                FirewallAuditActions.BanSkippedWhitelisted, subject, succeeded: true, cancellationToken);
 
             return;
         }
@@ -214,7 +214,7 @@ public sealed class BruteForceDetectedHandler
         {
             LogBanRefused(_logger, banned.Error!.Code, null);
             await _journal.RecordSystemAsync(
-                AuditActions.AddressBanned, subject, succeeded: false, cancellationToken);
+                FirewallAuditActions.AddressBanned, subject, succeeded: false, cancellationToken);
 
             return;
         }
@@ -247,7 +247,7 @@ public sealed class BruteForceDetectedHandler
             return;
         }
 
-        await _journal.RecordSystemAsync(AuditActions.AddressBanned, subject, succeeded: true, cancellationToken);
+        await _journal.RecordSystemAsync(FirewallAuditActions.AddressBanned, subject, succeeded: true, cancellationToken);
     }
 
     /// <summary>

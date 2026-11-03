@@ -188,7 +188,7 @@ public sealed class StartupBanReconcilerTests
         await world.Reconciler.ReconcileAsync(CancellationToken.None);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BanSkippedWhitelisted, entry.Action);
+        Assert.Equal(FirewallAuditActions.BanSkippedWhitelisted, entry.Action);
         Assert.Equal("203.0.113.7", entry.Subject);
         Assert.True(entry.Succeeded);
     }

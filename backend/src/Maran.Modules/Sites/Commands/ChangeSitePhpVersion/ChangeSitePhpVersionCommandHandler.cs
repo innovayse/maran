@@ -149,7 +149,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.SitePhpVersionChanged, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SitePhpVersionChanged, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Ok(new SiteDto(
             site.Id,
@@ -203,7 +203,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SitePhpVersionChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SitePhpVersionChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Fail(error);
     }

@@ -62,7 +62,7 @@ public sealed class AddWhitelistEntryCommandHandler
         if (taken)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.FirewallWhitelistChanged,
+                FirewallAuditActions.FirewallWhitelistChanged,
                 cidr,
                 command.IpAddress,
                 command.UserAgent,
@@ -76,7 +76,7 @@ public sealed class AddWhitelistEntryCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.FirewallWhitelistChanged,
+            FirewallAuditActions.FirewallWhitelistChanged,
             entry.Cidr,
             command.IpAddress,
             command.UserAgent,

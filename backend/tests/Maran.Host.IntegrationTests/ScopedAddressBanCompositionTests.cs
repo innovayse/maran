@@ -203,7 +203,7 @@ public sealed class ScopedAddressBanCompositionTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var journalled = await identity.AuditEvents
-            .Where(entry => entry.Action == AuditActions.LoginFailed)
+            .Where(entry => entry.Action == IdentityAuditActions.LoginFailed)
             .Select(entry => entry.IpAddress)
             .ToListAsync();
 

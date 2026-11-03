@@ -96,8 +96,8 @@ public sealed class SendMailRequestedHandler
             }
 
             var action = sent.Error!.Code == nameof(ErrorMessages.SmtpNotConfigured)
-                ? AuditActions.MailSkippedNoSmtp
-                : AuditActions.MailSendFailed;
+                ? MailAuditActions.MailSkippedNoSmtp
+                : MailAuditActions.MailSendFailed;
 
             LogNotSent(_logger, message.Recipient, null);
             await RecordAsync(action, message.Recipient, cancellationToken);
@@ -110,7 +110,7 @@ public sealed class SendMailRequestedHandler
             // loses one unsent mail costs the user a second click; a token written to disk costs
             // rather more.
             LogNotSent(_logger, message.Recipient, exception);
-            await RecordAsync(AuditActions.MailSendFailed, message.Recipient, CancellationToken.None);
+            await RecordAsync(MailAuditActions.MailSendFailed, message.Recipient, CancellationToken.None);
         }
     }
 
@@ -134,7 +134,7 @@ public sealed class SendMailRequestedHandler
             // configured, so there was nobody to tell: the skip is correct behaviour and recording
             // it red put a FAILED row in the journal of every fresh install for working properly
             // (issue #71).
-            var succeeded = action == AuditActions.MailSkippedNoSmtp;
+            var succeeded = action == MailAuditActions.MailSkippedNoSmtp;
             await _journal.RecordSystemAsync(action, recipient, succeeded, cancellationToken);
         }
         catch (Exception exception)

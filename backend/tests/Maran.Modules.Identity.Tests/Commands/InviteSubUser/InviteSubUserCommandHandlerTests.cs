@@ -91,7 +91,7 @@ public sealed class InviteSubUserCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
         var entry = Assert.Single(_world.Audit.Written);
-        Assert.Equal(AuditActions.SubUserInvited, entry.Action);
+        Assert.Equal(IdentityAuditActions.SubUserInvited, entry.Action);
         Assert.Equal("deploy", entry.Subject);
         Assert.Equal(_world.Owner.Id, entry.ActorUserId);
         Assert.True(entry.Succeeded);
@@ -194,7 +194,7 @@ public sealed class InviteSubUserCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Command(username: "acme"), CancellationToken.None);
 
         var entry = Assert.Single(_world.Audit.Written);
-        Assert.Equal(AuditActions.SubUserInvited, entry.Action);
+        Assert.Equal(IdentityAuditActions.SubUserInvited, entry.Action);
         Assert.False(entry.Succeeded);
     }
 

@@ -86,7 +86,7 @@ public sealed class DeleteSftpUserCommandHandlerTests
         using var read = SftpTestContext.Create(FakeCurrentUser.Admin(), world.Store);
         Assert.Equal(2, await read.SftpUsers.CountAsync());
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.SftpUserDeleted, entry.Action);
+        Assert.Equal(SftpAuditActions.SftpUserDeleted, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -143,7 +143,7 @@ public sealed class DeleteSftpUserCommandHandlerTests
         await world.DeleteAsync(world.OwnSftpUserId);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.SftpUserDeleted, entry.Action);
+        Assert.Equal(SftpAuditActions.SftpUserDeleted, entry.Action);
         Assert.Equal("deploy", entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -157,7 +157,7 @@ public sealed class DeleteSftpUserCommandHandlerTests
         await world.DeleteAsync(world.StrangerSftpUserId);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.SftpUserDeleted, entry.Action);
+        Assert.Equal(SftpAuditActions.SftpUserDeleted, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(world.StrangerSftpUserId.ToString(), entry.Subject);
     }

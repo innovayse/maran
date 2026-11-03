@@ -65,7 +65,7 @@ public sealed class ChangeLogLevelCommandHandlerTests
             new ChangeLogLevelCommand(PanelLogLevel.Debug, "198.51.100.7", "browser"), CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.PanelLogLevelChanged, entry.Action);
+        Assert.Equal(MonitoringAuditActions.PanelLogLevelChanged, entry.Action);
         Assert.Equal("Information -> Debug", entry.Subject);
         Assert.Equal("admin", entry.ActorUsername);
         Assert.Equal("198.51.100.7", entry.IpAddress);

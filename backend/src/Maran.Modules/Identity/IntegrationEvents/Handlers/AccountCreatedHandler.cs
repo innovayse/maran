@@ -153,7 +153,7 @@ public sealed class AccountCreatedHandler
 
         await _journal.RecordIdentifiedAsync(
             user.Id,
-            AuditActions.CustomerInvited,
+            IdentityAuditActions.CustomerInvited,
             user.Username,
             ipAddress: string.Empty,
             userAgent: string.Empty,

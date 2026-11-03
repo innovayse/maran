@@ -8,10 +8,10 @@ namespace Maran.ArchitectureTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why the Sdk's <see cref="AuditActions"/> is not the source of truth.</b> It reads like one,
+/// <b>Why the Sdk's <c>*AuditActions</c> classes are not the source of truth.</b> It reads like one,
 /// and a guard walking it reports full coverage over a set that can be missing the very actions the
 /// panel writes: <c>Maran.Modules.Ftp</c> declares its six action names on its own journal, so a
-/// walk of <see cref="AuditActions"/> found no gap while the audit screen printed
+/// walk of the Sdk's <c>*AuditActions</c> classes found no gap while the audit screen printed
 /// <c>FtpUserCreated</c> to a customer in all three languages. That is the shape rules/testing.md
 /// forbids — a check that cannot observe what it reports on — and moving those six constants into
 /// the Sdk would have closed the six holes while leaving the mechanism intact for the seventh.
@@ -99,13 +99,32 @@ public static class AuditActionVocabulary
     }
 
     /// <summary>The Sdk's shared action constants.</summary>
-    /// <returns>The action values <see cref="AuditActions"/> declares.</returns>
+    /// <returns>The action values every public <c>*AuditActions</c> class of the Sdk declares.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when no such class is found: a name filter that matched nothing would otherwise let every
+    /// guard walking this set pass over an empty one.
+    /// </exception>
     public static IReadOnlyList<string> SharedActions()
     {
-        return StringConstantsOf(typeof(AuditActions))
-            .Select(constant =>
+        var classes = typeof(IdentityAuditActions).Assembly.GetTypes()
+            .Where(type =>
             {
-                return constant.Value;
+                return type.IsPublic
+                    && type.IsAbstract
+                    && type.IsSealed
+                    && string.Equals(type.Namespace, typeof(IdentityAuditActions).Namespace, StringComparison.Ordinal)
+                    && type.Name.EndsWith("AuditActions", StringComparison.Ordinal);
+            })
+            .ToList();
+        if (classes.Count == 0)
+        {
+            throw new InvalidOperationException("No Sdk *AuditActions class was found; the walk would be vacuous.");
+        }
+
+        return classes
+            .SelectMany(type =>
+            {
+                return StringConstantsOf(type).Values;
             })
             .Order(StringComparer.Ordinal)
             .ToList();

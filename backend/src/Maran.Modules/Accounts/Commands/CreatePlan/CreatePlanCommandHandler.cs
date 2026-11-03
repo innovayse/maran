@@ -73,7 +73,7 @@ public sealed class CreatePlanCommandHandler
         if (await _names.IsTakenAsync(name, exceptPlanId: null, cancellationToken))
         {
             await _journal.RecordFailureAsync(
-                AuditActions.PlanCreated, name, command.IpAddress, command.UserAgent, cancellationToken);
+                AccountAuditActions.PlanCreated, name, command.IpAddress, command.UserAgent, cancellationToken);
 
             return Result<PlanDto>.Fail(Error.Of(nameof(ErrorMessages.PlanNameTaken), ErrorType.Conflict));
         }
@@ -104,13 +104,13 @@ public sealed class CreatePlanCommandHandler
             _dbContext.Plans.Remove(plan);
 
             await _journal.RecordFailureAsync(
-                AuditActions.PlanCreated, name, command.IpAddress, command.UserAgent, cancellationToken);
+                AccountAuditActions.PlanCreated, name, command.IpAddress, command.UserAgent, cancellationToken);
 
             return Result<PlanDto>.Fail(Error.Of(nameof(ErrorMessages.PlanNameTaken), ErrorType.Conflict));
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.PlanCreated, name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.PlanCreated, name, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<PlanDto>.Ok(PlanMapper.ToDto(plan, _displayNames, accountCount: 0));
     }

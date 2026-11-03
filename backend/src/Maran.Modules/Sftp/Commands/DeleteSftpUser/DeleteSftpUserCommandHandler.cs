@@ -120,7 +120,7 @@ public sealed class DeleteSftpUserCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.SftpUserDeleted, name, command.IpAddress, command.UserAgent, cancellationToken);
+            SftpAuditActions.SftpUserDeleted, name, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Ok();
     }
@@ -138,7 +138,7 @@ public sealed class DeleteSftpUserCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SftpUserDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            SftpAuditActions.SftpUserDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Fail(error);
     }

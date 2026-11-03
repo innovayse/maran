@@ -163,7 +163,7 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
         await NewHandler().HandleAsync(Command(token), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.InvitationAccepted, entry.Action);
+        Assert.Equal(IdentityAuditActions.InvitationAccepted, entry.Action);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain(token, entry.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain(NewPassword, entry.Subject, StringComparison.Ordinal);

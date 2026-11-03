@@ -128,7 +128,7 @@ public sealed class RemoveSubUserCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
-            AuditActions.SubUserRemoved,
+            IdentityAuditActions.SubUserRemoved,
             user.Username,
             command.IpAddress,
             command.UserAgent,
@@ -152,7 +152,7 @@ public sealed class RemoveSubUserCommandHandler
         // leaves a trace of what was probed.
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
-            AuditActions.SubUserRemoved,
+            IdentityAuditActions.SubUserRemoved,
             command.UserId.ToString("D"),
             command.IpAddress,
             command.UserAgent,

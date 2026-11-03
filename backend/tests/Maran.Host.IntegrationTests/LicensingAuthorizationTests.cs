@@ -195,7 +195,7 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var recorded = await identity.AuditEvents
-            .Where(entry => entry.Action == AuditActions.LicenceStatusRead)
+            .Where(entry => entry.Action == LicenceAuditActions.LicenceStatusRead)
             .ToListAsync();
 
         Assert.Single(recorded);

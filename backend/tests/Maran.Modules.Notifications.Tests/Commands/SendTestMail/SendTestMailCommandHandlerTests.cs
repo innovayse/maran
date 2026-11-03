@@ -33,7 +33,7 @@ public sealed class SendTestMailCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.TestMailSent, entry.Action);
+        Assert.Equal(MailAuditActions.TestMailSent, entry.Action);
         Assert.Equal("ops@example.com", entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -72,7 +72,7 @@ public sealed class SendTestMailCommandHandlerTests
         Assert.False(result.IsSuccess);
         Assert.Equal(MailDeliveryFailedCode, result.Error!.Code);
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.MailSendFailed, entry.Action);
+        Assert.Equal(MailAuditActions.MailSendFailed, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -91,7 +91,7 @@ public sealed class SendTestMailCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(SmtpNotConfiguredCode, result.Error!.Code);
-        Assert.Equal(AuditActions.MailSkippedNoSmtp, Assert.Single(audit.Entries).Action);
+        Assert.Equal(MailAuditActions.MailSkippedNoSmtp, Assert.Single(audit.Entries).Action);
     }
 
     /// <summary>Builds the handler over the doubles a test supplies.</summary>

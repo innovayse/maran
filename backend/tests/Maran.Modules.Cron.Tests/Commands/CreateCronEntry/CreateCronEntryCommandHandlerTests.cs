@@ -231,7 +231,7 @@ public sealed class CreateCronEntryCommandHandlerTests
         await world.HandleAsync(command: "/usr/bin/mysql -pHUNTER2SECRET");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryCreated, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryCreated, entry.Action);
         Assert.Equal(RecordingAgentCronClient.MintedEntryId, entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -248,7 +248,7 @@ public sealed class CreateCronEntryCommandHandlerTests
         await world.HandleAsync();
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryCreated, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryCreated, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(AccountId.ToString(), entry.Subject);
     }

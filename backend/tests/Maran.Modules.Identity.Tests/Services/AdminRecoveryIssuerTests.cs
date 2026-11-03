@@ -273,7 +273,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
         var result = await NewIssuer().IssueAsync("root", false, "alice\nbob", CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.ConsoleRecovery, entry.Action);
+        Assert.Equal(IdentityAuditActions.ConsoleRecovery, entry.Action);
         Assert.Null(entry.ActorUserId);
         Assert.Equal(SystemAuditEntry.NameFor(IdentityAuditJournal.ModuleName), entry.ActorUsername);
         Assert.Equal(admin.Id.ToString(), entry.Subject);

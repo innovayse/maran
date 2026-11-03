@@ -159,7 +159,7 @@ public sealed class ChangeAccountPlanCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.AccountPlanChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountPlanChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<AccountDetailDto>.Ok(AccountDetailMapper.ToDto(account, target, _displayNames));
     }
@@ -215,7 +215,7 @@ public sealed class ChangeAccountPlanCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.AccountPlanChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountPlanChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<AccountDetailDto>.Fail(error);
     }

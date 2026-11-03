@@ -69,7 +69,7 @@ public sealed class PinPageCommandHandlerTests : IAsyncLifetime
         var stored = await _context.PinnedPages.SingleAsync();
         Assert.Equal(_owner, stored.UserId);
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.PagePinned, entry.Action);
+        Assert.Equal(IdentityAuditActions.PagePinned, entry.Action);
         Assert.Equal("accounts-list", entry.Subject);
         Assert.Equal(_owner, entry.ActorUserId);
     }

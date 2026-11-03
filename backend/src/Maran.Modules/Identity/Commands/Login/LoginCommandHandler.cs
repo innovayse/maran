@@ -156,7 +156,7 @@ public sealed class LoginCommandHandler
         await _journal.RecordClaimAsync(
             user.Id,
             user.Username,
-            AuditActions.LoginSucceeded,
+            IdentityAuditActions.LoginSucceeded,
             command.IpAddress,
             command.UserAgent,
             succeeded: true,
@@ -193,7 +193,7 @@ public sealed class LoginCommandHandler
         await _journal.RecordClaimAsync(
             user?.Id,
             command.Username,
-            AuditActions.LoginFailed,
+            IdentityAuditActions.LoginFailed,
             command.IpAddress,
             command.UserAgent,
             succeeded: false,

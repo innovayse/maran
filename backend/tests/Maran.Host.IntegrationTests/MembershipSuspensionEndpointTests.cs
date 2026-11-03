@@ -86,7 +86,7 @@ public sealed class MembershipSuspensionEndpointTests : IAsyncLifetime
         Assert.Equal("AccountMembershipSuspended", body.RootElement.GetProperty("code").GetString());
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.ActiveAccountSwitched;
+            return candidate.Action == IdentityAuditActions.ActiveAccountSwitched;
         });
         Assert.False(entry.Succeeded);
         Assert.Equal(globex.ToString(), entry.Subject);

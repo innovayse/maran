@@ -53,7 +53,7 @@ public sealed class CreateSiteCommandHandlerTests
         await world.Handler().HandleAsync(CreateSiteWorld.Command(account), CancellationToken.None);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.SiteCreated, entry.Action);
+        Assert.Equal(SiteAuditActions.SiteCreated, entry.Action);
         Assert.Equal("example.com", entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -245,7 +245,7 @@ public sealed class CreateSiteCommandHandlerTests
 
         var entry = Assert.Single(world.Audit.Entries);
         Assert.False(entry.Succeeded);
-        Assert.Equal(AuditActions.SiteCreated, entry.Action);
+        Assert.Equal(SiteAuditActions.SiteCreated, entry.Action);
         Assert.Equal("example.com", entry.Subject);
     }
 

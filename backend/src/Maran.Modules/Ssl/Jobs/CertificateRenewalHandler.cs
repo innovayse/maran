@@ -322,7 +322,7 @@ public sealed class CertificateRenewalHandler
         certificate.Renewed(installed.Value, _clock.UtcNow);
 
         await _journal.RecordScheduledAsync(
-            AuditActions.CertificateRenewed, certificate.Domain, succeeded: true, cancellationToken);
+            CertificateAuditActions.CertificateRenewed, certificate.Domain, succeeded: true, cancellationToken);
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
@@ -349,7 +349,7 @@ public sealed class CertificateRenewalHandler
         LogRenewalFailure(_logger, certificate.Domain, code, certificate.ConsecutiveRenewalFailures, null);
 
         await _journal.RecordScheduledAsync(
-            AuditActions.CertificateRenewed, certificate.Domain, succeeded: false, cancellationToken);
+            CertificateAuditActions.CertificateRenewed, certificate.Domain, succeeded: false, cancellationToken);
 
         await _tasks.FailAsync(taskId, code, cancellationToken);
 

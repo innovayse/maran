@@ -87,7 +87,7 @@ public sealed class DropDatabaseCommandHandlerTests
         await world.DropAsync(world.OwnDatabaseId);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.DatabaseDropped, entry.Action);
+        Assert.Equal(DatabaseAuditActions.DatabaseDropped, entry.Action);
         Assert.Equal("alice_shop", entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -102,7 +102,7 @@ public sealed class DropDatabaseCommandHandlerTests
         await world.DropAsync(world.OwnDatabaseId);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.DatabaseDropped, entry.Action);
+        Assert.Equal(DatabaseAuditActions.DatabaseDropped, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal("alice_shop", entry.Subject);
     }
@@ -116,7 +116,7 @@ public sealed class DropDatabaseCommandHandlerTests
         await world.DropAsync(world.StrangerDatabaseId);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.DatabaseDropped, entry.Action);
+        Assert.Equal(DatabaseAuditActions.DatabaseDropped, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(world.StrangerDatabaseId.ToString(), entry.Subject);
     }

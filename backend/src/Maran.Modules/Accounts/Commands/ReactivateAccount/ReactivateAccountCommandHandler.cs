@@ -220,7 +220,7 @@ public sealed class ReactivateAccountCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.AccountReactivated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountReactivated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
@@ -249,7 +249,7 @@ public sealed class ReactivateAccountCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.AccountReactivated, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountReactivated, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         await _tasks.FailAsync(taskId, error.Code, cancellationToken);
 

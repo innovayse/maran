@@ -22,13 +22,13 @@ namespace Maran.Modules.Identity.Services;
 /// </para>
 /// <para>
 /// <b>The key scheme lives in this one method and the fallback is the action itself.</b>
-/// <c>AuditActions</c> is deliberately a set of string constants rather than an enum, because a
+/// <c>*AuditActions</c> is deliberately a set of string constants rather than an enum, because a
 /// marketplace module records actions this assembly was never compiled knowing about — so a resx
 /// entry cannot be guaranteed to exist. <see cref="IStringLocalizer"/> answers a missing key with
 /// the key, which would put <c>AuditActionWhatever</c> on the screen, so the miss is detected and
 /// the raw action is returned instead: exactly what the screen showed before, for actions nobody
 /// has translated, and a real name for every action that ships here. The module's tests walk the
-/// whole of <c>AuditActions</c> — the closed set every shipped producer records from — and fail on
+/// whole of <c>*AuditActions</c> — the closed set every shipped producer records from — and fail on
 /// the first constant that has no entry, so the fallback covers a marketplace module's action and
 /// nothing this repository writes.
 /// </para>
@@ -49,7 +49,7 @@ public sealed class AuditActionDisplayNames
     }
 
     /// <summary>Names one audit action as an operator reads it.</summary>
-    /// <param name="action">The machine-stable action, from <c>AuditActions</c>.</param>
+    /// <param name="action">The machine-stable action, from <c>*AuditActions</c>.</param>
     /// <returns>
     /// The localized name, or <paramref name="action"/> itself when this build carries no entry for it.
     /// </returns>

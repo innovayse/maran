@@ -180,7 +180,7 @@ public sealed class AlertObserver
                     // ignored this round: neither InstalledFilesSubject nor HashListSubject is observed
                     // from it, so it can neither raise nor resolve either alert.
                     await _journal.RecordSystemAsync(
-                        AuditActions.CodeIntegrityReportRejected,
+                        MonitoringAuditActions.CodeIntegrityReportRejected,
                         $"version={malformed.InstalledVersion};outcome=Drifted;paths=0",
                         succeeded: false,
                         cancellationToken);

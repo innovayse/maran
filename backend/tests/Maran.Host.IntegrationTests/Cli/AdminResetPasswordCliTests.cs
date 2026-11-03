@@ -205,7 +205,7 @@ public sealed class AdminResetPasswordCliTests : IAsyncLifetime
 
             var audit = await identity.AuditEvents
                 .AsNoTracking()
-                .Where(entry => entry.Action == AuditActions.ConsoleRecovery)
+                .Where(entry => entry.Action == IdentityAuditActions.ConsoleRecovery)
                 .ToListAsync();
             Assert.Single(audit);
             Assert.DoesNotContain(token, audit[0].Subject, StringComparison.Ordinal);

@@ -238,7 +238,7 @@ public sealed class AlertEvaluator
         string detail,
         CancellationToken cancellationToken)
     {
-        var action = transition == AlertTransition.Raised ? AuditActions.AlertRaised : AuditActions.AlertResolved;
+        var action = transition == AlertTransition.Raised ? MonitoringAuditActions.AlertRaised : MonitoringAuditActions.AlertResolved;
         var subjectLine = _text[SubjectKey(kind, transition), subject].Value;
         var body = _text[BodyKey(kind, transition), subject, detail].Value;
 

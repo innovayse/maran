@@ -185,7 +185,7 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.CustomerInvited, entry.Action);
+        Assert.Equal(IdentityAuditActions.CustomerInvited, entry.Action);
         Assert.True(entry.Succeeded);
     }
 

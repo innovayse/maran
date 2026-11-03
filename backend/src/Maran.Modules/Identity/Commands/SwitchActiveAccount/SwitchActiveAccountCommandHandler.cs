@@ -94,7 +94,7 @@ public sealed class SwitchActiveAccountCommandHandler
         {
             await _journal.RecordIdentifiedAsync(
                 command.UserId,
-                AuditActions.ActiveAccountSwitched,
+                IdentityAuditActions.ActiveAccountSwitched,
                 command.AccountId.ToString(),
                 command.IpAddress,
                 command.UserAgent,
@@ -138,7 +138,7 @@ public sealed class SwitchActiveAccountCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             command.UserId,
-            AuditActions.ActiveAccountSwitched,
+            IdentityAuditActions.ActiveAccountSwitched,
             command.AccountId.ToString(),
             command.IpAddress,
             command.UserAgent,

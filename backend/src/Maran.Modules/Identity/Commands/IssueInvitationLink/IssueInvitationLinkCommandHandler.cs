@@ -142,7 +142,7 @@ public sealed class IssueInvitationLinkCommandHandler
         // token: not the link, not the token, not its digest.
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
-            AuditActions.InvitationLinkIssued,
+            IdentityAuditActions.InvitationLinkIssued,
             invitation.Username,
             command.IpAddress,
             command.UserAgent,
@@ -169,7 +169,7 @@ public sealed class IssueInvitationLinkCommandHandler
         // account that is not there still leaves a trace of what was probed for.
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
-            AuditActions.InvitationLinkIssued,
+            IdentityAuditActions.InvitationLinkIssued,
             command.AccountId.ToString("D"),
             command.IpAddress,
             command.UserAgent,

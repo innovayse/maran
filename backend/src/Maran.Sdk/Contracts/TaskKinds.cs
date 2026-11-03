@@ -2,7 +2,7 @@ namespace Maran.Sdk.Contracts;
 
 /// <summary>
 /// The machine-stable kind names written onto a panel task. Constants rather than an enum, for the
-/// reason <see cref="AuditActions"/> is: a marketplace module records kinds this assembly was never
+/// reason <c>*AuditActions</c> is: a marketplace module records kinds this assembly was never
 /// compiled knowing about, and an enum could not be extended from outside.
 /// </summary>
 /// <remarks>

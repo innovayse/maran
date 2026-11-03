@@ -260,7 +260,7 @@ public sealed class RestoreBackupCommandHandler
         {
             case WholeRestoreOutcome whole:
                 await _journal.RecordSuccessAsync(
-                    AuditActions.BackupRestored,
+                    BackupAuditActions.BackupRestored,
                     account.Username,
                     command.IpAddress,
                     command.UserAgent,
@@ -318,7 +318,7 @@ public sealed class RestoreBackupCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.BackupRestored, username, command.IpAddress, command.UserAgent, cancellationToken);
+            BackupAuditActions.BackupRestored, username, command.IpAddress, command.UserAgent, cancellationToken);
         await _tasks.FailAsync(taskId, failure.Code, cancellationToken);
     }
 
@@ -360,7 +360,7 @@ public sealed class RestoreBackupCommandHandler
     /// <b>Without this the panel's record of the most destructive operation it offers depended on
     /// the requester's browser staying connected.</b> Every write — the audit entry and the task's
     /// closure alike — lived downstream of the agent call, so an unwound request left no audit entry
-    /// at all for an action <c>AuditActions</c> names, and a task stuck at Running until the next
+    /// at all for an action <c>*AuditActions</c> names, and a task stuck at Running until the next
     /// process start. rules/security.md treats the audit trail as a control rather than as
     /// telemetry, and a control that a closed tab switches off is not one.
     /// </para>
@@ -385,7 +385,7 @@ public sealed class RestoreBackupCommandHandler
     private async Task AbandonAsync(string username, RestoreBackupCommand command, Guid taskId)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.BackupRestored, username, command.IpAddress, command.UserAgent, CancellationToken.None);
+            BackupAuditActions.BackupRestored, username, command.IpAddress, command.UserAgent, CancellationToken.None);
         await _tasks.FailAsync(taskId, nameof(ErrorMessages.RestoreOutcomeUnobserved), CancellationToken.None);
     }
 
@@ -414,7 +414,7 @@ public sealed class RestoreBackupCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.BackupRestored, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            BackupAuditActions.BackupRestored, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<RestoreOutcomeDto>.Fail(Error.Of(code, type));
     }

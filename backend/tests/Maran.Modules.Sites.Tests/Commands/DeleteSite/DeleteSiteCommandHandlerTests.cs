@@ -127,7 +127,7 @@ public sealed class DeleteSiteCommandHandlerTests
             CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.SiteDeleted, entry.Action);
+        Assert.Equal(SiteAuditActions.SiteDeleted, entry.Action);
         Assert.Equal("example.com", entry.Subject);
     }
 

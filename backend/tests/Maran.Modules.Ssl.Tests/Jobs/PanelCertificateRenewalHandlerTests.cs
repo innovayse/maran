@@ -52,7 +52,7 @@ public sealed class PanelCertificateRenewalHandlerTests
         var stored = await fixture.DbContext.PanelCertificates.SingleAsync();
         Assert.Equal(new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero), stored.ExpiresAt);
         var entry = Assert.Single(fixture.Audit.Entries);
-        Assert.Equal((AuditActions.CertificateRenewed, true), (entry.Action, entry.Succeeded));
+        Assert.Equal((CertificateAuditActions.CertificateRenewed, true), (entry.Action, entry.Succeeded));
     }
 
     /// <summary>A certificate outside the window is left alone.</summary>

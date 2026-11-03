@@ -300,7 +300,7 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
         var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.InvitationLinkIssued, entry.Action);
+        Assert.Equal(IdentityAuditActions.InvitationLinkIssued, entry.Action);
         Assert.Equal("owner-one", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.Equal(_admin.UserId, entry.ActorUserId);
@@ -325,7 +325,7 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
 
         var entry = Assert.Single(_audit.Written);
         Assert.False(unknown.IsSuccess);
-        Assert.Equal(AuditActions.InvitationLinkIssued, entry.Action);
+        Assert.Equal(IdentityAuditActions.InvitationLinkIssued, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(AccountId.ToString("D"), entry.Subject);
         Assert.Equal(_admin.UserId, entry.ActorUserId);
@@ -342,7 +342,7 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.InvitationLinkIssued, entry.Action);
+        Assert.Equal(IdentityAuditActions.InvitationLinkIssued, entry.Action);
         Assert.False(entry.Succeeded);
     }
 

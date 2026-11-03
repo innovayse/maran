@@ -125,7 +125,7 @@ public sealed class ResetSftpUserPasswordCommandHandler
         // keeping the copy this whole module takes such trouble not to keep — and the journal is
         // never deleted.
         await _journal.RecordSuccessAsync(
-            AuditActions.SftpUserPasswordReset,
+            SftpAuditActions.SftpUserPasswordReset,
             sftpUser.Name,
             command.IpAddress,
             command.UserAgent,
@@ -135,7 +135,7 @@ public sealed class ResetSftpUserPasswordCommandHandler
         if (ended.IsSuccess)
         {
             await _journal.RecordSuccessAsync(
-                AuditActions.SftpUserSessionsEnded,
+                SftpAuditActions.SftpUserSessionsEnded,
                 sftpUser.Name,
                 command.IpAddress,
                 command.UserAgent,
@@ -144,7 +144,7 @@ public sealed class ResetSftpUserPasswordCommandHandler
         else
         {
             await _journal.RecordFailureAsync(
-                AuditActions.SftpUserSessionsEnded,
+                SftpAuditActions.SftpUserSessionsEnded,
                 sftpUser.Name,
                 command.IpAddress,
                 command.UserAgent,
@@ -168,7 +168,7 @@ public sealed class ResetSftpUserPasswordCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SftpUserPasswordReset, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            SftpAuditActions.SftpUserPasswordReset, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SftpUserPasswordDto>.Fail(error);
     }

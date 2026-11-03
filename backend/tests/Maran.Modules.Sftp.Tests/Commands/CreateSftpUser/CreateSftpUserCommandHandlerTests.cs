@@ -261,7 +261,7 @@ public sealed class CreateSftpUserCommandHandlerTests
         var result = await world.HandleAsync("deploy");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.SftpUserCreated, entry.Action);
+        Assert.Equal(SftpAuditActions.SftpUserCreated, entry.Action);
         Assert.Equal("deploy", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain(result.Value.Password.Reveal(), entry.Subject, StringComparison.Ordinal);
@@ -276,7 +276,7 @@ public sealed class CreateSftpUserCommandHandlerTests
         await world.HandleAsync("deploy");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.SftpUserCreated, entry.Action);
+        Assert.Equal(SftpAuditActions.SftpUserCreated, entry.Action);
         Assert.False(entry.Succeeded);
     }
 

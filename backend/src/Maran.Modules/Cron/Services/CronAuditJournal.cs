@@ -56,7 +56,7 @@ public sealed class CronAuditJournal
     }
 
     /// <summary>Records an operation that took effect.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">
     /// The entry's identifier — never its command. For an environment change, the names that were
     /// set; never their values.

@@ -100,8 +100,8 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var adminId = await context.Users.Where(u => u.Username == "admin").Select(u => u.Id).SingleAsync();
-        var started = await context.AuditEvents.SingleAsync(e => e.Action == AuditActions.ViewAsStarted);
-        var stopped = await context.AuditEvents.SingleAsync(e => e.Action == AuditActions.ViewAsEnded);
+        var started = await context.AuditEvents.SingleAsync(e => e.Action == IdentityAuditActions.ViewAsStarted);
+        var stopped = await context.AuditEvents.SingleAsync(e => e.Action == IdentityAuditActions.ViewAsEnded);
 
         Assert.Equal(adminId, started.ActorUserId);
         Assert.Contains("olive", started.Subject, StringComparison.Ordinal);
@@ -127,7 +127,7 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, pinned.StatusCode);
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        var entry = await context.AuditEvents.SingleAsync(e => e.Action == AuditActions.PagePinned);
+        var entry = await context.AuditEvents.SingleAsync(e => e.Action == IdentityAuditActions.PagePinned);
         Assert.Equal("olive", entry.ActorUsername);
         Assert.Equal("admin", entry.Impersonator?.Username);
     }
@@ -159,7 +159,7 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         Assert.Equal(0, await ViewAsSessionCountAsync(factory));
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        Assert.False((await context.AuditEvents.SingleAsync(e => e.Action == AuditActions.ViewAsStarted)).Succeeded);
+        Assert.False((await context.AuditEvents.SingleAsync(e => e.Action == IdentityAuditActions.ViewAsStarted)).Succeeded);
     }
 
     /// <summary>A view-as token can start no second view-as session and change no credential or session.</summary>

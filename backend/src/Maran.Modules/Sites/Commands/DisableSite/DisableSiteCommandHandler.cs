@@ -92,7 +92,7 @@ public sealed class DisableSiteCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.SiteDisabled, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SiteDisabled, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Ok(new SiteDto(
             site.Id,
@@ -120,7 +120,7 @@ public sealed class DisableSiteCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SiteDisabled, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SiteDisabled, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Fail(error);
     }

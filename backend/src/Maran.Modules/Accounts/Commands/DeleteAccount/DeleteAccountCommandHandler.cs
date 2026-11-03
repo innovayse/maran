@@ -294,7 +294,7 @@ public sealed class DeleteAccountCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.AccountDeleted, name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountDeleted, name, command.IpAddress, command.UserAgent, cancellationToken);
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
@@ -349,7 +349,7 @@ public sealed class DeleteAccountCommandHandler
             await _tasks.ReportAsync(
                 taskId, 10, "no backups module is installed, so no final backup was taken", cancellationToken);
             await _journal.RecordSuccessAsync(
-                AuditActions.FinalBackupSkippedNoModule, accountName, command.IpAddress, command.UserAgent, cancellationToken);
+                AccountAuditActions.FinalBackupSkippedNoModule, accountName, command.IpAddress, command.UserAgent, cancellationToken);
 
             return Result<Guid>.Ok(Guid.Empty);
         }
@@ -359,7 +359,7 @@ public sealed class DeleteAccountCommandHandler
             await _tasks.ReportAsync(
                 taskId, 10, "the final backup was skipped at the caller's request", cancellationToken);
             await _journal.RecordSuccessAsync(
-                AuditActions.FinalBackupSkipped, accountName, command.IpAddress, command.UserAgent, cancellationToken);
+                AccountAuditActions.FinalBackupSkipped, accountName, command.IpAddress, command.UserAgent, cancellationToken);
 
             return Result<Guid>.Ok(Guid.Empty);
         }
@@ -372,7 +372,7 @@ public sealed class DeleteAccountCommandHandler
             // Nothing has been destroyed at this point — not a row, not a database, not the system
             // user — so the account is exactly as the caller found it.
             await _journal.RecordFailureAsync(
-                AuditActions.FinalBackupTaken, accountName, command.IpAddress, command.UserAgent, cancellationToken);
+                AccountAuditActions.FinalBackupTaken, accountName, command.IpAddress, command.UserAgent, cancellationToken);
         }
 
         return taken;
@@ -429,7 +429,7 @@ public sealed class DeleteAccountCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.AccountDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         await _tasks.FailAsync(taskId, error.Code, cancellationToken);
 

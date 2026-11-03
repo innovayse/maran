@@ -27,7 +27,7 @@ namespace Maran.Modules.Accounts.Commands.RepairAccountHomeGroups;
 /// </para>
 /// <para>
 /// <b>What the journal entry records, and why a refusal gets one too.</b> Both outcomes are written
-/// through <see cref="AccountAuditJournal"/> under <c>AuditActions.AccountHomeGroupsRepaired</c>. The
+/// through <see cref="AccountAuditJournal"/> under <c>AccountAuditActions.AccountHomeGroupsRepaired</c>. The
 /// success entry is the panel's only attributable record of who re-grouped every customer's home on
 /// this host at once — the agent's own log does not know which operator asked. The refusal entry
 /// records that the figure the caller confirmed did not describe the host, which is either an
@@ -143,7 +143,7 @@ public sealed class RepairAccountHomeGroupsCommandHandler
         if (succeeded)
         {
             await _journal.RecordSuccessAsync(
-                AuditActions.AccountHomeGroupsRepaired,
+                AccountAuditActions.AccountHomeGroupsRepaired,
                 subject,
                 command.IpAddress,
                 command.UserAgent,
@@ -153,7 +153,7 @@ public sealed class RepairAccountHomeGroupsCommandHandler
         }
 
         await _journal.RecordFailureAsync(
-            AuditActions.AccountHomeGroupsRepaired,
+            AccountAuditActions.AccountHomeGroupsRepaired,
             subject,
             command.IpAddress,
             command.UserAgent,

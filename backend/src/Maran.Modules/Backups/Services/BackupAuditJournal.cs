@@ -70,7 +70,7 @@ public sealed class BackupAuditJournal : ISystemAuditJournal
     }
 
     /// <summary>Records an operation that took effect.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">
     /// The account's system user name — the subject an operator will search for.
     /// </param>
@@ -108,7 +108,7 @@ public sealed class BackupAuditJournal : ISystemAuditJournal
     }
 
     /// <summary>Records an unattended operation, which has no signed-in caller at all.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">
     /// The account's system user name — the subject an operator will search for.
     /// </param>

@@ -155,7 +155,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
 
         await NewHandler().HandleAsync(Attempt(), CancellationToken.None);
 
-        Assert.Equal(AuditActions.LoginSucceeded, _audit.Written.Single().Action);
+        Assert.Equal(IdentityAuditActions.LoginSucceeded, _audit.Written.Single().Action);
         Assert.Equal(Now, (await _context.Users.SingleAsync(u => u.Id == user.Id)).LastLoginAt);
     }
 
@@ -168,7 +168,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Attempt(password: "hunter2"), CancellationToken.None);
 
         var entry = _audit.Written.Single();
-        Assert.Equal(AuditActions.LoginFailed, entry.Action);
+        Assert.Equal(IdentityAuditActions.LoginFailed, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.DoesNotContain("hunter2", entry.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain("hunter2", entry.ActorUsername, StringComparison.Ordinal);
@@ -181,7 +181,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Attempt(username: "nosuchuser"), CancellationToken.None);
 
         var entry = _audit.Written.Single();
-        Assert.Equal(AuditActions.LoginFailed, entry.Action);
+        Assert.Equal(IdentityAuditActions.LoginFailed, entry.Action);
         Assert.Null(entry.ActorUserId);
         Assert.Equal("nosuchuser", entry.ActorUsername);
     }

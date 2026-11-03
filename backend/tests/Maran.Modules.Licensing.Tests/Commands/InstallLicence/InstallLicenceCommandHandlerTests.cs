@@ -120,7 +120,7 @@ public sealed class InstallLicenceCommandHandlerTests : IDisposable
 
         var success = Assert.Single(journal.Entries);
         Assert.True(success.Succeeded);
-        Assert.Equal(AuditActions.LicenceInstalled, success.Action);
+        Assert.Equal(LicenceAuditActions.LicenceInstalled, success.Action);
         Assert.DoesNotContain("signature", success.Subject, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -53,7 +53,7 @@ public sealed class ChangeSubUserGrantsCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Command(member.Id), CancellationToken.None);
 
         var entry = Assert.Single(_world.Audit.Written);
-        Assert.Equal(AuditActions.SubUserGrantsChanged, entry.Action);
+        Assert.Equal(IdentityAuditActions.SubUserGrantsChanged, entry.Action);
         Assert.Equal("deploy", entry.Subject);
         Assert.True(entry.Succeeded);
     }

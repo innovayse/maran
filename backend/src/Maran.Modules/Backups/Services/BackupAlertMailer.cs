@@ -16,7 +16,7 @@ namespace Maran.Modules.Backups.Services;
 /// <b>It owns the words; the path is shared.</b> Only this module knows what the mail is about, so
 /// the subject and body are composed here. Journalling the alert, finding where operator alerts go,
 /// publishing <see cref="SendMailRequested"/> and journalling
-/// <see cref="AuditActions.MailSkippedNoSmtp"/> when there is nobody to tell are
+/// <see cref="MailAuditActions.MailSkippedNoSmtp"/> when there is nobody to tell are
 /// <see cref="OperatorAlertMailer"/>'s, the one implementation the Monitoring module's alert
 /// evaluator calls too (issue #290). The entries are written through this module's own journal, so
 /// they carry its actor. It holds no mailer and no SMTP settings.
@@ -168,6 +168,6 @@ public sealed class BackupAlertMailer
         CancellationToken cancellationToken)
     {
         return _operatorAlerts.AlertAsync(
-            _journal, AuditActions.AlertRaised, $"{kind}:{subject}", mailSubject, mailBody, cancellationToken);
+            _journal, MonitoringAuditActions.AlertRaised, $"{kind}:{subject}", mailSubject, mailBody, cancellationToken);
     }
 }

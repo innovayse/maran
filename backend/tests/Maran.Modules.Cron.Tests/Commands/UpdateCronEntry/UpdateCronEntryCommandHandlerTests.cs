@@ -73,7 +73,7 @@ public sealed class UpdateCronEntryCommandHandlerTests
         await world.HandleAsync(command: "/usr/bin/curl https://example.test/hook?token=SECRETTOKEN");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryUpdated, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryUpdated, entry.Action);
         Assert.Equal(EntryId, entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain("SECRETTOKEN", entry.Subject, StringComparison.Ordinal);
@@ -90,7 +90,7 @@ public sealed class UpdateCronEntryCommandHandlerTests
         await world.HandleAsync(command: $"/usr/bin/curl https://example.test/hook?token={Secret}");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryUpdated, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryUpdated, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(EntryId, entry.Subject);
 

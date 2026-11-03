@@ -59,7 +59,7 @@ public sealed class SessionRevokeAuditTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var entry = Assert.Single(audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.SessionRevoked;
+            return candidate.Action == IdentityAuditActions.SessionRevoked;
         });
         Assert.Equal(sessionId, entry.Subject);
         Assert.True(entry.Succeeded);
@@ -88,7 +88,7 @@ public sealed class SessionRevokeAuditTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.DoesNotContain(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.SessionRevoked;
+            return entry.Action == IdentityAuditActions.SessionRevoked;
         });
     }
 

@@ -115,7 +115,7 @@ public sealed class EnableSiteCommandHandlerTests
             CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.SiteEnabled, entry.Action);
+        Assert.Equal(SiteAuditActions.SiteEnabled, entry.Action);
         Assert.Equal("example.com", entry.Subject);
     }
 

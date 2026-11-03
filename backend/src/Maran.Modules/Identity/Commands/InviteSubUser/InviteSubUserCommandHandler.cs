@@ -318,7 +318,7 @@ public sealed class InviteSubUserCommandHandler
         // administrator-only, so the real outcome recorded here is not an answer to the owner.
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
-            AuditActions.SubUserInvited,
+            IdentityAuditActions.SubUserInvited,
             command.Username,
             command.IpAddress,
             command.UserAgent,

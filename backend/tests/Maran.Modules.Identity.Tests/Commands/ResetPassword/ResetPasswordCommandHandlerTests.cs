@@ -188,7 +188,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
         await NewHandler().HandleAsync(Command(Presented), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.PasswordResetRefused, entry.Action);
+        Assert.Equal(IdentityAuditActions.PasswordResetRefused, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.DoesNotContain(Presented, entry.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain(Presented, entry.ActorUsername, StringComparison.Ordinal);
@@ -222,7 +222,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
         await NewHandler().HandleAsync(Command(token), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.PasswordResetRefused, entry.Action);
+        Assert.Equal(IdentityAuditActions.PasswordResetRefused, entry.Action);
         Assert.Equal(_userId.ToString(), entry.Subject);
         Assert.DoesNotContain(token, entry.Subject, StringComparison.Ordinal);
     }
@@ -236,7 +236,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
         await NewHandler().HandleAsync(Command(token), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.PasswordChanged, entry.Action);
+        Assert.Equal(IdentityAuditActions.PasswordChanged, entry.Action);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain(NewPassword, entry.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain(token, entry.Subject, StringComparison.Ordinal);
@@ -313,11 +313,11 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
 
         Assert.Contains(_audit.Written, entry =>
         {
-            return entry.Action == AuditActions.InvitationAccepted && entry.Succeeded;
+            return entry.Action == IdentityAuditActions.InvitationAccepted && entry.Succeeded;
         });
         Assert.Contains(_audit.Written, entry =>
         {
-            return entry.Action == AuditActions.PasswordChanged && entry.Succeeded;
+            return entry.Action == IdentityAuditActions.PasswordChanged && entry.Succeeded;
         });
     }
 

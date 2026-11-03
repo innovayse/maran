@@ -141,7 +141,7 @@ public sealed class RunCronEntryConcurrencyTests
         });
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryRun, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryRun, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Empty(world.Database.CronRuns);
     }

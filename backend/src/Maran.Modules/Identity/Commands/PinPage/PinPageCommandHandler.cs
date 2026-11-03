@@ -76,7 +76,7 @@ public sealed class PinPageCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             command.UserId,
-            AuditActions.PagePinned,
+            IdentityAuditActions.PagePinned,
             command.ItemKey,
             command.IpAddress,
             command.UserAgent,

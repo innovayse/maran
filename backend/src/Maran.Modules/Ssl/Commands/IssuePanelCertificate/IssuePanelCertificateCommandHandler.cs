@@ -75,7 +75,7 @@ public sealed class IssuePanelCertificateCommandHandler
         if (!_panelHostName.TryGet(out var hostName))
         {
             await _journal.RecordFailureAsync(
-                AuditActions.CertificateIssued, UnnamedPanelSubject, command.IpAddress, command.UserAgent, cancellationToken);
+                CertificateAuditActions.CertificateIssued, UnnamedPanelSubject, command.IpAddress, command.UserAgent, cancellationToken);
             return Result<PanelCertificateDto>.Fail(
                 Error.Of(nameof(ErrorMessages.PanelHostNameNotConfigured), ErrorType.Conflict));
         }
@@ -96,13 +96,13 @@ public sealed class IssuePanelCertificateCommandHandler
         if (!issued.IsSuccess)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.CertificateIssued, hostName, command.IpAddress, command.UserAgent, cancellationToken);
+                CertificateAuditActions.CertificateIssued, hostName, command.IpAddress, command.UserAgent, cancellationToken);
             await _tasks.FailAsync(taskId, issued.Error!.Code, cancellationToken);
             return Result<PanelCertificateDto>.Fail(issued.Error);
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.CertificateIssued, hostName, command.IpAddress, command.UserAgent, cancellationToken);
+            CertificateAuditActions.CertificateIssued, hostName, command.IpAddress, command.UserAgent, cancellationToken);
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
         return Result<PanelCertificateDto>.Ok(PanelCertificateMapper.From(issued.Value));

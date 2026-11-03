@@ -40,7 +40,7 @@ public static class SystemAuditEntry
 
     /// <summary>Builds the journal entry for something the panel did with no signed-in caller.</summary>
     /// <param name="module">The module acting, as passed to <see cref="NameFor"/>.</param>
-    /// <param name="action">What was done; one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">What was done; one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">What it was done to — a domain, an address, a service.</param>
     /// <param name="succeeded">Whether it took effect. A refused unattended action is the entry worth reading.</param>
     /// <returns>An entry with no actor id and no request origin.</returns>

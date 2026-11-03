@@ -12,7 +12,7 @@ namespace Maran.Sdk.Contracts;
 /// </remarks>
 /// <param name="ActorUserId">Who did it, or <c>null</c> when nobody could be identified — as on a failed login.</param>
 /// <param name="ActorUsername">The name the actor used. It exists even when the user does not.</param>
-/// <param name="Action">What was attempted; one of <see cref="AuditActions"/>.</param>
+/// <param name="Action">What was attempted; one of the Sdk's <c>*AuditActions</c> constants.</param>
 /// <param name="Subject">What it was attempted on: an account name, a session id, a username.</param>
 /// <param name="IpAddress">Where the request came from.</param>
 /// <param name="UserAgent">What client it came from.</param>

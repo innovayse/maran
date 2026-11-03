@@ -69,7 +69,7 @@ public sealed class RefreshSessionCommandHandler
                 // No claimed name and nothing verified: the caller presented only a token, and the
                 // token itself may never be journalled. See IdentityAuditJournal's remarks.
                 await _journal.RecordUnidentifiedAsync(
-                    AuditActions.RefreshTokenReuseDetected,
+                    IdentityAuditActions.RefreshTokenReuseDetected,
                     string.Empty,
                     command.IpAddress,
                     command.UserAgent,

@@ -231,7 +231,7 @@ public sealed class StartupBackupReconcilerTests
         await world.Reconciler.ReconcileAsync(CancellationToken.None);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupCreated, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupCreated, entry.Action);
         Assert.Equal(Username, entry.Subject);
         Assert.False(entry.Succeeded);
     }

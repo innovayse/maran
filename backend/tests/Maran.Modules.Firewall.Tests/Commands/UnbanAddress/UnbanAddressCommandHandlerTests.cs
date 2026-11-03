@@ -121,7 +121,7 @@ public sealed class UnbanAddressCommandHandlerTests
         await world.UnbanAsync("203.0.113.7");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.AddressUnbanned, entry.Action);
+        Assert.Equal(FirewallAuditActions.AddressUnbanned, entry.Action);
         Assert.Equal("203.0.113.7", entry.Subject);
         Assert.True(entry.Succeeded);
     }

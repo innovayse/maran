@@ -189,7 +189,7 @@ public sealed class ResetPasswordCommandHandler
         await _journal.RecordClaimAsync(
             user.Id,
             user.Username,
-            AuditActions.PasswordChanged,
+            IdentityAuditActions.PasswordChanged,
             command.IpAddress,
             command.UserAgent,
             succeeded: true,
@@ -202,7 +202,7 @@ public sealed class ResetPasswordCommandHandler
             // customer who came in through this path reads as still never having accepted it.
             await _journal.RecordIdentifiedAsync(
                 user.Id,
-                AuditActions.InvitationAccepted,
+                IdentityAuditActions.InvitationAccepted,
                 user.Username,
                 command.IpAddress,
                 command.UserAgent,
@@ -233,7 +233,7 @@ public sealed class ResetPasswordCommandHandler
         {
             await _journal.RecordIdentifiedAsync(
                 identified,
-                AuditActions.PasswordResetRefused,
+                IdentityAuditActions.PasswordResetRefused,
                 identified.ToString(),
                 command.IpAddress,
                 command.UserAgent,
@@ -243,7 +243,7 @@ public sealed class ResetPasswordCommandHandler
         else
         {
             await _journal.RecordUnidentifiedAsync(
-                AuditActions.PasswordResetRefused,
+                IdentityAuditActions.PasswordResetRefused,
                 string.Empty,
                 command.IpAddress,
                 command.UserAgent,

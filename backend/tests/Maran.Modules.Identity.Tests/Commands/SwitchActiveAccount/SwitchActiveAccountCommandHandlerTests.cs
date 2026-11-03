@@ -94,7 +94,7 @@ public sealed class SwitchActiveAccountCommandHandlerTests : IAsyncLifetime
         var claims = new Microsoft.IdentityModel.JsonWebTokens.JsonWebToken(result.Value.AccessToken);
         Assert.Equal(_second.ToString(), claims.GetClaim(PanelClaimTypes.AccountId).Value);
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.ActiveAccountSwitched, entry.Action);
+        Assert.Equal(IdentityAuditActions.ActiveAccountSwitched, entry.Action);
         Assert.Equal(_second.ToString(), entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -110,7 +110,7 @@ public sealed class SwitchActiveAccountCommandHandlerTests : IAsyncLifetime
         Assert.Equal(ErrorType.NotFound, result.Error.Type);
         Assert.Equal(_first, _context.Sessions.Single(candidate => candidate.Id == _sessionId).ActiveAccountId);
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.ActiveAccountSwitched, entry.Action);
+        Assert.Equal(IdentityAuditActions.ActiveAccountSwitched, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -185,7 +185,7 @@ public sealed class SwitchActiveAccountCommandHandlerTests : IAsyncLifetime
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Equal(_first, _context.Sessions.Single(candidate => candidate.Id == _sessionId).ActiveAccountId);
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.ActiveAccountSwitched, entry.Action);
+        Assert.Equal(IdentityAuditActions.ActiveAccountSwitched, entry.Action);
         Assert.Equal(_second.ToString(), entry.Subject);
         Assert.False(entry.Succeeded);
     }

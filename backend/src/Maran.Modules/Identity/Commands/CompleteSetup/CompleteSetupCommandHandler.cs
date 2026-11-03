@@ -117,7 +117,7 @@ public sealed class CompleteSetupCommandHandler
         await _journal.RecordClaimAsync(
             user.Id,
             user.Username,
-            AuditActions.AdministratorCreated,
+            IdentityAuditActions.AdministratorCreated,
             command.IpAddress,
             command.UserAgent,
             succeeded: true,

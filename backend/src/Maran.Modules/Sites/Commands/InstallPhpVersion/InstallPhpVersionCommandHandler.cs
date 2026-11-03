@@ -99,7 +99,7 @@ public sealed class InstallPhpVersionCommandHandler
         if (!installable.IsSuccess)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.PhpVersionInstalled,
+                SiteAuditActions.PhpVersionInstalled,
                 command.Version,
                 command.IpAddress,
                 command.UserAgent,
@@ -115,7 +115,7 @@ public sealed class InstallPhpVersionCommandHandler
         if (!offered)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.PhpVersionInstalled,
+                SiteAuditActions.PhpVersionInstalled,
                 command.Version,
                 command.IpAddress,
                 command.UserAgent,
@@ -131,7 +131,7 @@ public sealed class InstallPhpVersionCommandHandler
             // The agent could not even be asked what is installed. Refused rather than attempted:
             // installing without knowing the current state is how a version gets installed twice.
             await _journal.RecordFailureAsync(
-                AuditActions.PhpVersionInstalled,
+                SiteAuditActions.PhpVersionInstalled,
                 command.Version,
                 command.IpAddress,
                 command.UserAgent,
@@ -150,7 +150,7 @@ public sealed class InstallPhpVersionCommandHandler
             // Already there. Journalled as a success because it IS one from the caller's side — the
             // version they asked for is available — and with no task, because nothing ran.
             await _journal.RecordSuccessAsync(
-                AuditActions.PhpVersionInstalled,
+                SiteAuditActions.PhpVersionInstalled,
                 command.Version,
                 command.IpAddress,
                 command.UserAgent,
@@ -174,7 +174,7 @@ public sealed class InstallPhpVersionCommandHandler
         if (outcome is not null)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.PhpVersionInstalled,
+                SiteAuditActions.PhpVersionInstalled,
                 command.Version,
                 command.IpAddress,
                 command.UserAgent,
@@ -185,7 +185,7 @@ public sealed class InstallPhpVersionCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.PhpVersionInstalled,
+            SiteAuditActions.PhpVersionInstalled,
             command.Version,
             command.IpAddress,
             command.UserAgent,

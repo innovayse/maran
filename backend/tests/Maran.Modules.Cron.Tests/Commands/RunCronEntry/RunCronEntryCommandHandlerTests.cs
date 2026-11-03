@@ -122,7 +122,7 @@ public sealed class RunCronEntryCommandHandlerTests
         Assert.Equal("CronEntryNotFound", result.Error!.Code);
         Assert.Empty(world.Database.CronRuns);
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryRun, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryRun, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -135,7 +135,7 @@ public sealed class RunCronEntryCommandHandlerTests
         await world.HandleAsync();
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryRun, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryRun, entry.Action);
         Assert.Equal(EntryId, entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain("done", entry.Subject, StringComparison.Ordinal);

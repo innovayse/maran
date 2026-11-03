@@ -178,7 +178,7 @@ public sealed class ForwardedClientAddressTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var addresses = await context.AuditEvents
-            .Where(e => e.Action == AuditActions.LoginFailed)
+            .Where(e => e.Action == IdentityAuditActions.LoginFailed)
             .Select(e => e.IpAddress)
             .ToListAsync();
 

@@ -85,7 +85,7 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Command(accountId, admin.Id, adminSession.Id), CancellationToken.None);
 
         var entry = Assert.Single(_fixture.Audit.Written);
-        Assert.Equal(AuditActions.ViewAsStarted, entry.Action);
+        Assert.Equal(IdentityAuditActions.ViewAsStarted, entry.Action);
         Assert.Equal(admin.Id, entry.ActorUserId);
         Assert.Equal(admin.Username, entry.ActorUsername);
         Assert.Contains("acme", entry.Subject, StringComparison.Ordinal);

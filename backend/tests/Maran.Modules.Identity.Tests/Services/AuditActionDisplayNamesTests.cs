@@ -19,7 +19,7 @@ namespace Maran.Modules.Identity.Tests.Services;
 /// closed set the actions come from is walked here rather than sampled.
 /// </para>
 /// <para>
-/// <b>The closed set is <see cref="AuditActions"/> itself.</b> Every shipped producer records
+/// <b>The closed set is the Sdk's <c>*AuditActions</c> classes themselves.</b> Every shipped producer records
 /// through a module journal, and every journal passes one of these constants (`maran structure`
 /// keeps entry construction inside the journals); an action outside the set can only come from a
 /// marketplace module this assembly never compiled against, which is exactly what the fallback is
@@ -28,9 +28,20 @@ namespace Maran.Modules.Identity.Tests.Services;
 /// </remarks>
 public sealed class AuditActionDisplayNamesTests
 {
-    /// <summary>Every constant of <see cref="AuditActions"/> — the closed set the walks cover.</summary>
-    private static readonly List<string> ClosedSet = typeof(AuditActions)
-        .GetFields(BindingFlags.Public | BindingFlags.Static)
+    /// <summary>Every constant of the Sdk's <c>*AuditActions</c> classes — the closed set the walks cover.</summary>
+    private static readonly List<string> ClosedSet = typeof(IdentityAuditActions).Assembly.GetTypes()
+        .Where(type =>
+        {
+            return type.IsPublic
+                && type.IsAbstract
+                && type.IsSealed
+                && string.Equals(type.Namespace, typeof(IdentityAuditActions).Namespace, StringComparison.Ordinal)
+                && type.Name.EndsWith("AuditActions", StringComparison.Ordinal);
+        })
+        .SelectMany(type =>
+        {
+            return type.GetFields(BindingFlags.Public | BindingFlags.Static);
+        })
         .Where(field =>
         {
             return field.IsLiteral && field.FieldType == typeof(string);
@@ -113,8 +124,8 @@ public sealed class AuditActionDisplayNamesTests
     [Fact]
     public void The_closed_set_of_audit_actions_was_actually_enumerated()
     {
-        Assert.Contains(AuditActions.LoginSucceeded, ClosedSet);
-        Assert.Contains(AuditActions.BackupRestored, ClosedSet);
+        Assert.Contains(IdentityAuditActions.LoginSucceeded, ClosedSet);
+        Assert.Contains(BackupAuditActions.BackupRestored, ClosedSet);
         Assert.True(ClosedSet.Count >= 61, $"only {ClosedSet.Count} actions enumerated");
     }
 
@@ -128,7 +139,7 @@ public sealed class AuditActionDisplayNamesTests
     {
         var names = IdentityTestContext.ActionNames();
 
-        var name = WithCulture("en", () => { return names.Of(AuditActions.BackupRestored); });
+        var name = WithCulture("en", () => { return names.Of(BackupAuditActions.BackupRestored); });
 
         Assert.Equal("Account restored from a backup", name);
     }
@@ -141,9 +152,9 @@ public sealed class AuditActionDisplayNamesTests
     /// the state a missing <c>.ru</c> entry silently produces — fails here.
     /// </remarks>
     [Theory]
-    [InlineData(AuditActions.BackupRestored, "Аккаунт восстановлен из резервной копии")]
-    [InlineData(AuditActions.AccountSuspended, "Аккаунт приостановлен")]
-    [InlineData(AuditActions.AdministratorCreated, "Создан администратор")]
+    [InlineData(BackupAuditActions.BackupRestored, "Аккаунт восстановлен из резервной копии")]
+    [InlineData(AccountAuditActions.AccountSuspended, "Аккаунт приостановлен")]
+    [InlineData(IdentityAuditActions.AdministratorCreated, "Создан администратор")]
     public void The_russian_name_of_a_measured_action_is_the_russian_sentence(string action, string expected)
     {
         var names = IdentityTestContext.ActionNames();
@@ -159,7 +170,7 @@ public sealed class AuditActionDisplayNamesTests
     {
         var names = IdentityTestContext.ActionNames();
 
-        var name = WithCulture("hy", () => { return names.Of(AuditActions.AccountSuspended); });
+        var name = WithCulture("hy", () => { return names.Of(AccountAuditActions.AccountSuspended); });
 
         Assert.Equal("Հաշիվը կասեցվեց", name);
     }

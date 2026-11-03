@@ -144,7 +144,7 @@ public sealed class RequestPasswordResetCommandHandlerTests : IDisposable
         Assert.Equal(2, _audit.Written.Count);
         Assert.All(_audit.Written, entry =>
         {
-            Assert.Equal(AuditActions.PasswordResetRequested, entry.Action);
+            Assert.Equal(IdentityAuditActions.PasswordResetRequested, entry.Action);
         });
         Assert.Equal(user.Id, _audit.Written[0].ActorUserId);
         Assert.Null(_audit.Written[1].ActorUserId);

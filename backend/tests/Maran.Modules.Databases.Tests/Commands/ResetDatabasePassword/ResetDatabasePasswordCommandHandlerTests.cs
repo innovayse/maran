@@ -112,7 +112,7 @@ public sealed class ResetDatabasePasswordCommandHandlerTests
         var result = await world.ResetAsync(world.OwnDatabaseId);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.DatabasePasswordReset, entry.Action);
+        Assert.Equal(DatabaseAuditActions.DatabasePasswordReset, entry.Action);
         Assert.Equal("shop", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain(result.Value.Password.Reveal(), entry.Subject, StringComparison.Ordinal);
@@ -127,7 +127,7 @@ public sealed class ResetDatabasePasswordCommandHandlerTests
         await world.ResetAsync(world.StrangerDatabaseId);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.DatabasePasswordReset, entry.Action);
+        Assert.Equal(DatabaseAuditActions.DatabasePasswordReset, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(world.StrangerDatabaseId.ToString(), entry.Subject);
     }

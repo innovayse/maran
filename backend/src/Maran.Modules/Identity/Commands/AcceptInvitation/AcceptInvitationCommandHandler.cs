@@ -124,7 +124,7 @@ public sealed class AcceptInvitationCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             user.Id,
-            AuditActions.InvitationAccepted,
+            IdentityAuditActions.InvitationAccepted,
             user.Username,
             command.IpAddress,
             command.UserAgent,
@@ -154,7 +154,7 @@ public sealed class AcceptInvitationCommandHandler
         {
             await _journal.RecordIdentifiedAsync(
                 identified,
-                AuditActions.InvitationAcceptRefused,
+                IdentityAuditActions.InvitationAcceptRefused,
                 identified.ToString(),
                 command.IpAddress,
                 command.UserAgent,
@@ -164,7 +164,7 @@ public sealed class AcceptInvitationCommandHandler
         else
         {
             await _journal.RecordUnidentifiedAsync(
-                AuditActions.InvitationAcceptRefused,
+                IdentityAuditActions.InvitationAcceptRefused,
                 string.Empty,
                 command.IpAddress,
                 command.UserAgent,

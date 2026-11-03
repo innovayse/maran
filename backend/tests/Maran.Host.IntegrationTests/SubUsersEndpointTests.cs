@@ -361,7 +361,7 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
             .ToListAsync();
 
         Assert.Equal(
-            [AuditActions.SubUserInvited, AuditActions.SubUserGrantsChanged, AuditActions.SubUserRemoved, AuditActions.SubUserRemoved],
+            [IdentityAuditActions.SubUserInvited, IdentityAuditActions.SubUserGrantsChanged, IdentityAuditActions.SubUserRemoved, IdentityAuditActions.SubUserRemoved],
             entries.Select(entry => { return entry.Action; }));
         Assert.All(entries, entry => { Assert.Equal("owner-a", entry.ActorUsername); });
         Assert.Equal([true, true, true, false], entries.Select(entry => { return entry.Succeeded; }));

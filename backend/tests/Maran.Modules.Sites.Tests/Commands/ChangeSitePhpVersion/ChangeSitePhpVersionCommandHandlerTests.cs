@@ -156,7 +156,7 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
             CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.SitePhpVersionChanged, entry.Action);
+        Assert.Equal(SiteAuditActions.SitePhpVersionChanged, entry.Action);
         Assert.Equal("example.com", entry.Subject);
     }
 

@@ -73,7 +73,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         Assert.Equal(small, await StoredPlanIdAsync(factory, accountId));
         Assert.Contains(_audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AccountPlanChanged && entry.Succeeded;
+            return entry.Action == AccountAuditActions.AccountPlanChanged && entry.Succeeded;
         });
     }
 
@@ -121,7 +121,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         Assert.Equal("new@example.com", account.OwnerEmail);
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.AccountOwnerEmailChanged;
+            return candidate.Action == AccountAuditActions.AccountOwnerEmailChanged;
         });
         Assert.Equal("olive", entry.Subject);
     }

@@ -38,7 +38,7 @@ public sealed class BackupRunHandlerAlertTests
         await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
 
         Assert.Empty(Mails(world));
-        Assert.DoesNotContain(world.Audit.Entries, entry => { return entry.Action == AuditActions.AlertRaised; });
+        Assert.DoesNotContain(world.Audit.Entries, entry => { return entry.Action == MonitoringAuditActions.AlertRaised; });
     }
 
     /// <summary>A scheduled run the agent could not finish mails the administrator once.</summary>
@@ -118,7 +118,7 @@ public sealed class BackupRunHandlerAlertTests
 
         Assert.Empty(Mails(world));
         var skipped = Assert.Single(
-            world.Audit.Entries, entry => { return entry.Action == AuditActions.MailSkippedNoSmtp; });
+            world.Audit.Entries, entry => { return entry.Action == MailAuditActions.MailSkippedNoSmtp; });
         Assert.True(skipped.Succeeded);
     }
 
@@ -136,7 +136,7 @@ public sealed class BackupRunHandlerAlertTests
     private static void AssertAlertJournalled(BackupSweepWorld world, string subject)
     {
         var entry = Assert.Single(
-            world.Audit.Entries, entry => { return entry.Action == AuditActions.AlertRaised; });
+            world.Audit.Entries, entry => { return entry.Action == MonitoringAuditActions.AlertRaised; });
         Assert.Equal(subject, entry.Subject);
         Assert.True(entry.Succeeded);
     }

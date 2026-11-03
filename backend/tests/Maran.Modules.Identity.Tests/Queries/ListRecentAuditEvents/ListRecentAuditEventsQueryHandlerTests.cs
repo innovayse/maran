@@ -20,7 +20,7 @@ public sealed class ListRecentAuditEventsQueryHandlerTests : IDisposable
         _context.Dispose();
     }
 
-    private async Task WriteAsync(DateTimeOffset at, string subject, string action = AuditActions.LoginSucceeded)
+    private async Task WriteAsync(DateTimeOffset at, string subject, string action = IdentityAuditActions.LoginSucceeded)
     {
         _context.AuditEvents.Add(new AuditEvent(
             Guid.NewGuid(), at, null, "admin", action, subject, "203.0.113.7", "agent", true, null));
@@ -78,7 +78,7 @@ public sealed class ListRecentAuditEventsQueryHandlerTests : IDisposable
     [Fact]
     public async Task A_rows_action_is_named_in_the_requests_language_beside_the_machine_code()
     {
-        await WriteAsync(Now, "livecust", AuditActions.BackupRestored);
+        await WriteAsync(Now, "livecust", BackupAuditActions.BackupRestored);
 
         var previous = CultureInfo.CurrentUICulture;
         try

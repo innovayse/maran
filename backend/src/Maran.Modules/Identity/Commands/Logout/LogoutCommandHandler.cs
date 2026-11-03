@@ -42,7 +42,7 @@ public sealed class LogoutCommandHandler
         {
             await _journal.RecordIdentifiedAsync(
                 actorId,
-                AuditActions.LoggedOut,
+                IdentityAuditActions.LoggedOut,
                 actorId.ToString(),
                 command.IpAddress,
                 command.UserAgent,

@@ -422,7 +422,7 @@ public sealed class RestoreBackupCommandHandlerTests
         await world.Handler.HandleAsync(world.Command("someone-else"), CancellationToken.None);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupRestored, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupRestored, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -431,7 +431,7 @@ public sealed class RestoreBackupCommandHandlerTests
     /// <para>
     /// The panel's record of the most destructive operation it offers used to depend on the
     /// requester's browser staying connected: every write lived downstream of the agent call, so a
-    /// torn request left no audit entry at all for an action <c>AuditActions</c> names, and a task
+    /// torn request left no audit entry at all for an action <c>*AuditActions</c> names, and a task
     /// stuck at Running until the next process start. rules/security.md treats the audit trail as a
     /// control rather than as telemetry.
     /// </para>
@@ -463,7 +463,7 @@ public sealed class RestoreBackupCommandHandlerTests
         });
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupRestored, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupRestored, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(World.Username, entry.Subject);
 

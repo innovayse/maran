@@ -170,7 +170,7 @@ public sealed class StartViewAsCommandHandler
         await _journal.RecordViewAsAsync(
             command.OperatorUserId,
             actor?.Username ?? string.Empty,
-            AuditActions.ViewAsStarted,
+            IdentityAuditActions.ViewAsStarted,
             subject,
             command.IpAddress,
             command.UserAgent,

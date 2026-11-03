@@ -104,7 +104,7 @@ public sealed class SaveSmtpSettingsCommandHandler
         _cache.Invalidate();
 
         await _journal.RecordRequestAsync(
-            AuditActions.SmtpSettingsSaved,
+            MailAuditActions.SmtpSettingsSaved,
             command.Host,
             command.IpAddress,
             command.UserAgent,

@@ -45,7 +45,7 @@ public sealed class AccountSuspensionAuditTests : IDisposable
         await SuspendAsync(new RecordingAgentAccountsClient(), account.Id);
 
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.AccountSuspended, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountSuspended, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.Equal(Ip, entry.IpAddress);
@@ -64,7 +64,7 @@ public sealed class AccountSuspensionAuditTests : IDisposable
         await ReactivateAsync(agent, account.Id);
 
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.AccountReactivated, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountReactivated, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -79,7 +79,7 @@ public sealed class AccountSuspensionAuditTests : IDisposable
 
         Assert.Equal("AgentSystemFailure", result.Error!.Code);
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.AccountSuspended, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountSuspended, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.False(entry.Succeeded);
     }
@@ -96,7 +96,7 @@ public sealed class AccountSuspensionAuditTests : IDisposable
 
         Assert.Equal("AccountNotFound", result.Error!.Code);
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.AccountSuspended, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountSuspended, entry.Action);
         Assert.Equal(probed.ToString(), entry.Subject);
         Assert.False(entry.Succeeded);
     }
@@ -111,7 +111,7 @@ public sealed class AccountSuspensionAuditTests : IDisposable
 
         Assert.Equal("AccountNotFound", result.Error!.Code);
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.AccountReactivated, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountReactivated, entry.Action);
         Assert.Equal(probed.ToString(), entry.Subject);
         Assert.False(entry.Succeeded);
     }
