@@ -183,12 +183,12 @@ const isValid: ComputedRef<boolean> = computed(() => {
 })
 
 /**
- * Loads the PHP versions this host has installed, which the form selects from, and the limits the
- * form shows. The account picker reads its own choices, one search at a time, when it is opened.
+ * Loads the PHP versions this host has installed and the backends the panel offers, which the form
+ * selects from, and the limits the form shows. The account picker reads its own choices, one search at a time, when it is opened.
  * @returns Resolves once both requests have settled.
  */
 const loadReferenceData = async (): Promise<void> => {
-  await Promise.all([phpVersionsStore.loadPhpVersions(), store.loadLimits()])
+  await Promise.all([phpVersionsStore.loadPhpVersions(), store.loadLimits(), store.loadChoices()])
 }
 
 /**
@@ -288,6 +288,7 @@ onMounted(loadReferenceData)
               v-model:backend-type="backendType"
               v-model:php-version="phpVersion"
               v-model:proxy-upstream="proxyUpstream"
+              :backend-choices="store.choices?.backendTypes ?? []"
               :php-versions="phpVersionsStore.phpVersions"
               :php-version-error="phpVersionError"
               :proxy-upstream-error="proxyUpstreamError"

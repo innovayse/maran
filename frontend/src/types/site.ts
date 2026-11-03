@@ -195,6 +195,14 @@ export interface SitesApi {
    * @param version The version to install, e.g. `8.4`.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The versions installed on this server after the attempt.
+  /**
+   * Reads the closed sets the site form and the list's filters select from — the backends and the
+   * serving states — each option already labelled in the caller's language by the panel.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The choices.
+   */
+  getChoices: (signal?: AbortSignal) => Promise<SiteChoices>
+
    */
   installPhpVersion: (version: string, signal?: AbortSignal) => Promise<PhpVersion[]>
 
@@ -271,4 +279,23 @@ export type SiteDetailLoad =
 export interface SiteLimits {
   /** The most aliases one site may carry: every name one certificate covers but the domain's own. */
   maximumAliases: number
+}
+
+/** One option of a closed set a site screen selects from (`GET /api/v1/sites/choices`). */
+export interface SiteChoice {
+  /** The value the API accepts and serializes for this option, e.g. `reverseProxy`. */
+  value: string
+  /** The option's display name in the caller's language, produced by the panel. */
+  label: string
+}
+
+/**
+ * The closed sets the site screens select from, as the server states them. The server keeps
+ * validating every submitted value against the same sets; the lists are advice for the pickers.
+ */
+export interface SiteChoices {
+  /** What can serve a site, in the order the form offers them. */
+  backendTypes: SiteChoice[]
+  /** Whether a site serves its own content, in the order the filter offers them. */
+  statuses: SiteChoice[]
 }

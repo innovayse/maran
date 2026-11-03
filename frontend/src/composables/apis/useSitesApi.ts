@@ -5,6 +5,7 @@ import type {
   ChangeSitePhpVersionRequest,
   CreateSiteRequest,
   Site,
+  SiteChoices,
   SiteDetail,
   SiteLimits,
   SitesApi,
@@ -163,6 +164,15 @@ export const useSitesApi = (): SitesApi => {
    * @param version The version to install, e.g. `8.4`.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The versions installed on this server after the attempt.
+  /**
+   * Reads the closed sets the site form and list filters select from.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The backends and serving states, labelled by the server.
+   */
+  const getChoices = (signal?: AbortSignal): Promise<SiteChoices> => {
+    return api.get<SiteChoices>(`${SITES_PATH}/choices`, signal)
+  }
+
    */
   const installPhpVersion = (version: string, signal?: AbortSignal): Promise<PhpVersion[]> => {
     return api.post<PhpVersion[]>(`${SITES_PATH}/php-versions/install`, { version }, signal)
@@ -262,3 +272,4 @@ export const useSitesApi = (): SitesApi => {
     tailLog,
   }
 }
+    getChoices,

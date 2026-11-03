@@ -6,6 +6,7 @@ using Maran.Modules.Sites.Commands.EnableSite;
 using Maran.Modules.Sites.Commands.InstallPhpVersion;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Queries.GetSite;
+using Maran.Modules.Sites.Queries.GetSiteChoices;
 using Maran.Modules.Sites.Queries.GetSiteLimits;
 using Maran.Modules.Sites.Queries.ListPhpVersions;
 using Maran.Modules.Sites.Queries.ListSites;
@@ -108,6 +109,21 @@ public sealed class SitesController : BaseApiController
     }
 
     /// <summary>Creates a site: its document root, vhost and pool on the host, then the row.</summary>
+    /// <summary>
+    /// Reads the closed sets the site form and list filters select from — what can serve a site and
+    /// whether it serves — labelled in the caller's language. The create endpoint keeps validating
+    /// every submitted value against the same enums (rules/security.md item 1).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("choices")]
+    [ProducesResponseType(typeof(SiteChoicesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetChoicesAsync(CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<SiteChoicesDto>>(new GetSiteChoicesQuery(), cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <param name="command">The site's account, domain, aliases and backend.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]

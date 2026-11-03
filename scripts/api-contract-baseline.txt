@@ -290,6 +290,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/sftp-users
   GET /api/v1/sftp-users/{}
   GET /api/v1/sites
+  GET /api/v1/sites/choices
   GET /api/v1/sites/limits
   GET /api/v1/sites/php-versions
   GET /api/v1/sites/{}

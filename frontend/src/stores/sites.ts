@@ -3,7 +3,14 @@ import { ref, type Ref } from 'vue'
 import { useSitesApi } from '../composables/apis/useSitesApi'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
-import type { CreateSiteRequest, Site, SiteDetailLoad, SiteLimits, DisabledSitesCount } from '../types/site'
+import type {
+  CreateSiteRequest,
+  DisabledSitesCount,
+  Site,
+  SiteChoices,
+  SiteDetailLoad,
+  SiteLimits,
+} from '../types/site'
 
 /**
  * The page size of the read that only counts disabled sites. Its rows are never shown, so the
@@ -39,6 +46,13 @@ export const useSitesStore = defineStore('sites', () => {
    * read them stays permissive: the server enforces the bounds, the form only advises.
    */
   const limits: Ref<SiteLimits | null> = ref(null)
+
+  /**
+   * The closed sets the site form and the list's filters select from (backends and serving states,
+   * labelled by the panel), or `null` until the server has answered. Never a list written into the
+   * SPA: the pickers are empty until the panel says what they hold.
+   */
+  const choices: Ref<SiteChoices | null> = ref(null)
 
   /** True while a create request is in flight. */
   const creating: Ref<boolean> = ref(false)
@@ -128,6 +142,19 @@ export const useSitesStore = defineStore('sites', () => {
       limits.value = await api.getLimits()
     } catch {
       limits.value = null
+    }
+  }
+
+  /**
+   * Loads the closed sets the site pickers show. A failure leaves `choices` null rather than raising
+   * an error of its own: the server validates every submitted value, so the pickers only advise.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadChoices = async (): Promise<void> => {
+    try {
+      choices.value = await api.getChoices()
+    } catch {
+      choices.value = null
     }
   }
 
@@ -263,6 +290,7 @@ export const useSitesStore = defineStore('sites', () => {
     disabledCount,
     detail,
     limits,
+    choices,
     creating,
     acting,
     errorMessage,
@@ -271,6 +299,7 @@ export const useSitesStore = defineStore('sites', () => {
     loadDisabledCount,
     loadOne,
     loadLimits,
+    loadChoices,
     create,
     changePhpVersion,
     enable,

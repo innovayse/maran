@@ -51,16 +51,12 @@ import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { usePhpVersionsStore } from '../../stores/phpVersions'
 import { useSitesStore } from '../../stores/sites'
+import { choiceLabelOf } from '../../utils/choiceLabelOf'
 import { takeFlashNotice } from '../../utils/flashNotice'
+import { isChoiceListed } from '../../utils/isChoiceListed'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
-import type { Site, SiteBackendType, SiteStatus } from '../../types/site'
+import type { Site } from '../../types/site'
 import { usePlanLimit } from '../../composables/usePlanLimit'
-
-/** What can serve a site, mirroring the `SiteBackendType` union the panel serializes. */
-const BACKEND_TYPES: readonly SiteBackendType[] = ['static', 'php', 'reverseProxy']
-
-/** Whether a site serves, mirroring the `SiteStatus` union the panel serializes. */
-const SITE_STATUSES: readonly SiteStatus[] = ['enabled', 'disabled']
 
 const { t } = useI18n()
 const store = useSitesStore()
@@ -77,23 +73,24 @@ const table = useServerTable<Site>({
     account: accountSpec,
     backend: {
       /**
-       * Honours only a backend the panel has, so a hand-edited link never reaches the server.
+       * Honours only a backend the panel lists, so a hand-edited link never reaches the server. Until
+       * the panel has answered it accepts any value (advice errs permissive; the server validates).
        * @param value The `?backend=` value.
-       * @returns True for a known backend.
+       * @returns True for a listed backend, or while the list is unknown.
        */
       accepts: (value: string): boolean => {
-        return (BACKEND_TYPES as readonly string[]).includes(value)
+        return isChoiceListed(store.choices?.backendTypes, value)
       },
     },
     phpVersion: {},
     status: {
       /**
-       * Honours only a serving state the panel has.
+       * Honours only a serving state the panel lists; permissive until the panel has answered.
        * @param value The `?status=` value.
-       * @returns True for a known state.
+       * @returns True for a listed state, or while the list is unknown.
        */
       accepts: (value: string): boolean => {
-        return (SITE_STATUSES as readonly string[]).includes(value)
+        return isChoiceListed(store.choices?.statuses, value)
       },
     },
   },
@@ -135,13 +132,21 @@ const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
     )
   }
   if (applied.backend !== '') {
-    result.push(labels.chip('backend', t('sites.list.filters.backend'), t(`sites.backendType.${applied.backend}`)))
+    result.push(
+      labels.chip(
+        'backend',
+        t('sites.list.filters.backend'),
+        choiceLabelOf(store.choices?.backendTypes, applied.backend),
+      ),
+    )
   }
   if (applied.phpVersion !== '') {
     result.push(labels.chip('phpVersion', t('sites.list.filters.phpVersion'), applied.phpVersion))
   }
   if (applied.status !== '') {
-    result.push(labels.chip('status', t('sites.list.filters.status'), t(`sites.status.${applied.status}`)))
+    result.push(
+      labels.chip('status', t('sites.list.filters.status'), choiceLabelOf(store.choices?.statuses, applied.status)),
+    )
   }
   return result
 })
@@ -184,6 +189,7 @@ onMounted(() => {
   // The PHP versions fill their filter without holding the list back; the account filter searches
   // its own choices when opened.
   void phpVersionsStore.loadPhpVersions()
+  void store.loadChoices()
 })
 
 // The disabled count follows the account the list is narrowed to, and only that: it is a notice
@@ -304,8 +310,8 @@ watch(
       :show-account="!isCustomer"
       :account-picker="accountPicker"
       :account-name="accountFilterName"
-      :backend-types="BACKEND_TYPES"
-      :statuses="SITE_STATUSES"
+      :backend-types="store.choices?.backendTypes ?? []"
+      :statuses="store.choices?.statuses ?? []"
       @apply="table.setFilters"
       @close="closeFilters"
       @search="searchAccounts"
