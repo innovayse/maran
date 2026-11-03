@@ -110,7 +110,7 @@ public sealed class PendingUpdatesEndpointTests : IAsyncLifetime
             body.RootElement.GetProperty("items").EnumerateArray()
                 .Select(row =>
                 {
-                    return row.GetProperty("packageName").GetString();
+                    return row.GetProperty("packageName").GetString()!;
                 })
                 .ToArray());
     }

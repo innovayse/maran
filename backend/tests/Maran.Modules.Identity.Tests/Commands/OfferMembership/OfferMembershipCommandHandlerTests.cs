@@ -4,7 +4,6 @@ using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
-using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Identity.Tests.Commands.OfferMembership;

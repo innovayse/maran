@@ -77,7 +77,7 @@ public sealed class MembershipOffersEndpointTests : IAsyncLifetime
         var feature = Assert.Single(offer.GetProperty("features").EnumerateArray());
         Assert.Equal("databases", feature.GetProperty("feature").GetString());
         Assert.False(string.IsNullOrWhiteSpace(feature.GetProperty("featureDisplayName").GetString()));
-        Assert.True(offer.GetProperty("expiresAt").GetDateTimeOffset() > DateTimeOffset.UtcNow);
+        Assert.True(offer.GetProperty("expiresAt").GetDateTimeOffset() > _clock.UtcNow);
         var offerId = offer.GetProperty("id").GetGuid();
 
         var accepted = await invitee.PostAsync($"{Endpoint}/{offerId}/accept", null);

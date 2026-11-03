@@ -1,6 +1,5 @@
 using Maran.Modules.Identity.Commands.ResendSubUserInvitation;
 using Maran.Modules.Identity.Domain.Entities;
-using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
