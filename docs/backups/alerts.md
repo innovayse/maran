@@ -11,9 +11,9 @@ same outgoing-mail settings and alert address as the monitoring alerts, for each
 | Alert | When | Journal subject |
 |---|---|---|
 | Scheduled run failed | a scheduled run reached the server agent and ended without an archive, or threw before it reported an outcome (`BackupScheduledRunAborted`) | `ScheduledRunFailed:<account>` |
-| Destination refused | the schedule's destination could not be used (deleted, not configured, a remote kind this agent does not serve), so no run was started | `DestinationRefused:<account>` |
+| Destination refused | the schedule's destination could not be used (not configured, or a remote kind this agent does not serve), so no run was started | `DestinationRefused:<account>` |
 | Scheduled run missed | a schedule started more than 30 minutes after its named hour — the panel was not running then, or the sweep before it was still busy | `ScheduledRunMissed:<schedule id>` |
-| Backup verification failed | the re-read of a finished run's artifact found a problem with it (changed digest, refused member, disagreeing records, missing dump); raised for scheduled and manual runs alike, see [verification](verification.md) | `VerificationFailed:<backup id>` |
+| Backup verification failed | the re-read of a finished run's artifact found a problem with it (changed digest, refused member, disagreeing records, missing dump member); raised for scheduled and manual runs alike, see [verification](verification.md) | `VerificationFailed:<backup id>` |
 
 Each alert is journalled as `AlertRaised` by the Backups module before the mail is requested. With
 no alert address configured the mail is skipped and a second entry, `MailSkippedNoSmtp`, records
@@ -38,19 +38,23 @@ on a backup already recorded as failed mails nothing more.
 
 - **A remote destination refusing writes at run time.** The agent serves only the local destination
   today, so a remote target that refuses writes cannot be observed until remote destinations land
-  (issue #160). The panel-side refusal above (a destination that is deleted, not configured, or of a
+  (issue #160). The panel-side refusal above (a destination that is not configured, or of a
   kind this agent does not serve) is the whole of what is seen, and verification likewise reads only
   local artifacts.
 
 ## Test evidence
 
-Each of the three conditions the issue names has an integration test that asserts the notification:
+Each of the three conditions the issue names has an integration test that asserts the notification,
+all under `backend/tests/Maran.Host.IntegrationTests/`:
 
-- **A corrupted artifact** raises "Backup verification failed": the tests in
-  `backend/tests/Maran.Host.IntegrationTests/BackupVerification*`, where the agent reports a finding
-  about the artifact and the administrator's mail and the `AlertRaised` entry are asserted.
-- **A missed run** raises "Scheduled run missed": the schedule tests in
-  `backend/tests/Maran.Host.IntegrationTests/BackupScheduleTests.cs`.
-- **An unreachable target** raises "Destination refused": the destination tests in
-  `backend/tests/Maran.Host.IntegrationTests/BackupDestinationTests.cs`; the part this agent cannot
-  observe (a remote target refusing writes after it was accepted) is the limit above, not a test.
+- **A corrupted artifact** raises "Backup verification failed": `BackupVerificationAlertTests.cs`
+  (a finding after a scheduled run and after a manual run, the row and its localized reason, a sound
+  artifact raising nothing, a verification that could not run mailing nothing, no alert address) and
+  `BackupVerificationEndpointTests.cs` (the finding mailed once, and nothing more on a repeat).
+- **A missed run** raises "Scheduled run missed": `BackupVerificationScheduleAlertTests.cs` (forty-five
+  minutes late is mailed, ten minutes late is not).
+- **An unreachable target** raises "Destination refused": `BackupVerificationScheduleAlertTests.cs`,
+  for a kind the agent does not serve and for a server with no destination configured, and with no
+  alert address. A destination deleted from under a schedule is not a case: the database refuses the
+  delete while a schedule names it. The part this agent cannot observe (a remote target refusing
+  writes after it was accepted) is the limit above, not a test.
