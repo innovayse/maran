@@ -66,4 +66,10 @@
   <data name="CronRunNotFound">
     <value>This run could not be found.</value>
   </data>
+  <data name="CronRunAccountLimitReached">
+    <value>Too many scheduled tasks of your account are running right now. Wait for one to finish, then try again.</value>
+  </data>
+  <data name="CronRunServerBusy">
+    <value>The server is running a lot of scheduled tasks right now, so this one was not started. Nothing was changed; please try again in a moment.</value>
+  </data>
 </root>

@@ -5,8 +5,6 @@ using Maran.Modules.Cron.Domain.Entities;
 using Maran.Modules.Cron.Domain.Enums;
 using Maran.Modules.Cron.Domain.Policies;
 using Maran.Modules.Cron.Domain.ValueObjects;
-using Maran.Modules.Cron.Persistence;
-using Maran.Modules.Cron.Services;
 using Maran.Modules.Cron.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -16,16 +14,16 @@ namespace Maran.Modules.Cron.Tests.Commands.RunCronEntry;
 /// <summary>What running an entry by hand asks of the agent, what it records, and what it refuses.</summary>
 public sealed class RunCronEntryCommandHandlerTests
 {
-    private const string EntryId = "3f1a5b7c-0d2e-4a6b-8c9d-0e1f2a3b4c5d";
+    private const string EntryId = RunCronEntryWorld.EntryId;
 
-    private static readonly Guid AccountId = Guid.Parse("aaaaaaaa-0000-4000-8000-000000000001");
+    private static readonly Guid AccountId = RunCronEntryWorld.DefaultAccountId;
     private static readonly Guid StrangerAccountId = Guid.Parse("bbbbbbbb-0000-4000-8000-000000000002");
 
     /// <summary>An account the caller may not see is answered not found and the agent is never asked.</summary>
     [Fact]
     public async Task An_account_the_caller_may_not_see_is_not_found_and_nothing_runs()
     {
-        var world = new World();
+        var world = new RunCronEntryWorld();
 
         var result = await world.HandleAsync(accountId: StrangerAccountId);
 
@@ -39,7 +37,7 @@ public sealed class RunCronEntryCommandHandlerTests
     [Fact]
     public async Task A_suspended_account_is_refused_before_the_agent_is_asked()
     {
-        var world = new World(AccountState.Suspended);
+        var world = new RunCronEntryWorld(AccountState.Suspended);
 
         var result = await world.HandleAsync();
 
@@ -52,7 +50,7 @@ public sealed class RunCronEntryCommandHandlerTests
     [Fact]
     public async Task A_run_addresses_the_agent_and_records_what_it_reported()
     {
-        var world = new World();
+        var world = new RunCronEntryWorld();
 
         var result = await world.HandleAsync();
 
@@ -72,7 +70,7 @@ public sealed class RunCronEntryCommandHandlerTests
     [Fact]
     public async Task A_job_that_failed_is_a_recorded_run_not_a_failed_request()
     {
-        var world = new World();
+        var world = new RunCronEntryWorld();
         world.Agent.RunEntryResult = Result<AgentCronRun>.Ok(new AgentCronRun(40, new AgentCronRunExited(1), string.Empty, "boom"));
 
         var result = await world.HandleAsync();
@@ -86,7 +84,7 @@ public sealed class RunCronEntryCommandHandlerTests
     [Fact]
     public async Task A_run_a_ceiling_stopped_is_recorded_as_stopped()
     {
-        var world = new World();
+        var world = new RunCronEntryWorld();
         world.Agent.RunEntryResult = Result<AgentCronRun>.Ok(
             new AgentCronRun(
                 120_000, new AgentCronRunStopped(AgentCronRunLimit.Runtime), string.Empty, string.Empty));
@@ -102,7 +100,7 @@ public sealed class RunCronEntryCommandHandlerTests
     [Fact]
     public async Task A_run_that_died_of_a_signal_is_recorded_as_failed_without_a_status()
     {
-        var world = new World();
+        var world = new RunCronEntryWorld();
         world.Agent.RunEntryResult = Result<AgentCronRun>.Ok(
             new AgentCronRun(30, new AgentCronRunWithoutStatus(), string.Empty, string.Empty));
 
@@ -117,7 +115,7 @@ public sealed class RunCronEntryCommandHandlerTests
     [Fact]
     public async Task An_agent_refusal_records_nothing_and_is_journalled_as_a_failure()
     {
-        var world = new World();
+        var world = new RunCronEntryWorld();
         world.Agent.RunEntryResult = Result<AgentCronRun>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
 
         var result = await world.HandleAsync();
@@ -133,7 +131,7 @@ public sealed class RunCronEntryCommandHandlerTests
     [Fact]
     public async Task A_run_is_journalled_with_the_entry_id_and_never_its_output()
     {
-        var world = new World();
+        var world = new RunCronEntryWorld();
 
         await world.HandleAsync();
 
@@ -148,7 +146,7 @@ public sealed class RunCronEntryCommandHandlerTests
     [Fact]
     public async Task The_history_keeps_only_the_newest_runs_of_the_entry()
     {
-        var world = new World();
+        var world = new RunCronEntryWorld();
         const string OtherEntry = "9f1a5b7c-0d2e-4a6b-8c9d-0e1f2a3b4c5d";
         for (var minute = 0; minute < CronRunRetention.RunsPerEntry; minute++)
         {
@@ -183,50 +181,5 @@ public sealed class RunCronEntryCommandHandlerTests
     private static CronRun Run(string entryId, DateTimeOffset startedAt)
     {
         return new CronRun(Guid.NewGuid(), AccountId, entryId, startedAt, 10, new CronRunExited(0), "ok", string.Empty);
-    }
-
-    /// <summary>Everything one run test needs, wired the way the Host wires it.</summary>
-    private sealed class World
-    {
-        /// <summary>The agent double every call is recorded on.</summary>
-        public RecordingAgentCronClient Agent { get; } = new();
-
-        /// <summary>The journal every entry lands in.</summary>
-        public RecordingAuditWriter Audit { get; } = new();
-
-        /// <summary>The panel's clock, fixed.</summary>
-        public FixedClock Clock { get; } = new();
-
-        /// <summary>The module's table.</summary>
-        public CronDbContext Database { get; }
-
-        /// <summary>The handler under test.</summary>
-        public RunCronEntryCommandHandler Handler { get; }
-
-        /// <summary>Wires one world whose account is in <paramref name="state"/>.</summary>
-        /// <param name="state">The owning account's state.</param>
-        public World(AccountState state = AccountState.Active)
-        {
-            var currentUser = FakeCurrentUser.Customer(AccountId);
-            Database = InMemoryCronDatabase.Open(Guid.NewGuid().ToString(), currentUser);
-            Handler = new RunCronEntryCommandHandler(
-                new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024, state)),
-                Agent,
-                Database,
-                Clock,
-                new CronAuditJournal(Audit, currentUser),
-                new CapturingLogger<RunCronEntryCommandHandler>(),
-                CronTestNames.Runs());
-        }
-
-        /// <summary>Runs the handler with the usual audit context.</summary>
-        /// <param name="accountId">The account to act under; the owner by default.</param>
-        /// <returns>What the handler answered.</returns>
-        public async Task<Result<CronRunDto>> HandleAsync(Guid? accountId = null)
-        {
-            return await Handler.HandleAsync(
-                new RunCronEntryCommand(accountId ?? AccountId, EntryId, "203.0.113.7", "tests"),
-                CancellationToken.None);
-        }
     }
 }

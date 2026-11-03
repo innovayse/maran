@@ -76,6 +76,15 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
     /// <summary>What <see cref="RunEntryAsync"/> answers; a quiet successful run by default.</summary>
     public Result<AgentCronRun>? RunEntryResult { get; set; }
 
+    /// <summary>
+    /// Awaited inside <see cref="RunEntryAsync"/> after the call is recorded and before it answers, so a
+    /// test can hold a run in flight; null answers at once.
+    /// </summary>
+    public Func<Task>? DuringRun { get; set; }
+
+    /// <summary>Thrown by <see cref="RunEntryAsync"/> after the call is recorded; null answers normally.</summary>
+    public Exception? RunEntryThrows { get; set; }
+
     /// <summary>What <see cref="GetEnvironmentAsync"/> answers; no assignments by default.</summary>
     public Result<IReadOnlyList<AgentCronEnvVar>>? GetEnvironmentResult { get; set; }
 
@@ -174,15 +183,25 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
-    public Task<Result<AgentCronRun>> RunEntryAsync(
+    public async Task<Result<AgentCronRun>> RunEntryAsync(
         string accountUsername,
         string entryId,
         CancellationToken cancellationToken)
     {
         Runs.Add(new AgentEntryCall(accountUsername, entryId));
 
-        return Task.FromResult(
-            RunEntryResult ?? Result<AgentCronRun>.Ok(new AgentCronRun(1200, new AgentCronRunExited(0), "done\n", string.Empty)));
+        if (DuringRun is not null)
+        {
+            await DuringRun();
+        }
+
+        if (RunEntryThrows is not null)
+        {
+            throw RunEntryThrows;
+        }
+
+        return RunEntryResult
+            ?? Result<AgentCronRun>.Ok(new AgentCronRun(1200, new AgentCronRunExited(0), "done\n", string.Empty));
     }
 
     /// <inheritdoc/>

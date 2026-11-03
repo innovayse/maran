@@ -150,8 +150,10 @@ public static class ExpectedErrorStatuses
             ["CronEnvironmentTooManyVariables"] = ErrorType.Validation,
             ["CronEnvironmentValueInvalid"] = ErrorType.Validation,
             ["CronOperationFailed"] = ErrorType.Failure,
+            ["CronRunAccountLimitReached"] = ErrorType.Conflict,
             ["CronRunNotFound"] = ErrorType.NotFound,
             ["CronRunOutcomeUnknown"] = ErrorType.Validation,
+            ["CronRunServerBusy"] = ErrorType.Unavailable,
             ["CronScheduleInvalid"] = ErrorType.Validation,
             ["DatabaseGrantRepairCountInvalid"] = ErrorType.Validation,
             ["DatabaseGrantRepairPlanChanged"] = ErrorType.Conflict,
@@ -273,8 +275,7 @@ public static class ExpectedErrorStatuses
             ["AccountFeatureNotGranted"] = ErrorType.Forbidden,
             ["SubUsersOwnerOnly"] = ErrorType.Forbidden,
             ["SubUserNotFound"] = ErrorType.NotFound,
-            ["SubUserLoginTaken"] = ErrorType.Conflict,
-            ["SubUserEmailTaken"] = ErrorType.Conflict,
+            ["SubUserLimitReached"] = ErrorType.Conflict,
             ["SubUserFeatureInvalid"] = ErrorType.Validation,
             ["ViewAsAccountNotFound"] = ErrorType.NotFound,
             ["ViewAsLoginUnavailable"] = ErrorType.Conflict,
@@ -349,5 +350,6 @@ public static class ExpectedErrorStatuses
             ["HostRateLimited"] = StatusCodes.Status429TooManyRequests,
             ["HostTwoFactorSetupRequired"] = StatusCodes.Status403Forbidden,
             ["HostUnexpectedError"] = StatusCodes.Status500InternalServerError,
+            ["HostViewAsNotAllowed"] = StatusCodes.Status403Forbidden,
         };
 }

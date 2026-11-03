@@ -36,6 +36,23 @@ namespace Maran.Modules.Cron.Commands.RunCronEntry;
 /// wait timed out, the process died — is not in the history. That is the honest gap: the panel did
 /// not learn how it ended, and a row saying otherwise would be invented.
 /// </para>
+/// <para>
+/// <b>Concurrency (issue #333).</b> A slot is taken from <see cref="CronRunSlots"/> after the
+/// account is known to be able to run and BEFORE the agent is called, and given back when the call
+/// is over. A run past the account's bound or the panel's is refused here, so a customer clicking
+/// "run" in a loop never reaches the root process.
+/// </para>
+/// <para>
+/// <b>Audit before history (issue #335).</b> Once the agent has answered, the run HAS happened, and
+/// the journal says so before the history row is written: the entry is written first, and both
+/// writes use <see cref="CancellationToken.None"/> rather than the request's token, because a caller
+/// who closes the connection while the job runs does not un-run it. The row is the second write
+/// because it is the one that can still fail (the output is the customer's, and
+/// <see cref="CronRunOutputPolicy"/> removes the one character a text column refuses, but a database
+/// fault is still possible); a run missing from the history is a gap, a run missing from the journal
+/// is a hole in the record of what root did on a customer's behalf. A caller who goes away while the
+/// agent still holds the run leaves a failure entry (the run was asked for; its end is unknown).
+/// </para>
 /// </remarks>
 public sealed class RunCronEntryCommandHandler
 {
@@ -51,6 +68,9 @@ public sealed class RunCronEntryCommandHandler
     /// <summary>The panel's clock, for when the run started.</summary>
     private readonly IClock _clock;
 
+    /// <summary>The bound on runs in flight, per account and in total.</summary>
+    private readonly CronRunSlots _slots;
+
     /// <summary>This module's audit journal.</summary>
     private readonly CronAuditJournal _journal;
 
@@ -65,6 +85,7 @@ public sealed class RunCronEntryCommandHandler
     /// <param name="agent">The agent client that runs the entry.</param>
     /// <param name="dbContext">Where the run is recorded.</param>
     /// <param name="clock">The panel's clock.</param>
+    /// <param name="slots">The bound on runs in flight, per account and in total.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="logger">Where an agent refusal is reported, by code and entry id only.</param>
     /// <param name="names">Names the recorded run's outcome in the request's culture.</param>
@@ -73,6 +94,7 @@ public sealed class RunCronEntryCommandHandler
         IAgentCronClient agent,
         CronDbContext dbContext,
         IClock clock,
+        CronRunSlots slots,
         CronAuditJournal journal,
         ILogger<RunCronEntryCommandHandler> logger,
         CronRunDisplayNames names)
@@ -81,6 +103,7 @@ public sealed class RunCronEntryCommandHandler
         _agent = agent;
         _dbContext = dbContext;
         _clock = clock;
+        _slots = slots;
         _journal = journal;
         _logger = logger;
         _names = names;
@@ -91,7 +114,7 @@ public sealed class RunCronEntryCommandHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
     /// The recorded run — or <c>AccountNotFound</c>, <c>CronEntrySuspended</c>, <c>CronEntryNotFound</c>,
-    /// or <c>CronOperationFailed</c>.
+    /// <c>CronRunAccountLimitReached</c>, <c>CronRunServerBusy</c>, or <c>CronOperationFailed</c>.
     /// </returns>
     public async Task<Result<CronRunDto>> HandleAsync(RunCronEntryCommand command, CancellationToken cancellationToken)
     {
@@ -99,24 +122,47 @@ public sealed class RunCronEntryCommandHandler
         if (account is null)
         {
             return await FailAsync(
-                command, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
+                command, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound));
         }
 
         if (account.State == AccountState.Suspended)
         {
-            return await FailAsync(
-                command, Error.Of(nameof(ErrorMessages.CronEntrySuspended), ErrorType.Conflict), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.CronEntrySuspended), ErrorType.Conflict));
         }
 
+        var slot = _slots.TryAcquire(account.Id);
+        if (!slot.IsSuccess)
+        {
+            return await FailAsync(command, slot.Error!);
+        }
+
+        using var lease = slot.Value;
         var startedAt = _clock.UtcNow;
-        var ran = await _agent.RunEntryAsync(account.Username, command.EntryId, cancellationToken);
+        Result<AgentCronRun> ran;
+        try
+        {
+            ran = await _agent.RunEntryAsync(account.Username, command.EntryId, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller went away while the run was in the agent's hands. The run was asked for, so it is
+            // journalled — as not having taken effect, because the panel never learned how it ended — and
+            // the cancellation then travels on unchanged.
+            await FailAsync(command, Error.Of(nameof(ErrorMessages.CronOperationFailed), ErrorType.Failure));
+            throw;
+        }
+
         if (!ran.IsSuccess)
         {
             return await FailAsync(
                 command,
-                CronAgentErrorTranslator.Translate(_logger, ran.Error!, nameof(_agent.RunEntryAsync), command.EntryId),
-                cancellationToken);
+                CronAgentErrorTranslator.Translate(_logger, ran.Error!, nameof(_agent.RunEntryAsync), command.EntryId));
         }
+
+        // The journal first, and nothing after the agent's answer takes the request's token: the run
+        // has happened, and a caller who has gone away does not un-run it.
+        await _journal.RecordSuccessAsync(
+            AuditActions.CronEntryRun, command.EntryId, command.IpAddress, command.UserAgent, CancellationToken.None);
 
         var run = new CronRun(
             Guid.NewGuid(),
@@ -135,13 +181,10 @@ public sealed class RunCronEntryCommandHandler
             .OrderByDescending(row => row.StartedAt)
             .ThenByDescending(row => row.Id)
             .Skip(CronRunRetention.RunsPerEntry - 1)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(CancellationToken.None);
         _dbContext.CronRuns.RemoveRange(stale);
         _dbContext.CronRuns.Add(run);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        await _journal.RecordSuccessAsync(
-            AuditActions.CronEntryRun, command.EntryId, command.IpAddress, command.UserAgent, cancellationToken);
+        await _dbContext.SaveChangesAsync(CancellationToken.None);
 
         return Result<CronRunDto>.Ok(CronRunMapper.From(run, _names.Of(run.Outcome)));
     }
@@ -162,18 +205,17 @@ public sealed class RunCronEntryCommandHandler
         };
     }
 
-    /// <summary>Journals a refused run and returns it as the typed failure.</summary>
+    /// <summary>
+    /// Journals a refused run and returns it as the typed failure. The write does not take the request's
+    /// token: a refusal is a record, and a caller who has gone away does not un-refuse it.
+    /// </summary>
     /// <param name="command">The run that was refused; its entry id is the journal's subject.</param>
     /// <param name="error">The typed failure to answer with.</param>
-    /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
-    private async Task<Result<CronRunDto>> FailAsync(
-        RunCronEntryCommand command,
-        Error error,
-        CancellationToken cancellationToken)
+    private async Task<Result<CronRunDto>> FailAsync(RunCronEntryCommand command, Error error)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.CronEntryRun, command.EntryId, command.IpAddress, command.UserAgent, cancellationToken);
+            AuditActions.CronEntryRun, command.EntryId, command.IpAddress, command.UserAgent, CancellationToken.None);
 
         return Result<CronRunDto>.Fail(error);
     }
