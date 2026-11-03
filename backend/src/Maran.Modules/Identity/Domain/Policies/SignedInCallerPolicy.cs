@@ -7,8 +7,8 @@ namespace Maran.Modules.Identity.Domain.Policies;
 public static class SignedInCallerPolicy
 {
     /// <summary>
-    /// The signed-in principal of the current request: an administrator or a customer, with the
-    /// operator viewing as them when there is one.
+    /// The signed-in principal of the current request: an administrator, a reseller or a customer,
+    /// with the operator viewing as them when there is one.
     /// </summary>
     /// <param name="currentUser">The current request's caller.</param>
     /// <returns>The principal.</returns>
@@ -20,15 +20,16 @@ public static class SignedInCallerPolicy
     /// </exception>
     public static PrincipalCaller Require(ICurrentUser currentUser)
     {
-        // Every case is named so that a fifth Caller subtype is a deliberate edit here, not a silent fall-through.
+        // Every case is named so that a sixth Caller subtype is a deliberate edit here, not a silent fall-through.
         return currentUser.Caller switch
         {
             AdministratorCaller administrator => administrator,
             CustomerCaller customer => customer,
             AccountlessCustomerCaller accountless => accountless,
+            ResellerCaller reseller => reseller,
             AnonymousCaller => throw new InvalidOperationException(
                 "This operation requires a signed-in caller, and the request is anonymous."),
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: one of its four cases."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: one of its five cases."),
         };
     }
 }

@@ -22,7 +22,8 @@ namespace Maran.Modules.Identity.Services;
 /// <b>The default is the oldest owned account</b>, then the oldest account of any other kind, so the
 /// choice is deterministic and a login that owns an account never starts out inside somebody else's.
 /// An administrator owns none and always gets <c>null</c>: they reach every account without acting
-/// for one.
+/// for one. A reseller holds no membership either and gets <c>null</c> too: it reaches an account only
+/// through a view-as, never by acting for it.
 /// </para>
 /// <para>
 /// <b>A customer whose every account is suspended gets a refusal, not a <c>null</c>.</b> Falling

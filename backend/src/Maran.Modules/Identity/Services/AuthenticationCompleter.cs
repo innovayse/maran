@@ -97,7 +97,8 @@ public sealed class AuthenticationCompleter
     }
 
     /// <summary>
-    /// Refuses a login whose state is not <see cref="UserLifecycle.Active"/>, and a customer whose every
+    /// Refuses a login that may not authenticate (<see cref="User.MayAuthenticate"/>: not
+    /// <see cref="UserLifecycle.Active"/>, or a suspended reseller's), and a customer whose every
     /// account is suspended; otherwise issues a session and an access token and records the login on
     /// <paramref name="user"/>.
     /// </summary>
