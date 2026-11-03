@@ -144,6 +144,15 @@
   <data name="SubUserFeatureInvalid">
     <value>Ընտրեք հնարավորությունները վահանակի առաջարկած ցանկից։</value>
   </data>
+  <data name="SubUserNotPending">
+    <value>Այս անձն արդեն ընդունել է հրավերը, ուստի կրկին ուղարկելու կարիք չկա։</value>
+  </data>
+  <data name="MembershipOfferNotFound">
+    <value>Այդպիսի առաջարկ չկա, կամ այն այլևս ուժի մեջ չէ։</value>
+  </data>
+  <data name="MembershipOfferAccountSuspended">
+    <value>Հաշիվը կասեցված է, ուստի առաջարկն այս պահին չի կարելի ընդունել։</value>
+  </data>
   <data name="ViewAsAccountNotFound">
     <value>Հաշիվը չի գտնվել, կամ այն չունի մուտք, որի անունից կարելի է դիտել։</value>
   </data>

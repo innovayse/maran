@@ -138,6 +138,26 @@ public static class IdentityAuditActions
     public const string SubUserRemoved = "SubUserRemoved";
 
     /// <summary>
+    /// An account's owner had the invitation of a still-pending sub-user sent again; the subject is the
+    /// sub-user's login name. Never the invitation token or its link.
+    /// </summary>
+    public const string SubUserInvitationResent = "SubUserInvitationResent";
+
+    /// <summary>
+    /// An account's owner offered an existing login a place on the account's team; the subject is what
+    /// the owner typed (a login name or an address), which may name nobody. Recorded the same way
+    /// whether or not the offer was stored, and the entry's outcome says which: the answer to the owner
+    /// is uniform on purpose and this record is where an administrator can see the difference.
+    /// </summary>
+    public const string SubUserMembershipOffered = "SubUserMembershipOffered";
+
+    /// <summary>A person accepted an offer to join an account's team; the subject is the account's name.</summary>
+    public const string SubUserMembershipOfferAccepted = "SubUserMembershipOfferAccepted";
+
+    /// <summary>A person declined an offer to join an account's team; the subject is the account's name.</summary>
+    public const string SubUserMembershipOfferDeclined = "SubUserMembershipOfferDeclined";
+
+    /// <summary>
     /// An operator started viewing the panel as an account's login; the actor is the operator and the
     /// subject names the account and the login. Recorded on refusals too (issue #317).
     /// </summary>

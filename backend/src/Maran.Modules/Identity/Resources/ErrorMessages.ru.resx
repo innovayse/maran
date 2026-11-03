@@ -144,6 +144,15 @@
   <data name="SubUserFeatureInvalid">
     <value>Выберите возможности из списка, который предлагает панель.</value>
   </data>
+  <data name="SubUserNotPending">
+    <value>Этот человек уже принял приглашение, поэтому отправлять его повторно не нужно.</value>
+  </data>
+  <data name="MembershipOfferNotFound">
+    <value>Такого предложения нет, или оно уже недействительно.</value>
+  </data>
+  <data name="MembershipOfferAccountSuspended">
+    <value>Аккаунт приостановлен, поэтому принять предложение сейчас нельзя.</value>
+  </data>
   <data name="ViewAsAccountNotFound">
     <value>Аккаунт не найден, или у него нет входа, от имени которого можно просматривать панель.</value>
   </data>
