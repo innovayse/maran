@@ -24,6 +24,27 @@ export interface FirewallProtocolChoice {
 }
 
 /**
+ * One port preset the rule screen offers, mirroring the backend's `FirewallPresetDto`.
+ *
+ * The panel produces the preset, its name and the exact rules it installs: the SPA holds no port
+ * and no label for one (rules/architecture.md "The backend owns the data, the SPA renders it"). The
+ * allow endpoint validates each rule of a preset exactly as it validates a hand-typed one.
+ */
+export interface FirewallPreset {
+  /** The preset's identity, which is the camelCase name of the backend's preset key. */
+  key: string
+  /** The preset as the operator reads it, already localized by the panel. */
+  name: string
+  /**
+   * Whether the card offers switching the preset off again: a switch whose off position removes
+   * every running rule on the preset's ports when true, a button that only installs when false.
+   */
+  closable: boolean
+  /** The rules installing the preset sends, in the order they are sent. */
+  rules: FirewallRule[]
+}
+
+/**
  * One port rule, mirroring the backend's `FirewallRuleDto` field-for-field.
  *
  * The same shape names a rule, creates one and removes one, because a rule has no identifier — it

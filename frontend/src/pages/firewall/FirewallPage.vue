@@ -85,11 +85,11 @@ const leavesPortsUnruled = (removing: readonly FirewallRule[]): boolean => {
 }
 
 /**
- * Loads every rule the host is running, and the protocols the rule form offers.
- * @returns Resolves once both requests have settled.
+ * Loads every rule the host is running, the protocols the rule form offers and the port presets.
+ * @returns Resolves once the requests have settled.
  */
 const refresh = async (): Promise<void> => {
-  await Promise.all([store.load(), store.loadProtocolChoices()])
+  await Promise.all([store.load(), store.loadProtocolChoices(), store.loadPortPresets()])
 }
 
 /**
@@ -234,6 +234,7 @@ onMounted(refresh)
       </template>
 
       <FirewallPresetButtons
+        :presets="store.portPresets"
         :rules="store.rules"
         :busy="store.acting"
         @allow="submitPreset"

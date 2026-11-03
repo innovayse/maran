@@ -6,6 +6,7 @@ import type {
   Ban,
   BanAddressRequest,
   FirewallApi,
+  FirewallPreset,
   FirewallProtocolChoice,
   FirewallRule,
   WhitelistEntry,
@@ -13,6 +14,9 @@ import type {
 
 /** The endpoint the host's port rules are listed, opened and closed through. */
 const RULES_PATH = '/api/v1/firewall/rules'
+
+/** The endpoint the port presets are listed through. */
+const PRESETS_PATH = '/api/v1/firewall/rules/presets'
 
 /** The endpoint the protocols a rule may name are listed through. */
 const PROTOCOLS_PATH = '/api/v1/firewall/rules/protocols'
@@ -82,6 +86,15 @@ export const useFirewallApi = (): FirewallApi => {
    */
   const listProtocolChoices = (signal?: AbortSignal): Promise<FirewallProtocolChoice[]> => {
     return api.get<FirewallProtocolChoice[]>(PROTOCOLS_PATH, signal)
+  }
+
+  /**
+   * Lists the port presets the rule screen offers, each with the rules it installs.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The presets, each named for the operator by the panel.
+   */
+  const listPortPresets = (signal?: AbortSignal): Promise<FirewallPreset[]> => {
+    return api.get<FirewallPreset[]>(PRESETS_PATH, signal)
   }
 
   /**
@@ -172,6 +185,7 @@ export const useFirewallApi = (): FirewallApi => {
 
   return {
     listRules,
+    listPortPresets,
     listProtocolChoices,
     allowPort,
     denyPort,

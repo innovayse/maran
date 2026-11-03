@@ -8,6 +8,7 @@ import type {
   AddWhitelistEntryRequest,
   Ban,
   BanAddressRequest,
+  FirewallPreset,
   FirewallProtocolChoice,
   FirewallRule,
   WhitelistEntry,
@@ -43,6 +44,12 @@ export const useFirewallStore = defineStore('firewall', () => {
 
   /** The port rules as last reported by the panel; empty before the first successful load. */
   const rules: Ref<FirewallRule[]> = ref([])
+
+  /**
+   * The port presets the preset card offers, as last reported by the panel; empty before the first
+   * answer. The panel names them and lists their rules, so no port or label lives in the SPA.
+   */
+  const portPresets: Ref<FirewallPreset[]> = ref([])
 
   /**
    * The protocols the rule form's picker offers, as last reported by the panel; empty before the
@@ -106,6 +113,21 @@ export const useFirewallStore = defineStore('firewall', () => {
   const loadProtocolChoices = async (): Promise<void> => {
     try {
       protocolChoices.value = await api.listProtocolChoices()
+    } catch (error) {
+      ruleErrorMessage.value = error instanceof ApiError ? error.message : null
+    }
+  }
+
+  /**
+   * Loads the port presets the preset card offers, replacing what is held.
+   *
+   * A failure is reported through {@link ruleErrorMessage}, and the card stays empty: a preset is
+   * only a shortcut to the rule form, which keeps working without it.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadPortPresets = async (): Promise<void> => {
+    try {
+      portPresets.value = await api.listPortPresets()
     } catch (error) {
       ruleErrorMessage.value = error instanceof ApiError ? error.message : null
     }
@@ -290,6 +312,7 @@ export const useFirewallStore = defineStore('firewall', () => {
 
   return {
     rules,
+    portPresets,
     protocolChoices,
     bans,
     whitelist,
@@ -300,6 +323,7 @@ export const useFirewallStore = defineStore('firewall', () => {
     banErrorMessage,
     whitelistErrorMessage,
     load,
+    loadPortPresets,
     loadProtocolChoices,
     listBans,
     listWhitelist,
