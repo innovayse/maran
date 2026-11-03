@@ -121,7 +121,7 @@ public sealed class ForwardedClientAddressTests : IAsyncLifetime
     /// <returns>The factory; the caller disposes it.</returns>
     private WebApplicationFactory<Program> CreateFactory(IPAddress peer)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             // Testing, not Development: inheriting the developer's database settings made these
             // tests pass locally against the wrong database and fail in CI.

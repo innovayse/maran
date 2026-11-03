@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Maran.Modules.Backups.Tests;
 
@@ -75,8 +76,8 @@ public sealed class BackupsModuleTests
     /// otherwise.
     /// </para>
     /// <para>
-    /// It is asserted by full type name rather than by referencing the hosting package, so the test
-    /// project gains no dependency in order to observe the shape.
+    /// The interface is compared by type identity, not by its name: the hosting abstractions reach this
+    /// project through the module's framework reference, so observing the shape adds no dependency.
     /// </para>
     /// </remarks>
     [Fact]
@@ -86,7 +87,7 @@ public sealed class BackupsModuleTests
         {
             return Array.Exists(type.GetInterfaces(), contract =>
             {
-                return contract.FullName == "Microsoft.Extensions.Hosting.IHostedService";
+                return contract == typeof(IHostedService);
             });
         });
 

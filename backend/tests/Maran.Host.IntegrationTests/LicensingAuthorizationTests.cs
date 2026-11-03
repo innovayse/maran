@@ -91,7 +91,8 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
         await MigrateAsync(factory);
         using var client = factory.CreateClient();
 
-        var response = await client.SendAsync(new HttpRequestMessage(new HttpMethod(method), path));
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -110,7 +111,8 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
         await SeedAsync(factory);
         using var client = await SignInAsync(factory, "customer");
 
-        var response = await client.SendAsync(new HttpRequestMessage(new HttpMethod(method), path));
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -229,7 +231,7 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
     /// <summary>Boots the host against this class's PostgreSQL.</summary>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

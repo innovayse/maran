@@ -241,7 +241,9 @@ public sealed class ResilientAgentSitesClientTests
 
         async Task DrainAsync()
         {
-            await foreach (var unused in client.TailLogAsync("acc1", "example.com", SiteLogSource.Error, 42, default))
+            await using var drained = client.TailLogAsync("acc1", "example.com", SiteLogSource.Error, 42, default)
+                .GetAsyncEnumerator();
+            while (await drained.MoveNextAsync())
             {
                 // The events themselves are the client's contract, not the decorator's.
             }

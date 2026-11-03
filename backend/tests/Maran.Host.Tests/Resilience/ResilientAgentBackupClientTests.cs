@@ -81,7 +81,9 @@ public sealed class ResilientAgentBackupClientTests
 
         async Task DrainAsync()
         {
-            await foreach (var unused in client.RestoreAsync("alice", "b1", Local(), "deadbeef", [], default))
+            await using var drained = client.RestoreAsync("alice", "b1", Local(), "deadbeef", [], default)
+                .GetAsyncEnumerator();
+            while (await drained.MoveNextAsync())
             {
                 // The events themselves are the client's contract, not the decorator's.
             }
@@ -104,7 +106,8 @@ public sealed class ResilientAgentBackupClientTests
 
         async Task DrainAsync()
         {
-            await foreach (var unused in client.CreateAsync("alice", "b1", Local(), default))
+            await using var drained = client.CreateAsync("alice", "b1", Local(), default).GetAsyncEnumerator();
+            while (await drained.MoveNextAsync())
             {
                 // The events themselves are the client's contract, not the decorator's.
             }
@@ -131,7 +134,8 @@ public sealed class ResilientAgentBackupClientTests
 
         async Task DrainAsync()
         {
-            await foreach (var unused in client.CreateAsync("alice", "b7", Local(), default))
+            await using var drained = client.CreateAsync("alice", "b7", Local(), default).GetAsyncEnumerator();
+            while (await drained.MoveNextAsync())
             {
                 // The events themselves are the client's contract, not the decorator's.
             }

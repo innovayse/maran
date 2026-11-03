@@ -509,7 +509,7 @@ public sealed class AccountCascadeTests
             {
                 return !candidate.Entity.GetForeignKeys().Any(foreignKey =>
                 {
-                    return foreignKey.PrincipalEntityType == candidate.Names
+                    return ReferenceEquals(foreignKey.PrincipalEntityType, candidate.Names)
                         && foreignKey.Properties.Contains(candidate.Property);
                 });
             })

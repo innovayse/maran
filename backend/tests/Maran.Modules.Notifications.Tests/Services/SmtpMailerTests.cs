@@ -242,7 +242,7 @@ public sealed class SmtpMailerTests
     /// <returns>The port number; a connection to it is refused at once.</returns>
     private static int ClosedLoopbackPort()
     {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();

@@ -177,7 +177,7 @@ public sealed class MailQueueDecouplingTests : IAsyncLifetime
     /// <returns>The booted host factory.</returns>
     private WebApplicationFactory<Program> CreateFactory(IMailer mailer)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

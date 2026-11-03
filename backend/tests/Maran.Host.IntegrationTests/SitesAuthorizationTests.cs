@@ -70,6 +70,7 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/sites" },
             { "POST", "/api/v1/sites" },
             { "GET", "/api/v1/sites/limits" },
+            { "GET", "/api/v1/sites/choices" },
             { "GET", "/api/v1/sites/php-versions" },
             { "POST", "/api/v1/sites/php-versions/install" },
             { "GET", "/api/v1/sites/{id}" },
@@ -332,7 +333,7 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
     /// <summary>Boots the host against this class's PostgreSQL.</summary>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

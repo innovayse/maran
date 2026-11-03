@@ -81,7 +81,7 @@ public sealed class LicensingStartupTests : IAsyncLifetime
     /// <returns>The configured, not-yet-started test factory.</returns>
     private WebApplicationFactory<Program> BuildFactory(Action<IServiceCollection> configureServices)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
+        return new ConfiguredHostFactory(b =>
         {
             // Same settings HostBootTests uses — see its own comments for why each is required.
             b.UseEnvironment("Testing");

@@ -148,7 +148,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
             "/api/v1/firewall/rules?port=8080&protocol=1&sourceCidr=0.0.0.0%2F0");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal((8080, (int?)null), agent.RulePorts);
+        Assert.Equal<(int, int?)?>((8080, null), agent.RulePorts);
     }
 
     /// <summary>Listing the rules sends the host facts too so the rulesets own accepts stay hidden.</summary>

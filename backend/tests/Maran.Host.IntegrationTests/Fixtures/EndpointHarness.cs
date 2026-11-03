@@ -40,7 +40,7 @@ public static class EndpointHarness
         TestDatabase database,
         Action<IServiceCollection>? configure = null)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(database.GetConnectionString()))
