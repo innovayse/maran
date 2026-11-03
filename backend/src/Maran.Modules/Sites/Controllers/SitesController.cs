@@ -71,6 +71,7 @@ public sealed class SitesController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<SiteDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -86,6 +87,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="id">The site to read.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(SiteDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -101,6 +103,7 @@ public sealed class SitesController : BaseApiController
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("limits")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(SiteLimitsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetLimitsAsync(CancellationToken cancellationToken)
@@ -116,6 +119,7 @@ public sealed class SitesController : BaseApiController
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("choices")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(SiteChoicesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetChoicesAsync(CancellationToken cancellationToken)
@@ -128,6 +132,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="command">The site's account, domain, aliases and backend.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -158,6 +163,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="command">The version to switch to.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/php-version")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -175,6 +181,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="id">The site to enable.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/enable")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -188,6 +195,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="id">The site to disable.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/disable")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -201,6 +209,7 @@ public sealed class SitesController : BaseApiController
     /// <param name="id">The site to remove.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -218,6 +227,7 @@ public sealed class SitesController : BaseApiController
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("php-versions")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(IReadOnlyList<PhpVersionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetPhpVersionsAsync(CancellationToken cancellationToken)
@@ -312,6 +322,7 @@ public sealed class SitesController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancelled when the caller disconnects.</param>
     [HttpGet("{id:guid}/logs")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [EnableRateLimiting(RateLimitPolicies.SiteLogs)]
     [Produces(SiteLogStreamWriter.EventStreamContentType)]
     [ProducesResponseType(StatusCodes.Status200OK)]

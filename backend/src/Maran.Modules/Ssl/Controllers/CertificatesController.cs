@@ -53,6 +53,7 @@ public sealed class CertificatesController : BaseApiController
     /// <param name="query">Paging, search, sort and the site, status and expiring filters, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<CertificateDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -66,6 +67,7 @@ public sealed class CertificatesController : BaseApiController
     /// <param name="command">The domain to issue for.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(CertificateDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -94,6 +96,7 @@ public sealed class CertificatesController : BaseApiController
     /// <param name="command">The domain and the material.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("custom")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(CertificateDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -123,6 +126,7 @@ public sealed class CertificatesController : BaseApiController
     /// <param name="id">The certificate to remove.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
