@@ -1,8 +1,10 @@
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Queries.ListSubUsers;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Pagination;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Identity.Tests.Queries.ListSubUsers;
 
@@ -88,5 +90,74 @@ public sealed class ListSubUsersQueryHandlerTests : IDisposable
 
         Assert.True(validator.Validate(new ListSubUsersQuery(Sort: SortRequest.Parse("-username"))).IsValid);
         Assert.False(validator.Validate(new ListSubUsersQuery(Sort: SortRequest.Parse("password"))).IsValid);
+    }
+
+    /// <summary>An open offer is listed as an invited row carrying only what the owner typed.</summary>
+    [Fact]
+    public async Task An_open_offer_is_listed_as_an_invited_row_carrying_only_what_the_owner_typed()
+    {
+        var person = await SeedOfferedLoginAsync("bob", "bob@example.com");
+
+        var result = await NewHandler().HandleAsync(new ListSubUsersQuery(), CancellationToken.None);
+
+        var row = Assert.Single(result.Value.Items);
+        Assert.Equal(UserLifecycle.Invited, row.State);
+        Assert.Equal("bob@example.com", row.Username);
+        Assert.Equal("bob@example.com", row.Email);
+        Assert.NotEqual(person.Id, row.Id);
+        Assert.Null(row.LastLoginAt);
+        Assert.Equal([AccountFeature.Databases], row.Features);
+    }
+
+    /// <summary>Members and offers are paged and counted together, across the page boundary.</summary>
+    [Fact]
+    public async Task Members_and_offers_are_paged_and_counted_together()
+    {
+        await _world.SeedMemberAsync("a", AccountFeature.None);
+        await _world.SeedMemberAsync("b", AccountFeature.None);
+        await SeedOfferedLoginAsync("c", "c");
+        await SeedOfferedLoginAsync("d", "d");
+        await SeedOfferedLoginAsync("e", "e");
+
+        var first = await NewHandler().HandleAsync(new ListSubUsersQuery(Page: 1, PageSize: 3), CancellationToken.None);
+        var second = await NewHandler().HandleAsync(new ListSubUsersQuery(Page: 2, PageSize: 3), CancellationToken.None);
+
+        Assert.Equal(5, first.Value.Total);
+        Assert.Equal(3, first.Value.Items.Count);
+        Assert.Equal(2, second.Value.Items.Count);
+        Assert.Equal(
+            5,
+            first.Value.Items.Concat(second.Value.Items).Select(row => { return row.Id; }).Distinct().Count());
+    }
+
+    /// <summary>An expired offer, an answered one and another account's offer are not listed.</summary>
+    [Fact]
+    public async Task Expired_answered_and_foreign_offers_are_not_listed()
+    {
+        await SeedOfferedLoginAsync("old", "old");
+        _world.Clock.Advance(AccountMembershipOffer.Lifetime + TimeSpan.FromMinutes(1));
+        var answered = await SeedOfferedLoginAsync("done", "done");
+        var offer = await _world.Context.AccountMembershipOffers.SingleAsync(candidate => candidate.UserId == answered.Id);
+        offer.Decline(_world.Clock.UtcNow);
+        var foreign = await _world.SeedMemberAsync("stranger", AccountFeature.None, accountId: Guid.NewGuid());
+        _world.Context.AccountMembershipOffers.Add(AccountMembershipOffer.Offer(
+            Guid.NewGuid(), foreign.Id, Guid.NewGuid(), "other", "x", AccountFeature.None, _world.Clock.UtcNow));
+        await _world.Context.SaveChangesAsync();
+
+        var result = await NewHandler().HandleAsync(new ListSubUsersQuery(), CancellationToken.None);
+
+        Assert.Empty(result.Value.Items);
+        Assert.Equal(0, result.Value.Total);
+    }
+
+    /// <summary>Stores a login and an open offer from the owner's account to it, listed as <paramref name="identifier"/>.</summary>
+    private async Task<User> SeedOfferedLoginAsync(string username, string identifier)
+    {
+        var user = new User(Guid.NewGuid(), username, username + "@example.com", "hash", UserRole.Customer, SubUserWorld.Now);
+        _world.Context.Users.Add(user);
+        _world.Context.AccountMembershipOffers.Add(AccountMembershipOffer.Offer(
+            Guid.NewGuid(), user.Id, SubUserWorld.AccountId, "acme", identifier, AccountFeature.Databases, _world.Clock.UtcNow));
+        await _world.Context.SaveChangesAsync();
+        return user;
     }
 }

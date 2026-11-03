@@ -130,6 +130,47 @@ public sealed class RemoveSubUserCommandHandlerTests : IDisposable
         Assert.True(await _world.Context.Users.AnyAsync(candidate => candidate.Id == victim.Id));
     }
 
+    /// <summary>Removing the row an open offer is listed as withdraws the offer and touches no login or membership.</summary>
+    [Fact]
+    public async Task Removing_an_open_offer_withdraws_it_and_touches_no_login()
+    {
+        var person = new User(Guid.NewGuid(), "bob", "bob@example.com", "hash", UserRole.Customer, SubUserWorld.Now);
+        _world.Context.Users.Add(person);
+        var offer = AccountMembershipOffer.Offer(
+            Guid.NewGuid(), person.Id, SubUserWorld.AccountId, "acme", "bob", AccountFeature.Databases, SubUserWorld.Now);
+        _world.Context.AccountMembershipOffers.Add(offer);
+        await _world.Context.SaveChangesAsync();
+
+        var result = await NewHandler().HandleAsync(Command(offer.Id), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var stored = await _world.Context.AccountMembershipOffers.SingleAsync();
+        Assert.Equal(MembershipOfferOutcome.Cancelled, stored.Outcome);
+        Assert.True(await _world.Context.Users.AnyAsync(candidate => candidate.Id == person.Id));
+        var entry = Assert.Single(_world.Audit.Written);
+        Assert.Equal(IdentityAuditActions.SubUserRemoved, entry.Action);
+        Assert.Equal("bob", entry.Subject);
+        Assert.True(entry.Succeeded);
+    }
+
+    /// <summary>Another account's offer is not found, and stays open.</summary>
+    [Fact]
+    public async Task Another_accounts_offer_is_not_found_and_stays_open()
+    {
+        var person = new User(Guid.NewGuid(), "bob", "bob@example.com", "hash", UserRole.Customer, SubUserWorld.Now);
+        _world.Context.Users.Add(person);
+        var offer = AccountMembershipOffer.Offer(
+            Guid.NewGuid(), person.Id, Guid.NewGuid(), "other", "bob", AccountFeature.Databases, SubUserWorld.Now);
+        _world.Context.AccountMembershipOffers.Add(offer);
+        await _world.Context.SaveChangesAsync();
+
+        var result = await NewHandler().HandleAsync(Command(offer.Id), CancellationToken.None);
+
+        Assert.Equal("SubUserNotFound", result.Error!.Code);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
+        Assert.True((await _world.Context.AccountMembershipOffers.SingleAsync()).IsOpen(SubUserWorld.Now));
+    }
+
     private static Session NewSession(Guid userId, Guid accountId)
     {
         return new Session(
