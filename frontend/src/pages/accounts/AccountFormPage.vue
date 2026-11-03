@@ -281,7 +281,7 @@ onMounted(async () => {
            edges, which would have needed the card to round (and so clip) them. -->
       <UiCard class="lg:col-span-2">
         <UiForm @submit="submit">
-          <div class="grid gap-x-4 gap-y-4 md:grid-cols-2">
+          <div class="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2">
             <div class="flex flex-col gap-1">
               <UiInput
                 :model-value="primaryDomain"
