@@ -131,10 +131,14 @@ public sealed class ViewAsStarter
             _clock.UtcNow,
             ipAddress,
             userAgent);
+
+        // Sign BEFORE storing: the issuer refuses a session that disagrees with its login by throwing,
+        // and a row saved first would then outlive the refusal with no token and no journal entry. The
+        // session's id and expiry are fixed in memory by StartViewAs, so nothing here needs the row.
+        var token = _accessTokenIssuer.IssueViewAs(viewed, session, actor);
+
         _dbContext.Sessions.Add(session);
         await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var token = _accessTokenIssuer.IssueViewAs(viewed, session, actor);
 
         await RecordAsync(
             actor.Id,

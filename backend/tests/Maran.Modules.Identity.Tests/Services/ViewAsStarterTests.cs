@@ -143,7 +143,8 @@ public sealed class ViewAsStarterTests : IDisposable
     /// <summary>A subject of one kind over a login of the other throws, signs nothing and journals no start.</summary>
     /// <remarks>
     /// The token issuer refuses a session that disagrees with its login; the starter must not turn
-    /// that refusal into a start entry. Both mismatch directions are covered.
+    /// that refusal into a start entry, and the session row is stored only once the token exists, so
+    /// no row remains either. Both mismatch directions are covered.
     /// </remarks>
     [Fact]
     public async Task A_subject_that_disagrees_with_the_login_throws_and_journals_nothing()
@@ -177,6 +178,7 @@ public sealed class ViewAsStarterTests : IDisposable
         });
 
         Assert.Empty(_fixture.Audit.Written);
+        Assert.Empty(await _fixture.Context.Sessions.Where(s => s.ViewAs != null).ToListAsync());
     }
 
     /// <summary>An administrator is never a target: starting over an administrator's login throws.</summary>
