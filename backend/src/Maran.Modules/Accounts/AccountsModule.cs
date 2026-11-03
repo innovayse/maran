@@ -62,6 +62,22 @@ public sealed class AccountsModule : IPanelModule
         // reseller screens and the answers that carry an envelope beside its usage.
         services.AddScoped<ResellerUsageReader>();
 
+        // Scoped, because it reads the request's own ICurrentUser and DbContext: which reseller, if any,
+        // the caller is, and whether that reseller may still write.
+        services.AddScoped<ResellerScope>();
+
+        // Scoped, because it loads the reseller row into the handler's own DbContext: the one place an
+        // allocation is checked against the envelope and claimed before an account or a plan is saved.
+        services.AddScoped<ResellerAllocationGuard>();
+
+        // Scoped, because it reads the request's own DbContext: restates an owner id as the reseller's
+        // name for the owner columns the screens show.
+        services.AddScoped<ResellerNameDirectory>();
+
+        // Scoped, because it reads the request's own DbContext, deliberately past the tenant filters: an
+        // account name or a domain is claimed once across every owner.
+        services.AddScoped<AccountNamespaceClaims>();
+
         // Holds no state of its own; scoped like the handlers that take it. Shared by a plan's quota
         // edit and an account's plan change, so both measure and refuse the same way.
         services.AddScoped<AccountDiskQuotaEnforcer>();

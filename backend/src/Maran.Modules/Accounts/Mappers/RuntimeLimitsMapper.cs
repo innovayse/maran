@@ -49,11 +49,11 @@ public static class RuntimeLimitsMapper
             ToAgent(limits.MaxProcesses));
     }
 
-    /// <summary>Reads one validated wire ceiling as the plan's.</summary>
+    /// <summary>Reads one validated wire ceiling as the stored one: a plan's, or a reseller envelope's.</summary>
     /// <param name="ceiling">The wire ceiling, already validated.</param>
-    /// <returns>The plan's ceiling.</returns>
+    /// <returns>The stored ceiling.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown for a shape the validator would have refused.</exception>
-    private static ResourceLimit ToDomain(ResourceCeilingDto ceiling)
+    public static ResourceLimit ToDomain(ResourceCeilingDto ceiling)
     {
         return ceiling switch
         {

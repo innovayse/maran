@@ -115,27 +115,8 @@ public static class ResellerMapper
             envelope.MaxPhpWorkersPerPool,
             envelope.Features.ToSet(),
             RuntimeLimits.Of(
-                LimitOf(envelope.CpuQuotaPercent),
-                LimitOf(envelope.MemoryMaxMb),
-                LimitOf(envelope.MaxProcesses)));
-    }
-
-    /// <summary>Reads one validated wire ceiling as the stored one.</summary>
-    /// <remarks>
-    /// The same two-case reading <see cref="RuntimeLimitsMapper"/> applies to a plan's ceilings, kept
-    /// here because that type's reading of a single ceiling is private to it and takes a plan
-    /// definition as a whole.
-    /// </remarks>
-    /// <param name="ceiling">The wire ceiling, already validated.</param>
-    /// <returns>The stored ceiling.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown for a shape the validator would have refused.</exception>
-    private static ResourceLimit LimitOf(ResourceCeilingDto ceiling)
-    {
-        return ceiling switch
-        {
-            LimitedResourceCeilingDto limited => ResourceLimit.Limited(limited.Maximum),
-            UnlimitedResourceCeilingDto => ResourceLimit.Unlimited(),
-            _ => throw new ArgumentOutOfRangeException(nameof(ceiling), ceiling, "Unknown ceiling shape."),
-        };
+                RuntimeLimitsMapper.ToDomain(envelope.CpuQuotaPercent),
+                RuntimeLimitsMapper.ToDomain(envelope.MemoryMaxMb),
+                RuntimeLimitsMapper.ToDomain(envelope.MaxProcesses)));
     }
 }

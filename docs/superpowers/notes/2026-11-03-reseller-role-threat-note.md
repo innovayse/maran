@@ -118,7 +118,7 @@ should demand.
    `MayAuthenticate`; for a reseller actor also that the reseller is `Active` (through
    `IResellerDirectory`, because Identity may not read `accounts.*`).
 7. **Envelope bypass by a race.** Two account creates with one slot left must not both succeed.
-   Requirement: `Reseller` maps Npgsql's `xmin` as a concurrency token and every allocation-changing
+   Requirement: `Reseller` carries an explicit `AllocationRevision` counter mapped as a concurrency token and every allocation-changing
    handler touches the reseller row inside its transaction (`NoteAllocationChanged`); the loser's
    `DbUpdateConcurrencyException` maps to the same 409 code. Evidence: an integration test with two
    concurrent creates and exactly one 201.
@@ -251,9 +251,9 @@ Every search below owes its exact command and a positive control (rules/testing.
 - **Nothing exists yet.** This note precedes the code, so every requirement above is untested and
   unexecuted until the integrator's single gate pass; a reviewer should treat "the code meets it" as
   unproven for every line.
-- **Npgsql `xmin` as a concurrency token on PostgreSQL 13 and 16.** Expected to behave identically
-  (`xmin` is a system column on both), but asserted only by the planned two-concurrent-creates test; it
-  was not observed. A `DbUpdateConcurrencyException` surfacing differently under the Wolverine
+- **The `Reseller.AllocationRevision` concurrency token on PostgreSQL 13 and 16.** Expected to behave
+  identically (it is an ordinary integer column), but asserted only by the planned
+  two-concurrent-creates test; it was not observed. A `DbUpdateConcurrencyException` surfacing differently under the Wolverine
   transaction behaviour is the thing to watch.
 - **EF's handling of the two partial unique indexes and of the `Role` column** is not predicted: the
   lead hand-checks the generated migrations against the plan, because EF will not get partial indexes
@@ -268,3 +268,48 @@ Every search below owes its exact command and a positive control (rules/testing.
   accepted and one-over refused; this is a unit-test claim only.
 - **Whether any unattended Accounts code path takes a reseller-supplied id** (D7) was not enumerated;
   the reviewer should list the callers that run with an `AnonymousCaller` and confirm none does.
+
+## Deviations found when the code landed
+
+Each entry below was checked against the code on 2026-11-03, after the slices were written. Where it
+differs from what this note required or expected above, the code is the fact and the text above is the
+plan that preceded it.
+
+1. **The concurrency token is an explicit counter, not Npgsql's `xmin`.** `Reseller.AllocationRevision`
+   (an integer, incremented by `Reseller.NoteAllocationChanged`) is mapped with `IsConcurrencyToken()` in
+   `ResellerConfiguration`. Requirement 7 and the "could not verify" entry above said `xmin` and have
+   been corrected to name the counter. A counter is an ordinary column, so it behaves the same on
+   PostgreSQL 13 and 16 and is visible in a test; the race is still only proven by the planned
+   two-concurrent-creates test.
+2. **A new `Users.IsSuspended` column and `SessionRevocationReason.ResellerSuspended`.** A reseller has
+   no account membership to carry its suspension, so the login carries it (`User.Suspend`/`Resume`,
+   required, database default `false`); `User.MayAuthenticate` is false while it is set. Suspending a
+   reseller revokes its sessions, including a view-as session an administrator opened on it, with the new
+   revocation reason. Both are additive; the lead scaffolds the migration.
+3. **`Identity.User` is exempted in `TenantScopeTests`.** The entity now carries a reseller id, so the
+   census would otherwise demand a query filter on it. The exemption states the reason: the row is read
+   at sign-in, before any principal exists, and by the login's own user id, so a filter keyed on the
+   caller's reseller would hide it from the person signing in. Reseller isolation of what a reseller
+   sells is the Accounts filters' job. This contradicts the earlier line "Nothing is exempted" in
+   checklist item 3; a reviewer should weigh that reason.
+4. **`AccountNamespaceClaims` adds THREE new `IgnoreQueryFilters()` calls in Accounts** (account name,
+   reseller name, primary domain), each under an `RS0030` suppression with its reason. This is a
+   finding against checklist item 2, which expected none: an account name is the Linux user and login
+   name, and a domain is claimed once, so a read narrowed to the reseller's own rows would let it reuse
+   a name or a domain another owner holds. The answer is a yes or a no and never a row, so a reseller
+   learns that a name exists and nothing about its owner. The count in rules/README.md was raised in
+   the same change.
+5. **A reseller cannot skip the final backup.** Deleting an account with the final backup skipped is
+   refused with `AccountFinalBackupSkipForbidden` (403, `ErrorType.Forbidden`) before anything is looked
+   up; the decision to discard an account's last copy stays with the administrator.
+6. **A reseller's resource summary reports usage as unavailable.** The module counters are tenant-scoped
+   by account and a reseller has no account, so `AccountResourceSummaryReader` states each kind as
+   `AccountResourceCount.Unavailable` for a reseller rather than a number that would be wrong or would
+   leak another owner's usage.
+7. **`RequiresAccountFeatureFilter` refuses a reseller with 403.** A reseller reaches no tenant module, so
+   an action behind a plan feature answers `PlanFeatureNotIncluded` (`ErrorType.Forbidden`) instead of
+   falling through to the "no account" answer.
+8. **No `PUT /resellers/{id}` rename or contact edit exists.** `ResellersController` offers create,
+   envelope change, suspend and reactivate only; a reseller's name and contact cannot be edited yet.
+9. **There is no way yet to resend a reseller's invitation.** `ResendInvitation` is keyed by an account
+   id; a reseller's invitation that expired or was lost cannot be reissued. Follow-up.
