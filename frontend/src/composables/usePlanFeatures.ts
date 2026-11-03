@@ -1,6 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import type { AccountFeatureName } from '../types/accountFeature'
-import type { ManagedPlan, PlanFeatureChoice } from '../types/plan'
+import type { PlanFeatureChoice } from '../types/plan'
 
 /** What {@link usePlanFeatures} hands the plan form. */
 export interface PlanFeatures {
@@ -23,12 +23,13 @@ export interface PlanFeatures {
  * what the plan already has, and for a new plan every feature the panel lists — the same default
  * the server applies to a plan created without a list. Only the first toggle materialises a set of
  * the form's own, so a list that arrives late still decides the starting point of an untouched form.
- * @param plan The plan being edited, or `null` for a new one.
+ * @param plan The plan (or the reseller envelope, which states the same set) being edited, or
+ * `null` for a new one.
  * @param choices The panel's features, read when needed; `null` while unknown.
  * @returns The ticked set and what changes it.
  */
 export const usePlanFeatures = (
-  plan: ManagedPlan | null,
+  plan: Readonly<{ features: AccountFeatureName[] }> | null,
   choices: () => PlanFeatureChoice[] | null,
 ): PlanFeatures => {
   /** The administrator's own set once they have toggled a box; `null` while the form is untouched. */

@@ -1,6 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ManagedPlan, PlanRequest } from '../types/plan'
+import type { PlanRequest } from '../types/plan'
 import type { ResourceCeiling } from '../types/resourceCeiling'
 
 /** The runtime ceilings a plan states, by the name the request and the locale file both use. */
@@ -77,11 +77,15 @@ const parseWhole = (text: string): number | null => {
  * unlimited ceiling is sent as a case with no figure at all. The rules mirror
  * `PlanDefinitionValidator` and are advice;
  * the server re-validates, and its refusal is what the page shows.
- * @param plan The plan being edited, or `null` for a new one.
+ * @param plan The plan (or the reseller envelope, which states the same three ceilings) being edited,
+ * or `null` for a new one.
  * @param submitted Whether a submit has been attempted, so nothing turns red before that.
  * @returns The ceilings' fields, state, validation and request shape.
  */
-export const usePlanCeilings = (plan: ManagedPlan | null, submitted: Readonly<Ref<boolean>>): PlanCeilings => {
+export const usePlanCeilings = (
+  plan: Readonly<Record<PlanCeilingKey, ResourceCeiling>> | null,
+  submitted: Readonly<Ref<boolean>>,
+): PlanCeilings => {
   const { t } = useI18n()
 
   const ceilings: Ref<Record<PlanCeilingKey, PlanCeilingState>> = ref({
