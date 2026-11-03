@@ -1,6 +1,7 @@
 using System.Globalization;
 using Maran.Modules.Identity.Resources;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Constants;
 using Maran.SharedKernel.Utilities.Mail;
 using Microsoft.Extensions.Localization;
 
