@@ -93,4 +93,10 @@
   <data name="OwnerLanguageHY">
     <value>Հայերեն</value>
   </data>
+  <data name="AccountStatusActive">
+    <value>Активен</value>
+  </data>
+  <data name="AccountStatusSuspended">
+    <value>Приостановлен</value>
+  </data>
 </root>

@@ -45,28 +45,6 @@ public static class DisplayNameExemptions
             "A run started by hand succeeded, failed or was stopped: a closed set the history draws as a "
             + "badge and offers as its one filter (issue #158)."),
         new(
-            "Maran.Modules.Accounts.Common.AccountDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "accounts.status.{member}",
-            "An account is active or suspended and the list draws the two as badges. The set is "
-            + "closed by the domain rather than by what has been implemented, so a bundle can hold "
-            + "a word for every value it will ever receive."),
-        new(
-            "Maran.Modules.Accounts.Common.AccountDetailDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "accounts.status.{member}",
-            "The detail screen draws the same badge from the same closed set as the list."),
-        new(
-            "Maran.Modules.Accounts.Common.MyAccountDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "accounts.status.{member}",
-            "The customer's own account screen draws the same badge from the same closed set the "
-            + "administrator's list and detail screens already use; the bundle already words every "
-            + "value to offer those two."),
-        new(
             "Maran.Modules.Accounts.Common.AccountResourceUsageDto",
             "Kind",
             DisplayNameExemptionKind.SpaOwnedVocabulary,

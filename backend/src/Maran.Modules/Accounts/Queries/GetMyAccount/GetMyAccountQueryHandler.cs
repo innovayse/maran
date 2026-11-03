@@ -84,6 +84,12 @@ public sealed class GetMyAccountQueryHandler
             row.plan.Features.Members());
 
         return Result<MyAccountDto>.Ok(
-            new MyAccountDto(row.account.Id, row.account.Name, row.account.PrimaryDomain, row.account.Status, planDto));
+            new MyAccountDto(
+                row.account.Id,
+                row.account.Name,
+                row.account.PrimaryDomain,
+                row.account.Status,
+                AccountStatusMapper.NameOf(row.account.Status, _displayNames),
+                planDto));
     }
 }

@@ -2,12 +2,14 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.AccountsService;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Policies;
+using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
 using Maran.Sdk.Interfaces;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Wolverine;
 
@@ -55,6 +57,9 @@ public sealed class ReactivateAccountCommandHandler
     /// <summary>The current request's correlation id, recorded on the task beside its stages.</summary>
     private readonly ICorrelationIdAccessor _correlationIds;
 
+    /// <summary>Names the account's state in the response, in the request's culture.</summary>
+    private readonly IStringLocalizer<DisplayNames> _displayNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="agent">The agent client that performs the privileged half and answers the attestation.</param>
@@ -63,6 +68,7 @@ public sealed class ReactivateAccountCommandHandler
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
     /// <param name="correlationIds">The current request's correlation id.</param>
+    /// <param name="displayNames">Names the account's state in the response, in the request's culture.</param>
     public ReactivateAccountCommandHandler(
         AccountsDbContext dbContext,
         IAgentAccountsClient agent,
@@ -70,7 +76,8 @@ public sealed class ReactivateAccountCommandHandler
         ILogger<ReactivateAccountCommandHandler> logger,
         AccountAuditJournal journal,
         ITaskRecorder tasks,
-        ICorrelationIdAccessor correlationIds)
+        ICorrelationIdAccessor correlationIds,
+        IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
         _agent = agent;
@@ -79,6 +86,7 @@ public sealed class ReactivateAccountCommandHandler
         _journal = journal;
         _tasks = tasks;
         _correlationIds = correlationIds;
+        _displayNames = displayNames;
     }
 
     /// <summary>Reactivates the account. Idempotent: reactivating an active account changes nothing.</summary>
@@ -218,7 +226,13 @@ public sealed class ReactivateAccountCommandHandler
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
         return Result<AccountDto>.Ok(new AccountDto(
-            account.Id, account.Name, account.PrimaryDomain, account.PlanId, account.Status, account.CreatedAt));
+            account.Id,
+            account.Name,
+            account.PrimaryDomain,
+            account.PlanId,
+            account.Status,
+            AccountStatusMapper.NameOf(account.Status, _displayNames),
+            account.CreatedAt));
     }
 
     /// <summary>Why the host cannot be said to have restarted the account, or <c>null</c> when it can.</summary>

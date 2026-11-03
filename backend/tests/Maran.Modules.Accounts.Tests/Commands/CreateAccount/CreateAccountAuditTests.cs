@@ -163,7 +163,8 @@ public sealed class CreateAccountAuditTests
                 new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
                 new AccountAuditJournal(Audit, FakeCurrentUser.Admin()),
                 new StubMessageBus(),
-                NullLogger<CreateAccountCommandHandler>.Instance);
+                NullLogger<CreateAccountCommandHandler>.Instance,
+                new StubDisplayNames());
         }
 
         /// <summary>The module's context, so a test can assert no row was stored.</summary>

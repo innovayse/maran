@@ -1059,7 +1059,8 @@ public sealed class AccountSuspensionTests : IDisposable
             logger ?? NullLogger<SuspendAccountCommandHandler>.Instance,
             Journal(),
             _tasks,
-            new StubCorrelationIdAccessor("corr-1"));
+            new StubCorrelationIdAccessor("corr-1"),
+            new StubDisplayNames());
 
         return handler.HandleAsync(new SuspendAccountCommand(accountId, Ip, Client), CancellationToken.None);
     }
@@ -1086,7 +1087,8 @@ public sealed class AccountSuspensionTests : IDisposable
             logger ?? NullLogger<ReactivateAccountCommandHandler>.Instance,
             Journal(),
             _tasks,
-            new StubCorrelationIdAccessor("corr-1"));
+            new StubCorrelationIdAccessor("corr-1"),
+            new StubDisplayNames());
 
         return handler.HandleAsync(new ReactivateAccountCommand(accountId, Ip, Client), CancellationToken.None);
     }

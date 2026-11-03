@@ -14,6 +14,7 @@ namespace Maran.Modules.Accounts.Common;
 /// <param name="PrimaryDomain">The account's primary domain.</param>
 /// <param name="PlanId">The id of the plan bounding this account's resource limits.</param>
 /// <param name="Status">The account's current lifecycle state.</param>
+/// <param name="StatusName">The state as a reader reads it, localized for the request's culture.</param>
 /// <param name="CreatedAt">The instant the account was created.</param>
 /// <param name="PlanDisplayName">The plan's name, already in the request's language.</param>
 /// <param name="OwnerEmail">
@@ -26,6 +27,7 @@ public sealed record AccountDetailDto(
     string PrimaryDomain,
     Guid PlanId,
     AccountStatus Status,
+    string StatusName,
     DateTimeOffset CreatedAt,
     string PlanDisplayName,
     string? OwnerEmail);
