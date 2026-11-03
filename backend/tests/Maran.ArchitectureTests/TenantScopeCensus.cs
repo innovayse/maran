@@ -160,7 +160,11 @@ public static class TenantScopeCensus
         return scoped;
     }
 
-    /// <summary>The mapped entities that carry the reseller-owner property themselves.</summary>
+    /// <summary>
+    /// The mapped entities that carry the reseller-owner property themselves. An OWNED type is left out:
+    /// it is stored with its owner, EF Core refuses a query filter on it, and the owner's filter is the
+    /// one that hides it, so counting it would demand a filter that cannot exist.
+    /// </summary>
     /// <param name="contexts">The module models to read.</param>
     /// <returns>The entity types a reseller may own rows of.</returns>
     public static List<IEntityType> CarryingOwnerProperty(IReadOnlyList<DbContext> contexts)
@@ -172,7 +176,7 @@ public static class TenantScopeCensus
             })
             .Where(entity =>
             {
-                return entity.FindProperty(OwnerProperty) is not null;
+                return !entity.IsOwned() && entity.FindProperty(OwnerProperty) is not null;
             })
             .ToList();
     }
