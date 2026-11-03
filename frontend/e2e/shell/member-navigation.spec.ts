@@ -189,7 +189,9 @@ test('switching the active account reads the standing again and the menu follows
   await page.getByRole('button', { name: 'Current account: olive. Switch account' }).click()
   await page.getByRole('menuitemradio', { name: 'shop' }).click()
 
+  // The read is awaited FIRST: a count of zero is also true while the menu is being rebuilt for the
+  // new account, so the absence of Backups says nothing until the standing has been asked for again.
+  await expect.poll(() => {return reads}).toBeGreaterThan(readsBeforeSwitch)
   await expect(mainNavigation(page).getByRole('button', { name: 'Show the Databases pages' })).toBeVisible()
   await expect(mainNavigation(page).getByRole('button', { name: 'Show the Backups pages' })).toHaveCount(0)
-  expect(reads).toBeGreaterThan(readsBeforeSwitch)
 })
