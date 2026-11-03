@@ -8,6 +8,7 @@ import type {
   AddWhitelistEntryRequest,
   Ban,
   BanAddressRequest,
+  FirewallProtocolChoice,
   FirewallRule,
   WhitelistEntry,
 } from '../types/firewall'
@@ -42,6 +43,12 @@ export const useFirewallStore = defineStore('firewall', () => {
 
   /** The port rules as last reported by the panel; empty before the first successful load. */
   const rules: Ref<FirewallRule[]> = ref([])
+
+  /**
+   * The protocols the rule form's picker offers, as last reported by the panel; empty before the
+   * first answer. The panel names the choices, so no label for a protocol lives in the SPA.
+   */
+  const protocolChoices: Ref<FirewallProtocolChoice[]> = ref([])
 
   /** The page of bans in force last answered by the panel; empty before the first answer. */
   const bans: Ref<Ban[]> = ref([])
@@ -85,6 +92,22 @@ export const useFirewallStore = defineStore('firewall', () => {
       // failure does, and is rendered exactly the same way: as the panel's own message.
       errorMessage.value = error instanceof ApiError ? error.message : null
       loadState.value = 'error'
+    }
+  }
+
+  /**
+   * Loads the protocols the rule form's picker offers, replacing what is held.
+   *
+   * A failure is reported through {@link ruleErrorMessage} beside the form that needs the list, and
+   * the picker stays empty: the form refuses to submit without a protocol, and the panel's own
+   * already-localized text says why the list is missing.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadProtocolChoices = async (): Promise<void> => {
+    try {
+      protocolChoices.value = await api.listProtocolChoices()
+    } catch (error) {
+      ruleErrorMessage.value = error instanceof ApiError ? error.message : null
     }
   }
 
@@ -267,6 +290,7 @@ export const useFirewallStore = defineStore('firewall', () => {
 
   return {
     rules,
+    protocolChoices,
     bans,
     whitelist,
     acting,
@@ -276,6 +300,7 @@ export const useFirewallStore = defineStore('firewall', () => {
     banErrorMessage,
     whitelistErrorMessage,
     load,
+    loadProtocolChoices,
     listBans,
     listWhitelist,
     allowPorts,

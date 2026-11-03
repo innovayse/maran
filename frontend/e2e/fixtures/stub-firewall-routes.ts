@@ -1,9 +1,12 @@
 import type { Page } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { Ban, FirewallRule, WhitelistEntry } from '../../src/types/firewall'
+import type { Ban, FirewallProtocolChoice, FirewallRule, WhitelistEntry } from '../../src/types/firewall'
 
 /** The rules collection. The trailing `*` covers the DELETE, which names its rule in the query string. */
 const RULES_PATTERN = '**/api/v1/firewall/rules*'
+
+/** The protocols a rule may name; a separate path, since a `*` never spans a `/`. */
+const PROTOCOLS_PATTERN = '**/api/v1/firewall/rules/protocols'
 
 /** The bans collection. The trailing `*` covers the DELETE, which names its address in the query string. */
 const BANS_PATTERN = '**/api/v1/firewall/bans*'
@@ -13,6 +16,15 @@ const WHITELIST_PATTERN = /\/api\/v1\/firewall\/whitelist(\?.*)?$/
 
 /** One whitelist row, which answers the removal. A `*` never spans a `/`, so this is the narrower pattern. */
 const WHITELIST_ENTRY_PATTERN = '**/api/v1/firewall/whitelist/*'
+
+/**
+ * The protocols a stubbed panel offers unless a spec says otherwise, named as the panel names them
+ * in English. They are the server's to produce, so they live in the fixture and not in the SPA.
+ */
+export const stubbedProtocolChoices: FirewallProtocolChoice[] = [
+  { protocol: 'tcp', protocolName: 'TCP' },
+  { protocol: 'udp', protocolName: 'UDP' },
+]
 
 /** How the bans endpoint searches and sorts, as the panel does: inside the address, three keys. */
 const BAN_RULES: PagedRules<Ban> = {
@@ -65,6 +77,8 @@ export interface StubbedFirewall {
   bans: Ban[]
   /** The exempt ranges the stubbed panel reports, oldest first. */
   whitelist: WhitelistEntry[]
+  /** The protocols the rule form is offered; {@link stubbedProtocolChoices} when absent. */
+  protocols?: FirewallProtocolChoice[]
 }
 
 /** The id a stubbed `POST /api/v1/firewall/whitelist` answers with. */
@@ -113,6 +127,14 @@ const isSameRule = (left: FirewallRule, right: FirewallRule): boolean => {
  * @returns Resolves once every route is installed.
  */
 export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<void> => {
+  await page.route(PROTOCOLS_PATTERN, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(state.protocols ?? stubbedProtocolChoices),
+    })
+  })
+
   await page.route(RULES_PATTERN, async (route) => {
     const request = route.request()
 
@@ -239,7 +261,7 @@ export const stubFirewallRefusal = async (
   detail: string,
 ): Promise<void> => {
   const body = JSON.stringify({ code: 'Forbidden', title: 'Forbidden', detail })
-  for (const pattern of [RULES_PATTERN, BANS_PATTERN, WHITELIST_PATTERN]) {
+  for (const pattern of [RULES_PATTERN, PROTOCOLS_PATTERN, BANS_PATTERN, WHITELIST_PATTERN]) {
     await page.route(pattern, async (route) => {
       await route.fulfill({ status, contentType: 'application/problem+json', body })
     })

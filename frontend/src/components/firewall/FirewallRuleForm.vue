@@ -22,10 +22,15 @@ import UiInput from '../ui/UiInput.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import { ANY_IPV4_SOURCE } from '../../utils/anySourceRange'
 import { isUsableCidr } from '../../utils/isUsableCidr'
-import type { FirewallProtocol, FirewallRule } from '../../types/firewall'
+import type { FirewallProtocolChoice, FirewallRule } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallRuleForm}. */
 const props = defineProps<{
+  /**
+   * The protocols the picker offers, produced and named by the panel. The form holds no list of its
+   * own: until this arrives the picker is empty and a submit asks for a protocol.
+   */
+  protocols: readonly FirewallProtocolChoice[]
   /** Whether a rule change is already in flight, which disables the submit control. */
   submitting: boolean
 }>()
@@ -73,8 +78,12 @@ const port: Ref<string> = ref('')
  */
 const portTo: Ref<string> = ref('')
 
-/** The transport protocol the rule applies to. */
-const protocol: Ref<FirewallProtocol> = ref('tcp')
+/**
+ * The protocol the operator picked, as the panel spelled it, or an empty string before one is.
+ * It starts on the panel's first choice (see the watcher below) rather than on a protocol this
+ * file names, so no protocol is a constant of the SPA.
+ */
+const protocol: Ref<string> = ref('')
 
 /**
  * The source range the rule is scoped to, starting at "everything".
@@ -88,12 +97,26 @@ const sourceCidr: Ref<string> = ref(ANY_IPV4_SOURCE)
 /** Whether a submit has been attempted, so nothing turns red before the operator has tried. */
 const submitted: Ref<boolean> = ref(false)
 
-/** The two protocols the agent contract knows, labelled by this SPA's own chrome. */
+/** The picker's options: the panel's protocols, each with the name the panel gave it. */
 const protocolOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: 'tcp', label: t('firewall.protocols.tcp') },
-    { value: 'udp', label: t('firewall.protocols.udp') },
-  ]
+  return props.protocols.map((choice) => {
+    return { value: choice.protocol, label: choice.protocolName }
+  })
+})
+
+/** The panel's choice the operator picked, or `undefined` while none is. */
+const selectedProtocol: ComputedRef<FirewallProtocolChoice | undefined> = computed(() => {
+  return props.protocols.find((choice) => {
+    return choice.protocol === protocol.value
+  })
+})
+
+/** Validation message for the protocol picker, or `null`. */
+const protocolError: ComputedRef<string | null> = computed(() => {
+  if (!submitted.value) {
+    return null
+  }
+  return selectedProtocol.value === undefined ? t('firewall.rules.form.errors.protocolRequired') : null
 })
 
 /** Validation message for the port, or `null`. */
@@ -141,20 +164,13 @@ const sourceError: ComputedRef<string | null> = computed(() => {
 
 /** Whether every field currently passes the client's own mirror of the panel's rules. */
 const isValid: ComputedRef<boolean> = computed(() => {
-  return portError.value === null && portToError.value === null && sourceError.value === null
+  return (
+    portError.value === null &&
+    portToError.value === null &&
+    protocolError.value === null &&
+    sourceError.value === null
+  )
 })
-
-/**
- * Narrows the picker's plain string back onto the two protocols the contract knows.
- *
- * `UiSelect` speaks `string`, as a generic primitive must; this component knows the option list it
- * gave it, so the narrowing happens here rather than by asserting the type at the binding.
- * @param value The value the picker reported.
- * @returns Nothing; sets the protocol synchronously.
- */
-const onProtocolChange = (value: string): void => {
-  protocol.value = value === 'udp' ? 'udp' : 'tcp'
-}
 
 /**
  * Validates, and emits only when the rule is one the panel has a chance of accepting.
@@ -162,7 +178,8 @@ const onProtocolChange = (value: string): void => {
  */
 const submit = (): void => {
   submitted.value = true
-  if (!isValid.value || props.submitting) {
+  const chosen = selectedProtocol.value
+  if (!isValid.value || props.submitting || chosen === undefined) {
     return
   }
   // An empty upper bound is null, never the port itself: a range of one port is refused by both
@@ -171,7 +188,7 @@ const submit = (): void => {
   emit('submit', {
     port: Number(port.value),
     portTo: portTo.value.length === 0 ? null : Number(portTo.value),
-    protocol: protocol.value,
+    protocol: chosen.protocol,
     sourceCidr: sourceCidr.value,
   })
 }
@@ -193,6 +210,18 @@ const reset = (): void => {
   sourceCidr.value = ANY_IPV4_SOURCE
   submitted.value = false
 }
+
+// The picker starts on the panel's first choice as soon as the list arrives, so the common case
+// (opening a TCP port) stays one click shorter without the SPA naming a protocol.
+watch(
+  () => props.protocols,
+  (choices) => {
+    if (protocol.value === '' && choices.length > 0) {
+      protocol.value = choices[0].protocol
+    }
+  },
+  { immediate: true },
+)
 
 // A refusal from the panel (a 409 for a rule that already exists) describes the values that were
 // sent; once any of them changes it is stale, so the page is told to drop it.
@@ -222,10 +251,11 @@ defineExpose({ reset })
         :error="portToError"
       />
       <UiSelect
-        :model-value="protocol"
+        v-model="protocol"
         :label="t('firewall.rules.form.fields.protocol')"
         :options="protocolOptions"
-        @update:model-value="onProtocolChange"
+        :error="protocolError"
+        required
       />
       <UiInput
         v-model="sourceCidr"

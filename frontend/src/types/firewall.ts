@@ -10,6 +10,20 @@ import type { ListRequest, Paged } from './list'
 export type FirewallProtocol = 'tcp' | 'udp'
 
 /**
+ * One protocol the rule form's picker offers, mirroring the backend's `FirewallProtocolChoiceDto`.
+ *
+ * The panel produces the list and the name: the SPA holds no list of protocols and no label for
+ * one (rules/architecture.md "The backend owns the data, the SPA renders it"). The allow and deny
+ * endpoints keep validating the value against the same set.
+ */
+export interface FirewallProtocolChoice {
+  /** The protocol, which is what a rule sends back. */
+  protocol: FirewallProtocol
+  /** The protocol as the operator reads it, already localized by the panel. */
+  protocolName: string
+}
+
+/**
  * One port rule, mirroring the backend's `FirewallRuleDto` field-for-field.
  *
  * The same shape names a rule, creates one and removes one, because a rule has no identifier — it
@@ -137,6 +151,13 @@ export interface FirewallApi {
    * @returns The rules, in the order the panel reports them.
    */
   listRules: (signal?: AbortSignal) => Promise<FirewallRule[]>
+
+  /**
+   * Lists the transport protocols a rule may name, for the rule form's protocol picker.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The protocols, each named for the operator by the panel.
+   */
+  listProtocolChoices: (signal?: AbortSignal) => Promise<FirewallProtocolChoice[]>
 
   /**
    * Opens a port, scoped to one source range.

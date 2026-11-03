@@ -25,12 +25,14 @@ import UiIcon from '../ui/UiIcon.vue'
 import UiTable from '../ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import { portRangeLabel } from '../../utils/portRangeLabel'
-import type { FirewallRule } from '../../types/firewall'
+import type { FirewallProtocolChoice, FirewallRule } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallRulesTable}. */
-defineProps<{
+const props = defineProps<{
   /** The rules the panel reported, in the order it reported them. */
   rules: readonly FirewallRule[]
+  /** The protocols the panel names, which label the protocol column. */
+  protocols: readonly FirewallProtocolChoice[]
   /** Whether a rule change is already in flight, which disables every row's menu. */
   busy: boolean
   /** Whether the screen's lists are still loading: the real header over placeholder rows. */
@@ -56,6 +58,21 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
 })
 
 /**
+ * Names a rule's protocol the way the panel named it.
+ *
+ * A protocol the panel did not list (the choices have not arrived, or the host runs a rule for one
+ * this build does not know) is shown as the wire value, which is what the row said before.
+ * @param protocol The protocol a rule carries.
+ * @returns The panel's name for it, or the protocol itself.
+ */
+const protocolLabel = (protocol: string): string => {
+  const choice = props.protocols.find((candidate) => {
+    return candidate.protocol === protocol
+  })
+  return choice === undefined ? protocol : choice.protocolName
+}
+
+/**
  * Names one rule the way the panel's own audit journal names it, for a row's accessible label.
  * @param rule The rule to describe.
  * @returns The rule as one line of text.
@@ -76,7 +93,7 @@ const describe = (rule: FirewallRule): string => {
       <!-- The range as one cell, not a port with a bound hidden elsewhere: what the row says is
            what the firewall opens. -->
       <template #cell-port="{ row }">{{ portRangeLabel(row.port, row.portTo) }}</template>
-      <template #cell-protocol="{ row }">{{ t(`firewall.protocols.${row.protocol}`) }}</template>
+      <template #cell-protocol="{ row }">{{ protocolLabel(row.protocol) }}</template>
       <template #cell-source="{ row }">{{ row.sourceCidr }}</template>
       <template #cell-actions="{ row }">
         <!-- One trigger rather than a button per command, and `align="end"` because this is the

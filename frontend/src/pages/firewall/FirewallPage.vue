@@ -85,11 +85,11 @@ const leavesPortsUnruled = (removing: readonly FirewallRule[]): boolean => {
 }
 
 /**
- * Loads every rule the host is running.
- * @returns Resolves once the request has settled.
+ * Loads every rule the host is running, and the protocols the rule form offers.
+ * @returns Resolves once both requests have settled.
  */
 const refresh = async (): Promise<void> => {
-  await store.load()
+  await Promise.all([store.load(), store.loadProtocolChoices()])
 }
 
 /**
@@ -249,6 +249,7 @@ onMounted(refresh)
       <UiCard>
         <FirewallRuleForm
           ref="ruleForm"
+          :protocols="store.protocolChoices"
           :submitting="store.acting"
           @submit="submitRule"
           @edit="clearRuleError"
@@ -269,6 +270,7 @@ onMounted(refresh)
         <FirewallRulesTable
           v-else
           :rules="store.rules"
+          :protocols="store.protocolChoices"
           :busy="store.acting"
           :loading="listsLoading"
           @remove="removeRule"
