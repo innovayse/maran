@@ -66,19 +66,30 @@ public static class BackupAuditActions
 
     /// <summary>
     /// A stored backup artifact was read back by the agent and found to match its record. Written for
-    /// every verification that concluded, after a run and on request alike. Recorded as failed when the
-    /// verification could NOT be performed — the agent busy, unreachable or refusing the destination —
-    /// because that is a different fact from a finding about the artifact and must not read as one: it
-    /// changes no recorded state. The subject is the account's name, never a path, a member name or a
-    /// digest (rules/security.md item 8).
+    /// every verification that concluded as sound, after a run and on request alike. Also written as
+    /// failed when a request to verify was REFUSED before the agent was asked (a backup the caller may
+    /// not see, one that has no artifact yet), the way every other action here records its refusals.
+    /// A verification that was attempted and could not run is a different fact and has its own action,
+    /// <see cref="BackupVerificationNotPerformed"/>. The subject is the account's name, never a path, a
+    /// member name or a digest (rules/security.md item 8).
     /// </summary>
     public const string BackupVerified = "BackupVerified";
 
     /// <summary>
     /// The agent read a stored backup artifact back and found it does not match its record: corrupt,
     /// missing or changed. Only a finding about the artifact is written under this action; a
-    /// verification that could not run is <see cref="BackupVerified"/> recorded as failed. The subject
-    /// is the account's name, and nothing the artifact contained is recorded.
+    /// verification that could not run is <see cref="BackupVerificationNotPerformed"/>. The subject is
+    /// the account's name, and nothing the artifact contained is recorded.
     /// </summary>
     public const string BackupVerificationFailed = "BackupVerificationFailed";
+
+    /// <summary>
+    /// A verification of a stored backup artifact was attempted and could not run: the agent was busy,
+    /// unreachable or refused the destination. It is neither a pass nor a finding — the backup's
+    /// recorded state is unchanged and no alert is sent — so it is neither <see cref="BackupVerified"/>
+    /// nor <see cref="BackupVerificationFailed"/>, and an operator reading the journal must be able to
+    /// tell "the artifact is damaged" from "nobody could look". Always recorded as failed. The subject
+    /// is the account's name.
+    /// </summary>
+    public const string BackupVerificationNotPerformed = "BackupVerificationNotPerformed";
 }

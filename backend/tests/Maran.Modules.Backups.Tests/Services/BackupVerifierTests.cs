@@ -81,10 +81,9 @@ public sealed class BackupVerifierTests
         Assert.Null(row.VerifiedAt);
         Assert.Null(row.VerificationFailureCode);
 
-        // Journalled as a verification that did not take effect, under the action a sound read uses:
-        // the finding's own action is reserved for a finding.
+        // Journalled under its own action: it is neither a sound read nor a finding about the artifact.
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(BackupAuditActions.BackupVerified, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupVerificationNotPerformed, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -101,6 +100,10 @@ public sealed class BackupVerifierTests
         Assert.Equal("BackupDestinationNotConfigured", outcome.NotPerformed!.Code);
         Assert.Empty(world.Agent.Verifications);
         Assert.Equal(BackupVerificationState.NotVerified, row.VerificationState);
+
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(BackupAuditActions.BackupVerificationNotPerformed, entry.Action);
+        Assert.False(entry.Succeeded);
     }
 
     /// <summary>A verification a caller asked for is journalled under that caller, with the address it came from.</summary>

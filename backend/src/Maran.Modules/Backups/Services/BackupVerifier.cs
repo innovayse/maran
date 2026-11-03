@@ -181,12 +181,18 @@ public sealed class BackupVerifier
     /// <summary>Names the audit action an outcome is journalled under.</summary>
     /// <param name="outcome">What the verification concluded.</param>
     /// <returns>
-    /// <see cref="BackupAuditActions.BackupVerificationFailed"/> for a finding and
-    /// <see cref="BackupAuditActions.BackupVerified"/> for everything else, a verification that could
-    /// not run included — which is then recorded as failed, so it does not read as a finding.
+    /// <see cref="BackupAuditActions.BackupVerificationNotPerformed"/> where the verification could not
+    /// run, <see cref="BackupAuditActions.BackupVerificationFailed"/> for a finding about the artifact,
+    /// and <see cref="BackupAuditActions.BackupVerified"/> for a sound one. Three facts, three names:
+    /// a verification that could not run must not read in the journal as either of the other two.
     /// </returns>
     private static string ActionOf(BackupVerificationOutcome outcome)
     {
+        if (outcome.NotPerformed is not null)
+        {
+            return BackupAuditActions.BackupVerificationNotPerformed;
+        }
+
         return outcome.FailureCode is null
             ? BackupAuditActions.BackupVerified
             : BackupAuditActions.BackupVerificationFailed;

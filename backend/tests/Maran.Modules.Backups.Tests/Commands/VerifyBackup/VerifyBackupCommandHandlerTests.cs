@@ -143,7 +143,7 @@ public sealed class VerifyBackupCommandHandlerTests
         Assert.Null(stored.VerificationFailureCode);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(BackupAuditActions.BackupVerified, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupVerificationNotPerformed, entry.Action);
         Assert.False(entry.Succeeded);
     }
 

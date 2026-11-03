@@ -256,6 +256,15 @@
   <data name="AuditActionBackupDestinationSaved">
     <value>Պահանջվեց պահուստավորման պահեստ</value>
   </data>
+  <data name="AuditActionBackupVerified">
+    <value>Պահուստային պատճենը ստուգվեց</value>
+  </data>
+  <data name="AuditActionBackupVerificationFailed">
+    <value>Պահուստային պատճենի ստուգումը ձախողվեց</value>
+  </data>
+  <data name="AuditActionBackupVerificationNotPerformed">
+    <value>Պահուստային պատճենի ստուգումը չհաջողվեց կատարել</value>
+  </data>
   <data name="AuditActionLicenceStatusRead">
     <value>Կարդացվեց լիցենզիայի կարգավիճակը</value>
   </data>

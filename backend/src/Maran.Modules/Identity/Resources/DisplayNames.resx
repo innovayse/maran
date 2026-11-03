@@ -255,6 +255,15 @@
   <data name="AuditActionBackupDestinationSaved">
     <value>Backup destination requested</value>
   </data>
+  <data name="AuditActionBackupVerified">
+    <value>Backup verified</value>
+  </data>
+  <data name="AuditActionBackupVerificationFailed">
+    <value>Backup verification failed</value>
+  </data>
+  <data name="AuditActionBackupVerificationNotPerformed">
+    <value>Backup verification could not be performed</value>
+  </data>
   <data name="AuditActionLicenceStatusRead">
     <value>Licence status read</value>
   </data>
