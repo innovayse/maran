@@ -51,6 +51,20 @@ export interface InviteSubUserRequest {
   features: AccountFeatureName[]
 }
 
+/**
+ * The panel's answer to an invitation request (`202 Accepted`), binding the backend's
+ * `SubUserInvitationDto`. It echoes what the owner typed and nothing else: whether the login name or
+ * address was already in use anywhere on the server is deliberately not readable from it, so the
+ * answer for a taken request is identical to the answer for a free one. The person appears in the
+ * list only when the invitation was created.
+ */
+export interface SubUserInvitation {
+  /** The login name the owner asked for, as typed. */
+  username: string
+  /** The address the owner asked the invitation to be sent to, as typed. */
+  email: string
+}
+
 /** Request body for `PUT /api/v1/me/sub-users/{id}/features`, binding `ChangeSubUserGrantsCommand`. */
 export interface ChangeSubUserFeaturesRequest {
   /** The complete new set of feature ids. */
@@ -79,12 +93,13 @@ export interface SubUsersApi {
   features: (signal?: AbortSignal) => Promise<GrantableFeature[]>
 
   /**
-   * Adds a person and has the panel mail them an invitation.
+   * Asks the panel to add a person and mail them an invitation. The answer is the same whether or not
+   * the name or address was free, so the caller re-reads the list to see the outcome.
    * @param request Their login name, address and features.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The new sub-user.
+   * @returns The request as accepted, echoing the owner's own input.
    */
-  invite: (request: InviteSubUserRequest, signal?: AbortSignal) => Promise<SubUser>
+  invite: (request: InviteSubUserRequest, signal?: AbortSignal) => Promise<SubUserInvitation>
 
   /**
    * Replaces the features a sub-user may use. Another account's sub-user answers 404.
