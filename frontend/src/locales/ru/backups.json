@@ -41,17 +41,6 @@
         "to": "Начата по"
       }
     },
-    "status": {
-      "running": "Выполняется",
-      "completed": "Завершена",
-      "failed": "Не удалась"
-    },
-    "kind": {
-      "manual": "Вручную",
-      "scheduled": "По расписанию",
-      "preDeletion": "Перед удалением",
-      "preRestore": "Перед восстановлением"
-    },
     "form": {
       "fields": {
         "account": "Аккаунт"

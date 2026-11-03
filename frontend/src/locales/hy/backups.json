@@ -41,17 +41,6 @@
         "to": "Սկսված՝ մինչև"
       }
     },
-    "status": {
-      "running": "Կատարվում է",
-      "completed": "Ավարտված",
-      "failed": "Ձախողված"
-    },
-    "kind": {
-      "manual": "Ձեռքով",
-      "scheduled": "Ըստ ժամանակացույցի",
-      "preDeletion": "Ջնջումից առաջ",
-      "preRestore": "Վերականգնումից առաջ"
-    },
     "form": {
       "fields": {
         "account": "Հաշիվ"

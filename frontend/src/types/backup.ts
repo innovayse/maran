@@ -51,8 +51,12 @@ export interface Backup {
   orphanedAccountUsername: string | null
   /** How far the run got. */
   status: BackupStatus
+  /** The status as an operator reads it, in the request's language. */
+  statusName: string
   /** Why the backup was taken. */
   kind: BackupKind
+  /** The reason as an operator reads it, in the request's language. */
+  kindName: string
   /** The artifact's size in bytes, or zero when there is no artifact. */
   sizeBytes: number
   /** The artifact's digest, hex and lowercase, or `null` when there is no artifact. */

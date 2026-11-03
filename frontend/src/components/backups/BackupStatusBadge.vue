@@ -13,12 +13,11 @@
  *
  * The kit's badge carries its state in the word and in a status-coloured dot, never in a coloured
  * text on a wash of itself (that pairing fails contrast), so the tone chosen here is a wash and a
- * dot and the label stays primary text. The label is the SPA's own chrome in all three languages
- * and wraps rather than widening the Status column, which is what keeps an Armenian or Russian
- * word from pushing the table past its scroll container.
+ * dot and the label stays primary text. The label is the backend's (`statusName` on the row),
+ * printed as given, and wraps rather than widening the Status column, which is what keeps an
+ * Armenian or Russian word from pushing the table past its scroll container.
  */
 import { computed, type ComputedRef } from 'vue'
-import { useI18n } from 'vue-i18n'
 import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
 import type { BackupStatus } from '../../types/backup'
 
@@ -26,9 +25,9 @@ import type { BackupStatus } from '../../types/backup'
 const props = defineProps<{
   /** The backup's status, exactly as the panel reported it. */
   status: BackupStatus
+  /** The status as the operator reads it, already in their language; the badge's text. */
+  label: string
 }>()
-
-const { t } = useI18n()
 
 /** The tone the badge is drawn in. */
 const variant: ComputedRef<BadgeVariant> = computed(() => {
@@ -41,16 +40,6 @@ const variant: ComputedRef<BadgeVariant> = computed(() => {
     default:
       return 'info'
   }
-})
-
-/**
- * The label for the status.
- *
- * This is the SPA's own chrome and not a server outcome, so it is translated here: the three
- * values are a closed set this bundle was compiled against, not text the panel sends.
- */
-const label: ComputedRef<string> = computed(() => {
-  return t(`backups.status.${props.status}`)
 })
 </script>
 

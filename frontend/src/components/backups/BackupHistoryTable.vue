@@ -135,7 +135,7 @@ const sortBy = (field: string): void => {
     <!-- The cell holds the account's name and nothing else: a spec reads it as the cell's whole text. -->
     <template #cell-account="{ row }">{{ accountName(row) }}</template>
     <template #cell-status="{ row }">
-      <BackupStatusBadge :status="row.status" />
+      <BackupStatusBadge :status="row.status" :label="row.statusName" />
       <!-- Both halves of the failure, and neither instead of the other: the sentence is what a
            reader reads, the code is what a support ticket quotes — visible, selectable text. -->
       <span
@@ -148,7 +148,7 @@ const sortBy = (field: string): void => {
         {{ t('backups.list.failureCode', { code: row.failureCode }) }}
       </span>
     </template>
-    <template #cell-kind="{ row }">{{ t(`backups.kind.${row.kind}`) }}</template>
+    <template #cell-kind="{ row }">{{ row.kindName }}</template>
     <template #cell-size="{ row }">{{ size(row) }}</template>
     <template #cell-databases="{ row }">{{ row.databaseCount }}</template>
     <template #cell-startedAt="{ row }">{{ formatIsoTimestamp(row.startedAt, localeStore.current) }}</template>
