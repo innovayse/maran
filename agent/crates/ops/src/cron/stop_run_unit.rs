@@ -51,7 +51,7 @@ pub(crate) fn stop_run_unit(
     let service = unit.service();
     let outcome = spawn_argv(
         service_manager.as_path(),
-        &[STOP, END_OF_OPTIONS, &service],
+        &[STOP, END_OF_OPTIONS, service.as_str()],
         CallClass::Reload,
     )
     .map_err(|_| CronError::RunNotStopped)?;

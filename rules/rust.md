@@ -352,11 +352,35 @@ agent/
     │       │                  (issue #135). logins/ moves the file between the two
     │       │                  names when it locks and unlocks, because a locked
     │       │                  password does not refuse a key under `UsePAM yes`.
+    │       │                  A key file never outlives its login (issue #338):
+    │       │                  delete_sftp_user.rs takes it BEFORE userdel,
+    │       │                  create_sftp_user.rs purges the files of a name the
+    │       │                  password database does not hold, and
+    │       │                  reconcile_orphan_key_files.rs — run once at start,
+    │       │                  before the socket — removes any whose login is gone
+    │       │                  (LoginKeyFile::login_named_by is the inverse of the
+    │       │                  naming, so a file of another shape is left alone).
+    │       │                  end_sftp_sessions.rs (issue #339) ends ONE login's open
+    │       │                  sessions through model/login_session_matcher.rs, which
+    │       │                  names them by the title sshd gives them and never by
+    │       │                  uid: a login shares its account's uid, so a uid-wide
+    │       │                  signal would cut the account's other logins and its own
+    │       │                  fork_as_account children.
     │       │                  model/account_ownership.rs carries the uid and gid the
     │       │                  login is created WITH: an SFTP login shares its
     │       │                  account's identity, because an account home of
     │       │                  <account>:<web server group> 0750 gives an identity of
     │       │                  its own nothing at all.
+    │       │                  cron/ also holds run-now's bound and its stop (issues
+    │       │                  #333, #336), none of them an rpc: run_now_slots.rs
+    │       │                  (tokio semaphores, host-wide and per account, taken
+    │       │                  without waiting) with run_now_slot.rs (the grant,
+    │       │                  released by drop), model/run_unit_name.rs (the unit
+    │       │                  the run is started under, named by the agent),
+    │       │                  run_unit_must_stop.rs (whether a ceiling killed the
+    │       │                  CLIENT and left the job) and stop_run_unit.rs
+    │       │                  (`systemctl stop` of that unit through the adapter's
+    │       │                  service manager).
     │       │                  ftps/ is vsftpd: system logins gated by a PAM group,
     │       │                  chrooted into /var/lib/maran-ftps/<account> (0711, NOT
     │       │                  0700 — vsftpd chdirs into the home AFTER dropping to the
@@ -942,6 +966,13 @@ someone who could not see the other five is how a deadlock gets built.
 | `ops::cron::cron_lock` | one account | waits |
 | `ops::accounts::account_lock` | one account | **never waits** — refuses |
 | `STDIN_IS_THE_ARTIFACT` (`ops::backup`) | host-wide | waits |
+
+`ops::cron::run_now_slots` (issue #333) is deliberately NOT a row: it is a pair of
+counting semaphores that bound how many runs by hand are in flight — a few per
+account, a few for the host — and it **refuses**, never waits and never orders
+anything, so it contributes no wait-for edge and none of the four properties
+below depends on it. It is taken before any lock, as the first statement of
+`run_cron_entry`, and released by dropping its grant.
 
 Four properties hold this together, and a change that breaks any one of them owes
 a new argument in its place:
