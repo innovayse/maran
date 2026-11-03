@@ -19,6 +19,9 @@ namespace Maran.Host.IntegrationTests;
 [Collection(SharedDatabase.Name)]
 public sealed class ResellerSignInEndpointTests : IAsyncLifetime
 {
+    /// <summary>The features the plan created by the administrator turns on.</summary>
+    private static readonly string[] PlanFeatures = { "sites", "ssl" };
+
     /// <summary>The address the invitation is sent to.</summary>
     private const string Recipient = "nova@example.com";
 
@@ -195,7 +198,7 @@ public sealed class ResellerSignInEndpointTests : IAsyncLifetime
                 maxFtpUsers = 5,
                 maxCronEntries = 5,
                 maxPhpWorkersPerPool = 5,
-                features = new[] { "sites", "ssl" },
+                features = PlanFeatures,
                 cpuQuotaPercent = new { kind = "unlimited" },
                 memoryMaxMb = new { kind = "unlimited" },
                 maxProcesses = new { kind = "unlimited" },

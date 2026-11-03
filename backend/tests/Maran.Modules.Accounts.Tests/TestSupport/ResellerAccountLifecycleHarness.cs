@@ -6,6 +6,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Interfaces;
 using Maran.SharedKernel.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 

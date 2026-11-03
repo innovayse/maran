@@ -22,6 +22,9 @@ namespace Maran.Host.IntegrationTests;
 [Collection(SharedDatabase.Name)]
 public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
 {
+    /// <summary>The two account names the racing creations ask for.</summary>
+    private static readonly string[] RacerNames = { "racerone", "racertwo" };
+
     /// <summary>The feature a reseller's envelope does not sell, which a plan may therefore not include.</summary>
     private const string UnsoldFeature = "sites";
 
@@ -375,7 +378,7 @@ public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
         Assert.Equal("ResellerAccountLimitReached", await ProblemDocument.CodeAsync(loser));
         using var winnerBody = JsonDocument.Parse(await winner.Content.ReadAsStringAsync());
         var winnerName = winnerBody.RootElement.GetProperty("name").GetString();
-        var loserName = new[] { "racerone", "racertwo" }.Single(name => { return name != winnerName; });
+        var loserName = RacerNames.Single(name => { return name != winnerName; });
         Assert.Equal(2, await world.AccountsAsync(async accounts =>
         {
             return await accounts.Accounts.CountAsync(account => account.ResellerId == world.Alpha.ResellerId);

@@ -27,6 +27,13 @@ namespace Maran.ArchitectureTests;
 /// </remarks>
 public sealed class ViewAsAccessDeclarationTests
 {
+    /// <summary>The two violations the reseller-kind controller must be named for.</summary>
+    private static readonly string[] ResellerViewAsViolations =
+    {
+        "UndeclaredResellerViewAsController.OwnAsync declares no ViewAsAccess",
+        "UndeclaredResellerViewAsController.SharedAsync declares no ViewAsAccess",
+    };
+
     /// <summary>Every composed action a view-as token can reach declares its access, and declares it consistently.</summary>
     [Fact]
     public void Every_composed_action_a_view_as_token_can_reach_is_classified()
@@ -117,11 +124,7 @@ public sealed class ViewAsAccessDeclarationTests
             Array.Empty<PinnedSafeMutation>());
 
         Assert.Equal(
-            new[]
-            {
-                "UndeclaredResellerViewAsController.OwnAsync declares no ViewAsAccess",
-                "UndeclaredResellerViewAsController.SharedAsync declares no ViewAsAccess",
-            },
+            ResellerViewAsViolations,
             violations);
     }
 
