@@ -348,3 +348,93 @@ The code does not exist when this note is written. Nothing below has been run.
   accounts reaches the administrator as a usable signal rather than noise.
 - A coordinated replacement of artifact, sidecar and manifest (R-B2) is out of what verification can
   detect, and no control in this change addresses it.
+
+## Deviations found when the code landed
+
+Added after the code, by reading it; the sections above are unchanged and still describe the
+requirements. The second reviewer remains **OUTSTANDING**: nothing here discharges it, and no
+requirement above is weakened by being listed below. Each item says where the code is weaker than
+the requirement, or where it went further than the note asked. Files read: `ops/src/backup/verify_backup.rs`,
+`verification_placement.rs`, `archive/read_manifest.rs`, `agent/src/services/backup/validated_verification.rs`,
+`reported_verify_backup.rs`, `backup_status.rs`, and in the backend `BackupVerifier`,
+`BackupVerificationAnnouncer`, `BackupVerificationAgentErrorTranslator`, `BackupRunner`,
+`VerifyBackupCommandHandler`, `BackupVerifyRateLimitPolicy`.
+
+### Weaker than the requirement
+
+1. **Dump members are checked for presence in the listing only (R-A2, R-A5).** `require_dumps_present`
+   looks each manifest database up, by a name re-validated through `DatabaseName`, in the member
+   names `scan_members` returned. It checks neither the member's type nor its digest. R-A5 allowed
+   the digest to be dropped if the limit was stated, and it is stated (the doc comment of
+   `verify_backup`, docs/backups/verification.md). R-A2 did NOT allow the type check to be dropped for
+   dumps: the "What a reviewer must check" test, an archive whose `databases/x.sql` is a hardlink that
+   verification must refuse, **does not hold**. A hardlinked or symlinked `databases/x.sql` passes
+   verification. What covers it: the dump is never read by a verification, so a link wearing its name
+   is inert to it; the artifact's own SHA-256 (step 3) covers every byte of the archive; and a restore
+   extracts the dump and refuses it at the digest it checks before the first drop. The reason is the
+   one this note's author could not verify: the listing carries names only, and member types would need
+   a second bounded read no existing unit provides. The manifest, by contrast, IS refused when it is
+   not a regular file with one link (below).
+2. **The artifact and the sidecar are judged with `symlink_metadata`, not opened by descriptor with
+   `O_NOFOLLOW` (R-C1, R-C4).** `is_plain_file_owned_by` requires a regular file, owner root and one
+   link; `read_sidecar` and `checksum_file` then open by PATH. The account's directory is reached
+   through `open_account_directory`, the same inode checks a restore and a delete make of the root and
+   of that directory, so a swap needs write access to a root-only directory, which is out of scope. The
+   window that remains: between the `symlink_metadata` check and the later open, an actor who can
+   write root-owned files could replace the entry. R-C1 asked for the stronger shape and this is not
+   it. The `tar` runs read the artifact by path as well.
+3. **No panel-side bound of one verification per backup, and it runs inline (R-D3).** The note
+   required that the panel not queue verifications without bound and not make a hung verification hold
+   the next run's slot. Nothing in `BackupVerifier`, the handler or `BackupRunner` limits concurrent
+   verifications of one backup. What bounds them: the agent's per-account backup lock refuses a second
+   operation at once (`AlreadyRunning`, shown as "an operation is running"); the endpoint's rate limit
+   (below); and the agent's call-class deadlines. After a run, `VerifyCompletedAsync` is awaited
+   inside the run's own handler (`BackupRunHandler`, `CreateBackupCommandHandler`,
+   `AccountBackupService`), so the handler waits for the verification up to those deadlines. It never
+   makes the run fail, but it does lengthen the handler. docs/backups/verification.md previously said
+   "the panel runs one verification per backup at a time"; that sentence described no code and has been
+   removed.
+
+### Went further, or changed behaviour beyond the new rpc
+
+4. **`read_manifest` is stricter for every caller, restore included.** It now refuses a manifest
+   that is not a regular file with one link (`MemberNotRegularFile`, judged by `symlink_metadata` on
+   what the extraction left) and one larger than 4 MiB (`ManifestTooLarge`), before it is parsed. This
+   closes R-A2 and R-A4 for the manifest, and a restore gets both refusals too.
+5. **A new scratch directory, `<bulk scratch root>/verify/<id>`** (`AgentPaths::backup_verification_scratch_dir`),
+   sits beside `backup/`, not inside it, so a verification's cleanup can never delete the rollback
+   dumps of a killed restore of the same id. It is removed on every path out of the verification;
+   one left by a kill is removed at the next start by the startup reaper, which deletes everything under
+   the bulk root except `backup/`.
+6. **Two existing errors now answer `VALIDATION_FAILED` for every caller, restore included.**
+   `UnexpectedArchiveMember` and `ManifestAccountMismatch` were system failures; they are findings
+   about stored bytes, and the panel needs them apart from a host fault (R-G1). A restore that meets
+   them now reports a refusal that left the account untouched rather than a system failure.
+7. **The verify endpoint has its own rate-limit bucket** (`BackupVerifyRateLimitPolicy`, per hosting
+   account, default 10 an hour, `RateLimiting__BackupVerifyMaxRequests` and
+   `RateLimiting__BackupVerifyWindowSeconds`). It bounds the I/O of each press. The verification the
+   panel starts after a run is not an HTTP request and is not counted.
+8. **Mail is sent only on the transition into `Failed` (R-H2).** `BackupVerificationAnnouncer` mails
+   when the backup was not already failed, whether the finding came from a run or a click; a repeat
+   finding, even with a different code, is silent, and a backup found sound and later damaged again
+   mails again. The window the note left open is therefore a state change, not a time. A mail that
+   cannot be requested is logged at warning and not re-sent, because the backup is then already failed.
+9. **A verification that could not run is its own audit action, `BackupVerificationNotPerformed`
+   (R-G2, R-I2).** It is neither `BackupVerified` nor `BackupVerificationFailed`, writes no state and
+   mails nothing. The translator decides what is a finding by the agent client's code:
+   `AgentValidationFailed` and `AgentNotFound` are findings (the latter recorded as an artifact that
+   cannot be found), everything else is "not performed". `AgentAlreadyExists`, the lock's wire code,
+   is shown as the backup-operation-running conflict.
+
+### What the author of the code could not verify
+
+- Behaviour under the unit's real sandbox (`ProtectSystem`, syscall filter, `PrivateTmp`, cleared
+  environment). The unit file is not changed by this diff; the polygon test reads a real artifact but
+  was not shown to run under the production unit.
+- `tar` and gzip on every supported distribution and both architectures: how each reports a truncated
+  stream or a member of an unexpected type. The artifact digest is the control that does not depend on
+  it.
+- Performance on a large archive: how long a verification of a very large artifact takes against the
+  call-class deadlines, and the cost of many accounts finishing in the same hour.
+- That the dump-member and descriptor-open gaps in items 1 and 2 are acceptable. That is the
+  reviewer's decision, not the author's.
