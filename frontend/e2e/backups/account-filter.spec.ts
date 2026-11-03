@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
@@ -78,6 +79,7 @@ const BOB_COPY: Backup = { ...ALICE_COPY, id: '33333333-3333-3333-3333-333333333
 const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => readonly string[]> => {
   await stubSignedIn(page, user)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])

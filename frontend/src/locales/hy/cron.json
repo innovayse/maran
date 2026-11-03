@@ -38,13 +38,6 @@
         "builder": "Կառուցիչ",
         "raw": "Արտահայտություն"
       },
-      "frequencies": {
-        "everyMinute": "Ամեն րոպե",
-        "hourly": "Ամեն ժամ",
-        "daily": "Ամեն օր",
-        "weekly": "Ամեն շաբաթ",
-        "monthly": "Ամեն ամիս"
-      },
       "fields": {
         "frequency": "Որքան հաճախ",
         "minute": "Րոպե",

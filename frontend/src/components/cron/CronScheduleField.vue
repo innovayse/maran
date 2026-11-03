@@ -10,6 +10,11 @@
  * splits it into the five fields the contract carries. It is the escape hatch that keeps the
  * builder from having to grow.
  *
+ * **Every choice in the builder comes from the panel** (`GET /api/v1/cron-options`, held by the
+ * cron options store): the frequencies, the weekdays, and the hour, minute and day of the month as
+ * selects rather than free text. A select cannot be typed wrong, and the module's validator still
+ * decides what is accepted. The screen that mounts this field is the one that reads the lists.
+ *
  * The component emits the schedule, or `null` when this panel would not send it. `null` is a
  * refusal made HERE, before any request: `utils/cronSchedule.ts` mirrors the module's own
  * `CronScheduleValidator`, so an expression that cannot be a schedule is named as such instead of
@@ -27,9 +32,7 @@ import {
   isValidCronSchedule,
   parseCronExpression,
 } from '../../utils/cronSchedule'
-import { weekdayName } from '../../utils/weekdayName'
-import { useLocaleStore } from '../../stores/locale'
-import { WEEKDAY_KEYS } from '../../types/weekday'
+import { useCronOptionsStore } from '../../stores/cronOptions'
 import type { CronSchedule, CronScheduleFrequency } from '../../types/cronEntry'
 
 /** Which way the operator is currently writing the schedule. */
@@ -56,7 +59,11 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: CronSchedule | null): void
 }>()
 
-/** The frequencies the builder offers, in the order they read. */
+/**
+ * The frequencies this builder knows how to turn into five fields. The choices OFFERED come from the
+ * panel (`GET /api/v1/cron-options`); this list is only what narrows a value the panel named to one
+ * `buildCronSchedule` can map, so a frequency a newer panel adds is ignored rather than guessed at.
+ */
 const FREQUENCIES: readonly CronScheduleFrequency[] = [
   'everyMinute',
   'hourly',
@@ -66,7 +73,7 @@ const FREQUENCIES: readonly CronScheduleFrequency[] = [
 ]
 
 const { t } = useI18n()
-const localeStore = useLocaleStore()
+const optionsStore = useCronOptionsStore()
 
 /** Which mode the operator is in. Builder first: it is the one that cannot be got wrong. */
 const mode: Ref<ScheduleMode> = ref('builder')
@@ -100,23 +107,29 @@ const modeOptions: ComputedRef<SegmentOption[]> = computed(() => {
   ]
 })
 
-/** The frequency choices, already translated. */
+/** The frequency choices, named by the panel in the interface language. */
 const frequencyOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return FREQUENCIES.map((value) => {
-    return { value, label: t(`cron.schedule.frequencies.${value}`) }
-  })
+  return optionsStore.options.frequencies
 })
 
-/**
- * The weekday choices, named in the interface language; the value is the number cron uses.
- *
- * The position in {@link WEEKDAY_KEYS} IS the cron number — cron counts Sunday as 0 — so the two
- * are related by the order of one list rather than by a second table that could disagree with it.
- */
+/** The weekday choices; the value is the number cron uses, with Sunday as 0. */
 const weekdayOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return WEEKDAY_KEYS.map((key, index) => {
-    return { value: String(index), label: weekdayName(key, localeStore.current) }
-  })
+  return optionsStore.options.weekdays
+})
+
+/** The days of the month the panel offers. */
+const dayOfMonthOptions: ComputedRef<SelectOption[]> = computed(() => {
+  return optionsStore.options.daysOfMonth
+})
+
+/** The hours of the day the panel offers. */
+const hourOptions: ComputedRef<SelectOption[]> = computed(() => {
+  return optionsStore.options.hours
+})
+
+/** The minutes of the hour the panel offers. */
+const minuteOptions: ComputedRef<SelectOption[]> = computed(() => {
+  return optionsStore.options.minutes
 })
 
 /** Whether the builder's frequency uses a minute of the hour. */
@@ -275,6 +288,7 @@ watch(
         :model-value="frequency"
         :options="frequencyOptions"
         :label="t('cron.schedule.fields.frequency')"
+        :load-error="optionsStore.errorMessage"
         @update:model-value="changeFrequency"
       />
       <UiSelect
@@ -282,28 +296,32 @@ watch(
         :model-value="dayOfWeek"
         :options="weekdayOptions"
         :label="t('cron.schedule.fields.dayOfWeek')"
+        :load-error="optionsStore.errorMessage"
         @update:model-value="dayOfWeek = $event"
       />
-      <UiInput
+      <UiSelect
         v-if="frequency === 'monthly'"
         :model-value="dayOfMonth"
+        :options="dayOfMonthOptions"
         :label="t('cron.schedule.fields.dayOfMonth')"
-        mono
+        :load-error="optionsStore.errorMessage"
         @update:model-value="dayOfMonth = $event"
       />
       <div v-if="usesHour || usesMinute" class="grid grid-cols-2 gap-4">
-        <UiInput
+        <UiSelect
           v-if="usesHour"
           :model-value="hour"
+          :options="hourOptions"
           :label="t('cron.schedule.fields.hour')"
-          mono
+          :load-error="optionsStore.errorMessage"
           @update:model-value="hour = $event"
         />
-        <UiInput
+        <UiSelect
           v-if="usesMinute"
           :model-value="minute"
+          :options="minuteOptions"
           :label="t('cron.schedule.fields.minute')"
-          mono
+          :load-error="optionsStore.errorMessage"
           @update:model-value="minute = $event"
         />
       </div>

@@ -49,7 +49,9 @@ import CronEnvironmentEditor from '../../components/cron/CronEnvironmentEditor.v
 import CronRunResultDialog from '../../components/cron/CronRunResultDialog.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
+import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
 import { useAccountsStore } from '../../stores/accounts'
+import { useCronOptionsStore } from '../../stores/cronOptions'
 import { useCronStore } from '../../stores/cron'
 import { useCronRunsStore } from '../../stores/cronRuns'
 import { cronRunResultOf } from '../../utils/cronRunResultOf'
@@ -59,6 +61,7 @@ import { usePlanLimit } from '../../composables/usePlanLimit'
 
 const { t } = useI18n()
 const store = useCronStore()
+const optionsStore = useCronOptionsStore()
 /** Whether the plan still allows another cron entry (issue #312); advice, the endpoint enforces. */
 const { reached: planLimitReached, reason: planLimitReason } = usePlanLimit('cronEntries', toRef(store, 'entries'))
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
@@ -293,6 +296,10 @@ const dismissNotice = (): void => {
 }
 
 onMounted(start)
+
+// The schedule builder's lists are named by the panel in the interface language, so they are read
+// when the screen opens and again when the language changes.
+useReloadOnLocale(optionsStore.load)
 </script>
 
 <template>

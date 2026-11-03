@@ -34,17 +34,20 @@ import CronRunResultDialog from '../../components/cron/CronRunResultDialog.vue'
 import CronRunsTable from '../../components/cron/CronRunsTable.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useListLabels } from '../../composables/useListLabels'
+import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
 import { useServerTable } from '../../composables/useServerTable'
+import { useCronOptionsStore } from '../../stores/cronOptions'
 import { useCronStore } from '../../stores/cron'
 import { useCronRunsStore } from '../../stores/cronRuns'
 import { cronRunResultOf } from '../../utils/cronRunResultOf'
-import { CRON_RUN_OUTCOMES, type CronRunOutcome, type CronRunSummary } from '../../types/cronRun'
+import { CRON_RUN_OUTCOMES, type CronRunSummary } from '../../types/cronRun'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 
 const { t } = useI18n()
 const route = useRoute()
 const store = useCronRunsStore()
 const cronStore = useCronStore()
+const optionsStore = useCronOptionsStore()
 const labels = useListLabels()
 const { fixedAccountId } = useAccountChoice()
 
@@ -93,22 +96,22 @@ const subtitle: ComputedRef<string> = computed(() => {
   return entry?.command ?? entryId.value
 })
 
-/** The outcomes the filter offers, after an "any outcome" choice. */
+/** The outcomes the filter offers, named by the panel, after an "any outcome" choice. */
 const outcomeOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: '', label: t('common.list.any') },
-    ...CRON_RUN_OUTCOMES.map((outcome) => {
-      return { value: outcome, label: t(`cron.runs.outcome.${outcome}`) }
-    }),
-  ]
+  return [{ value: '', label: t('common.list.any') }, ...optionsStore.options.runOutcomes]
 })
 
 /** One removable chip per applied filter. */
 const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
-  const outcome = table.filters.value.outcome as CronRunOutcome | ''
-  return outcome !== ''
-    ? [labels.chip('outcome', t('cron.runs.filters.outcome'), t(`cron.runs.outcome.${outcome}`))]
-    : []
+  const outcome = table.filters.value.outcome ?? ''
+  if (outcome === '') {
+    return []
+  }
+  // The panel's own name for the outcome; the raw value until the lists arrive.
+  const named = optionsStore.options.runOutcomes.find((choice) => {
+    return choice.value === outcome
+  })
+  return [labels.chip('outcome', t('cron.runs.filters.outcome'), named?.label ?? outcome)]
 })
 
 /** Whether the latest answer arrived and holds no rows at all. */
@@ -160,6 +163,9 @@ const openFilters = (): void => {
 const closeFilters = (): void => {
   filtersOpen.value = false
 }
+
+// The filter's outcomes are named by the panel in the interface language.
+useReloadOnLocale(optionsStore.load)
 
 // The command in the subtitle comes from the account's crontab; read it when the cron screen has not.
 onMounted(async () => {

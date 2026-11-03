@@ -1,7 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import type { Account } from '../../src/types/account'
@@ -26,6 +28,7 @@ const COMMAND = '/usr/bin/php /home/alice/cleanup.php'
 const openCronPage = async (page: Page, entries: CronEntry[]): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubCronEntries(page, entries)
@@ -45,8 +48,10 @@ test('the builder maps a weekly pattern onto the five fields the module declares
   await page.getByRole('combobox', { name: 'How often' }).click()
   await page.getByRole('option', { name: 'Every week' }).click()
 
-  await page.getByRole('textbox', { name: 'Minute' }).fill('30')
-  await page.getByRole('textbox', { name: 'Hour' }).fill('3')
+  await page.getByRole('combobox', { name: 'Minute' }).click()
+  await page.getByRole('option', { name: '30', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Hour' }).click()
+  await page.getByRole('option', { name: '03', exact: true }).click()
   await page.getByRole('combobox', { name: 'Day of the week' }).click()
   await page.getByRole('option', { name: 'Tuesday' }).click()
 
@@ -93,4 +98,56 @@ test('switching the builder back to daily drops the weekday it no longer uses', 
 
   await expect(page.getByTestId('cron-schedule-preview')).toHaveText('0 3 * * *')
   await expect(page.getByRole('combobox', { name: 'Day of the week' })).toHaveCount(0)
+})
+
+// The hour, the minute and the day of the month are chosen from lists the panel supplies
+// (GET /api/v1/cron-options), not typed. The assertions walk the whole lists rather than sampling
+// them: a list cut short would still offer a valid-looking choice, and only the ends and the
+// length say it is the whole closed set the validator accepts.
+test('the builder offers every hour, minute and day of the month, and nothing to type', async ({ page }) => {
+  await openCronPage(page, [])
+
+  // Positive control: the builder is on the page, so a later absence of a textbox is a fact about
+  // the builder and not about this probe looking at the wrong screen.
+  await expect(page.getByRole('combobox', { name: 'Hour' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Hour' })).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Minute' })).toHaveCount(0)
+
+  await page.getByRole('combobox', { name: 'Hour' }).click()
+  await expect(page.getByRole('option')).toHaveCount(24)
+  await expect(page.getByRole('option').first()).toHaveText('00')
+  await expect(page.getByRole('option').last()).toHaveText('23')
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('combobox', { name: 'Minute' }).click()
+  await expect(page.getByRole('option')).toHaveCount(60)
+  await expect(page.getByRole('option').last()).toHaveText('59')
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('combobox', { name: 'How often' }).click()
+  await page.getByRole('option', { name: 'Every month' }).click()
+  await expect(page.getByRole('textbox', { name: 'Day of the month' })).toHaveCount(0)
+  await page.getByRole('combobox', { name: 'Day of the month' }).click()
+  await expect(page.getByRole('option')).toHaveCount(31)
+  await page.getByRole('option', { name: '15', exact: true }).click()
+
+  await expect(page.getByTestId('cron-schedule-preview')).toHaveText('0 3 15 * *')
+})
+
+// The names of the frequencies and the weekdays are the panel's, in the language of the request, so
+// a language switch has to ask again; a list frozen in the language the page opened in would still
+// have five frequencies and seven days, which is why the words themselves are asserted.
+test('the builder lists follow a language switch', async ({ page }) => {
+  await setPersistedLocale(page, 'en')
+  await openCronPage(page, [])
+
+  await page.getByRole('combobox', { name: 'How often' }).click()
+  await expect(page.getByRole('option', { name: 'Every day' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('banner').getByTestId('locale-switcher').locator('[aria-haspopup="menu"]').click()
+  await page.getByRole('menuitemradio', { name: 'Русский', exact: true }).click()
+
+  await page.getByRole('combobox', { name: 'Как часто' }).click()
+  await expect(page.getByRole('option', { name: 'Каждый день' })).toBeVisible()
 })

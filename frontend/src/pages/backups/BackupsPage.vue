@@ -49,7 +49,9 @@ import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useBackupHistoryFilters } from '../../composables/useBackupHistoryFilters'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
+import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
 import { useServerTable } from '../../composables/useServerTable'
+import { useBackupOptionsStore } from '../../stores/backupOptions'
 import { useBackupsStore } from '../../stores/backups'
 import { useLocaleStore } from '../../stores/locale'
 import { backupAccountName } from '../../utils/backupAccountName'
@@ -74,6 +76,7 @@ type BackupDialog =
 
 const { t } = useI18n()
 const store = useBackupsStore()
+const optionsStore = useBackupOptionsStore()
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { filter: accountListFilter, spec: accountSpec, name: accountFilterName } = useAccountFilter()
 const { isAdmin, isCustomer } = useCallerRole()
@@ -265,6 +268,9 @@ watch(
   },
   { immediate: true },
 )
+
+// The filter sheet's statuses and reasons are named by the panel in the interface language.
+useReloadOnLocale(optionsStore.load)
 </script>
 
 <template>

@@ -4,6 +4,7 @@ import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupRestore, stubBackups } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { Account } from '../../src/types/account'
 import type { Backup } from '../../src/types/backup'
@@ -48,6 +49,7 @@ const COMPLETED: Backup = {
 const openDialog = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])
@@ -354,6 +356,7 @@ test('a partial restore reports the counts in Russian words when the interface i
   await setPersistedLocale(page, 'ru')
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])

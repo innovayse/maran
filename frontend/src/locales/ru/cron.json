@@ -38,13 +38,6 @@
         "builder": "Конструктор",
         "raw": "Выражение"
       },
-      "frequencies": {
-        "everyMinute": "Каждую минуту",
-        "hourly": "Каждый час",
-        "daily": "Каждый день",
-        "weekly": "Каждую неделю",
-        "monthly": "Каждый месяц"
-      },
       "fields": {
         "frequency": "Как часто",
         "minute": "Минута",

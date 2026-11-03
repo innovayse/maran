@@ -9,6 +9,7 @@ import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { BackupSchedule } from '../../src/types/backupSchedule'
 import type { PanelModule } from '../../src/types/module'
@@ -44,6 +45,7 @@ const REFUSAL = 'The schedule could not be read.'
 const shell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [])
 }

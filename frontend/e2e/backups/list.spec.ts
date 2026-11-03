@@ -3,6 +3,7 @@ import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupDeletion, stubBackups, stubBackupsProblem } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { Account } from '../../src/types/account'
@@ -63,6 +64,7 @@ const FAILED: Backup = {
 test('the backups screen shows the empty state when the panel reports no backups', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [])
@@ -78,6 +80,7 @@ test('a row names the owning account, its status and how many databases the copy
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])
@@ -132,6 +135,7 @@ test('a copy of a deleted account is named by the username preserved on the back
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   // ALICE alone: the backup's own account is not in this list, because it was deleted.
   await stubAccounts(page, [ALICE])
@@ -151,6 +155,7 @@ test('a copy of a deleted account is named by the username preserved on the back
 test('a failed backup shows its failure code and no size at all', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [FAILED])
@@ -176,6 +181,7 @@ test('a failed backup shows its failure code and no size at all', async ({ page 
 test('restore is offered on a completed backup and on no other', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED, FAILED])
@@ -212,6 +218,7 @@ test('restore is offered on a completed backup and on no other', async ({ page }
 test('the backups screen offers no remote destination and names none', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])
@@ -241,6 +248,7 @@ test('the backups screen renders the backend RFC 7807 detail verbatim when the l
   const backendDetail = 'The backup service is temporarily unavailable. Try again in a moment.'
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackupsProblem(page, backendDetail)
@@ -260,6 +268,7 @@ test('deleting a backup asks first, sends nothing until it is confirmed, then re
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   const backups: Backup[] = [COMPLETED]
@@ -296,6 +305,7 @@ test('the sidebar links to the backups screen and the page opens with one headin
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [])
@@ -317,6 +327,7 @@ test('the sidebar links to the backups screen and the page opens with one headin
 test('the backups entry draws its own glyph rather than the neutral one', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [])
@@ -344,6 +355,7 @@ test('a row menu opens, moves and closes from the keyboard, and focus returns to
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])
@@ -393,6 +405,7 @@ test('a row menu in a horizontally scrolled table is neither clipped nor lost by
   await page.setViewportSize({ width: 640, height: 700 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])
@@ -450,6 +463,7 @@ test('dismissing the delete confirmation sends no request, and confirm is not th
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   const backups: Backup[] = [COMPLETED]
@@ -505,6 +519,7 @@ test('a failed row is named in words and still carries the code a ticket quotes'
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [FAILED])
@@ -528,6 +543,7 @@ test('a Russian panel names the failure in Russian and keeps the English code be
   await setPersistedLocale(page, 'ru')
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [FAILED_IN_RUSSIAN])
@@ -560,6 +576,7 @@ const AUGUST: Backup = {
 const openHistory = async (page: Page, backups: Backup[]): Promise<() => readonly URL[]> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   return await stubBackups(page, backups)

@@ -1,6 +1,8 @@
 import { expect, test, type Page, type Request } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
+import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -117,6 +119,7 @@ test('a customer creates an SFTP login for their own account without a picker', 
 test('a customer adds a cron entry to their own crontab without a picker', async ({ page }) => {
   const accountsCalls = await signInCustomer(page)
   await stubCronEntries(page, [])
+  await stubCronOptions(page)
   await stubCronEnvironment(page, [])
 
   await page.goto('/cron')
@@ -134,6 +137,7 @@ test('a customer adds a cron entry to their own crontab without a picker', async
 test('a customer takes a backup of their own account without a picker', async ({ page }) => {
   const accountsCalls = await signInCustomer(page)
   await stubBackups(page, [])
+  await stubBackupOptions(page)
 
   await page.goto('/backups')
   await expect(page.getByRole('button', { name: 'Take a backup' })).toBeVisible()

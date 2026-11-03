@@ -6,6 +6,7 @@ import {
 } from '../fixtures/stub-backup-destination-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { BackupDestination } from '../../src/types/backupDestination'
@@ -32,6 +33,7 @@ const DEFAULT_LOCAL: BackupDestination = {
 test('the recorded destination is shown with the directory its copies rest in', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackupDestinations(page, [DEFAULT_LOCAL])
 
@@ -54,6 +56,7 @@ test('a path the panel could not establish is said to be unestablished, not left
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackupDestinations(page, [{ ...DEFAULT_LOCAL, path: null }])
 
@@ -81,6 +84,7 @@ test('a server that has recorded nothing says so instead of reporting a failure'
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackupDestinations(page, [])
 
@@ -96,6 +100,7 @@ test('a server that has recorded nothing says so instead of reporting a failure'
 test("a refusal to read is rendered in the panel's own words", async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackupDestinationsRefusal(page, 403, 'Forbidden', 'This screen is for administrators.')
 
@@ -112,6 +117,7 @@ test("a refusal to read is rendered in the panel's own words", async ({ page }) 
 test('remote storage is described, marked unavailable, and offered by nothing', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackupDestinations(page, [DEFAULT_LOCAL])
 
@@ -139,6 +145,7 @@ test('remote storage is described, marked unavailable, and offered by nothing', 
 test('a credential the panel sent anyway is never rendered', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackupDestinations(page, [
     { ...DEFAULT_LOCAL, accessKeyId: 'AKIAEXAMPLESECRET', secretAccessKey: 'AKIAEXAMPLESECRET' },
@@ -157,6 +164,7 @@ test('a credential the panel sent anyway is never rendered', async ({ page }) =>
 test('an operator reaches the destinations screen through the shell', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackups(page, [])
   await stubBackupDestinations(page, [DEFAULT_LOCAL])
@@ -203,6 +211,7 @@ test('the seeded destination is headed in the operator language with its stored 
   await setPersistedLocale(page, 'ru')
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackupDestinations(page, [SEEDED_IN_RUSSIAN])
 
@@ -224,6 +233,7 @@ test('a destination an operator named is not relabelled and gains no stored-name
   await setPersistedLocale(page, 'ru')
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackupDestinations(page, [OPERATOR_NAMED])
 
@@ -254,6 +264,7 @@ const REMOTE: BackupDestination = {
 test('the destinations list searches, filters by kind and sorts through the panel', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   const requests = await stubBackupDestinations(page, [DEFAULT_LOCAL, REMOTE])
 
@@ -290,6 +301,7 @@ test('the destinations list searches, filters by kind and sorts through the pane
 test('a search matching no destination offers the way back to all of them', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubBackupDestinations(page, [DEFAULT_LOCAL])
 

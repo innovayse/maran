@@ -8,6 +8,7 @@ import {
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubCronEntries, stubCronEntriesProblem, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import type { Account } from '../../src/types/account'
@@ -44,6 +45,7 @@ const NIGHTLY: CronEntry = {
 const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubCronEnvironment(page, [])

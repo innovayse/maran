@@ -4,6 +4,7 @@ import { stubAccountFilteredList } from '../fixtures/stub-account-filtered-list'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import type { Account, MyAccount } from '../../src/types/account'
@@ -69,6 +70,7 @@ const NIGHTLY: CronEntry = {
 const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => readonly string[]> => {
   await stubSignedIn(page, user)
   await stubHealthy(page)
+  await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])

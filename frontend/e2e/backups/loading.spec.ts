@@ -12,6 +12,7 @@ import {
 } from '../fixtures/stub-backup-destination-routes'
 import { stubBackups, stubBackupsProblem } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { Backup } from '../../src/types/backup'
 import type { BackupDestination } from '../../src/types/backupDestination'
@@ -55,6 +56,7 @@ const LOCAL: BackupDestination = {
 const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
 }
 

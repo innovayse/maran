@@ -5,6 +5,7 @@ import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubBackupDestinations } from '../fixtures/stub-backup-destination-routes'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
@@ -36,6 +37,7 @@ test('an operator reaches the schedule and the destinations by clicking, not by 
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [])

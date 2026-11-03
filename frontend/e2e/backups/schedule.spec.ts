@@ -1,6 +1,7 @@
 import { expect, test, type ConsoleMessage, type Locator } from '@playwright/test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import {
   stubBackupScheduleRefusal,
@@ -49,6 +50,7 @@ const ALICE_SCHEDULE: BackupSchedule = {
 test('a server with no schedule is told so, and every field is left blank', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, {})
@@ -59,8 +61,8 @@ test('a server with no schedule is told so, and every field is left blank', asyn
   // Positive control on the probe: the form IS rendered and this locator can read its fields, so
   // their emptiness is a fact about the screen rather than about the probe.
   await expect(page.getByRole('button', { name: 'Save schedule' })).toBeVisible()
-  await expect(page.getByLabel('Hour of the day (UTC)')).toHaveValue('')
-  await expect(page.getByLabel('Copies to keep')).toHaveValue('')
+  await expect(page.getByRole('combobox', { name: 'Hour of the day (UTC)' })).toHaveText('Choose an hour')
+  await expect(page.getByRole('combobox', { name: 'Copies to keep' })).toHaveText('Choose how many')
   // The cadence picker shows its placeholder, not a value nobody chose.
   await expect(page.getByText('Choose how often')).toBeVisible()
 })
@@ -86,6 +88,7 @@ test('a server with no schedule loads with a clean console and no failed request
 
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubShellReads(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
@@ -114,6 +117,7 @@ test('the host-wide policy is named as a scope of its own and is read with no ac
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   const traffic = await stubBackupSchedules(page, {})
@@ -132,6 +136,7 @@ test('the host-wide policy is named as a scope of its own and is read with no ac
 test("choosing an account reads that account's own schedule and shows it", async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   const traffic = await stubBackupSchedules(page, { [ALICE.id]: ALICE_SCHEDULE })
@@ -143,8 +148,8 @@ test("choosing an account reads that account's own schedule and shows it", async
   await page.getByRole('option', { name: 'alice' }).click()
 
   await expect(page.getByText('Nothing is scheduled here', { exact: false })).toHaveCount(0)
-  await expect(page.getByLabel('Hour of the day (UTC)')).toHaveValue('2')
-  await expect(page.getByLabel('Copies to keep')).toHaveValue('4')
+  await expect(page.getByRole('combobox', { name: 'Hour of the day (UTC)' })).toHaveText('02:00')
+  await expect(page.getByRole('combobox', { name: 'Copies to keep' })).toHaveText('4')
   await expect
     .poll(traffic.reads)
     .toEqual(['/api/v1/backup-schedules', `/api/v1/backup-schedules?accountId=${ALICE.id}`])
@@ -160,6 +165,7 @@ test('saving sends exactly the members the command binds, and no weekday on a da
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   const traffic = await stubBackupSchedules(page, {})
@@ -167,8 +173,10 @@ test('saving sends exactly the members the command binds, and no weekday on a da
   await page.goto('/backups/schedule')
   await page.getByRole('combobox', { name: 'How often' }).click()
   await page.getByRole('option', { name: 'Every day' }).click()
-  await page.getByLabel('Hour of the day (UTC)').fill('3')
-  await page.getByLabel('Copies to keep').fill('7')
+  await page.getByRole('combobox', { name: 'Hour of the day (UTC)' }).click()
+  await page.getByRole('option', { name: '03:00' }).click()
+  await page.getByRole('combobox', { name: 'Copies to keep' }).click()
+  await page.getByRole('option', { name: '7', exact: true }).click()
   await page.getByRole('switch', { name: 'Run this schedule' }).click()
   await page.getByRole('button', { name: 'Save schedule' }).click()
 
@@ -193,6 +201,7 @@ test('a refusal about the retained count is shown on that field, once', async ({
   const backendDetail = 'Keep between 1 and 365 copies.'
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, {})
@@ -201,13 +210,18 @@ test('a refusal about the retained count is shown on that field, once', async ({
   await page.goto('/backups/schedule')
   await page.getByRole('combobox', { name: 'How often' }).click()
   await page.getByRole('option', { name: 'Every day' }).click()
-  await page.getByLabel('Hour of the day (UTC)').fill('3')
-  await page.getByLabel('Copies to keep').fill('900')
+  await page.getByRole('combobox', { name: 'Hour of the day (UTC)' }).click()
+  await page.getByRole('option', { name: '03:00' }).click()
+  await page.getByRole('combobox', { name: 'Copies to keep' }).click()
+  await page.getByRole('option', { name: '365', exact: true }).click()
   await page.getByRole('button', { name: 'Save schedule' }).click()
 
   await expect(page.getByText(backendDetail)).toHaveCount(1)
-  await expect(page.getByLabel('Copies to keep')).toHaveAttribute('aria-invalid', 'true')
-  await expect(page.getByLabel('Hour of the day (UTC)')).toHaveAttribute('aria-invalid', 'false')
+  await expect(page.getByRole('combobox', { name: 'Copies to keep' })).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.getByRole('combobox', { name: 'Hour of the day (UTC)' })).toHaveAttribute(
+    'aria-invalid',
+    'false',
+  )
 })
 
 // Four things a number of copies to keep would otherwise be read as promising. Retention prunes on
@@ -216,6 +230,7 @@ test('a refusal about the retained count is shown on that field, once', async ({
 test('the screen says what retention does not cover', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, {})
@@ -241,6 +256,7 @@ test('an operator reaches the schedule through the shell, without typing a URL',
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [])
@@ -283,6 +299,7 @@ test('the summary card shows the next run and that a just-enabled schedule has n
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, {
@@ -307,4 +324,35 @@ test('the summary card shows the next run and that a just-enabled schedule has n
   await expect(page.getByText('Saved, but switched off')).toBeVisible()
   await expect(valueOf('Last run started')).toHaveText('Never run')
   await expect(summary.getByText('Next run', { exact: true })).toHaveCount(0)
+})
+
+// The hour and the number of copies are chosen from lists the panel supplies
+// (GET /api/v1/backup-options), not typed: the whole closed set the server's validator accepts is
+// offered, and nothing outside it can be written. The lists are walked end to end — a list cut
+// short would still look like a valid choice, and only its ends and length say it is complete.
+test('the hour and the number of copies are chosen from the lists the panel supplies', async ({ page }) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubBackupOptions(page)
+  await stubModules(page, LICENSED)
+  await stubAccounts(page, [ALICE])
+  await stubBackupSchedules(page, {})
+
+  await page.goto('/backups/schedule')
+
+  // Positive control: the form is on the page, so the absence of a textbox is a fact about the form.
+  await expect(page.getByRole('combobox', { name: 'Hour of the day (UTC)' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Hour of the day (UTC)' })).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Copies to keep' })).toHaveCount(0)
+
+  await page.getByRole('combobox', { name: 'Hour of the day (UTC)' }).click()
+  await expect(page.getByRole('option')).toHaveCount(24)
+  await expect(page.getByRole('option').first()).toHaveText('00:00')
+  await expect(page.getByRole('option').last()).toHaveText('23:00')
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('combobox', { name: 'Copies to keep' }).click()
+  await expect(page.getByRole('option')).toHaveCount(365)
+  await expect(page.getByRole('option').first()).toHaveText('1')
+  await expect(page.getByRole('option').last()).toHaveText('365')
 })

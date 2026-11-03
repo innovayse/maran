@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -67,6 +68,7 @@ const signInCustomer = async (page: Page): Promise<() => number> => {
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubDatabases(page, [])
   await stubBackups(page, [])
+  await stubBackupOptions(page)
   await stubSites(page, [])
   await stubPhpVersions(page, [])
   await stubSessions(page, [])

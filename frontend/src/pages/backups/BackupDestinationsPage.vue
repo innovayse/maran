@@ -65,8 +65,10 @@ import UiTable from '../../components/ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import { useBackupDestinationKindText } from '../../composables/useBackupDestinationKindText'
 import { useListLabels } from '../../composables/useListLabels'
+import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
 import { useServerTable } from '../../composables/useServerTable'
 import { useBackupDestinationsStore } from '../../stores/backupDestinations'
+import { useBackupOptionsStore } from '../../stores/backupOptions'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
@@ -85,6 +87,7 @@ const KINDS: readonly { kind: BackupDestinationKind; admits: boolean }[] = [
 const { t } = useI18n()
 const kindText = useBackupDestinationKindText()
 const store = useBackupDestinationsStore()
+const optionsStore = useBackupOptionsStore()
 const localeStore = useLocaleStore()
 const labels = useListLabels()
 
@@ -155,25 +158,22 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   ]
 })
 
-/** The kinds the filter offers, after an "any kind" choice. */
+/** The kinds of storage the filter offers, named by the panel, after an "any kind" choice. */
 const kindOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: '', label: t('common.list.any') },
-    ...KINDS.map((entry) => {
-      return { value: entry.kind, label: kindText.label(entry.kind) }
-    }),
-  ]
+  return [{ value: '', label: t('common.list.any') }, ...optionsStore.options.destinationKinds]
 })
 
 /** One removable chip per applied filter. */
 const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
-  // The URL value was honoured only if it names a known kind, so it is found here when it is set.
-  const applied = KINDS.find((entry) => {
-    return entry.kind === table.filters.value.kind
+  // The URL value was honoured only if it names a known kind, so it is set here when it is not empty.
+  const applied = table.filters.value.kind ?? ''
+  if (applied === '') {
+    return []
+  }
+  const named = optionsStore.options.destinationKinds.find((choice) => {
+    return choice.value === applied
   })
-  return applied === undefined
-    ? []
-    : [labels.chip('kind', t('backups.destinations.filters.kind'), kindText.label(applied.kind))]
+  return [labels.chip('kind', t('backups.destinations.filters.kind'), named?.label ?? applied)]
 })
 
 /**
@@ -209,6 +209,9 @@ const clearAll = async (): Promise<void> => {
   table.search.value = ''
   await table.clearFilters()
 }
+
+// The filter's kinds of storage are named by the panel in the interface language.
+useReloadOnLocale(optionsStore.load)
 </script>
 
 <template>
@@ -379,7 +382,12 @@ const clearAll = async (): Promise<void> => {
       @close="closeFilters"
     >
       <template #default="{ draft }">
-        <UiSelect v-model="draft.kind" :label="t('backups.destinations.filters.kind')" :options="kindOptions" />
+        <UiSelect
+          v-model="draft.kind"
+          :label="t('backups.destinations.filters.kind')"
+          :options="kindOptions"
+          :load-error="optionsStore.errorMessage"
+        />
       </template>
     </UiFilterSheet>
   </section>
