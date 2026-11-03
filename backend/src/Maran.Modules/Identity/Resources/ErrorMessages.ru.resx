@@ -64,7 +64,10 @@
     <value>Двухфакторная аутентификация не включена.</value>
   </data>
   <data name="PasswordTooWeak">
-    <value>Выберите пароль не короче 12 символов, отличающийся от имени пользователя.</value>
+    <value>Выберите пароль не короче {1} символов.</value>
+  </data>
+  <data name="PasswordSameAsUsername">
+    <value>Выберите пароль, отличающийся от имени пользователя.</value>
   </data>
   <data name="UsernameInvalidFormat">
     <value>Имя пользователя может содержать только буквы, цифры, точки, дефисы и подчёркивания.</value>

@@ -64,7 +64,10 @@
     <value>Երկգործոն վավերացումը միացված չէ։</value>
   </data>
   <data name="PasswordTooWeak">
-    <value>Ընտրեք առնվազն 12 նիշ գաղտնաբառ, որը տարբերվում է օգտանունից։</value>
+    <value>Ընտրեք առնվազն {1} նիշ գաղտնաբառ։</value>
+  </data>
+  <data name="PasswordSameAsUsername">
+    <value>Ընտրեք օգտանունից տարբերվող գաղտնաբառ։</value>
   </data>
   <data name="UsernameInvalidFormat">
     <value>Օգտանունը կարող է պարունակել միայն տառեր, թվեր, կետեր, գծիկներ և ընդգծումներ։</value>

@@ -24,6 +24,12 @@ public sealed class ExceptionMiddleware
     /// <summary>Code answered when a command failed its validator and the failure named no code of its own.</summary>
     private const string ValidationFailedCode = "HostValidationFailed";
 
+    /// <summary>
+    /// FluentValidation's own name for a minimum-length bound in a failure's placeholders; a validator
+    /// that appends it makes the bound available to the text as <c>{1}</c>.
+    /// </summary>
+    private const string MinimumLengthPlaceholder = "MinLength";
+
     /// <summary>Media type of an RFC 7807 payload; must be handed to the JSON writer, not set beforehand.</summary>
     private const string ProblemContentType = "application/problem+json";
 
@@ -99,9 +105,9 @@ public sealed class ExceptionMiddleware
             return;
         }
 
-        var (code, field) = ResolveValidationCode(validation);
+        var (code, arguments) = ResolveValidationCode(validation);
         var errorTextProvider = context.RequestServices.GetService<IErrorTextProvider>();
-        var detail = errorTextProvider?.Resolve(code, field) ?? code;
+        var detail = errorTextProvider?.Resolve(code, arguments) ?? code;
 
         var problem = new ProblemDetails
         {
@@ -129,25 +135,31 @@ public sealed class ExceptionMiddleware
     /// says so with <c>.WithMessage("PasswordTooWeak")</c>; everything else collapses to the
     /// generic code, which at least is translated.
     /// <para>
-    /// The field name is handed to the text lookup as its one format argument, so a sentence may
-    /// name the value it refuses as <c>{0}</c> — <c>RequestParameterInvalid</c> does, because a
-    /// value MVC could not bind is otherwise anonymous. A sentence with no placeholder ignores it.
+    /// The text lookup receives the field name as <c>{0}</c>, so a sentence may name the value it
+    /// refuses — <c>RequestParameterInvalid</c> does, because a value MVC could not bind is
+    /// otherwise anonymous. When the validator appended a <c>MinLength</c> placeholder the bound
+    /// follows as <c>{1}</c>, so a sentence states the length the operator's policy requires rather
+    /// than a number written into the resource (<c>PasswordTooWeak</c>). A sentence with no
+    /// placeholder ignores both.
     /// </para>
     /// </remarks>
     /// <param name="validation">The failure raised by the command's validator.</param>
-    /// <returns>A machine-stable error code that names a resource entry, and the field it is about.</returns>
-    private static (string Code, string Field) ResolveValidationCode(ValidationException validation)
+    /// <returns>A machine-stable error code that names a resource entry, and the text's format arguments.</returns>
+    private static (string Code, object[] Arguments) ResolveValidationCode(ValidationException validation)
     {
         foreach (var failure in validation.Errors)
         {
             var message = failure.ErrorMessage;
             if (!string.IsNullOrEmpty(message) && message.All(char.IsLetterOrDigit))
             {
-                return (message, failure.PropertyName ?? string.Empty);
+                var field = failure.PropertyName ?? string.Empty;
+                return failure.FormattedMessagePlaceholderValues.TryGetValue(MinimumLengthPlaceholder, out var bound)
+                    ? (message, [field, bound])
+                    : (message, [field]);
             }
         }
 
-        return (ValidationFailedCode, string.Empty);
+        return (ValidationFailedCode, [string.Empty]);
     }
 
     /// <summary>Writes the generic 500 problem response. Never includes exception detail.</summary>

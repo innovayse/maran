@@ -227,4 +227,18 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
 
         Assert.Equal(ErrorType.NotFound, result.Error!.Type);
     }
+
+    /// <summary>A new password equal to the caller's username is refused and nothing is changed.</summary>
+    [Fact]
+    public async Task A_new_password_equal_to_the_username_is_refused_and_changes_nothing()
+    {
+        var command = new ChangePasswordCommand(OldPassword, "admin", _userId, Guid.Empty, "203.0.113.7", "agent");
+
+        var result = await NewHandler().HandleAsync(command, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PasswordSameAsUsername", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        Assert.True(_hasher.Verify(OldPassword, (await ReloadUserAsync()).PasswordHash));
+    }
 }
