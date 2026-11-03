@@ -103,6 +103,28 @@ public sealed class ViewAsAccessDeclarationTests
             violations);
     }
 
+    /// <summary>The census asks about reseller-policy actions, which a reseller-kind view-as token reaches.</summary>
+    /// <remarks>
+    /// The refusing control for the reseller edge of issue #317: an administrator viewing as a reseller
+    /// holds the reseller role, so an action naming the reseller-only or the admin-or-reseller policy is
+    /// reachable and must declare itself; only the administrator-only action is left alone.
+    /// </remarks>
+    [Fact]
+    public void The_census_asks_about_actions_a_reseller_kind_view_as_token_reaches()
+    {
+        var violations = ViewAsAccessCensus.FindViolations(
+            new[] { typeof(UndeclaredResellerViewAsController) },
+            Array.Empty<PinnedSafeMutation>());
+
+        Assert.Equal(
+            new[]
+            {
+                "UndeclaredResellerViewAsController.OwnAsync declares no ViewAsAccess",
+                "UndeclaredResellerViewAsController.SharedAsync declares no ViewAsAccess",
+            },
+            violations);
+    }
+
     /// <summary>The census says nothing about every legitimate way of classifying an action.</summary>
     /// <remarks>The inverse control: a checker that refuses everything passes every test above.</remarks>
     [Fact]
