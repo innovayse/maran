@@ -20,10 +20,17 @@ public static class SubUserMapper
         ArgumentNullException.ThrowIfNull(row);
 
         return new SubUserDto(
-            row.Id, row.Username, row.Email, row.State, row.Grants.Members(), row.CreatedAt, row.LastLoginAt);
+            row.Id,
+            row.Username,
+            row.Email,
+            row.State,
+            row.Grants.Members(),
+            row.CreatedAt,
+            row.LastLoginAt,
+            row.IsOffer);
     }
 
-    /// <summary>Projects a login and its membership into the outward view.</summary>
+    /// <summary>Projects a login and its membership into the outward view, always as a member.</summary>
     /// <param name="user">The sub-user's login.</param>
     /// <param name="membership">The sub-user's membership in the owner's account.</param>
     /// <returns>The sub-user as the screens see them.</returns>
@@ -39,6 +46,7 @@ public static class SubUserMapper
             user.Lifecycle,
             membership.Grants.Members(),
             user.CreatedAt,
-            user.LastLoginAt);
+            user.LastLoginAt,
+            false);
     }
 }

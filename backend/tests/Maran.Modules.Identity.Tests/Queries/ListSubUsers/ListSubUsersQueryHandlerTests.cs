@@ -39,6 +39,7 @@ public sealed class ListSubUsersQueryHandlerTests : IDisposable
         var row = Assert.Single(result.Value.Items);
         Assert.Equal("deploy", row.Username);
         Assert.Equal(UserLifecycle.Active, row.State);
+        Assert.False(row.IsOffer);
         Assert.Equal([AccountFeature.Databases, AccountFeature.Backups], row.Features);
         Assert.Equal(1, result.Value.Total);
     }
@@ -105,8 +106,26 @@ public sealed class ListSubUsersQueryHandlerTests : IDisposable
         Assert.Equal("bob@example.com", row.Username);
         Assert.Equal("bob@example.com", row.Email);
         Assert.NotEqual(person.Id, row.Id);
+        Assert.True(row.IsOffer);
         Assert.Null(row.LastLoginAt);
         Assert.Equal([AccountFeature.Databases], row.Features);
+    }
+
+    /// <summary>A mixed list marks each offer as an offer and each member as a member.</summary>
+    [Fact]
+    public async Task A_mixed_list_marks_offers_and_members_correctly()
+    {
+        await _world.SeedMemberAsync("member", AccountFeature.None);
+        var person = await SeedOfferedLoginAsync("offered", "offered@example.com");
+
+        var result = await NewHandler().HandleAsync(new ListSubUsersQuery(), CancellationToken.None);
+
+        Assert.Equal(2, result.Value.Items.Count);
+        var member = Assert.Single(result.Value.Items, row => { return !row.IsOffer; });
+        var offer = Assert.Single(result.Value.Items, row => { return row.IsOffer; });
+        Assert.Equal("member", member.Username);
+        Assert.Equal("offered@example.com", offer.Username);
+        Assert.NotEqual(person.Id, offer.Id);
     }
 
     /// <summary>Members and offers are paged and counted together, across the page boundary.</summary>

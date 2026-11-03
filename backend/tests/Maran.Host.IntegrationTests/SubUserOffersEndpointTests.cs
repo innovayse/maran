@@ -77,6 +77,8 @@ public sealed class SubUserOffersEndpointTests : IAsyncLifetime
         using var list = JsonDocument.Parse(await owner.GetStringAsync("/api/v1/me/sub-users"));
         var row = Assert.Single(list.RootElement.GetProperty("items").EnumerateArray());
         Assert.Equal("invited", row.GetProperty("state").GetString());
+        Assert.True(row.GetProperty("isOffer").GetBoolean());
+        Assert.NotEqual(await SubUserTeamWorld.UserIdAsync(factory, "pat"), row.GetProperty("id").GetGuid());
         Assert.Equal("databases", Assert.Single(row.GetProperty("features").EnumerateArray()).GetString());
         Assert.Equal(0, await SubUserTeamWorld.MembershipCountAsync(factory, "pat", "acme"));
     }
@@ -278,13 +280,17 @@ public sealed class SubUserOffersEndpointTests : IAsyncLifetime
         using var invitee = await EndpointHarness.SignInAsync(factory, "pat");
         await OfferAsync(owner, "pat");
         var offerId = await OfferIdAsync(invitee);
-        var patId = await SubUserTeamWorld.UserIdAsync(factory, "pat");
+        using var listed = JsonDocument.Parse(await owner.GetStringAsync("/api/v1/me/sub-users"));
+        var pending = Assert.Single(listed.RootElement.GetProperty("items").EnumerateArray());
+        Assert.True(pending.GetProperty("isOffer").GetBoolean());
+        var rowId = pending.GetProperty("id").GetGuid();
+        Assert.Equal(offerId, rowId);
 
-        var byRival = await rival.DeleteAsync($"/api/v1/me/sub-users/{patId}");
+        var byRival = await rival.DeleteAsync($"/api/v1/me/sub-users/{rowId}");
         Assert.Equal(HttpStatusCode.NotFound, byRival.StatusCode);
         Assert.Equal(1, await SubUserTeamWorld.OpenOfferCountAsync(factory, "pat", "acme"));
 
-        var cancelled = await owner.DeleteAsync($"/api/v1/me/sub-users/{patId}");
+        var cancelled = await owner.DeleteAsync($"/api/v1/me/sub-users/{rowId}");
 
         Assert.Equal(HttpStatusCode.NoContent, cancelled.StatusCode);
         Assert.Equal(0, await SubUserTeamWorld.OpenOfferCountAsync(factory, "pat", "acme"));
@@ -316,6 +322,10 @@ public sealed class SubUserOffersEndpointTests : IAsyncLifetime
             2,
             everyone.RootElement.GetProperty("items").EnumerateArray()
                 .Count(item => { return item.GetProperty("state").GetString() == "invited"; }));
+        Assert.Equal(
+            2,
+            everyone.RootElement.GetProperty("items").EnumerateArray()
+                .Count(item => { return item.GetProperty("isOffer").GetBoolean(); }));
         Assert.Equal(1, searched.RootElement.GetProperty("total").GetInt32());
     }
 

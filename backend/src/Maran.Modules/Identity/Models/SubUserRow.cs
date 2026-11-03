@@ -44,6 +44,18 @@ public sealed record SubUserRow
         }
     }
 
+    /// <summary>
+    /// Whether the row is an open offer and not a member: exactly the rows whose <see cref="Lifecycle"/>
+    /// is <c>null</c>. Computed after the page is read; the database never sees it.
+    /// </summary>
+    public bool IsOffer
+    {
+        get
+        {
+            return Lifecycle is null;
+        }
+    }
+
     /// <summary>The membership's grant set.</summary>
     public required AccountFeature Grants { get; init; }
 

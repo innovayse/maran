@@ -85,7 +85,7 @@ public sealed class ListSubUsersQueryHandler
         // Open offers, in the same shape. A pending offer is an invitation that has not been taken
         // up, and it carries only what the owner typed (see the remarks). Its lifecycle is left null
         // rather than written as a constant, so the union never has to give an enum constant a type
-        // of its own; SubUserRow.State says what null means.
+        // of its own; SubUserRow.State and SubUserRow.IsOffer say what null means.
         var offers = _dbContext.AccountMembershipOffers
             .AsNoTracking()
             .Where(offer => offer.AccountId == accountId && offer.ResolvedAt == null && offer.ExpiresAt > now)
