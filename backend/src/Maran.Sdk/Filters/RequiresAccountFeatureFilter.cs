@@ -16,7 +16,9 @@ namespace Maran.Sdk.Filters;
 /// <b>Who it applies to.</b> A caller whose token names an account (a <see cref="CustomerCaller"/>).
 /// An administrator is unaffected, with or without an account id: the plan limits what a customer is
 /// SOLD, not what the person running the server may do. A caller with no account is passed on to the
-/// handler, which answers "no account" in its own words.
+/// handler, which answers "no account" in its own words. A <see cref="ResellerCaller"/> is refused
+/// exactly as a customer whose plan lacks the feature is: a reseller has no sold plan and no account,
+/// and reaches a customer's resources only through a view-as session, which is a customer caller.
 /// </para>
 /// <para>
 /// <b>Two questions, two refusals.</b> The plan is asked first (<c>PlanFeatureNotIncluded</c>), then
@@ -77,6 +79,13 @@ public sealed class RequiresAccountFeatureFilter : IAsyncActionFilter
     /// <returns>A task that completes when the action has run or the refusal has been set.</returns>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        if (_currentUser.Caller is ResellerCaller)
+        {
+            var refusal = Error.Of(nameof(ValidationMessages.PlanFeatureNotIncluded), ErrorType.Forbidden);
+            context.Result = Result.Fail(refusal).ToActionResult(context.HttpContext);
+            return;
+        }
+
         if (_currentUser.Caller is not CustomerCaller customer)
         {
             await next();
