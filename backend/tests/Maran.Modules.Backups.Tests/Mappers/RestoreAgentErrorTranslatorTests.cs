@@ -85,22 +85,29 @@ public sealed class RestoreAgentErrorTranslatorTests
         Assert.Equal(ErrorType.Failure, failure.Type);
     }
 
-    /// <summary>An ending the agent stated no error for keeps the code this module names it by.</summary>
+    /// <summary>
+    /// An ending the agent stated no error for keeps the code this module names it by, with the kind
+    /// decided for it: a dropped or idle stream is transient and answers 503, the others are 500.
+    /// </summary>
+    /// <param name="kind">The stream ending.</param>
+    /// <param name="expectedCode">The code this module names it by.</param>
+    /// <param name="expectedType">The kind of failure it is.</param>
     [Theory]
-    [InlineData(BackupRestoreEventKind.Dropped, "RestoreStreamDropped")]
-    [InlineData(BackupRestoreEventKind.Idle, "RestoreStreamIdle")]
-    [InlineData(BackupRestoreEventKind.Truncated, "RestoreTruncated")]
-    [InlineData(BackupRestoreEventKind.Cancelled, "RestoreCancelled")]
+    [InlineData(BackupRestoreEventKind.Dropped, "RestoreStreamDropped", ErrorType.Unavailable)]
+    [InlineData(BackupRestoreEventKind.Idle, "RestoreStreamIdle", ErrorType.Unavailable)]
+    [InlineData(BackupRestoreEventKind.Truncated, "RestoreTruncated", ErrorType.Failure)]
+    [InlineData(BackupRestoreEventKind.Cancelled, "RestoreCancelled", ErrorType.Failure)]
     public void An_ending_that_carries_no_error_keeps_this_modules_own_code(
         BackupRestoreEventKind kind,
-        string expectedCode)
+        string expectedCode,
+        ErrorType expectedType)
     {
         var terminal = new BackupRestoreEvent(kind, 0, string.Empty, null, null);
 
         var failure = RestoreAgentErrorTranslator.ToFailure(terminal);
 
         Assert.Equal(expectedCode, failure.Code);
-        Assert.Equal(ErrorType.Failure, failure.Type);
+        Assert.Equal(expectedType, failure.Type);
     }
 
     /// <summary>

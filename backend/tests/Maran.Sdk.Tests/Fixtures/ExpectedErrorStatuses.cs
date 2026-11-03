@@ -248,6 +248,9 @@ public static class ExpectedErrorStatuses
             ["RestoreInvalidOutcome"] = ErrorType.Failure,
             ["RestorePartial"] = ErrorType.Failure,
             ["RestoreOutcomeUnobserved"] = ErrorType.Failure,
+            // Unavailable, not Failure: a dropped or idle stream is the link to the agent failing
+            // for now, which is the transient condition 503 means. RestoreAgentErrorTranslator
+            // raises exactly these kinds, and RaisedErrorKindsMatchCensusTests fails when they differ (#299).
             ["RestoreStreamDropped"] = ErrorType.Unavailable,
             ["RestoreStreamIdle"] = ErrorType.Unavailable,
             ["RestoreTruncated"] = ErrorType.Failure,
