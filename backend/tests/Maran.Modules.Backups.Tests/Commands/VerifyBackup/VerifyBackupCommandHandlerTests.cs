@@ -231,7 +231,10 @@ public sealed class VerifyBackupCommandHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Equal(BackupVerificationState.Verified, result.Value!.VerificationState);
         Assert.Null(result.Value.VerificationFailureCode);
-        Assert.Equal(2, world.Audit.Entries.Count);
+        // Three entries: the first finding, the alert it raised, and the later sound verification.
+        Assert.Equal(
+            [BackupAuditActions.BackupVerificationFailed, MonitoringAuditActions.AlertRaised, BackupAuditActions.BackupVerified],
+            world.Audit.Entries.Select(entry => { return entry.Action; }).ToArray());
     }
 
     /// <summary>A backup that has no artifact to read is refused as a conflict and the agent is not asked.</summary>
