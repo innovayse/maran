@@ -57,6 +57,7 @@ public sealed class BackupsController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<BackupDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -74,6 +75,7 @@ public sealed class BackupsController : BaseApiController
     /// <param name="query">The optional <c>accountId</c>, ANDed with the caller's tenant scope.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("attention")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(BackupAttentionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAttentionAsync(
@@ -87,6 +89,7 @@ public sealed class BackupsController : BaseApiController
     /// <param name="id">The backup to read.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(BackupDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -105,6 +108,7 @@ public sealed class BackupsController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(BackupDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -151,6 +155,7 @@ public sealed class BackupsController : BaseApiController
     /// </para>
     /// </remarks>
     [HttpPost("{id:guid}/restore")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [EnableRateLimiting(RateLimitPolicies.BackupRestore)]
     [ProducesResponseType(typeof(RestoreOutcomeDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -187,6 +192,7 @@ public sealed class BackupsController : BaseApiController
     /// <param name="id">The backup to delete.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

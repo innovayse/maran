@@ -44,6 +44,7 @@ public sealed class CronOptionsController : BaseApiController
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>The lists, named for the request's culture.</returns>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(CronOptionsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)

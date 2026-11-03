@@ -189,6 +189,63 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await customer.GetAsync(Endpoint)).StatusCode);
     }
 
+    /// <summary>The reads the customer's screens open on work through a view-as token.</summary>
+    [Fact]
+    public async Task A_view_as_token_can_read_what_the_customer_can_read()
+    {
+        await using var factory = await BootAsync();
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+        using var viewing = await StartAsync(factory, admin, "acme");
+
+        foreach (var read in new[] { "/api/v1/accounts/me", "/api/v1/dashboard", "/api/v1/me/pinned-pages", "/api/v1/profile", Endpoint })
+        {
+            var response = await viewing.GetAsync(read);
+
+            Assert.True(response.StatusCode == HttpStatusCode.OK, $"GET {read} answered {(int)response.StatusCode}");
+        }
+    }
+
+    /// <summary>
+    /// Whatever an endpoint has not declared safe is refused with the view-as code before any handler
+    /// runs: logins, databases, cron entries, a cron run and a site are things that outlive the token (issue #334).
+    /// </summary>
+    [Theory]
+    [InlineData("POST", "/api/v1/sftp-users")]
+    [InlineData("POST", "/api/v1/databases")]
+    [InlineData("POST", "/api/v1/cron-entries")]
+    [InlineData("POST", "/api/v1/cron-entries/entry/runs")]
+    [InlineData("POST", "/api/v1/sites")]
+    [InlineData("DELETE", "/api/v1/sftp-users/6f9619ff-8b86-d011-b42d-00c04fc964ff")]
+    public async Task A_view_as_token_is_refused_every_mutation_that_is_not_declared_safe(string method, string path)
+    {
+        await using var factory = await BootAsync();
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+        using var viewing = await StartAsync(factory, admin, "acme");
+
+        var response = await viewing.SendAsync(new HttpRequestMessage(new HttpMethod(method), path)
+        {
+            Content = JsonContent.Create(new { }),
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("HostViewAsNotAllowed", body.RootElement.GetProperty("code").GetString());
+    }
+
+    /// <summary>The refusal belongs to viewing: the customer's own token on the same endpoint is not given the view-as code.</summary>
+    /// <remarks>The inverse control of the refusal test above: a gate that refuses everything passes it.</remarks>
+    [Fact]
+    public async Task The_customers_own_token_is_not_refused_with_the_view_as_code()
+    {
+        await using var factory = await BootAsync();
+        using var customer = await EndpointHarness.SignInAsync(factory, "olive");
+
+        var response = await customer.PostAsJsonAsync("/api/v1/databases", new { });
+
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("HostViewAsNotAllowed", text, StringComparison.Ordinal);
+    }
+
     /// <summary>After Back the view-as token is refused at once, and the administrator's own token is untouched.</summary>
     [Fact]
     public async Task After_back_the_view_as_token_is_refused_and_the_administrator_is_untouched()

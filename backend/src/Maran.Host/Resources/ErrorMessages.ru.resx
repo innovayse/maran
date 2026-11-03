@@ -27,4 +27,7 @@
   <data name="HostTwoFactorSetupRequired">
     <value>Сначала завершите настройку двухфакторной аутентификации.</value>
   </data>
+  <data name="HostViewAsNotAllowed">
+    <value>Это действие недоступно, пока вы просматриваете панель от имени этой учётной записи.</value>
+  </data>
 </root>

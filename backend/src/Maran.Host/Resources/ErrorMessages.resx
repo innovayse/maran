@@ -27,4 +27,7 @@
   <data name="HostTwoFactorSetupRequired">
     <value>Finish setting up two-factor authentication first.</value>
   </data>
+  <data name="HostViewAsNotAllowed">
+    <value>This action is not available while you are viewing as this account.</value>
+  </data>
 </root>

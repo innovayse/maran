@@ -454,6 +454,16 @@ public sealed class AuditLogsController : BaseApiController
     }
 }
 ```
+- **Every action a customer token can reach declares its view-as access.** An operator viewing the
+  panel as a login holds a customer token with an `act` claim, and view-as is an ALLOW-LIST
+  (issue #334): `[ViewAsAccess(ViewAsAccess.Read)]` on a GET, `[ViewAsAccess(ViewAsAccess.Refused)]`
+  on anything that creates a credential, an access path, running work or data that outlives the
+  look, and `[ViewAsAccess(ViewAsAccess.SafeMutation)]` only for a change pinned with its reason in
+  `ViewAsSafeMutationPin`. The attribute is in `Maran.Sdk/Contracts/`, on the action or the
+  controller (the action wins), and an undeclared endpoint is refused at run time with the panel code
+  `HostViewAsNotAllowed`. Administrator-only and anonymous actions are exempt. Enforced by
+  `ViewAsAccessDeclarationTests` in `backend/tests/Maran.ArchitectureTests`, which carries a planted
+  violation and an accept-side control; a minimal endpoint declares it through `WithMetadata`.
 - **An endpoint binds its command directly.** An action takes the `Command` or `Query` itself as its
   parameter and dispatches it; there is no per-endpoint request model and no `Controllers/Requests/`
   folder. One shape crosses the wire, is validated, and is handled, so a field cannot be added to the

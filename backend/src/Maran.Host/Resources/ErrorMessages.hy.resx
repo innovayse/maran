@@ -27,4 +27,7 @@
   <data name="HostTwoFactorSetupRequired">
     <value>Նախ ավարտեք երկգործոն նույնականացման կարգավորումը։</value>
   </data>
+  <data name="HostViewAsNotAllowed">
+    <value>Այս գործողությունը հասանելի չէ, քանի դեռ դիտում եք այս հաշվի անունից։</value>
+  </data>
 </root>

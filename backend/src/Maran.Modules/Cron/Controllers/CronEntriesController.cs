@@ -60,6 +60,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <param name="accountId">The account whose crontab to read.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(IReadOnlyList<CronEntryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -75,6 +76,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <param name="command">The owning account, the schedule and the command.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(CronEntryDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -101,6 +103,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <param name="command">The owning account, the new schedule and the new command.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut("{entryId}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -123,6 +126,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <param name="command">The owning account and the state to put the entry in.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{entryId}/enabled")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -145,6 +149,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <param name="accountId">The account whose crontab holds it.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("{entryId}/output")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(CronEntryOutputDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -166,6 +171,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <param name="accountId">The account whose crontab holds it.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{entryId}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

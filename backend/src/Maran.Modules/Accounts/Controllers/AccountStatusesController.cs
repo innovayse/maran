@@ -42,6 +42,7 @@ public sealed class AccountStatusesController : BaseApiController
     /// <summary>Lists every state a hosting account can be in, each named in the caller's language.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(IReadOnlyList<AccountStatusChoiceDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {

@@ -51,6 +51,7 @@ public sealed class SftpUsersController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<SftpUserDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -65,6 +66,7 @@ public sealed class SftpUsersController : BaseApiController
     /// <param name="id">The login to read.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(SftpUserDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -80,6 +82,7 @@ public sealed class SftpUsersController : BaseApiController
     /// <param name="command">The owning account and the name the customer chose.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(CreatedSftpUserDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -103,6 +106,7 @@ public sealed class SftpUsersController : BaseApiController
     /// <param name="id">The login to re-credential.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/password")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(SftpUserPasswordDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -119,6 +123,7 @@ public sealed class SftpUsersController : BaseApiController
     /// <param name="id">The login to remove.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{id:guid}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

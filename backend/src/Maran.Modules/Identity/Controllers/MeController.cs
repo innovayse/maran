@@ -1,4 +1,3 @@
-using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.SwitchActiveAccount;
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Policies;
@@ -40,6 +39,7 @@ public sealed class MeController : BaseApiController
     /// <summary>Lists the hosting accounts the caller holds a membership of, marking the active one.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("accounts")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(IReadOnlyList<SwitchableAccountDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAccountsAsync(CancellationToken cancellationToken)
@@ -61,7 +61,7 @@ public sealed class MeController : BaseApiController
     /// <param name="command">The account to switch to, bound from the body.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("active-account")]
-    [RefusedWhileViewingAs]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(ActiveAccountDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

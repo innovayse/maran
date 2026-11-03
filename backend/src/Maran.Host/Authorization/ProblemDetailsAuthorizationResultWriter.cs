@@ -35,6 +35,12 @@ namespace Maran.Host.Authorization;
 /// same fact (issue #331), so the SPA branches on one code. It names the caller's own account, which
 /// their own token already says. The steering still wins when both apply.
 /// </para>
+/// <para>
+/// <b>A view-as refusal names itself.</b> When <see cref="ViewAsBoundaryRequirement"/> is among the unmet
+/// requirements the code is <see cref="ViewAsNotAllowedCode"/> (issue #334), so the operator is told
+/// that this action is not available while viewing and not that the page is forbidden to the login
+/// they are looking through. It reveals only what the operator's own token says.
+/// </para>
 /// </remarks>
 public sealed class ProblemDetailsAuthorizationResultWriter : IAuthorizationMiddlewareResultHandler
 {
@@ -49,6 +55,12 @@ public sealed class ProblemDetailsAuthorizationResultWriter : IAuthorizationMidd
     /// same code the Identity module's other doors answer with (status 409).
     /// </summary>
     public const string AccountSuspendedCode = "AccountMembershipSuspended";
+
+    /// <summary>
+    /// Code and resource key of a refusal because a view-as token reached an endpoint that does not
+    /// allow it (status 403).
+    /// </summary>
+    public const string ViewAsNotAllowedCode = "HostViewAsNotAllowed";
 
     /// <summary>Media type of an RFC 7807 payload; must be handed to the JSON writer, not set beforehand.</summary>
     private const string ProblemContentType = "application/problem+json";
@@ -83,7 +95,8 @@ public sealed class ProblemDetailsAuthorizationResultWriter : IAuthorizationMidd
     /// <param name="failure">What failed, when the framework reports it.</param>
     /// <returns>
     /// <see cref="TwoFactorSetupRequiredCode"/> when enrolment is unfinished, else
-    /// <see cref="AccountSuspendedCode"/> when the account is suspended, otherwise <see cref="ForbiddenCode"/>.
+    /// <see cref="AccountSuspendedCode"/> when the account is suspended, else <see cref="ViewAsNotAllowedCode"/>
+    /// when a view-as token reached an endpoint that does not allow it, otherwise <see cref="ForbiddenCode"/>.
     /// </returns>
     private static string ResolveCode(AuthorizationFailure? failure)
     {
@@ -95,6 +108,11 @@ public sealed class ProblemDetailsAuthorizationResultWriter : IAuthorizationMidd
         if (failure?.FailedRequirements.OfType<AccountMembershipActiveRequirement>().Any() == true)
         {
             return AccountSuspendedCode;
+        }
+
+        if (failure?.FailedRequirements.OfType<ViewAsBoundaryRequirement>().Any() == true)
+        {
+            return ViewAsNotAllowedCode;
         }
 
         return ForbiddenCode;
