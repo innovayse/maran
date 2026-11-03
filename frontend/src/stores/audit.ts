@@ -2,12 +2,12 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useAuditApi } from '../composables/apis/useAuditApi'
 import { ApiError } from '../composables/useApi'
-import type { AuditActionChoice, AuditEvent } from '../types/audit'
+import type { AuditActionChoice, AuditEvent, AuditOutcomeChoice } from '../types/audit'
 import type { ListLoad, ListRequest } from '../types/list'
 
 /**
- * Owns the audit journal the admin screen renders: one server page of it, and the actions its
- * filter offers. The page reads state from here and calls its actions — it never touches the API
+ * Owns the audit journal the admin screen renders: one server page of it, and the actions and
+ * outcomes its filters offer. The page reads state from here and calls its actions — it never touches the API
  * composable (rules/vue.md: "API composables are called from Pinia stores ONLY").
  *
  * Nothing here mutates the journal: it is append-only, written by the backend from inside the
@@ -24,6 +24,12 @@ export const useAuditStore = defineStore('audit', () => {
    * read failed: the filter then offers "any action" alone, and the journal itself is unaffected.
    */
   const actions: Ref<AuditActionChoice[]> = ref([])
+
+  /**
+   * The outcomes the journal can be filtered by. Empty until read, and empty when the read failed:
+   * the filter then offers "any outcome" alone, and the journal itself is unaffected.
+   */
+  const outcomes: Ref<AuditOutcomeChoice[]> = ref([])
 
   /**
    * Loads one page of the journal into {@link events} and reports how the read ended, for the
@@ -54,5 +60,18 @@ export const useAuditStore = defineStore('audit', () => {
     }
   }
 
-  return { events, actions, list, loadActions }
+  /**
+   * Reads the outcomes the journal can be filtered by into {@link outcomes}.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadOutcomes = async (): Promise<void> => {
+    try {
+      outcomes.value = await api.outcomes()
+    } catch {
+      // The filter is an aid, not the journal: an unreadable list leaves it offering "any outcome".
+      outcomes.value = []
+    }
+  }
+
+  return { events, actions, outcomes, list, loadActions, loadOutcomes }
 })

@@ -40,11 +40,12 @@ const port: Ref<string> = ref('')
 /**
  * How the connection is protected, held as the plain string `UiSelect` binds.
  *
- * Narrowed to the enum's three values on the way out rather than on the way in: the
- * select's `v-model` is a string by contract, and a union-typed ref here would only
- * be a cast wearing a type annotation.
+ * Empty until the panel's settings arrive: the form owns no default of its own, because the
+ * panel reports the mode a fresh installation starts from. Narrowed to the enum's values on the
+ * way out rather than on the way in: the select's `v-model` is a string by contract, and a
+ * union-typed ref here would only be a cast wearing a type annotation.
  */
-const security: Ref<string> = ref('startTls')
+const security: Ref<string> = ref('')
 
 /** The submission user name, as typed. */
 const username: Ref<string> = ref('')
@@ -74,13 +75,19 @@ const hasStoredPassword: ComputedRef<boolean> = computed(() => {
   return smtpStore.settings?.hasPassword === true
 })
 
-/** The three protection modes, labelled in the interface language. */
+/**
+ * The protection modes the panel offers, labelled by the panel in the interface language. When the
+ * list could not be read, the stored mode is offered alone under the name the settings carried, so
+ * the picker still shows what is configured instead of an empty box.
+ */
 const securityOptions: ComputedRef<readonly SelectOption[]> = computed(() => {
-  return [
-    { value: 'none', label: t('app.smtp.security.none') },
-    { value: 'startTls', label: t('app.smtp.security.startTls') },
-    { value: 'implicitTls', label: t('app.smtp.security.implicitTls') },
-  ]
+  if (smtpStore.securityModes.length === 0 && smtpStore.settings !== null) {
+    return [{ value: smtpStore.settings.security, label: smtpStore.settings.securityName }]
+  }
+
+  return smtpStore.securityModes.map((mode) => {
+    return { value: mode.security, label: mode.securityName }
+  })
 })
 
 /**
@@ -121,7 +128,7 @@ const submit = async (): Promise<void> => {
     host: host.value,
     port: Number(port.value),
     // `security` is a plain string because `UiSelect`'s v-model is a string by contract; the
-    // options above are exactly the enum's three values, so this narrows rather than guesses.
+    // options are exactly the modes the panel listed, so this narrows rather than guesses.
     security: security.value as SmtpSecurity,
     username: username.value,
     ...(password.value === '' ? {} : { password: password.value }),
@@ -152,6 +159,7 @@ watch(
 )
 
 void smtpStore.load()
+void smtpStore.loadSecurityModes()
 </script>
 
 <template>

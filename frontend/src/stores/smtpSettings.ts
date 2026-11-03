@@ -3,7 +3,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useSmtpSettingsApi } from '../composables/apis/useSmtpSettingsApi'
 import { ApiError } from '../composables/useApi'
 import type { LoadingState, Read, Submission } from '../types/loading'
-import type { SaveSmtpSettingsRequest, SmtpSettings } from '../types/smtpSettings'
+import type { SaveSmtpSettingsRequest, SmtpSecurityChoice, SmtpSettings } from '../types/smtpSettings'
 import { loadingStateOf } from '../utils/loadingStateOf'
 
 /**
@@ -22,6 +22,12 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
    * it, so their refusals leave the form on screen with the alert above it.
    */
   const read: Ref<Read<SmtpSettings>> = ref({ state: 'loading' })
+
+  /**
+   * The ways the connection can be protected, for the security picker. Empty until read, and empty
+   * when the read failed: the picker then offers nothing to change and the stored mode stays.
+   */
+  const securityModes: Ref<SmtpSecurityChoice[]> = ref([])
 
   /** Where the last save stands; `done` lets the screen confirm it. */
   const saveSubmission: Ref<Submission> = ref({ state: 'idle' })
@@ -102,6 +108,19 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
   }
 
   /**
+   * Reads the protection modes the picker offers into {@link securityModes}.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadSecurityModes = async (): Promise<void> => {
+    try {
+      securityModes.value = await api.securityModes()
+    } catch {
+      // The picker is an aid to the form, not the form: the settings themselves read separately.
+      securityModes.value = []
+    }
+  }
+
+  /**
    * Replaces the mail settings.
    *
    * Re-reads afterwards rather than holding what was sent, because the answer to
@@ -142,5 +161,18 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
     }
   }
 
-  return { settings, loading, loadState, loadMessage, saved, testSent, submitMessage, load, save, sendTest }
+  return {
+    settings,
+    securityModes,
+    loading,
+    loadState,
+    loadMessage,
+    saved,
+    testSent,
+    submitMessage,
+    load,
+    loadSecurityModes,
+    save,
+    sendTest,
+  }
 })

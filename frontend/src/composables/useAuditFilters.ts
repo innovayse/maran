@@ -4,7 +4,6 @@ import { useLocaleStore } from '../stores/locale'
 import { formatDate } from '../utils/formatDate'
 import { isCalendarDate } from '../utils/isCalendarDate'
 import { localDayBoundary } from '../utils/localDayBoundary'
-import { AUDIT_OUTCOMES } from '../types/audit'
 import type { ListFilterSchema } from './useServerTable'
 import type { ActiveFilterChip } from '../types/list'
 
@@ -16,9 +15,10 @@ export interface AuditFilters {
    * One removable chip per applied filter.
    * @param applied Every filter with its applied value, empty when unset.
    * @param actionName The operator-facing name of the applied action.
+   * @param outcomeName The operator-facing name of the applied outcome.
    * @returns The chips, in the order the sheet lists the fields.
    */
-  chips: (applied: Record<string, string>, actionName: string) => ActiveFilterChip[]
+  chips: (applied: Record<string, string>, actionName: string, outcomeName: string) => ActiveFilterChip[]
 }
 
 /**
@@ -26,7 +26,9 @@ export interface AuditFilters {
  * that name them cannot disagree. The journal records no account, so there is no account filter;
  * the actor is reached through the search. An outcome the panel does not have, and a date that is
  * not a real `YYYY-MM-DD` day, are not honoured from a hand-edited link; an action is honoured as
- * written, because actions are open-ended and the panel matches one exactly.
+ * written, because actions are open-ended and the panel matches one exactly. So is an outcome: the
+ * set belongs to the panel, which lists it and refuses a value it does not have, so the bundle
+ * keeps no copy of it to check a link against.
  * @returns The schema and the chip builder.
  */
 export const useAuditFilters = (): AuditFilters => {
@@ -36,16 +38,7 @@ export const useAuditFilters = (): AuditFilters => {
 
   const schema: ListFilterSchema = {
     action: {},
-    outcome: {
-      /**
-       * Honours only an outcome the journal records.
-       * @param value The `?outcome=` value.
-       * @returns True for a known outcome.
-       */
-      accepts: (value: string): boolean => {
-        return (AUDIT_OUTCOMES as readonly string[]).includes(value)
-      },
-    },
+    outcome: {},
     from: { accepts: isCalendarDate },
     to: { accepts: isCalendarDate },
   }
@@ -63,15 +56,16 @@ export const useAuditFilters = (): AuditFilters => {
    * One removable chip per applied filter.
    * @param applied Every filter with its applied value, empty when unset.
    * @param actionName The operator-facing name of the applied action.
+   * @param outcomeName The operator-facing name of the applied outcome.
    * @returns The chips.
    */
-  const chips = (applied: Record<string, string>, actionName: string): ActiveFilterChip[] => {
+  const chips = (applied: Record<string, string>, actionName: string, outcomeName: string): ActiveFilterChip[] => {
     const result: ActiveFilterChip[] = []
     if (applied.action !== '') {
       result.push(labels.chip('action', t('app.audit.filters.action'), actionName))
     }
     if (applied.outcome !== '') {
-      result.push(labels.chip('outcome', t('app.audit.filters.outcome'), t(`app.audit.${applied.outcome}`)))
+      result.push(labels.chip('outcome', t('app.audit.filters.outcome'), outcomeName))
     }
     if (applied.from !== '') {
       result.push(labels.chip('from', t('app.audit.filters.from'), calendarDay(applied.from)))

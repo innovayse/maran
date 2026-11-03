@@ -82,9 +82,17 @@ const actionName: ComputedRef<string> = computed(() => {
   })?.actionName ?? applied
 })
 
+/** The applied outcome as an administrator reads it: the panel's name, or the value itself while the list is unknown. */
+const outcomeName: ComputedRef<string> = computed(() => {
+  const applied = table.filters.value.outcome ?? ''
+  return auditStore.outcomes.find((choice) => {
+    return choice.outcome === applied
+  })?.outcomeName ?? applied
+})
+
 /** One removable chip per applied filter. */
 const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
-  return auditFilters.chips(table.filters.value, actionName.value)
+  return auditFilters.chips(table.filters.value, actionName.value, outcomeName.value)
 })
 
 /**
@@ -113,7 +121,7 @@ const clearAll = async (): Promise<void> => {
 }
 
 onMounted(async () => {
-  await auditStore.loadActions()
+  await Promise.all([auditStore.loadActions(), auditStore.loadOutcomes()])
 })
 </script>
 
@@ -203,6 +211,7 @@ onMounted(async () => {
       :open="filtersOpen"
       :model-value="table.filters.value"
       :actions="auditStore.actions"
+      :outcomes="auditStore.outcomes"
       @update:model-value="table.setFilters"
       @close="closeFilters"
     />

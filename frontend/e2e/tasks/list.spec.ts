@@ -3,6 +3,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import {
+  STATUSES_PATTERN,
   stubTaskStream,
   stubTasks,
   stubTasksNotFound,
@@ -334,4 +335,34 @@ test('the tasks list pages on the server and keeps the page in the URL', async (
   await expect(page).toHaveURL(/page=2/)
   await expect(page.getByRole('cell', { name: 'acme', exact: true })).toHaveCount(2)
   expect(requests().at(-1)?.searchParams.get('page')).toBe('2')
+})
+
+test('the status filter offers the statuses the panel lists, in the panel’s words', async ({ page }) => {
+  const requests = await openTasks(page, [INSTALL, BACKUP, FAILED])
+  // Registered after the stub's own, so it answers first: the panel words its statuses differently
+  // from the badge in the table, which proves the filter takes its words from the panel.
+  await page.route(STATUSES_PATTERN, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { status: 'running', statusName: 'In progress' },
+        { status: 'completed', statusName: 'Done' },
+        { status: 'failed', statusName: 'Did not finish' },
+      ]),
+    })
+  })
+
+  await page.goto('/tasks')
+  await page.getByTestId('filter-trigger').click()
+  const dialog = page.getByRole('dialog', { name: 'Filters' })
+  await dialog.getByRole('combobox', { name: 'Status' }).click()
+
+  await expect(page.getByRole('option')).toHaveText(['Any', 'In progress', 'Done', 'Did not finish'])
+  await page.getByRole('option', { name: 'Did not finish' }).click()
+  await dialog.getByRole('button', { name: 'Apply' }).click()
+
+  await expect(page).toHaveURL(/status=failed/)
+  expect(requests().at(-1)?.searchParams.get('status')).toBe('failed')
+  await expect(page.getByTestId('active-filter-chips')).toContainText('Status: Did not finish')
 })

@@ -10,6 +10,7 @@ import {
   type RunningTasksStreamHandlers,
   type TaskKindChoice,
   type TasksApi,
+  type TaskStatusChoice,
 } from '../../types/panelTask'
 
 /** The endpoint background tasks are listed, read and watched through. */
@@ -124,6 +125,15 @@ export const useTasksApi = (): TasksApi => {
   }
 
   /**
+   * Lists the statuses a task can be in, for the status filter.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The statuses with their backend-localized names.
+   */
+  const statuses = (signal?: AbortSignal): Promise<TaskStatusChoice[]> => {
+    return api.get<TaskStatusChoice[]>(`${TASKS_PATH}/statuses`, signal)
+  }
+
+  /**
    * Counts the failed tasks the caller may see, across every page.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns How many failed.
@@ -195,5 +205,5 @@ export const useTasksApi = (): TasksApi => {
     handlers.onEnd(ending)
   }
 
-  return { list, watchRunning, kinds, failedCount, get, watch }
+  return { list, watchRunning, kinds, statuses, failedCount, get, watch }
 }

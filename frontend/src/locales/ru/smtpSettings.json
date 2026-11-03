@@ -9,11 +9,6 @@
       "hostLabel": "Почтовый сервер",
       "portLabel": "Порт",
       "securityLabel": "Защита соединения",
-      "security": {
-        "none": "Без защиты",
-        "startTls": "STARTTLS",
-        "implicitTls": "Неявный TLS"
-      },
       "usernameLabel": "Имя пользователя",
       "passwordLabel": "Пароль",
       "passwordPlaceholder": "Оставьте пустым, чтобы сохранить текущий",

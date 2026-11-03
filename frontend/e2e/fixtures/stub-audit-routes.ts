@@ -1,12 +1,21 @@
 import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { AuditActionChoice, AuditEvent } from '../../src/types/audit'
+import type { AuditActionChoice, AuditEvent, AuditOutcomeChoice } from '../../src/types/audit'
 
 /** The paged journal endpoint the audit page reads. */
 export const AUDIT_PATTERN = /\/api\/v1\/audit(\?.*)?$/
 
 /** The actions endpoint the action filter reads. */
 const AUDIT_ACTIONS_PATTERN = /\/api\/v1\/audit\/actions(\?.*)?$/
+
+/** The outcomes endpoint the outcome filter reads. */
+export const AUDIT_OUTCOMES_PATTERN = /\/api\/v1\/audit\/outcomes(\?.*)?$/
+
+/** The outcomes the panel lists, in the order it lists them, named as it names them in English. */
+export const AUDIT_OUTCOME_CHOICES: AuditOutcomeChoice[] = [
+  { outcome: 'succeeded', outcomeName: 'Succeeded' },
+  { outcome: 'failed', outcomeName: 'Failed' },
+]
 
 /** How the journal endpoint searches (actor, subject, address), sorts and filters, as the panel does. */
 const AUDIT_RULES: PagedRules<AuditEvent> = {
@@ -45,7 +54,8 @@ const AUDIT_RULES: PagedRules<AuditEvent> = {
 /**
  * Fulfils `GET /api/v1/audit` as a page honouring `page`, `pageSize`, `search`, `sort`, `action`,
  * `outcome`, `from` and `to`, and `GET /api/v1/audit/actions` with the distinct actions the entries
- * hold, named as the entries name them.
+ * hold, named as the entries name them, and `GET /api/v1/audit/outcomes` with the closed set of
+ * outcomes the panel lists.
  * @param page The Playwright page whose network the routes are installed on.
  * @param events The journal, newest first — the panel's default order.
  * @returns A function reporting every list request so far, oldest first.
@@ -66,6 +76,9 @@ export const stubAudit = async (page: Page, events: AuditEvent[]): Promise<() =>
   }
   await page.route(AUDIT_ACTIONS_PATTERN, async (route: Route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([...actions.values()]) })
+  })
+  await page.route(AUDIT_OUTCOMES_PATTERN, async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(AUDIT_OUTCOME_CHOICES) })
   })
   return () => {
     return listRequests

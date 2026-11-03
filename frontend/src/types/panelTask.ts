@@ -9,7 +9,11 @@ import type { ListRequest, Paged } from './list'
  */
 export type PanelTaskStatus = 'running' | 'completed' | 'failed'
 
-/** Every {@link PanelTaskStatus}, in the order the status filter offers them. */
+/**
+ * Every {@link PanelTaskStatus}, for reading a status off a stream frame. The status filter does NOT
+ * take its options from here: the panel lists them, named for the reader's language
+ * ({@link TaskStatusChoice}).
+ */
 export const TASK_STATUSES: readonly PanelTaskStatus[] = ['running', 'completed', 'failed']
 
 /**
@@ -21,6 +25,17 @@ export interface TaskKindChoice {
   kind: string
   /** The kind as an operator reads it, in the request's language. */
   kindName: string
+}
+
+/**
+ * One status the tasks list can be filtered by, as the status filter offers it: the value the filter
+ * sends back, and the name an operator reads, localized by the backend.
+ */
+export interface TaskStatusChoice {
+  /** The status as the list's `status` filter binds it, sent back as that filter. */
+  status: string
+  /** The status as an operator reads it, in the request's language. */
+  statusName: string
 }
 
 /**
@@ -188,6 +203,13 @@ export interface TasksApi {
    * @returns The kinds with their localized names.
    */
   kinds: (signal?: AbortSignal) => Promise<TaskKindChoice[]>
+
+  /**
+   * Lists the statuses a task can be in, for the status filter.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The statuses with their localized names.
+   */
+  statuses: (signal?: AbortSignal) => Promise<TaskStatusChoice[]>
 
   /**
    * Counts the failed tasks the caller may see, across every page.
