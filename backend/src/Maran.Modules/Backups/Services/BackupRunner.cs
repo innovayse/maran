@@ -3,7 +3,6 @@ using Maran.Agent.Client.Services.BackupService;
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Models;
-using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Resources;
 using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -37,12 +36,12 @@ namespace Maran.Modules.Backups.Services;
 /// </para>
 /// <para>
 /// <b>Verification follows a completed run and is its own fact (issue #134).</b>
-/// <see cref="VerifyCompletedAsync"/> reads the finished artifact back and records the answer on the
-/// row beside the run's status, never in place of it: the run produced an archive, and a later
-/// finding about that archive must not turn it into a failed run that retention treats as
-/// disposable. A verification that could not run — the agent busy, saturated or unreachable, a bound
-/// reached on a slow host — records nothing and mails nothing, because it found nothing about the
-/// artifact; only a typed finding marks the row failed and tells the administrator.
+/// <see cref="VerifyCompletedAsync"/> has <see cref="BackupVerifier"/> read the finished artifact back
+/// and record the answer on the row beside the run's status, never in place of it: the run produced
+/// an archive, and a later finding about that archive must not turn it into a failed run that
+/// retention treats as disposable. A verification that could not run — the agent busy, saturated or
+/// unreachable, a bound reached on a slow host — records nothing and mails nothing, because it found
+/// nothing about the artifact; only a typed finding marks the row failed and tells the administrator.
 /// </para>
 /// </remarks>
 public sealed class BackupRunner
@@ -61,17 +60,11 @@ public sealed class BackupRunner
     /// <summary>The panel-wide task journal, so an operator can watch a run instead of waiting on it.</summary>
     private readonly ITaskRecorder _tasks;
 
-    /// <summary>The Backups module's database context; the verification state is saved through it.</summary>
-    private readonly BackupsDbContext _dbContext;
-
-    /// <summary>Reads a finished artifact back and reports what it found.</summary>
+    /// <summary>Reads a finished artifact back, records and journals what it found.</summary>
     private readonly BackupVerifier _verifier;
 
     /// <summary>Tells the administrator about an artifact that failed verification.</summary>
     private readonly BackupAlertMailer _alerts;
-
-    /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
-    private readonly IClock _clock;
 
     /// <summary>Where a verification that could not be carried out is reported.</summary>
     private readonly ILogger<BackupRunner> _logger;
@@ -79,26 +72,20 @@ public sealed class BackupRunner
     /// <summary>Creates the runner.</summary>
     /// <param name="agent">The agent client that makes the archive.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
-    /// <param name="dbContext">The Backups module's database context.</param>
-    /// <param name="verifier">Reads a finished artifact back and reports what it found.</param>
+    /// <param name="verifier">Reads a finished artifact back, records and journals what it found.</param>
     /// <param name="alerts">Tells the administrator about an artifact that failed verification.</param>
-    /// <param name="clock">The injected time source the verification is stamped with.</param>
     /// <param name="logger">Where a verification that could not be carried out is reported.</param>
     public BackupRunner(
         IAgentBackupClient agent,
         ITaskRecorder tasks,
-        BackupsDbContext dbContext,
         BackupVerifier verifier,
         BackupAlertMailer alerts,
-        IClock clock,
         ILogger<BackupRunner> logger)
     {
         _agent = agent;
         _tasks = tasks;
-        _dbContext = dbContext;
         _verifier = verifier;
         _alerts = alerts;
-        _clock = clock;
         _logger = logger;
     }
 
@@ -164,18 +151,18 @@ public sealed class BackupRunner
     /// </param>
     /// <param name="accountUsername">System user name of the account the backup is of.</param>
     /// <param name="cancellationToken">Cancels the verification.</param>
-    /// <returns>A task that completes once the finding, if any, is saved and the mail requested.</returns>
+    /// <returns>A task that completes once the verification is recorded and a finding is mailed.</returns>
     /// <remarks>
     /// <para>
     /// <b>Never throws on the verification's account, and so never makes the run fail.</b> The
     /// verification is bounded by the agent's own call deadlines; whatever it raises that is not the
     /// caller's cancellation — the agent, the write of the finding, the mail — is logged and read as
-    /// "could not verify now", which leaves the run's outcome as it was. Reading a transient fault as a failed artifact would tell
-    /// the administrator a backup is corrupt because a socket dropped.
+    /// "could not verify now", which leaves the run's outcome as it was. Reading a transient fault as
+    /// a failed artifact would tell the administrator a backup is corrupt because a socket dropped.
     /// </para>
     /// <para>
-    /// <b>The mail follows the save.</b> A finding that could not be written must not have been
-    /// announced: the administrator would read an alert the panel's own screen does not show.
+    /// <b>The mail follows the record.</b> The verifier saves the finding before it answers, so the
+    /// administrator is never told of a finding the panel's own screen does not show.
     /// </para>
     /// </remarks>
     public async Task VerifyCompletedAsync(
@@ -185,7 +172,7 @@ public sealed class BackupRunner
     {
         try
         {
-            await RecordVerificationAsync(backup, accountUsername, cancellationToken);
+            await VerifyAndAnnounceAsync(backup, accountUsername, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -197,34 +184,26 @@ public sealed class BackupRunner
         }
     }
 
-    /// <summary>Asks the verifier, records a finding on the row, and mails a failure.</summary>
+    /// <summary>Asks the verifier and mails a finding about the artifact.</summary>
     /// <param name="backup">The completed row.</param>
     /// <param name="accountUsername">System user name of the account the backup is of.</param>
     /// <param name="cancellationToken">Cancels the verification and the writes.</param>
     /// <returns>A task that completes once the answer is handled.</returns>
-    private async Task RecordVerificationAsync(
+    private async Task VerifyAndAnnounceAsync(
         Backup backup,
         string accountUsername,
         CancellationToken cancellationToken)
     {
         var outcome = await _verifier.VerifyAsync(backup, accountUsername, cancellationToken);
 
-        if (outcome.Verified)
-        {
-            backup.MarkVerified(_clock.UtcNow);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            return;
-        }
-
-        // No code is the verifier's word for "it could not run": nothing about the artifact was
-        // found, so nothing is recorded and nobody is told.
-        if (string.IsNullOrEmpty(outcome.FailureCode))
+        // The verifier has already recorded and journalled a sound artifact or a finding. Only a
+        // finding is announced: a verification that was not performed found nothing about the
+        // artifact, and mailing it would tell the administrator a backup is corrupt because the
+        // server was busy.
+        if (outcome.FailureCode is null)
         {
             return;
         }
-
-        backup.MarkVerificationFailed(_clock.UtcNow, outcome.FailureCode);
-        await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _alerts.VerificationFailedAsync(
             backup.Id, accountUsername, backup.FinishedAt ?? backup.StartedAt, outcome.FailureCode, cancellationToken);
