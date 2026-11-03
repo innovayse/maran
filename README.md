@@ -279,6 +279,18 @@ Looking for a place to start? The issues labelled
 are small, self-contained and say which files to change and how to check the result. Questions
 are welcome on the [Innovayse Discord](https://discord.gg/NfqTkyTgD).
 
+Pick by what you like doing:
+
+- [`translation`](https://github.com/innovayse/maran/issues?q=is%3Aissue+is%3Aopen+label%3A%22translation%22) — Russian or Armenian UI and documentation text
+- [`frontend`](https://github.com/innovayse/maran/issues?q=is%3Aissue+is%3Aopen+label%3A%22frontend%22) — the Vue panel
+- [`tests`](https://github.com/innovayse/maran/issues?q=is%3Aissue+is%3Aopen+label%3A%22tests%22) — new or better tests
+- [`accessibility`](https://github.com/innovayse/maran/issues?q=is%3Aissue+is%3Aopen+label%3A%22accessibility%22) — keyboard, screen reader and contrast
+- [`ui`](https://github.com/innovayse/maran/issues?q=is%3Aissue+is%3Aopen+label%3A%22ui%22) — the look and layout of the panel
+- [`size: small`](https://github.com/innovayse/maran/issues?q=is%3Aissue+is%3Aopen+label%3A%22size%3A+small%22) — about an hour or two
+- [`size: medium`](https://github.com/innovayse/maran/issues?q=is%3Aissue+is%3Aopen+label%3A%22size%3A+medium%22) — about a day
+
+Ideas and questions that are not a task yet belong in [Discussions](https://github.com/innovayse/maran/discussions).
+
 The rules in [`rules/`](rules/) are binding and mostly enforced by a command rather than by a
 reviewer's memory. Work branches from `dev` and merges back into it; `main` is the release
 branch and takes nothing but a reviewed pull request from `dev`.
