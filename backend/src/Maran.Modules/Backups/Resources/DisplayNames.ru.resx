@@ -156,15 +156,6 @@
   <data name="BackupFailureAgentRunNotStopped">
     <value>Серверу не удалось подтвердить остановку, поэтому операция могла продолжать выполняться</value>
   </data>
-  <data name="BackupVerificationStateNotVerified">
-    <value>Не проверена</value>
-  </data>
-  <data name="BackupVerificationStateVerified">
-    <value>Проверена</value>
-  </data>
-  <data name="BackupVerificationStateFailed">
-    <value>Проверка не пройдена</value>
-  </data>
   <data name="BackupFailureBackupVerificationFailed">
     <value>Архив не совпадает с записью о нём</value>
   </data>
