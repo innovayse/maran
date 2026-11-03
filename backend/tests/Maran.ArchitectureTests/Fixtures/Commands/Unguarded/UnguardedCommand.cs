@@ -29,9 +29,19 @@ namespace Maran.ArchitectureTests.Fixtures.Commands.Unguarded;
 /// is still attacker-writable. It is planted here permanently because the rule was blind to
 /// exactly this shape once and must never be again.
 /// </param>
+/// <param name="OperatorUserId">
+/// The operator a view-as start is stamped with (issues #317, #179), entirely unguarded. The violation
+/// the rule must name for the two view-as start commands, whose operator members it once did not read.
+/// </param>
+/// <param name="OperatorSessionId">
+/// The operator's own session, carrying only the bare constructor-parameter <c>[BindNever]</c>, which
+/// does nothing to a JSON body. The violation: missing the JSON guard and the property guard.
+/// </param>
 public sealed record UnguardedCommand(
     string Name,
     Guid WidgetId,
     string IpAddress,
     [property: BindNever] string UserAgent,
-    [property: JsonIgnore][property: BindNever] Guid UserId);
+    [property: JsonIgnore][property: BindNever] Guid UserId,
+    Guid OperatorUserId,
+    [BindNever] Guid OperatorSessionId);

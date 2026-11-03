@@ -88,6 +88,13 @@ public sealed class BoundCommandGuardTests
     /// because an id is only server-established on the endpoint whose URL carries it.
     /// </para>
     /// <para>
+    /// <b><c>OperatorUserId</c> and <c>OperatorSessionId</c> (issues #317, #179)</b> are the operator a
+    /// view-as start is stamped with, taken from the operator's own access token; the two start
+    /// commands carry them, and bound from the body they would let a caller name somebody else as the
+    /// operator in the journal and in the session the view-as token dies with. Until they were listed
+    /// the rule never read them, so the guard on both start commands was held up by nothing.
+    /// </para>
+    /// <para>
     /// <b><c>AccountId</c> is deliberately NOT here, and the first draft had it.</b> That draft
     /// failed on seven live endpoints — <c>SitesController.CreateAsync</c>,
     /// <c>DatabasesController.CreateAsync</c>, <c>SftpUsersController.CreateAsync</c>, the three
@@ -101,7 +108,14 @@ public sealed class BoundCommandGuardTests
     /// </para>
     /// </remarks>
     private static readonly HashSet<string> ServerEstablishedMembers =
-        new HashSet<string>(StringComparer.Ordinal) { "IpAddress", "UserAgent", "UserId" };
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "IpAddress",
+            "UserAgent",
+            "UserId",
+            "OperatorUserId",
+            "OperatorSessionId",
+        };
 
     /// <summary>
     /// No action of any composed module binds a command that leaves a server-established member
@@ -150,6 +164,11 @@ public sealed class BoundCommandGuardTests
             new[]
             {
                 "UnguardedCommandController.SpoofableAsync binds UnguardedCommand.IpAddress "
+                + "(server-established) — missing [JsonIgnore], missing [property: BindNever], "
+                + "missing [BindNever] on the constructor parameter",
+                "UnguardedCommandController.SpoofableAsync binds UnguardedCommand.OperatorSessionId "
+                + "(server-established) — missing [JsonIgnore], missing [property: BindNever]",
+                "UnguardedCommandController.SpoofableAsync binds UnguardedCommand.OperatorUserId "
                 + "(server-established) — missing [JsonIgnore], missing [property: BindNever], "
                 + "missing [BindNever] on the constructor parameter",
                 "UnguardedCommandController.SpoofableAsync binds UnguardedCommand.UserAgent "
