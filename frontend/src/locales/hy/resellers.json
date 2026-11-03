@@ -66,7 +66,7 @@
       },
       "placeholders": {
         "name": "acmehosting",
-        "contactEmail": "owner@example.com"
+        "contactEmail": "owner{'@'}example.com"
       },
       "hints": {
         "name": "Սա նաև ռեսելլերի մուտքանունն է։ Հետագայում հնարավոր չէ փոխել։",
@@ -76,7 +76,7 @@
         "nameRequired": "Անունը պարտադիր է։",
         "nameTooLong": "Անունը չպետք է գերազանցի {max} նիշը։",
         "contactEmailRequired": "Կոնտակտային հասցեն պարտադիր է։",
-        "contactEmailInvalid": "Մուտքագրեք էլ. փոստի հասցե՝ owner@example.com ձևաչափով։",
+        "contactEmailInvalid": "Մուտքագրեք էլ. փոստի հասցե՝ owner{'@'}example.com ձևաչափով։",
         "whole": "Մուտքագրեք ամբողջ թիվ։",
         "range": "Մուտքագրեք թիվ {min}-ից մինչև {max}։"
       },

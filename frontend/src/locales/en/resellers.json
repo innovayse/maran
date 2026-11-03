@@ -66,7 +66,7 @@
       },
       "placeholders": {
         "name": "acmehosting",
-        "contactEmail": "owner@example.com"
+        "contactEmail": "owner{'@'}example.com"
       },
       "hints": {
         "name": "Also the reseller's login name. It cannot be changed later.",
@@ -76,7 +76,7 @@
         "nameRequired": "Name is required.",
         "nameTooLong": "Name must be at most {max} characters.",
         "contactEmailRequired": "A contact address is required.",
-        "contactEmailInvalid": "Enter an email address like owner@example.com.",
+        "contactEmailInvalid": "Enter an email address like owner{'@'}example.com.",
         "whole": "Enter a whole number.",
         "range": "Enter a number from {min} to {max}."
       },
