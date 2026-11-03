@@ -3,7 +3,6 @@ using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Queries.ListSubUsers;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
-using Maran.SharedKernel.Pagination;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Identity.Tests.Queries.ListSubUsers;

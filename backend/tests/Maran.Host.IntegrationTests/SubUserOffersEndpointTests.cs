@@ -151,7 +151,11 @@ public sealed class SubUserOffersEndpointTests : IAsyncLifetime
         Assert.Single(_mailer.Sent);
     }
 
-    /// <summary>A suspended account takes no offer: the request is answered like any other and stores nothing.</summary>
+    /// <summary>
+    /// A suspended account takes no offer: the owner's membership is suspended with the account, so the
+    /// request is refused at the door (#331), nothing is stored and no mail is sent. The handler's own
+    /// suspended-account branch is held by its unit tests.
+    /// </summary>
     [Fact]
     public async Task A_suspended_account_stores_no_offer_and_answers_alike()
     {
@@ -161,7 +165,9 @@ public sealed class SubUserOffersEndpointTests : IAsyncLifetime
 
         var response = await OfferAsync(owner, "pat");
 
-        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("AccountMembershipSuspended", body.RootElement.GetProperty("code").GetString());
         Assert.Equal(0, await SubUserTeamWorld.OpenOfferCountAsync(factory, "pat", "acme"));
         Assert.Empty(_mailer.Sent);
     }

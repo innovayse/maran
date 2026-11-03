@@ -161,7 +161,11 @@ public sealed class SubUserResendEndpointTests : IAsyncLifetime
         Assert.Single(_mailer.Sent);
     }
 
-    /// <summary>A suspended account's owner cannot resend an invitation.</summary>
+    /// <summary>
+    /// A suspended account's owner cannot resend an invitation: the owner's own membership is suspended with
+    /// the account, so the request is refused at the door (#331) before the handler's own suspended-account
+    /// check, which its unit tests hold.
+    /// </summary>
     [Fact]
     public async Task A_suspended_account_cannot_resend_an_invitation()
     {
@@ -176,7 +180,7 @@ public sealed class SubUserResendEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("InvitationAccountSuspended", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal("AccountMembershipSuspended", body.RootElement.GetProperty("code").GetString());
         Assert.Single(_mailer.Sent);
     }
 

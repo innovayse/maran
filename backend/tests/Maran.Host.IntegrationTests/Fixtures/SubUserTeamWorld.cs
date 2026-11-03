@@ -6,10 +6,13 @@ using System.Text.RegularExpressions;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.IntegrationEvents.Handlers;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Notifications.Interfaces;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Events;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -145,18 +148,25 @@ public static class SubUserTeamWorld
     }
 
     /// <summary>
-    /// Suspends an account the way production does: the administrator's suspend endpoint, whose
-    /// handler publishes the event that suspends every membership. Changing the account row alone would
-    /// leave the Identity side (what sign-in and the offer's acceptance read) unsuspended.
+    /// Suspends an account on both sides it lives on: the account row itself, and Identity's memberships
+    /// through the real subscriber production runs when the suspend command publishes the event. The
+    /// administrator's suspend endpoint is not used because it first stops what the account runs through
+    /// the agent, which these tests do not stand up (the pattern <c>SuspendedAccountMemberEndpointTests</c> uses).
     /// </summary>
     /// <param name="factory">The booted host.</param>
     /// <param name="accountName">The account's name.</param>
     public static async Task SuspendAccountAsync(WebApplicationFactory<Program> factory, string accountName)
     {
-        var accountId = await AccountIdAsync(factory, accountName);
-        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
-        var response = await admin.PostAsync($"/api/v1/accounts/{accountId}/suspend", null);
-        response.EnsureSuccessStatusCode();
+        using var scope = factory.Services.CreateScope();
+        var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
+        var account = await accounts.Accounts.SingleAsync(candidate => candidate.Name == accountName);
+        account.Suspend();
+        await accounts.SaveChangesAsync();
+
+        var handler = new AccountSuspendingHandler(
+            scope.ServiceProvider.GetRequiredService<IdentityDbContext>(),
+            scope.ServiceProvider.GetRequiredService<ISessionService>());
+        await handler.HandleAsync(new AccountSuspending(account.Id, "owner"), CancellationToken.None);
     }
 
     /// <summary>Reads an account's id by name.</summary>
