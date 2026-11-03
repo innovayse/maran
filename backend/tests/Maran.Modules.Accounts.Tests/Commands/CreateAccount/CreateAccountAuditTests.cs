@@ -132,7 +132,7 @@ public sealed class CreateAccountAuditTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        var dbContext = new AccountsDbContext(options);
+        var dbContext = new AccountsDbContext(options, FakeCurrentUser.Admin());
 
         var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 1_024, 5, 2, 3, 5, 5);
         dbContext.Plans.Add(plan);

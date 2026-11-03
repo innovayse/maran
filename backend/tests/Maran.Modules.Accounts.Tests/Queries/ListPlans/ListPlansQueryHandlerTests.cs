@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListPlans;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Pagination;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
@@ -23,7 +24,7 @@ public sealed class ListPlansQueryHandlerTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Empty store returns an empty page with a total of zero.</summary>

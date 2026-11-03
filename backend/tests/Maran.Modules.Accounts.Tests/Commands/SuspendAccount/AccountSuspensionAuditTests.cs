@@ -123,7 +123,7 @@ public sealed class AccountSuspensionAuditTests : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>The journal under test, writing into this fixture's recorder.</summary>

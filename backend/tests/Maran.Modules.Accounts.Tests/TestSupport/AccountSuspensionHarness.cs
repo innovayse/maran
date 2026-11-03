@@ -45,7 +45,7 @@ public sealed class AccountSuspensionHarness : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Builds a journal writing into a writer nothing asserts on; the audit tests do that.</summary>

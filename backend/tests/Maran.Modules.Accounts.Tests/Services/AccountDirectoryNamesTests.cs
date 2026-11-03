@@ -86,7 +86,7 @@ public sealed class AccountDirectoryNamesTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Seeds one account, returning its id. The name lookup reads no plan, so none is seeded.</summary>

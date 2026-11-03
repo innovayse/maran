@@ -2,6 +2,7 @@ using System.Xml.Linq;
 using Maran.Modules.Accounts.Commands.CreateAccount;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Resources;
@@ -99,7 +100,7 @@ public sealed class ErrorMessagesTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        await using var dbContext = new AccountsDbContext(options);
+        await using var dbContext = new AccountsDbContext(options, FakeCurrentUser.Admin());
         var planId = Guid.NewGuid();
         dbContext.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5, 5));
         await dbContext.SaveChangesAsync();

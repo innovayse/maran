@@ -2,6 +2,7 @@ using FluentValidation.TestHelper;
 using Maran.Modules.Accounts.Commands.CreateAccount;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreateAccount;
@@ -30,7 +31,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        _dbContext = new AccountsDbContext(options);
+        _dbContext = new AccountsDbContext(options, FakeCurrentUser.Admin());
         _dbContext.Plans.Add(new Plan(SeededPlanId, "PlanStarterName", 5_120, 5, 2, 3, 5, 5));
         _dbContext.SaveChanges();
 

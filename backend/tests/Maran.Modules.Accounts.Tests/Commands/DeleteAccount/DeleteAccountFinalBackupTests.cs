@@ -167,7 +167,7 @@ public sealed class DeleteAccountFinalBackupTests : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Runs one deletion with the given final-backup arrangement.</summary>

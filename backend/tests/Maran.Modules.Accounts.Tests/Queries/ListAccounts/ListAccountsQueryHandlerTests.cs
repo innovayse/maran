@@ -180,7 +180,7 @@ public sealed class ListAccountsQueryHandlerTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Builds an account on a plan of its own.</summary>

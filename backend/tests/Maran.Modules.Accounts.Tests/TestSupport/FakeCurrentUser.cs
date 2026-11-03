@@ -29,10 +29,37 @@ public sealed class FakeCurrentUser : ICurrentUser
         return new FakeCurrentUser(Guid.NewGuid(), accountId, isAdmin: false);
     }
 
+    /// <summary>Creates a reseller principal acting for <paramref name="resellerId"/>.</summary>
+    /// <param name="resellerId">The reseller the login acts for.</param>
+    /// <param name="username">The login name the audit journal records.</param>
+    public static FakeCurrentUser Reseller(Guid resellerId, string username = "reseller")
+    {
+        return new FakeCurrentUser(new ResellerCaller(Guid.NewGuid(), username, resellerId));
+    }
+
+    /// <summary>Creates an unattended-work principal: nobody signed in.</summary>
+    public static FakeCurrentUser Anonymous()
+    {
+        return new FakeCurrentUser(AnonymousCaller.Instance);
+    }
+
+    /// <summary>Creates a customer who owns no account, which a tenant filter must show no row.</summary>
+    public static FakeCurrentUser AccountlessCustomer()
+    {
+        return new FakeCurrentUser(Guid.NewGuid(), null, isAdmin: false);
+    }
+
     /// <summary>Creates an administrator principal.</summary>
     public static FakeCurrentUser Admin()
     {
         return new FakeCurrentUser(Guid.NewGuid(), null, isAdmin: true);
+    }
+
+    /// <summary>Creates a principal that reports exactly <paramref name="caller"/>.</summary>
+    /// <param name="caller">The caller every query for this principal sees.</param>
+    public FakeCurrentUser(Caller caller)
+    {
+        Caller = caller;
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListAccountChoices;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Queries.ListAccountChoices;
@@ -19,7 +20,7 @@ public sealed class ListAccountChoicesQueryHandlerTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        await using var dbContext = new AccountsDbContext(options);
+        await using var dbContext = new AccountsDbContext(options, FakeCurrentUser.Admin());
         var created = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var accounts = Enumerable.Range(0, 11).Reverse().Select(index =>
         {

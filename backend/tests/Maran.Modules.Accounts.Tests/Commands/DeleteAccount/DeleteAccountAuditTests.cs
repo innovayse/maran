@@ -154,7 +154,7 @@ public sealed class DeleteAccountAuditTests : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Seeds one active account named "acme".</summary>

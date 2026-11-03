@@ -110,7 +110,7 @@ public sealed class DeleteAccountUncheckedModuleTests : IDisposable
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Runs one deletion against the given audit.</summary>

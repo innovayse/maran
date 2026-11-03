@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.GetPlan;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
@@ -55,7 +56,7 @@ public sealed class GetPlanQueryHandlerTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>A localizer double prefixing every key, so a resolved name is told from a stored one.</summary>

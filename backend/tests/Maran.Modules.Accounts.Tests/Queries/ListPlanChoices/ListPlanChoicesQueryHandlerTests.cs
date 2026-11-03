@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListPlanChoices;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Pagination;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -77,7 +78,7 @@ public sealed class ListPlanChoicesQueryHandlerTests
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        return new AccountsDbContext(options);
+        return new AccountsDbContext(options, FakeCurrentUser.Admin());
     }
 
     /// <summary>Runs the handler with the upper-casing localizer.</summary>
