@@ -260,7 +260,7 @@ public sealed class ResellerIsolationTests : IAsyncLifetime
 
     /// <summary>
     /// The administrator sees every account and every plan with the reseller that owns it named, can
-    /// narrow either list to one reseller, and reads any single row; the administrator's own rows name no
+    /// narrow either list to one reseller, is offered one owner's plans at a time by the plan picker, and reads any single row; the administrator's own rows name no
     /// reseller. This is the inverse control of the isolation above: the rows a reseller cannot see exist
     /// and are visible to the one caller that may see them.
     /// </summary>
@@ -279,9 +279,17 @@ public sealed class ResellerIsolationTests : IAsyncLifetime
         Assert.Equal(
             ["AlphaPlan", "BravoPlan", "HousePlan"],
             (await NamesAsync(admin, "/api/v1/plans", "displayName")).Order());
+
+        // The plan picker is not a list of everything: an account is sold only from its owner's plans, so
+        // it offers the plans of ONE owner — the administrator's own unless a reseller is named.
+        Assert.Equal(["HousePlan"], await NamesAsync(admin, "/api/v1/plans/choices", "displayName"));
         Assert.Equal(
-            ["AlphaPlan", "BravoPlan", "HousePlan"],
-            (await NamesAsync(admin, "/api/v1/plans/choices", "displayName")).Order());
+            ["AlphaPlan"],
+            await NamesAsync(admin, $"/api/v1/plans/choices?forResellerId={world.Alpha.ResellerId}", "displayName"));
+        Assert.Equal(
+            ["BravoPlan"],
+            await NamesAsync(admin, $"/api/v1/plans/choices?forResellerId={world.Bravo.ResellerId}", "displayName"));
+
         Assert.Equal(["alphaone"], await NamesAsync(admin, $"/api/v1/accounts?resellerId={world.Alpha.ResellerId}", "name"));
         Assert.Equal(["BravoPlan"], await NamesAsync(admin, $"/api/v1/plans?resellerId={world.Bravo.ResellerId}", "displayName"));
 
