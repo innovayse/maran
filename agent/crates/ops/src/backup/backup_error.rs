@@ -479,6 +479,86 @@ pub enum BackupError {
         message: String,
     },
 
+    /// The artifact, or the sidecar beside it, is not a plain file that could
+    /// have been published here.
+    ///
+    /// Raised by a verification that found a directory, a symbolic link, a
+    /// device, a file with more than one hard link or a file another uid owns
+    /// wearing the name of an artifact. Never followed and never read:
+    /// `list_backups` names the same case as
+    /// [`UnreadableReason::NotARegularFile`](crate::backup::UnreadableReason::NotARegularFile).
+    /// The variant carries nothing, because what it would say is a path.
+    #[error("the artifact or its sidecar is not a plain file owned by root")]
+    ArtifactNotRegularFile,
+
+    /// The sidecar beside the artifact is missing, unreadable, of a version this
+    /// agent does not understand, describes itself as unreadable, or records a
+    /// digest that is not 64 lowercase hexadecimal characters.
+    ///
+    /// A finding about the backup's record, not about the host: the record
+    /// cannot be believed, so the artifact cannot be compared with it.
+    #[error("the artifact's sidecar is missing or cannot be trusted")]
+    SidecarUnreadable,
+
+    /// The artifact weighs something other than what its sidecar recorded.
+    ///
+    /// Checked beside the digest and after it. An artifact that was cut or
+    /// extended hashes differently and is [`Self::ChecksumMismatch`]; this fires
+    /// when the digest matched and only the recorded size disagrees, which is a
+    /// sidecar that was edited or written wrong.
+    #[error("the artifact's size does not match the one recorded for it")]
+    ArtifactSizeMismatch,
+
+    /// The manifest inside the archive names a different backup from the one
+    /// that was asked for.
+    ///
+    /// An artifact copied or renamed under another id is refused rather than
+    /// verified as whatever it contains: a verification reports counts and a
+    /// size, and answering for an artifact the caller did not name would let a
+    /// caller learn what another backup holds.
+    #[error("the archive's manifest belongs to a different backup")]
+    ManifestBackupMismatch,
+
+    /// The manifest inside the archive cannot be read as a manifest by a
+    /// verification: its JSON does not parse, or it names a database that no
+    /// account could own.
+    ///
+    /// Separate from [`Self::ManifestUnwritable`] because the two are different
+    /// facts that used to share a name: that variant says THIS AGENT could not
+    /// write a manifest while creating a backup (a host failure), while this one
+    /// says a manifest already on disk, inside an artifact whose digest matched,
+    /// is not one this agent could have written (a finding about the artifact).
+    /// Carries nothing: a name read out of the manifest is archive content.
+    #[error("the archive's manifest cannot be read as a manifest")]
+    ManifestUnreadable,
+
+    /// The manifest inside the archive is larger than any manifest this agent
+    /// writes.
+    ///
+    /// Refused before it is parsed, because a manifest is read whole into the
+    /// memory of a root process and the extraction that produced it is the one
+    /// read of archive CONTENT a verification makes.
+    #[error("the archive's manifest is larger than this agent will read")]
+    ManifestTooLarge,
+
+    /// An archive member whose content root would read — the manifest — came out
+    /// of the extraction as something other than a plain file with one link.
+    ///
+    /// A symbolic link named `manifest.json` that points at a file root can read
+    /// is the dangerous case, and the layout scan does not catch it because it
+    /// decides on names. Refused at the point of reading, before a byte of the
+    /// target is followed.
+    #[error("an archive member that must be a plain file is a link or another kind of entry")]
+    MemberNotRegularFile,
+
+    /// The manifest names a database whose dump is not among the archive's
+    /// members.
+    ///
+    /// Carries no name: the manifest is archive content, and which database it
+    /// was is not something the wire or an alert needs in order to act.
+    #[error("a database the manifest names has no dump in the archive")]
+    DumpMissing,
+
     /// A program this area started ran past its deadline, or wrote more output
     /// than the area is willing to hold, and was killed together with its
     /// process group.

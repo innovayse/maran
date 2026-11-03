@@ -632,6 +632,25 @@ impl AgentPaths {
             .join(backup_id.as_str())
     }
 
+    /// The root-only directory one verification extracts a manifest into:
+    /// `<bulk scratch root>/verify/<id>`.
+    ///
+    /// A sibling of [`Self::backup_scratch_dir`]'s `backup/` and not that
+    /// directory, and the separation is the point rather than tidiness. A
+    /// verification removes its scratch on every path, and a killed restore of
+    /// the SAME backup id may have left its pre-drop rollback dumps — the only
+    /// copy of a customer's databases as they were — under `backup/<id>/rollback`,
+    /// which the startup reaper deliberately keeps. Sharing the directory would
+    /// let a verification of that backup delete them. Anything under the root
+    /// that is not `backup/` is removed by that reaper at start, so a scratch
+    /// this leaves behind in a crash does not outlive the next start.
+    #[must_use]
+    pub fn backup_verification_scratch_dir(backup_id: &BackupId) -> PathBuf {
+        PathBuf::from(Self::BULK_SCRATCH_ROOT)
+            .join("verify")
+            .join(backup_id.as_str())
+    }
+
     /// Where a restore builds the new home before it becomes the home:
     /// `<restore staging root>/<account>.<id>`.
     ///
