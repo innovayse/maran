@@ -68,8 +68,14 @@ public sealed class ResendSubUserInvitationCommandHandlerTests : IDisposable
         Assert.True(result.IsSuccess);
         var tokens = await _world.Context.InvitationTokens.Where(candidate => candidate.UserId == user.Id).ToListAsync();
         Assert.Equal(2, tokens.Count);
-        Assert.Single(tokens, candidate => candidate.IsUsable(_world.Clock.UtcNow));
-        Assert.False(tokens.Single(candidate => candidate.Id == old.Id).IsUsable(_world.Clock.UtcNow));
+        Assert.Single(tokens, candidate =>
+        {
+            return candidate.IsUsable(_world.Clock.UtcNow);
+        });
+        Assert.False(tokens.Single(candidate =>
+        {
+            return candidate.Id == old.Id;
+        }).IsUsable(_world.Clock.UtcNow));
     }
 
     /// <summary>The mail is published once, to the address stored on the login, and carries the plaintext whose digest is stored.</summary>
