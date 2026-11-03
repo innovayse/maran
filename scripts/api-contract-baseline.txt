@@ -130,9 +130,9 @@ POST /api/v1/me/pinned-pages  ->  PinPageCommand
 POST /api/v1/me/sub-users  ->  InviteSubUserCommand
   username: string
   email: string
-  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/me/sub-users/{}/features  ->  ChangeSubUserGrantsCommand
-  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
   host: string
   port: number
@@ -159,7 +159,7 @@ POST /api/v1/plans  ->  CreatePlanCommand
   memoryMaxMb<limited>.maximum: number
   maxProcesses: union(kind: limited|unlimited)
   maxProcesses<limited>.maximum: number
-  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   name: string
   diskQuotaMb: number
@@ -175,7 +175,7 @@ PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   memoryMaxMb<limited>.maximum: number
   maxProcesses: union(kind: limited|unlimited)
   maxProcesses<limited>.maximum: number
-  features: enum(backups|cron|databases|dns|fileTransfer|mail)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/security-policy  ->  SaveSecurityPolicyCommand
   minimumPasswordLength: number
   forceTwoFactorForAdmins: boolean
@@ -248,6 +248,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/audit/actions
   GET /api/v1/audit/outcomes
   GET /api/v1/backup-destinations
+  GET /api/v1/backup-options
   GET /api/v1/backup-schedules
   GET /api/v1/backups
   GET /api/v1/backups/attention
@@ -258,6 +259,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/cron-entries/{}/runs
   GET /api/v1/cron-entries/{}/runs/{}
   GET /api/v1/cron-environment
+  GET /api/v1/cron-options
   GET /api/v1/database-grants
   GET /api/v1/databases
   GET /api/v1/databases/{}
@@ -299,6 +301,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/sites/choices
   GET /api/v1/sites/limits
   GET /api/v1/sites/php-versions
+  GET /api/v1/sites/php-versions/installable
   GET /api/v1/sites/{}
   GET /api/v1/sites/{}/logs
   GET /api/v1/tasks
