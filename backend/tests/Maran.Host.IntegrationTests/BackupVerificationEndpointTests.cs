@@ -244,8 +244,14 @@ public sealed class BackupVerificationEndpointTests : IAsyncLifetime
         Assert.Empty(agent.Verifications);
         var row = Assert.Single(await BackupVerificationWorld.BackupsAsync(factory));
         Assert.Equal(BackupVerificationState.NotVerified, row.VerificationState);
-        Assert.Empty(await BackupVerificationWorld.AuditEntriesAsync(
-            factory, BackupAuditActions.BackupVerified, BackupAuditActions.BackupVerificationFailed));
+
+        // A refused probe leaves a trace of the identifier probed for, and that trace records a refusal:
+        // nothing was verified, so no entry may claim the operation took effect.
+        var trace = await BackupVerificationWorld.AuditEntriesAsync(
+            factory, BackupAuditActions.BackupVerified, BackupAuditActions.BackupVerificationFailed);
+        Assert.Equal(2, trace.Count);
+        Assert.All(trace, entry => { Assert.False(entry.Succeeded); });
+        Assert.DoesNotContain(trace, entry => { return entry.Subject == "beta"; });
     }
 
     /// <summary>An administrator may verify any account's backup, and the journal names them.</summary>
