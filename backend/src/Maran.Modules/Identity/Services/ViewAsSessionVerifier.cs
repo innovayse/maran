@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Persistence;
 
@@ -23,7 +24,10 @@ namespace Maran.Modules.Identity.Services;
 /// names the token's <c>act</c> user as its actor; AND the operator's own rotation family — found
 /// from <see cref="Session.ViewAs"/> — still holds an active session of that operator. The
 /// FAMILY and not the row, because the operator's row rotates whenever another of their tabs
-/// refreshes, and checking the row would end viewing at every rotation.
+/// refreshes, and checking the row would end viewing at every rotation. Finally the session's kind
+/// must be coherent (<see cref="ViewAsKindPolicy.TryDescribe"/>): the viewed login still exists, is
+/// a customer viewed through an active account or a reseller viewed through none, and is never an
+/// administrator — the same rule the token issuer applied before it signed.
 /// </para>
 /// </remarks>
 public sealed class ViewAsSessionVerifier
@@ -63,6 +67,18 @@ public sealed class ViewAsSessionVerifier
         if (session is null
             || session.UserId != viewedUserId
             || session.ViewAs != new ViewAsOrigin(actorUserId, actorSessionId))
+        {
+            return false;
+        }
+
+        var viewed = await _dbContext.Users
+            .AsNoTracking()
+            .Where(u => u.Id == viewedUserId)
+            .Select(u => new { u.Role, u.ResellerId })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (viewed is null
+            || !ViewAsKindPolicy.TryDescribe(viewed.Role, viewed.ResellerId, session.ActiveAccountId, out _, out _))
         {
             return false;
         }

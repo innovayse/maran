@@ -32,13 +32,18 @@ public interface IAccessTokenIssuer
 
     /// <summary>
     /// Issues the one access token of a view-as session: it speaks for <paramref name="viewedUser"/>
-    /// and the session's account, carries the operator as an RFC 8693 <c>act</c> claim and the
-    /// session kind as <c>sk</c>, and expires with the session (issue #317).
+    /// with that login's own role, and for the session's account when the login is a customer's or
+    /// for the login's reseller when it is a reseller's. It carries the operator as an RFC 8693
+    /// <c>act</c> claim and the session kind as <c>sk</c>, and expires with the session (issues #317, #179).
     /// </summary>
     /// <param name="viewedUser">The login being viewed as.</param>
     /// <param name="session">A view-as session (<see cref="Domain.Entities.Session.ViewAs"/> is set) of that login, started by <paramref name="actor"/>.</param>
     /// <param name="actor">The operator viewing.</param>
     /// <returns>The signed token and its expiry; never steered into two-factor enrolment.</returns>
-    /// <exception cref="InvalidOperationException">The session is not a view-as session of these two users.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The session is not a view-as session of these two users, or its facts do not agree with the
+    /// viewed login's kind: a customer needs an active account, a reseller needs none and a reseller
+    /// id, and an administrator is never viewed as.
+    /// </exception>
     AccessToken IssueViewAs(User viewedUser, Session session, User actor);
 }

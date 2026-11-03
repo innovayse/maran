@@ -102,7 +102,10 @@ public sealed class Session
     /// <summary>Starts a session in which an operator views the panel as another user.</summary>
     /// <param name="id">The session's identity; also the <c>sid</c> claim of the view-as access token.</param>
     /// <param name="viewedUserId">The login being viewed as.</param>
-    /// <param name="viewedAccountId">The account the session speaks for: the one the operator chose.</param>
+    /// <param name="viewedAccountId">
+    /// The account the session speaks for: the one the operator chose when viewing as a customer login,
+    /// and null when viewing as a reseller, whose login acts for no account.
+    /// </param>
     /// <param name="actorUserId">The operator viewing.</param>
     /// <param name="actorSessionId">The operator's own session, from their access token's <c>sid</c>.</param>
     /// <param name="tokenHash">
@@ -116,7 +119,7 @@ public sealed class Session
     public static Session StartViewAs(
         Guid id,
         Guid viewedUserId,
-        Guid viewedAccountId,
+        Guid? viewedAccountId,
         Guid actorUserId,
         Guid actorSessionId,
         string tokenHash,

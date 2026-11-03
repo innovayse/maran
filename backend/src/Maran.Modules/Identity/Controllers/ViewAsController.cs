@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Commands.EndViewAs;
 using Maran.Modules.Identity.Commands.StartViewAs;
+using Maran.Modules.Identity.Commands.StartViewAsReseller;
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Queries.GetViewAs;
@@ -12,7 +13,7 @@ using Wolverine;
 namespace Maran.Modules.Identity.Controllers;
 
 /// <summary>
-/// Viewing the panel as an account's login, and coming back (issues #317, #314). The threat note is
+/// Viewing the panel as an account's or a reseller's login, and coming back (issues #317, #314, #179). The threat note is
 /// <c>docs/superpowers/notes/2026-11-02-view-as-impersonation-threat-note.md</c>.
 /// </summary>
 /// <remarks>
@@ -24,6 +25,11 @@ namespace Maran.Modules.Identity.Controllers;
 /// <para>
 /// Every action reads who is asking from the caller's own token; no route, query or body parameter
 /// names an operator or a session.
+/// </para>
+/// <para>
+/// <b>One hop per token.</b> Both start endpoints are refused from inside a view-as session, so no
+/// token a view-as produces can start another. The allowed edges are administrator to reseller,
+/// administrator to any account, and reseller to one of its own accounts.
 /// </para>
 /// </remarks>
 [Route("api/v1/view-as")]
@@ -59,15 +65,48 @@ public sealed class ViewAsController : BaseApiController
 
     /// <summary>
     /// Starts viewing the panel as the login that owns an account, returning that login's view-as
-    /// access token. Administrators only; refused from inside another view-as session.
+    /// access token. Administrators for any account, resellers for their own; refused from inside
+    /// another view-as session.
     /// </summary>
     /// <remarks>
-    /// An account that does not exist, lies outside the caller's scope, or has no login answers 404,
-    /// not 403 (rules/security.md item 6).
+    /// An account that does not exist, lies outside the caller's scope (another reseller's, for a
+    /// reseller), or has no login answers 404, not 403 (rules/security.md item 6).
     /// </remarks>
     /// <param name="command">The account to view as, bound from the body.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
+    [Authorize(Policy = AuthorizationPolicies.AdminOrReseller)]
+    [ProducesResponseType(typeof(ViewAsSessionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> StartAsync([FromBody] StartViewAsCommand command, CancellationToken cancellationToken)
+    {
+        command = command with
+        {
+            OperatorUserId = SignedInCallerPolicy.Require(CurrentUser).UserId,
+            OperatorSessionId = CallerSessionId,
+            IpAddress = ClientIpAddress,
+            UserAgent = CallerUserAgent,
+        };
+
+        return ToActionResult(await _bus.InvokeAsync<Result<ViewAsSessionDto>>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Starts viewing the panel as a reseller's login, returning that login's view-as access token.
+    /// Administrators only; refused from inside another view-as session.
+    /// </summary>
+    /// <remarks>
+    /// A reseller that does not exist or has no login answers 404, not 403 (rules/security.md item 6).
+    /// The token carries role Reseller, so the administrator keeps no administrator power while viewing.
+    /// </remarks>
+    /// <param name="command">The reseller to view as, bound from the body.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("reseller")]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     [ProducesResponseType(typeof(ViewAsSessionDto), StatusCodes.Status200OK)]
@@ -76,7 +115,9 @@ public sealed class ViewAsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> StartAsync([FromBody] StartViewAsCommand command, CancellationToken cancellationToken)
+    public async Task<IActionResult> StartResellerAsync(
+        [FromBody] StartViewAsResellerCommand command,
+        CancellationToken cancellationToken)
     {
         command = command with
         {
