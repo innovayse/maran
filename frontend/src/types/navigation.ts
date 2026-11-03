@@ -68,7 +68,7 @@ export type NavigationBadgeKind =
   | 'needsAttention'
   /** Messages waiting in the mail queue. Not fed yet: the mail module (issue #177) does not exist. */
   | 'mailQueue'
-  /** Package updates waiting to be installed. Not fed yet: no data source exists (issue #320). */
+  /** Package updates waiting to be installed (`GET /api/v1/monitoring/updates/count`, read from the package cache). */
   | 'availableUpdates'
 
 /** Who may see an item, and what the panel must have for it to be usable. */
@@ -87,6 +87,11 @@ export interface NavigationGate {
    * offered (advice errs permissive, rules/security.md).
    */
   planFeature: AccountFeatureName | null
+  /**
+   * Whether the page is offered only to the account's owner and not to a member the owner invited.
+   * Advice: the endpoint behind the page refuses a member regardless of what the menu shows.
+   */
+  ownerOnly: boolean
 }
 
 /** One page in the navigation tree. */
@@ -170,6 +175,26 @@ export type NavigationPlanFeatures =
       features: ReadonlySet<AccountFeatureName>
     }
 
+/**
+ * What the panel reported about the caller's standing on the account they act for. The unreported
+ * arm carries nothing, so "not reported" cannot be mistaken for a member holding no features.
+ */
+export type NavigationAccountAccess =
+  | {
+      /** The panel does not report it (an administrator, a read still on its way or failed). */
+      state: 'unreported'
+    }
+  | {
+      /** The caller owns the account: nothing is held back from them by a grant. */
+      state: 'owner'
+    }
+  | {
+      /** The caller is a member of the account and may use only what the owner granted. */
+      state: 'member'
+      /** The single features the owner granted. */
+      features: ReadonlySet<AccountFeatureName>
+    }
+
 /** What the shell knows about the caller and the panel when it builds the navigation. */
 export interface NavigationContext {
   /** The signed-in caller's role. */
@@ -183,6 +208,11 @@ export interface NavigationContext {
    * hiding is advice and errs permissive.
    */
   planFeatures: NavigationPlanFeatures
+  /**
+   * The caller's standing on the account. While the panel does not report it every item is offered,
+   * since hiding is advice and errs permissive.
+   */
+  accountAccess: NavigationAccountAccess
   /**
    * The live counts the shell holds, per badge kind. A partial map and not a total one: a kind is
    * present exactly when the panel answered with a real count, and absent when it was not asked,

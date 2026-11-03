@@ -4,6 +4,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { OWNER_PROFILE, stubProfile } from '../fixtures/stub-profile-route'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
@@ -57,6 +58,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
   await stubMyAccount(page, OWN_ACCOUNT)
+  // The account's owner: the menu offers Sub-users, which only an owner manages.
+  await stubProfile(page, OWNER_PROFILE)
   await page.goto('/')
 }
 
@@ -96,7 +99,8 @@ test('a customer reaches their tasks under Activity, and the breadcrumb says so'
 test('a customer reaches their own signed-in devices from My account', async ({ page }) => {
   await signIn(page)
   await openSection(page, 'My account')
-  // Sub-users is built (issue #315): an ordinary link now, no longer the disabled "Coming soon" entry.
+  // Sub-users is built (issue #315): an ordinary link now, no longer the disabled "Coming soon" entry,
+  // and the owner is offered it (issue #328).
   await expect(mainNavigation(page).getByRole('link', { name: 'Sub-users', exact: true })).toHaveAttribute(
     'href',
     '/my-account/sub-users',

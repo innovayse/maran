@@ -249,9 +249,9 @@ onMounted(ensureCatalogueLoaded)
 // screen re-reads it itself, and a failure leaves no badge rather than a wrong one.
 onMounted(tasksStore.loadFailures)
 
-// The needs-attention figure is server-wide, so only an administrator is shown it (the endpoint
-// refuses everyone else). It is re-read on an interval while the shell is mounted; the mail queue and
-// available-updates badges have no source yet and are never requested (issue #320).
+// The needs-attention and pending-updates figures are server-wide, so only an administrator is shown
+// them (the endpoints refuse everyone else). Each is re-read on its own interval while the shell is
+// mounted; the mail queue badge has no source yet and is never requested (issue #320).
 onMounted((): void => {
   if (navigationRole.value === 'admin') {
     badgesStore.start()

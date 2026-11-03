@@ -46,19 +46,25 @@ const stateOf = (page: NavigationPageSpec, context: NavigationContext): Navigati
     page.planFeature === null ||
     context.planFeatures.state === 'unreported' ||
     context.planFeatures.features.has(page.planFeature)
-  if (!page.roles.includes(context.role) || !featureOffered) {
+  // A member is offered what the owner granted; an unreported standing, like an owner, is offered
+  // everything the plan allows.
+  const access = context.accountAccess
+  const granted =
+    access.state !== 'member' || page.planFeature === null || access.features.has(page.planFeature)
+  const ownerOffered = !page.ownerOnly || access.state !== 'member'
+  if (!page.roles.includes(context.role) || !featureOffered || !granted || !ownerOffered) {
     return null
   }
   if (page.availability.state === 'planned') {
     return { kind: 'planned', issue: page.availability.issue }
   }
   if (page.module !== null) {
-    const access = context.modules.get(page.module)
+    const moduleState = context.modules.get(page.module)
     // A module the catalogue does not report is not installed: nothing of it is offered.
-    if (access === undefined) {
+    if (moduleState === undefined) {
       return null
     }
-    if (access === 'locked') {
+    if (moduleState === 'locked') {
       return { kind: 'locked', target: upgradeOf(page.module) }
     }
   }
@@ -200,9 +206,9 @@ const catalogueEntries = (context: NavigationContext): NavigationEntry[] => {
 
 /**
  * Builds the navigation for one caller from the tree (`router/navigationTree.ts`): the tree filtered
- * by role and plan feature, each page resolved against the module catalogue and the router, then
- * any catalogue module the tree does not know. Pure, so the role filter is the same function for
- * every role.
+ * by role, plan feature and the caller's grants on the account, each page resolved against the
+ * module catalogue and the router, then any catalogue module the tree does not know. Pure, so the
+ * role filter is the same function for every role.
  * @param context What the shell knows about the caller and the panel.
  * @returns The entries in drawing order.
  */
