@@ -1,10 +1,14 @@
 {
   "viewAs": {
     "action": "Դիտել որպես այս հաշիվ",
+    "actionReseller": "Դիտել որպես այս վերավաճառող",
     "starting": "Բացվում է հաշիվը…",
-    "banner": "Դուք դիտում եք որպես {account} ({username})։",
+    "startingReseller": "Բացվում է վերավաճառողը…",
+    "banner": "Դուք դիտում եք որպես {subject} ({username})։",
+    "bannerReseller": "Դուք դիտում եք որպես վերավաճառող {subject} ({username})։",
     "back": "Վերադառնալ՝ {operator}",
     "backing": "Վերադարձ…",
-    "regionLabel": "Դիտում է այլ հաշիվ"
+    "regionLabel": "Դիտում է այլ հաշիվ",
+    "regionLabelReseller": "Դիտում է այլ վերավաճառող"
   }
 }

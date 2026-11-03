@@ -29,7 +29,7 @@
         "backupsSchedule": "Schedule",
         "backupsDestinations": "Destinations",
         "resellers": "Resellers",
-        "resellerPlans": "Reseller plans",
+        "resellerOverview": "Overview",
         "siteDomains": "Domains and aliases",
         "siteCertificates": "SSL certificates",
         "dnsZones": "Zones",

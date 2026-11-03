@@ -12,6 +12,10 @@ import SubUsersPage from '../pages/accounts/SubUsersPage.vue'
 import ProfilePage from '../pages/ProfilePage.vue'
 import PlanFormPage from '../pages/plans/PlanFormPage.vue'
 import PlansListPage from '../pages/plans/PlansListPage.vue'
+import ResellerOverviewPage from '../pages/reseller/ResellerOverviewPage.vue'
+import ResellerDetailPage from '../pages/resellers/ResellerDetailPage.vue'
+import ResellerFormPage from '../pages/resellers/ResellerFormPage.vue'
+import ResellersListPage from '../pages/resellers/ResellersListPage.vue'
 import SitesListPage from '../pages/sites/SitesListPage.vue'
 import SiteFormPage from '../pages/sites/SiteFormPage.vue'
 import SiteDetailPage from '../pages/sites/SiteDetailPage.vue'
@@ -64,10 +68,11 @@ const SITE_ID_SEGMENT = ':id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-
  * screen's name, which `useDocumentTitle` turns into the browser tab's title (WCAG 2.4.2); the key
  * is the one the screen's own heading uses, so the tab and the page never name a screen two ways.
  *
- * A route only administrators may use carries `meta.adminOnly: true`. That flag is advice: the
- * endpoints behind those screens refuse a customer on their own and stay the boundary. The role
- * guard reads it so a customer who reaches such a URL sees the "not available" screen rather than
- * administrator chrome around a refusal (issue #202).
+ * A route only administrators may use carries `meta.adminOnly: true`, and one for administrators
+ * and resellers `meta.managerOnly: true`. Both flags are advice: the endpoints behind those screens
+ * refuse every other role on their own and stay the boundary. The role guard reads them so a caller
+ * who reaches such a URL sees the "not available" screen rather than another role's chrome around
+ * a refusal (issues #202 and #179).
  * @returns A fresh {@link Router} instance to install with `app.use()`.
  */
 export const createAppRouter = (): Router => {
@@ -86,8 +91,8 @@ export const createAppRouter = (): Router => {
         path: '/accounts',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'accounts', component: AccountsListPage, meta: { module: 'accounts', title: 'accounts.list.heading', adminOnly: true } },
-          { path: 'new', name: 'accounts-new', component: AccountFormPage, meta: { module: 'accounts', title: 'accounts.form.heading', adminOnly: true } },
+          { path: '', name: 'accounts', component: AccountsListPage, meta: { module: 'accounts', title: 'accounts.list.heading', managerOnly: true } },
+          { path: 'new', name: 'accounts-new', component: AccountFormPage, meta: { module: 'accounts', title: 'accounts.form.heading', managerOnly: true } },
           // Declared after 'new' so the literal segment wins: an :id route placed first would
           // swallow /accounts/new and try to load an account called "new".
           {
@@ -98,7 +103,7 @@ export const createAppRouter = (): Router => {
             meta: {
               module: 'accounts',
               title: 'accounts.detail.heading',
-              adminOnly: true,
+              managerOnly: true,
               navigationParent: 'accounts',
               titledByRecord: true,
             },
@@ -107,22 +112,65 @@ export const createAppRouter = (): Router => {
       },
       {
         // Plans belong to the Accounts module — they are what an account is created against — so
-        // they carry its `meta.module` and fall behind its licence. They are administrators-only:
-        // the endpoints refuse a customer, and `adminOnly` sends one to the "not available" screen.
+        // they carry its `meta.module` and fall behind its licence. They are for administrators and
+        // resellers: the endpoints refuse a customer, and `managerOnly` sends one to the "not
+        // available" screen.
         path: '/plans',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'plans', component: PlansListPage, meta: { module: 'accounts', title: 'plans.list.heading', adminOnly: true } },
-          { path: 'new', name: 'plans-new', component: PlanFormPage, meta: { module: 'accounts', title: 'plans.form.headingNew', adminOnly: true, navigationParent: 'plans' } },
+          { path: '', name: 'plans', component: PlansListPage, meta: { module: 'accounts', title: 'plans.list.heading', managerOnly: true } },
+          { path: 'new', name: 'plans-new', component: PlanFormPage, meta: { module: 'accounts', title: 'plans.form.headingNew', managerOnly: true, navigationParent: 'plans' } },
           // After 'new', for the reason the accounts routes give.
           {
             path: ':id',
             name: 'plans-edit',
             component: PlanFormPage,
             props: true,
-            meta: { module: 'accounts', title: 'plans.form.headingEdit', adminOnly: true, navigationParent: 'plans' },
+            meta: { module: 'accounts', title: 'plans.form.headingEdit', managerOnly: true, navigationParent: 'plans' },
           },
         ],
+      },
+      {
+        // Resellers, managed by an administrator (issue #179). They belong to the Accounts module, so
+        // they carry its `meta.module`. Administrators only: the endpoints refuse every other role,
+        // and `adminOnly` sends a reseller or a customer to the "not available" screen.
+        path: '/resellers',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'resellers', component: ResellersListPage, meta: { module: 'accounts', title: 'resellers.list.heading', adminOnly: true } },
+          { path: 'new', name: 'resellers-new', component: ResellerFormPage, meta: { module: 'accounts', title: 'resellers.form.headingNew', adminOnly: true, navigationParent: 'resellers' } },
+          // After 'new', for the reason the accounts routes give.
+          {
+            path: ':id',
+            name: 'reseller-detail',
+            component: ResellerDetailPage,
+            props: true,
+            meta: {
+              module: 'accounts',
+              title: 'resellers.detail.heading',
+              adminOnly: true,
+              navigationParent: 'resellers',
+              titledByRecord: true,
+            },
+          },
+          {
+            path: ':id/edit',
+            name: 'reseller-edit',
+            component: ResellerFormPage,
+            props: true,
+            meta: { module: 'accounts', title: 'resellers.form.headingEdit', adminOnly: true, navigationParent: 'resellers' },
+          },
+        ],
+      },
+      {
+        // A reseller's own overview: its envelope and what it has used of it (issue #179). It is the
+        // reseller's home, in place of the server dashboard, which is not theirs. The endpoint
+        // (`GET /api/v1/reseller/me`) refuses every other role; this route carries no role flag
+        // because `adminOnly` and `managerOnly` can only turn roles AWAY, and an administrator or
+        // a customer who opens the address is answered by that endpoint's refusal.
+        path: '/reseller',
+        component: DefaultLayout,
+        children: [{ path: '', name: 'reseller-overview', component: ResellerOverviewPage, meta: { module: 'accounts', title: 'resellers.overview.heading' } }],
       },
       {
         path: '/sites',
@@ -381,7 +429,7 @@ export const createAppRouter = (): Router => {
         children: [{ path: '', name: 'upgrade', component: UpgradePage, props: true, meta: { title: 'app.upgrade.heading' } }],
       },
       {
-        // Where the role guard sends a customer who reached an administrator's screen, and where
+        // Where the role guard sends a caller who reached another role's screen, and where
         // the module guard sends one whose catalogue does not list the module. No `meta.module`
         // and no `adminOnly`, so no guard can redirect away from it.
         path: '/not-available',

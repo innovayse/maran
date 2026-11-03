@@ -29,7 +29,7 @@
         "backupsSchedule": "Расписание",
         "backupsDestinations": "Хранилища",
         "resellers": "Реселлеры",
-        "resellerPlans": "Тарифы реселлеров",
+        "resellerOverview": "Обзор",
         "siteDomains": "Домены и псевдонимы",
         "siteCertificates": "SSL-сертификаты",
         "dnsZones": "Зоны",

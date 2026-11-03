@@ -9,19 +9,17 @@ import type { ListRequest, Paged } from './list'
  * What a signed-in user is allowed to reach. Mirrors the backend's `UserRole`.
  *
  * **Adding a member here is a decision, and this is where it is taken.** Exactly one place in the
- * SPA branches on this union — `composables/useCallerRole.ts` — and every presentation choice that
+ * SPA branches on this union for presentation: `composables/useCallerRole.ts`, and every choice that
  * depends on the role (the sidebar's administrator entries, the in-page administrator links, the
- * role guard's `adminOnly` redirect, whether a form offers an account picker) reads it from there.
- * It asks `role !== 'customer'` rather than `role === 'admin'` on purpose, so that a role added here
- * is offered the administrator entries rather than silently denied them. That is deliberate and it
- * is the right default (the menu is presentation; the endpoints are the boundary, and a wrongly
- * offered link costs one refusal where a wrongly withheld one hides the page entirely) — but it is
- * a DEFAULT, not an answer. If the new role must NOT see the administrator screens, that composable
- * has to be changed in the same commit, because no test can catch it: over a two-member union
- * `!== 'customer'` and `=== 'admin'` are the same function, so every spec that could be written
- * today passes either way.
+ * role guard's `adminOnly` and `managerOnly` redirects, whether a form offers an account picker)
+ * reads it from there. Each flag it offers is ROLE-EXACT: `isAdmin` is `role === 'admin'` and
+ * nothing else, so a role added here is never offered the administrator screens by default. The
+ * navigation maps the union to a tree in `composables/useNavigationRole.ts`, whose exhaustive
+ * `never` branch makes a new member a type error until it is mapped. Offering is advice and the
+ * endpoints are the boundary, so a role added here that the backend refuses costs a hidden link,
+ * never an exposed screen.
  */
-export type UserRole = 'admin' | 'customer'
+export type UserRole = 'admin' | 'reseller' | 'customer'
 
 /** The person the panel has signed in. */
 export interface AuthenticatedUser {
@@ -33,7 +31,7 @@ export interface AuthenticatedUser {
   email: string
   /** What the user is allowed to reach, so the shell can hide what it must not offer. */
   role: UserRole
-  /** The hosting account a customer owns; `null` for an administrator. */
+  /** The hosting account a customer owns; `null` for an administrator or a reseller. */
   accountId: string | null
 }
 

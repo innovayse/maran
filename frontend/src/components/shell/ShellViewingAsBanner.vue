@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The persistent "You are viewing as <account> · Back" banner (issues #314, #317). Drawn on every
+ * The persistent "You are viewing as <account or reseller> · Back" banner (issues #314, #317, #179). Drawn on every
  * page of the shell while the current access token belongs to a view-as session, and on none
  * otherwise.
  *
@@ -11,11 +11,11 @@
  * with it at the next token change, and a token that is not a view-as one can never show it.
  *
  * **Back** ends the view-as session on the server, then renews the access token from the operator's
- * own refresh cookie (which viewing never touched), and returns the operator to the account they were
- * viewing. The two stores are called in turn here because a store never reaches into another
+ * own refresh cookie (which viewing never touched), and returns the operator to the screen of what they
+ * were viewing: the account's page for an account, the reseller's page for a reseller. The two stores are called in turn here because a store never reaches into another
  * (rules/vue.md "State").
  */
-import { watch } from 'vue'
+import { computed, watch, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../ui/UiAlert.vue'
@@ -28,12 +28,27 @@ const router = useRouter()
 const authStore = useAuthStore()
 const viewAsStore = useViewAsStore()
 
+/** The banner's sentence: which of the two kinds of subject the panel says is being viewed. */
+const bannerText: ComputedRef<string> = computed((): string => {
+  const viewing = viewAsStore.viewing
+  if (viewing === null) {
+    return ''
+  }
+  const params = { subject: viewing.subjectName, username: viewing.username }
+  return viewing.kind === 'reseller' ? t('viewAs.bannerReseller', params) : t('viewAs.banner', params)
+})
+
+/** The region's accessible name, by the same kind. */
+const regionLabel: ComputedRef<string> = computed((): string => {
+  return viewAsStore.viewing?.kind === 'reseller' ? t('viewAs.regionLabelReseller') : t('viewAs.regionLabel')
+})
+
 /**
- * Ends viewing and returns the operator to their own session and to the account they viewed.
+ * Ends viewing and returns the operator to their own session and to the screen of what they viewed.
  * @returns Resolves once the operator is back, or once the renewal found no session to return to.
  */
 const back = async (): Promise<void> => {
-  const accountId = viewAsStore.viewing?.accountId ?? null
+  const viewing = viewAsStore.viewing
   await viewAsStore.stop()
 
   // The operator's own refresh cookie is the way back; viewing never wrote or deleted it.
@@ -41,7 +56,18 @@ const back = async (): Promise<void> => {
     return
   }
 
-  await router.push(accountId === null ? { name: 'accounts' } : { name: 'account-detail', params: { id: accountId } })
+  if (viewing === null) {
+    await router.push({ name: 'accounts' })
+    return
+  }
+
+  // An administrator returns to the screen of what they viewed; a reseller, who only ever views
+  // its own accounts, returns to the account.
+  await router.push(
+    viewing.kind === 'reseller'
+      ? { name: 'reseller-detail', params: { id: viewing.subjectId } }
+      : { name: 'account-detail', params: { id: viewing.subjectId } },
+  )
 }
 
 // Every token change re-asks the panel, so the banner follows the server's session rather than a
@@ -63,9 +89,9 @@ watch(
 </script>
 
 <template>
-  <section v-if="viewAsStore.viewing !== null" :aria-label="t('viewAs.regionLabel')" data-testid="viewing-as-banner">
+  <section v-if="viewAsStore.viewing !== null" :aria-label="regionLabel" data-testid="viewing-as-banner">
     <UiAlert variant="warning">
-      {{ t('viewAs.banner', { account: viewAsStore.viewing.accountName, username: viewAsStore.viewing.username }) }}
+      {{ bannerText }}
       <template #actions>
         <UiButton variant="secondary" :disabled="viewAsStore.acting" @click="back">
           {{
