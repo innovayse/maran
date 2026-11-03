@@ -93,7 +93,9 @@ service CronService {
   // (`systemctl stop`, through the distro adapter's allow-listed binary), so the
   // job does not keep running after the customer was told it was stopped
   // (issue #336). If that stop cannot be confirmed the answer is
-  // ERROR_CODE_SYSTEM_FAILURE and not a run that claims to have been stopped.
+  // ERROR_CODE_RUN_NOT_STOPPED: the job may still be running, which is not the
+  // "nothing happened" a generic ERROR_CODE_SYSTEM_FAILURE reads as, and never a
+  // run that claims to have been stopped.
   //
   // Bounded concurrency (issue #333): a run holds one worker thread of the
   // agent until it ends, so the agent admits a fixed number of runs at once for

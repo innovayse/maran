@@ -114,6 +114,7 @@ internal static class AgentErrorTranslator
             ErrorCode.BelowFreeSpaceFloor => ErrorType.Unavailable,
             ErrorCode.AccountSuspended => ErrorType.Conflict,
             ErrorCode.AgentSaturated => ErrorType.Unavailable,
+            ErrorCode.RunNotStopped => ErrorType.Failure,
             _ => ErrorType.Failure,
         };
     }
@@ -176,6 +177,16 @@ internal static class AgentErrorTranslator
     /// within the run's runtime ceiling, which is exactly what a 503 tells a caller to wait for.
     /// It is not <see cref="ErrorCode.LimitReached"/> (the panel's plan allowance, which waiting does
     /// not clear) and not a failure (nothing broke), and nothing was started.
+    ///
+    /// <see cref="ErrorCode.RunNotStopped"/> is the agent reporting that a cron run by hand was ended
+    /// by a ceiling and that the transient unit it ran in could not be confirmed stopped (issue #336),
+    /// so the job MAY STILL BE RUNNING. Its kind is <see cref="ErrorType.Failure"/> (500): something on
+    /// the server did break and the outcome is genuinely unknown, so it is neither a 503 that invites
+    /// the same call again (a retry would start a second run beside the first) nor a 409 that blames
+    /// the account's state. It has its own code and does not ride on
+    /// <see cref="ErrorCode.SystemFailure"/>, whose generic sentence says the request failed and
+    /// leaves the host as it was; a module that knows what the code means says so in its own words, as
+    /// <c>Maran.Modules.Cron.Mappers.CronAgentErrorTranslator</c> does.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -194,6 +205,7 @@ internal static class AgentErrorTranslator
             ErrorCode.BelowFreeSpaceFloor => nameof(ErrorMessages.AgentBelowFreeSpaceFloor),
             ErrorCode.AccountSuspended => nameof(ErrorMessages.AgentAccountSuspended),
             ErrorCode.AgentSaturated => nameof(ErrorMessages.AgentSaturated),
+            ErrorCode.RunNotStopped => nameof(ErrorMessages.AgentRunNotStopped),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

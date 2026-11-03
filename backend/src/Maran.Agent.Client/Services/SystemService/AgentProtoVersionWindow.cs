@@ -68,6 +68,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// (issues #339 and #333), and both ends moved to it: a revision-14 agent answers the rpc
 /// <c>UNIMPLEMENTED</c>, so a revoked SFTP key could never cut the sessions it opened, and it admits
 /// any number of cron runs at once, so the panel's own bound on them would be the only one.
+/// Revision 16 adds <c>ERROR_CODE_RUN_NOT_STOPPED</c> (issue #336), and both ends moved to it: a
+/// revision-15 agent reports a run whose unit it could not confirm stopped as a bare
+/// <c>SystemFailure</c>, which the panel would answer with a sentence saying nothing was altered
+/// over a job that may still be running.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -94,10 +98,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 15;
+    public const uint Minimum = 16;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 15;
+    public const uint Maximum = 16;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

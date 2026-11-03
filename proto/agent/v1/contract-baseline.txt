@@ -51,6 +51,7 @@ enum-value maran.agent.v1.ErrorCode 12 ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE
 enum-value maran.agent.v1.ErrorCode 13 ERROR_CODE_BELOW_FREE_SPACE_FLOOR
 enum-value maran.agent.v1.ErrorCode 14 ERROR_CODE_ACCOUNT_SUSPENDED
 enum-value maran.agent.v1.ErrorCode 15 ERROR_CODE_AGENT_SATURATED
+enum-value maran.agent.v1.ErrorCode 16 ERROR_CODE_RUN_NOT_STOPPED
 enum-value maran.agent.v1.ErrorCode 2 ERROR_CODE_ALREADY_EXISTS
 enum-value maran.agent.v1.ErrorCode 3 ERROR_CODE_NOT_FOUND
 enum-value maran.agent.v1.ErrorCode 4 ERROR_CODE_VALIDATION_FAILED

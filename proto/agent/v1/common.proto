@@ -198,6 +198,22 @@ enum ErrorCode {
   // is wrong with the host. A caller MUST NOT widen it to "the agent is busy
   // for any reason".
   ERROR_CODE_AGENT_SATURATED = 15;
+  // Added 2026-11-03, additively (issues #336 and #331). The operation STARTED
+  // a unit of work in the service manager, a ceiling (the output cap or the
+  // deadline) ended the run, and the agent then could not confirm that the unit
+  // was stopped. Today only RunCronEntry returns it.
+  //
+  // **The opposite of "nothing happened".** The customer's job may STILL BE
+  // RUNNING, and it will keep running until the service manager's own runtime
+  // ceiling stops it. A caller MUST NOT report it as a run that was stopped, and
+  // MUST NOT say that nothing was altered. It is NOT retryable as it stands: a
+  // second call would start a second run beside the first.
+  //
+  // It is NOT ERROR_CODE_SYSTEM_FAILURE, which this outcome used to ride on and
+  // whose generic reading is "the request failed and the host is as it was";
+  // and not ERROR_CODE_AGENT_SATURATED, where nothing was started at all. A
+  // caller MUST NOT widen it to "a stop failed for any reason".
+  ERROR_CODE_RUN_NOT_STOPPED = 16;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

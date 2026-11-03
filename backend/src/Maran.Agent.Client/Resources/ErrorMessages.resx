@@ -72,4 +72,7 @@
   <data name="AgentSaturated">
     <value>The server is already running as many of these as it allows, so nothing was started. Wait a moment for one to finish, then try again.</value>
   </data>
+  <data name="AgentRunNotStopped">
+    <value>The server could not confirm that the operation was stopped, so it may still be running. Check on it before you try again.</value>
+  </data>
 </root>

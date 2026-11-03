@@ -144,4 +144,7 @@
   <data name="BackupWeekdaySunday">
     <value>воскресенье</value>
   </data>
+  <data name="BackupFailureAgentRunNotStopped">
+    <value>Серверу не удалось подтвердить остановку, поэтому операция могла продолжать выполняться</value>
+  </data>
 </root>

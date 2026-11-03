@@ -56,6 +56,16 @@ namespace Maran.Modules.Cron.Mappers;
 /// <see cref="ErrorType.Unavailable"/> (503): the request and the account are sound.
 /// </para>
 /// <para>
+/// <b>A run the agent could not confirm stopped is the one outcome that is not "nothing happened".</b>
+/// <c>AgentRunNotStopped</c> means a ceiling ended a run by hand and the unit it ran in could not be
+/// confirmed stopped (issue #336), so the job may still be running. On the default arm it would reach
+/// the customer as <c>CronOperationFailed</c>, whose sentence says nothing was altered and invites a
+/// retry — untrue, and a retry would start a second run beside the first. It gets
+/// <c>CronRunNotStopped</c>, which says the job may still be running and that the customer should check
+/// before running it again. Its kind stays <see cref="ErrorType.Failure"/> (500): something on the
+/// server did break and the outcome is unknown.
+/// </para>
+/// <para>
 /// The agent codes are matched as string literals because <c>Maran.Agent.Client</c>'s generated
 /// <c>ErrorMessages</c> class is internal to that project, so no module can name its members. That
 /// makes this file the one place the coupling exists rather than five, and the mapping's behaviour
@@ -78,6 +88,9 @@ public static class CronAgentErrorTranslator
 
     /// <summary>The Agent.Client code for a run the agent refused because it already runs as many as it admits.</summary>
     private const string AgentSaturatedCode = "AgentSaturated";
+
+    /// <summary>The Agent.Client code for a run whose unit the agent could not confirm stopped (issue #336).</summary>
+    private const string AgentRunNotStoppedCode = "AgentRunNotStopped";
 
     /// <summary>The Agent.Client code for an account the agent found suspended (issue #158).</summary>
     private const string AgentAccountSuspendedCode = "AgentAccountSuspended";
@@ -140,6 +153,7 @@ public static class CronAgentErrorTranslator
             AgentAlreadyExistsCode => Error.Of(nameof(ErrorMessages.CronEntryAlreadyExists), ErrorType.Conflict),
             AgentLimitReachedCode => Error.Of(nameof(ErrorMessages.CronEntryLimitReachedConcurrently), ErrorType.Conflict),
             AgentAccountSuspendedCode => Error.Of(nameof(ErrorMessages.CronEntrySuspended), ErrorType.Conflict),
+            AgentRunNotStoppedCode => Error.Of(nameof(ErrorMessages.CronRunNotStopped), ErrorType.Failure),
             _ => Error.Of(nameof(ErrorMessages.CronOperationFailed), ErrorType.Failure),
         };
     }

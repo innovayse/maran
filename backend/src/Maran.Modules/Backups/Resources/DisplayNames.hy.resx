@@ -144,4 +144,7 @@
   <data name="BackupWeekdaySunday">
     <value>կիրակի</value>
   </data>
+  <data name="BackupFailureAgentRunNotStopped">
+    <value>Սերվերը չկարողացավ հաստատել կանգնեցումը, ուստի գործողությունը կարող էր շարունակել աշխատել</value>
+  </data>
 </root>

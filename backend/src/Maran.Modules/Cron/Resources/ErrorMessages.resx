@@ -75,4 +75,7 @@
   <data name="CronRunAgentSaturated">
     <value>The server's scheduler is already running as many scheduled tasks as it allows, so this one was not started. Nothing was changed; wait a moment for one to finish, then try again.</value>
   </data>
+  <data name="CronRunNotStopped">
+    <value>This scheduled task was started by hand, but the server could not confirm that it was stopped, so it may still be running. Check on it before you run it again, because another run would start beside the first.</value>
+  </data>
 </root>

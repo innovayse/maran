@@ -372,7 +372,10 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
     /// A run holds a blocking-pool thread until the job ends, so the operation
     /// admits a bounded number at once and refuses the rest with
     /// `AgentSaturated` (issue #333); the bound lives in `ops`, where the slot
-    /// is taken before anything is read.
+    /// is taken before anything is read. A run a ceiling ended whose unit could
+    /// not be confirmed stopped answers `RunNotStopped` (issue #336): the job may
+    /// still be running, which is not the "nothing happened" a `SystemFailure`
+    /// reads as.
     async fn run_cron_entry(
         &self,
         request: Request<RunCronEntryRequest>,

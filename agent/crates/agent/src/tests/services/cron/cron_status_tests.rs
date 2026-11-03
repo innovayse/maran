@@ -168,11 +168,21 @@ fn a_run_refused_for_capacity_is_the_saturated_code_and_none_of_its_neighbours()
 }
 
 #[test]
-fn a_run_whose_unit_could_not_be_confirmed_stopped_is_a_fault_and_not_a_stopped_run() {
-    assert_eq!(
-        code_of(&CronError::RunNotStopped),
-        ErrorCode::SystemFailure as i32
-    );
+fn a_run_whose_unit_could_not_be_confirmed_stopped_is_its_own_code_and_none_of_its_neighbours() {
+    // Not SYSTEM_FAILURE: that reads as "the host is as it was", and here the
+    // job may still be running. Not AGENT_SATURATED either: that one means
+    // nothing was started.
+    let refusal = code_of(&CronError::RunNotStopped);
+
+    assert_eq!(refusal, ErrorCode::RunNotStopped as i32);
+    for neighbour in [
+        ErrorCode::SystemFailure,
+        ErrorCode::AgentSaturated,
+        ErrorCode::AccountBusy,
+        ErrorCode::Unspecified,
+    ] {
+        assert_ne!(refusal, neighbour as i32);
+    }
 }
 
 #[test]

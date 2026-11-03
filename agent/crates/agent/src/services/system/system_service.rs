@@ -59,8 +59,10 @@ use crate::proto::{
 /// versions the host can install and whether each already is (issue #330).
 /// 15 adds `SftpService.EndSftpSessions` and `ERROR_CODE_AGENT_SATURATED`, the
 /// termination of one SFTP login's open sessions and the refusal of a cron run
-/// past the agent's concurrency bound (issues #339 and #333).
-const PROTO_VERSION: u32 = 15;
+/// past the agent's concurrency bound (issues #339 and #333). 16 adds
+/// `ERROR_CODE_RUN_NOT_STOPPED`, the answer to a cron run whose unit could not
+/// be confirmed stopped after a ceiling ended it (issue #336).
+const PROTO_VERSION: u32 = 16;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {
