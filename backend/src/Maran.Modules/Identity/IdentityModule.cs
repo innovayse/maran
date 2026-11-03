@@ -113,6 +113,11 @@ public sealed class IdentityModule : IPanelModule
         services.AddSingleton<IAuthorizationHandler, ViewAsBoundaryHandler>();
         services.AddScoped<ViewAsSessionVerifier>();
 
+        // Suspension per membership (issues #326, #331): the request-time check that a customer token
+        // is not speaking for an account its login was suspended from, attached to the customer-level
+        // policy by the Host. Scoped, because it reads the request's own DbContext.
+        services.AddScoped<IAuthorizationHandler, AccountMembershipActiveHandler>();
+
         // Scoped, because it counts through the request's own DbContext and saves alongside the
         // audit entry for the same refused attempt.
         services.AddScoped<BruteForceDetector>();

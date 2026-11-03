@@ -11,6 +11,16 @@ rules/security.md "Sensitive change escalation" applies. It may land on a branch
   fact about whether a login may act for an account right now. `AccountSuspendingHandler` and
   `AccountResumingHandler` change the state of EVERY membership of the account (the owner's and each
   added member's); the login row is not touched, and `UserLifecycle` has no suspended value any more.
+- A fourth reader, added for issue #331, is the central request guard: `AccountMembershipActiveRequirement`
+  (handled by `AccountMembershipActiveHandler` in Identity, attached to the `AnyAuthenticated` policy in
+  the Host's `RolePolicies`) reads the caller's membership of the account their token names on EVERY
+  authorized customer request and leaves the requirement unmet when it is suspended; the Host's
+  `ProblemDetailsAuthorizationResultWriter` then answers 409 `AccountMembershipSuspended`, the code the
+  other doors use. It needs no Sdk window because the fact is Identity's own. Exempt, on purpose: an
+  administrator (acts for no account), a view-as token (its per-request session check ends it when the
+  suspension revokes its session, and `StartViewAs` refuses a suspended membership), a customer token
+  naming no account, and a login with no membership of the named account at all (a removal, handled by
+  the feature gate and the tenant filter as before).
 - Three doors read the state: `ActiveAccountResolver` (sign-in and refresh, through
   `AuthenticationCompleter` and `RefreshSessionCommandHandler`), `SwitchActiveAccountCommandHandler`, and
   `AccountMembership.Allows` (the feature gate). A person whose every membership is suspended is refused at
@@ -31,7 +41,8 @@ rules/security.md "Sensitive change escalation" applies. It may land on a branch
 | Attempt | Why it fails |
 |---|---|
 | A suspended account's member keeps working because only the owner's login was found | The handlers act on the account's memberships, not on a login; a member's membership is suspended with the owner's. Covered by `AccountSuspendingHandlerTests`. |
-| A token issued before the suspension keeps working | Sessions speaking for the account are revoked in the same handler (`ISessionService.RevokeSpeakingForAccountAsync`); the feature gate reads the membership on every call, so gated areas close at once. Sessions of the same person speaking for another, still active, account are deliberately kept. |
+| A token issued before the suspension keeps working | Sessions speaking for the account are revoked in the same handler (`ISessionService.RevokeSpeakingForAccountAsync`), and the central guard above refuses every customer request whose token names the suspended account, so the remaining fifteen minutes of an already-issued access token are closed on every tenant endpoint, not only the feature-gated ones. Sessions of the same person speaking for another, still active, account are deliberately kept. Covered by `SuspendedAccountMemberEndpointTests`. |
+| An invited member who never accepted survives the suspension | Their membership exists from the moment of the invitation and is suspended with the rest; accepting later stores the password and makes the login `Active`, but sign-in still refuses it. Covered by `SuspendedAccountMemberEndpointTests`. |
 | Refresh keeps issuing tokens for the suspended account if the revocation step failed | The resolver only offers active memberships, so a refresh moves to another active account or is refused (`RefreshTokenInvalidUnauthorized`). |
 | Switching to the suspended account | 409 `AccountMembershipSuspended`, journalled with `succeeded: false`. The account is the caller's own, so naming its state discloses nothing. |
 | Probing other tenants' account ids through the new 409 | A stranger's account id and a non-existent one still answer 404 `AccountMembershipNotFound`; the 409 is reachable only for a membership the caller holds. Covered by `MembershipSuspensionEndpointTests`. |
@@ -41,8 +52,10 @@ rules/security.md "Sensitive change escalation" applies. It may land on a branch
 
 ## What this does NOT cover (stated limits)
 
-- An access token issued before the suspension and not tied to a revoked session is honoured by endpoints
-  that do not ask the feature gate until its fifteen-minute lifetime ends; unchanged from member removal.
+- The central guard costs one indexed membership read per authorized customer request, and it covers only
+  endpoints that carry the `AnyAuthenticated` policy (every customer endpoint, held by
+  `EndpointAuthorizationPolicyTests`); an endpoint a module marks `[AllowAnonymous]` is outside it by
+  design. A token whose role is Customer but which names no account is not refused by it.
 - `1.0.0-beta.4` reads `Users.AccountId`, so the column is kept and rollback to beta.4 stays possible at
   the schema level. What a rolled-back beta.4 would see is still limited: a login created by this release
   holds NULL there, so beta.4 does not find an account for it, and a suspension is visible to beta.4 only
@@ -60,7 +73,7 @@ Nothing was built or run (the working tree is shared and the gate pass belongs t
 migrations, their designers and the model snapshot were written by hand. PENDING in the gate pass, and the
 coordinator will update this note once they are done: `maran migrate check` (the snapshot equals the model),
 `maran migrate guard` (`AddMembershipState` adds an index and a column and drops nothing the previous release
-reads), and a built, run suite. The second review stays OUTSTANDING.
+reads), and a built, run suite (issue #331 adds `SuspendedAccountMemberEndpointTests`, also not run yet). The second review stays OUTSTANDING.
 The reviewer should confirm that no other reader of `Users.AccountId` survived (`grep -rn "\.AccountId"`
 over `backend/src/Maran.Modules/Identity`) and that `AccountMembership.Allows` is still the only reader of
 grants.
