@@ -75,6 +75,9 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 17 adds <c>MonitorService.ListPendingUpdates</c> (issue #324), and both ends moved to it:
 /// a revision-16 agent answers the rpc <c>UNIMPLEMENTED</c>, so the Updates page could never be filled
 /// and the navigation badge could never be fed against it.
+/// Revision 18 adds <c>BackupService.VerifyBackup</c> (issue #134), and both ends moved to it: a
+/// revision-17 agent answers the rpc <c>UNIMPLEMENTED</c>, so a backup could never be verified after
+/// its run and a corrupt artifact would go unnoticed until someone needed to restore from it.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -101,10 +104,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 17;
+    public const uint Minimum = 18;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 17;
+    public const uint Maximum = 18;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly
