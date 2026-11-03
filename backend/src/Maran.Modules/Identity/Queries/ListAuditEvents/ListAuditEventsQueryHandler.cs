@@ -20,9 +20,14 @@ namespace Maran.Modules.Identity.Queries.ListAuditEvents;
 /// translation can perform. The machine action stays in the DTO beside the name.
 /// </para>
 /// <para>
-/// <b>The search reads three columns and matches each literally.</b> The actor's name is how an
+/// <b>The search reads four columns and matches each literally.</b> The actor's name is how an
 /// operator asks "what did this user do", the subject "what happened to this site", and the address
-/// "what came from this host". <see cref="LikePattern"/> escapes the wildcards, so a login with an
+/// "what came from this host". The fourth is the name of the operator who was viewing as the actor
+/// (issue #327): without it, "what did this administrator do" could not find an entry written while
+/// they viewed as a customer, because that entry names the customer as its actor. The impersonator is
+/// an optional owned value that is absent for an actor acting as themselves, so its name is read only
+/// behind a null check and an entry with no operator is never matched by it.
+/// <see cref="LikePattern"/> escapes the wildcards, so a login with an
 /// underscore in it matches itself and not every name one character longer.
 /// </para>
 /// </remarks>
@@ -49,7 +54,7 @@ public sealed class ListAuditEventsQueryHandler
     }
 
     /// <summary>
-    /// Filters by action, outcome and window, searches the three text columns, and answers the
+    /// Filters by action, outcome and window, searches the four text columns, and answers the
     /// requested page with the total that matched.
     /// </summary>
     /// <param name="query">The validated list request.</param>
@@ -91,7 +96,9 @@ public sealed class ListAuditEventsQueryHandler
             events = events.Where(auditEvent =>
                 EF.Functions.ILike(auditEvent.ActorUsername, pattern, LikePattern.EscapeCharacter)
                 || EF.Functions.ILike(auditEvent.Subject, pattern, LikePattern.EscapeCharacter)
-                || EF.Functions.ILike(auditEvent.IpAddress, pattern, LikePattern.EscapeCharacter));
+                || EF.Functions.ILike(auditEvent.IpAddress, pattern, LikePattern.EscapeCharacter)
+                || (auditEvent.Impersonator != null
+                    && EF.Functions.ILike(auditEvent.Impersonator.Username, pattern, LikePattern.EscapeCharacter)));
         }
 
         var page = await events.ToPagedAsync(query, ListAuditEventsSorts.Map, cancellationToken);
