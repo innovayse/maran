@@ -17,7 +17,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 44 endpoints, 139 members
+covered: 45 endpoints, 141 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -133,6 +133,9 @@ POST /api/v1/me/sub-users  ->  InviteSubUserCommand
   features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/me/sub-users/{}/features  ->  ChangeSubUserGrantsCommand
   features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+POST /api/v1/me/sub-users/existing  ->  OfferMembershipCommand
+  identifier: string
+  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
   host: string
   port: number
@@ -231,6 +234,9 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   POST /api/v1/ftps-server/disable — route-only call, no JSON body
   POST /api/v1/invitations/{}/link — route-only call, no JSON body
   POST /api/v1/invitations/{}/resend — route-only call, no JSON body
+  POST /api/v1/me/membership-offers/{}/accept — route-only call, no JSON body
+  POST /api/v1/me/membership-offers/{}/decline — route-only call, no JSON body
+  POST /api/v1/me/sub-users/{}/invitation — route-only call, no JSON body
   POST /api/v1/panel-certificate — route-only call, no JSON body
   POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/sites/{}/disable — route-only call, no JSON body
@@ -275,6 +281,7 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/licence-status
   GET /api/v1/log-level
   GET /api/v1/me/accounts
+  GET /api/v1/me/membership-offers
   GET /api/v1/me/pinned-pages
   GET /api/v1/me/sub-users
   GET /api/v1/me/sub-users/features
@@ -283,6 +290,8 @@ POST /api/v1/view-as  ->  StartViewAsCommand
   GET /api/v1/monitoring/clock
   GET /api/v1/monitoring/metrics
   GET /api/v1/monitoring/services
+  GET /api/v1/monitoring/updates
+  GET /api/v1/monitoring/updates/count
   GET /api/v1/notifications/smtp
   GET /api/v1/notifications/smtp/security-modes
   GET /api/v1/panel-certificate
