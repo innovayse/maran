@@ -37,6 +37,17 @@ namespace Maran.ArchitectureTests;
 /// filter of their own; their owner's filter is what governs them.
 /// </para>
 /// <para>
+/// <b>A second axis: whose rows a RESELLER sees (issue #179).</b> An account's rows are separated by
+/// <c>AccountId</c>; the accounts and plans a reseller sells are separated by <c>ResellerId</c>, and
+/// the same blindness would follow: a table that carries it and no filter is separated from another
+/// reseller's only by whatever each handler remembers to write. <see cref="CarryingOwnerProperty"/>
+/// finds the entities that carry it, and <see cref="OwnersOfRows"/> finds the entity those rows
+/// belong to (the principal of their <c>ResellerId</c> foreign key — the reseller itself, whose own
+/// row is the one a reseller may read). The reseller foreign key is OPTIONAL (null means the
+/// administrator's), so <see cref="ScopedThroughRelationship(IReadOnlyList{DbContext})"/> does not
+/// follow it and a required child of a reseller's row is not seen: stated here, not implied.
+/// </para>
+/// <para>
 /// <b>The second source, and why a floor is not a control.</b> <see cref="ModuleDbContexts"/> walks
 /// the contexts <c>ModuleRegistry.All</c> declares — a hand-written list. Asserting that the walk
 /// found "at least eight" of twelve says nothing when four stop being composed, which is the failure
@@ -51,6 +62,9 @@ public static class TenantScopeCensus
 {
     /// <summary>The property whose presence makes a row a customer's row.</summary>
     public const string TenantProperty = "AccountId";
+
+    /// <summary>The property whose presence makes a row one a reseller owns.</summary>
+    public const string OwnerProperty = "ResellerId";
 
     /// <summary>The namespace suffix the backend layout gives every mapped entity.</summary>
     /// <remarks>
@@ -146,14 +160,91 @@ public static class TenantScopeCensus
         return scoped;
     }
 
-    /// <summary>Every entity this census treats as a customer's rows, by either criterion.</summary>
+    /// <summary>The mapped entities that carry the reseller-owner property themselves.</summary>
     /// <param name="contexts">The module models to read.</param>
-    /// <returns>The union, carrying no duplicates.</returns>
+    /// <returns>The entity types a reseller may own rows of.</returns>
+    public static List<IEntityType> CarryingOwnerProperty(IReadOnlyList<DbContext> contexts)
+    {
+        return contexts
+            .SelectMany(context =>
+            {
+                return context.Model.GetEntityTypes();
+            })
+            .Where(entity =>
+            {
+                return entity.FindProperty(OwnerProperty) is not null;
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// The mapped entities a reseller-owner property points at: the principal end of a foreign key
+    /// whose dependent property is <see cref="OwnerProperty"/>.
+    /// </summary>
+    /// <param name="contexts">The module models to read.</param>
+    /// <returns>The owner entity types, each once.</returns>
+    public static List<IEntityType> OwnersOfRows(IReadOnlyList<DbContext> contexts)
+    {
+        return CarryingOwnerProperty(contexts)
+            .SelectMany(entity =>
+            {
+                return entity.GetForeignKeys();
+            })
+            .Where(key =>
+            {
+                return key.Properties.Any(property => { return property.Name == OwnerProperty; });
+            })
+            .Select(key =>
+            {
+                return key.PrincipalEntityType;
+            })
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>Every module entity CLR type that declares the reseller-owner property.</summary>
+    /// <returns>The entity types, in a stable order.</returns>
+    public static List<Type> EntityTypesDeclaringOwnerProperty()
+    {
+        return ModuleAssemblies.Modules()
+            .SelectMany(assembly =>
+            {
+                return assembly.GetTypes();
+            })
+            .Where(type =>
+            {
+                return type.IsClass
+                    && !type.IsAbstract
+                    && type.Namespace?.EndsWith(EntityNamespaceSuffix, StringComparison.Ordinal) == true;
+            })
+            .Where(type =>
+            {
+                var property = type.GetProperty(
+                    OwnerProperty,
+                    BindingFlags.Public | BindingFlags.Instance);
+                return property is not null
+                    && (property.PropertyType == typeof(Guid) || property.PropertyType == typeof(Guid?));
+            })
+            .OrderBy(type =>
+            {
+                return type.FullName;
+            }, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Every entity this census treats as somebody's rows, by any criterion: carrying an account id,
+    /// scoped through a required relationship, carrying a reseller owner, or being that owner.
+    /// </summary>
+    /// <param name="contexts">The module models to read.</param>
+    /// <returns>The union, each entity once.</returns>
     public static List<IEntityType> TenantEntities(IReadOnlyList<DbContext> contexts)
     {
         var all = CarryingTenantProperty(contexts);
         all.AddRange(ScopedThroughRelationship(contexts));
-        return all;
+        all.AddRange(CarryingOwnerProperty(contexts));
+        all.AddRange(OwnersOfRows(contexts));
+        return all.Distinct().ToList();
     }
 
     /// <summary>The full name a failure message names an entity by.</summary>
