@@ -352,7 +352,8 @@ public static class BackupVerificationWorld
         var backups = scope.ServiceProvider.GetRequiredService<BackupsDbContext>();
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
 
-        if (!await backups.BackupDestinations.AnyAsync(row => { return row.IsDefault; }))
+        var destinations = await backups.BackupDestinations.ToListAsync();
+        if (!destinations.Any(row => { return row.IsDefault; }))
         {
             backups.BackupDestinations.Add(new BackupDestination(
                 Guid.NewGuid(), "Local storage", BackupDestinationKind.Local, string.Empty, isDefault: true, now));
