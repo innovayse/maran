@@ -68,7 +68,11 @@ public sealed class ResellerSuspensionEndpointTests : IAsyncLifetime
         Assert.Equal("InvalidCredentialsUnauthorized", await CodeOfAsync(refused));
     }
 
-    /// <summary>Suspending revokes every session of the reseller's login, so its refresh cookie stops working.</summary>
+    /// <summary>
+    /// Suspending revokes every session of the reseller's login that was still live, so its refresh cookie
+    /// stops working and no session of the login is left usable; a session already rotated away keeps the
+    /// reason it was ended with.
+    /// </summary>
     [Fact]
     public async Task Suspending_a_reseller_revokes_its_sessions_and_refuses_its_refresh()
     {
@@ -88,11 +92,19 @@ public sealed class ResellerSuspensionEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var sessions = await identity.Sessions.AsNoTracking().Where(s => s.UserId == nova.UserId).ToListAsync();
-        Assert.NotEmpty(sessions);
+
+        // Three sessions exist: the first one's refresh ROTATED it before the suspension (a session that
+        // is revoked keeps the first reason it was given, so it reads Rotated, which is already unusable),
+        // and the two that were live when the suspension came are revoked by it. None is left usable.
+        Assert.Equal(3, sessions.Count);
         Assert.All(sessions, session =>
         {
-            Assert.Equal(SessionRevocationReason.ResellerSuspended, session.Revocation?.Reason);
+            Assert.NotNull(session.Revocation);
         });
+        Assert.Equal(1, sessions.Count(session => { return session.Revocation?.Reason == SessionRevocationReason.Rotated; }));
+        Assert.Equal(
+            2,
+            sessions.Count(session => { return session.Revocation?.Reason == SessionRevocationReason.ResellerSuspended; }));
     }
 
     /// <summary>
