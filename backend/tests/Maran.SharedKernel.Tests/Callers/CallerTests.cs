@@ -4,12 +4,14 @@ namespace Maran.SharedKernel.Tests.Callers;
 
 /// <summary>
 /// Behavioural contract of the <see cref="Caller"/> cases as values: which are distinct from which,
-/// which compare equal, and that a customer acting for no account is a caller of its own.
+/// which compare equal, that a customer acting for no account is a caller of its own, and that a
+/// reseller names the reseller it acts for.
 /// </summary>
 public sealed class CallerTests
 {
     private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid AccountId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid ResellerId = Guid.Parse("44444444-4444-4444-4444-444444444444");
     private static readonly Guid OperatorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     /// <summary>The kinds of caller are distinct values, and equal callers compare equal.</summary>
@@ -59,6 +61,38 @@ public sealed class CallerTests
 
         Assert.Equal(new ViewingOperator(OperatorId, "root"), viewed.ViewedBy);
         Assert.Equal(UserId, viewed.UserId);
+        Assert.Null(alone.ViewedBy);
+        Assert.NotEqual(alone, viewed);
+    }
+
+    /// <summary>A reseller names the reseller it acts for, and is neither an administrator nor a customer.</summary>
+    [Fact]
+    public void A_reseller_names_the_reseller_it_acts_for_and_is_neither_an_administrator_nor_a_customer()
+    {
+        Caller caller = new ResellerCaller(UserId, "agency", ResellerId);
+
+        var reseller = Assert.IsType<ResellerCaller>(caller);
+        Assert.IsAssignableFrom<PrincipalCaller>(caller);
+        Assert.Equal(UserId, reseller.UserId);
+        Assert.Equal("agency", reseller.Username);
+        Assert.Equal(ResellerId, reseller.ResellerId);
+        Assert.Null(reseller.ViewedBy);
+        Assert.NotEqual<Caller>(reseller, new AdministratorCaller(UserId, "agency"));
+        Assert.NotEqual<Caller>(reseller, new CustomerCaller(UserId, "agency", ResellerId));
+        Assert.NotEqual<Caller>(reseller, new AccountlessCustomerCaller(UserId, "agency"));
+        Assert.NotEqual(reseller, new ResellerCaller(UserId, "agency", Guid.NewGuid()));
+        Assert.Equal(reseller, new ResellerCaller(UserId, "agency", ResellerId));
+    }
+
+    /// <summary>An operator viewing as a reseller is recorded beside it and makes it another caller.</summary>
+    [Fact]
+    public void An_operator_viewing_as_a_reseller_is_recorded_beside_it_and_changes_the_caller()
+    {
+        var viewed = new ResellerCaller(UserId, "agency", ResellerId, new ViewingOperator(OperatorId, "root"));
+        var alone = new ResellerCaller(UserId, "agency", ResellerId);
+
+        Assert.Equal(new ViewingOperator(OperatorId, "root"), viewed.ViewedBy);
+        Assert.Equal(ResellerId, viewed.ResellerId);
         Assert.Null(alone.ViewedBy);
         Assert.NotEqual(alone, viewed);
     }
