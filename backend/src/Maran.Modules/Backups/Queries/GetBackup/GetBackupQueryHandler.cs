@@ -22,20 +22,26 @@ public sealed class GetBackupQueryHandler
     /// <summary>Names a recorded failure code in the caller's language.</summary>
     private readonly BackupFailureDisplayNames _failureNames;
 
+    /// <summary>Names a backup's status and kind in the caller's language.</summary>
+    private readonly BackupDisplayNames _backupNames;
+
     /// <summary>The window onto the Accounts module's account names, tenant-scoped.</summary>
     private readonly IAccountDirectory _accounts;
 
     /// <summary>Creates the handler with the module's own database context and its collaborators.</summary>
     /// <param name="dbContext">The Backups module's database context.</param>
     /// <param name="failureNames">Names a recorded failure code in the caller's language.</param>
+    /// <param name="backupNames">Names a backup's status and kind in the caller's language.</param>
     /// <param name="accounts">The window onto the Accounts module's account names, tenant-scoped.</param>
     public GetBackupQueryHandler(
         BackupsDbContext dbContext,
         BackupFailureDisplayNames failureNames,
+        BackupDisplayNames backupNames,
         IAccountDirectory accounts)
     {
         _dbContext = dbContext;
         _failureNames = failureNames;
+        _backupNames = backupNames;
         _accounts = accounts;
     }
 
@@ -58,6 +64,11 @@ public sealed class GetBackupQueryHandler
 
         var ownerNames = await _accounts.NamesOfAsync([backup.AccountId], cancellationToken);
 
-        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.RunFailureCode)));
+        return Result<BackupDto>.Ok(BackupMapper.From(
+            backup,
+            ownerNames,
+            _failureNames.Of(backup.RunFailureCode),
+            _backupNames.Of(backup.Status),
+            _backupNames.Of(backup.Kind)));
     }
 }

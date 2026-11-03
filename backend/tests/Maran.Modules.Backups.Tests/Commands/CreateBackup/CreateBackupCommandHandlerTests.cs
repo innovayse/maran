@@ -410,7 +410,8 @@ public sealed class CreateBackupCommandHandlerTests
                 new FakeClock(Now),
                 Tasks,
                 new StubCorrelationIdAccessor(CorrelationId),
-                BackupsTestContext.FailureNames());
+                BackupsTestContext.FailureNames(),
+                BackupsTestContext.BackupNames());
         }
 
         /// <summary>Assembles a world whose caller owns <paramref name="ownedAccountId"/>.</summary>

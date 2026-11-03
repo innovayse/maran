@@ -52,20 +52,6 @@ public static class DisplayNameExemptions
             "The resource kinds are a closed Sdk enum, one per counting module, and the summary card "
             + "labels each row with the same words the customer's limits screen already uses."),
         new(
-            "Maran.Modules.Backups.Common.BackupDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "backups.status.{member}",
-            "Running, completed and failed are the three states a run can be in, drawn as a badge "
-            + "whose tone carries half the meaning; the words belong with the tone."),
-        new(
-            "Maran.Modules.Backups.Common.BackupDto",
-            "Kind",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "backups.kind.{member}",
-            "Why a backup was taken is a closed set the panel itself decides between, and the "
-            + "column shows it as one word."),
-        new(
             "Maran.Modules.Backups.Common.BackupDestinationDto",
             "Kind",
             DisplayNameExemptionKind.SpaOwnedVocabulary,

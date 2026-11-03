@@ -67,6 +67,9 @@ public sealed class CreateBackupCommandHandler
     /// <summary>Names a recorded failure code in the caller's language.</summary>
     private readonly BackupFailureDisplayNames _failureNames;
 
+    /// <summary>Names a backup's status and kind in the caller's language.</summary>
+    private readonly BackupDisplayNames _backupNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Backups module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
@@ -77,6 +80,7 @@ public sealed class CreateBackupCommandHandler
     /// <param name="tasks">The panel-wide task journal.</param>
     /// <param name="correlationIds">The current request's correlation id.</param>
     /// <param name="failureNames">Names a recorded failure code in the caller's language.</param>
+    /// <param name="backupNames">Names a backup's status and kind in the caller's language.</param>
     public CreateBackupCommandHandler(
         BackupsDbContext dbContext,
         IAccountDirectory accounts,
@@ -86,7 +90,8 @@ public sealed class CreateBackupCommandHandler
         IClock clock,
         ITaskRecorder tasks,
         ICorrelationIdAccessor correlationIds,
-        BackupFailureDisplayNames failureNames)
+        BackupFailureDisplayNames failureNames,
+        BackupDisplayNames backupNames)
     {
         _dbContext = dbContext;
         _accounts = accounts;
@@ -97,6 +102,7 @@ public sealed class CreateBackupCommandHandler
         _tasks = tasks;
         _correlationIds = correlationIds;
         _failureNames = failureNames;
+        _backupNames = backupNames;
     }
 
     /// <summary>Takes a backup of one account and records what it produced.</summary>
@@ -232,7 +238,12 @@ public sealed class CreateBackupCommandHandler
         // same row cannot label its owner differently.
         var ownerNames = await _accounts.NamesOfAsync([backup.AccountId], cancellationToken);
 
-        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.RunFailureCode)));
+        return Result<BackupDto>.Ok(BackupMapper.From(
+            backup,
+            ownerNames,
+            _failureNames.Of(backup.RunFailureCode),
+            _backupNames.Of(backup.Status),
+            _backupNames.Of(backup.Kind)));
     }
 
     /// <summary>Closes out a run whose answer this request will never hear.</summary>
