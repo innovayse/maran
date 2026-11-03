@@ -51,6 +51,8 @@ export interface CronRunSummary {
   end: CronRunEnd
   /** The verdict on it, for the badge and the filter. */
   outcome: CronRunOutcome
+  /** The same verdict as the operator reads it, in their language; the badge's text. */
+  outcomeName: string
 }
 
 /** One run with what it printed, as the run-now answer and the single-run read return it. */

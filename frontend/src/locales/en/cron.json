@@ -129,11 +129,6 @@
       "filters": {
         "outcome": "Outcome"
       },
-      "outcome": {
-        "succeeded": "Succeeded",
-        "failed": "Failed",
-        "stopped": "Stopped"
-      },
       "limit": {
         "runtime": "The run reached the two-minute limit and was stopped.",
         "output": "The run printed more than 64 KiB on one stream and was stopped; its output was not kept."

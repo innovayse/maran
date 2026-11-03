@@ -38,6 +38,7 @@ const FAILED: CronRun = {
   durationMilliseconds: 1500,
   end: { kind: 'exited', exitCode: 2 },
   outcome: 'failed',
+  outcomeName: 'Failed',
   stdout: 'cleaning\n',
   stderr: 'permission denied\n',
 }
@@ -49,6 +50,7 @@ const SUCCEEDED: CronRunSummary = {
   durationMilliseconds: 900,
   end: { kind: 'exited', exitCode: 0 },
   outcome: 'succeeded',
+  outcomeName: 'Succeeded',
 }
 
 const STOPPED: CronRun = {
@@ -58,6 +60,7 @@ const STOPPED: CronRun = {
   durationMilliseconds: 120000,
   end: { kind: 'stopped', limit: 'runtime' },
   outcome: 'stopped',
+  outcomeName: 'Stopped',
   stdout: '',
   stderr: '',
 }
