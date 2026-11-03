@@ -6,6 +6,7 @@
 use std::time::Duration;
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_distro::PendingUpdatesFailure;
 
 use super::MonitorError;
 
@@ -53,5 +54,22 @@ fn an_unreadable_clock_state_is_not_a_program_that_never_ran() {
         MonitorError::ClockStateUnavailable
             .to_string()
             .contains("clock synchronisation")
+    );
+}
+
+/// An unreadable package catalogue is its own failure: neither a bound nor a
+/// service manager that never ran, and its text names the reason and nothing the
+/// package manager printed.
+#[test]
+fn an_unreadable_update_catalogue_is_its_own_failure_and_names_only_its_reason() {
+    let error = MonitorError::UpdateCatalogueUnavailable {
+        reason: PendingUpdatesFailure::Unsuccessful { status: 1 },
+    };
+
+    assert_ne!(error, MonitorError::Bound(timed_out()));
+    assert_ne!(error, MonitorError::program_unavailable());
+    assert_eq!(
+        error.to_string(),
+        "the pending package updates could not be read: the package manager exited with status 1"
     );
 }
