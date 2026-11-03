@@ -101,7 +101,8 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
     }
 
     /// <summary>
-    /// The catalogue hides administrator-only modules from a caller who is not an administrator.
+    /// The catalogue hides administrator-only modules, and the admin-or-reseller ones, from a caller who is
+    /// neither an administrator nor a reseller.
     /// </summary>
     /// <remarks>
     /// This client is anonymous, and <see cref="Maran.SharedKernel.Interfaces.ICurrentUser.Caller"/>
@@ -132,12 +133,24 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
                 return module.Manifest.Id;
             })
             .ToList();
+        var adminOrResellerModules = ModuleRegistry.All
+            .Where(module =>
+            {
+                return module.Manifest.Audience == ModuleAudience.AdminOrReseller;
+            })
+            .Select(module =>
+            {
+                return module.Manifest.Id;
+            })
+            .ToList();
 
         // A registry with no administrator-only module at all would make this assertion pass
-        // vacuously, so require there to be at least one — there are five today (Accounts,
-        // Firewall, Licensing, Monitoring, Notifications).
+        // vacuously, so require there to be at least one — there are four today (Firewall,
+        // Licensing, Monitoring, Notifications) — and the same for the admin-or-reseller audience,
+        // which is Accounts today.
         Assert.NotEmpty(administratorOnlyModules);
-        foreach (var moduleId in administratorOnlyModules)
+        Assert.NotEmpty(adminOrResellerModules);
+        foreach (var moduleId in administratorOnlyModules.Concat(adminOrResellerModules))
         {
             Assert.DoesNotContain(moduleId, names);
         }
