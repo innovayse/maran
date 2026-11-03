@@ -97,4 +97,16 @@ public static class RateLimitPolicies
     /// it either meaningless or ruinous for every other screen.
     /// </remarks>
     public const string BackupRestore = "backup-restore";
+
+    /// <summary>
+    /// The backup-verification limit: its own bucket, keyed by the caller's hosting account.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Api"/> because one request makes the root agent read a whole backup
+    /// archive from disk and hash it, which can be gigabytes: the general budget is sized for reading
+    /// screens, and a script clicking "Verify now" in a loop would keep the agent reading for as long
+    /// as the budget allowed. It is also separate from <see cref="BackupRestore"/>: a verification is
+    /// read-only and may be asked far more often than a restore.
+    /// </remarks>
+    public const string BackupVerify = "backup-verify";
 }

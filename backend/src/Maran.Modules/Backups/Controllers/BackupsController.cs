@@ -203,16 +203,19 @@ public sealed class BackupsController : BaseApiController
     /// <para>
     /// A verified backup is verified at the moment of the read; it is not a promise that the backup
     /// will restore. Refused while viewing as a customer: it starts work on the server, and the
-    /// result outlives the look.
+    /// result outlives the look. It has its own rate limit, because every call makes the root agent read
+    /// a whole archive.
     /// </para>
     /// </remarks>
     [HttpPost("{id:guid}/verify")]
     [ViewAsAccess(ViewAsAccess.Refused)]
+    [EnableRateLimiting(RateLimitPolicies.BackupVerify)]
     [ProducesResponseType(typeof(BackupDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> VerifyAsync(Guid id, CancellationToken cancellationToken)
