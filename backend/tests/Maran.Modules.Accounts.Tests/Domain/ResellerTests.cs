@@ -4,7 +4,7 @@ using Maran.Modules.Accounts.Tests.TestSupport;
 
 namespace Maran.Modules.Accounts.Tests.Domain;
 
-/// <summary>The rules <see cref="Reseller"/> holds itself to: creation, envelope, lifecycle, allocation claim.</summary>
+/// <summary>The rules <see cref="Reseller"/> holds itself to: creation, envelope, lifecycle and claim.</summary>
 public sealed class ResellerTests
 {
     /// <summary>A new reseller starts active and carries what it was created with.</summary>
