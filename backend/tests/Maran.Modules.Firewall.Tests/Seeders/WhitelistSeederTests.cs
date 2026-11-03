@@ -121,7 +121,7 @@ public sealed class WhitelistSeederTests
         Assert.True(await SeedAsync(context, "203.0.113.7/32", audit));
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.FirewallWhitelistSeeded, entry.Action);
+        Assert.Equal(FirewallAuditActions.FirewallWhitelistSeeded, entry.Action);
         Assert.Equal("203.0.113.7/32", entry.Subject);
         Assert.Null(entry.ActorUserId);
         Assert.Equal(FirewallAuditJournal.SystemActor, entry.ActorUsername);

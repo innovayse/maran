@@ -19,10 +19,12 @@ namespace Maran.Modules.Accounts.Common;
 /// <param name="Name">The account's unique, Linux-username-safe short name.</param>
 /// <param name="PrimaryDomain">The account's primary domain.</param>
 /// <param name="Status">The account's current lifecycle state.</param>
+/// <param name="StatusName">The state as a reader reads it, localized for the request's culture.</param>
 /// <param name="Plan">The limits of the plan this account is created against.</param>
 public sealed record MyAccountDto(
     Guid Id,
     string Name,
     string PrimaryDomain,
     AccountStatus Status,
+    string StatusName,
     MyAccountPlanDto Plan);

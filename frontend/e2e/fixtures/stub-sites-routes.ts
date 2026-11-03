@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { PhpVersion } from '../../src/types/phpVersion'
-import type { Site, SiteDetail, SiteLimits } from '../../src/types/site'
+import type { InstallablePhpVersion, PhpVersion } from '../../src/types/phpVersion'
+import type { Site, SiteChoices, SiteDetail, SiteLimits } from '../../src/types/site'
 
 /** The collection endpoint the sites list and the create form both talk to, with or without a query. */
 const SITES_PATTERN = /\/api\/v1\/sites(\?.*)?$/
@@ -12,8 +12,17 @@ const SITE_PATTERN = '**/api/v1/sites/*'
 /** The installed-PHP endpoint the site form's runtime picker reads. */
 const PHP_VERSIONS_PATTERN = '**/api/v1/sites/php-versions'
 
+/** The installable-PHP endpoint the operator's install picker reads. */
+const INSTALLABLE_PHP_VERSIONS_PATTERN = '**/api/v1/sites/php-versions/installable'
+
 /** The limits endpoint the site form reads its alias bound from. */
 const SITE_LIMITS_PATTERN = '**/api/v1/sites/limits'
+
+/** The choices endpoint the site form and the list's filters read the backends and states from. */
+const SITE_CHOICES_PATTERN = '**/api/v1/sites/choices'
+
+/** The sub-paths of the collection that are not a site's id, so the single-site stub leaves them alone. */
+const COLLECTION_READS = /\/api\/v1\/sites\/(choices|limits|php-versions|php-versions\/installable)$/
 
 /** The log-tail endpoint. It does not exist on the backend yet; the contract is Task 16's. */
 const SITE_LOGS_PATTERN = '**/api/v1/sites/*/logs*'
@@ -31,6 +40,21 @@ export const stubPhpVersions = async (page: Page, versions: PhpVersion[]): Promi
 }
 
 /**
+ * Fulfils `GET /api/v1/sites/php-versions/installable` with the versions the host can install.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param read Returns the versions to answer with; called per request so a spec can change the answer.
+ * @returns Resolves once the route is installed.
+ */
+export const stubInstallablePhpVersions = async (
+  page: Page,
+  read: () => InstallablePhpVersion[],
+): Promise<void> => {
+  await page.route(INSTALLABLE_PHP_VERSIONS_PATTERN, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(read()) })
+  })
+}
+
+/**
  * Answers `GET /api/v1/sites/limits` with the given limits, or with a 500 when `limits` is null.
  * @param page The Playwright page whose network the route is installed on.
  * @param limits The limits the stub reports, or null for a server that cannot answer.
@@ -43,6 +67,33 @@ export const stubSiteLimits = async (page: Page, limits: SiteLimits | null): Pro
       return
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(limits) })
+  })
+}
+
+/** The choices the panel serves by default, labelled as it labels them in English. */
+export const DEFAULT_SITE_CHOICES: SiteChoices = {
+  backendTypes: [
+    { value: 'static', label: 'Static' },
+    { value: 'php', label: 'PHP' },
+    { value: 'reverseProxy', label: 'Reverse proxy' },
+  ],
+  statuses: [
+    { value: 'enabled', label: 'Enabled' },
+    { value: 'disabled', label: 'Disabled' },
+  ],
+}
+
+/**
+ * Answers `GET /api/v1/sites/choices` with the given backends and states. Installed again after
+ * {@link stubSites} (which installs the default answer) it replaces that answer, because Playwright
+ * gives priority to the most recently registered route.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param choices The choices the stub reports; the panel's English defaults when omitted.
+ * @returns Resolves once the route is installed.
+ */
+export const stubSiteChoices = async (page: Page, choices: SiteChoices = DEFAULT_SITE_CHOICES): Promise<void> => {
+  await page.route(SITE_CHOICES_PATTERN, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(choices) })
   })
 }
 
@@ -92,6 +143,10 @@ const SITE_RULES: PagedRules<Site> = {
 export const stubSites = async (page: Page, sites: Site[]): Promise<() => readonly URL[]> => {
   const listRequests: URL[] = []
 
+  // The pickers read the backends and states from the panel, so every spec opening the form or the
+  // list needs an answer; a spec that wants different ones installs stubSiteChoices again.
+  await stubSiteChoices(page)
+
   await page.route(SITES_PATTERN, async (route) => {
     if (route.request().method() === 'POST') {
       const submitted = route.request().postDataJSON() as Pick<
@@ -104,8 +159,10 @@ export const stubSites = async (page: Page, sites: Site[]): Promise<() => readon
         ownerName: '',
         domain: submitted.domain,
         backendType: submitted.backendType,
+        backendTypeName: submitted.backendType,
         phpVersion: submitted.phpVersion,
         status: 'enabled',
+        statusName: 'Enabled',
         createdAt: '2026-08-30T10:00:00Z',
       }
       sites.push(created)
@@ -184,6 +241,11 @@ export const stubCreateSiteProblem = async (page: Page, detail: string): Promise
  */
 export const stubSiteDetail = async (page: Page, detail: SiteDetail): Promise<void> => {
   await page.route(SITE_PATTERN, async (route) => {
+    if (COLLECTION_READS.test(new URL(route.request().url()).pathname)) {
+      // `choices`, `limits` and `php-versions` are collection reads, not a site's id.
+      await route.fallback()
+      return
+    }
     if (route.request().method() === 'DELETE') {
       await route.fulfill({ status: 204, body: '' })
       return

@@ -51,7 +51,7 @@ public sealed class DeleteBackupCommandHandlerTests
         Assert.Empty(await world.Read().Backups.IgnoreQueryFilters().ToListAsync());
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupDeleted, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupDeleted, entry.Action);
 
         // The account, not the backup id: the subject is what an operator will search the journal
         // for once the archive is gone.
@@ -183,7 +183,7 @@ public sealed class DeleteBackupCommandHandlerTests
         Assert.Single(await world.Read().Backups.IgnoreQueryFilters().ToListAsync());
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupDeleted, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupDeleted, entry.Action);
         Assert.False(entry.Succeeded);
     }
 

@@ -5,6 +5,7 @@ use std::io;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::utils::call_class::CallClass;
@@ -305,6 +306,56 @@ impl SftpHost for ProcessSftpHost {
     ) -> Result<(), SftpError> {
         write_unreloaded_config(self, file, validator).map_err(SftpError::from_key_file_write)
     }
+
+    /// Reads the password database and answers every name in it.
+    fn login_names(&self, passwd_database: &str) -> Result<Vec<String>, SftpError> {
+        let passwd =
+            fs::read_to_string(passwd_database).map_err(|_| SftpError::PasswdUnreadable)?;
+
+        Ok(system_accounts(&passwd)
+            .into_iter()
+            .map(|row| row.name)
+            .collect())
+    }
+
+    /// Lists the key directory the agent owns, through `file_names_in`.
+    fn key_file_names(&self) -> Result<Vec<String>, SftpError> {
+        file_names_in(Path::new(AgentPaths::SFTP_AUTHORIZED_KEYS_DIRECTORY))
+    }
+}
+
+/// The names of the entries of `directory` that are not directories and whose
+/// names are valid UTF-8, in no particular order.
+///
+/// Split from [`SftpHost::key_file_names`] so a test can list a temporary
+/// directory: the real one is a fixed path under `/etc`. A directory that is
+/// not there is an empty answer. `DirEntry::file_type` does not follow a
+/// symlink, so a link is listed as the link it is — and removed as one, by a
+/// caller that unlinks it — never as what it points at.
+///
+/// # Errors
+///
+/// [`SftpError::KeyFileFailed`] when the directory exists and cannot be read.
+fn file_names_in(directory: &Path) -> Result<Vec<String>, SftpError> {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(_) => return Err(SftpError::KeyFileFailed),
+    };
+
+    let mut names = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|_| SftpError::KeyFileFailed)?;
+        let is_directory = entry
+            .file_type()
+            .map_err(|_| SftpError::KeyFileFailed)?
+            .is_dir();
+        if let (false, Ok(name)) = (is_directory, entry.file_name().into_string()) {
+            names.push(name);
+        }
+    }
+
+    Ok(names)
 }
 
 #[cfg(test)]

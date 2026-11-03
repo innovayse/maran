@@ -72,7 +72,7 @@ public sealed class AuditEvent
     /// <param name="occurredAt">When it happened, taken from <see cref="IClock"/>.</param>
     /// <param name="actorUserId">Who did it; null when the actor could not be identified, as on a failed login.</param>
     /// <param name="actorUsername">The name the actor used, which exists even when the user does not.</param>
-    /// <param name="action">What was attempted, from <c>AuditActions</c>.</param>
+    /// <param name="action">What was attempted, from <c>*AuditActions</c>.</param>
     /// <param name="subject">What it was attempted on.</param>
     /// <param name="ipAddress">Where it came from.</param>
     /// <param name="userAgent">What client it came from.</param>

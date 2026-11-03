@@ -67,7 +67,7 @@ public sealed class DenyPortCommandHandler
         if (!denied.IsSuccess)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.FirewallRuleDenied,
+                FirewallAuditActions.FirewallRuleDenied,
                 subject,
                 command.IpAddress,
                 command.UserAgent,
@@ -77,7 +77,7 @@ public sealed class DenyPortCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.FirewallRuleDenied,
+            FirewallAuditActions.FirewallRuleDenied,
             subject,
             command.IpAddress,
             command.UserAgent,

@@ -15,7 +15,7 @@
     "working": "Working…",
     "rowActions": "Actions for {name}",
     "changeFeatures": "Change features",
-    "invited": "Invitation sent to {name}.",
+    "invited": "Invitation requested for {name}. The person appears in the list below once it has been created.",
     "featuresChanged": "Features of {name} saved.",
     "removed": "{name} removed.",
     "columns": {
@@ -27,9 +27,7 @@
     },
     "states": {
       "active": "Active",
-      "invited": "Invited",
-      "invitedAccountSuspended": "Invited, account suspended",
-      "suspended": "Suspended"
+      "invited": "Invited"
     },
     "features": {
       "groupLabel": "Features this person may use"

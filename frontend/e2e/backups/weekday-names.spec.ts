@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -19,6 +20,7 @@ const ALICE: Account = {
   primaryDomain: 'alice.example.com',
   planId: '44444444-4444-4444-4444-444444444444',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -68,17 +70,19 @@ const openDayPicker = async (page: Page, dayLabel: string): Promise<void> => {
 const openSchedule = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, { host: WEEKLY })
   await page.goto('/backups/schedule')
 }
 
-// The names come from date-fns, resolved per render against the locale store — not from a list
-// this panel translates, and not from one computed once at module load. A frozen list is the
-// failure this spec exists for, and it is invisible to any assertion about how MANY days there
-// are: it would still be seven, still in order, still in the language the page happened to open
-// in. So the assertions name the actual words on both sides of the switch.
+// The names come from the panel's options list (GET /api/v1/backup-options), which it answers in the
+// language the request carries — not from a list this SPA translates, and not from one read once.
+// A list frozen in the language the page opened in is the failure this spec exists for, and it is
+// invisible to any assertion about how MANY days there are: it would still be seven, still in
+// order. So the assertions name the actual words on both sides of the switch, and the stub answers
+// from the request's Accept-Language so a screen that never asks again cannot pass.
 test('the weekday names follow a language switch, in each language own words', async ({ page }) => {
   await setPersistedLocale(page, 'en')
   await openSchedule(page)
@@ -106,9 +110,9 @@ test('the weekday names follow a language switch, in each language own words', a
   await expect(page.getByRole('combobox', { name: 'День недели' })).toHaveText('вторник')
 
   await openDayPicker(page, 'День недели')
-  // Lower case, and exactly so: Russian does not capitalise weekday names. Asserting the strings
-  // the library returns is what keeps this panel from re-inventing the ones it deleted, which
-  // were capitalised and therefore wrong beside every date the same library renders.
+  // Lower case, and exactly so: Russian does not capitalise weekday names. The words are the
+  // backend's (its Russian resource file), which is what keeps this panel from owning a second set
+  // that could be capitalised differently from every date it renders.
   await expect(page.getByRole('option')).toHaveText([
     'понедельник',
     'вторник',

@@ -42,11 +42,6 @@
       "BackupRestore": "Պահուստից վերականգնում",
       "PhpVersionInstall": "PHP տարբերակի տեղադրում"
     },
-    "statuses": {
-      "running": "Կատարվում է",
-      "completed": "Ավարտված",
-      "failed": "Ձախողված"
-    },
     "pane": {
       "correlationId": "Հարցման նույնացուցիչ",
       "notReported": "Չի հաղորդվել",

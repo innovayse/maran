@@ -82,7 +82,7 @@ public sealed class DeletePlanCommandHandlerTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.Empty(await _dbContext.Plans.ToListAsync());
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanDeleted, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanDeleted, entry.Action);
         Assert.Equal("Agency", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.Equal("203.0.113.7", entry.IpAddress);
@@ -103,7 +103,7 @@ public sealed class DeletePlanCommandHandlerTests : IDisposable
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Single(await _dbContext.Plans.ToListAsync());
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanDeleted, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanDeleted, entry.Action);
         Assert.Equal("Agency", entry.Subject);
         Assert.False(entry.Succeeded);
     }
@@ -177,7 +177,7 @@ public sealed class DeletePlanCommandHandlerTests : IDisposable
         Assert.Equal("PlanInUse", result.Error!.Code);
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanDeleted, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanDeleted, entry.Action);
         Assert.Equal("Agency", entry.Subject);
         Assert.False(entry.Succeeded);
     }

@@ -91,6 +91,20 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
         return Result.Ok();
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<int>> EndSessionsAsync(
+        string accountUsername,
+        string sftpUsername,
+        CancellationToken cancellationToken)
+    {
+        LastAccountUsername = accountUsername;
+        LastSftpUsername = sftpUsername;
+
+        await EnterAsync(cancellationToken);
+
+        return Result<int>.Ok(2);
+    }
+
     /// <summary>Counts the call and applies whichever misbehaviour the test asked for.</summary>
     /// <param name="cancellationToken">The token the pipeline's timeout cancels.</param>
     /// <returns>A task that completes once the call may return.</returns>

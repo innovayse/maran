@@ -36,6 +36,9 @@
   <data name="AccountMembershipNotFound">
     <value>This account could not be found.</value>
   </data>
+  <data name="AccountMembershipSuspended">
+    <value>This account is suspended, so it cannot be used until it is resumed.</value>
+  </data>
   <data name="CurrentPasswordIncorrect">
     <value>The current password is not correct.</value>
   </data>
@@ -64,7 +67,13 @@
     <value>Two-factor authentication is not enabled.</value>
   </data>
   <data name="PasswordTooWeak">
-    <value>Choose a password of at least 12 characters that is different from your username.</value>
+    <value>Choose a password of at least {1} characters.</value>
+  </data>
+  <data name="PasswordTooLong">
+    <value>That password is too long. Choose a shorter one.</value>
+  </data>
+  <data name="PasswordSameAsUsername">
+    <value>Choose a password that is different from your username.</value>
   </data>
   <data name="UsernameInvalidFormat">
     <value>A username may contain only letters, digits, dots, dashes and underscores.</value>
@@ -129,11 +138,8 @@
   <data name="SubUserNotFound">
     <value>That sub-user does not exist.</value>
   </data>
-  <data name="SubUserLoginTaken">
-    <value>That login name is already taken. Choose another.</value>
-  </data>
-  <data name="SubUserEmailTaken">
-    <value>A login with that e-mail address already exists. Use another address.</value>
+  <data name="SubUserLimitReached">
+    <value>Your account already has the most sub-users it may hold. Remove one before inviting another.</value>
   </data>
   <data name="SubUserFeatureInvalid">
     <value>Choose the features from the list the panel offers.</value>

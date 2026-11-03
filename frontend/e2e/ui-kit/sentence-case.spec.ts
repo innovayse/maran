@@ -30,7 +30,7 @@ import type { PanelTask } from '../../src/types/panelTask'
 /** The three interface languages the panel ships. */
 const LOCALES = ['en', 'ru', 'hy'] as const
 
-/** The completed-task badge as each locale's tasks translation writes it. */
+/** The completed-task status name as the panel answers it in each interface language (the SPA prints it as given). */
 const COMPLETED: Record<(typeof LOCALES)[number], string> = {
   en: 'Completed',
   ru: 'Завершена',
@@ -53,6 +53,7 @@ const ACCOUNT: Account = {
   primaryDomain: 'alice.example.com',
   planId: THREE_PLANS[0]?.id ?? '',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
 }
 
@@ -68,6 +69,7 @@ const TASK: PanelTask = {
   subject: 'alice',
   correlationId: 'c0rr-s3nt3nc3',
   status: 'completed',
+  statusName: 'Completed',
   percent: 100,
   log: '',
   logIncluded: true,
@@ -150,7 +152,8 @@ const stubEverything = async (page: Page, locale: (typeof LOCALES)[number]): Pro
   await stubHealthy(page)
   await stubModules(page, MODULES)
   await stubDashboard(page, DASHBOARD)
-  await stubTasks(page, [TASK])
+  // The badge prints the panel's own name for the status, so the answer is localized like the real one.
+  await stubTasks(page, [{ ...TASK, statusName: COMPLETED[locale] }])
   await stubTaskStream(page, '')
   await stubPlans(page, THREE_PLANS)
   await stubAccounts(page, [ACCOUNT])
@@ -210,7 +213,7 @@ for (const viewport of VIEWPORTS) {
         })
       }
 
-      test(`the completed task badge reads as translated (${locale})`, async ({ page }) => {
+      test(`the completed task badge prints the panel's localized name (${locale})`, async ({ page }) => {
         await stubEverything(page, locale)
         await page.goto('/tasks')
 

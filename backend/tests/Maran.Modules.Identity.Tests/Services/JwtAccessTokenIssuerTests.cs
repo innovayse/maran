@@ -82,8 +82,7 @@ public sealed class JwtAccessTokenIssuerTests
     {
         var accountId = Guid.NewGuid();
         var customer = new User(Guid.NewGuid(), "customer", "c@example.com", "hash", UserRole.Customer, Now);
-        // The older single-account column names a different account: the claim must follow the session.
-        customer.AssignAccount(Guid.NewGuid());
+        // The claim follows the session's active account; a login row names no account of its own.
 
         var token = await NewIssuer().IssueAsync(customer, Guid.NewGuid(), accountId, CancellationToken.None);
 

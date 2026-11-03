@@ -60,6 +60,9 @@ public sealed class RunningTasksStreamService
     /// <summary>Names a task's kind in the culture of the request that opened the stream.</summary>
     private readonly TaskKindDisplayNames _kindNames;
 
+    /// <summary>Names a task\'s status as an operator reads it, in the request\'s culture.</summary>
+    private readonly TaskStatusDisplayNames _statusNames;
+
     /// <summary>Describes a failed task's code as a sentence, in the request's culture.</summary>
     private readonly TaskFailureMessages _failures;
 
@@ -70,6 +73,7 @@ public sealed class RunningTasksStreamService
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="options">The task stream's settings, chiefly the poll interval.</param>
     /// <param name="kindNames">Names a task's kind for the culture of the request that opened the stream.</param>
+    /// <param name="statusNames">Names a task\'s status for the request\'s culture.</param>
     /// <param name="failures">
     /// Describes a failed task's code for the culture of the request that opened the stream, so each
     /// subscriber reads its frames in its own language.
@@ -79,6 +83,7 @@ public sealed class RunningTasksStreamService
         TasksDbContext dbContext,
         IOptions<TaskStreamOptions> options,
         TaskKindDisplayNames kindNames,
+        TaskStatusDisplayNames statusNames,
         TaskFailureMessages failures,
         ICurrentUser currentUser)
     {
@@ -87,6 +92,7 @@ public sealed class RunningTasksStreamService
         _dbContext = dbContext;
         _pollInterval = TimeSpan.FromMilliseconds(options.Value.PollIntervalMilliseconds);
         _kindNames = kindNames;
+        _statusNames = statusNames;
         _failures = failures;
         _currentUser = currentUser;
     }
@@ -171,6 +177,6 @@ public sealed class RunningTasksStreamService
     private PanelTaskDto Map(PanelTask task)
     {
         return PanelTaskMapper.From(
-            task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.Caller is AdministratorCaller);
+            task, _kindNames.Of(task.Kind), _statusNames.Of(task.Status), _failures.Describe(task.ErrorCode), _currentUser.Caller is AdministratorCaller);
     }
 }

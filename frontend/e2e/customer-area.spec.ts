@@ -43,8 +43,10 @@ const OWN_SITE: Site = {
   ownerName: 'olive',
   domain: 'olive-shop.example.com',
   backendType: 'php',
+  backendTypeName: 'PHP',
   phpVersion: '8.3',
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: '2026-09-01T10:00:00Z',
 }
 

@@ -288,7 +288,7 @@ public sealed class BackupRunHandler
                     await _dbContext.SaveChangesAsync(cancellationToken);
 
                     await _journal.RecordSystemAsync(
-                        AuditActions.BackupCreated, account.Username, succeeded: true, cancellationToken);
+                        BackupAuditActions.BackupCreated, account.Username, succeeded: true, cancellationToken);
                     await _tasks.CompleteAsync(taskId, cancellationToken);
                     await _bus.PublishAsync(new RetentionRequested(account.Id, retainCount));
 
@@ -299,7 +299,7 @@ public sealed class BackupRunHandler
                     await _dbContext.SaveChangesAsync(cancellationToken);
 
                     await _journal.RecordSystemAsync(
-                        AuditActions.BackupCreated, account.Username, succeeded: false, cancellationToken);
+                        BackupAuditActions.BackupCreated, account.Username, succeeded: false, cancellationToken);
                     await _tasks.FailAsync(taskId, failed.FailureCode, cancellationToken);
                     await _alerts.ScheduledRunFailedAsync(account.Username, failed.FailureCode, cancellationToken);
 
@@ -372,7 +372,7 @@ public sealed class BackupRunHandler
             await _tasks.FailAsync(taskId, nameof(ErrorMessages.BackupScheduledRunAborted), cancellationToken);
 
             await _journal.RecordSystemAsync(
-                AuditActions.BackupCreated, accountUsername, succeeded: false, cancellationToken);
+                BackupAuditActions.BackupCreated, accountUsername, succeeded: false, cancellationToken);
             await _alerts.ScheduledRunFailedAsync(
                 accountUsername, nameof(ErrorMessages.BackupScheduledRunAborted), cancellationToken);
         }

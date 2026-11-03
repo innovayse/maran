@@ -15,6 +15,16 @@ pub fn php_package(version: &str) -> String {
     format!("php{}-php-fpm", version.replace('.', ""))
 }
 
+/// The PHP versions Remi publishes a php-fpm package for, oldest first.
+///
+/// Remi carries every release from 7.4 to 8.4 for the RHEL releases the panel
+/// supports; the list is read by the installable-versions query and by the
+/// install, so a version is offered exactly when it can be installed.
+#[must_use]
+pub fn installable_php_versions() -> &'static [&'static str] {
+    &["7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]
+}
+
 /// Absolute path of the package manager binary.
 ///
 /// Remi's repository is installed and driven through `dnf`, the RHEL

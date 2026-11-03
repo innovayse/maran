@@ -25,7 +25,7 @@ public sealed class ListAuditEventsQueryValidatorTests
             PageSize: 100,
             Search: SearchTerm.Of("alice"),
             Sort: SortRequest.Parse("-actor"),
-            Action: FilterValue.Of(AuditActions.LoginFailed),
+            Action: FilterValue.Of(IdentityAuditActions.LoginFailed),
             Outcome: AuditOutcome.Failed,
             From: Instant,
             To: Instant.AddDays(1))).IsValid);

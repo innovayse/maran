@@ -16,6 +16,7 @@ const SIGN_IN: AuditEvent = {
   subject: 'admin',
   ipAddress: '203.0.113.7',
   succeeded: true,
+  outcomeName: 'Succeeded',
 }
 
 const REFUSED: AuditEvent = {
@@ -27,6 +28,7 @@ const REFUSED: AuditEvent = {
   subject: 'mallory',
   ipAddress: '198.51.100.4',
   succeeded: false,
+  outcomeName: 'Failed',
 }
 
 const AUGUST: AuditEvent = {
@@ -154,4 +156,31 @@ test('the journal pages on the server and keeps the page in the URL', async ({ p
   await expect(page).toHaveURL(/page=2/)
   await expect(page.getByRole('cell', { name: '203.0.113.7', exact: true })).toHaveCount(2)
   expect(requests().at(-1)?.searchParams.get('page')).toBe('2')
+})
+
+test('the outcome filter offers the outcomes the panel lists, in the panel’s words', async ({ page }) => {
+  await openJournal(page, [SIGN_IN, REFUSED])
+  // Registered after the stub's own, so it answers first: the panel names its outcomes differently.
+  await page.route(/\/api\/v1\/audit\/outcomes(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { outcome: 'succeeded', outcomeName: 'Went through' },
+        { outcome: 'failed', outcomeName: 'Turned down' },
+      ]),
+    })
+  })
+
+  await page.goto('/settings/audit')
+  await page.getByTestId('filter-trigger').click()
+  const dialog = page.getByRole('dialog', { name: 'Filters' })
+  await dialog.getByRole('combobox', { name: 'Outcome' }).click()
+
+  await expect(page.getByRole('option')).toHaveText(['Any', 'Went through', 'Turned down'])
+  await page.getByRole('option', { name: 'Turned down' }).click()
+  await dialog.getByRole('button', { name: 'Apply' }).click()
+
+  await expect(page).toHaveURL(/outcome=failed/)
+  await expect(page.getByTestId('active-filter-chips')).toContainText('Outcome: Turned down')
 })

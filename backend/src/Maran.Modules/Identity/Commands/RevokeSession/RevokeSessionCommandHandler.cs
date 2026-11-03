@@ -56,7 +56,7 @@ public sealed class RevokeSessionCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             command.UserId,
-            AuditActions.SessionRevoked,
+            IdentityAuditActions.SessionRevoked,
             command.SessionId.ToString(),
             command.IpAddress,
             command.UserAgent,

@@ -88,7 +88,7 @@ public sealed class EndViewAsCommandHandler
         await _journal.RecordViewAsAsync(
             origin.ActorUserId,
             operatorName,
-            AuditActions.ViewAsEnded,
+            IdentityAuditActions.ViewAsEnded,
             $"account {accountName} as {viewedName}",
             command.IpAddress,
             command.UserAgent,

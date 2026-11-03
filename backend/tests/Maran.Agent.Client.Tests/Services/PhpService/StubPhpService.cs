@@ -10,6 +10,9 @@ internal sealed class StubPhpService : IPhpServiceInvoker
     /// <summary>Response returned from <see cref="ListPhpVersionsAsync"/>.</summary>
     public ListPhpVersionsResponse ListResponse { get; set; } = new();
 
+    /// <summary>Response returned from <see cref="ListInstallablePhpVersionsAsync"/>.</summary>
+    public ListInstallablePhpVersionsResponse InstallableResponse { get; set; } = new();
+
     /// <summary>The messages the install stream yields before it ends.</summary>
     public List<InstallPhpVersionResponse> InstallResponses { get; } = [];
 
@@ -28,6 +31,14 @@ internal sealed class StubPhpService : IPhpServiceInvoker
         CancellationToken cancellationToken)
     {
         return Task.FromResult(ListResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<ListInstallablePhpVersionsResponse> ListInstallablePhpVersionsAsync(
+        ListInstallablePhpVersionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(InstallableResponse);
     }
 
     /// <inheritdoc/>

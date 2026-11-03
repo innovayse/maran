@@ -49,6 +49,7 @@ public sealed class CronEnvironmentController : BaseApiController
     /// <param name="accountId">The account whose crontab to read.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(IReadOnlyList<CronEnvironmentVariableDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -68,6 +69,7 @@ public sealed class CronEnvironmentController : BaseApiController
     /// <param name="command">The owning account and the complete new set.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

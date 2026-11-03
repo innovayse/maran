@@ -24,13 +24,6 @@ public static class DisplayNameExemptions
     public static readonly IReadOnlyList<DisplayNameExemption> Declared =
     [
         new(
-            "Maran.Modules.Cron.Common.CronRunDto",
-            "Outcome",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "cron.runs.outcome.{member}",
-            "A run started by hand succeeded, failed or was stopped: a closed set the history draws as a "
-            + "badge and offers as its one filter (issue #158)."),
-        new(
             "Maran.Modules.Cron.Common.CronRunStoppedDto",
             "Limit",
             DisplayNameExemptionKind.SpaOwnedVocabulary,
@@ -38,55 +31,12 @@ public static class DisplayNameExemptions
             "The agent's two ceilings, carried only by a run that one of them stopped, runtime and output: a closed set the result dialog explains in one "
             + "sentence each (issue #158)."),
         new(
-            "Maran.Modules.Cron.Common.CronRunSummaryDto",
-            "Outcome",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "cron.runs.outcome.{member}",
-            "A run started by hand succeeded, failed or was stopped: a closed set the history draws as a "
-            + "badge and offers as its one filter (issue #158)."),
-        new(
-            "Maran.Modules.Accounts.Common.AccountDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "accounts.status.{member}",
-            "An account is active or suspended and the list draws the two as badges. The set is "
-            + "closed by the domain rather than by what has been implemented, so a bundle can hold "
-            + "a word for every value it will ever receive."),
-        new(
-            "Maran.Modules.Accounts.Common.AccountDetailDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "accounts.status.{member}",
-            "The detail screen draws the same badge from the same closed set as the list."),
-        new(
-            "Maran.Modules.Accounts.Common.MyAccountDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "accounts.status.{member}",
-            "The customer's own account screen draws the same badge from the same closed set the "
-            + "administrator's list and detail screens already use; the bundle already words every "
-            + "value to offer those two."),
-        new(
             "Maran.Modules.Accounts.Common.AccountResourceUsageDto",
             "Kind",
             DisplayNameExemptionKind.SpaOwnedVocabulary,
             "accounts.resources.kinds.{member}",
             "The resource kinds are a closed Sdk enum, one per counting module, and the summary card "
             + "labels each row with the same words the customer's limits screen already uses."),
-        new(
-            "Maran.Modules.Backups.Common.BackupDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "backups.status.{member}",
-            "Running, completed and failed are the three states a run can be in, drawn as a badge "
-            + "whose tone carries half the meaning; the words belong with the tone."),
-        new(
-            "Maran.Modules.Backups.Common.BackupDto",
-            "Kind",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "backups.kind.{member}",
-            "Why a backup was taken is a closed set the panel itself decides between, and the "
-            + "column shows it as one word."),
         new(
             "Maran.Modules.Backups.Common.BackupDestinationDto",
             "Kind",
@@ -99,19 +49,20 @@ public static class DisplayNameExemptions
         new(
             "Maran.Modules.Backups.Common.BackupScheduleDto",
             "Frequency",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "backups.schedule.frequency.{member}",
-            "Daily and weekly are the options of a form control the SPA renders; the same words "
-            + "have to exist in the bundle for the picker regardless."),
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/pages/backups/BackupSchedulePage.vue",
+            "The cadence is only echoed back into the schedule form's own picker, whose choices and "
+            + "their names are the backend's (GET /api/v1/backup-options, issue #330), not a label "
+            + "drawn from this field; no screen prints the field as a name."),
         new(
             "Maran.Modules.Backups.Common.BackupScheduleDto",
             "DayOfWeekUtc",
             DisplayNameExemptionKind.NotAnOperatorFacingName,
             "frontend/src/pages/backups/BackupSchedulePage.vue",
-            "A weekday is named by the platform's own locale data, not by anything this product "
-            + "authored: the picker labels it through Intl in the interface language. A display "
-            + "name on the wire would be a second, worse translation of a word every operating "
-            + "system already knows."),
+            "A weekday is only echoed back into the schedule form's own picker, whose choices and "
+            + "their names are the backend's (GET /api/v1/backup-options, issue #330): the "
+            + "picker never prints this field as a name, so a display name beside it on the wire "
+            + "would be a second, redundant translation of a word the options list already names."),
         new(
             "Maran.Modules.Firewall.Common.BanDto",
             "Reason",
@@ -120,13 +71,22 @@ public static class DisplayNameExemptions
             "Manual or brute force: two values the panel itself writes, shown as a column of one "
             + "word each."),
         new(
+            "Maran.Modules.Firewall.Common.FirewallPresetDto",
+            "Key",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/firewall/FirewallPresetButtons.vue",
+            "The key is the preset's identity, which the card uses to tell one preset from another "
+            + "and to ask for it by name; the words an operator reads are the sibling Name, resolved "
+            + "by the panel for the request's culture (issue #330). No screen prints the key."),
+        new(
             "Maran.Modules.Firewall.Common.FirewallRuleDto",
             "Protocol",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "firewall.protocols.{member}",
-            "TCP and UDP are proper nouns that read the same in every language; the bundle carries "
-            + "them so the rule table can label a column without asking the panel what TCP is "
-            + "called in Armenian."),
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/firewall/FirewallRulesTable.vue",
+            "The protocol is the key the rule table looks up in the panel's own list of protocol "
+            + "choices (GET /api/v1/firewall/rules/protocols, issue #330), whose protocolName is the "
+            + "backend's word for it; the SPA holds no label of its own, so a display name beside "
+            + "this field on the wire would repeat what the choices list already names."),
         new(
             "Maran.Modules.Identity.Common.AuthenticatedUserDto",
             "Role",
@@ -164,38 +124,6 @@ public static class DisplayNameExemptions
             "monitoring.clock.{member}",
             "The clock card's badge, a tone as much as a word, like ServiceStatusDto.State. The "
             + "sentence saying what the state means is the backend's, in Description (issue #150)."),
-        new(
-            "Maran.Modules.Notifications.Common.SmtpSettingsDto",
-            "Security",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "app.smtp.security.{member}",
-            "The options of the settings form's own picker, which the bundle has to word anyway to "
-            + "offer the choice."),
-        new(
-            "Maran.Modules.Sites.Common.SiteDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "sites.status.{member}",
-            "Enabled or disabled, drawn as a badge from a set the domain closes."),
-        new(
-            "Maran.Modules.Sites.Common.SiteDto",
-            "BackendType",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "sites.backendType.{member}",
-            "What serves the site is a closed choice this panel offers when the site is created, "
-            + "so the bundle already words all three to offer it."),
-        new(
-            "Maran.Modules.Sites.Common.SiteDetailDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "sites.status.{member}",
-            "The detail screen draws the list's badge from the same closed set."),
-        new(
-            "Maran.Modules.Sites.Common.SiteDetailDto",
-            "BackendType",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "sites.backendType.{member}",
-            "The same closed choice the create form offers, shown back on the detail screen."),
         new(
             "Maran.Modules.Sites.Common.SiteLogEndDto",
             "Reason",
@@ -270,13 +198,6 @@ public static class DisplayNameExemptions
             "Default, not default and not established are the three answers of the versions table's "
             + "default column, which the page words as yes, no and not established beside the badge tone."),
         new(
-            "Maran.Modules.Tasks.Common.PanelTaskDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "tasks.statuses.{member}",
-            "Running, completed, failed — the badge on the tasks table, from a set the panel "
-            + "closes."),
-        new(
             "Maran.Modules.Tasks.Common.TaskFailureDto",
             "Code",
             DisplayNameExemptionKind.NotAnOperatorFacingName,
@@ -285,11 +206,5 @@ public static class DisplayNameExemptions
             + "sentence the backend resolves for the reader's culture (issue #272). The defect this "
             + "law is about is a code printed AS the name of the thing; a code labelled as a code "
             + "beside its own sentence is the cure for it, not an instance of it."),
-        new(
-            "Maran.Modules.Tasks.Common.TaskStreamEndDto",
-            "Status",
-            DisplayNameExemptionKind.SpaOwnedVocabulary,
-            "tasks.statuses.{member}",
-            "The final frame of the stream carries the same badge value as the row it closes."),
     ];
 }

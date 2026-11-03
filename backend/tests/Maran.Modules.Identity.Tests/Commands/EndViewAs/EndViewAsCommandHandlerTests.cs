@@ -58,7 +58,7 @@ public sealed class EndViewAsCommandHandlerTests : IDisposable
         Assert.Equal(SessionRevocationReason.ViewAsEnded, stored.Revocation?.Reason);
 
         var entry = Assert.Single(_fixture.Audit.Written);
-        Assert.Equal(AuditActions.ViewAsEnded, entry.Action);
+        Assert.Equal(IdentityAuditActions.ViewAsEnded, entry.Action);
         Assert.Equal(admin.Id, entry.ActorUserId);
         Assert.Equal(admin.Username, entry.ActorUsername);
         Assert.Contains(owner.Username, entry.Subject, StringComparison.Ordinal);

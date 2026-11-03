@@ -49,6 +49,7 @@ public sealed class CronRunsController : BaseApiController
     /// <param name="command">The owning account.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(CronRunDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -69,6 +70,7 @@ public sealed class CronRunsController : BaseApiController
     /// <param name="query">The account, paging, search, sort and outcome filter.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PagedResult<CronRunSummaryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -90,6 +92,7 @@ public sealed class CronRunsController : BaseApiController
     /// <param name="accountId">The account whose entry it is.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("{runId:guid}")]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(CronRunDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

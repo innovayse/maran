@@ -43,6 +43,7 @@ const catalogue = (count: number): Account[] => {
       primaryDomain: `acct-${number}.example.com`,
       planId: index % 2 === 0 ? STARTER.id : BUSINESS.id,
       status: index % 3 === 2 ? 'suspended' : 'active',
+      statusName: index % 3 === 2 ? 'Suspended' : 'Active',
       createdAt: `2026-08-${number}T10:00:00Z`,
     }
   })

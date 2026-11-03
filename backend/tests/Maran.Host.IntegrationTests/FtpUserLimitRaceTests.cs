@@ -143,11 +143,8 @@ public sealed class FtpUserLimitRaceTests : IAsyncLifetime
     [Fact]
     public async Task A_creation_beyond_the_allowance_is_refused_before_the_host_is_touched()
     {
-        await using (var seed = OpenContext())
-        {
-            var agent = new BarrierFtpsAgent(expectedCallers: 1);
-            Assert.True((await CreateAsync(agent, "files", maxFtpUsers: 1)).IsSuccess);
-        }
+        var first = new BarrierFtpsAgent(expectedCallers: 1);
+        Assert.True((await CreateAsync(first, "files", maxFtpUsers: 1)).IsSuccess);
 
         var second = new BarrierFtpsAgent(expectedCallers: 1);
         var result = await CreateAsync(second, "deploy", maxFtpUsers: 1);

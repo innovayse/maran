@@ -2,6 +2,7 @@ using Maran.Modules.Notifications.Commands.SaveSmtpSettings;
 using Maran.Modules.Notifications.Commands.SendTestMail;
 using Maran.Modules.Notifications.Common;
 using Maran.Modules.Notifications.Queries.GetSmtpSettings;
+using Maran.Modules.Notifications.Queries.ListSmtpSecurityChoices;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
 using Microsoft.AspNetCore.Authorization;
@@ -54,6 +55,19 @@ public sealed class SmtpSettingsController : BaseApiController
     {
         var query = new GetSmtpSettingsQuery();
         return ToActionResult(await _bus.InvokeAsync<Result<SmtpSettingsDto>>(query, cancellationToken));
+    }
+
+    /// <summary>Lists the ways the connection to the mail server can be protected, named for the caller's language.</summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The choices, in the order the settings form offers them.</returns>
+    [HttpGet("security-modes")]
+    [ProducesResponseType(typeof(IReadOnlyList<SmtpSecurityChoiceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetSecurityModesAsync(CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<SmtpSecurityChoiceDto>>>(
+            new ListSmtpSecurityChoicesQuery(), cancellationToken));
     }
 
     /// <summary>Replaces the panel's mail settings.</summary>

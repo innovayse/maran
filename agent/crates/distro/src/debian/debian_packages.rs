@@ -14,6 +14,16 @@ pub fn php_package(version: &str) -> String {
     format!("php{version}-fpm")
 }
 
+/// The PHP versions Sury publishes a php-fpm package for, oldest first.
+///
+/// Sury carries every release from 7.4 to 8.4 for the Debian releases the
+/// panel supports; the list is read by the installable-versions query and by
+/// the install, so a version is offered exactly when it can be installed.
+#[must_use]
+pub fn installable_php_versions() -> &'static [&'static str] {
+    &["7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]
+}
+
 /// Absolute path of the package manager binary.
 ///
 /// Sury's repository is installed and driven through `apt-get`, the Debian

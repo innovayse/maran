@@ -42,6 +42,7 @@ public sealed class ScriptedHandler : HttpMessageHandler
             throw new HttpRequestException("the authority is unreachable");
         }
 
+        // The response is handed to the HTTP client, which owns and disposes it from here.
         return Task.FromResult(new HttpResponseMessage(status.Value));
     }
 }

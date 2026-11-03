@@ -188,7 +188,7 @@ public sealed class RetentionHandlerTests
         Assert.Equal(4, await world.Read().Backups.IgnoreQueryFilters().CountAsync());
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupRetentionPruned, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupRetentionPruned, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -258,7 +258,7 @@ public sealed class RetentionHandlerTests
         await world.Handler.HandleAsync(new RetentionRequested(accountId, 1), CancellationToken.None);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupRetentionPruned, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupRetentionPruned, entry.Action);
 
         // The account, not the backup id: the line answers "whose archive did the panel destroy
         // that night", which is the question an operator brings to it.

@@ -194,8 +194,8 @@ public sealed class BackupRunHandlerTests
         Assert.Equal(BackupStatus.Failed, row.Status);
 
         var entry = Assert.Single(
-            world.Audit.Entries, entry => { return entry.Action == AuditActions.BackupCreated; });
-        Assert.Equal(AuditActions.BackupCreated, entry.Action);
+            world.Audit.Entries, entry => { return entry.Action == BackupAuditActions.BackupCreated; });
+        Assert.Equal(BackupAuditActions.BackupCreated, entry.Action);
         Assert.False(entry.Succeeded);
     }
 

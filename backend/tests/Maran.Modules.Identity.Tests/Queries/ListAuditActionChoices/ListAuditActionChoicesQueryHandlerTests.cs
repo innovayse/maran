@@ -29,8 +29,8 @@ public sealed class ListAuditActionChoicesQueryHandlerTests : IDisposable
     [Fact]
     public async Task Each_action_that_occurred_is_offered_once_and_named()
     {
-        await WriteAsync(AuditActions.BackupRestored);
-        await WriteAsync(AuditActions.BackupRestored);
+        await WriteAsync(BackupAuditActions.BackupRestored);
+        await WriteAsync(BackupAuditActions.BackupRestored);
         await WriteAsync("SomeMarketplaceModuleAction");
 
         var previous = CultureInfo.CurrentUICulture;
@@ -44,7 +44,7 @@ public sealed class ListAuditActionChoicesQueryHandlerTests : IDisposable
             Assert.Equal(2, result.Value.Count);
             var restored = Assert.Single(result.Value, choice =>
             {
-                return choice.Action == AuditActions.BackupRestored;
+                return choice.Action == BackupAuditActions.BackupRestored;
             });
             Assert.Equal("Аккаунт восстановлен из резервной копии", restored.ActionName);
             var unnamed = Assert.Single(result.Value, choice =>

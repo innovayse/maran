@@ -16,8 +16,10 @@ const SITE: Site = {
   ownerName: 'alice',
   domain: 'alpha.example.com',
   backendType: 'static',
+  backendTypeName: 'Static',
   phpVersion: '',
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -27,11 +29,13 @@ const SITE_DETAIL: SiteDetail = {
   domain: SITE.domain,
   aliases: [],
   backendType: 'static',
+  backendTypeName: 'Static',
   phpVersion: '',
   proxyUpstream: '',
   documentRoot: '/home/alice/sites/alpha.example.com/public',
   hasCertificate: false,
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: SITE.createdAt,
 }
 
@@ -41,6 +45,7 @@ const ACCOUNT: Account = {
   primaryDomain: 'alice.example.com',
   planId: '00000000-0000-0000-0000-0000000000a1',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
 }
 

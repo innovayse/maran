@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Maran.Modules.Tasks.Common;
 using Maran.Modules.Tasks.Domain.Enums;
 using Maran.Modules.Tasks.Mappers;
 using Maran.Modules.Tasks.Models;
@@ -65,6 +66,9 @@ public sealed class TaskStreamService
     /// <summary>Names the watched task's kind as an operator reads it, in the request's culture.</summary>
     private readonly TaskKindDisplayNames _kindNames;
 
+    /// <summary>Names a task\'s status as an operator reads it, in the request\'s culture.</summary>
+    private readonly TaskStatusDisplayNames _statusNames;
+
     /// <summary>Describes a failed task's code as a sentence, in the request's culture.</summary>
     private readonly TaskFailureMessages _failures;
 
@@ -75,6 +79,7 @@ public sealed class TaskStreamService
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="options">The stream's settings, chiefly the poll interval.</param>
     /// <param name="kindNames">Names a task's kind for the culture of the request that opened the stream.</param>
+    /// <param name="statusNames">Names a task\'s status for the request\'s culture.</param>
     /// <param name="failures">
     /// Describes a failed task's code for the culture of the request that opened the stream, so each
     /// subscriber reads its frames in its own language.
@@ -84,6 +89,7 @@ public sealed class TaskStreamService
         TasksDbContext dbContext,
         IOptions<TaskStreamOptions> options,
         TaskKindDisplayNames kindNames,
+        TaskStatusDisplayNames statusNames,
         TaskFailureMessages failures,
         ICurrentUser currentUser)
     {
@@ -92,6 +98,7 @@ public sealed class TaskStreamService
         _dbContext = dbContext;
         _pollInterval = TimeSpan.FromMilliseconds(options.Value.PollIntervalMilliseconds);
         _kindNames = kindNames;
+        _statusNames = statusNames;
         _failures = failures;
         _currentUser = currentUser;
     }
@@ -135,13 +142,13 @@ public sealed class TaskStreamService
             {
                 lastRevision = task.Revision;
                 var snapshot = PanelTaskMapper.From(
-                    task, _kindNames.Of(task.Kind), _failures.Describe(task.ErrorCode), _currentUser.Caller is AdministratorCaller);
+                    task, _kindNames.Of(task.Kind), _statusNames.Of(task.Status), _failures.Describe(task.ErrorCode), _currentUser.Caller is AdministratorCaller);
                 yield return TaskFrame.OfTask(snapshot);
             }
 
             if (task.Status != PanelTaskStatus.Running)
             {
-                yield return TaskFrame.OfEnd(task.Status);
+                yield return TaskFrame.OfEnd(new TaskStreamEndDto(task.Status, _statusNames.Of(task.Status)));
                 yield break;
             }
 

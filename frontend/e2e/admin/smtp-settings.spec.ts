@@ -56,3 +56,36 @@ test('a refused test message shows the mail server’s own words as the panel re
     page.getByText('The mail server refused the credentials: 535 5.7.8 Authentication failed.'),
   ).toBeVisible()
 })
+
+test('the connection security is chosen from the modes the panel lists and sent as the panel spelled it', async ({
+  page,
+}) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubEmptyModules(page)
+  await stubSmtpSettings(page, storedSmtpSettings)
+
+  await page.goto('/settings/smtp')
+  await expect(page.getByLabel('Mail server')).toHaveValue('smtp.example.net')
+
+  // The picker shows the stored mode under the panel's own name for it.
+  const picker = page.getByRole('combobox', { name: 'Connection security' })
+  await expect(picker).toContainText('STARTTLS (upgrade the connection)')
+
+  // Every option is one the panel listed, in its order and its words; the bundle owns none of them.
+  await picker.click()
+  await expect(page.getByRole('option')).toHaveText([
+    'No encryption',
+    'STARTTLS (upgrade the connection)',
+    'Implicit TLS (encrypted from the start)',
+  ])
+  await page.getByRole('option', { name: 'Implicit TLS (encrypted from the start)' }).click()
+
+  const saving = page.waitForRequest((request) => {
+    return request.method() === 'PUT' && request.url().endsWith('/api/v1/notifications/smtp')
+  })
+  await page.getByRole('button', { name: 'Save mail settings' }).click()
+
+  const body = (await saving).postDataJSON() as { security: string }
+  expect(body.security).toBe('implicitTls')
+})

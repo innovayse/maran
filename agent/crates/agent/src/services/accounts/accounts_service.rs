@@ -576,5 +576,11 @@ impl<
 }
 
 #[cfg(test)]
+#[path = "../../tests/services/accounts/accounts_service_fixture.rs"]
+mod fixture;
+#[cfg(test)]
+#[path = "../../tests/services/accounts/accounts_service_refusal_tests.rs"]
+mod refusal_tests;
+#[cfg(test)]
 #[path = "../../tests/services/accounts/accounts_service_tests.rs"]
 mod tests;

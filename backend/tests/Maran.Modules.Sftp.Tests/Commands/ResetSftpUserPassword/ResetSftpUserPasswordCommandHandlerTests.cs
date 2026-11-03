@@ -123,11 +123,78 @@ public sealed class ResetSftpUserPasswordCommandHandlerTests
 
         var result = await world.ResetAsync(world.OwnSftpUserId);
 
-        var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.SftpUserPasswordReset, entry.Action);
+        var entry = Assert.Single(world.Audit.Entries, e =>
+        {
+            return e.Action == SftpAuditActions.SftpUserPasswordReset;
+        });
         Assert.Equal("deploy", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain(result.Value.Password.Reveal(), entry.Subject, StringComparison.Ordinal);
+    }
+
+    /// <summary>A reset ends the open sessions of exactly the login it re-credentialled, by the row's suffix.</summary>
+    [Fact]
+    public async Task A_reset_ends_the_open_sessions_of_exactly_the_login_it_recredentialled()
+    {
+        // The suffix the row recorded, never the fully qualified login: the agent applies the account
+        // prefix itself, so the call cannot reach another tenant's sessions.
+        var world = await WorldAsync();
+
+        var result = await world.ResetAsync(world.OwnSftpUserId);
+
+        Assert.True(result.IsSuccess);
+        var call = Assert.Single(world.Agent.EndSessionsCalls);
+        Assert.Equal("alice", call.AccountUsername);
+        Assert.Equal("deploy", call.SftpUsername);
+    }
+
+    /// <summary>The session end is installed after the password, so a failed install cuts nobody off.</summary>
+    [Fact]
+    public async Task A_failed_password_install_ends_no_sessions()
+    {
+        var world = await WorldAsync();
+        world.Agent.SetPasswordResult = Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+
+        await world.ResetAsync(world.OwnSftpUserId);
+
+        Assert.Empty(world.Agent.EndSessionsCalls);
+    }
+
+    /// <summary>The session end is journalled as its own successful entry naming the login.</summary>
+    [Fact]
+    public async Task The_session_end_is_journalled_as_its_own_successful_entry_naming_the_login()
+    {
+        var world = await WorldAsync();
+
+        await world.ResetAsync(world.OwnSftpUserId);
+
+        var entry = Assert.Single(world.Audit.Entries, e =>
+        {
+            return e.Action == SftpAuditActions.SftpUserSessionsEnded;
+        });
+        Assert.Equal("deploy", entry.Subject);
+        Assert.True(entry.Succeeded);
+    }
+
+    /// <summary>A session end the agent could not confirm is journalled as a failure and the password is still returned.</summary>
+    [Fact]
+    public async Task A_session_end_the_agent_could_not_confirm_is_journalled_and_the_password_is_still_returned()
+    {
+        // The new password is already installed and is shown once; failing the request here would
+        // destroy the only copy of a credential that works. The failure entry is where an operator
+        // learns the old sessions may still be open.
+        var world = await WorldAsync();
+        world.Agent.EndSessionsResult = Result<int>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+
+        var result = await world.ResetAsync(world.OwnSftpUserId);
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(world.Audit.Entries, e =>
+        {
+            return e.Action == SftpAuditActions.SftpUserSessionsEnded;
+        });
+        Assert.False(entry.Succeeded);
+        Assert.Equal("deploy", entry.Subject);
     }
 
     /// <summary>A refused reset is journalled as a failure naming what was probed for.</summary>
@@ -139,7 +206,7 @@ public sealed class ResetSftpUserPasswordCommandHandlerTests
         await world.ResetAsync(world.StrangerSftpUserId);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.SftpUserPasswordReset, entry.Action);
+        Assert.Equal(SftpAuditActions.SftpUserPasswordReset, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(world.StrangerSftpUserId.ToString(), entry.Subject);
     }

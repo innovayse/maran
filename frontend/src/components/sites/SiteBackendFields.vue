@@ -24,11 +24,13 @@ import UiInput from '../ui/UiInput.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import PhpVersionSelect from './PhpVersionSelect.vue'
 import type { PhpVersion } from '../../types/phpVersion'
-import type { SiteBackendType } from '../../types/site'
+import type { SiteBackendType, SiteChoice } from '../../types/site'
 
 /** Props accepted by {@link SiteBackendFields}. */
 const props = withDefaults(
   defineProps<{
+    /** The backends the panel offers, already labelled in the operator's language. */
+    backendChoices: readonly SiteChoice[]
     /** The PHP versions the panel reported as installed, for the runtime picker. */
     phpVersions: readonly PhpVersion[]
     /** Validation message for the PHP version field, or `null`. */
@@ -50,18 +52,11 @@ const proxyUpstream = defineModel<string>('proxyUpstream', { required: true })
 
 const { t } = useI18n()
 
-/**
- * The three backends the contract defines, labelled from the panel's own chrome.
- *
- * These are UI labels for a closed enum the API contract fixes, not server-side reference
- * data: `SiteBackendType` has exactly these members, and a fourth would be a proto change.
- */
+/** The backends as picker options: the panel's own list and labels, none written into this bundle. */
 const backendOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: 'static', label: t('sites.backendType.static') },
-    { value: 'php', label: t('sites.backendType.php') },
-    { value: 'reverseProxy', label: t('sites.backendType.reverseProxy') },
-  ]
+  return props.backendChoices.map((choice) => {
+    return { value: choice.value, label: choice.label }
+  })
 })
 
 /** Whether the chosen backend needs a PHP runtime. */

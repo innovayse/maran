@@ -45,6 +45,9 @@
   <data name="PhpInstallOutcomeUnobserved">
     <value>Սերվերը չհաղորդեց, թե արդյոք այս PHP տարբերակը տեղադրվել է։ Այստեղ հիմք չկա պնդելու, որ տեղադրվել է, ուստի փորձը համարվում է ձախողված. կրկնելուց առաջ ստուգեք սերվերի փաթեթների կառավարիչը, քանի որ կիսատ տեղադրումը դանդաղից այստեղից հնարավոր չէ տարբերել։</value>
   </data>
+  <data name="PhpVersionNotInstallable">
+    <value>Այս PHP տարբերակը հնարավոր չէ տեղադրել այս սերվերում։</value>
+  </data>
   <data name="PhpVersionInvalidFormat">
     <value>Սա PHP-ի վավեր տարբերակ չէ։</value>
   </data>

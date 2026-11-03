@@ -148,7 +148,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
             "/api/v1/firewall/rules?port=8080&protocol=1&sourceCidr=0.0.0.0%2F0");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal((8080, (int?)null), agent.RulePorts);
+        Assert.Equal<(int, int?)?>((8080, null), agent.RulePorts);
     }
 
     /// <summary>Listing the rules sends the host facts too so the rulesets own accepts stay hidden.</summary>
@@ -166,6 +166,65 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal([22], agent.SshPorts);
         Assert.Equal(8443, agent.PanelPort);
+    }
+
+    /// <summary>The protocol picker is offered both protocols the allow command accepts, each named.</summary>
+    [Fact]
+    public async Task The_protocol_picker_is_offered_both_protocols_the_allow_command_accepts_each_named()
+    {
+        await using var factory = CreateFactory(new StubAgentFirewallClient());
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/firewall/rules/protocols");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var choices = body.RootElement.EnumerateArray()
+            .Select(choice =>
+            {
+                return (choice.GetProperty("protocol").GetString(), choice.GetProperty("protocolName").GetString());
+            })
+            .ToList();
+        Assert.Equal([("tcp", "TCP"), ("udp", "UDP")], choices);
+    }
+
+    /// <summary>The preset card is offered both presets, each named, closable or not, with the rules it installs.</summary>
+    [Fact]
+    public async Task The_preset_card_is_offered_both_presets_each_named_with_the_rules_it_installs()
+    {
+        await using var factory = CreateFactory(new StubAgentFirewallClient());
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/firewall/rules/presets");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var presets = body.RootElement.EnumerateArray()
+            .Select(preset =>
+            {
+                var ports = preset.GetProperty("rules").EnumerateArray()
+                    .Select(rule =>
+                    {
+                        return rule.GetProperty("port").GetInt32();
+                    })
+                    .ToList();
+                return (
+                    preset.GetProperty("key").GetString(),
+                    preset.GetProperty("name").GetString(),
+                    preset.GetProperty("closable").GetBoolean(),
+                    string.Join(",", ports));
+            })
+            .ToList();
+        Assert.Equal(
+            [
+                ("web", "Open the web ports", false, "80,443"),
+                ("mysqlExternal", "MySQL reachable from outside", true, "3306"),
+            ],
+            presets);
     }
 
     /// <summary>A rule the caller spelled wrongly is answered as the callers mistake.</summary>
@@ -374,7 +433,7 @@ public sealed class FirewallEndpointTests : IAsyncLifetime
         StubAgentFirewallClient agent,
         params (string Key, string Value)[] settings)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

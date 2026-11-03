@@ -28,7 +28,8 @@ public static class LocalizationExtensions
 
         // The Host produces failures of its own that belong to no module — HostUnexpectedError
         // from ExceptionMiddleware, HostRateLimited from the rate limiter's rejection handler, and
-        // HostForbidden / HostTwoFactorSetupRequired from ProblemDetailsAuthorizationResultWriter.
+        // HostForbidden / HostTwoFactorSetupRequired / HostViewAsNotAllowed from
+        // ProblemDetailsAuthorizationResultWriter.
         // Their resource manager joins the same shared pool the panel-wide
         // ResxErrorTextProvider resolves against, so all of them are localized exactly like a module's
         // codes rather than falling back to the raw code (rules/csharp.md "The backend owns all

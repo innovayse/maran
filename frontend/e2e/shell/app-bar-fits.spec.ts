@@ -33,6 +33,7 @@ const RUNNING: PanelTask = {
   subject: 'alice.example.com',
   correlationId: null,
   status: 'running',
+  statusName: 'Running',
   percent: 40,
   log: '',
   logIncluded: true,

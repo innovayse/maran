@@ -34,10 +34,15 @@ Until an administrator chooses, the level is the one in configuration
 (`Serilog__MinimumLevel__Default` in `/etc/maran/panel.env`, `Information` when unset). Once a level
 has been chosen, the stored choice wins at start-up.
 
-The level is the panel's default. The narrower settings in configuration stay as they are: the
-framework's request logging stays at Warning and the database layer's SQL text stays at Warning, so
-`Verbose` does not start writing every query into the journal. No level makes the panel log a
-password, a key or a token.
+The level is the panel's own. The libraries the panel is built on are held apart from it: the
+message bus (Wolverine), the database driver (Npgsql), the HTTP client, ASP.NET Core, Entity
+Framework Core and the rest of the platform are written at Warning or above whatever you choose. So
+`Verbose` makes the panel's own code talk and does not start writing every query, request line or
+message envelope into the journal, and `Error` silences their warnings along with the panel's. The
+platform's start-up and shutdown lines (`Microsoft.Hosting.Lifetime`) are the one exception and stay
+at Information. A setting in configuration cannot lower these either: the list is fixed in the
+panel (`ThirdPartyLogPins`), not an operator setting. No level makes the panel log a password, a key
+or a token.
 
 API: `GET /api/v1/log-level` returns `{"level": "information", "choices": [{"level", "displayName"}]}`
 and `PUT /api/v1/log-level` takes `{"level": "debug"}`; both are for administrators only. A level that

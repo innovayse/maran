@@ -70,6 +70,7 @@ public sealed class BackupsModule : IPanelModule
         // answer every caller in whichever language happened to be first.
         services.AddScoped<BackupFailureDisplayNames>();
         services.AddScoped<BackupDestinationDisplayNames>();
+        services.AddScoped<BackupDisplayNames>();
         services.AddScoped<BackupDestinationResolver>();
         services.AddScoped<DefaultBackupDestinationSeeder>();
         services.AddScoped<BackupRunner>();

@@ -274,7 +274,7 @@ public sealed class StartupBackupReconciler : BackgroundService
             }
 
             await journal.RecordSystemAsync(
-                AuditActions.BackupCreated,
+                BackupAuditActions.BackupCreated,
                 SubjectOf(backup, snapshots),
                 succeeded: false,
                 cancellationToken);

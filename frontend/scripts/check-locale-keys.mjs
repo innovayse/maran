@@ -44,8 +44,11 @@ const SOURCE_ROOTS = ['src', 'e2e']
 /** File extensions that may contain a `t(…)` call site. */
 const SOURCE_EXTENSIONS = ['.vue', '.ts', '.mts']
 
-/** A single-file component's script block: the region of a `.vue` file that is TypeScript. */
-const SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script>/gi
+/**
+ * A single-file component's script block: the region of a `.vue` file that is TypeScript. The closing
+ * tag tolerates whitespace and attributes (`</script >`), which HTML parsers accept as a close.
+ */
+const SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script[^>]*>/gi
 
 /** An HTML comment. The only comment form a `.vue` template region can carry. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g

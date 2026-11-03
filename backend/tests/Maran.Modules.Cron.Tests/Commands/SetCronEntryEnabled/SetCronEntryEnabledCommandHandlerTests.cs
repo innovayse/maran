@@ -73,7 +73,7 @@ public sealed class SetCronEntryEnabledCommandHandlerTests
         await world.HandleAsync(enabled: false);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryEnabledChanged, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryEnabledChanged, entry.Action);
         Assert.Equal(EntryId, entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -89,7 +89,7 @@ public sealed class SetCronEntryEnabledCommandHandlerTests
 
         Assert.Equal("CronEntryNotFound", result.Error!.Code);
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryEnabledChanged, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryEnabledChanged, entry.Action);
         Assert.False(entry.Succeeded);
     }
 

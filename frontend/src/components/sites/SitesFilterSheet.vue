@@ -2,7 +2,7 @@
 /**
  * The sites list's filter sheet: account (administrators only), backend, PHP version and serving
  * state. The choices come from the panel — the PHP versions installed on this server, the accounts
- * matching the picker's search — or mirror the unions the panel serializes. Props in, events out:
+ * matching the picker's search, the backends and serving states it lists. Props in, events out:
  * the page owns the applied filters in its URL.
  */
 import { computed, type ComputedRef } from 'vue'
@@ -12,7 +12,7 @@ import UiFilterSheet from '../ui/UiFilterSheet.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import { usePhpVersionsStore } from '../../stores/phpVersions'
 import type { AccountPickerState } from '../../composables/useAccountChoice'
-import type { SiteBackendType, SiteStatus } from '../../types/site'
+import type { SiteChoice } from '../../types/site'
 
 /** Props accepted by {@link SitesFilterSheet}. */
 const props = defineProps<{
@@ -26,10 +26,10 @@ const props = defineProps<{
   accountPicker: AccountPickerState
   /** The chosen account's name, as the page reads it. */
   accountName: string
-  /** The backends the panel serializes. */
-  backendTypes: readonly SiteBackendType[]
-  /** The serving states the panel serializes. */
-  statuses: readonly SiteStatus[]
+  /** The backends the panel offers, already labelled in the reader's language. */
+  backendTypes: readonly SiteChoice[]
+  /** The serving states the panel offers, already labelled in the reader's language. */
+  statuses: readonly SiteChoice[]
 }>()
 
 /** Events emitted by {@link SitesFilterSheet}. */
@@ -60,7 +60,7 @@ const backendOptions: ComputedRef<SelectOption[]> = computed(() => {
   return [
     { value: '', label: t('common.list.any') },
     ...props.backendTypes.map((backend) => {
-      return { value: backend, label: t(`sites.backendType.${backend}`) }
+      return { value: backend.value, label: backend.label }
     }),
   ]
 })
@@ -80,7 +80,7 @@ const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
   return [
     { value: '', label: t('common.list.any') },
     ...props.statuses.map((status) => {
-      return { value: status, label: t(`sites.status.${status}`) }
+      return { value: status.value, label: status.label }
     }),
   ]
 })

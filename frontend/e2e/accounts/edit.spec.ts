@@ -17,6 +17,7 @@ const ACCOUNT: AccountDetail = {
   primaryDomain: 'acme.example.com',
   planId: CURRENT_PLAN.id,
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
   planDisplayName: CURRENT_PLAN.displayName,
   ownerEmail: 'owner@acme.example.com',
@@ -149,7 +150,7 @@ test('a malformed owner email is caught in the dialog and sends nothing', async 
 })
 
 test('a suspended account offers no invitation action and says why', async ({ page }) => {
-  await openAccount(page, { ...ACCOUNT, status: 'suspended' })
+  await openAccount(page, { ...ACCOUNT, status: 'suspended', statusName: 'Suspended' })
 
   const card = page.getByTestId('invitation-card')
   await expect(card.getByTestId('invitation-suspended')).toHaveText(

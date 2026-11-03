@@ -3,7 +3,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
-import type { FirewallRule } from '../../src/types/firewall'
+import type { FirewallPreset, FirewallRule } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
@@ -28,14 +28,19 @@ interface RecordedChange {
  * click produced some network activity.
  * @param page The Playwright page under test.
  * @param rules The rules the stubbed panel reports.
+ * @param presets The presets the stubbed panel offers; the fixture's default pair when absent.
  * @returns The recorded requests, newest last.
  */
-const openScreen = async (page: Page, rules: FirewallRule[]): Promise<RecordedChange[]> => {
+const openScreen = async (
+  page: Page,
+  rules: FirewallRule[],
+  presets?: FirewallPreset[],
+): Promise<RecordedChange[]> => {
   const changes: RecordedChange[] = []
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
-  await stubFirewall(page, { rules, bans: [], whitelist: [] })
+  await stubFirewall(page, { rules, bans: [], whitelist: [], presets })
   page.on('request', (request) => {
     const method = request.method()
     if ((method !== 'POST' && method !== 'DELETE') || !request.url().includes('/api/v1/firewall/rules')) {
@@ -65,7 +70,7 @@ const confirmRemoval = async (page: Page): Promise<void> => {
 test('the web preset opens exactly 80 and 443, open to every source, in that order', async ({ page }) => {
   const changes = await openScreen(page, [])
 
-  await page.getByRole('button', { name: 'Open the web ports (80 and 443)' }).click()
+  await page.getByRole('button', { name: 'Public web ports preset (80, 443)' }).click()
 
   await expect
     .poll(() => {
@@ -91,7 +96,7 @@ test('the web preset opens exactly 80 and 443, open to every source, in that ord
 test('the web preset does not re-request a port the host already has open', async ({ page }) => {
   const changes = await openScreen(page, [{ port: 80, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }])
 
-  await page.getByRole('button', { name: 'Open the web ports (80 and 443)' }).click()
+  await page.getByRole('button', { name: 'Public web ports preset (80, 443)' }).click()
 
   await expect
     .poll(() => {
@@ -114,7 +119,7 @@ test('the web preset is disabled once both ports are already open', async ({ pag
     { port: 443, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
   ])
 
-  await expect(page.getByRole('button', { name: 'Open the web ports (80 and 443)' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Public web ports preset (80, 443)' })).toBeDisabled()
   expect(changes).toEqual([])
 })
 
@@ -123,7 +128,7 @@ test('the web preset is disabled once both ports are already open', async ({ pag
 test('turning the MySQL toggle on sends exactly the rule it advertises', async ({ page }) => {
   const changes = await openScreen(page, [])
 
-  await page.getByRole('switch', { name: 'MySQL reachable from outside (3306)' }).click()
+  await page.getByRole('switch', { name: 'Database port for outside clients (3306)' }).click()
 
   await expect
     .poll(() => {
@@ -135,7 +140,7 @@ test('turning the MySQL toggle on sends exactly the rule it advertises', async (
     body: { port: 3306, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
     query: {},
   })
-  await expect(page.getByRole('switch', { name: 'MySQL reachable from outside (3306)' })).toHaveAttribute(
+  await expect(page.getByRole('switch', { name: 'Database port for outside clients (3306)' })).toHaveAttribute(
     'aria-checked',
     'true',
   )
@@ -149,7 +154,7 @@ test('turning the MySQL toggle off asks first, then sends exactly the rule the p
 }) => {
   const changes = await openScreen(page, [{ port: 3306, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }])
 
-  await page.getByRole('switch', { name: 'MySQL reachable from outside (3306)' }).click()
+  await page.getByRole('switch', { name: 'Database port for outside clients (3306)' }).click()
 
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText('Remove this rule?')
@@ -182,7 +187,7 @@ test('turning the MySQL toggle off removes every rule open on that port, each na
     { port: 3306, portTo: null, protocol: 'tcp', sourceCidr: '203.0.113.0/24' },
   ])
 
-  await page.getByRole('switch', { name: 'MySQL reachable from outside (3306)' }).click()
+  await page.getByRole('switch', { name: 'Database port for outside clients (3306)' }).click()
   await confirmRemoval(page)
 
   await expect
@@ -198,8 +203,37 @@ test('turning the MySQL toggle off removes every rule open on that port, each na
       query: { port: '3306', protocol: 'tcp', sourceCidr: '203.0.113.0/24' },
     },
   ])
-  await expect(page.getByRole('switch', { name: 'MySQL reachable from outside (3306)' })).toHaveAttribute(
+  await expect(page.getByRole('switch', { name: 'Database port for outside clients (3306)' })).toHaveAttribute(
     'aria-checked',
     'false',
   )
+})
+
+// Nothing on this screen names a port or a preset: a panel offering a preset the SPA has never heard
+// of (a range, not closable) must get a control worded exactly as the panel worded it, and pressing
+// it must send exactly the rules the panel listed. A screen still holding its own two presets would
+// render neither the new control nor the request.
+test('a preset only the panel knows is drawn and sends exactly the rules the panel listed', async ({ page }) => {
+  const changes = await openScreen(page, [], [
+    {
+      key: 'gameServer',
+      name: 'Game server lobby range',
+      closable: false,
+      rules: [{ port: 27000, portTo: 27050, protocol: 'udp', sourceCidr: '0.0.0.0/0' }],
+    },
+  ])
+
+  await expect(page.getByRole('switch')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Game server lobby range (27000-27050)' }).click()
+
+  await expect
+    .poll(() => {
+      return changes
+    })
+    .toHaveLength(1)
+  expect(changes[0]).toEqual({
+    method: 'POST',
+    body: { port: 27000, portTo: 27050, protocol: 'udp', sourceCidr: '0.0.0.0/0' },
+    query: {},
+  })
 })

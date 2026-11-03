@@ -118,7 +118,7 @@ public sealed class ResendInvitationCommandHandler
         // having verified themselves, which they never did.
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
-            AuditActions.CustomerInvited,
+            IdentityAuditActions.CustomerInvited,
             invitation.Username,
             command.IpAddress,
             command.UserAgent,

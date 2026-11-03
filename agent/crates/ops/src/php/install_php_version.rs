@@ -6,7 +6,7 @@ use maran_distro::DistroAdapter;
 
 use crate::php::classify_install_failure::classify_install_failure;
 use crate::php::list_php_versions::is_installed;
-use crate::php::supported_versions::ensure_supported;
+use crate::php::supported_versions::{ensure_installable, ensure_supported};
 use crate::php::{PhpHost, PhpOpError};
 use crate::safe_write::SafeWriteError;
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
@@ -120,6 +120,7 @@ where
     P: FnMut(u32, &str),
 {
     ensure_supported(version)?;
+    ensure_installable(distro, version)?;
 
     // Checked before any work: this is the retry path, and it must cost one
     // `stat` rather than one unit run.

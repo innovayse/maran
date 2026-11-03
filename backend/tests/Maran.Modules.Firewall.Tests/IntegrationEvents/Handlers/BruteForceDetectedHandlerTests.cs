@@ -57,7 +57,7 @@ public sealed class BruteForceDetectedHandlerTests
         await world.HandleAsync("203.0.113.7");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BanSkippedWhitelisted, entry.Action);
+        Assert.Equal(FirewallAuditActions.BanSkippedWhitelisted, entry.Action);
         Assert.Equal("203.0.113.7", entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -233,7 +233,7 @@ public sealed class BruteForceDetectedHandlerTests
 
         Assert.Empty(await world.EpisodesAsync());
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.AddressBanned, entry.Action);
+        Assert.Equal(FirewallAuditActions.AddressBanned, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -248,7 +248,7 @@ public sealed class BruteForceDetectedHandlerTests
         await world.HandleAsync("203.0.113.7");
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.AddressBanned, entry.Action);
+        Assert.Equal(FirewallAuditActions.AddressBanned, entry.Action);
         Assert.Null(entry.ActorUserId);
         Assert.Equal(FirewallAuditJournal.SystemActor, entry.ActorUsername);
         Assert.Equal("203.0.113.7", entry.Subject);

@@ -240,3 +240,80 @@ fn a_userdel_that_times_out_is_a_bound_and_not_a_missing_login() {
 
     assert!(matches!(error, SftpError::Bound(_)), "got {error:?}");
 }
+
+/// The two names of the login's key file for `login`, as the host holds them.
+fn key_paths(login: &SftpUserName) -> (String, String) {
+    (
+        format!("/etc/ssh/maran-sftp-keys/{}", login.as_str()),
+        format!("/etc/ssh/maran-sftp-keys/{}.suspended", login.as_str()),
+    )
+}
+
+/// Both names of the key file go with the login (issue #338).
+#[test]
+fn deleting_an_sftp_user_removes_both_names_of_its_key_file() {
+    let account = account("sftpdelkeys");
+    let login = login_of(&account);
+    let (active, suspended) = key_paths(&login);
+    let host = host_with_login(&account)
+        .with_path(&active)
+        .with_path(&suspended);
+
+    delete_sftp_user(&host, distro(), &account, &login).expect("deleted");
+
+    assert!(host.paths().is_empty(), "left behind: {:?}", host.paths());
+}
+
+/// The keys are taken BEFORE `userdel`: a `userdel` that fails afterwards must
+/// leave a login without keys, never a key file for a login that is gone.
+#[test]
+fn the_key_file_is_gone_even_when_userdel_then_fails() {
+    let account = account("sftpdelkeyorder");
+    let login = login_of(&account);
+    let (active, suspended) = key_paths(&login);
+    let host = host_with_login(&account)
+        .with_path(&active)
+        .with_path(&suspended);
+    host.time_out("userdel");
+
+    let error = delete_sftp_user(&host, distro(), &account, &login).expect_err("must fail");
+
+    assert!(matches!(error, SftpError::Bound(_)), "got {error:?}");
+    assert!(
+        host.paths().is_empty(),
+        "the keys must not outlive an interrupted deletion: {:?}",
+        host.paths()
+    );
+    assert_eq!(host.users(), vec![login.as_str().to_owned()]);
+}
+
+/// A key file that will not come away stops the deletion before the login is
+/// touched, so the login and its record stay consistent.
+#[test]
+fn a_key_file_that_cannot_be_removed_stops_the_deletion_before_userdel_runs() {
+    let account = account("sftpdelkeystuck");
+    let login = login_of(&account);
+    let (active, _) = key_paths(&login);
+    let host = host_with_login(&account)
+        .with_path(&active)
+        .refuse_removal_of(&active);
+
+    let error = delete_sftp_user(&host, distro(), &account, &login).expect_err("must fail");
+
+    assert_eq!(error, SftpError::KeyFileFailed);
+    assert!(host.spawn_of("userdel").is_none());
+    assert_eq!(host.users(), vec![login.as_str().to_owned()]);
+}
+
+/// Another login's key file is not this deletion's to take.
+#[test]
+fn another_logins_key_file_is_left_in_place() {
+    let account = account("sftpdelkeyother");
+    let login = login_of(&account);
+    let other = "/etc/ssh/maran-sftp-keys/sftpdelkeyother_dav";
+    let host = host_with_login(&account).with_path(other);
+
+    delete_sftp_user(&host, distro(), &account, &login).expect("deleted");
+
+    assert_eq!(host.paths(), vec![other.to_owned()]);
+}

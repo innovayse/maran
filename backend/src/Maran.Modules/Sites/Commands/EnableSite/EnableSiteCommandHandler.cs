@@ -33,18 +33,24 @@ public sealed class EnableSiteCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly SiteAuditJournal _journal;
 
+    /// <summary>Names the site's backend and serving state in the request's culture.</summary>
+    private readonly SiteDisplayNames _siteNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="agent">The agent client that performs the privileged half.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
     public EnableSiteCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
-        SiteAuditJournal journal)
+        SiteAuditJournal journal,
+        SiteDisplayNames siteNames)
     {
         _dbContext = dbContext;
+        _siteNames = siteNames;
         _accounts = accounts;
         _agent = agent;
         _journal = journal;
@@ -86,7 +92,7 @@ public sealed class EnableSiteCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.SiteEnabled, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SiteEnabled, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Ok(new SiteDto(
             site.Id,
@@ -94,8 +100,10 @@ public sealed class EnableSiteCommandHandler
             account.Username,
             site.Domain,
             site.BackendType,
+            _siteNames.Of(site.BackendType),
             site.PhpVersion,
             site.Status,
+            _siteNames.Of(site.Status),
             site.CreatedAt));
     }
 
@@ -112,7 +120,7 @@ public sealed class EnableSiteCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SiteEnabled, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SiteEnabled, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Fail(error);
     }

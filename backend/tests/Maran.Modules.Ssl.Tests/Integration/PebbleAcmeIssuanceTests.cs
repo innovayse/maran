@@ -140,7 +140,7 @@ public sealed class PebbleAcmeIssuanceTests
         listener.Prefixes.Add("http://localhost:5002/");
         listener.Start();
         Log("[challenge-server] listening on http://localhost:5002/ serving " + documentRoot);
-        var serverCts = new CancellationTokenSource();
+        using var serverCts = new CancellationTokenSource();
         var serverTask = ServeAsync(listener, documentRoot, Log, serverCts.Token);
 
         try

@@ -3,16 +3,43 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::cron::create_cron_entry::create_cron_entry;
+use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
+use maran_agent_core::validation::system::name::AccountName;
+
 use crate::cron::cron_error::CronError;
+use crate::cron::cron_host::CronHost;
+use crate::cron::model::cron_run::CronRun;
 use crate::cron::model::cron_run_end::CronRunEnd;
 use crate::cron::recording_cron_host::{
     ABSENT_ID, FIRST_ID, RecordingCronHost, account, assert_refused_untouched, assignment, command,
     distro, entry_id, every_five_minutes, unmanaged_cases,
 };
-use crate::cron::run_cron_entry::run_cron_entry;
+use crate::cron::run_cron_entry::run_within;
+use crate::cron::run_now_slots::{ACCOUNT_RUN_NOW_SLOTS, HOST_RUN_NOW_SLOTS, RunNowSlots};
 use crate::cron::set_account_cron_suspended::set_account_cron_suspended;
 use crate::cron::set_cron_entry_enabled::set_cron_entry_enabled;
 use crate::cron::set_cron_environment::set_cron_environment;
+
+/// The operation under test, against ceilings of its own.
+///
+/// The public entry point counts runs in ONE process-wide set of slots, and
+/// every test in this file runs for the same account on the harness's threads:
+/// two of them in flight at once would take the account's two slots and refuse
+/// a third, and the flake would say nothing about the code. So each call here
+/// gets slots of its own at the shipped ceilings; the tests of the ceilings
+/// themselves build their own with the numbers they state.
+fn run_cron_entry(
+    host: &dyn CronHost,
+    account: &AccountName,
+    id: &CronEntryId,
+) -> Result<CronRun, CronError> {
+    run_within(
+        &RunNowSlots::new(HOST_RUN_NOW_SLOTS, ACCOUNT_RUN_NOW_SLOTS),
+        host,
+        account,
+        id,
+    )
+}
 
 /// A host holding one entry, created through the real operation.
 fn host_with_one_entry() -> RecordingCronHost {
@@ -121,4 +148,61 @@ fn an_unmanaged_account_is_refused_before_anything_runs() {
         assert!(case.host.runs().is_empty(), "{}: nothing ran", case.label);
         assert_refused_untouched(&case, result);
     }
+}
+
+/// A run past the account's ceiling is refused, and the refusal reads nothing
+/// and starts nothing (issue #333).
+#[test]
+fn a_run_past_the_accounts_ceiling_is_refused_before_the_crontab_is_read() {
+    let host = host_with_one_entry();
+    let slots = RunNowSlots::new(10, 1);
+    let _running = slots.try_acquire(&account()).expect("one slot");
+    let reads_before = host.reads();
+
+    let result = run_within(&slots, &host, &account(), &entry_id(FIRST_ID));
+
+    assert_eq!(result, Err(CronError::RunCapacityReached));
+    assert!(host.runs().is_empty());
+    assert_eq!(host.reads(), reads_before, "a refusal must read nothing");
+}
+
+/// A run past the host's ceiling is refused for an account that is under its own.
+#[test]
+fn a_run_past_the_hosts_ceiling_is_refused_for_an_account_under_its_own() {
+    let host = host_with_one_entry();
+    let slots = RunNowSlots::new(1, 2);
+    let _elsewhere = slots
+        .try_acquire(&AccountName::parse("bobby").unwrap())
+        .expect("another account holds the host's only slot");
+
+    let result = run_within(&slots, &host, &account(), &entry_id(FIRST_ID));
+
+    assert_eq!(result, Err(CronError::RunCapacityReached));
+    assert!(host.runs().is_empty());
+}
+
+/// A finished run gives its slot back, so the next one is admitted.
+#[test]
+fn a_finished_run_frees_its_slot_for_the_next() {
+    let host = host_with_one_entry();
+    let slots = RunNowSlots::new(1, 1);
+
+    run_within(&slots, &host, &account(), &entry_id(FIRST_ID)).expect("first");
+    run_within(&slots, &host, &account(), &entry_id(FIRST_ID)).expect("second");
+
+    assert_eq!(host.runs().len(), 2);
+}
+
+/// A run that failed to start gives its slot back too: every path out frees it.
+#[test]
+fn a_run_that_could_not_start_frees_its_slot() {
+    let host = host_with_one_entry();
+    host.refuse_runs();
+    let slots = RunNowSlots::new(1, 1);
+
+    let first = run_within(&slots, &host, &account(), &entry_id(FIRST_ID));
+    let second = run_within(&slots, &host, &account(), &entry_id(FIRST_ID));
+
+    assert_eq!(first, Err(CronError::RunUnavailable));
+    assert_eq!(second, Err(CronError::RunUnavailable));
 }

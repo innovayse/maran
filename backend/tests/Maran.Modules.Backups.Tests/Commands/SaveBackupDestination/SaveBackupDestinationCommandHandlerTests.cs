@@ -61,7 +61,7 @@ public sealed class SaveBackupDestinationCommandHandlerTests
         await world.Handler.HandleAsync(Command(kind), CancellationToken.None);
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.BackupDestinationSaved, entry.Action);
+        Assert.Equal(BackupAuditActions.BackupDestinationSaved, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(CallerAddress, entry.IpAddress);
     }

@@ -95,7 +95,7 @@ public sealed class ActiveAccountEndpointTests : IAsyncLifetime
 
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.ActiveAccountSwitched;
+            return candidate.Action == IdentityAuditActions.ActiveAccountSwitched;
         });
         Assert.Equal(globex.ToString(), entry.Subject);
         Assert.True(entry.Succeeded);
@@ -115,7 +115,7 @@ public sealed class ActiveAccountEndpointTests : IAsyncLifetime
         Assert.Equal("acme.example.com", await PrimaryDomainAsync(client));
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.ActiveAccountSwitched;
+            return candidate.Action == IdentityAuditActions.ActiveAccountSwitched;
         });
         Assert.False(entry.Succeeded);
     }

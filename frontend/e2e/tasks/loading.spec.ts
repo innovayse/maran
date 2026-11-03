@@ -24,6 +24,7 @@ const INSTALL: PanelTask = {
   subject: 'php8.4',
   correlationId: 'c0rr-3l4t10n',
   status: 'running',
+  statusName: 'Running',
   percent: 40,
   log: 'fetching packages\n',
   logIncluded: true,

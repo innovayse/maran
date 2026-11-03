@@ -606,3 +606,65 @@ fn a_useradd_that_times_out_is_a_bound_and_never_a_refusal() {
         "no password may be set on a login nobody saw created"
     );
 }
+
+/// The key file of `alice_web` under its active name, and under the one kept
+/// while the account is suspended.
+const STALE_ACTIVE: &str = "/etc/ssh/maran-sftp-keys/alice_web";
+const STALE_SUSPENDED: &str = "/etc/ssh/maran-sftp-keys/alice_web.suspended";
+
+/// A key file left by an earlier login of the same name is purged before the new
+/// login exists (issue #338), so it cannot be inherited.
+#[test]
+fn a_stale_key_file_for_a_new_name_is_purged_before_the_login_exists() {
+    let host = FakeSftpHost::new()
+        .with_path(STALE_ACTIVE)
+        .with_path(STALE_SUSPENDED);
+
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
+
+    assert!(host.paths().is_empty(), "left behind: {:?}", host.paths());
+    assert_eq!(host.users(), vec!["alice_web".to_owned()]);
+}
+
+/// A creation repeated after a lost response must not delete the keys of the
+/// login that is already working.
+#[test]
+fn a_repeated_creation_leaves_the_existing_logins_keys_alone() {
+    let host = FakeSftpHost::with_existing("alice_web").with_path(STALE_ACTIVE);
+
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("already there");
+
+    assert_eq!(error, SftpError::AlreadyExists);
+    assert_eq!(host.paths(), vec![STALE_ACTIVE.to_owned()]);
+}
+
+/// A stale file that cannot be removed refuses the creation before `useradd`.
+#[test]
+fn a_stale_key_file_that_cannot_be_removed_refuses_the_creation() {
+    let host = FakeSftpHost::new()
+        .with_path(STALE_ACTIVE)
+        .refuse_removal_of(STALE_ACTIVE);
+
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("must refuse");
+
+    assert_eq!(error, SftpError::KeyFileFailed);
+    assert!(host.spawn_of("useradd").is_none());
+    assert!(host.users().is_empty());
+}
+
+/// An unreadable password database refuses the creation: whether the name is
+/// new is unknown, and purging on a guess could delete a live login's keys.
+#[test]
+fn an_unreadable_password_database_refuses_the_creation_before_useradd() {
+    let host = FakeSftpHost::new().with_path(STALE_ACTIVE);
+    host.make_passwd_unreadable();
+
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("must refuse");
+
+    assert_eq!(error, SftpError::PasswdUnreadable);
+    assert!(host.spawn_of("useradd").is_none());
+    assert_eq!(host.paths(), vec![STALE_ACTIVE.to_owned()]);
+}

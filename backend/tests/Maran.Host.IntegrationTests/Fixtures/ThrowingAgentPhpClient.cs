@@ -24,6 +24,15 @@ public sealed class ThrowingAgentPhpClient : IAgentPhpClient
     }
 
     /// <summary>Never answers.</summary>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result<IReadOnlyList<InstallablePhpVersionDto>>> ListInstallableVersionsAsync(
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("A static site must not ask the host which PHP runtimes it can install.");
+    }
+
+    /// <summary>Never answers.</summary>
     /// <param name="version">Ignored.</param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>

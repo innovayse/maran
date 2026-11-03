@@ -2,7 +2,7 @@
 /**
  * The audit journal's filter sheet: action, outcome, and the date window. There is no account
  * field (the journal records no account) and no actor field (the search reaches the actor). The
- * actions offered are the ones the panel says the journal holds, named by the panel. The window is
+ * actions and the outcomes offered are the ones the panel lists, named by the panel. The window is
  * picked as calendar days with `UiDateInput`; turning a day into an instant is the API composable's
  * job. Values go out on Apply exactly as `UiFilterSheet` emits them; the page writes them to the URL.
  */
@@ -11,7 +11,7 @@ import { useI18n } from 'vue-i18n'
 import UiDateInput from '../ui/UiDateInput.vue'
 import UiFilterSheet from '../ui/UiFilterSheet.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
-import { AUDIT_OUTCOMES, type AuditActionChoice } from '../../types/audit'
+import type { AuditActionChoice, AuditOutcomeChoice } from '../../types/audit'
 
 /** Props accepted by {@link AuditFilterSheet}. */
 const props = defineProps<{
@@ -21,6 +21,8 @@ const props = defineProps<{
   modelValue: Record<string, string>
   /** The actions the journal holds, as the panel named them. */
   actions: AuditActionChoice[]
+  /** The outcomes the journal can be filtered by, as the panel named them. */
+  outcomes: AuditOutcomeChoice[]
 }>()
 
 /** Events emitted by {@link AuditFilterSheet}. */
@@ -47,8 +49,8 @@ const actionOptions: ComputedRef<SelectOption[]> = computed(() => {
 const outcomeOptions: ComputedRef<SelectOption[]> = computed(() => {
   return [
     { value: '', label: t('common.list.any') },
-    ...AUDIT_OUTCOMES.map((outcome) => {
-      return { value: outcome, label: t(`app.audit.${outcome}`) }
+    ...props.outcomes.map((choice) => {
+      return { value: choice.outcome, label: choice.outcomeName }
     }),
   ]
 })

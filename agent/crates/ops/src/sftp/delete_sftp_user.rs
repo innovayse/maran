@@ -92,7 +92,9 @@ use maran_agent_core::end_of_options::END_OF_OPTIONS;
 /// # Idempotency
 ///
 /// A second deletion reports [`SftpError::NotFound`] and changes nothing, which
-/// is what makes a retry after a lost response safe. `userdel`'s own exit status
+/// is what makes a retry after a lost response safe. (The key file is removed
+/// first and a removal of an absent file is success, so a retry after a
+/// `userdel` that failed converges too.) `userdel`'s own exit status
 /// is still mapped to the same variant, so the two ways of not finding the login
 /// — the ownership enumeration and the tool itself — converge on one answer.
 ///
@@ -143,6 +145,8 @@ pub fn delete_sftp_user(
 ///
 /// # Errors
 ///
+/// - [`SftpError::KeyFileFailed`] when a key file is there and cannot be
+///   removed; `userdel` has not run, so the login is exactly as it was.
 /// - [`SftpError::NotFound`] when `userdel` reports no such login.
 /// - [`SftpError::SpawnFailed`] when `userdel` refuses for any other reason, or
 ///   could not be run at all.
@@ -153,6 +157,22 @@ pub(crate) fn delete_sftp_user_under_lock(
     distro: &dyn DistroAdapter,
     user: &SftpUserName,
 ) -> Result<(), SftpError> {
+    // The login's key file, under both of its names (issues #135 and #338), and
+    // BEFORE `userdel`. The order was the other way round, on the argument that
+    // a refused `userdel` should leave a login that still has its keys; the
+    // cost of that argument was a window, and a worse one: `userdel` succeeded,
+    // then a refused or killed removal left a key file for a login that no
+    // longer existed, and a login created later under the same name — the
+    // panel reuses names — was handed the old keys, authenticating whoever held
+    // them with no password and no say from the customer. Taking the keys first
+    // inverts the failure: a refused `userdel` leaves a login without keys,
+    // which the panel's record can write again, and a refused removal stops
+    // before the login is touched. `create_sftp_user` purges a new name's key
+    // file as well, and the startup sweep removes any that still escape both.
+    let keys = LoginKeyFile::for_login(user);
+    remove_key_file(host, keys.active())?;
+    remove_key_file(host, keys.suspended())?;
+
     // No `--remove`: the jail is root-owned and the home belongs to the account,
     // so this is a single-entry edit of the password database, `Mutation`
     // rather than `Bulk`. `userdel` parses with `getopt_long`, which honours the
@@ -166,14 +186,6 @@ pub(crate) fn delete_sftp_user_under_lock(
     if outcome.status != 0 {
         return Err(SftpError::from_userdel(outcome.status));
     }
-
-    // The login's key file, under both of its names (issue #135). After
-    // `userdel`, so a refusal there leaves a login that still has its keys
-    // rather than a login whose keys vanished; and a key file outliving its
-    // login would hand a recreated login of the same name the old keys.
-    let keys = LoginKeyFile::for_login(user);
-    remove_key_file(host, keys.active())?;
-    remove_key_file(host, keys.suspended())?;
 
     Ok(())
 }

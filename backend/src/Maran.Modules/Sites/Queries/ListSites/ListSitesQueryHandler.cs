@@ -1,6 +1,7 @@
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Services;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Extensions;
 using Maran.SharedKernel.Utilities.Text;
@@ -31,12 +32,17 @@ public sealed class ListSitesQueryHandler
     /// <summary>The window onto the Accounts module's account names.</summary>
     private readonly IAccountDirectory _accounts;
 
+    /// <summary>Names the site's backend and serving state in the request's culture.</summary>
+    private readonly SiteDisplayNames _siteNames;
+
     /// <summary>Creates the handler with the module's own database context and the account directory.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The window onto the Accounts module's account names.</param>
-    public ListSitesQueryHandler(SitesDbContext dbContext, IAccountDirectory accounts)
+    /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
+    public ListSitesQueryHandler(SitesDbContext dbContext, IAccountDirectory accounts, SiteDisplayNames siteNames)
     {
         _dbContext = dbContext;
+        _siteNames = siteNames;
         _accounts = accounts;
     }
 
@@ -103,8 +109,10 @@ public sealed class ListSitesQueryHandler
                 ownerNames.GetValueOrDefault(site.AccountId, string.Empty),
                 site.Domain,
                 site.BackendType,
+                _siteNames.Of(site.BackendType),
                 site.PhpVersion,
                 site.Status,
+                _siteNames.Of(site.Status),
                 site.CreatedAt);
         }));
     }

@@ -183,7 +183,7 @@ public sealed class SiteAliasLimitEndpointTests : IAsyncLifetime
     private WebApplicationFactory<Program> CreateFactory(
         BarrierSitesAgent agent)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
@@ -238,7 +238,6 @@ public sealed class SiteAliasLimitEndpointTests : IAsyncLifetime
             Guid.NewGuid(), "admin", "admin@example.com", hasher.Hash(Password), UserRole.Admin, now));
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        customer.AssignAccount(account.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, account.Id, now));
         identity.Users.Add(customer);
         await identity.SaveChangesAsync();

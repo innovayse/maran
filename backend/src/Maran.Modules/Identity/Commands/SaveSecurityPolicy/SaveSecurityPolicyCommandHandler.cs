@@ -98,7 +98,7 @@ public sealed class SaveSecurityPolicyCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
-            AuditActions.SecurityPolicySaved,
+            IdentityAuditActions.SecurityPolicySaved,
             nameof(Domain.Entities.SecurityPolicy),
             command.IpAddress,
             command.UserAgent,

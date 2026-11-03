@@ -60,6 +60,8 @@ public sealed class FirewallAuthorizationTests : IAsyncLifetime
         return new TheoryData<string, string>
         {
             { "GET", "/api/v1/firewall/rules" },
+            { "GET", "/api/v1/firewall/rules/protocols" },
+            { "GET", "/api/v1/firewall/rules/presets" },
             { "POST", "/api/v1/firewall/rules" },
             { "DELETE", "/api/v1/firewall/rules" },
             { "GET", "/api/v1/firewall/bans" },
@@ -169,7 +171,7 @@ public sealed class FirewallAuthorizationTests : IAsyncLifetime
     /// <param name="agent">The agent double every firewall call reaches.</param>
     private WebApplicationFactory<Program> CreateFactory(StubAgentFirewallClient agent)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

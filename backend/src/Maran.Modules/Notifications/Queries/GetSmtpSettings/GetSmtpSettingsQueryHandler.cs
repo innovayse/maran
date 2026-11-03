@@ -1,6 +1,7 @@
 using Maran.Modules.Notifications.Common;
 using Maran.Modules.Notifications.Domain.Enums;
 using Maran.Modules.Notifications.Persistence;
+using Maran.Modules.Notifications.Services;
 
 namespace Maran.Modules.Notifications.Queries.GetSmtpSettings;
 
@@ -30,11 +31,16 @@ public sealed class GetSmtpSettingsQueryHandler
     /// <summary>The module's database context, which owns the settings row.</summary>
     private readonly NotificationsDbContext _dbContext;
 
+    /// <summary>Names the stored protection mode as an administrator reads it.</summary>
+    private readonly SmtpSecurityDisplayNames _securityNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
-    public GetSmtpSettingsQueryHandler(NotificationsDbContext dbContext)
+    /// <param name="securityNames">Names a protection mode for the request's culture.</param>
+    public GetSmtpSettingsQueryHandler(NotificationsDbContext dbContext, SmtpSecurityDisplayNames securityNames)
     {
         _dbContext = dbContext;
+        _securityNames = securityNames;
     }
 
     /// <summary>Returns the panel's mail settings.</summary>
@@ -55,6 +61,7 @@ public sealed class GetSmtpSettingsQueryHandler
                 string.Empty,
                 0,
                 SmtpSecurity.StartTls,
+                _securityNames.Of(SmtpSecurity.StartTls),
                 string.Empty,
                 HasPassword: false,
                 string.Empty,
@@ -67,6 +74,7 @@ public sealed class GetSmtpSettingsQueryHandler
             settings.Host,
             settings.Port,
             settings.Security,
+            _securityNames.Of(settings.Security),
             settings.BasicUsername ?? string.Empty,
             HasPassword: settings.BasicPassword is { Length: > 0 },
             settings.FromAddress,

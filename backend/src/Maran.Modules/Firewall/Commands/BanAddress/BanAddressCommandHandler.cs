@@ -90,7 +90,7 @@ public sealed class BanAddressCommandHandler
         if (!IpAddressNormalizer.TryNormalize(command.Address, out var address))
         {
             await _journal.RecordFailureAsync(
-                AuditActions.AddressBanned,
+                FirewallAuditActions.AddressBanned,
                 command.Address,
                 command.IpAddress,
                 command.UserAgent,
@@ -102,7 +102,7 @@ public sealed class BanAddressCommandHandler
         if (IPAddress.IsLoopback(address))
         {
             await _journal.RecordFailureAsync(
-                AuditActions.AddressBanned,
+                FirewallAuditActions.AddressBanned,
                 address.ToString(),
                 command.IpAddress,
                 command.UserAgent,
@@ -120,7 +120,7 @@ public sealed class BanAddressCommandHandler
         if (!banned.IsSuccess)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.AddressBanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
+                FirewallAuditActions.AddressBanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
             return Result.Fail(banned.Error!);
         }
@@ -162,7 +162,7 @@ public sealed class BanAddressCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.AddressBanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            FirewallAuditActions.AddressBanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Ok();
     }

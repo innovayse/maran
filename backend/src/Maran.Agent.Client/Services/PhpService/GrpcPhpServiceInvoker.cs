@@ -27,6 +27,14 @@ internal sealed class GrpcPhpServiceInvoker : IPhpServiceInvoker
     }
 
     /// <inheritdoc/>
+    public async Task<ListInstallablePhpVersionsResponse> ListInstallablePhpVersionsAsync(
+        ListInstallablePhpVersionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.ListInstallablePhpVersionsAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async IAsyncEnumerable<InstallPhpVersionResponse> InstallPhpVersionAsync(
         InstallPhpVersionRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)

@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListAccounts;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Pagination;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +55,7 @@ public sealed class ListAccountsQueryHandlerTests
         Assert.Equal("acme.example.com", dto.PrimaryDomain);
         Assert.Equal(planId, dto.PlanId);
         Assert.Equal(AccountStatus.Active, dto.Status);
+        Assert.Equal("Live", dto.StatusName);
         Assert.Equal(Epoch, dto.CreatedAt);
     }
 
@@ -196,7 +198,10 @@ public sealed class ListAccountsQueryHandlerTests
         AccountsDbContext dbContext,
         ListAccountsQuery query)
     {
-        return new ListAccountsQueryHandler(dbContext).HandleAsync(query, CancellationToken.None);
+        var names = new StubDisplayNames()
+            .With("AccountStatusActive", "Live")
+            .With("AccountStatusSuspended", "Paused");
+        return new ListAccountsQueryHandler(dbContext, names).HandleAsync(query, CancellationToken.None);
     }
 
     /// <summary>The names of a page's rows, in order.</summary>

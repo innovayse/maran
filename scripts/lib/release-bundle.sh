@@ -33,6 +33,8 @@
 #   scripts/maran release build   [--version <ver>] [--out <dir>]   assemble the bundle
 #   scripts/maran release sign    --key <path> [--bundle <dir>]     sign its manifest
 #   scripts/maran release verify  --bundle <dir> [--pubkey <path>]  verify it, as the installer would
+#   scripts/maran release package [--bundle <dir>] [--arch <list>|both] [--out <dir>]
+#                                                                   one verified offline tarball per arch
 #   scripts/maran release selftest                                  build+sign+verify, and prove
 #                                                                     tamper and unsigned bundles
 #                                                                     are BOTH refused
@@ -50,6 +52,10 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 . "$root/scripts/lib/suite.sh"
 # shellcheck disable=SC1091
 . "$root/scripts/lib/tree-lock.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-package.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-package-selftest.sh"
 
 VERDICT_PREFIX="RELEASE VERDICT"
 
@@ -64,7 +70,7 @@ release_failed() {
 
 usage() {
   cat >&2 <<'USAGE'
-usage: maran release <build|sign|verify|selftest> [arguments]
+usage: maran release <build|sign|verify|package|selftest|package-selftest> [arguments]
 
   build     [--version <ver>] [--channel stable|beta] [--out <dir>] [--arch <list>|both] [--publish]
             assemble api+agent+frontend into a manifest'd bundle dir. --arch defaults to this
@@ -79,7 +85,15 @@ usage: maran release <build|sign|verify|selftest> [arguments]
   verify    --bundle <dir> [--pubkey <path>] [--publish]
                                                 verify signature+checksums the way the installer does;
                                                 --publish also requires api/agent/frontend for BOTH arches
-  package   [--bundle <dir>] [--out <file>]     tar the bundle dir into the single offline tarball
+  package   [--bundle <dir>] [--arch <list>|both] [--out <dir>|<file>.tar.gz] [--pubkey <path>]
+                                                one offline tarball per architecture, each extracted
+                                                and verified with the installer's own checks before it
+                                                is reported (default: every arch the manifest holds,
+                                                into <bundle>-offline/maran-offline-<ver>-<arch>.tar.gz;
+                                                a single arch may take --out <file>.tar.gz)
+  package-selftest                              plant a two-architecture signed bundle, package it,
+                                                prove each result verifies AND that every broken
+                                                bundle is refused (rules/testing.md inverse controls)
   selftest                                      build, sign with a throwaway key, verify OK, then
                                                  prove a tampered byte and a missing signature are
                                                  BOTH refused (rules/testing.md: "a refusing gate
@@ -707,27 +721,6 @@ cmd_verify() {
   fi
 }
 
-cmd_package() {
-  local bundle_dir="/tmp/maran-release-bundle" out_file=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --bundle) bundle_dir="${2:?--bundle requires a value}"; shift 2 ;;
-      --out) out_file="${2:?--out requires a value}"; shift 2 ;;
-      *) echo "release package: unknown argument: $1" >&2; usage ;;
-    esac
-  done
-  [ -n "$out_file" ] || out_file="${bundle_dir%/}.tar.gz"
-  [ -f "${bundle_dir}/manifest.json.sig" ] || release_failed "${bundle_dir} has no manifest.json.sig — sign it first: maran release sign"
-  [ -f "${bundle_dir}/integrity-manifest.json" ] || release_failed "${bundle_dir} has no integrity-manifest.json — run: maran release build (this bundle predates the code-integrity hash list)"
-  [ -f "${bundle_dir}/integrity-manifest.json.sig" ] || release_failed "${bundle_dir} has no integrity-manifest.json.sig — sign it first: maran release sign"
-  ( cd "$bundle_dir" && tar -czf "$out_file" \
-      manifest.json manifest.json.sig \
-      integrity-manifest.json integrity-manifest.json.sig \
-      api.tar.gz agent.tar.gz frontend.tar.gz )
-  echo "Packaged offline bundle: ${out_file}"
-  echo "This is the file installer/install.sh --offline-tarball <path> expects."
-}
-
 # cmd_selftest: the inverse-control demonstration rules/testing.md requires of any
 # refusing gate — sign with a THROWAWAY key (never committed, never a production key),
 # verify OK, then prove verify REFUSES a tampered component and REFUSES an unsigned
@@ -973,6 +966,7 @@ case "$command_name" in
   verify) cmd_verify "$@" ;;
   package) cmd_package "$@" ;;
   selftest) cmd_selftest "$@" ;;
+  package-selftest) cmd_package_selftest "$@" ;;
   -h|--help|help) usage ;;
   *) echo "unknown release subcommand: $command_name" >&2; usage ;;
 esac

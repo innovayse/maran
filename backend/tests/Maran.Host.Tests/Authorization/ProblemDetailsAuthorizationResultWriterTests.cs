@@ -57,6 +57,20 @@ public sealed class ProblemDetailsAuthorizationResultWriterTests
         Assert.Equal("HostTwoFactorSetupRequired", body.RootElement.GetProperty("code").GetString());
     }
 
+    /// <summary>A view-as token refused by the allow-list gets its own code, in the request culture.</summary>
+    [Theory]
+    [InlineData("en", "This action is not available while you are viewing as this account.")]
+    [InlineData("ru", "Это действие недоступно, пока вы просматриваете панель от имени этой учётной записи.")]
+    [InlineData("hy", "Այս գործողությունը հասանելի չէ, քանի դեռ դիտում եք այս հաշվի անունից։")]
+    public async Task A_view_as_refusal_gets_its_own_code_in_the_request_culture(string language, string expected)
+    {
+        using var body = await RefuseAsync(language, new ViewAsBoundaryRequirement());
+
+        Assert.Equal("HostViewAsNotAllowed", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal(403, body.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal(expected, body.RootElement.GetProperty("title").GetString());
+    }
+
     /// <summary>The refusal is written in Russian and Armenian for those request cultures.</summary>
     [Theory]
     [InlineData("ru", "У вас нет доступа к этой странице.")]

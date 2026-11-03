@@ -1,4 +1,7 @@
 using FluentValidation;
+using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.Policies;
+using Maran.Modules.Identity.Validators;
 using Maran.SharedKernel.Utilities.Mail;
 
 namespace Maran.Modules.Identity.Commands.CompleteSetup;
@@ -6,12 +9,6 @@ namespace Maran.Modules.Identity.Commands.CompleteSetup;
 /// <summary>The panel's password policy, and the shape of the first administrator's details.</summary>
 public sealed class CompleteSetupCommandValidator : AbstractValidator<CompleteSetupCommand>
 {
-    /// <summary>Shortest password the panel accepts.</summary>
-    private const int MinPasswordLength = 12;
-
-    /// <summary>Longest password accepted, bounding the work Argon2id is asked to do.</summary>
-    private const int MaxPasswordLength = 256;
-
     /// <summary>Longest username the panel stores, matching the column.</summary>
     private const int MaxUsernameLength = 64;
 
@@ -53,12 +50,27 @@ public sealed class CompleteSetupCommandValidator : AbstractValidator<CompleteSe
 
         // Length, and not being the username, are the whole policy: the two rules that actually
         // stop the passwords people pick under time pressure while installing a server. Character-
-        // class requirements mostly produce "Password1!" and a note stuck to a monitor.
+        // class requirements mostly produce "Password1!" and a note stuck to a monitor. No policy
+        // row can exist before the first administrator does, so the length floor is the built-in
+        // default; both rules are PasswordPolicy's, the same definitions the signed-in change reads.
         RuleFor(command => command.Password)
-            .NotEmpty().WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak))
-            .MinimumLength(MinPasswordLength).WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak))
-            .MaximumLength(MaxPasswordLength).WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak))
-            .NotEqual(command => command.Username).WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak));
+            .Cascade(CascadeMode.Stop)
+            .Must(PasswordPolicy.IsWithinMaximumLength)
+            .WithMessage(nameof(Resources.ErrorMessages.PasswordTooLong))
+            .Must((_, password, context) =>
+            {
+                context.MessageFormatter.AppendArgument(
+                    NewPasswordValidator.MinimumLengthPlaceholder,
+                    SecurityPolicy.DefaultMinimumPasswordLength);
+                return PasswordPolicy.MeetsMinimumLength(password, SecurityPolicy.DefaultMinimumPasswordLength);
+            })
+            .WithMessage(nameof(Resources.ErrorMessages.PasswordTooWeak));
 
+        RuleFor(command => command.Password)
+            .Must((command, password) =>
+            {
+                return PasswordPolicy.DiffersFromUsername(password, command.Username);
+            })
+            .WithMessage(nameof(Resources.ErrorMessages.PasswordSameAsUsername));
     }
 }

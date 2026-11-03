@@ -1,14 +1,5 @@
 {
   "sites": {
-    "status": {
-      "enabled": "Включён",
-      "disabled": "Отключён"
-    },
-    "backendType": {
-      "static": "Статика",
-      "php": "PHP",
-      "reverseProxy": "Обратный прокси"
-    },
     "list": {
       "heading": "Сайты",
       "subtitle": "Сайты, обслуживаемые этим сервером.",

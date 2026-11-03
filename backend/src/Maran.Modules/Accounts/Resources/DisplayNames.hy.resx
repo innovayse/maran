@@ -84,4 +84,31 @@
   <data name="AccountFeatureBackups">
     <value>Պահուստներ</value>
   </data>
+  <data name="AccountFeatureSites">
+    <value>Կայքեր</value>
+  </data>
+  <data name="AccountFeatureSsl">
+    <value>SSL վկայականներ</value>
+  </data>
+  <data name="AccountFeatureTasks">
+    <value>Ֆոնային գործեր</value>
+  </data>
+  <data name="AccountFeaturePhp">
+    <value>PHP տարբերակներ</value>
+  </data>
+  <data name="OwnerLanguageEN">
+    <value>English</value>
+  </data>
+  <data name="OwnerLanguageRU">
+    <value>Русский</value>
+  </data>
+  <data name="OwnerLanguageHY">
+    <value>Հայերեն</value>
+  </data>
+  <data name="AccountStatusActive">
+    <value>Ակտիվ</value>
+  </data>
+  <data name="AccountStatusSuspended">
+    <value>Կասեցված</value>
+  </data>
 </root>

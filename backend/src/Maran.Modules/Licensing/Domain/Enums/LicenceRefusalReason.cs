@@ -8,7 +8,7 @@ namespace Maran.Modules.Licensing.Domain.Enums;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Deliberately a closed enum, not <c>Maran.Sdk.Contracts.AuditActions</c>-style open constants: a
+/// Deliberately a closed enum, not <c>Maran.Sdk.Contracts.*AuditActions</c>-style open constants: a
 /// marketplace module can add an audit action this assembly never knew about, but there is no
 /// seventh way for an Ed25519-signed, fingerprinted, expiring JSON document to be unacceptable that
 /// a third party would ever need to add. A closed set lets <c>LicenceVerifier</c>'s mapping be

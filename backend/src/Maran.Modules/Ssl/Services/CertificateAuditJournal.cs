@@ -45,7 +45,7 @@ public sealed class CertificateAuditJournal
     }
 
     /// <summary>Records an operation that took effect.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="domain">The certificate's domain — the subject an operator will search for.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
@@ -81,7 +81,7 @@ public sealed class CertificateAuditJournal
     }
 
     /// <summary>Records an unattended operation, which has no signed-in caller at all.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="domain">The certificate's domain.</param>
     /// <param name="succeeded">Whether the operation took effect.</param>
     /// <param name="cancellationToken">Cancellation token for the write.</param>

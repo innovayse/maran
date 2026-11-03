@@ -18,6 +18,18 @@
  */
 export type SmtpSecurity = 'none' | 'startTls' | 'implicitTls'
 
+/**
+ * One way of protecting the connection, as the settings form's picker offers it: the value the save
+ * binds, and the name an administrator reads, localized by the backend. The list comes from
+ * `GET /api/v1/notifications/smtp/security-modes`, so the bundle holds no copy of the vocabulary.
+ */
+export interface SmtpSecurityChoice {
+  /** The mode as the save request binds it. */
+  security: SmtpSecurity
+  /** The mode as an administrator reads it, in the request's language. */
+  securityName: string
+}
+
 /** The mail settings as `GET /api/v1/notifications/smtp` reports them. */
 export interface SmtpSettings {
   /** Host name or address of the mail server. */
@@ -26,6 +38,8 @@ export interface SmtpSettings {
   port: number
   /** How the connection is protected. */
   security: SmtpSecurity
+  /** The protection mode as an administrator reads it, in the request's language. */
+  securityName: string
   /** The submission user name, or empty when the server takes no credentials. */
   username: string
   /** Whether a password is stored. Never the value, in any form. */
@@ -72,6 +86,8 @@ export interface SmtpSettingsApi {
   get: (signal?: AbortSignal) => Promise<SmtpSettings>
   /** Replaces the settings wholesale. */
   save: (request: SaveSmtpSettingsRequest, signal?: AbortSignal) => Promise<void>
+  /** Lists the ways the connection can be protected, named for the caller's language. */
+  securityModes: (signal?: AbortSignal) => Promise<SmtpSecurityChoice[]>
   /** Sends one test message to a stated recipient. */
   sendTest: (recipient: string, signal?: AbortSignal) => Promise<void>
 }

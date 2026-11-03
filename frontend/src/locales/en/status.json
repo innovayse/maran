@@ -36,7 +36,6 @@
       "audit": {
         "title": "Latest activity",
         "empty": "Nothing has been recorded yet.",
-        "failed": "Failed",
         "all": "Open the audit journal",
         "unavailable": "The audit journal could not be read."
       },

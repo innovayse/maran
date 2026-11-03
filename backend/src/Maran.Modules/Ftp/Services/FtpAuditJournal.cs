@@ -25,7 +25,7 @@ namespace Maran.Modules.Ftp.Services;
 /// copies it into a row.
 /// </para>
 /// <para>
-/// <b>The six action names below belong in <c>Maran.Sdk/Contracts/AuditActions</c></b>, beside
+/// <b>The six action names below belong in a <c>*AuditActions</c> class of <c>Maran.Sdk/Contracts</c></b>, beside
 /// every other action the panel writes, and they are stated here only because this change may not
 /// write to the Sdk project. Every call site already goes through this one type, so moving them is a
 /// six-line append there and a six-symbol change here.

@@ -15,4 +15,13 @@
   <data name="NotificationsModuleDisplayName">
     <value>Notifications</value>
   </data>
+  <data name="SmtpSecurityNone">
+    <value>No encryption</value>
+  </data>
+  <data name="SmtpSecurityStartTls">
+    <value>STARTTLS (upgrade the connection)</value>
+  </data>
+  <data name="SmtpSecurityImplicitTls">
+    <value>Implicit TLS (encrypted from the start)</value>
+  </data>
 </root>

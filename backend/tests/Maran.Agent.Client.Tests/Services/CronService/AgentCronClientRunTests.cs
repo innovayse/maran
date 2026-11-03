@@ -139,6 +139,26 @@ public sealed class AgentCronClientRunTests
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
     }
 
+    /// <summary>A run whose unit could not be confirmed stopped maps to its own failure code, not a generic one.</summary>
+    [Fact]
+    public async Task A_run_that_could_not_be_confirmed_stopped_maps_to_its_own_failure_code()
+    {
+        var stub = new StubCronService
+        {
+            RunResponse = new RunCronEntryResponse
+            {
+                Error = new AgentError { Code = ErrorCode.RunNotStopped, Message = "not stopped" },
+            },
+        };
+
+        var result = await Client(stub).RunEntryAsync("alice", "e1", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentRunNotStopped", result.Error!.Code);
+        Assert.Equal(ErrorType.Failure, result.Error.Type);
+        Assert.NotEqual("AgentSystemFailure", result.Error.Code);
+    }
+
     /// <summary>A response with neither branch set is refused rather than read as a run.</summary>
     [Fact]
     public async Task A_response_with_neither_branch_set_is_refused()

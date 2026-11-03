@@ -26,9 +26,25 @@ namespace Maran.Modules.Sftp.Commands.DeleteSftpUser;
 /// panel can see and nobody can now revoke, which is the worse half by a wide margin: the customer
 /// asked for exactly that access to end.
 /// </para>
+/// <para>
+/// <b>The login's open sessions are ended BEFORE the login is removed</b> (issue #339). Removing a
+/// login revokes who may authenticate next; a session already admitted keeps reading and writing the
+/// account's home, and the agent answers an end-sessions call for a login that no longer exists with
+/// <c>AgentNotFound</c>, so the call has nothing left to act on once the delete has run. A failure
+/// to end them (anything but that <c>AgentNotFound</c>) refuses the delete and is journalled, because
+/// a delete reported as done over a session that is still open would be the revocation claimed
+/// without having happened. <c>AgentNotFound</c> itself means the host no longer holds the login, so
+/// there is nothing to end and the delete proceeds and converges.
+/// </para>
 /// </remarks>
 public sealed class DeleteSftpUserCommandHandler
 {
+    /// <summary>
+    /// The Agent.Client code for a login the host does not hold. It is matched as a literal because the
+    /// generated <c>ErrorMessages</c> class of <c>Maran.Agent.Client</c> is internal to that project.
+    /// </summary>
+    private const string AgentNotFoundCode = "AgentNotFound";
+
     /// <summary>The Sftp module's database context, and this module's tenant boundary.</summary>
     private readonly SftpDbContext _dbContext;
 
@@ -84,6 +100,12 @@ public sealed class DeleteSftpUserCommandHandler
                 command, sftpUser.Name, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
+        var ended = await _agent.EndSessionsAsync(account.Username, sftpUser.Name, cancellationToken);
+        if (!ended.IsSuccess && ended.Error!.Code != AgentNotFoundCode)
+        {
+            return await FailAsync(command, sftpUser.Name, ended.Error!, cancellationToken);
+        }
+
         var deleted = await _agent.DeleteAsync(account.Username, sftpUser.Name, cancellationToken);
         if (!deleted.IsSuccess)
         {
@@ -98,7 +120,7 @@ public sealed class DeleteSftpUserCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.SftpUserDeleted, name, command.IpAddress, command.UserAgent, cancellationToken);
+            SftpAuditActions.SftpUserDeleted, name, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Ok();
     }
@@ -116,7 +138,7 @@ public sealed class DeleteSftpUserCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SftpUserDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            SftpAuditActions.SftpUserDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Fail(error);
     }

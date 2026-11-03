@@ -148,7 +148,7 @@ pub fn gzip_binary() -> AdapterBinary {
 /// `mariadb-client` package, so the two families agree rather than differ.
 /// This answers the real name so a future package that drops the
 /// compatibility symlink cannot silently break this family — see
-/// [`crate::DistroAdapter::database_dump_binary`] for the full measurement,
+/// [`BackupFacts::database_dump_binary`](crate::BackupFacts::database_dump_binary) for the full measurement,
 /// including the `--no-tablespaces` finding.
 #[must_use]
 pub fn database_dump_binary() -> AdapterBinary {
@@ -516,7 +516,7 @@ pub fn ssh_service() -> &'static str {
 ///
 /// The `openssh-server` package installs it here on every RHEL-family release
 /// this product supports — the same path the Debian family answers; see
-/// [`crate::DistroAdapter::sshd_config_path`] for why this is still an adapter
+/// [`FileTransferFacts::sshd_config_path`](crate::FileTransferFacts::sshd_config_path) for why this is still an adapter
 /// method rather than a literal in `ops`.
 #[must_use]
 pub fn sshd_config_path() -> &'static str {
@@ -540,7 +540,7 @@ pub fn managed_units() -> [&'static str; 4] {
 
 /// Where rhel keeps the host's `machine-id`.
 ///
-/// See [`crate::DistroAdapter::machine_id_path`] for why this is an adapter fact
+/// See [`ServiceManagerFacts::machine_id_path`](crate::ServiceManagerFacts::machine_id_path) for why this is an adapter fact
 /// even though both families currently agree on it.
 /// @returns The absolute path to the machine-id file.
 #[must_use]

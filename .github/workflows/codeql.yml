@@ -52,6 +52,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
+          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Build the backend
         if: matrix.language == 'csharp'

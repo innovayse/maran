@@ -19,6 +19,7 @@ const OWN_ACCOUNT: MyAccount = {
   name: 'olive',
   primaryDomain: 'olive.example.com',
   status: 'active',
+  statusName: 'Active',
   plan: {
     displayName: 'Starter',
     diskQuotaMb: 1024,
@@ -74,7 +75,7 @@ test('an owner invites a person with chosen features and sees them invited', asy
   await page.getByRole('group', { name: 'Features this person may use' }).getByLabel('Backups').check({ force: true })
   await page.getByRole('button', { name: 'Send invitation' }).click()
 
-  await expect(page.getByText('Invitation sent to deploy.')).toBeVisible()
+  await expect(page.getByText(/Invitation requested for deploy\./)).toBeVisible()
   expect(sent.invitations).toEqual([
     { username: 'deploy', email: 'deploy@example.com', features: ['databases', 'backups'] },
   ])

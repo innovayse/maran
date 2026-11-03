@@ -203,7 +203,7 @@ public sealed class ScopedAddressBanCompositionTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var journalled = await identity.AuditEvents
-            .Where(entry => entry.Action == AuditActions.LoginFailed)
+            .Where(entry => entry.Action == IdentityAuditActions.LoginFailed)
             .Select(entry => entry.IpAddress)
             .ToListAsync();
 
@@ -296,7 +296,7 @@ public sealed class ScopedAddressBanCompositionTests : IAsyncLifetime
     /// <returns>The factory; the caller disposes it.</returns>
     private WebApplicationFactory<Program> CreateFactory(StubAgentFirewallClient agent)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             // Testing, not Development: inheriting the developer's database settings made these
             // tests pass locally against the wrong database and fail in CI.

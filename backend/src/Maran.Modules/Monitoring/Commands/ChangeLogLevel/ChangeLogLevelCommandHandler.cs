@@ -80,7 +80,7 @@ public sealed class ChangeLogLevelCommandHandler
         _levelSwitch.Apply(command.Level);
 
         await _journal.RecordRequestAsync(
-            AuditActions.PanelLogLevelChanged,
+            MonitoringAuditActions.PanelLogLevelChanged,
             string.Format(CultureInfo.InvariantCulture, "{0} -> {1}", previous, command.Level),
             command.IpAddress,
             command.UserAgent,

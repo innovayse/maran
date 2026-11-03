@@ -2,6 +2,7 @@ using FluentValidation.TestHelper;
 using Maran.Modules.Identity.Commands.ChangePassword;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Tests.TestSupport;
+using Maran.Modules.Identity.Validators;
 
 namespace Maran.Modules.Identity.Tests.Commands.ChangePassword;
 
@@ -38,6 +39,19 @@ public sealed class ChangePasswordCommandValidatorTests : IAsyncLifetime
         result.ShouldHaveValidationErrorFor(c => c.NewPassword).WithErrorMessage("PasswordTooWeak");
     }
 
+    /// <summary>A refused short password carries the operator's minimum, so the text names 16 and not 12.</summary>
+    [Fact]
+    public async Task A_refused_short_password_carries_the_policy_minimum_for_the_message()
+    {
+        var validator = new ChangePasswordCommandValidator(TestSecurityPolicyCache.Saved(_context, minimumPasswordLength: 16));
+
+        var result = await validator.TestValidateAsync(Command(next: new string('x', 15)));
+
+        var failure = Assert.Single(result.Errors);
+        Assert.Equal("PasswordTooWeak", failure.ErrorMessage);
+        Assert.Equal(16, failure.FormattedMessagePlaceholderValues[NewPasswordValidator.MinimumLengthPlaceholder]);
+    }
+
     /// <summary>A new password at the operator's minimum is accepted.</summary>
     [Fact]
     public async Task A_new_password_at_the_operators_minimum_is_accepted()
@@ -57,7 +71,8 @@ public sealed class ChangePasswordCommandValidatorTests : IAsyncLifetime
 
         var result = await validator.TestValidateAsync(Command(next: new string('x', 257)));
 
-        result.ShouldHaveValidationErrorFor(c => c.NewPassword).WithErrorMessage("PasswordTooWeak");
+        var failure = Assert.Single(result.Errors);
+        Assert.Equal("PasswordTooLong", failure.ErrorMessage);
     }
 
     /// <summary>An empty or over-long current password carries the wrong-password code.</summary>

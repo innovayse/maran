@@ -56,7 +56,7 @@ namespace Maran.Modules.Licensing.Commands.InstallLicence;
 /// id, tier, expiry — never a copy of the request body.
 /// </para>
 /// <para>
-/// <b>The audit entry.</b> <see cref="AuditActions.LicenceInstalled"/> is written on EVERY outcome,
+/// <b>The audit entry.</b> <see cref="LicenceAuditActions.LicenceInstalled"/> is written on EVERY outcome,
 /// success and refusal alike — an installation attempt against the whole panel's paid-module gate is
 /// worth a date and an author regardless of whether it succeeded, the same argument
 /// <c>Services.LicensingAuditJournal</c> already makes for a mere READ. The subject is
@@ -271,7 +271,7 @@ public sealed class InstallLicenceCommandHandler
         if (succeeded)
         {
             await _auditJournal.RecordSuccessAsync(
-                AuditActions.LicenceInstalled,
+                LicenceAuditActions.LicenceInstalled,
                 subject,
                 command.IpAddress,
                 command.UserAgent,
@@ -281,7 +281,7 @@ public sealed class InstallLicenceCommandHandler
         }
 
         await _auditJournal.RecordFailureAsync(
-            AuditActions.LicenceInstalled,
+            LicenceAuditActions.LicenceInstalled,
             subject,
             command.IpAddress,
             command.UserAgent,

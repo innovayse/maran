@@ -104,7 +104,7 @@ public sealed class SetCronEnvironmentCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.CronEnvironmentChanged,
+            CronAuditActions.CronEnvironmentChanged,
             Subject(command),
             command.IpAddress,
             command.UserAgent,
@@ -146,7 +146,7 @@ public sealed class SetCronEnvironmentCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.CronEnvironmentChanged,
+            CronAuditActions.CronEnvironmentChanged,
             Subject(command),
             command.IpAddress,
             command.UserAgent,

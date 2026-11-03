@@ -35,8 +35,8 @@ public sealed class IdentityDbContext : DbContext
     }
 
     /// <summary>
-    /// Which hosting accounts each login may act for, and in what capacity. The truth about account
-    /// access; <see cref="User.AccountId"/> is the older column the previous release still reads.
+    /// Which hosting accounts each login may act for, in what capacity, and whether right now. The
+    /// only truth about account access: a login row names no account.
     /// </summary>
     public DbSet<AccountMembership> AccountMemberships
     {

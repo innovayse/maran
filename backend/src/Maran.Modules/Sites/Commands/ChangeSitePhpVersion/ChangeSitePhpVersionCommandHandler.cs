@@ -47,20 +47,26 @@ public sealed class ChangeSitePhpVersionCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly SiteAuditJournal _journal;
 
+    /// <summary>Names the site's backend and serving state in the request's culture.</summary>
+    private readonly SiteDisplayNames _siteNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name and per-pool worker budget.</param>
     /// <param name="agent">The agent client that re-renders the pool and the vhost.</param>
     /// <param name="php">The agent client listing the host's installed PHP runtimes.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
     public ChangeSitePhpVersionCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
         IAgentPhpClient php,
-        SiteAuditJournal journal)
+        SiteAuditJournal journal,
+        SiteDisplayNames siteNames)
     {
         _dbContext = dbContext;
+        _siteNames = siteNames;
         _accounts = accounts;
         _agent = agent;
         _php = php;
@@ -143,7 +149,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.SitePhpVersionChanged, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SitePhpVersionChanged, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Ok(new SiteDto(
             site.Id,
@@ -151,8 +157,10 @@ public sealed class ChangeSitePhpVersionCommandHandler
             account.Username,
             site.Domain,
             site.BackendType,
+            _siteNames.Of(site.BackendType),
             site.PhpVersion,
             site.Status,
+            _siteNames.Of(site.Status),
             site.CreatedAt));
     }
 
@@ -195,7 +203,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.SitePhpVersionChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            SiteAuditActions.SitePhpVersionChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Fail(error);
     }

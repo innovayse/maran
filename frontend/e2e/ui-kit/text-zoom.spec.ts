@@ -49,6 +49,7 @@ const ACCOUNT: Account = {
   primaryDomain: 'storefront.acme-industrial-holdings.example.com',
   planId: THREE_PLANS[1]?.id ?? '',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-30T09:00:00+00:00',
 }
 
@@ -58,8 +59,10 @@ const SITE: Site = {
   ownerName: ACCOUNT.name,
   domain: 'storefront.acme-industrial-holdings.example.com',
   backendType: 'php',
+  backendTypeName: 'PHP',
   phpVersion: '8.3',
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -69,7 +72,9 @@ const BACKUP: Backup = {
   ownerName: ACCOUNT.name,
   orphanedAccountUsername: null,
   status: 'failed',
+  statusName: 'Failed',
   kind: 'manual',
+  kindName: 'Manual',
   sizeBytes: 0,
   sha256: null,
   databaseCount: 0,
@@ -112,6 +117,7 @@ const DASHBOARD: Dashboard = {
       subject: 'storefront.acme-industrial-holdings.example.com',
       ipAddress: '203.0.113.9',
       succeeded: false,
+      outcomeName: 'Failed',
     },
   ]),
 }

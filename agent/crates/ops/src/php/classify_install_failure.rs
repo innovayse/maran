@@ -35,7 +35,7 @@ const INVOCATION_MATCH: &str = "_SYSTEMD_INVOCATION_ID=";
 /// child, so the agent learns what it printed only by asking: the service
 /// manager names the run and its exit status, and the journal holds that
 /// run's output and no other run's. Both are then read by
-/// [`DistroAdapter::classify_package_failure`], the one place a package
+/// [`PackageFacts::classify_package_failure`](maran_distro::PackageFacts::classify_package_failure), the one place a package
 /// manager's failure is classified (issue #251):
 ///
 /// - a source that answered with an HTTP error is

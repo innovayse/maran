@@ -23,10 +23,10 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// <b>The pre-check is the ordinary path; the catch below is the truthful one.</b> The
 /// <c>AnyAsync</c> check and the insert are two separate round trips, so two concurrent deliveries of
 /// <see cref="AccountCreated"/> — the exact "retried command, resent event" cases named above — can
-/// both read "no login yet" before either writes. Only <c>UX_Users_AccountId</c>, the partial unique
-/// index on <c>User.AccountId</c> (<c>UserConfiguration</c>), actually stops the second row from
-/// being created; the pre-check is merely the path that avoids paying for the race on the ordinary,
-/// uncontended call. A doc comment that called this idempotent on the strength of the check alone
+/// both read "no login yet" before either writes. Only <c>UX_AccountMemberships_AccountId_Owner</c>,
+/// the partial unique index on the owner membership (<c>AccountMembershipConfiguration</c>), actually
+/// stops the second row from being created; the pre-check is merely the path that avoids paying for
+/// the race on the ordinary, uncontended call. A doc comment that called this idempotent on the strength of the check alone
 /// would be describing timing, not a guarantee — the loser of the race still has to survive losing
 /// it, which is what the <c>catch</c> in <see cref="HandleAsync"/> is for.
 /// </para>
@@ -75,20 +75,26 @@ public sealed class AccountCreatedHandler
     /// <summary>The panel's clock; the ambient one is a banned API (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
+    /// <summary>Tells whether the account already has an owner login.</summary>
+    private readonly AccountOwnerFinder _owners;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Identity module's database context.</param>
+    /// <param name="owners">Tells whether the account already has an owner login.</param>
     /// <param name="bus">The bus the invitation mail is published on.</param>
     /// <param name="journal">Records the invitation.</param>
     /// <param name="composer">Renders the invitation mail.</param>
     /// <param name="clock">The panel's clock.</param>
     public AccountCreatedHandler(
         IdentityDbContext dbContext,
+        AccountOwnerFinder owners,
         IMessageBus bus,
         IdentityAuditJournal journal,
         InvitationMailComposer composer,
         IClock clock)
     {
         _dbContext = dbContext;
+        _owners = owners;
         _bus = bus;
         _journal = journal;
         _composer = composer;
@@ -101,9 +107,7 @@ public sealed class AccountCreatedHandler
     /// <returns>Resolves once the login is stored and the mail is queued for sending.</returns>
     public async Task HandleAsync(AccountCreated message, CancellationToken cancellationToken)
     {
-        var existing = await _dbContext.Users
-            .AnyAsync(candidate => candidate.AccountId == message.AccountId, cancellationToken);
-        if (existing)
+        if (await _owners.ExistsAsync(message.AccountId, cancellationToken))
         {
             // A repeat: a retried command, or this event announced twice. Two live invitations to
             // one account would be two keys, and the owner has no way to know which the panel will
@@ -114,7 +118,7 @@ public sealed class AccountCreatedHandler
         }
 
         var now = _clock.UtcNow;
-        var user = User.Invite(Guid.NewGuid(), message.Username, message.OwnerEmail, message.AccountId, now);
+        var user = User.Invite(Guid.NewGuid(), message.Username, message.OwnerEmail, now);
         var token = InvitationTokenHasher.Generate();
 
         var invitationToken = new InvitationToken(
@@ -135,8 +139,8 @@ public sealed class AccountCreatedHandler
             exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             // A concurrent delivery of AccountCreated won the race between the check above and this
-            // insert, and its row already owns the login and the live token — UX_Users_AccountId is
-            // what actually stopped the second row, not the check. Nothing this call added exists
+            // insert, and its row already owns the login and the live token — UX_AccountMemberships_AccountId_Owner
+            // is what actually stopped the second row, not the check. Nothing this call added exists
             // (SaveChanges rolled the whole batch back), there is no orphaned token to clean up, and
             // there is no second mail to send: the winner's invitation is the only one, so this
             // returns quietly exactly as the pre-check path does. Both entries are detached rather
@@ -149,7 +153,7 @@ public sealed class AccountCreatedHandler
 
         await _journal.RecordIdentifiedAsync(
             user.Id,
-            AuditActions.CustomerInvited,
+            IdentityAuditActions.CustomerInvited,
             user.Username,
             ipAddress: string.Empty,
             userAgent: string.Empty,

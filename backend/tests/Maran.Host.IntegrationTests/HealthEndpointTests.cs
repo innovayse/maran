@@ -61,7 +61,7 @@ public sealed class HealthEndpointTests : IAsyncLifetime
     /// <returns>A factory the caller disposes.</returns>
     private WebApplicationFactory<Program> NewFactory(ScriptedAgentSystemClient? agent = null)
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             // Testing, not Development: inheriting the developer's database settings made these
             // tests pass locally against the wrong database and fail in CI.

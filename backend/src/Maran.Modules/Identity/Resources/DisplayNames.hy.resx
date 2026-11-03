@@ -135,6 +135,9 @@
   <data name="AuditActionSftpUserPasswordReset">
     <value>Վերակայվեց SFTP գաղտնաբառը</value>
   </data>
+  <data name="AuditActionSftpUserSessionsEnded">
+    <value>Ավարտվեցին SFTP նիստերը</value>
+  </data>
   <data name="AuditActionFtpsEnabled">
     <value>FTPS ծառայությունը միացվեց</value>
   </data>
@@ -319,6 +322,18 @@
   <data name="AccountFeatureBackups">
     <value>Պահուստներ</value>
   </data>
+  <data name="AccountFeatureSites">
+    <value>Կայքեր</value>
+  </data>
+  <data name="AccountFeatureSsl">
+    <value>SSL վկայականներ</value>
+  </data>
+  <data name="AccountFeatureTasks">
+    <value>Ֆոնային գործեր</value>
+  </data>
+  <data name="AccountFeaturePhp">
+    <value>PHP տարբերակներ</value>
+  </data>
   <data name="MembershipRoleOwner">
     <value>Սեփականատեր</value>
   </data>
@@ -330,5 +345,11 @@
   </data>
   <data name="AuditActionViewAsEnded">
     <value>Ավարտվեց դիտումը հաշվի անունից</value>
+  </data>
+  <data name="AuditOutcomeSucceeded">
+    <value>Հաջողվեց</value>
+  </data>
+  <data name="AuditOutcomeFailed">
+    <value>Ձախողվեց</value>
   </data>
 </root>

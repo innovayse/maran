@@ -15,4 +15,19 @@
   <data name="SitesModuleDisplayName">
     <value>Կայքեր</value>
   </data>
+  <data name="SiteBackendTypeStatic">
+    <value>Ստատիկ</value>
+  </data>
+  <data name="SiteBackendTypePhp">
+    <value>PHP</value>
+  </data>
+  <data name="SiteBackendTypeReverseProxy">
+    <value>Հակադարձ պրոքսի</value>
+  </data>
+  <data name="SiteStatusEnabled">
+    <value>Միացված</value>
+  </data>
+  <data name="SiteStatusDisabled">
+    <value>Անջատված</value>
+  </data>
 </root>

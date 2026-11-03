@@ -1,6 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
+using FluentValidation;
+using FluentValidation.Results;
 using Maran.Host.Middleware;
 using Maran.SharedKernel.Constants;
+using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
@@ -83,6 +88,78 @@ public sealed class ExceptionMiddlewareTests
         Assert.Equal(StatusCodes.Status206PartialContent, context.Response.StatusCode);
     }
 
+    /// <summary>A validation failure whose text wants the bound as {1} gets it when the validator appended one.</summary>
+    [Fact]
+    public async Task A_validation_failure_with_a_min_length_placeholder_formats_the_bound_into_the_text()
+    {
+        var failure = new ValidationFailure("NewPassword", "PasswordTooWeak")
+        {
+            FormattedMessagePlaceholderValues = new Dictionary<string, object> { ["MinLength"] = 16 },
+        };
+
+        var (status, code, title) = await InvokeWithValidationFailureAsync(failure);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, status);
+        Assert.Equal("PasswordTooWeak", code);
+        Assert.Equal("at least 16 characters", title);
+    }
+
+    /// <summary>A text asking for {1} when the failure carried no bound still formats and never throws.</summary>
+    /// <remarks>
+    /// Without a default for the bound the provider's <see cref="FormatException"/> escaped the
+    /// validation handler and the caller's 400 became a 500. The code is kept: it names the rule broken.
+    /// </remarks>
+    [Fact]
+    public async Task A_text_wanting_a_bound_the_failure_did_not_carry_formats_with_an_empty_bound()
+    {
+        var failure = new ValidationFailure("NewPassword", "PasswordTooWeak");
+
+        var (status, code, title) = await InvokeWithValidationFailureAsync(failure);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, status);
+        Assert.Equal("PasswordTooWeak", code);
+        Assert.Equal("at least  characters", title);
+    }
+
+    /// <summary>A text naming an argument nobody supplies degrades to the generic sentence and never throws.</summary>
+    /// <remarks>The last-resort guard: the code is kept, the sentence becomes the generic validation text.</remarks>
+    [Fact]
+    public async Task A_text_naming_an_argument_nobody_supplies_degrades_to_the_generic_sentence()
+    {
+        var failure = new ValidationFailure("Name", "NeedsAThirdArgument");
+
+        var (status, code, title) = await InvokeWithValidationFailureAsync(failure);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, status);
+        Assert.Equal("NeedsAThirdArgument", code);
+        Assert.Equal("Some details are not valid.", title);
+    }
+
+    /// <summary>Runs the middleware over a validator failure and reads back what it answered.</summary>
+    /// <param name="failure">The failure the downstream component raises.</param>
+    private static async Task<(int Status, string Code, string Title)> InvokeWithValidationFailureAsync(
+        ValidationFailure failure)
+    {
+        var context = CreateContext(correlationId: "abc-123");
+        context.RequestServices = new ServiceCollection()
+            .AddSingleton<IErrorTextProvider>(new FormattingErrorTextProvider())
+            .BuildServiceProvider();
+        var middleware = new ExceptionMiddleware(
+            _ =>
+            {
+                throw new ValidationException(new[] { failure });
+            },
+            NullLogger<ExceptionMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context);
+
+        using var body = await ReadResponseBodyAsync(context);
+        return (
+            context.Response.StatusCode,
+            body.RootElement.GetProperty("code").GetString()!,
+            body.RootElement.GetProperty("title").GetString()!);
+    }
+
     /// <summary>Builds a fake request context with a resolvable, correlation-id-bearing state.</summary>
     /// <param name="correlationId">The correlation id to seed <see cref="CorrelationIdKeys.ItemsKey"/> with.</param>
     private static DefaultHttpContext CreateContext(string correlationId)
@@ -138,6 +215,34 @@ public sealed class ExceptionMiddlewareTests
         /// <inheritdoc/>
         public void OnCompleted(Func<object, Task> callback, object state)
         {
+        }
+    }
+
+    /// <summary>
+    /// An <see cref="IErrorTextProvider"/> that formats a fixed table the way the real one does —
+    /// <see cref="string.Format(IFormatProvider, string, object[])"/> over the caller's arguments — so
+    /// a text naming an argument the caller did not supply throws exactly as it would in production.
+    /// </summary>
+    private sealed class FormattingErrorTextProvider : IErrorTextProvider
+    {
+        /// <summary>The texts, keyed by code; {0} is the field and {1} the optional bound.</summary>
+        private static readonly Dictionary<string, string> Texts = new()
+        {
+            ["PasswordTooWeak"] = "at least {1} characters",
+            ["NeedsAThirdArgument"] = "{2}",
+            ["HostValidationFailed"] = "Some details are not valid.",
+        };
+
+        /// <inheritdoc/>
+        public string Resolve(string code, params object[] arguments)
+        {
+            return string.Format(CultureInfo.InvariantCulture, Texts[code], arguments);
+        }
+
+        /// <inheritdoc/>
+        public bool TryResolve(string code, [NotNullWhen(true)] out string? text)
+        {
+            return Texts.TryGetValue(code, out text);
         }
     }
 }

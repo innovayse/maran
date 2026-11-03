@@ -12,7 +12,7 @@ import UiDateInput from '../ui/UiDateInput.vue'
 import UiFilterSheet from '../ui/UiFilterSheet.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import type { AccountPickerState } from '../../composables/useAccountChoice'
-import { BACKUP_KINDS, BACKUP_STATUSES } from '../../types/backup'
+import { useBackupOptionsStore } from '../../stores/backupOptions'
 
 /** Props accepted by {@link BackupHistoryFilterSheet}. */
 const props = defineProps<{
@@ -39,6 +39,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const optionsStore = useBackupOptionsStore()
 
 /** The account choices after an "any account" choice, counted into the total so "more matches" stays right. */
 const accountChoices: ComputedRef<AccountPickerState> = computed(() => {
@@ -50,24 +51,14 @@ const accountChoices: ComputedRef<AccountPickerState> = computed(() => {
   }
 })
 
-/** The statuses the filter offers, after an "any status" choice. */
+/** The statuses the filter offers, named by the panel, after an "any status" choice. */
 const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: '', label: t('common.list.any') },
-    ...BACKUP_STATUSES.map((status) => {
-      return { value: status, label: t(`backups.status.${status}`) }
-    }),
-  ]
+  return [{ value: '', label: t('common.list.any') }, ...optionsStore.options.statuses]
 })
 
-/** The reasons the filter offers, after an "any reason" choice. */
+/** The reasons the filter offers, named by the panel, after an "any reason" choice. */
 const kindOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: '', label: t('common.list.any') },
-    ...BACKUP_KINDS.map((kind) => {
-      return { value: kind, label: t(`backups.kind.${kind}`) }
-    }),
-  ]
+  return [{ value: '', label: t('common.list.any') }, ...optionsStore.options.kinds]
 })
 
 /**
@@ -118,8 +109,18 @@ const searchAccounts = (term: string): void => {
         :selected-label="accountName"
         @search="searchAccounts"
       />
-      <UiSelect v-model="draft.status" :label="t('backups.list.filters.status')" :options="statusOptions" />
-      <UiSelect v-model="draft.kind" :label="t('backups.list.filters.kind')" :options="kindOptions" />
+      <UiSelect
+        v-model="draft.status"
+        :label="t('backups.list.filters.status')"
+        :options="statusOptions"
+        :load-error="optionsStore.errorMessage"
+      />
+      <UiSelect
+        v-model="draft.kind"
+        :label="t('backups.list.filters.kind')"
+        :options="kindOptions"
+        :load-error="optionsStore.errorMessage"
+      />
       <UiDateInput v-model="draft.from" :label="t('backups.list.filters.from')" />
       <UiDateInput v-model="draft.to" :label="t('backups.list.filters.to')" />
     </template>

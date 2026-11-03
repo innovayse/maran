@@ -13,9 +13,13 @@ public sealed class RecordingAuditWriter : IAuditWriter
     /// <summary>Everything this writer was handed, in order.</summary>
     public List<AuditEntry> Entries { get; } = [];
 
+    /// <summary>Called as each entry is written, before it is kept; lets a test observe what else exists at that moment.</summary>
+    public Action? OnWrite { get; set; }
+
     /// <inheritdoc />
     public Task WriteAsync(AuditEntry entry, CancellationToken cancellationToken)
     {
+        OnWrite?.Invoke();
         Entries.Add(entry);
         return Task.CompletedTask;
     }

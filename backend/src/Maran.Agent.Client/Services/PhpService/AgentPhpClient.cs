@@ -56,6 +56,25 @@ public sealed class AgentPhpClient : IAgentPhpClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<IReadOnlyList<InstallablePhpVersionDto>>> ListInstallableVersionsAsync(
+        CancellationToken cancellationToken)
+    {
+        var response = await _invoker.ListInstallablePhpVersionsAsync(
+            new ListInstallablePhpVersionsRequest(),
+            cancellationToken);
+
+        return response.ResultCase switch
+        {
+            ListInstallablePhpVersionsResponse.ResultOneofCase.Ok => Result<IReadOnlyList<InstallablePhpVersionDto>>.Ok(
+                ToInstallable(response.Ok)),
+            ListInstallablePhpVersionsResponse.ResultOneofCase.Error => Result<IReadOnlyList<InstallablePhpVersionDto>>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListInstallableVersionsAsync))),
+            _ => Result<IReadOnlyList<InstallablePhpVersionDto>>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
     /// <remarks>
     /// A transport failure ends the stream in a <see cref="PhpInstallEventKind.Failed"/> event carrying
     /// the error of <see cref="AgentTransportFailure.ToError"/>, kind included, never in the raw exception.
@@ -169,6 +188,20 @@ public sealed class AgentPhpClient : IAgentPhpClient
                 version.Version,
                 version.FpmSocketDirectory,
                 ToDefaultStatus(version)));
+        }
+
+        return versions;
+    }
+
+    /// <summary>Projects the wire installable-version list onto the panel's DTOs.</summary>
+    /// <param name="ok">The success payload of <c>ListInstallablePhpVersions</c>.</param>
+    /// <returns>The versions in the order the agent sent them, newest first.</returns>
+    private static List<InstallablePhpVersionDto> ToInstallable(ListInstallablePhpVersionsOk ok)
+    {
+        var versions = new List<InstallablePhpVersionDto>(ok.Versions.Count);
+        foreach (var version in ok.Versions)
+        {
+            versions.Add(new InstallablePhpVersionDto(version.Version, version.Installed));
         }
 
         return versions;

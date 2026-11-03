@@ -6,6 +6,7 @@ import type {
   GrantableFeature,
   InviteSubUserRequest,
   SubUser,
+  SubUserInvitation,
   SubUsersApi,
 } from '../../types/subUser'
 
@@ -45,13 +46,13 @@ export const useSubUsersApi = (): SubUsersApi => {
   }
 
   /**
-   * Invites a person to the account.
+   * Asks for a person to be invited to the account.
    * @param request Their login name, address and features.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The new sub-user.
+   * @returns The request as accepted, echoing the owner's input (the same for a free and a taken name).
    */
-  const invite = (request: InviteSubUserRequest, signal?: AbortSignal): Promise<SubUser> => {
-    return api.post<SubUser>(SUB_USERS_PATH, request, signal)
+  const invite = (request: InviteSubUserRequest, signal?: AbortSignal): Promise<SubUserInvitation> => {
+    return api.post<SubUserInvitation>(SUB_USERS_PATH, request, signal)
   }
 
   /**

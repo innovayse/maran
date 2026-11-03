@@ -53,7 +53,7 @@ public sealed class NotificationsAuditJournal
     }
 
     /// <summary>Records an operation an administrator asked for.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">What it was done to — the mail server's host, a recipient address.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
@@ -84,7 +84,7 @@ public sealed class NotificationsAuditJournal
     }
 
     /// <summary>Records something the panel did on its own initiative, with no signed-in caller.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">What the panel acted on — a recipient address.</param>
     /// <param name="succeeded">Whether it took effect.</param>
     /// <param name="cancellationToken">Cancellation token for the write.</param>

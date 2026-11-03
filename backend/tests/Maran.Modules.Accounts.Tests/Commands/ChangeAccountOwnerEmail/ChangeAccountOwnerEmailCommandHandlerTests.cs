@@ -102,7 +102,7 @@ public sealed class ChangeAccountOwnerEmailCommandHandlerTests : IDisposable
         Assert.Equal(_account.Id, request.AccountId);
         Assert.Equal("new@example.com", request.Email);
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.AccountOwnerEmailChanged, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountOwnerEmailChanged, entry.Action);
         Assert.Equal("olive", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain("example.com", entry.Subject, StringComparison.Ordinal);

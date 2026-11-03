@@ -114,7 +114,7 @@ public sealed class RemoveCertificateCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.CertificateRemoved,
+            CertificateAuditActions.CertificateRemoved,
             certificate.Domain,
             command.IpAddress,
             command.UserAgent,
@@ -139,7 +139,7 @@ public sealed class RemoveCertificateCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.CertificateRemoved, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            CertificateAuditActions.CertificateRemoved, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Fail(error);
     }

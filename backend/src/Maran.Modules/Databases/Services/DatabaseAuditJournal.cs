@@ -38,7 +38,7 @@ public sealed class DatabaseAuditJournal
     }
 
     /// <summary>Records an operation that took effect.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="name">The database's name — the subject an operator will search for.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>

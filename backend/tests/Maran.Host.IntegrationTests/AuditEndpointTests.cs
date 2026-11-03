@@ -27,6 +27,10 @@ namespace Maran.Host.IntegrationTests;
 [Collection(SharedDatabase.Name)]
 public sealed class AuditEndpointTests : IAsyncLifetime
 {
+    /// <summary>The audit outcome choices, in the order the panel lists them.</summary>
+    private static readonly string[] OutcomeValues =
+        new[] { "succeeded", "failed" };
+
     private const string Password = "correct horse battery staple";
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
@@ -132,10 +136,49 @@ public sealed class AuditEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    /// <summary>The outcome choices are refused to a customer as the journal is.</summary>
+    [Fact]
+    public async Task A_signed_in_customer_cannot_read_the_outcome_choices()
+    {
+        await using var factory = CreateFactory();
+        await SeedAsync(factory, ("admin", UserRole.Admin), ("customer", UserRole.Customer));
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.GetAsync("/api/v1/audit/outcomes");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>The outcome choices are spelled the way the journal's outcome filter binds them.</summary>
+    [Fact]
+    public async Task The_outcome_choices_are_values_the_journal_filter_accepts()
+    {
+        await using var factory = CreateFactory();
+        await SeedAsync(factory, ("admin", UserRole.Admin), ("customer", UserRole.Customer));
+        using var client = await SignInAsync(factory, "admin");
+
+        var choices = await client.GetAsync("/api/v1/audit/outcomes");
+        Assert.Equal(HttpStatusCode.OK, choices.StatusCode);
+        using var body = JsonDocument.Parse(await choices.Content.ReadAsStringAsync());
+        var outcomes = body.RootElement.EnumerateArray()
+            .Select(choice =>
+            {
+                return choice.GetProperty("outcome").GetString();
+            })
+            .ToArray();
+        Assert.Equal(OutcomeValues, outcomes);
+
+        foreach (var outcome in outcomes)
+        {
+            var filtered = await client.GetAsync($"/api/v1/audit?outcome={outcome}");
+            Assert.Equal(HttpStatusCode.OK, filtered.StatusCode);
+        }
+    }
+
     /// <summary>Boots the host against this class's PostgreSQL.</summary>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))

@@ -64,7 +64,7 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
     @sort="emit('sort', $event)"
   >
     <template #cell-startedAt="{ row }">{{ formatIsoTimestamp(row.startedAt, localeStore.current) }}</template>
-    <template #cell-outcome="{ row }"><CronRunOutcomeBadge :outcome="row.outcome" /></template>
+    <template #cell-outcome="{ row }"><CronRunOutcomeBadge :outcome="row.outcome" :label="row.outcomeName" /></template>
     <template #cell-exitCode="{ row }">{{ row.end.kind === 'exited' ? row.end.exitCode : t('common.emptyValue') }}</template>
     <template #cell-duration="{ row }">{{ formatSeconds(row.durationMilliseconds, localeStore.current) }}</template>
     <template #cell-actions="{ row }">

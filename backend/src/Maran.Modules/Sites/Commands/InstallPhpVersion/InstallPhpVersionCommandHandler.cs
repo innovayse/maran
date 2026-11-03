@@ -92,13 +92,46 @@ public sealed class InstallPhpVersionCommandHandler
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        // The boundary for the picker's advice: the version must be one the agent reports as
+        // installable on this host. The select in the SPA is only a convenience; a typed or replayed
+        // body is refused here, before a task is begun or the installer is reached.
+        var installable = await _php.ListInstallableVersionsAsync(cancellationToken);
+        if (!installable.IsSuccess)
+        {
+            await _journal.RecordFailureAsync(
+                SiteAuditActions.PhpVersionInstalled,
+                command.Version,
+                command.IpAddress,
+                command.UserAgent,
+                cancellationToken);
+
+            return Result<IReadOnlyList<PhpVersionDto>>.Fail(installable.Error!);
+        }
+
+        var offered = installable.Value.Any(version =>
+        {
+            return string.Equals(version.Version, command.Version, StringComparison.Ordinal);
+        });
+        if (!offered)
+        {
+            await _journal.RecordFailureAsync(
+                SiteAuditActions.PhpVersionInstalled,
+                command.Version,
+                command.IpAddress,
+                command.UserAgent,
+                cancellationToken);
+
+            return Result<IReadOnlyList<PhpVersionDto>>.Fail(
+                Error.Of(nameof(ErrorMessages.PhpVersionNotInstallable), ErrorType.Validation));
+        }
+
         var installed = await _php.ListVersionsAsync(cancellationToken);
         if (!installed.IsSuccess)
         {
             // The agent could not even be asked what is installed. Refused rather than attempted:
             // installing without knowing the current state is how a version gets installed twice.
             await _journal.RecordFailureAsync(
-                AuditActions.PhpVersionInstalled,
+                SiteAuditActions.PhpVersionInstalled,
                 command.Version,
                 command.IpAddress,
                 command.UserAgent,
@@ -117,7 +150,7 @@ public sealed class InstallPhpVersionCommandHandler
             // Already there. Journalled as a success because it IS one from the caller's side — the
             // version they asked for is available — and with no task, because nothing ran.
             await _journal.RecordSuccessAsync(
-                AuditActions.PhpVersionInstalled,
+                SiteAuditActions.PhpVersionInstalled,
                 command.Version,
                 command.IpAddress,
                 command.UserAgent,
@@ -141,7 +174,7 @@ public sealed class InstallPhpVersionCommandHandler
         if (outcome is not null)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.PhpVersionInstalled,
+                SiteAuditActions.PhpVersionInstalled,
                 command.Version,
                 command.IpAddress,
                 command.UserAgent,
@@ -152,7 +185,7 @@ public sealed class InstallPhpVersionCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.PhpVersionInstalled,
+            SiteAuditActions.PhpVersionInstalled,
             command.Version,
             command.IpAddress,
             command.UserAgent,

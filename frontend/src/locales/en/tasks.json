@@ -42,11 +42,6 @@
       "BackupRestore": "Restoring a backup",
       "PhpVersionInstall": "Installing a PHP version"
     },
-    "statuses": {
-      "running": "Running",
-      "completed": "Completed",
-      "failed": "Failed"
-    },
     "pane": {
       "correlationId": "Correlation id",
       "notReported": "Not reported",

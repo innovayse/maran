@@ -6,6 +6,7 @@ using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -72,7 +73,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         Assert.Equal(small, await StoredPlanIdAsync(factory, accountId));
         Assert.Contains(_audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AccountPlanChanged && entry.Succeeded;
+            return entry.Action == AccountAuditActions.AccountPlanChanged && entry.Succeeded;
         });
     }
 
@@ -108,9 +109,11 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var scope = factory.Services.CreateScope();
-        var login = await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Users
+        var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var login = await identity.Users
             .AsNoTracking()
-            .SingleAsync(user => user.AccountId == accountId);
+            .SingleAsync(user => identity.AccountMemberships.Any(
+                membership => membership.UserId == user.Id && membership.AccountId == accountId));
         Assert.Equal("new@example.com", login.Email);
         var account = await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Accounts
             .AsNoTracking()
@@ -118,7 +121,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         Assert.Equal("new@example.com", account.OwnerEmail);
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.AccountOwnerEmailChanged;
+            return candidate.Action == AccountAuditActions.AccountOwnerEmailChanged;
         });
         Assert.Equal("olive", entry.Subject);
     }
@@ -236,8 +239,8 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         Assert.Contains("InvitationAccountSuspended", await link.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.Conflict, resend.StatusCode);
         using var check = factory.Services.CreateScope();
-        Assert.False(await check.ServiceProvider.GetRequiredService<IdentityDbContext>().Users
-            .AnyAsync(user => user.AccountId == accountId));
+        Assert.False(await check.ServiceProvider.GetRequiredService<IdentityDbContext>().AccountMemberships
+            .AnyAsync(membership => membership.AccountId == accountId));
     }
 
     /// <summary>Boots the host with the given agent double and this test's journal.</summary>
@@ -288,22 +291,23 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
-        var login = User.Invite(Guid.NewGuid(), username, email, accountId, now);
+        var login = User.Invite(Guid.NewGuid(), username, email, now);
         context.Users.Add(login);
         context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), login.Id, accountId, now));
         await context.SaveChangesAsync();
         return login.Id;
     }
 
-    /// <summary>Marks a login's account suspended, exactly as the suspension cascade does.</summary>
+    /// <summary>Marks a login's owned account suspended, exactly as the suspension cascade does.</summary>
     /// <param name="factory">The booted host.</param>
-    /// <param name="loginId">The login to suspend.</param>
+    /// <param name="loginId">The owner login whose membership is suspended.</param>
     private static async Task SuspendLoginAsync(WebApplicationFactory<Program> factory, Guid loginId)
     {
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        var login = await context.Users.SingleAsync(user => user.Id == loginId);
-        login.Suspend();
+        var membership = await context.AccountMemberships.SingleAsync(
+            candidate => candidate.UserId == loginId && candidate.Role == MembershipRole.Owner);
+        membership.Suspend();
         await context.SaveChangesAsync();
     }
 

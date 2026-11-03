@@ -84,6 +84,8 @@ public static class ExpectedErrorStatuses
             ["AgentPackageSourceUnreachable"] = ErrorType.Unavailable,
             ["AgentPrivateKeyMismatch"] = ErrorType.Validation,
             ["AgentPrivateKeyUnreadable"] = ErrorType.Validation,
+            ["AgentRunNotStopped"] = ErrorType.Failure,
+            ["AgentSaturated"] = ErrorType.Unavailable,
             ["AgentSystemFailure"] = ErrorType.Failure,
             ["AgentUnavailable"] = ErrorType.Unavailable,
             ["AgentUnspecified"] = ErrorType.Failure,
@@ -150,8 +152,12 @@ public static class ExpectedErrorStatuses
             ["CronEnvironmentTooManyVariables"] = ErrorType.Validation,
             ["CronEnvironmentValueInvalid"] = ErrorType.Validation,
             ["CronOperationFailed"] = ErrorType.Failure,
+            ["CronRunAccountLimitReached"] = ErrorType.Conflict,
+            ["CronRunAgentSaturated"] = ErrorType.Unavailable,
             ["CronRunNotFound"] = ErrorType.NotFound,
+            ["CronRunNotStopped"] = ErrorType.Failure,
             ["CronRunOutcomeUnknown"] = ErrorType.Validation,
+            ["CronRunServerBusy"] = ErrorType.Unavailable,
             ["CronScheduleInvalid"] = ErrorType.Validation,
             ["DatabaseGrantRepairCountInvalid"] = ErrorType.Validation,
             ["DatabaseGrantRepairPlanChanged"] = ErrorType.Conflict,
@@ -222,11 +228,14 @@ public static class ExpectedErrorStatuses
             ["AdminRecoveryNotAdministrator"] = ErrorType.Conflict,
             ["AdminRecoveryLoginNotActive"] = ErrorType.Conflict,
             ["PasswordTooWeak"] = ErrorType.Validation,
+            ["PasswordTooLong"] = ErrorType.Validation,
+            ["PasswordSameAsUsername"] = ErrorType.Validation,
             // Failure, not Validation: nothing the caller sent is wrong. The server could not say
             // whether the packages landed, which is the host's problem and a 500's meaning, and
             // classifying it as a bad request would send an operator looking at their own input.
             ["PhpInstallOutcomeUnobserved"] = ErrorType.Failure,
             ["PhpVersionInvalidFormat"] = ErrorType.Validation,
+            ["PhpVersionNotInstallable"] = ErrorType.Validation,
             ["PhpVersionNotInstalled"] = ErrorType.Validation,
             ["PlanInUse"] = ErrorType.Conflict,
             ["PlanNameTaken"] = ErrorType.Conflict,
@@ -248,6 +257,9 @@ public static class ExpectedErrorStatuses
             ["RestoreInvalidOutcome"] = ErrorType.Failure,
             ["RestorePartial"] = ErrorType.Failure,
             ["RestoreOutcomeUnobserved"] = ErrorType.Failure,
+            // Unavailable, not Failure: a dropped or idle stream is the link to the agent failing
+            // for now, which is the transient condition 503 means. RestoreAgentErrorTranslator
+            // raises exactly these kinds, and RaisedErrorKindsMatchCensusTests fails when they differ (#299).
             ["RestoreStreamDropped"] = ErrorType.Unavailable,
             ["RestoreStreamIdle"] = ErrorType.Unavailable,
             ["RestoreTruncated"] = ErrorType.Failure,
@@ -267,13 +279,13 @@ public static class ExpectedErrorStatuses
             ["AccountFeatureNotGranted"] = ErrorType.Forbidden,
             ["SubUsersOwnerOnly"] = ErrorType.Forbidden,
             ["SubUserNotFound"] = ErrorType.NotFound,
-            ["SubUserLoginTaken"] = ErrorType.Conflict,
-            ["SubUserEmailTaken"] = ErrorType.Conflict,
+            ["SubUserLimitReached"] = ErrorType.Conflict,
             ["SubUserFeatureInvalid"] = ErrorType.Validation,
             ["ViewAsAccountNotFound"] = ErrorType.NotFound,
             ["ViewAsLoginUnavailable"] = ErrorType.Conflict,
             ["ViewAsNotViewing"] = ErrorType.Conflict,
             ["AccountMembershipNotFound"] = ErrorType.NotFound,
+            ["AccountMembershipSuspended"] = ErrorType.Conflict,
             ["SetupAlreadyCompletedForbidden"] = ErrorType.Forbidden,
             ["SetupTokenExpiredUnauthorized"] = ErrorType.Unauthorized,
             ["SetupTokenInvalidUnauthorized"] = ErrorType.Unauthorized,
@@ -342,5 +354,6 @@ public static class ExpectedErrorStatuses
             ["HostRateLimited"] = StatusCodes.Status429TooManyRequests,
             ["HostTwoFactorSetupRequired"] = StatusCodes.Status403Forbidden,
             ["HostUnexpectedError"] = StatusCodes.Status500InternalServerError,
+            ["HostViewAsNotAllowed"] = StatusCodes.Status403Forbidden,
         };
 }

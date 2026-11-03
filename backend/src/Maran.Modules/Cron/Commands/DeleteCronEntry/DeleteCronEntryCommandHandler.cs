@@ -96,7 +96,7 @@ public sealed class DeleteCronEntryCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.CronEntryDeleted,
+            CronAuditActions.CronEntryDeleted,
             command.EntryId,
             command.IpAddress,
             command.UserAgent,
@@ -116,7 +116,7 @@ public sealed class DeleteCronEntryCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.CronEntryDeleted,
+            CronAuditActions.CronEntryDeleted,
             command.EntryId,
             command.IpAddress,
             command.UserAgent,

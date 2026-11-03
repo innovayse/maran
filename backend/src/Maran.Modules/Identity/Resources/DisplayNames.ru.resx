@@ -135,6 +135,9 @@
   <data name="AuditActionSftpUserPasswordReset">
     <value>Сброшен пароль SFTP</value>
   </data>
+  <data name="AuditActionSftpUserSessionsEnded">
+    <value>Завершены сеансы SFTP</value>
+  </data>
   <data name="AuditActionFtpsEnabled">
     <value>Служба FTPS включена</value>
   </data>
@@ -319,6 +322,18 @@
   <data name="AccountFeatureBackups">
     <value>Резервные копии</value>
   </data>
+  <data name="AccountFeatureSites">
+    <value>Сайты</value>
+  </data>
+  <data name="AccountFeatureSsl">
+    <value>SSL-сертификаты</value>
+  </data>
+  <data name="AccountFeatureTasks">
+    <value>Фоновые задачи</value>
+  </data>
+  <data name="AccountFeaturePhp">
+    <value>Версии PHP</value>
+  </data>
   <data name="MembershipRoleOwner">
     <value>Владелец</value>
   </data>
@@ -330,5 +345,11 @@
   </data>
   <data name="AuditActionViewAsEnded">
     <value>Завершён просмотр от имени аккаунта</value>
+  </data>
+  <data name="AuditOutcomeSucceeded">
+    <value>Успешно</value>
+  </data>
+  <data name="AuditOutcomeFailed">
+    <value>Отказ</value>
   </data>
 </root>

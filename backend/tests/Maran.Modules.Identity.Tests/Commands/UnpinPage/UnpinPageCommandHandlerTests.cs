@@ -58,7 +58,7 @@ public sealed class UnpinPageCommandHandlerTests : IAsyncLifetime
         }));
         Assert.Equal(2, await _context.PinnedPages.CountAsync());
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.PageUnpinned, entry.Action);
+        Assert.Equal(IdentityAuditActions.PageUnpinned, entry.Action);
         Assert.Equal("sites-list", entry.Subject);
     }
 

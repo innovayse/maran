@@ -19,7 +19,7 @@ public sealed class CertificateAuditJournalTests
         var journal = new CertificateAuditJournal(audit, FakeCurrentUser.Admin());
 
         await journal.RecordScheduledAsync(
-            AuditActions.CertificateRenewed,
+            CertificateAuditActions.CertificateRenewed,
             "soon.example.com",
             succeeded: true,
             CancellationToken.None);
@@ -36,7 +36,7 @@ public sealed class CertificateAuditJournalTests
         var journal = new CertificateAuditJournal(audit, FakeCurrentUser.Admin());
 
         await journal.RecordScheduledAsync(
-            AuditActions.CertificateRenewed,
+            CertificateAuditActions.CertificateRenewed,
             "soon.example.com",
             succeeded: true,
             CancellationToken.None);
@@ -52,7 +52,7 @@ public sealed class CertificateAuditJournalTests
         var journal = new CertificateAuditJournal(audit, FakeCurrentUser.Admin());
 
         await journal.RecordScheduledAsync(
-            AuditActions.CertificateRenewed,
+            CertificateAuditActions.CertificateRenewed,
             "soon.example.com",
             succeeded: false,
             CancellationToken.None);
@@ -80,7 +80,7 @@ public sealed class CertificateAuditJournalTests
         var journal = new CertificateAuditJournal(audit, user);
 
         await journal.RecordSuccessAsync(
-            AuditActions.CertificateIssued,
+            CertificateAuditActions.CertificateIssued,
             "a.example.com",
             "203.0.113.7",
             "Mozilla/5.0",

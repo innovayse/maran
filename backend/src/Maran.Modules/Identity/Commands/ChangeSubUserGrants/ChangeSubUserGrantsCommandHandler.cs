@@ -93,7 +93,7 @@ public sealed class ChangeSubUserGrantsCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
-            AuditActions.SubUserGrantsChanged,
+            IdentityAuditActions.SubUserGrantsChanged,
             user.Username,
             command.IpAddress,
             command.UserAgent,
@@ -117,7 +117,7 @@ public sealed class ChangeSubUserGrantsCommandHandler
         // leaves a trace of what was probed.
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
-            AuditActions.SubUserGrantsChanged,
+            IdentityAuditActions.SubUserGrantsChanged,
             command.UserId.ToString("D"),
             command.IpAddress,
             command.UserAgent,

@@ -2,6 +2,7 @@ using Maran.Modules.Cron.Common;
 using Maran.Modules.Cron.Mappers;
 using Maran.Modules.Cron.Persistence;
 using Maran.Modules.Cron.Resources;
+using Maran.Modules.Cron.Services;
 using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Cron.Queries.GetCronRun;
@@ -19,13 +20,18 @@ public sealed class GetCronRunQueryHandler
     /// <summary>The one window onto the owning account.</summary>
     private readonly IAccountDirectory _accounts;
 
+    /// <summary>Names the run's outcome in the request's culture.</summary>
+    private readonly CronRunDisplayNames _names;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">Where the runs are recorded.</param>
     /// <param name="accounts">The owning account.</param>
-    public GetCronRunQueryHandler(CronDbContext dbContext, IAccountDirectory accounts)
+    /// <param name="names">Names the run's outcome in the request's culture.</param>
+    public GetCronRunQueryHandler(CronDbContext dbContext, IAccountDirectory accounts, CronRunDisplayNames names)
     {
         _dbContext = dbContext;
         _accounts = accounts;
+        _names = names;
     }
 
     /// <summary>Reads the run.</summary>
@@ -48,6 +54,6 @@ public sealed class GetCronRunQueryHandler
 
         return run is null
             ? Result<CronRunDto>.Fail(Error.Of(nameof(ErrorMessages.CronRunNotFound), ErrorType.NotFound))
-            : Result<CronRunDto>.Ok(CronRunMapper.From(run));
+            : Result<CronRunDto>.Ok(CronRunMapper.From(run, _names.Of(run.Outcome)));
     }
 }

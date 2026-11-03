@@ -91,7 +91,8 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
         await MigrateAsync(factory);
         using var client = factory.CreateClient();
 
-        var response = await client.SendAsync(new HttpRequestMessage(new HttpMethod(method), path));
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -110,7 +111,8 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
         await SeedAsync(factory);
         using var client = await SignInAsync(factory, "customer");
 
-        var response = await client.SendAsync(new HttpRequestMessage(new HttpMethod(method), path));
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -193,7 +195,7 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var recorded = await identity.AuditEvents
-            .Where(entry => entry.Action == AuditActions.LicenceStatusRead)
+            .Where(entry => entry.Action == LicenceAuditActions.LicenceStatusRead)
             .ToListAsync();
 
         Assert.Single(recorded);
@@ -229,7 +231,7 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
     /// <summary>Boots the host against this class's PostgreSQL.</summary>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new ConfiguredHostFactory(builder =>
         {
             builder.UseEnvironment("Testing");
             foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
@@ -288,7 +290,6 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
             Guid.NewGuid(), "admin", "admin@example.com", hasher.Hash(Password), UserRole.Admin, now));
         var customer = new User(
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        customer.AssignAccount(own.Id);
         identity.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), customer.Id, own.Id, now));
         identity.Users.Add(customer);
         await identity.SaveChangesAsync();

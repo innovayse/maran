@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.IntegrationEvents.Handlers;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -37,10 +38,17 @@ public sealed class AccountLoginEmailChangeRequestedHandlerTests : IDisposable
     /// <param name="accountId">The account it owns.</param>
     private async Task<User> SeedLoginAsync(string username, string email, Guid accountId)
     {
-        var user = User.Invite(Guid.NewGuid(), username, email, accountId, Now);
+        var user = User.Invite(Guid.NewGuid(), username, email, Now);
         _context.Users.Add(user);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, accountId, Now));
         await _context.SaveChangesAsync();
         return user;
+    }
+
+    /// <summary>Builds the handler over the test context.</summary>
+    private AccountLoginEmailChangeRequestedHandler NewHandler()
+    {
+        return new AccountLoginEmailChangeRequestedHandler(_context, new AccountOwnerFinder(_context));
     }
 
     /// <summary>The account's login moves to the new address.</summary>
@@ -49,7 +57,7 @@ public sealed class AccountLoginEmailChangeRequestedHandlerTests : IDisposable
     {
         var user = await SeedLoginAsync("owner-one", "old@example.com", AccountId);
 
-        var result = await new AccountLoginEmailChangeRequestedHandler(_context).HandleAsync(
+        var result = await NewHandler().HandleAsync(
             new AccountLoginEmailChangeRequested(AccountId, "new@example.com"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -65,7 +73,7 @@ public sealed class AccountLoginEmailChangeRequestedHandlerTests : IDisposable
         var user = await SeedLoginAsync("owner-one", "old@example.com", AccountId);
         await SeedLoginAsync("owner-two", "taken@example.com", Guid.NewGuid());
 
-        var result = await new AccountLoginEmailChangeRequestedHandler(_context).HandleAsync(
+        var result = await NewHandler().HandleAsync(
             new AccountLoginEmailChangeRequested(AccountId, "taken@example.com"), CancellationToken.None);
 
         Assert.Equal("EmailTaken", result.Error!.Code);
@@ -80,7 +88,7 @@ public sealed class AccountLoginEmailChangeRequestedHandlerTests : IDisposable
     {
         await SeedLoginAsync("owner-one", "same@example.com", AccountId);
 
-        var result = await new AccountLoginEmailChangeRequestedHandler(_context).HandleAsync(
+        var result = await NewHandler().HandleAsync(
             new AccountLoginEmailChangeRequested(AccountId, "same@example.com"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -90,7 +98,7 @@ public sealed class AccountLoginEmailChangeRequestedHandlerTests : IDisposable
     [Fact]
     public async Task An_account_with_no_login_is_a_success_with_nothing_to_move()
     {
-        var result = await new AccountLoginEmailChangeRequestedHandler(_context).HandleAsync(
+        var result = await NewHandler().HandleAsync(
             new AccountLoginEmailChangeRequested(AccountId, "new@example.com"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);

@@ -159,7 +159,7 @@ public sealed class CreateCronEntryCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.CronEntryCreated, created.Value, command.IpAddress, command.UserAgent, cancellationToken);
+            CronAuditActions.CronEntryCreated, created.Value, command.IpAddress, command.UserAgent, cancellationToken);
 
         // Enabled, because the agent installs a new entry as a live crontab line; disabling is a
         // separate operation and a separate audit action.
@@ -214,7 +214,7 @@ public sealed class CreateCronEntryCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.CronEntryCreated, Subject(command), command.IpAddress, command.UserAgent, cancellationToken);
+            CronAuditActions.CronEntryCreated, Subject(command), command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<CronEntryDto>.Fail(error);
     }

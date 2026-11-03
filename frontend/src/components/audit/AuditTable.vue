@@ -3,8 +3,8 @@
  * One page of the audit journal as a table. Props in, events out: the page owns the paging, the
  * filters and every request.
  *
- * **A failure is told by its text, never by its colour alone.** The outcome column prints "Failed"
- * or "Succeeded" in words; a reader who cannot tell red from green loses nothing.
+ * **A failure is told by its text, never by its colour alone.** The outcome column prints the panel's
+ * word for it (`outcomeName`); a reader who cannot tell red from green loses nothing.
  *
  * **Machine text is mono and never uppercased.** The instant, the address, the subject and the
  * action constant are values an administrator copies into a ticket or greps a log by, so they are
@@ -108,7 +108,7 @@ const sortBy = (field: string): void => {
     <template #cell-address="{ row }">{{ row.ipAddress }}</template>
     <template #cell-outcome="{ row }">
       <UiBadge :variant="row.succeeded ? 'success' : 'danger'">
-        {{ row.succeeded ? t('app.audit.succeeded') : t('app.audit.failed') }}
+        {{ row.outcomeName }}
       </UiBadge>
     </template>
   </UiTable>

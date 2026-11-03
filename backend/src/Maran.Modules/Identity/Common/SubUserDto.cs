@@ -12,8 +12,8 @@ namespace Maran.Modules.Identity.Common;
 /// <param name="Email">The address their invitation went to and their password resets will go to.</param>
 /// <param name="State">
 /// <see cref="UserLifecycle.Invited"/> until they accept the invitation and choose a password, then
-/// <see cref="UserLifecycle.Active"/>; <see cref="UserLifecycle.InvitedAccountSuspended"/> and
-/// <see cref="UserLifecycle.Suspended"/> while the owner's account is suspended.
+/// <see cref="UserLifecycle.Active"/>. A suspension is never shown here: it belongs to the
+/// membership of an account, and the owner who reads this list cannot be signed in to a suspended one.
 /// </param>
 /// <param name="Features">The single features they may use, one value per feature (never the bits).</param>
 /// <param name="CreatedAt">When the owner added them.</param>

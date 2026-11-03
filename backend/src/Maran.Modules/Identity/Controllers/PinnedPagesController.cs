@@ -38,6 +38,7 @@ public sealed class PinnedPagesController : BaseApiController
     /// <summary>Lists the caller's pinned pages, lowest position first, with the limit.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(PinnedPagesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
@@ -55,6 +56,7 @@ public sealed class PinnedPagesController : BaseApiController
     /// <param name="command">The page to pin. Whose pin it is, and the audit origin, are written here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.SafeMutation)]
     [ProducesResponseType(typeof(PinnedPagesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -74,6 +76,7 @@ public sealed class PinnedPagesController : BaseApiController
     /// <param name="itemKey">The navigation tree key of the page to unpin.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete("{itemKey}")]
+    [ViewAsAccess(ViewAsAccess.SafeMutation)]
     [ProducesResponseType(typeof(PinnedPagesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

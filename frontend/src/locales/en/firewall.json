@@ -3,15 +3,9 @@
     "heading": "Firewall",
     "subtitle": "The ports this host lets through, and from where.",
     "sshNote": "The accept rules the panel generates for SSH and for its own port are not listed here and cannot be removed from this screen. Which port SSH listens on is a host fact the panel holds and does not send to the browser, so read the port yourself before changing a rule.",
-    "protocols": {
-      "tcp": "TCP",
-      "udp": "UDP"
-    },
     "presets": {
       "heading": "Presets",
-      "subtitle": "The ports opened often enough that typing them into three fields is friction. Each one sends the same request the form below sends.",
-      "web": "Open the web ports (80 and 443)",
-      "mysqlExternal": "MySQL reachable from outside (3306)"
+      "subtitle": "The ports opened often enough that typing them into three fields is friction. Each one sends the same request the form below sends."
     },
     "rules": {
       "heading": "Rules",
@@ -43,7 +37,8 @@
           "portInvalid": "Enter a port between 1 and 65535.",
           "portToInvalid": "Leave empty for a single port, or enter a port between 1 and 65535 above the one on the left.",
           "sourceRequired": "Enter the source range.",
-          "sourceInvalid": "Enter a range in CIDR notation with no bits set below the prefix — 203.0.113.0/24, not 203.0.113.7/24."
+          "sourceInvalid": "Enter a range in CIDR notation with no bits set below the prefix — 203.0.113.0/24, not 203.0.113.7/24.",
+          "protocolRequired": "Choose a protocol."
         },
         "hint": "0.0.0.0/0 admits every source. Leave the second port empty to open one port. A narrower range is confirmed before it is installed.",
         "submit": "Open the port"

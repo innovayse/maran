@@ -25,6 +25,7 @@ const ALICE: Account = {
   primaryDomain: 'alice.example.com',
   planId: '44444444-4444-4444-4444-444444444444',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -36,8 +37,10 @@ const ALPHA: Site = {
   ownerName: ALICE.name,
   domain: 'alpha.example.com',
   backendType: 'php',
+  backendTypeName: 'PHP',
   phpVersion: '8.3',
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -47,8 +50,10 @@ const BETA: Site = {
   ownerName: BOB.name,
   domain: 'beta.example.com',
   backendType: 'static',
+  backendTypeName: 'Static',
   phpVersion: '',
   status: 'disabled',
+  statusName: 'Disabled',
   createdAt: '2026-08-02T10:00:00Z',
 }
 
@@ -69,8 +74,10 @@ const catalogue = (count: number): Site[] => {
       ownerName: owner.name,
       domain: `site-${number}.example.com`,
       backendType: isStatic ? 'static' : 'php',
+      backendTypeName: isStatic ? 'Static' : 'PHP',
       phpVersion: isStatic ? '' : '8.3',
       status: index % 5 === 4 ? 'disabled' : 'enabled',
+      statusName: index % 5 === 4 ? 'Disabled' : 'Enabled',
       createdAt: `2026-08-${number}T10:00:00Z`,
     }
   })

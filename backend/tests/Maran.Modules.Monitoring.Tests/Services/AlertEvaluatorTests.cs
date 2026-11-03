@@ -50,7 +50,7 @@ public sealed class AlertEvaluatorTests
 
         var raises = audit.Entries.Where(entry =>
         {
-            return entry.Action == AuditActions.AlertRaised;
+            return entry.Action == MonitoringAuditActions.AlertRaised;
         }).ToList();
         Assert.Single(raises);
         Assert.Equal("DiskUsage:/", raises[0].Subject);
@@ -77,7 +77,7 @@ public sealed class AlertEvaluatorTests
         Assert.Equal(2, scopes.Bus.Published.Count);
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AlertResolved;
+            return entry.Action == MonitoringAuditActions.AlertResolved;
         });
     }
 
@@ -172,7 +172,7 @@ public sealed class AlertEvaluatorTests
         Assert.Single(scopes.Bus.Published);
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AlertRaised && entry.Subject == "ServiceStopped:WebServer";
+            return entry.Action == MonitoringAuditActions.AlertRaised && entry.Subject == "ServiceStopped:WebServer";
         });
     }
 
@@ -200,7 +200,7 @@ public sealed class AlertEvaluatorTests
         Assert.Equal("ops@example.com", mail.Recipient);
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AlertRaised
+            return entry.Action == MonitoringAuditActions.AlertRaised
                 && entry.Subject == $"SftpJailDrifted:{AlertEvaluator.SftpJailSubject}";
         });
     }
@@ -229,7 +229,7 @@ public sealed class AlertEvaluatorTests
         Assert.Equal(2, scopes.Bus.Published.Count);
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AlertResolved
+            return entry.Action == MonitoringAuditActions.AlertResolved
                 && entry.Subject == $"SftpJailDrifted:{AlertEvaluator.SftpJailSubject}";
         });
     }
@@ -281,7 +281,7 @@ public sealed class AlertEvaluatorTests
         Assert.Equal("ops@example.com", mail.Recipient);
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AlertRaised
+            return entry.Action == MonitoringAuditActions.AlertRaised
                 && entry.Subject == $"QuotaNotEnforceable:{AlertEvaluator.AccountHomeFilesystemSubject}";
         });
     }
@@ -310,7 +310,7 @@ public sealed class AlertEvaluatorTests
         Assert.Equal(2, scopes.Bus.Published.Count);
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AlertResolved
+            return entry.Action == MonitoringAuditActions.AlertResolved
                 && entry.Subject == $"QuotaNotEnforceable:{AlertEvaluator.AccountHomeFilesystemSubject}";
         });
     }
@@ -362,11 +362,11 @@ public sealed class AlertEvaluatorTests
         Assert.Empty(scopes.Bus.Published);
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AlertRaised;
+            return entry.Action == MonitoringAuditActions.AlertRaised;
         });
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.MailSkippedNoSmtp;
+            return entry.Action == MailAuditActions.MailSkippedNoSmtp;
         });
     }
 
@@ -403,7 +403,7 @@ public sealed class AlertEvaluatorTests
 
         var raised = Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AlertRaised;
+            return entry.Action == MonitoringAuditActions.AlertRaised;
         });
         Assert.Contains("version=1.4.2", raised.Subject);
         Assert.Contains("count=3", raised.Subject);
@@ -430,7 +430,7 @@ public sealed class AlertEvaluatorTests
         Assert.Empty(scopes.Bus.Published);
         Assert.DoesNotContain(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.AlertRaised;
+            return entry.Action == MonitoringAuditActions.AlertRaised;
         });
     }
 
@@ -531,7 +531,7 @@ public sealed class AlertEvaluatorTests
         Assert.Empty(dbContext.AlertStates);
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.CodeIntegrityReportRejected;
+            return entry.Action == MonitoringAuditActions.CodeIntegrityReportRejected;
         });
     }
 

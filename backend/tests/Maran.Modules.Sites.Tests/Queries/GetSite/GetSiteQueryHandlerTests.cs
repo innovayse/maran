@@ -15,7 +15,7 @@ public sealed class GetSiteQueryHandlerTests
         var siteId = await SeedAsync(database, account, "mine.example.com");
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
 
-        var result = await new GetSiteQueryHandler(context).HandleAsync(
+        var result = await new GetSiteQueryHandler(context, SitesTestContext.SiteNames()).HandleAsync(
             new GetSiteQuery(siteId),
             CancellationToken.None);
 
@@ -23,6 +23,25 @@ public sealed class GetSiteQueryHandlerTests
         Assert.Equal("mine.example.com", result.Value.Domain);
         Assert.Equal("/home/acct/sites/mine.example.com", result.Value.DocumentRoot);
         Assert.False(result.Value.HasCertificate);
+    }
+
+    /// <summary>A site reaches the caller with its backend and serving state named in the request's language.</summary>
+    [Fact]
+    public async Task A_site_reaches_the_caller_with_its_backend_and_serving_state_named_in_the_requests_language()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account, "mine.example.com");
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+        using var scope = new CultureScope("en");
+
+        var result = await new GetSiteQueryHandler(context, SitesTestContext.SiteNames()).HandleAsync(
+            new GetSiteQuery(siteId),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("PHP", result.Value.BackendTypeName);
+        Assert.Equal("Enabled", result.Value.StatusName);
     }
 
     /// <summary>Reading a site returns the aliases it was created with.</summary>
@@ -36,7 +55,7 @@ public sealed class GetSiteQueryHandlerTests
         var siteId = await SeedAsync(database, account, "mine.example.com", "www.mine.example.com", "cdn.mine.example.com");
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
 
-        var result = await new GetSiteQueryHandler(context).HandleAsync(
+        var result = await new GetSiteQueryHandler(context, SitesTestContext.SiteNames()).HandleAsync(
             new GetSiteQuery(siteId),
             CancellationToken.None);
 
@@ -56,7 +75,7 @@ public sealed class GetSiteQueryHandlerTests
         var theirSiteId = await SeedAsync(database, theirs, "theirs.example.com");
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
 
-        var result = await new GetSiteQueryHandler(context).HandleAsync(
+        var result = await new GetSiteQueryHandler(context, SitesTestContext.SiteNames()).HandleAsync(
             new GetSiteQuery(theirSiteId),
             CancellationToken.None);
 
@@ -76,7 +95,7 @@ public sealed class GetSiteQueryHandlerTests
         var siteId = await SeedAsync(database, theirs, "theirs.example.com");
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
-        var result = await new GetSiteQueryHandler(context).HandleAsync(
+        var result = await new GetSiteQueryHandler(context, SitesTestContext.SiteNames()).HandleAsync(
             new GetSiteQuery(siteId),
             CancellationToken.None);
 

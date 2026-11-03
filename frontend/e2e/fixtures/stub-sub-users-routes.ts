@@ -92,7 +92,12 @@ export const stubSubUsers = async (
         email: submitted.email,
       }
       users.push(created)
-      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(created) })
+      // The real answer is 202 with an echo of the input, identical for a taken name (issue #341).
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ username: submitted.username, email: submitted.email }),
+      })
       return
     }
 

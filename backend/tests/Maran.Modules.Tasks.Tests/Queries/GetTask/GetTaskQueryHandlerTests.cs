@@ -23,7 +23,7 @@ public sealed class GetTaskQueryHandlerTests
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin, database);
         var handler = new GetTaskQueryHandler(
-            context, TasksTestContext.KindNames(), TasksTestContext.FailureMessages(), admin);
+            context, TasksTestContext.KindNames(), TasksTestContext.StatusNames(), TasksTestContext.FailureMessages(), admin);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -65,7 +65,7 @@ public sealed class GetTaskQueryHandlerTests
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin, database);
         var handler = new GetTaskQueryHandler(
-            context, TasksTestContext.KindNames(), TasksTestContext.FailureMessages(), admin);
+            context, TasksTestContext.KindNames(), TasksTestContext.StatusNames(), TasksTestContext.FailureMessages(), admin);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -95,7 +95,7 @@ public sealed class GetTaskQueryHandlerTests
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin, database);
         var handler = new GetTaskQueryHandler(
-            context, TasksTestContext.KindNames(), TasksTestContext.FailureMessages(), admin);
+            context, TasksTestContext.KindNames(), TasksTestContext.StatusNames(), TasksTestContext.FailureMessages(), admin);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -122,7 +122,7 @@ public sealed class GetTaskQueryHandlerTests
         var customer = FakeCurrentUser.Customer();
         await using var context = TasksTestContext.Create(customer, database);
         var handler = new GetTaskQueryHandler(
-            context, TasksTestContext.KindNames(), TasksTestContext.FailureMessages(), customer);
+            context, TasksTestContext.KindNames(), TasksTestContext.StatusNames(), TasksTestContext.FailureMessages(), customer);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -147,7 +147,7 @@ public sealed class GetTaskQueryHandlerTests
         var customer = FakeCurrentUser.Customer(accountId);
         await using var context = TasksTestContext.Create(customer, database);
         var handler = new GetTaskQueryHandler(
-            context, TasksTestContext.KindNames(), TasksTestContext.FailureMessages(), customer);
+            context, TasksTestContext.KindNames(), TasksTestContext.StatusNames(), TasksTestContext.FailureMessages(), customer);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -172,7 +172,7 @@ public sealed class GetTaskQueryHandlerTests
         var customer = FakeCurrentUser.Customer(Guid.NewGuid());
         await using var context = TasksTestContext.Create(customer, database);
         var handler = new GetTaskQueryHandler(
-            context, TasksTestContext.KindNames(), TasksTestContext.FailureMessages(), customer);
+            context, TasksTestContext.KindNames(), TasksTestContext.StatusNames(), TasksTestContext.FailureMessages(), customer);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -187,7 +187,7 @@ public sealed class GetTaskQueryHandlerTests
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin);
         var handler = new GetTaskQueryHandler(
-            context, TasksTestContext.KindNames(), TasksTestContext.FailureMessages(), admin);
+            context, TasksTestContext.KindNames(), TasksTestContext.StatusNames(), TasksTestContext.FailureMessages(), admin);
 
         var result = await handler.HandleAsync(new GetTaskQuery(Guid.NewGuid()), CancellationToken.None);
 

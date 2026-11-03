@@ -96,7 +96,9 @@ public sealed class BackupFailureDisplayNamesTests
                 continue;
             }
 
-            var code = "Agent" + wireCode;
+            // A member that already carries the prefix (AgentSaturated) is emitted as itself, not doubled.
+            var member = wireCode.ToString();
+            var code = member.StartsWith("Agent", StringComparison.Ordinal) ? member : "Agent" + member;
 
             if (string.Equals(names.Of(code), code, StringComparison.Ordinal))
             {

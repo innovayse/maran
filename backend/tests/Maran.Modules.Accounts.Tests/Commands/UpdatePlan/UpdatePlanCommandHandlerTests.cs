@@ -100,7 +100,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         Assert.Equal("PlanNotFound", result.Error!.Code);
         Assert.Equal(ErrorType.NotFound, result.Error.Type);
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanUpdated, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanUpdated, entry.Action);
         Assert.Equal(missing.ToString("D"), entry.Subject);
         Assert.False(entry.Succeeded);
         Assert.Empty(_agent.Calls);
@@ -136,7 +136,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Same() with { MaxSites = 11 }, CancellationToken.None);
 
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanUpdated, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanUpdated, entry.Action);
         Assert.Equal("Agency", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.Equal("203.0.113.7", entry.IpAddress);
@@ -247,7 +247,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         Assert.Equal(10_240, stored.DiskQuotaMb);
         Assert.Equal(10, stored.MaxSites);
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanUpdated, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanUpdated, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal("Agency", entry.Subject);
     }
@@ -419,7 +419,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         Assert.Equal("PlanNameTaken", result.Error!.Code);
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanUpdated, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanUpdated, entry.Action);
         Assert.Equal("Agency", entry.Subject);
         Assert.False(entry.Succeeded);
         Assert.Equal(10, (await ReloadAsync()).MaxSites);

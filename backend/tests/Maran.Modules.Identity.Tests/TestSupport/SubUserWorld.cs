@@ -42,6 +42,9 @@ public sealed class SubUserWorld : IDisposable
     /// <summary>The journal over <see cref="Audit"/>, naming <see cref="Caller"/>.</summary>
     public IdentityAuditJournal Journal { get; }
 
+    /// <summary>The stand-in for the invitation lock, counting commits and rollbacks.</summary>
+    public EmulatedTeamLock TeamLock { get; }
+
     /// <summary>Creates the world with the owner's login and ownership already stored.</summary>
     public SubUserWorld()
     {
@@ -52,6 +55,7 @@ public sealed class SubUserWorld : IDisposable
         Context.SaveChanges();
         Caller = new StubCustomerUser(Owner.Id, Owner.Username, AccountId);
         Journal = new IdentityAuditJournal(Audit, Caller);
+        TeamLock = new EmulatedTeamLock(Context);
     }
 
     /// <summary>The guard over <paramref name="caller"/>.</summary>
@@ -69,7 +73,7 @@ public sealed class SubUserWorld : IDisposable
     /// <returns>The member's login.</returns>
     public async Task<User> SeedMemberAsync(string username, AccountFeature grants, Guid? accountId = null)
     {
-        var user = User.InviteMember(Guid.NewGuid(), username, username + "@example.com", Now);
+        var user = User.Invite(Guid.NewGuid(), username, username + "@example.com", Now);
         user.Activate("hash");
         Context.Users.Add(user);
         Context.AccountMemberships.Add(

@@ -51,7 +51,7 @@ public sealed class SendMailRequestedHandlerTests
         await handler.HandleAsync(ResetMail, CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.MailSendFailed, entry.Action);
+        Assert.Equal(MailAuditActions.MailSendFailed, entry.Action);
         Assert.Equal(ResetMail.Recipient, entry.Subject);
         Assert.False(entry.Succeeded);
     }
@@ -72,7 +72,7 @@ public sealed class SendMailRequestedHandlerTests
         await handler.HandleAsync(ResetMail, CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.MailSendFailed, entry.Action);
+        Assert.Equal(MailAuditActions.MailSendFailed, entry.Action);
     }
 
     /// <summary>Cancellation is caught too, because a shutdown must not dead-letter the envelope either.</summary>
@@ -115,7 +115,7 @@ public sealed class SendMailRequestedHandlerTests
         await handler.HandleAsync(ResetMail, CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.MailSkippedNoSmtp, entry.Action);
+        Assert.Equal(MailAuditActions.MailSkippedNoSmtp, entry.Action);
         // And SUCCEEDED, which is the half this test did not assert: changing the outcome broke
         // nothing here, so a fresh install kept writing a red FAILED row for mail that was
         // correctly not sent (issue #71). The send-failure test above asserts the opposite, so the

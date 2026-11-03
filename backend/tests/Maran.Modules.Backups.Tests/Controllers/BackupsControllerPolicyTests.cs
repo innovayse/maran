@@ -20,6 +20,7 @@ public sealed class BackupsControllerPolicyTests
     [InlineData(typeof(BackupDestinationsController), AuthorizationPolicies.AdminOnly)]
     [InlineData(typeof(BackupSchedulesController), AuthorizationPolicies.AdminOnly)]
     [InlineData(typeof(BackupsController), AuthorizationPolicies.AnyAuthenticated)]
+    [InlineData(typeof(BackupOptionsController), AuthorizationPolicies.AnyAuthenticated)]
     public void A_controller_names_its_policy_on_the_class(Type controller, string policy)
     {
         var policies = controller
@@ -86,6 +87,7 @@ public sealed class BackupsControllerPolicyTests
         var expected = new[]
         {
             nameof(BackupDestinationsController),
+            nameof(BackupOptionsController),
             nameof(BackupSchedulesController),
             nameof(BackupsController),
         };

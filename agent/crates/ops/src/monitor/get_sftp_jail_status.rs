@@ -23,7 +23,7 @@ use crate::monitor::monitor_host::MonitorHost;
 ///
 /// # What it checks, and how
 ///
-/// It reads [`DistroAdapter::sshd_config_path`] and asks
+/// It reads [`FileTransferFacts::sshd_config_path`](maran_distro::FileTransferFacts::sshd_config_path) and asks
 /// [`SftpJailStatus::evaluate`] whether the exact block the installer writes —
 /// found between its own marker comments — still carries `Match Group
 /// <group>`, `ChrootDirectory %h`, `ForceCommand internal-sftp`,

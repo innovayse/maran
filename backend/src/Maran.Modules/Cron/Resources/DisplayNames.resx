@@ -15,4 +15,49 @@
   <data name="CronModuleDisplayName">
     <value>Scheduled tasks</value>
   </data>
+  <data name="CronFrequencyEveryMinute">
+    <value>Every minute</value>
+  </data>
+  <data name="CronFrequencyHourly">
+    <value>Every hour</value>
+  </data>
+  <data name="CronFrequencyDaily">
+    <value>Every day</value>
+  </data>
+  <data name="CronFrequencyWeekly">
+    <value>Every week</value>
+  </data>
+  <data name="CronFrequencyMonthly">
+    <value>Every month</value>
+  </data>
+  <data name="CronWeekdaySunday">
+    <value>Sunday</value>
+  </data>
+  <data name="CronWeekdayMonday">
+    <value>Monday</value>
+  </data>
+  <data name="CronWeekdayTuesday">
+    <value>Tuesday</value>
+  </data>
+  <data name="CronWeekdayWednesday">
+    <value>Wednesday</value>
+  </data>
+  <data name="CronWeekdayThursday">
+    <value>Thursday</value>
+  </data>
+  <data name="CronWeekdayFriday">
+    <value>Friday</value>
+  </data>
+  <data name="CronWeekdaySaturday">
+    <value>Saturday</value>
+  </data>
+  <data name="CronRunOutcomeSucceeded">
+    <value>Succeeded</value>
+  </data>
+  <data name="CronRunOutcomeFailed">
+    <value>Failed</value>
+  </data>
+  <data name="CronRunOutcomeStopped">
+    <value>Stopped</value>
+  </data>
 </root>

@@ -1,14 +1,5 @@
 {
   "sites": {
-    "status": {
-      "enabled": "Enabled",
-      "disabled": "Disabled"
-    },
-    "backendType": {
-      "static": "Static",
-      "php": "PHP",
-      "reverseProxy": "Reverse proxy"
-    },
     "list": {
       "heading": "Sites",
       "subtitle": "Websites served from this server.",

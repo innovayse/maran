@@ -31,7 +31,7 @@ namespace Maran.Sdk.Alerts;
 /// investigating needs the first even when the second never happened.
 /// </para>
 /// <para>
-/// <b>Nobody to tell is <see cref="AuditActions.MailSkippedNoSmtp"/>, SUCCEEDED.</b> Outgoing mail
+/// <b>Nobody to tell is <see cref="MailAuditActions.MailSkippedNoSmtp"/>, SUCCEEDED.</b> Outgoing mail
 /// not being configured is the ordinary state of a fresh installation, and skipping the send is the
 /// correct thing to do rather than a thing that failed. Recorded as a failure it put a red row in
 /// the journal of every freshly installed server within minutes, and an operator who learns that
@@ -64,8 +64,8 @@ public sealed class OperatorAlertMailer
     /// <summary>Journals one operator alert and asks for its mail.</summary>
     /// <param name="journal">The calling module's journal, which the entries are written through.</param>
     /// <param name="action">
-    /// What the alert records — <see cref="AuditActions.AlertRaised"/> or
-    /// <see cref="AuditActions.AlertResolved"/>.
+    /// What the alert records — <see cref="MonitoringAuditActions.AlertRaised"/> or
+    /// <see cref="MonitoringAuditActions.AlertResolved"/>.
     /// </param>
     /// <param name="auditSubject">The journal subject, in the calling module's own form.</param>
     /// <param name="mailSubject">The localized subject line.</param>
@@ -86,7 +86,7 @@ public sealed class OperatorAlertMailer
         if (recipient is null)
         {
             await journal.RecordSystemAsync(
-                AuditActions.MailSkippedNoSmtp, auditSubject, succeeded: true, cancellationToken);
+                MailAuditActions.MailSkippedNoSmtp, auditSubject, succeeded: true, cancellationToken);
             return;
         }
 

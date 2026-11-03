@@ -1,9 +1,5 @@
 {
   "accounts": {
-    "status": {
-      "active": "Ակտիվ",
-      "suspended": "Կասեցված"
-    },
     "list": {
       "heading": "Հաշիվներ",
       "subtitle": "Այս սերվերի հոսթինգային հաշիվները։",

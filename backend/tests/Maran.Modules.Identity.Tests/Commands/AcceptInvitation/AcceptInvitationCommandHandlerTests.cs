@@ -5,6 +5,7 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
 using Maran.SharedKernel.Utilities.Tokens;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,8 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
     /// <summary>Seeds the invited login every test accepts an invitation for.</summary>
     public async Task InitializeAsync()
     {
-        _context.Users.Add(User.Invite(_userId, "owner-one", "owner@example.com", Guid.NewGuid(), Now));
+        _context.Users.Add(User.Invite(_userId, "owner-one", "owner@example.com", Now));
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), _userId, Guid.NewGuid(), Now));
         await _context.SaveChangesAsync();
     }
 
@@ -52,9 +54,9 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
         return token;
     }
 
-    private static AcceptInvitationCommand Command(string token)
+    private static AcceptInvitationCommand Command(string token, string password = NewPassword)
     {
-        return new AcceptInvitationCommand(token, NewPassword, "203.0.113.7", "agent");
+        return new AcceptInvitationCommand(token, password, "203.0.113.7", "agent");
     }
 
     /// <summary>A valid token sets the password and activates the login.</summary>
@@ -161,7 +163,7 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
         await NewHandler().HandleAsync(Command(token), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Written);
-        Assert.Equal(AuditActions.InvitationAccepted, entry.Action);
+        Assert.Equal(IdentityAuditActions.InvitationAccepted, entry.Action);
         Assert.True(entry.Succeeded);
         Assert.DoesNotContain(token, entry.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain(NewPassword, entry.Subject, StringComparison.Ordinal);
@@ -169,54 +171,89 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
 
     /// <summary>
     /// Accepting an invitation while the hosting account is suspended stores the chosen password but
-    /// does NOT produce a usable login: the account created, invited, then suspended before the
-    /// owner opened the link must not become <see cref="UserLifecycle.Active"/> just because the token is
-    /// still live.
+    /// does NOT produce a way in: the login becomes <see cref="UserLifecycle.Active"/>, and its
+    /// membership of the suspended account is what keeps it from signing in.
     /// </summary>
     /// <remarks>
-    /// Closes the hole a final review found: <c>User.Suspend()</c> deliberately leaves an
-    /// <see cref="UserLifecycle.Invited"/> login in <c>Invited</c> rather than consuming the invitation,
-    /// but nothing previously stopped <c>Activate</c> from later making it fully usable regardless.
+    /// Closes the hole a final review found: nothing may let an owner turn a suspended hosting account
+    /// into a working login by finding an old invitation link. The suspension used to be a lifecycle
+    /// value the invitation had to preserve; it is now the state of the membership, which accepting
+    /// the invitation never touches.
     /// </remarks>
     [Fact]
-    public async Task Accepting_an_invitation_on_a_suspended_account_does_not_activate_the_login()
+    public async Task Accepting_an_invitation_on_a_suspended_account_does_not_open_the_account()
     {
         var token = await IssueTokenAsync();
-        var user = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        user.Suspend();
+        (await _context.AccountMemberships.SingleAsync()).Suspend();
         await _context.SaveChangesAsync();
 
         var result = await NewHandler().HandleAsync(Command(token), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         var stored = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        Assert.Equal(UserLifecycle.Suspended, stored.Lifecycle);
-        Assert.NotEqual(UserLifecycle.Active, stored.Lifecycle);
+        Assert.Equal(UserLifecycle.Active, stored.Lifecycle);
+        Assert.Equal(MembershipState.Suspended, (await _context.AccountMemberships.SingleAsync()).State);
+        Assert.True(await new ActiveAccountResolver(_context).IsSuspendedEverywhereAsync(stored, CancellationToken.None));
         // The password was still stored: once the account is resumed the owner may sign in with the
         // password they already chose, rather than needing a second invitation.
         Assert.True(_hasher.Verify(NewPassword, stored.PasswordHash));
     }
 
     /// <summary>
-    /// Once the account is resumed, the login the owner already completed while suspended becomes
-    /// usable — no second invitation is needed.
+    /// Once the account is resumed, the login the owner already completed while suspended may act for
+    /// it — no second invitation is needed.
     /// </summary>
     [Fact]
-    public async Task Resuming_the_account_makes_the_already_accepted_login_active()
+    public async Task Resuming_the_account_makes_the_already_accepted_login_usable()
     {
         var token = await IssueTokenAsync();
-        var user = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        user.Suspend();
+        var membership = await _context.AccountMemberships.SingleAsync();
+        membership.Suspend();
         await _context.SaveChangesAsync();
 
         await NewHandler().HandleAsync(Command(token), CancellationToken.None);
 
-        var stored = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
-        stored.Resume();
+        membership.Resume();
         await _context.SaveChangesAsync();
 
         var resumed = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
         Assert.Equal(UserLifecycle.Active, resumed.Lifecycle);
+        Assert.False(await new ActiveAccountResolver(_context).IsSuspendedEverywhereAsync(resumed, CancellationToken.None));
         Assert.True(_hasher.Verify(NewPassword, resumed.PasswordHash));
+    }
+
+    /// <summary>A valid token with a password equal to the login's username is refused and not spent.</summary>
+    /// <remarks>
+    /// The token is left usable on purpose: the refusal is about the password, so the invitee may
+    /// pick another with the same link, and the login stays invited.
+    /// </remarks>
+    [Fact]
+    public async Task A_valid_token_with_the_username_as_password_is_refused_and_not_spent()
+    {
+        var token = await IssueTokenAsync();
+
+        var result = await NewHandler().HandleAsync(Command(token, password: "owner-one"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PasswordSameAsUsername", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        var user = await _context.Users.SingleAsync(candidate => candidate.Id == _userId);
+        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
+        Assert.Null((await _context.InvitationTokens.SingleAsync()).UsedAt);
+        Assert.True((await NewHandler().HandleAsync(Command(token), CancellationToken.None)).IsSuccess);
+    }
+
+    /// <summary>An invalid token with the username as password still gets the token refusal, not the password one.</summary>
+    /// <remarks>
+    /// The username rule never runs before the token is validated: an unauthenticated caller must
+    /// not learn from a password refusal that the token was real.
+    /// </remarks>
+    [Fact]
+    public async Task An_invalid_token_with_the_username_as_password_still_gets_the_token_refusal()
+    {
+        var result = await NewHandler().HandleAsync(Command("not-a-token-anybody-issued", password: "owner-one"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("InvitationTokenInvalid", result.Error!.Code);
     }
 }

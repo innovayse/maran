@@ -55,7 +55,7 @@ public sealed class FirewallAuditJournal
     }
 
     /// <summary>Records an operation an administrator asked for and which took effect.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">What it was done to — an address, or a rule in "tcp/8080 from 0.0.0.0/0" form.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
@@ -107,7 +107,7 @@ public sealed class FirewallAuditJournal
     }
 
     /// <summary>Records something the panel did on its own initiative, with no signed-in caller.</summary>
-    /// <param name="action">The action name, one of <see cref="AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">The address the panel acted on.</param>
     /// <param name="succeeded">Whether it took effect.</param>
     /// <param name="cancellationToken">Cancellation token for the write.</param>

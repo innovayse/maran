@@ -37,6 +37,7 @@ public sealed class ProfileController : BaseApiController
     /// <summary>Returns the caller's profile: who they are and the state of their sign-in security.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(ProfileDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

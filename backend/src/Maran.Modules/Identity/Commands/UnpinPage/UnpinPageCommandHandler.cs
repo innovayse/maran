@@ -56,7 +56,7 @@ public sealed class UnpinPageCommandHandler
 
         await _journal.RecordIdentifiedAsync(
             command.UserId,
-            AuditActions.PageUnpinned,
+            IdentityAuditActions.PageUnpinned,
             command.ItemKey,
             command.IpAddress,
             command.UserAgent,

@@ -23,6 +23,10 @@ namespace Maran.Modules.Tasks.Common;
 /// <param name="Subject">What it acts on — a domain, an account name.</param>
 /// <param name="CorrelationId">The correlation id of the request that started it, or <c>null</c>.</param>
 /// <param name="Status">Where it has got to.</param>
+/// <param name="StatusName">
+/// The same status as an operator reads it, localized for the request's culture by
+/// <c>TaskStatusDisplayNames</c>: the word the status badge prints, so the SPA holds no copy of it.
+/// </param>
 /// <param name="Percent">How far along, 0–100.</param>
 /// <param name="Log">
 /// Everything reported about it so far, capped and marked where it was cut, when
@@ -50,6 +54,7 @@ public sealed record PanelTaskDto(
     string Subject,
     string? CorrelationId,
     PanelTaskStatus Status,
+    string StatusName,
     int Percent,
     string Log,
     bool LogIncluded,

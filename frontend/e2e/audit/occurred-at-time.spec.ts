@@ -30,6 +30,7 @@ const SIGNED_IN: AuditEvent = {
   subject: 'verifier',
   ipAddress: '127.0.0.1',
   succeeded: true,
+  outcomeName: 'Succeeded',
 }
 
 /** The earlier one, one minute before it. */
@@ -42,6 +43,7 @@ const ADMIN_CREATED: AuditEvent = {
   subject: 'verifier',
   ipAddress: '127.0.0.1',
   succeeded: true,
+  outcomeName: 'Succeeded',
 }
 
 test('the journal states the time of day, so two entries on one day are told apart', async ({ page }) => {

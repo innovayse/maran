@@ -5,10 +5,12 @@ import type {
   AccountDetail,
   AccountOption,
   AccountsApi,
+  AccountStatusChoice,
   ChangeAccountOwnerEmailRequest,
   ChangeAccountPlanRequest,
   CreateAccountRequest,
   MyAccount,
+  OwnerLanguageChoice,
   Plan,
 } from '../../types/account'
 import type { AccountResourceSummary } from '../../types/accountResourceSummary'
@@ -176,6 +178,24 @@ export const useAccountsApi = (): AccountsApi => {
   }
 
   /**
+   * Lists the languages an account owner's invitation can be written in.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The languages in the panel's order, each named in itself.
+   */
+  const ownerLanguages = (signal?: AbortSignal): Promise<OwnerLanguageChoice[]> => {
+    return api.get<OwnerLanguageChoice[]>(`${ACCOUNTS_PATH}/owner-languages`, signal)
+  }
+
+  /**
+   * Lists the states a hosting account can be in, with their names.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The states in the panel's order, each named in the request's language.
+   */
+  const statuses = (signal?: AbortSignal): Promise<AccountStatusChoice[]> => {
+    return api.get<AccountStatusChoice[]>(`${ACCOUNTS_PATH}/statuses`, signal)
+  }
+
+  /**
    * Reads the account the caller owns.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The caller's own account, its status, and its plan's limits.
@@ -204,6 +224,8 @@ export const useAccountsApi = (): AccountsApi => {
   }
 
   return {
+    ownerLanguages,
+    statuses,
     list,
     choices,
     create,

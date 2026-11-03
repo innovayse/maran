@@ -90,6 +90,12 @@ agent/
     │   ├── build.rs           compiles proto/agent/v1/ via tonic-build
     │   ├── src/
     │   │   ├── lib.rs · main.rs · server.rs · error.rs
+    │   │   ├── startup/       what the daemon does before it serves, each pass before the
+    │   │   │                  first connection is accepted: bind_socket.rs (directory, stale
+    │   │   │                  socket, bind, mode) · reconcile_web_tree.rs +
+    │   │   │                  web_tree_reconciliation.rs (its outcome) ·
+    │   │   │                  reconcile_php_pool_trees.rs · reconcile_sftp_key_files.rs —
+    │   │   │                  split out of server.rs, which keeps `serve` and the registry
     │   │   ├── config/        invocation.rs (the command line) · agent_options.rs · options_error.rs
     │   │   ├── peercred/      peer_policy.rs (who may connect) · peer_guard.rs (the check)
     │   │   └── services/      one FOLDER per proto service:
@@ -133,7 +139,7 @@ agent/
     │   │       │              beside it for the vsftpd daemon — a separate service,
     │   │       │              not a mode of this one: different daemon, different
     │   │       │              auth model, its own TLS material.
-    │   │       ├── cron/      cron_service.rs · cron_status.rs
+    │   │       ├── cron/      cron_service.rs · cron_status.rs · the wire-payload builders (entry_output.rs · environment_variables.rs · listed_entry.rs · run_outcome.rs)
     │   │       ├── firewall/  firewall_service.rs · firewall_status.rs
     │   │       ├── backup/    backup_service.rs · backup_status.rs
     │   │       ├── monitor/   monitor_service.rs · monitor_status.rs
@@ -283,9 +289,18 @@ agent/
     │   │                  ubuntu:24.04 and almalinux:9 containers, which the classification
     │   │                  tests include_str!; bytes as the tool printed them
     │   └── src/
-    │       ├── adapter.rs     the DistroAdapter trait, alone. Besides paths and packages it
-    │       │                  answers the account-deletion programs atq · atrm · loginctl ·
-    │       │                  ipcrm (each an AdapterBinary) and the directories at_spool_directory · mail_spool_directory
+    │       ├── adapter.rs     the DistroAdapter trait, alone: `family()` plus the supertraits
+    │       │                  below, so a caller holding `&dyn DistroAdapter` asks any of them
+    │       ├── account_programs.rs · web_server_facts.rs · php_facts.rs ·
+    │       │   package_facts.rs · file_transfer_facts.rs · backup_facts.rs ·
+    │       │   database_facts.rs · service_manager_facts.rs · scheduling_facts.rs ·
+    │       │   firewall_facts.rs
+    │       │                  the concern traits `DistroAdapter` composes, one per file, each
+    │       │                  named for what it answers (AccountPrograms owns the
+    │       │                  account-deletion programs atq · atrm · loginctl · ipcrm and the
+    │       │                  at/mail spool directories). Each family implements every one in
+    │       │                  its own `<family>_adapter.rs`; a method is added to the trait of
+    │       │                  its concern, never to DistroAdapter itself
     │       ├── adapter_for.rs the selector: family → adapter
     │       ├── family.rs      DistroFamily
     │       ├── vsftpd_tls_version_keys.rs  the NAMES of the three TLS-version
@@ -352,11 +367,36 @@ agent/
     │       │                  (issue #135). logins/ moves the file between the two
     │       │                  names when it locks and unlocks, because a locked
     │       │                  password does not refuse a key under `UsePAM yes`.
+    │       │                  A key file never outlives its login (issue #338):
+    │       │                  delete_sftp_user.rs takes it BEFORE userdel,
+    │       │                  create_sftp_user.rs purges the files of a name the
+    │       │                  password database does not hold, and
+    │       │                  reconcile_orphan_key_files.rs — run once at start,
+    │       │                  before the socket — removes any whose login is gone
+    │       │                  (LoginKeyFile::login_named_by is the inverse of the
+    │       │                  naming, so a file of another shape is left alone).
+    │       │                  end_sftp_sessions.rs (issue #339) ends ONE login's open
+    │       │                  sessions through model/login_session_matcher.rs, which
+    │       │                  names them by the title sshd gives them and never by
+    │       │                  uid: a login shares its account's uid, so a uid-wide
+    │       │                  signal would cut the account's other logins and its own
+    │       │                  fork_as_account children.
     │       │                  model/account_ownership.rs carries the uid and gid the
     │       │                  login is created WITH: an SFTP login shares its
     │       │                  account's identity, because an account home of
     │       │                  <account>:<web server group> 0750 gives an identity of
     │       │                  its own nothing at all.
+    │       │                  cron/ also holds run-now's bound and its stop (issues
+    │       │                  #333, #336), none of them an rpc: run_now_slots.rs
+    │       │                  (tokio semaphores, host-wide and per account, taken
+    │       │                  without waiting) with run_now_slot.rs (the grant,
+    │       │                  released by drop), model/run_unit_name.rs (the unit
+    │       │                  the run is started under, named by the agent),
+    │       │                  run_unit_must_stop.rs (whether a ceiling killed the
+    │       │                  CLIENT and left the job) and stop_run_unit_arguments.rs +
+    │       │                  stop_run_unit_outcome.rs (the argv and the reading of
+    │       │                  `systemctl stop` of that unit, which process_cron_host.rs
+    │       │                  runs through the adapter's service manager).
     │       │                  ftps/ is vsftpd: system logins gated by a PAM group,
     │       │                  chrooted into /var/lib/maran-ftps/<account> (0711, NOT
     │       │                  0700 — vsftpd chdirs into the home AFTER dropping to the
@@ -942,6 +982,13 @@ someone who could not see the other five is how a deadlock gets built.
 | `ops::cron::cron_lock` | one account | waits |
 | `ops::accounts::account_lock` | one account | **never waits** — refuses |
 | `STDIN_IS_THE_ARTIFACT` (`ops::backup`) | host-wide | waits |
+
+`ops::cron::run_now_slots` (issue #333) is deliberately NOT a row: it is a pair of
+counting semaphores that bound how many runs by hand are in flight — a few per
+account, a few for the host — and it **refuses**, never waits and never orders
+anything, so it contributes no wait-for edge and none of the four properties
+below depends on it. It is taken before any lock, as the first statement of
+`run_cron_entry`, and released by dropping its grant.
 
 Four properties hold this together, and a change that breaks any one of them owes
 a new argument in its place:

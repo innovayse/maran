@@ -53,6 +53,14 @@ pub fn to_agent_error(error: &SftpError) -> AgentError {
         // A key file that could not be written, moved or removed: the host's
         // fault, with the previous file restored when the write was refused.
         SftpError::KeyFileFailed => ErrorCode::SystemFailure,
+        // The password database could not be read, or `pkill` refused while a
+        // login's sessions were being ended (issues #338 and #339). Both are
+        // faults of this host: the second means some of the login's processes
+        // may still be alive, which the panel must report as a failure and not
+        // as a revocation that took effect.
+        SftpError::PasswdUnreadable | SftpError::SessionsNotEnded { .. } => {
+            ErrorCode::SystemFailure
+        }
         // The hosting account's wait-free lock was held by another operation,
         // so this one was refused before `useradd`, `chpasswd` or the jail ran.
         // ACCOUNT_BUSY rather than SYSTEM_FAILURE: the login is exactly as the

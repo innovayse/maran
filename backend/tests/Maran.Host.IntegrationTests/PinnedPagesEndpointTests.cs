@@ -76,10 +76,10 @@ public sealed class PinnedPagesEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, removal.StatusCode);
         Assert.Equal(DashboardOnly, await KeysAsync(client));
         Assert.Equal(
-            new[] { AuditActions.PagePinned, AuditActions.PagePinned, AuditActions.PageUnpinned },
+            new[] { IdentityAuditActions.PagePinned, IdentityAuditActions.PagePinned, IdentityAuditActions.PageUnpinned },
             audit.Entries.Where(entry =>
             {
-                return entry.Action is AuditActions.PagePinned or AuditActions.PageUnpinned;
+                return entry.Action is IdentityAuditActions.PagePinned or IdentityAuditActions.PageUnpinned;
             })
                 .Select(entry =>
                 {
@@ -88,7 +88,7 @@ public sealed class PinnedPagesEndpointTests : IAsyncLifetime
         Assert.All(
             audit.Entries.Where(entry =>
             {
-                return entry.Action is AuditActions.PagePinned or AuditActions.PageUnpinned;
+                return entry.Action is IdentityAuditActions.PagePinned or IdentityAuditActions.PageUnpinned;
             }),
             entry =>
             {

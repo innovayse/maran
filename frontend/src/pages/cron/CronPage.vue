@@ -48,8 +48,10 @@ import CronEntryOutputDialog, { type CronOutputRead } from '../../components/cro
 import CronEnvironmentEditor from '../../components/cron/CronEnvironmentEditor.vue'
 import CronRunResultDialog from '../../components/cron/CronRunResultDialog.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
-import { useAccountFilter } from '../../composables/useAccountFilter'
-import { useAccountsStore } from '../../stores/accounts'
+import { useCronAccountStart } from '../../composables/useCronAccountStart'
+import { useCronRemoval } from '../../composables/useCronRemoval'
+import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
+import { useCronOptionsStore } from '../../stores/cronOptions'
 import { useCronStore } from '../../stores/cron'
 import { useCronRunsStore } from '../../stores/cronRuns'
 import { cronRunResultOf } from '../../utils/cronRunResultOf'
@@ -59,13 +61,14 @@ import { usePlanLimit } from '../../composables/usePlanLimit'
 
 const { t } = useI18n()
 const store = useCronStore()
+const optionsStore = useCronOptionsStore()
 /** Whether the plan still allows another cron entry (issue #312); advice, the endpoint enforces. */
 const { reached: planLimitReached, reason: planLimitReason } = usePlanLimit('cronEntries', toRef(store, 'entries'))
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
-const { filter: accountListFilter } = useAccountFilter()
-const accountsStore = useAccountsStore()
 const runsStore = useCronRunsStore()
 const router = useRouter()
+const { selectedAccountLabel, start } = useCronAccountStart()
+const { pendingRemovalId, confirmationTitle, askRemove, cancelRemove, confirmRemove } = useCronRemoval()
 
 /** The form, so an accepted install can empty the field it owns. */
 const form = useTemplateRef<{ reset: () => void }>('form')
@@ -75,35 +78,6 @@ const editing: Ref<{ entryId: string; schedule: CronSchedule; command: string } 
 
 /** The success toast's text after an entry was added, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
-
-/** The entry awaiting a removal confirmation, or `null` when none is. */
-const pendingRemovalId: Ref<string | null> = ref(null)
-
-/** The entry the removal confirmation is open for, or `null` when none is. */
-const pendingEntry: ComputedRef<CronEntry | null> = computed(() => {
-  return (
-    store.entries.find((entry) => {
-      return entry.entryId === pendingRemovalId.value
-    }) ?? null
-  )
-})
-
-/** The confirmation's accessible name, naming the command that would stop running. */
-const confirmationTitle: ComputedRef<string> = computed(() => {
-  const pending = pendingEntry.value
-  return pending === null ? '' : t('cron.list.confirmRemoveTitle', { command: pending.command })
-})
-
-/**
- * The label of the account the screen is pointed at, for the picker: that account is usually not
- * on the page of matches the next search brings, and the picker must still name it.
- */
-const selectedAccountLabel: ComputedRef<string | undefined> = computed(() => {
-  return accountsStore.accountNames[store.accountId] ?? firstAccountLabel.value
-})
-
-/** The name of the first listed account when the screen opened on it, as the choices named it. */
-const firstAccountLabel: Ref<string | undefined> = ref(undefined)
 
 /**
  * What the last-run dialog is showing, named from the store's four fields: the reading in flight,
@@ -119,50 +93,6 @@ const outputRead: ComputedRef<CronOutputRead> = computed(() => {
   // The endpoint answers 200 with no body for an entry that has never run.
   return store.output === null ? { state: 'neverRan' } : { state: 'ran', output: store.output }
 })
-
-/**
- * Points the screen at the account the URL names (`?account=<id>`, the link the account detail page
- * draws), or at the first account the panel lists.
- *
- * The first rather than none, because a screen that opens on an empty picker looks broken; there is
- * nothing invented in it — the account came from the panel, and the crontab shown is that account's.
- * A URL account is selected only once the panel has named it by its own read: an id it cannot name
- * is ignored, since the picker could not show it and the server would answer 404 for it anyway. A
- * customer reads no choices (an administrator-only read) and is pointed at their own account; the
- * parameter means nothing to them.
- * @returns Resolves once the account and its crontab have settled.
- */
-const start = async (): Promise<void> => {
-  const own = fixedAccountId.value
-  if (own !== null) {
-    if (store.accountId !== own) {
-      await store.selectAccount(own)
-    }
-    return
-  }
-  const requested = accountListFilter.value.accountId
-  if (requested !== undefined) {
-    await accountsStore.loadAccountName(requested)
-    if (accountsStore.accountNames[requested] !== undefined) {
-      // A link to one account's crontab wins over whichever account the store last looked at.
-      if (store.accountId !== requested) {
-        await store.selectAccount(requested)
-      }
-      return
-    }
-  }
-  if (store.accountId !== '') {
-    // Back on the account the store last looked at, which the picker must still name.
-    await accountsStore.loadAccountName(store.accountId)
-    return
-  }
-  await searchAccounts('')
-  const first = accountPicker.value.options[0]
-  if (first !== undefined) {
-    firstAccountLabel.value = first.label
-    await store.selectAccount(first.value)
-  }
-}
 
 /**
  * Points the screen at a different account.
@@ -226,38 +156,6 @@ const setEnabled = async (entry: CronEntry): Promise<void> => {
 }
 
 /**
- * Asks for confirmation before removing an entry.
- * @param entryId The entry the operator acted on.
- * @returns Nothing.
- */
-const askRemove = (entryId: string): void => {
-  pendingRemovalId.value = entryId
-}
-
-/**
- * Abandons a pending removal.
- * @returns Nothing.
- */
-const cancelRemove = (): void => {
-  pendingRemovalId.value = null
-}
-
-/**
- * Carries out the confirmed removal.
- * @returns Resolves once the request has settled.
- */
-const confirmRemove = async (): Promise<void> => {
-  if (pendingRemovalId.value === null) {
-    return
-  }
-  await store.remove(pendingRemovalId.value)
-
-  // Closed after the request settles rather than before it is sent: the dialog holds the
-  // spinner that tells the operator the panel is working.
-  pendingRemovalId.value = null
-}
-
-/**
  * Runs an entry now and shows its result; the dialog holds a spinner for as long as the job runs.
  * @param entry The entry to run.
  * @returns Resolves once the run has ended or been refused.
@@ -293,6 +191,10 @@ const dismissNotice = (): void => {
 }
 
 onMounted(start)
+
+// The schedule builder's lists are named by the panel in the interface language, so they are read
+// when the screen opens and again when the language changes.
+useReloadOnLocale(optionsStore.load)
 </script>
 
 <template>

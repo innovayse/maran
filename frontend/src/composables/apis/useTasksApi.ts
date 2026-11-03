@@ -3,13 +3,12 @@ import { listQuery } from '../../utils/listQuery'
 import { withInstantWindow } from '../../utils/withInstantWindow'
 import type { ListRequest, Paged } from '../../types/list'
 import {
-  TASK_STATUSES,
   type PanelTask,
-  type PanelTaskStatus,
   type PanelTaskStreamHandlers,
   type RunningTasksStreamHandlers,
   type TaskKindChoice,
   type TasksApi,
+  type TaskStatusChoice,
 } from '../../types/panelTask'
 
 /** The endpoint background tasks are listed, read and watched through. */
@@ -36,18 +35,14 @@ export const useTasksApi = (): TasksApi => {
   const api = useApi()
 
   /**
-   * Reads a status off the wire, refusing to invent one this bundle does not know: a pane that says
-   * "completed" about an outcome it could not read is worse than one that says the stream ended
-   * without naming an outcome.
+   * Reads a status off the wire as the text the panel sent. The set of statuses is the panel's
+   * (`/statuses`), so this bundle keeps no list to check against; a frame that named none, or named
+   * something that is not text, is an ending nobody named rather than one invented here.
    * @param named The status text a frame carried, or `undefined` when it carried none.
-   * @returns The status, or `null` when the wire named none this panel recognises.
+   * @returns The status text, or `null` when the frame named none.
    */
-  const readStatus = (named: unknown): PanelTaskStatus | null => {
-    return (
-      TASK_STATUSES.find((status) => {
-        return status === named
-      }) ?? null
-    )
+  const readStatus = (named: unknown): string | null => {
+    return typeof named === 'string' && named !== '' ? named : null
   }
 
   /**
@@ -124,6 +119,15 @@ export const useTasksApi = (): TasksApi => {
   }
 
   /**
+   * Lists the statuses a task can be in, for the status filter.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The statuses with their backend-localized names.
+   */
+  const statuses = (signal?: AbortSignal): Promise<TaskStatusChoice[]> => {
+    return api.get<TaskStatusChoice[]>(`${TASKS_PATH}/statuses`, signal)
+  }
+
+  /**
    * Counts the failed tasks the caller may see, across every page.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns How many failed.
@@ -166,7 +170,7 @@ export const useTasksApi = (): TasksApi => {
   ): Promise<void> => {
     // Set the moment the module names an ending, so the natural close that follows it does not
     // overwrite the outcome with "nobody said".
-    let ending: PanelTaskStatus | null = null
+    let ending: string | null = null
 
     try {
       await api.stream(
@@ -195,5 +199,5 @@ export const useTasksApi = (): TasksApi => {
     handlers.onEnd(ending)
   }
 
-  return { list, watchRunning, kinds, failedCount, get, watch }
+  return { list, watchRunning, kinds, statuses, failedCount, get, watch }
 }

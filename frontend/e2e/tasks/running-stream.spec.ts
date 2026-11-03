@@ -25,6 +25,7 @@ const runningTask = (n: number): PanelTask => {
     subject: `site-${n}.example.com`,
     correlationId: null,
     status: 'running',
+    statusName: 'Running',
     percent: 10 * n,
     log: '',
     logIncluded: true,

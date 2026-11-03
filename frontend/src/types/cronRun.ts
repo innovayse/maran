@@ -6,9 +6,6 @@ import type { ListRequest, Paged } from './list'
  */
 export type CronRunOutcome = 'succeeded' | 'failed' | 'stopped'
 
-/** Every {@link CronRunOutcome}, in the order the history's filter offers them. */
-export const CRON_RUN_OUTCOMES: readonly CronRunOutcome[] = ['succeeded', 'failed', 'stopped']
-
 /** The agent's ceiling that stopped a run, mirroring the backend's `CronRunLimit`. */
 export type CronRunLimit = 'runtime' | 'output'
 
@@ -54,6 +51,8 @@ export interface CronRunSummary {
   end: CronRunEnd
   /** The verdict on it, for the badge and the filter. */
   outcome: CronRunOutcome
+  /** The same verdict as the operator reads it, in their language; the badge's text. */
+  outcomeName: string
 }
 
 /** One run with what it printed, as the run-now answer and the single-run read return it. */

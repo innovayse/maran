@@ -88,11 +88,11 @@ const sortBy = (field: string): void => {
       </div>
     </template>
     <template #cell-owner="{ row }">{{ row.ownerName }}</template>
-    <template #cell-backendType="{ row }">{{ t(`sites.backendType.${row.backendType}`) }}</template>
+    <template #cell-backendType="{ row }">{{ row.backendTypeName }}</template>
     <template #cell-phpVersion="{ row }">
       {{ row.phpVersion.length > 0 ? row.phpVersion : t('common.emptyValue') }}
     </template>
-    <template #cell-status="{ row }"><SiteStatusBadge :status="row.status" /></template>
+    <template #cell-status="{ row }"><SiteStatusBadge :status="row.status" :label="row.statusName" /></template>
     <template #cell-createdAt="{ row }">{{ formatDate(row.createdAt, localeStore.current) }}</template>
   </UiTable>
 </template>

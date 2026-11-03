@@ -21,6 +21,7 @@ const RESTORED: AuditEvent = {
   subject: 'livecust',
   ipAddress: '127.0.0.1',
   succeeded: true,
+  outcomeName: 'Succeeded',
 }
 
 /**
@@ -36,6 +37,7 @@ const MARKETPLACE: AuditEvent = {
   subject: 'livecust',
   ipAddress: '127.0.0.1',
   succeeded: false,
+  outcomeName: 'Failed',
 }
 
 /**

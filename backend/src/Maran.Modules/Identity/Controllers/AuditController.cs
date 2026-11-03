@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Queries.ListAuditActionChoices;
 using Maran.Modules.Identity.Queries.ListAuditEvents;
+using Maran.Modules.Identity.Queries.ListAuditOutcomeChoices;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
 using Microsoft.AspNetCore.Authorization;
@@ -68,5 +69,16 @@ public sealed class AuditController : BaseApiController
     {
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<AuditActionChoiceDto>>>(
             new ListAuditActionChoicesQuery(), cancellationToken));
+    }
+
+    /// <summary>Lists the outcomes the journal can be filtered by, named for the caller's language, for the outcome filter.</summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The choices, in the order the filter offers them.</returns>
+    [HttpGet("outcomes")]
+    [ProducesResponseType(typeof(IReadOnlyList<AuditOutcomeChoiceDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetOutcomesAsync(CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<AuditOutcomeChoiceDto>>>(
+            new ListAuditOutcomeChoicesQuery(), cancellationToken));
     }
 }

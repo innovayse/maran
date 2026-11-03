@@ -116,6 +116,13 @@ public static class BackupsTestContext
         return new BackupFailureDisplayNames(new StringLocalizer<DisplayNames>(LocalizerFactory()));
     }
 
+    /// <summary>Builds the status and kind name resolver over this module's REAL resource files.</summary>
+    /// <returns>The resolver, reading <c>Resources/DisplayNames*.resx</c> as it does in the panel.</returns>
+    public static BackupDisplayNames BackupNames()
+    {
+        return new BackupDisplayNames(new StringLocalizer<DisplayNames>(LocalizerFactory()));
+    }
+
     /// <summary>Builds the destination-name resolver over this module's REAL resource files.</summary>
     /// <returns>The resolver, reading <c>Resources/DisplayNames*.resx</c> as it does in the panel.</returns>
     public static BackupDestinationDisplayNames DestinationNames()

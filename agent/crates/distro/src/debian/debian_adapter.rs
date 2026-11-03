@@ -3,11 +3,21 @@
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::DistroAdapter;
+use crate::account_programs::AccountPrograms;
 use crate::adapter_binary::AdapterBinary;
+use crate::backup_facts::BackupFacts;
+use crate::database_facts::DatabaseFacts;
 use crate::debian::{debian_packages, debian_paths, debian_services};
 use crate::family::DistroFamily;
+use crate::file_transfer_facts::FileTransferFacts;
+use crate::firewall_facts::FirewallFacts;
+use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
+use crate::php_facts::PhpFacts;
+use crate::scheduling_facts::SchedulingFacts;
+use crate::service_manager_facts::ServiceManagerFacts;
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
+use crate::web_server_facts::WebServerFacts;
 
 /// Implements the agent's operations the Debian way: apt, `sites-available`,
 /// `www-data`. Stateless, so [`crate::adapter_for()`] can hand out one shared
@@ -18,101 +28,11 @@ impl DistroAdapter for DebianAdapter {
     fn family(&self) -> DistroFamily {
         DistroFamily::Debian
     }
+}
 
+impl AccountPrograms for DebianAdapter {
     fn nologin_shell(&self) -> &'static str {
         debian_paths::nologin_shell()
-    }
-
-    fn nginx_binary(&self) -> AdapterBinary {
-        debian_services::nginx_binary()
-    }
-
-    fn nginx_service(&self) -> &'static str {
-        debian_services::nginx_service()
-    }
-
-    fn service_manager(&self) -> AdapterBinary {
-        debian_services::service_manager()
-    }
-
-    fn web_server_user(&self) -> &'static str {
-        debian_services::web_server_user()
-    }
-
-    fn web_server_group(&self) -> &'static str {
-        debian_services::web_server_group()
-    }
-
-    fn php_fpm_pool_directory(&self, version: &str) -> String {
-        debian_paths::php_fpm_pool_directory(version)
-    }
-
-    fn php_fpm_service(&self, version: &str) -> String {
-        debian_services::php_fpm_service(version)
-    }
-
-    fn php_fpm_binary(&self, version: &PhpVersion) -> AdapterBinary {
-        debian_services::php_fpm_binary(version)
-    }
-
-    fn php_package(&self, version: &str) -> String {
-        debian_packages::php_package(version)
-    }
-
-    fn openssl_binary(&self) -> AdapterBinary {
-        debian_services::openssl_binary()
-    }
-
-    fn package_manager(&self) -> &'static str {
-        debian_packages::package_manager()
-    }
-
-    fn classify_package_failure(&self, status: i32, output: &str) -> PackageFailure {
-        debian_packages::classify_package_failure(status, output)
-    }
-
-    fn journal_binary(&self) -> AdapterBinary {
-        debian_services::journal_binary()
-    }
-
-    fn systemd_run_binary(&self) -> AdapterBinary {
-        debian_services::systemd_run_binary()
-    }
-
-    fn tar_binary(&self) -> AdapterBinary {
-        debian_services::tar_binary()
-    }
-
-    fn gzip_binary(&self) -> AdapterBinary {
-        debian_services::gzip_binary()
-    }
-
-    fn database_dump_binary(&self) -> AdapterBinary {
-        debian_services::database_dump_binary()
-    }
-
-    fn mysql_client_binary(&self) -> AdapterBinary {
-        debian_services::mysql_client_binary()
-    }
-
-    fn mysql_service(&self) -> &'static str {
-        debian_services::mysql_service()
-    }
-
-    fn sftp_group(&self) -> &'static str {
-        debian_services::sftp_group()
-    }
-
-    fn vsftpd_binary(&self) -> AdapterBinary {
-        debian_services::vsftpd_binary()
-    }
-
-    fn ftps_group(&self) -> &'static str {
-        debian_services::ftps_group()
-    }
-
-    fn vsftpd_tls_version_keys(&self) -> VsftpdTlsVersionKeys {
-        debian_services::vsftpd_tls_version_keys()
     }
 
     fn useradd_binary(&self) -> AdapterBinary {
@@ -141,10 +61,6 @@ impl DistroAdapter for DebianAdapter {
 
     fn quotaon_binary(&self) -> AdapterBinary {
         debian_services::quotaon_binary()
-    }
-
-    fn timedatectl_binary(&self) -> AdapterBinary {
-        debian_services::timedatectl_binary()
     }
 
     fn pkill_binary(&self) -> AdapterBinary {
@@ -199,32 +115,88 @@ impl DistroAdapter for DebianAdapter {
         debian_services::chpasswd_binary()
     }
 
-    fn ssh_keygen_binary(&self) -> AdapterBinary {
-        debian_services::ssh_keygen_binary()
-    }
-
-    fn systemd_unit_directory(&self) -> &'static str {
-        debian_services::systemd_unit_directory()
-    }
-
     fn passwd_database(&self) -> &'static str {
         debian_services::passwd_database()
     }
+}
 
-    fn crontab_binary(&self) -> AdapterBinary {
-        debian_services::crontab_binary()
+impl WebServerFacts for DebianAdapter {
+    fn nginx_binary(&self) -> AdapterBinary {
+        debian_services::nginx_binary()
     }
 
-    fn sh_binary(&self) -> &'static str {
-        debian_services::sh_binary()
+    fn nginx_service(&self) -> &'static str {
+        debian_services::nginx_service()
     }
 
-    fn nft_binary(&self) -> AdapterBinary {
-        debian_services::nft_binary()
+    fn web_server_user(&self) -> &'static str {
+        debian_services::web_server_user()
     }
 
-    fn cron_service(&self) -> &'static str {
-        debian_services::cron_service()
+    fn web_server_group(&self) -> &'static str {
+        debian_services::web_server_group()
+    }
+
+    fn openssl_binary(&self) -> AdapterBinary {
+        debian_services::openssl_binary()
+    }
+}
+
+impl PhpFacts for DebianAdapter {
+    fn php_fpm_pool_directory(&self, version: &str) -> String {
+        debian_paths::php_fpm_pool_directory(version)
+    }
+
+    fn php_fpm_service(&self, version: &str) -> String {
+        debian_services::php_fpm_service(version)
+    }
+
+    fn php_fpm_binary(&self, version: &PhpVersion) -> AdapterBinary {
+        debian_services::php_fpm_binary(version)
+    }
+
+    fn php_package(&self, version: &str) -> String {
+        debian_packages::php_package(version)
+    }
+
+    fn installable_php_versions(&self) -> &'static [&'static str] {
+        debian_packages::installable_php_versions()
+    }
+}
+
+impl PackageFacts for DebianAdapter {
+    fn package_manager(&self) -> &'static str {
+        debian_packages::package_manager()
+    }
+
+    fn classify_package_failure(&self, status: i32, output: &str) -> PackageFailure {
+        debian_packages::classify_package_failure(status, output)
+    }
+
+    fn journal_binary(&self) -> AdapterBinary {
+        debian_services::journal_binary()
+    }
+}
+
+impl FileTransferFacts for DebianAdapter {
+    fn sftp_group(&self) -> &'static str {
+        debian_services::sftp_group()
+    }
+
+    fn vsftpd_binary(&self) -> AdapterBinary {
+        debian_services::vsftpd_binary()
+    }
+
+    fn ftps_group(&self) -> &'static str {
+        debian_services::ftps_group()
+    }
+
+    fn vsftpd_tls_version_keys(&self) -> VsftpdTlsVersionKeys {
+        debian_services::vsftpd_tls_version_keys()
+    }
+
+    fn ssh_keygen_binary(&self) -> AdapterBinary {
+        debian_services::ssh_keygen_binary()
     }
 
     fn ssh_service(&self) -> &'static str {
@@ -234,6 +206,48 @@ impl DistroAdapter for DebianAdapter {
     fn sshd_config_path(&self) -> &'static str {
         debian_services::sshd_config_path()
     }
+}
+
+impl BackupFacts for DebianAdapter {
+    fn tar_binary(&self) -> AdapterBinary {
+        debian_services::tar_binary()
+    }
+
+    fn gzip_binary(&self) -> AdapterBinary {
+        debian_services::gzip_binary()
+    }
+
+    fn database_dump_binary(&self) -> AdapterBinary {
+        debian_services::database_dump_binary()
+    }
+}
+
+impl DatabaseFacts for DebianAdapter {
+    fn mysql_client_binary(&self) -> AdapterBinary {
+        debian_services::mysql_client_binary()
+    }
+
+    fn mysql_service(&self) -> &'static str {
+        debian_services::mysql_service()
+    }
+}
+
+impl ServiceManagerFacts for DebianAdapter {
+    fn service_manager(&self) -> AdapterBinary {
+        debian_services::service_manager()
+    }
+
+    fn systemd_run_binary(&self) -> AdapterBinary {
+        debian_services::systemd_run_binary()
+    }
+
+    fn timedatectl_binary(&self) -> AdapterBinary {
+        debian_services::timedatectl_binary()
+    }
+
+    fn systemd_unit_directory(&self) -> &'static str {
+        debian_services::systemd_unit_directory()
+    }
 
     fn machine_id_path(&self) -> &'static str {
         debian_services::machine_id_path()
@@ -241,6 +255,26 @@ impl DistroAdapter for DebianAdapter {
 
     fn managed_units(&self) -> [&'static str; 4] {
         debian_services::managed_units()
+    }
+}
+
+impl SchedulingFacts for DebianAdapter {
+    fn crontab_binary(&self) -> AdapterBinary {
+        debian_services::crontab_binary()
+    }
+
+    fn sh_binary(&self) -> &'static str {
+        debian_services::sh_binary()
+    }
+
+    fn cron_service(&self) -> &'static str {
+        debian_services::cron_service()
+    }
+}
+
+impl FirewallFacts for DebianAdapter {
+    fn nft_binary(&self) -> AdapterBinary {
+        debian_services::nft_binary()
     }
 }
 

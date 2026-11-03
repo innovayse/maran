@@ -9,11 +9,6 @@
       "hostLabel": "Mail server",
       "portLabel": "Port",
       "securityLabel": "Connection security",
-      "security": {
-        "none": "None",
-        "startTls": "STARTTLS",
-        "implicitTls": "Implicit TLS"
-      },
       "usernameLabel": "User name",
       "passwordLabel": "Password",
       "passwordPlaceholder": "Leave empty to keep the saved one",

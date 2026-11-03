@@ -91,7 +91,7 @@ public sealed class SaveBackupScheduleCommandHandler
                 // No account can be named for this caller, so the trace records the identifier
                 // that was probed for.
                 await _journal.RecordFailureAsync(
-                    AuditActions.BackupScheduleSaved,
+                    BackupAuditActions.BackupScheduleSaved,
                     command.AccountId.Value.ToString(),
                     command.IpAddress,
                     command.UserAgent,
@@ -138,7 +138,7 @@ public sealed class SaveBackupScheduleCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.BackupScheduleSaved,
+            BackupAuditActions.BackupScheduleSaved,
             subject,
             command.IpAddress,
             command.UserAgent,

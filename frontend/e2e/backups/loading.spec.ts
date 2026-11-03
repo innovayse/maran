@@ -12,6 +12,7 @@ import {
 } from '../fixtures/stub-backup-destination-routes'
 import { stubBackups, stubBackupsProblem } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { Backup } from '../../src/types/backup'
 import type { BackupDestination } from '../../src/types/backupDestination'
@@ -27,7 +28,9 @@ const COMPLETED: Backup = {
   ownerName: 'alice',
   orphanedAccountUsername: null,
   status: 'completed',
+  statusName: 'Completed',
   kind: 'manual',
+  kindName: 'Manual',
   sizeBytes: 1_572_864,
   sha256: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
   databaseCount: 2,
@@ -55,6 +58,7 @@ const LOCAL: BackupDestination = {
 const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubBackupOptions(page)
   await stubModules(page, LICENSED)
 }
 

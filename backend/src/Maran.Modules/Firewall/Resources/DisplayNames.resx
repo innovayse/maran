@@ -15,4 +15,16 @@
   <data name="FirewallModuleDisplayName">
     <value>Firewall</value>
   </data>
+  <data name="FirewallPresetMysqlExternal">
+    <value>MySQL reachable from outside</value>
+  </data>
+  <data name="FirewallPresetWeb">
+    <value>Open the web ports</value>
+  </data>
+  <data name="FirewallProtocolTcp">
+    <value>TCP</value>
+  </data>
+  <data name="FirewallProtocolUdp">
+    <value>UDP</value>
+  </data>
 </root>

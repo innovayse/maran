@@ -38,13 +38,6 @@
         "builder": "Builder",
         "raw": "Expression"
       },
-      "frequencies": {
-        "everyMinute": "Every minute",
-        "hourly": "Every hour",
-        "daily": "Every day",
-        "weekly": "Every week",
-        "monthly": "Every month"
-      },
       "fields": {
         "frequency": "How often",
         "minute": "Minute",
@@ -135,11 +128,6 @@
       },
       "filters": {
         "outcome": "Outcome"
-      },
-      "outcome": {
-        "succeeded": "Succeeded",
-        "failed": "Failed",
-        "stopped": "Stopped"
       },
       "limit": {
         "runtime": "The run reached the two-minute limit and was stopped.",

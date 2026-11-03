@@ -112,7 +112,7 @@ public sealed class CreatePlanCommandHandlerTests : IDisposable
         await NewHandler().HandleAsync(Command(), CancellationToken.None);
 
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanCreated, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanCreated, entry.Action);
         Assert.Equal("Agency", entry.Subject);
         Assert.True(entry.Succeeded);
         Assert.Equal("203.0.113.7", entry.IpAddress);
@@ -136,7 +136,7 @@ public sealed class CreatePlanCommandHandlerTests : IDisposable
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Equal(1, await _dbContext.Plans.CountAsync());
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanCreated, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanCreated, entry.Action);
         Assert.False(entry.Succeeded);
     }
 
@@ -205,7 +205,7 @@ public sealed class CreatePlanCommandHandlerTests : IDisposable
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Empty(await _dbContext.Plans.ToListAsync());
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.PlanCreated, entry.Action);
+        Assert.Equal(AccountAuditActions.PlanCreated, entry.Action);
         Assert.Equal("Agency", entry.Subject);
         Assert.False(entry.Succeeded);
     }

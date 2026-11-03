@@ -80,7 +80,7 @@ public sealed class SetCronEntryEnabledCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.CronEntryEnabledChanged,
+            CronAuditActions.CronEntryEnabledChanged,
             command.EntryId,
             command.IpAddress,
             command.UserAgent,
@@ -100,7 +100,7 @@ public sealed class SetCronEntryEnabledCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.CronEntryEnabledChanged,
+            CronAuditActions.CronEntryEnabledChanged,
             command.EntryId,
             command.IpAddress,
             command.UserAgent,

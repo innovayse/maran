@@ -62,9 +62,22 @@ public sealed class SitesModule : IPanelModule
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
         services.AddScoped<SiteAuditJournal>();
 
+        // Scoped, because the localizer it wraps resolves the request's own culture.
+        services.AddScoped<SiteDisplayNames>();
+
         // Scoped, because it takes a transaction on the request's own DbContext connection: the
         // advisory lock it holds is scoped to that transaction and must be released by its commit.
         services.AddScoped<ISiteSlotGate, SiteSlotGate>();
+
+        // Scoped, because it reads through the request-scoped context, deliberately without the tenant
+        // filter: a hostname is claimed once across the whole server.
+        services.AddScoped<SiteHostnameClaims>();
+
+        // Scoped, because it asks the claims reader above and drives the agent on the request's behalf.
+        services.AddScoped<SiteVhostCompensator>();
+
+        // Scoped, because it takes the request's slot gate and compensator.
+        services.AddScoped<SiteRecorder>();
 
         // The stream's settings, validated at startup like every other options class.
         services.AddOptions<SiteLogOptions>()

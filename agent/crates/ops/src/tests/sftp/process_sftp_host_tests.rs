@@ -110,3 +110,71 @@ fn the_config_write_protocol_runs_its_programs_through_the_same_bounded_host() {
     assert_eq!(outcome.status, 0);
     assert!(outcome.stdout.trim().parse::<u32>().is_ok());
 }
+
+#[test]
+fn the_key_directory_listing_names_files_and_leaves_out_directories() {
+    // A directory in the key directory is not a login's key file, and the sweep
+    // unlinks what it is handed: handing it a directory would be asking it to
+    // fail on every start.
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(directory.path().join("alice_web"), "k").unwrap();
+    std::fs::write(directory.path().join("alice_web.suspended"), "k").unwrap();
+    std::fs::create_dir(directory.path().join("subdirectory")).unwrap();
+
+    let mut names = super::file_names_in(directory.path()).unwrap();
+    names.sort();
+
+    assert_eq!(names, vec!["alice_web", "alice_web.suspended"]);
+}
+
+#[test]
+fn a_key_directory_that_is_not_there_lists_as_empty() {
+    // A host that never held an SFTP login has no key directory.
+    let directory = tempfile::tempdir().unwrap();
+
+    let names = super::file_names_in(&directory.path().join("absent")).unwrap();
+
+    assert!(names.is_empty());
+}
+
+#[test]
+fn a_symlink_in_the_key_directory_is_listed_as_the_link_and_not_followed() {
+    // `file_type` does not follow a link, so a link to a directory is listed
+    // (and later unlinked) as a link; a followed one would be skipped as a
+    // directory and survive the sweep.
+    let directory = tempfile::tempdir().unwrap();
+    std::os::unix::fs::symlink("/", directory.path().join("alice_link")).unwrap();
+
+    let names = super::file_names_in(directory.path()).unwrap();
+
+    assert_eq!(names, vec!["alice_link"]);
+}
+
+#[test]
+fn every_name_in_the_password_database_is_a_login_name() {
+    let directory = tempfile::tempdir().unwrap();
+    let passwd = directory.path().join("passwd");
+    std::fs::write(
+        &passwd,
+        "root:x:0:0:root:/root:/bin/bash\nalice_web:x:1042:1043::/var/lib/maran-sftp/alice:/usr/sbin/nologin\n",
+    )
+    .unwrap();
+
+    let mut names = ProcessSftpHost::new()
+        .login_names(passwd.to_str().unwrap())
+        .unwrap();
+    names.sort();
+
+    assert_eq!(names, vec!["alice_web", "root"]);
+}
+
+#[test]
+fn an_unreadable_password_database_is_an_error_and_not_an_empty_list() {
+    // An empty list would read to the sweep as "every login is gone".
+    let result = ProcessSftpHost::new().login_names("/nonexistent/maran-passwd");
+
+    assert_eq!(
+        result,
+        Err(crate::sftp::sftp_error::SftpError::PasswdUnreadable)
+    );
+}

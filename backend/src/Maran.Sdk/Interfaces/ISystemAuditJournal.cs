@@ -15,7 +15,7 @@ namespace Maran.Sdk.Interfaces;
 public interface ISystemAuditJournal
 {
     /// <summary>Records something the panel did on its own initiative, with no signed-in caller.</summary>
-    /// <param name="action">The action name, one of <see cref="Contracts.AuditActions"/>.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
     /// <param name="subject">What it was done to, as the module's journal records subjects.</param>
     /// <param name="succeeded">Whether it took effect.</param>
     /// <param name="cancellationToken">Cancellation token for the write.</param>

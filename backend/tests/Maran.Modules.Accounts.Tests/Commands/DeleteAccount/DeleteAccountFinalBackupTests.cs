@@ -107,7 +107,7 @@ public sealed class DeleteAccountFinalBackupTests : IDisposable
         Assert.True(result.IsSuccess, result.Error?.Code);
         Assert.Contains(_audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.FinalBackupSkippedNoModule && entry.Succeeded;
+            return entry.Action == AccountAuditActions.FinalBackupSkippedNoModule && entry.Succeeded;
         });
     }
 
@@ -128,7 +128,7 @@ public sealed class DeleteAccountFinalBackupTests : IDisposable
 
         var entry = Assert.Single(_audit.Entries, candidate =>
         {
-            return candidate.Action == AuditActions.FinalBackupSkipped;
+            return candidate.Action == AccountAuditActions.FinalBackupSkipped;
         });
         Assert.Equal(Ip, entry.IpAddress);
         Assert.True(entry.Succeeded);
@@ -152,11 +152,11 @@ public sealed class DeleteAccountFinalBackupTests : IDisposable
 
         Assert.Single(_audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.FinalBackupSkippedNoModule;
+            return entry.Action == AccountAuditActions.FinalBackupSkippedNoModule;
         });
         Assert.Single(_audit.Entries, entry =>
         {
-            return entry.Action == AuditActions.FinalBackupSkipped;
+            return entry.Action == AccountAuditActions.FinalBackupSkipped;
         });
     }
 

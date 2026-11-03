@@ -4,8 +4,9 @@ namespace Maran.Modules.Sites.Resources;
 /// Empty marker type naming <c>Resources/DisplayNames.resx</c> (+ <c>.ru</c>/<c>.hy</c>) for
 /// <see cref="Microsoft.Extensions.Localization.IStringLocalizer{T}"/> (rules/csharp.md "Resources
 /// are reached through <c>IStringLocalizer&lt;T&gt;</c>"). Carries every user-facing name the Sites
-/// module owns: today just <c>SitesModuleDisplayName</c>, resolved via <see cref="SitesManifest"/>'s
-/// <c>DisplayNameKey</c>.
+/// module owns: <c>SitesModuleDisplayName</c>, resolved via <see cref="SitesManifest"/>'s
+/// <c>DisplayNameKey</c>, and the labels of the closed sets the site screens select from
+/// (<c>SiteBackendType&lt;Member&gt;</c>, <c>SiteStatus&lt;Member&gt;</c>).
 /// </summary>
 public sealed class DisplayNames
 {

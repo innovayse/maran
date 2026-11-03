@@ -65,6 +65,12 @@ public sealed class IdentityModule : IPanelModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        // The cap on one account's team; a nonsensical value stops the boot (SubUserOptions).
+        services.AddOptions<SubUserOptions>()
+            .Bind(configuration.GetSection(SubUserOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         // The panel's own public address, for the link in a password-reset mail and in an invitation
         // mail alike. Never taken from the request's Host header, which the caller controls — see
         // PanelOptions.
@@ -84,16 +90,19 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<InvitationMailComposer>();
         services.AddScoped<InvitationLinkBuilder>();
         services.AddScoped<InvitationIssuer>();
+        services.AddScoped<AccountOwnerFinder>();
 
         // Sub-users: the owner check every operation asks first, and the Sdk window the plan-feature
         // filter asks to learn whether a person was given a feature. Scoped, because both read the
         // request's own DbContext.
         services.AddScoped<SubUserOwnerGuard>();
+        services.AddScoped<ISubUserTeamLock, SubUserTeamLock>();
         services.AddScoped<IAccountMemberGrants, AccountMemberGrants>();
 
         services.AddScoped<PasswordResetLinkBuilder>();
         services.AddScoped<AdminRecoveryIssuer>();
         services.AddScoped<AuditActionDisplayNames>();
+        services.AddScoped<AuditOutcomeDisplayNames>();
 
         // Singleton: it holds one row for the life of the process and is read on the sign-in path,
         // the token-issuing path and every password validator. It resolves its scoped DbContext
@@ -110,6 +119,11 @@ public sealed class IdentityModule : IPanelModule
         // session, scoped because it reads the request's own DbContext (the bearer handler resolves it).
         services.AddSingleton<IAuthorizationHandler, ViewAsBoundaryHandler>();
         services.AddScoped<ViewAsSessionVerifier>();
+
+        // Suspension per membership (issues #326, #331): the request-time check that a customer token
+        // is not speaking for an account its login was suspended from, attached to the customer-level
+        // policy by the Host. Scoped, because it reads the request's own DbContext.
+        services.AddScoped<IAuthorizationHandler, AccountMembershipActiveHandler>();
 
         // Scoped, because it counts through the request's own DbContext and saves alongside the
         // audit entry for the same refused attempt.

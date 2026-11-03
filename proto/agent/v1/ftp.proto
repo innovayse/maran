@@ -119,6 +119,25 @@ service SftpService {
   // account's jail), or the answer is NOT_FOUND and nothing is written.
   // Idempotent: the same list twice converges to the same file.
   rpc SetSftpAuthorizedKeys(SetSftpAuthorizedKeysRequest) returns (SetSftpAuthorizedKeysResponse);
+
+  // Ends every session ONE SFTP login has open right now (issue #339).
+  //
+  // Replacing or removing a login's keys changes who may authenticate NEXT;
+  // sshd does not re-read a key file for a session it has already admitted, so a
+  // session opened with a revoked key keeps reading and writing the account's
+  // home. The panel calls this after it has replaced or revoked the keys.
+  //
+  // It takes the account and the login suffix and ends that login's sessions
+  // and no other: an SFTP login shares its account's uid, so a uid-wide kill
+  // would cut the account's other logins and its own processes. The sessions
+  // are found by the process title sshd gives a session of that exact login.
+  // The login must belong to the account (its passwd home is exactly that
+  // account's jail), or the answer is NOT_FOUND and nothing is signalled.
+  //
+  // Idempotent: a login with no open session answers OK with zero. An upload in
+  // flight is cut at whatever byte it had reached and the partial file stays.
+  // Cancellation class: run to completion; the signal is sent before the answer.
+  rpc EndSftpSessions(EndSftpSessionsRequest) returns (EndSftpSessionsResponse);
 }
 
 message CreateSftpUserRequest {
@@ -264,6 +283,29 @@ message SetSftpAuthorizedKeysOk {
   // How many distinct keys the login's key file now holds; zero when the list
   // was empty and the file was removed.
   uint32 key_count = 1;
+}
+
+message EndSftpSessionsRequest {
+  // System username of the owning account. Load-bearing: the login is checked
+  // against this account's jail before anything is signalled.
+  string account_username = 1;
+  // Login name suffix, namespaced under the account exactly as at creation. The
+  // fully-qualified name is never accepted off the wire.
+  string sftp_username = 2;
+}
+
+message EndSftpSessionsResponse {
+  oneof result {
+    EndSftpSessionsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message EndSftpSessionsOk {
+  // How many processes were signalled. A session is two of them (sshd's
+  // privileged monitor and the session itself), so this is NOT a session count;
+  // zero means the login had nothing open.
+  uint32 processes_signalled = 1;
 }
 
 // This panel's own FTPS daemon: the service that configures it, observes it,

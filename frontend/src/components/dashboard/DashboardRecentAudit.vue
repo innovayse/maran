@@ -8,7 +8,8 @@
  * `actionName` is rendered, never `action`: the backend localizes the readable name and falls back
  * to the machine name itself for an action it has no entry for, so this component holds no copy for
  * a server-side thing (rules/vue.md). A failed entry is marked, because a journal in which failures
- * look like successes is a list rather than a journal.
+ * look like successes is a list rather than a journal. The badge prints `outcomeName`, the outcome in
+ * words as the backend names it (issue #330), never a word of the bundle's own.
  *
  * Each row is the redesign's list row: an initials avatar for whoever did it, the readable action with
  * what it was done to underneath, and the time in the mono face on the right. The "open the journal"
@@ -74,7 +75,7 @@ const localeStore = useLocaleStore()
 
         <div class="ml-auto flex max-w-full flex-wrap items-center justify-end gap-x-2 gap-y-1">
           <time class="font-mono text-xs whitespace-nowrap text-text-muted tabular-nums" :datetime="entry.occurredAt">{{ formatIsoTimestamp(entry.occurredAt, localeStore.current) }}</time>
-          <UiBadge v-if="!entry.succeeded" variant="danger">{{ t('app.status.audit.failed') }}</UiBadge>
+          <UiBadge v-if="!entry.succeeded" variant="danger">{{ entry.outcomeName }}</UiBadge>
         </div>
       </li>
     </ul>

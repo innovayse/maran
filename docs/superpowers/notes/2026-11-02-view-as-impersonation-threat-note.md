@@ -73,7 +73,8 @@ administrator's own, and it never left the administrator's cookie.
 3. **Escalate from inside a view-as session.** The token's role is `Customer`, so every
    administrator endpoint refuses it exactly as it refuses the customer. On top of that,
    `ViewAsBoundaryRequirement` is attached to BOTH panel policies (like the two-factor steering) and
-   refuses, for a view-as token, every endpoint marked `[RefusedWhileViewingAs]`: starting another
+   refuses, for a view-as token, every endpoint not declared reachable with `[ViewAsAccess]` (a deny-list when this note was
+   written, an allow-list since issue #334 — see 2026-11-03-view-as-allow-list-threat-note.md): starting another
    view-as (so no chaining and no switching without stopping), changing the password, enrolling,
    confirming or disabling two-factor, signing out everywhere, and the whole sessions controller
    (list and revoke), the sub-users controller (invite, change grants, remove, list) and switching
@@ -137,8 +138,8 @@ and each start is journalled.
 ## What a reviewer must check
 
 1. `ViewAsBoundaryRequirement` is on both policies in `Maran.Host/Authorization/RolePolicies.cs`, and
-   every endpoint in item 3 carries `[RefusedWhileViewingAs]`. Grep for any NEW endpoint touching
-   credentials, sessions or two-factor that does not.
+   every endpoint in item 3 carries `[ViewAsAccess(ViewAsAccess.Refused)]` or is undeclared. The
+   architecture test `ViewAsAccessDeclarationTests` fails for any endpoint that is not classified.
 2. `ViewAsSessionValidation` is wired in `AuthenticationExtensions` and fails CLOSED: a malformed
    `act`, a missing row, a database error, or a missing `sid` is a failed authentication, never a
    pass.

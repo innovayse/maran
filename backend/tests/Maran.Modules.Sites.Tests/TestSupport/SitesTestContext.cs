@@ -1,8 +1,13 @@
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Resources;
+using Maran.Modules.Sites.Services;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Sites.Tests.TestSupport;
 
@@ -23,6 +28,17 @@ public static class SitesTestContext
             .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString())
             .Options;
         return new SitesDbContext(options, currentUser);
+    }
+
+    /// <summary>Builds the site display-name resolver over this module's REAL resource files.</summary>
+    /// <returns>The resolver, reading <c>Resources/DisplayNames*.resx</c> as it does in the panel.</returns>
+    public static SiteDisplayNames SiteNames()
+    {
+        var factory = new ResourceManagerStringLocalizerFactory(
+            new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+            NullLoggerFactory.Instance);
+
+        return new SiteDisplayNames(new StringLocalizer<DisplayNames>(factory));
     }
 
     /// <summary>Builds a PHP-backed site row for <paramref name="accountId"/>.</summary>

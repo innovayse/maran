@@ -116,7 +116,7 @@ public sealed class ResetDatabasePasswordCommandHandler
         // keeping the copy this whole module takes such trouble not to keep — and the journal is
         // never deleted.
         await _journal.RecordSuccessAsync(
-            AuditActions.DatabasePasswordReset,
+            DatabaseAuditActions.DatabasePasswordReset,
             database.Name,
             command.IpAddress,
             command.UserAgent,
@@ -139,7 +139,7 @@ public sealed class ResetDatabasePasswordCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.DatabasePasswordReset, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            DatabaseAuditActions.DatabasePasswordReset, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<DatabasePasswordDto>.Fail(error);
     }

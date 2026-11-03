@@ -78,6 +78,9 @@
   <data name="BackupFailureAgentUnavailable">
     <value>Սերվերը չէր պատասխանում</value>
   </data>
+  <data name="BackupFailureAgentSaturated">
+    <value>Սերվերն արդեն կատարում էր թույլատրված առավելագույն թվով նման գործողություններ</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Տեղական պահոց</value>
   </data>
@@ -86,5 +89,62 @@
   </data>
   <data name="BackupFailureBackupArtifactUnvouched">
     <value>Պատճենը կա, ստուգիչ գումարը գրանցված չէ</value>
+  </data>
+  <data name="BackupStatusRunning">
+    <value>Կատարվում է</value>
+  </data>
+  <data name="BackupStatusCompleted">
+    <value>Ավարտված</value>
+  </data>
+  <data name="BackupStatusFailed">
+    <value>Ձախողված</value>
+  </data>
+  <data name="BackupKindManual">
+    <value>Ձեռքով</value>
+  </data>
+  <data name="BackupKindScheduled">
+    <value>Ըստ ժամանակացույցի</value>
+  </data>
+  <data name="BackupKindPreDeletion">
+    <value>Ջնջումից առաջ</value>
+  </data>
+  <data name="BackupKindPreRestore">
+    <value>Վերականգնումից առաջ</value>
+  </data>
+  <data name="BackupDestinationKindLocal">
+    <value>Այս սերվերի սկավառակը</value>
+  </data>
+  <data name="BackupDestinationKindS3">
+    <value>S3-համատեղելի պահոց</value>
+  </data>
+  <data name="BackupFrequencyDaily">
+    <value>Ամեն օր</value>
+  </data>
+  <data name="BackupFrequencyWeekly">
+    <value>Ամեն շաբաթ</value>
+  </data>
+  <data name="BackupWeekdayMonday">
+    <value>երկուշաբթի</value>
+  </data>
+  <data name="BackupWeekdayTuesday">
+    <value>երեքշաբթի</value>
+  </data>
+  <data name="BackupWeekdayWednesday">
+    <value>չորեքշաբթի</value>
+  </data>
+  <data name="BackupWeekdayThursday">
+    <value>հինգշաբթի</value>
+  </data>
+  <data name="BackupWeekdayFriday">
+    <value>ուրբաթ</value>
+  </data>
+  <data name="BackupWeekdaySaturday">
+    <value>շաբաթ</value>
+  </data>
+  <data name="BackupWeekdaySunday">
+    <value>կիրակի</value>
+  </data>
+  <data name="BackupFailureAgentRunNotStopped">
+    <value>Սերվերը չկարողացավ հաստատել կանգնեցումը, ուստի գործողությունը կարող էր շարունակել աշխատել</value>
   </data>
 </root>

@@ -14,8 +14,8 @@ public interface IAccessTokenIssuer
     /// </param>
     /// <param name="accountId">
     /// The hosting account the token speaks for, written as the account claim every tenant query
-    /// follows. It is the session's active account, never <see cref="User.AccountId"/>: a login that
-    /// holds several accounts has one active at a time. Null writes no claim, which is right for an
+    /// follows. It is the session's active account, chosen from the login's active memberships: a login
+    /// that holds several accounts has one active at a time. Null writes no claim, which is right for an
     /// administrator and for a customer with no membership.
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the read of the panel's security policy.</param>

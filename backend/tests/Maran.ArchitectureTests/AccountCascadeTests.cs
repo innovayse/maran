@@ -59,9 +59,9 @@ public sealed class AccountCascadeTests
     /// <remarks>
     /// <para>
     /// <b>It is empty, and it is kept.</b> <c>Maran.Modules.Identity</c> was its one entry: its
-    /// <c>User.AccountId</c> is nullable and names the hosting account a CUSTOMER login owns, and in
-    /// v1 the only user the panel constructs is the setup administrator, whose <c>AccountId</c> is
-    /// null — so no row was keyed to an account and nothing was orphaned.
+    /// login row named the hosting account a CUSTOMER login owns (since replaced by
+    /// <c>AccountMembership</c> rows), and in v1 the only user the panel constructs is the setup
+    /// administrator, who holds none — so no row was keyed to an account and nothing was orphaned.
     /// </para>
     /// <para>
     /// That exemption was still wrong to keep, for two reasons neither of which was about orphans.
@@ -377,10 +377,19 @@ public sealed class AccountCascadeTests
 
             // The vacuity guard on the axis that can go blind: both assertions here are satisfied by
             // an empty census, and an empty census is exactly what a broken model walk produces.
-            Assert.True(
-                relationships.Count >= 3,
-                $"Only {relationships.Count} dependents of a tenant entity were found; the model walk "
-                + "has stopped seeing relationships and this test now proves nothing");
+            // A user no longer carries an AccountId (a login can belong to several accounts through
+            // memberships, #326), so the dependents of a user are no longer dependents of a tenant row
+            // and the census shrank on purpose. The guard therefore names one dependent that must
+            // always be seen — a hostname hangs off its site — instead of counting a population that
+            // moved: a count says "something was found", the named control says the walk still reaches
+            // a relationship it is known to contain.
+            Assert.Contains(
+                relationships,
+                foreignKey =>
+                {
+                    return foreignKey.DeclaringEntityType.ClrType.Name == "SiteHostname"
+                        && foreignKey.PrincipalEntityType.ClrType.Name == "Site";
+                });
 
             var orphaning = relationships
                 .Where(relationship =>
@@ -509,7 +518,7 @@ public sealed class AccountCascadeTests
             {
                 return !candidate.Entity.GetForeignKeys().Any(foreignKey =>
                 {
-                    return foreignKey.PrincipalEntityType == candidate.Names
+                    return ReferenceEquals(foreignKey.PrincipalEntityType, candidate.Names)
                         && foreignKey.Properties.Contains(candidate.Property);
                 });
             })

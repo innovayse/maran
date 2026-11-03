@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { PanelTask, TaskKindChoice } from '../../src/types/panelTask'
+import type { PanelTask, TaskKindChoice, TaskStatusChoice } from '../../src/types/panelTask'
 
 /** The paged list endpoint the tasks page reads. */
 const TASKS_PATTERN = /\/api\/v1\/tasks(\?.*)?$/
@@ -10,6 +10,16 @@ export const RUNNING_STREAM_PATTERN = /\/api\/v1\/tasks\/running\/stream(\?.*)?$
 
 /** The kinds endpoint the kind filter reads. */
 const KINDS_PATTERN = /\/api\/v1\/tasks\/kinds(\?.*)?$/
+
+/** The statuses endpoint the status filter reads. */
+export const STATUSES_PATTERN = /\/api\/v1\/tasks\/statuses(\?.*)?$/
+
+/** The statuses the panel lists, in the order it lists them, named as it names them in English. */
+export const TASK_STATUS_CHOICES: TaskStatusChoice[] = [
+  { status: 'running', statusName: 'Running' },
+  { status: 'completed', statusName: 'Completed' },
+  { status: 'failed', statusName: 'Failed' },
+]
 
 /** The failed-count endpoint the attention notice reads. */
 const FAILED_COUNT_PATTERN = /\/api\/v1\/tasks\/failed-count(\?.*)?$/
@@ -64,7 +74,8 @@ const fulfilJson = async (page: Page, pattern: RegExp, body: unknown): Promise<v
  * /api/v1/tasks` as a page honouring `page`, `pageSize`, `search`, `sort`, `status`, `kind`,
  * `from` and `to` (the stub holds no accounts, so `accountId` narrows nothing); `/running/stream`
  * with a frame per running task and their set (the body ends, so the shell reconnects after its
- * wait and is answered the same again); `/kinds` with the distinct kinds, named by their machine names; and `/failed-count`.
+ * wait and is answered the same again); `/kinds` with the distinct kinds, named by their machine names; `/statuses` with the closed set of
+ * statuses the panel lists; and `/failed-count`.
  * @param page The Playwright page whose network the routes are installed on.
  * @param tasks The tasks the stub knows, newest first — the panel's default order.
  * @returns A function reporting every list request so far, oldest first.
@@ -91,6 +102,7 @@ export const stubTasks = async (page: Page, tasks: PanelTask[]): Promise<() => r
     return { kind, kindName: kind }
   })
   await fulfilJson(page, KINDS_PATTERN, kinds)
+  await fulfilJson(page, STATUSES_PATTERN, TASK_STATUS_CHOICES)
   await fulfilJson(
     page,
     FAILED_COUNT_PATTERN,

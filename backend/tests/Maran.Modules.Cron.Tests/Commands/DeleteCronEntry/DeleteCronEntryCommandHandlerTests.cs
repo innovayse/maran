@@ -102,7 +102,7 @@ public sealed class DeleteCronEntryCommandHandlerTests
         await world.HandleAsync();
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryDeleted, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryDeleted, entry.Action);
         Assert.Equal(EntryId, entry.Subject);
         Assert.True(entry.Succeeded);
     }
@@ -117,7 +117,7 @@ public sealed class DeleteCronEntryCommandHandlerTests
         await world.HandleAsync();
 
         var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(AuditActions.CronEntryDeleted, entry.Action);
+        Assert.Equal(CronAuditActions.CronEntryDeleted, entry.Action);
         Assert.False(entry.Succeeded);
         Assert.Equal(EntryId, entry.Subject);
     }

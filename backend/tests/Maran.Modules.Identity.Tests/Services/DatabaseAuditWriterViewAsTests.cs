@@ -18,7 +18,7 @@ public sealed class DatabaseAuditWriterViewAsTests : IDisposable
 
     private static AuditEntry Entry(Guid actorId)
     {
-        return new AuditEntry(actorId, "acme-owner", AuditActions.SessionRevoked, "subject", "198.51.100.1", "agent", true);
+        return new AuditEntry(actorId, "acme-owner", IdentityAuditActions.SessionRevoked, "subject", "198.51.100.1", "agent", true);
     }
 
     /// <summary>An entry written while viewing as a login records the operator beside the actor.</summary>

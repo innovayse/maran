@@ -195,6 +195,28 @@ pub enum SftpError {
     /// itself was refused.
     #[error("the login's key file could not be written")]
     KeyFileFailed,
+
+    /// The password database could not be read as a list of logins.
+    ///
+    /// Its own variant and not [`Self::AccountMissing`], which says the hosting
+    /// account is not on the host: here nothing is known about any account. The
+    /// orphan sweep reads it as "remove nothing" — a login it could not find is
+    /// not proved gone.
+    #[error("the password database could not be read")]
+    PasswdUnreadable,
+
+    /// `pkill` answered something other than "signalled" or "nothing matched"
+    /// while ending a login's sessions.
+    ///
+    /// Some of the login's processes may have been signalled and some may not,
+    /// which is why this is an error and not a count: the panel must not report
+    /// a revocation it cannot account for. Carries the exit status and nothing
+    /// else, for the reason the enum states.
+    #[error("ending the login's sessions failed with status {code}")]
+    SessionsNotEnded {
+        /// `pkill`'s exit status.
+        code: i32,
+    },
 }
 
 impl From<SpawnError> for SftpError {

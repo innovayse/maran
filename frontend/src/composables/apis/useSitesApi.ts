@@ -5,11 +5,12 @@ import type {
   ChangeSitePhpVersionRequest,
   CreateSiteRequest,
   Site,
+  SiteChoices,
   SiteDetail,
   SiteLimits,
   SitesApi,
 } from '../../types/site'
-import type { PhpVersion } from '../../types/phpVersion'
+import type { InstallablePhpVersion, PhpVersion } from '../../types/phpVersion'
 import type {
   SiteLogEndReason,
   SiteLogStreamHandlers,
@@ -143,12 +144,33 @@ export const useSitesApi = (): SitesApi => {
   }
 
   /**
+   * Lists the PHP versions this server can install, installed ones flagged.
+   *
+   * The install picker selects from this rather than from a list written into the SPA: what the
+   * host can install is the agent's to report. Administrator-only on the server.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The installable versions, newest first.
+   */
+  const listInstallablePhpVersions = (signal?: AbortSignal): Promise<InstallablePhpVersion[]> => {
+    return api.get<InstallablePhpVersion[]>(`${SITES_PATH}/php-versions/installable`, signal)
+  }
+
+  /**
    * Reads the bounds a site's form must respect.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The limits, as the server states them.
    */
   const getLimits = (signal?: AbortSignal): Promise<SiteLimits> => {
     return api.get<SiteLimits>(`${SITES_PATH}/limits`, signal)
+  }
+
+  /**
+   * Reads the closed sets the site form and list filters select from.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The backends and serving states, labelled by the server.
+   */
+  const getChoices = (signal?: AbortSignal): Promise<SiteChoices> => {
+    return api.get<SiteChoices>(`${SITES_PATH}/choices`, signal)
   }
 
   /**
@@ -257,7 +279,9 @@ export const useSitesApi = (): SitesApi => {
     disable,
     remove,
     listPhpVersions,
+    listInstallablePhpVersions,
     getLimits,
+    getChoices,
     installPhpVersion,
     tailLog,
   }

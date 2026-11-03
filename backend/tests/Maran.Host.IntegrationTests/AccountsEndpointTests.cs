@@ -154,7 +154,7 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
     /// <summary>Boots the host against this class's PostgreSQL, as the setup tests do.</summary>
     private WebApplicationFactory<Program> CreateFactory()
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
+        return new ConfiguredHostFactory(b =>
         {
             // Testing, not Development: appsettings.Development.json points at a developer's own
             // PostgreSQL, and inheriting it made these tests pass locally by accident while

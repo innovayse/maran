@@ -176,6 +176,44 @@ enum ErrorCode {
   // is not ERROR_CODE_ACCOUNT_BUSY, which means a lock was held and invites a
   // retry.
   ERROR_CODE_ACCOUNT_SUSPENDED = 14;
+  // Added 2026-11-03, additively (issues #333 and #331). The operation was
+  // refused because a bounded resource of the AGENT itself is exhausted, and
+  // admitting one more would take capacity from every other tenant. Today only
+  // RunCronEntry asks: a run by hand holds a worker thread of the agent for up
+  // to its runtime ceiling, so the agent admits a fixed number of them at once
+  // for the whole host and a smaller number for one account (the numbers are
+  // the agent's, not the panel's, and are not on the wire).
+  //
+  // **Nothing happened.** The refusal is decided before the account's crontab
+  // is read and before any program starts, so the account is exactly as the
+  // caller found it. It IS retryable, later: the answer changes as soon as a
+  // running call finishes, which is at most the runtime ceiling away. A panel
+  // that reads it tells the customer to wait and try again, and does not retry
+  // in a loop.
+  //
+  // It is NOT ERROR_CODE_ACCOUNT_BUSY, which means one account's lock was held
+  // by a different operation and is cleared by that operation ending; nor
+  // ERROR_CODE_LIMIT_REACHED, which is the panel's own allowance for the
+  // account and does not clear by waiting; nor SYSTEM_FAILURE, because nothing
+  // is wrong with the host. A caller MUST NOT widen it to "the agent is busy
+  // for any reason".
+  ERROR_CODE_AGENT_SATURATED = 15;
+  // Added 2026-11-03, additively (issues #336 and #331). The operation STARTED
+  // a unit of work in the service manager, a ceiling (the output cap or the
+  // deadline) ended the run, and the agent then could not confirm that the unit
+  // was stopped. Today only RunCronEntry returns it.
+  //
+  // **The opposite of "nothing happened".** The customer's job may STILL BE
+  // RUNNING, and it will keep running until the service manager's own runtime
+  // ceiling stops it. A caller MUST NOT report it as a run that was stopped, and
+  // MUST NOT say that nothing was altered. It is NOT retryable as it stands: a
+  // second call would start a second run beside the first.
+  //
+  // It is NOT ERROR_CODE_SYSTEM_FAILURE, which this outcome used to ride on and
+  // whose generic reading is "the request failed and the host is as it was";
+  // and not ERROR_CODE_AGENT_SATURATED, where nothing was started at all. A
+  // caller MUST NOT widen it to "a stop failed for any reason".
+  ERROR_CODE_RUN_NOT_STOPPED = 16;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

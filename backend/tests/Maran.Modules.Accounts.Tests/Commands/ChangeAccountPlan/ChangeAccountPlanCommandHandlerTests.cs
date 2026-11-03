@@ -123,7 +123,7 @@ public sealed class ChangeAccountPlanCommandHandlerTests : IDisposable
             return call.StartsWith("quota:", StringComparison.Ordinal);
         });
         var entry = Assert.Single(_audit.Entries);
-        Assert.Equal(AuditActions.AccountPlanChanged, entry.Action);
+        Assert.Equal(AccountAuditActions.AccountPlanChanged, entry.Action);
         Assert.Equal("olive: Large -> Small", entry.Subject);
         Assert.False(entry.Succeeded);
     }

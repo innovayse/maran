@@ -58,7 +58,7 @@ public sealed class SmtpSettingsCacheTests
         // exactly what is not sufficient on its own.
         await SeedAsync(dbContext, "new.example.com");
 
-        var invalidationEntered = new ManualResetEventSlim(false);
+        using var invalidationEntered = new ManualResetEventSlim(false);
         var invalidation = Task.Run(() =>
         {
             invalidationEntered.Set();

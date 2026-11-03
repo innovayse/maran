@@ -1,5 +1,5 @@
 import type { ListRequest, Paged } from './list'
-import type { PhpVersion } from './phpVersion'
+import type { InstallablePhpVersion, PhpVersion } from './phpVersion'
 import type { SiteLogStreamHandlers, TailSiteLogOptions } from './siteLog'
 
 /**
@@ -39,10 +39,14 @@ export interface Site {
   domain: string
   /** Which backend serves this site's content. */
   backendType: SiteBackendType
+  /** The backend as an operator reads it, in the request's language. */
+  backendTypeName: string
   /** The bound PHP version, or the empty string when the backend is not PHP. */
   phpVersion: string
   /** Whether the site serves its own content or a suspension response. */
   status: SiteStatus
+  /** The serving state as an operator reads it, in the request's language. */
+  statusName: string
   /** The instant the site was created, as an ISO-8601 string. */
   createdAt: string
 }
@@ -63,6 +67,8 @@ export interface SiteDetail {
   aliases: string[]
   /** Which backend serves this site's content. */
   backendType: SiteBackendType
+  /** The backend as an operator reads it, in the request's language. */
+  backendTypeName: string
   /** The bound PHP version, or the empty string when the backend is not PHP. */
   phpVersion: string
   /** The upstream forwarded to, or the empty string when the backend is not a reverse proxy. */
@@ -73,6 +79,8 @@ export interface SiteDetail {
   hasCertificate: boolean
   /** Whether the site serves its own content or a suspension response. */
   status: SiteStatus
+  /** The serving state as an operator reads it, in the request's language. */
+  statusName: string
   /** The instant the site was created, as an ISO-8601 string. */
   createdAt: string
 }
@@ -180,12 +188,28 @@ export interface SitesApi {
   listPhpVersions: (signal?: AbortSignal) => Promise<PhpVersion[]>
 
   /**
+   * Lists the PHP versions this server can install, installed ones flagged — the reference data
+   * the install picker selects from, so nobody types a version. Administrator-only on the server.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The installable versions, newest first.
+   */
+  listInstallablePhpVersions: (signal?: AbortSignal) => Promise<InstallablePhpVersion[]>
+
+  /**
    * Reads the bounds a site's form must respect, so the form shows the server's limit rather than
    * a copy of it.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The limits.
    */
   getLimits: (signal?: AbortSignal) => Promise<SiteLimits>
+
+  /**
+   * Reads the closed sets the site form and the list's filters select from — the backends and the
+   * serving states — each option already labelled in the caller's language by the panel.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The choices.
+   */
+  getChoices: (signal?: AbortSignal) => Promise<SiteChoices>
 
   /**
    * Installs a PHP version on the server and answers what is installed afterwards.
@@ -271,4 +295,23 @@ export type SiteDetailLoad =
 export interface SiteLimits {
   /** The most aliases one site may carry: every name one certificate covers but the domain's own. */
   maximumAliases: number
+}
+
+/** One option of a closed set a site screen selects from (`GET /api/v1/sites/choices`). */
+export interface SiteChoice {
+  /** The value the API accepts and serializes for this option, e.g. `reverseProxy`. */
+  value: string
+  /** The option's display name in the caller's language, produced by the panel. */
+  label: string
+}
+
+/**
+ * The closed sets the site screens select from, as the server states them. The server keeps
+ * validating every submitted value against the same sets; the lists are advice for the pickers.
+ */
+export interface SiteChoices {
+  /** What can serve a site, in the order the form offers them. */
+  backendTypes: SiteChoice[]
+  /** Whether a site serves its own content, in the order the filter offers them. */
+  statuses: SiteChoice[]
 }

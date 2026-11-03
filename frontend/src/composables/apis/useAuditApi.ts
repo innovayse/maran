@@ -1,7 +1,7 @@
 import { useApi } from '../useApi'
 import { listQuery } from '../../utils/listQuery'
 import { withInstantWindow } from '../../utils/withInstantWindow'
-import type { AuditActionChoice, AuditApi, AuditEvent } from '../../types/audit'
+import type { AuditActionChoice, AuditApi, AuditEvent, AuditOutcomeChoice } from '../../types/audit'
 import type { ListRequest, Paged } from '../../types/list'
 
 /** The endpoint the append-only audit journal is read through. Administrators only. */
@@ -42,5 +42,14 @@ export const useAuditApi = (): AuditApi => {
     return api.get<AuditActionChoice[]>(`${AUDIT_PATH}/actions`, signal)
   }
 
-  return { list, actions }
+  /**
+   * Lists the outcomes the journal can be filtered by, for the outcome filter.
+   * @param signal Optional abort signal.
+   * @returns The outcomes with their backend-localized names.
+   */
+  const outcomes = (signal?: AbortSignal): Promise<AuditOutcomeChoice[]> => {
+    return api.get<AuditOutcomeChoice[]>(`${AUDIT_PATH}/outcomes`, signal)
+  }
+
+  return { list, actions, outcomes }
 }

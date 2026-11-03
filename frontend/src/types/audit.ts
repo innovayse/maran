@@ -26,13 +26,21 @@ export interface AuditEvent {
   ipAddress: string
   /** Whether the action succeeded. A failed sign-in is recorded as much as a successful one. */
   succeeded: boolean
+  /** The outcome in words, in the request's language: what the outcome badge prints. */
+  outcomeName: string
 }
 
-/** Whether a recorded action worked, as the journal's `outcome` filter names it on the wire. */
-export type AuditOutcome = 'succeeded' | 'failed'
-
-/** Every {@link AuditOutcome}, in the order the filter offers them. */
-export const AUDIT_OUTCOMES: readonly AuditOutcome[] = ['succeeded', 'failed']
+/**
+ * One outcome the journal can be filtered by, as the outcome filter offers it: the value the filter
+ * sends back, and the name an administrator reads, localized by the backend. The list itself comes
+ * from the panel, so the bundle holds no copy of the vocabulary.
+ */
+export interface AuditOutcomeChoice {
+  /** The outcome as the journal's `outcome` filter binds it, sent back as that filter. */
+  outcome: string
+  /** The outcome as an administrator reads it, in the request's language. */
+  outcomeName: string
+}
 
 /**
  * One action the journal holds, as the action filter offers it: the machine-stable name the filter
@@ -60,4 +68,10 @@ export interface AuditApi {
    * @returns The actions with their localized names.
    */
   actions: (signal?: AbortSignal) => Promise<AuditActionChoice[]>
+  /**
+   * Lists the outcomes the journal can be filtered by, for the outcome filter.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The outcomes with their localized names.
+   */
+  outcomes: (signal?: AbortSignal) => Promise<AuditOutcomeChoice[]>
 }

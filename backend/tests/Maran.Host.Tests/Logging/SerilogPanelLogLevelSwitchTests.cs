@@ -14,7 +14,7 @@ public sealed class SerilogPanelLogLevelSwitchTests
     [Fact]
     public void Every_panel_level_round_trips_through_the_loggers_switch_unchanged()
     {
-        var panelSwitch = new SerilogPanelLogLevelSwitch(new LoggingLevelSwitch());
+        var panelSwitch = PanelSwitchOver(new LoggingLevelSwitch());
 
         foreach (var level in Enum.GetValues<PanelLogLevel>())
         {
@@ -33,7 +33,7 @@ public sealed class SerilogPanelLogLevelSwitchTests
             .MinimumLevel.ControlledBy(levelSwitch)
             .WriteTo.Sink(sink)
             .CreateLogger();
-        var panelSwitch = new SerilogPanelLogLevelSwitch(levelSwitch);
+        var panelSwitch = PanelSwitchOver(levelSwitch);
 
         logger.Debug("before");
         panelSwitch.Apply(PanelLogLevel.Debug);
@@ -48,12 +48,20 @@ public sealed class SerilogPanelLogLevelSwitchTests
     [Fact]
     public void A_value_that_names_no_level_is_a_bug_and_is_refused_loudly()
     {
-        var panelSwitch = new SerilogPanelLogLevelSwitch(new LoggingLevelSwitch());
+        var panelSwitch = PanelSwitchOver(new LoggingLevelSwitch());
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
         {
             panelSwitch.Apply((PanelLogLevel)99);
         });
+    }
+
+    /// <summary>Builds the panel's switch over a logger switch, with the shipped third-party pins.</summary>
+    /// <param name="levelSwitch">The logger's switch.</param>
+    /// <returns>The panel's window onto it.</returns>
+    private static SerilogPanelLogLevelSwitch PanelSwitchOver(LoggingLevelSwitch levelSwitch)
+    {
+        return new SerilogPanelLogLevelSwitch(levelSwitch, new ThirdPartyLogSwitches(ThirdPartyLogPins.All));
     }
 
     /// <summary>Collects the rendered text of every event it receives.</summary>

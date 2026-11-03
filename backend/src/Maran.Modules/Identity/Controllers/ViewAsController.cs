@@ -1,4 +1,3 @@
-using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.EndViewAs;
 using Maran.Modules.Identity.Commands.StartViewAs;
 using Maran.Modules.Identity.Common;
@@ -49,6 +48,7 @@ public sealed class ViewAsController : BaseApiController
     /// <summary>Reports whether the caller's token is a view-as token, and of what.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
+    [ViewAsAccess(ViewAsAccess.Read)]
     [ProducesResponseType(typeof(ViewAsStateDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
@@ -68,8 +68,8 @@ public sealed class ViewAsController : BaseApiController
     /// <param name="command">The account to view as, bound from the body.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [ViewAsAccess(ViewAsAccess.Refused)]
     [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
-    [RefusedWhileViewingAs]
     [ProducesResponseType(typeof(ViewAsSessionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -95,6 +95,7 @@ public sealed class ViewAsController : BaseApiController
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete]
+    [ViewAsAccess(ViewAsAccess.SafeMutation)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

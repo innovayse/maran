@@ -242,4 +242,36 @@ pub trait SftpHost: Send + Sync {
         file: &ConfigFile<'_>,
         validator: &Validator<'_>,
     ) -> Result<(), SftpError>;
+
+    /// Every login name the password database holds, whoever owns it.
+    ///
+    /// Asked for two decisions that are both about EXISTENCE and neither about
+    /// ownership: whether a login about to be created is already there (so its
+    /// key file is purged only for a name that is new), and whether the login a
+    /// key file was written for is still there (the orphan sweep). Ownership is
+    /// the other question, [`SftpHost::account_logins`], and it is deliberately
+    /// not asked here: a key file of a login that exists is not an orphan
+    /// whichever account the login belongs to.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SftpError::PasswdUnreadable`] when the password database cannot
+    /// be read. The sweep treats that as a reason to remove nothing: a login it
+    /// cannot find is not a login that is gone.
+    fn login_names(&self, passwd_database: &str) -> Result<Vec<String>, SftpError>;
+
+    /// The file names in the SFTP logins' public-key directory
+    /// (`AgentPaths::SFTP_AUTHORIZED_KEYS_DIRECTORY`), unsorted.
+    ///
+    /// Only entries that are not directories, and only names that are valid
+    /// UTF-8: the sweep acts on names it can read as a login's, and a name it
+    /// cannot read is not one this agent wrote. A directory that is not there
+    /// is an empty list — a host that never held an SFTP login has no key
+    /// directory, and that is not a fault.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SftpError::KeyFileFailed`] when the directory exists and cannot
+    /// be listed.
+    fn key_file_names(&self) -> Result<Vec<String>, SftpError>;
 }

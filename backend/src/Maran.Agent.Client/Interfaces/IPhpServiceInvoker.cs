@@ -18,6 +18,14 @@ internal interface IPhpServiceInvoker
         ListPhpVersionsRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>ListInstallablePhpVersions</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<ListInstallablePhpVersionsResponse> ListInstallablePhpVersionsAsync(
+        ListInstallablePhpVersionsRequest request,
+        CancellationToken cancellationToken);
+
     /// <summary>Invokes the server-streaming <c>InstallPhpVersion</c>.</summary>
     /// <param name="request">The wire request.</param>
     /// <param name="cancellationToken">Cancellation for the stream.</param>

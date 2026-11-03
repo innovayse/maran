@@ -30,6 +30,7 @@ const ALICE: Account = {
   primaryDomain: 'alice.example.com',
   planId: '44444444-4444-4444-4444-444444444444',
   status: 'active',
+  statusName: 'Active',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -39,6 +40,7 @@ const SUSPENDED: Account = {
   name: 'bob',
   primaryDomain: 'bob.example.com',
   status: 'suspended',
+  statusName: 'Suspended',
 }
 
 const ALPHA: Site = {
@@ -47,8 +49,10 @@ const ALPHA: Site = {
   ownerName: ALICE.name,
   domain: 'alpha.example.com',
   backendType: 'php',
+  backendTypeName: 'PHP',
   phpVersion: '8.3',
   status: 'enabled',
+  statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -100,6 +104,7 @@ const DASHBOARD: Dashboard = {
       subject: 'alice',
       ipAddress: '203.0.113.9',
       succeeded: true,
+      outcomeName: 'Succeeded',
     },
     {
       id: '22222222-2222-2222-2222-222222222222',
@@ -110,6 +115,7 @@ const DASHBOARD: Dashboard = {
       subject: 'admin',
       ipAddress: '203.0.113.9',
       succeeded: false,
+      outcomeName: 'Failed',
     },
   ]),
 }
