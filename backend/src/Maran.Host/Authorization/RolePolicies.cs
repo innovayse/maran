@@ -6,8 +6,9 @@ using Microsoft.AspNetCore.Authorization;
 namespace Maran.Host.Authorization;
 
 /// <summary>
-/// The panel's authorization policies. Two are enough for v1's role model (spec §8): an
-/// administrator reaches the whole server, a customer reaches their own account.
+/// The panel's authorization policies. An administrator reaches the whole server, a reseller the
+/// accounts and plans it sells, a customer their own account; four policies name the combinations an
+/// endpoint can ask for.
 /// </summary>
 public static class RolePolicies
 {
@@ -18,13 +19,26 @@ public static class RolePolicies
     public const string AdminOnly = AuthorizationPolicies.AdminOnly;
 
     /// <summary>
-    /// Requires a signed-in caller of either role who has completed any forced two-factor enrolment —
+    /// Requires a signed-in reseller who has completed any forced two-factor enrolment. An
+    /// administrator does not pass it, and neither does a customer.
+    /// </summary>
+    public const string ResellerOnly = AuthorizationPolicies.ResellerOnly;
+
+    /// <summary>
+    /// Requires a signed-in administrator or reseller who has completed any forced two-factor
+    /// enrolment; a customer does not pass it. Passing it is never the whole of a reseller's scoping:
+    /// the Accounts module narrows a reseller to what it owns.
+    /// </summary>
+    public const string AdminOrReseller = AuthorizationPolicies.AdminOrReseller;
+
+    /// <summary>
+    /// Requires a signed-in caller of any role who has completed any forced two-factor enrolment —
     /// a customer passes it. Also the default policy a bare <c>[Authorize]</c> evaluates.
     /// </summary>
     public const string AnyAuthenticated = AuthorizationPolicies.AnyAuthenticated;
 
     /// <summary>
-    /// Registers both policies, makes <see cref="AdminOnly"/> the fallback for an endpoint that carries
+    /// Registers the four policies, makes <see cref="AdminOnly"/> the fallback for an endpoint that carries
     /// no authorization metadata, and makes <see cref="AnyAuthenticated"/> the default for a bare
     /// <c>[Authorize]</c>.
     /// </summary>
@@ -48,6 +62,26 @@ public static class RolePolicies
         {
             policy.RequireAuthenticatedUser();
             policy.RequireClaim(PanelClaimTypes.Role, nameof(UserRole.Admin));
+            policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
+            policy.AddRequirements(new ViewAsBoundaryRequirement());
+        });
+
+        options.AddPolicy(ResellerOnly, policy =>
+        {
+            policy.RequireAuthenticatedUser();
+            policy.RequireClaim(PanelClaimTypes.Role, nameof(UserRole.Reseller));
+            policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
+            policy.AddRequirements(new ViewAsBoundaryRequirement());
+        });
+
+        // Exactly the two role names and no third: a customer, or a role this build has never heard
+        // of, passes neither value of the claim. A view-as token carries the VIEWED login's role, so an
+        // administrator viewing as a reseller passes this policy as the reseller and passes AdminOnly
+        // not at all.
+        options.AddPolicy(AdminOrReseller, policy =>
+        {
+            policy.RequireAuthenticatedUser();
+            policy.RequireClaim(PanelClaimTypes.Role, nameof(UserRole.Admin), nameof(UserRole.Reseller));
             policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
             policy.AddRequirements(new ViewAsBoundaryRequirement());
         });

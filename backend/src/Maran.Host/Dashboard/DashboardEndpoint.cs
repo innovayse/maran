@@ -106,8 +106,8 @@ public static class DashboardEndpoint
         IClock clock,
         CancellationToken cancellationToken)
     {
-        // Before any dispatch. An unauthenticated caller — which this route refuses anyway — and a
-        // customer are both not an AdministratorCaller.
+        // Before any dispatch. An unauthenticated caller — which this route refuses anyway — a
+        // customer and a reseller are all not an AdministratorCaller; the sources are the server's.
         if (currentUser.Caller is not AdministratorCaller)
         {
             return new CustomerDashboardDto();
