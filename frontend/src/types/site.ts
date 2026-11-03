@@ -1,5 +1,5 @@
 import type { ListRequest, Paged } from './list'
-import type { PhpVersion } from './phpVersion'
+import type { InstallablePhpVersion, PhpVersion } from './phpVersion'
 import type { SiteLogStreamHandlers, TailSiteLogOptions } from './siteLog'
 
 /**
@@ -180,12 +180,28 @@ export interface SitesApi {
   listPhpVersions: (signal?: AbortSignal) => Promise<PhpVersion[]>
 
   /**
+   * Lists the PHP versions this server can install, installed ones flagged — the reference data
+   * the install picker selects from, so nobody types a version. Administrator-only on the server.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The installable versions, newest first.
+   */
+  listInstallablePhpVersions: (signal?: AbortSignal) => Promise<InstallablePhpVersion[]>
+
+  /**
    * Reads the bounds a site's form must respect, so the form shows the server's limit rather than
    * a copy of it.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The limits.
    */
   getLimits: (signal?: AbortSignal) => Promise<SiteLimits>
+
+  /**
+   * Reads the closed sets the site form and the list's filters select from — the backends and the
+   * serving states — each option already labelled in the caller's language by the panel.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The choices.
+   */
+  getChoices: (signal?: AbortSignal) => Promise<SiteChoices>
 
   /**
    * Installs a PHP version on the server and answers what is installed afterwards.
@@ -195,14 +211,6 @@ export interface SitesApi {
    * @param version The version to install, e.g. `8.4`.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The versions installed on this server after the attempt.
-  /**
-   * Reads the closed sets the site form and the list's filters select from — the backends and the
-   * serving states — each option already labelled in the caller's language by the panel.
-   * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The choices.
-   */
-  getChoices: (signal?: AbortSignal) => Promise<SiteChoices>
-
    */
   installPhpVersion: (version: string, signal?: AbortSignal) => Promise<PhpVersion[]>
 

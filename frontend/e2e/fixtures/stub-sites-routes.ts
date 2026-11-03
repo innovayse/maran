@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { PhpVersion } from '../../src/types/phpVersion'
+import type { InstallablePhpVersion, PhpVersion } from '../../src/types/phpVersion'
 import type { Site, SiteChoices, SiteDetail, SiteLimits } from '../../src/types/site'
 
 /** The collection endpoint the sites list and the create form both talk to, with or without a query. */
@@ -12,6 +12,9 @@ const SITE_PATTERN = '**/api/v1/sites/*'
 /** The installed-PHP endpoint the site form's runtime picker reads. */
 const PHP_VERSIONS_PATTERN = '**/api/v1/sites/php-versions'
 
+/** The installable-PHP endpoint the operator's install picker reads. */
+const INSTALLABLE_PHP_VERSIONS_PATTERN = '**/api/v1/sites/php-versions/installable'
+
 /** The limits endpoint the site form reads its alias bound from. */
 const SITE_LIMITS_PATTERN = '**/api/v1/sites/limits'
 
@@ -19,7 +22,7 @@ const SITE_LIMITS_PATTERN = '**/api/v1/sites/limits'
 const SITE_CHOICES_PATTERN = '**/api/v1/sites/choices'
 
 /** The sub-paths of the collection that are not a site's id, so the single-site stub leaves them alone. */
-const COLLECTION_READS = /\/api\/v1\/sites\/(choices|limits|php-versions)$/
+const COLLECTION_READS = /\/api\/v1\/sites\/(choices|limits|php-versions|php-versions\/installable)$/
 
 /** The log-tail endpoint. It does not exist on the backend yet; the contract is Task 16's. */
 const SITE_LOGS_PATTERN = '**/api/v1/sites/*/logs*'
@@ -33,6 +36,21 @@ const SITE_LOGS_PATTERN = '**/api/v1/sites/*/logs*'
 export const stubPhpVersions = async (page: Page, versions: PhpVersion[]): Promise<void> => {
   await page.route(PHP_VERSIONS_PATTERN, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(versions) })
+  })
+}
+
+/**
+ * Fulfils `GET /api/v1/sites/php-versions/installable` with the versions the host can install.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param read Returns the versions to answer with; called per request so a spec can change the answer.
+ * @returns Resolves once the route is installed.
+ */
+export const stubInstallablePhpVersions = async (
+  page: Page,
+  read: () => InstallablePhpVersion[],
+): Promise<void> => {
+  await page.route(INSTALLABLE_PHP_VERSIONS_PATTERN, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(read()) })
   })
 }
 

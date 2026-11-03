@@ -3,7 +3,7 @@ import { ref, type Ref } from 'vue'
 import { useSitesApi } from '../composables/apis/useSitesApi'
 import { ApiError } from '../composables/useApi'
 import type { LoadingState } from '../types/loading'
-import type { PhpVersion } from '../types/phpVersion'
+import type { InstallablePhpVersion, PhpVersion } from '../types/phpVersion'
 
 /**
  * Owns the PHP versions installed on the host and the install of a new one. The site form, the
@@ -20,6 +20,15 @@ export const usePhpVersionsStore = defineStore('phpVersions', () => {
 
   /** Where the read of {@link phpVersions} stands; every failure sets `error`, whatever its cause. */
   const phpVersionsState: Ref<LoadingState> = ref('loading')
+
+  /** The versions the host can install, installed ones flagged, as last loaded. Never written into the SPA. */
+  const installablePhpVersions: Ref<InstallablePhpVersion[]> = ref([])
+
+  /** Where the read of {@link installablePhpVersions} stands. */
+  const installablePhpVersionsState: Ref<LoadingState> = ref('loading')
+
+  /** Backend-localized message from the most recent failed read of the installable versions, or `null`. */
+  const installableErrorMessage: Ref<string | null> = ref(null)
 
   /** The version an install is running for, or `null` when none is. */
   const installingPhpVersion: Ref<string | null> = ref(null)
@@ -56,6 +65,22 @@ export const usePhpVersionsStore = defineStore('phpVersions', () => {
   }
 
   /**
+   * Loads the versions the host can install, which the install picker selects from.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadInstallablePhpVersions = async (): Promise<void> => {
+    installablePhpVersionsState.value = 'loading'
+    try {
+      installablePhpVersions.value = await api.listInstallablePhpVersions()
+      installableErrorMessage.value = null
+      installablePhpVersionsState.value = 'loaded'
+    } catch (error) {
+      installableErrorMessage.value = error instanceof ApiError ? error.message : null
+      installablePhpVersionsState.value = 'error'
+    }
+  }
+
+  /**
    * Asks the server to install a PHP version, and replaces the held list with what it answers.
    *
    * The list is REPLACED by the server's answer rather than appended to with the version that was
@@ -69,6 +94,9 @@ export const usePhpVersionsStore = defineStore('phpVersions', () => {
     try {
       phpVersions.value = await api.installPhpVersion(version)
       phpInstallErrorMessage.value = null
+      // The installed flags changed, so the picker's options are re-read from the server rather than
+      // patched locally with the version that was asked for.
+      await loadInstallablePhpVersions()
       return phpVersions.value.some((installed) => {
         return installed.version === version
       })
@@ -83,10 +111,14 @@ export const usePhpVersionsStore = defineStore('phpVersions', () => {
   return {
     phpVersions,
     phpVersionsState,
+    installablePhpVersions,
+    installablePhpVersionsState,
+    installableErrorMessage,
     installingPhpVersion,
     phpInstallErrorMessage,
     errorMessage,
     loadPhpVersions,
+    loadInstallablePhpVersions,
     installPhpVersion,
   }
 })

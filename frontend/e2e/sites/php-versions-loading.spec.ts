@@ -8,7 +8,7 @@ import {
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { stubPhpVersions } from '../fixtures/stub-sites-routes'
+import { stubInstallablePhpVersions, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 
 // The installed PHP versions while the list is on the way (#243): drawn from the table's own
@@ -38,9 +38,11 @@ const PHP_VERSIONS_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
+    await stubInstallablePhpVersions(page, () => [{ version: '8.3', installed: true }])
   },
   stubFailure: async (page) => {
     await signIn(page)
+    await stubInstallablePhpVersions(page, () => [])
     await page.route(PHP_VERSIONS, async (route) => {
       await route.fulfill({
         status: 500,
