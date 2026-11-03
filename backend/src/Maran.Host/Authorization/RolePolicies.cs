@@ -37,10 +37,10 @@ public static class RolePolicies
             policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
             policy.AddRequirements(new ViewAsBoundaryRequirement());
 
-            // The central suspension guard (issue #331): a customer token speaking for an account its
-            // membership was suspended from is refused on every endpoint carrying this policy, not
-            // only at sign-in. Administrators and view-as tokens are exempt (the handler's remarks);
-            // AdminOnly therefore does not carry it.
+            // The central membership guard (issues #331, #340): a customer token speaking for an account
+            // its membership was suspended from, or was removed from, is refused on every endpoint
+            // carrying this policy, not only at sign-in. Administrators and view-as tokens are exempt
+            // (the handler's remarks); AdminOnly therefore does not carry it.
             policy.AddRequirements(new AccountMembershipActiveRequirement());
         });
 
