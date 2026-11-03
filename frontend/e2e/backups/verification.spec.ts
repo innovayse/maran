@@ -185,7 +185,7 @@ test('a refused verification shows the panel message above the list', async ({ p
 test('the Verify now button is disabled while its request is in flight', async ({ page }) => {
   await openBackups(page, [UNVERIFIED], SOUND_NOW)
   // Hold the answer so the busy state can be observed, then release it.
-  let release: () => void = () => undefined
+  let release: () => void = () => {return undefined}
   const gate = new Promise<void>((resolve) => {
     release = resolve
   })

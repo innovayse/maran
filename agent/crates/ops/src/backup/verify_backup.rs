@@ -316,8 +316,8 @@ fn require_dumps_present(
     let listed: HashSet<&str> = members.iter().map(String::as_str).collect();
 
     for entry in &manifest.databases {
-        let name = DatabaseName::decode(account, &entry.name)
-            .ok_or(BackupError::ManifestUnreadable)?;
+        let name =
+            DatabaseName::decode(account, &entry.name).ok_or(BackupError::ManifestUnreadable)?;
         let member = dump_path(Path::new(DATABASES_DIRECTORY), &name);
 
         if !listed.contains(member.to_string_lossy().as_ref()) {

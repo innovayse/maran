@@ -85,7 +85,11 @@ fn a_backup_id_carrying_a_separator_is_refused_before_any_path_is_formed() {
 
 #[test]
 fn a_verification_with_no_destination_is_refused() {
-    let mut missing = request("alice", BACKUP_ID, destination(BackupDestinationKind::Local));
+    let mut missing = request(
+        "alice",
+        BACKUP_ID,
+        destination(BackupDestinationKind::Local),
+    );
     missing.destination = None;
 
     assert!(validated_verification(&missing).is_err());
