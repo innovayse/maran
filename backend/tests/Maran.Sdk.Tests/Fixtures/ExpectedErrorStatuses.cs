@@ -228,6 +228,7 @@ public static class ExpectedErrorStatuses
             // classifying it as a bad request would send an operator looking at their own input.
             ["PhpInstallOutcomeUnobserved"] = ErrorType.Failure,
             ["PhpVersionInvalidFormat"] = ErrorType.Validation,
+            ["PhpVersionNotInstallable"] = ErrorType.Validation,
             ["PhpVersionNotInstalled"] = ErrorType.Validation,
             ["PlanInUse"] = ErrorType.Conflict,
             ["PlanNameTaken"] = ErrorType.Conflict,

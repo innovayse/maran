@@ -8,6 +8,7 @@ using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Queries.GetSite;
 using Maran.Modules.Sites.Queries.GetSiteChoices;
 using Maran.Modules.Sites.Queries.GetSiteLimits;
+using Maran.Modules.Sites.Queries.ListInstallablePhpVersions;
 using Maran.Modules.Sites.Queries.ListPhpVersions;
 using Maran.Modules.Sites.Queries.ListSites;
 using Maran.Modules.Sites.Services;
@@ -108,7 +109,6 @@ public sealed class SitesController : BaseApiController
         return ToActionResult(result);
     }
 
-    /// <summary>Creates a site: its document root, vhost and pool on the host, then the row.</summary>
     /// <summary>
     /// Reads the closed sets the site form and list filters select from — what can serve a site and
     /// whether it serves — labelled in the caller's language. The create endpoint keeps validating
@@ -124,6 +124,7 @@ public sealed class SitesController : BaseApiController
         return ToActionResult(result);
     }
 
+    /// <summary>Creates a site: its document root, vhost and pool on the host, then the row.</summary>
     /// <param name="command">The site's account, domain, aliases and backend.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
@@ -223,6 +224,29 @@ public sealed class SitesController : BaseApiController
     {
         var query = new ListPhpVersionsQuery();
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<PhpVersionDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Lists the PHP versions this server can install, newest first, each flagged as installed or
+    /// not — the reference data the operator's install picker selects from, so a version is never
+    /// typed. The install command is validated against this same set.
+    /// </summary>
+    /// <remarks>
+    /// Administrator only, like the install it feeds: the class-level policy is
+    /// <c>AnyAuthenticated</c> and this attribute is added to it. The class-level <c>api</c> rate
+    /// limit covers it. A customer has no use for the list and no right to the repository's range.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("php-versions/installable")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [ProducesResponseType(typeof(IReadOnlyList<InstallablePhpVersionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetInstallablePhpVersionsAsync(CancellationToken cancellationToken)
+    {
+        var query = new ListInstallablePhpVersionsQuery();
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<IReadOnlyList<InstallablePhpVersionDto>>>(query, cancellationToken));
     }
 
     /// <summary>

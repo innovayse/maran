@@ -40,6 +40,24 @@ public sealed class ScriptedAgentPhpClient : IAgentPhpClient
         return Task.FromResult(Result<IReadOnlyList<PhpVersionDto>>.Ok(_installed.ToList()));
     }
 
+    /// <summary>Answers the full supported range, flagged by the scripted installed list.</summary>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>The installable versions, newest first.</returns>
+    public Task<Result<IReadOnlyList<InstallablePhpVersionDto>>> ListInstallableVersionsAsync(
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<InstallablePhpVersionDto> offered = new[] { "8.4", "8.3", "8.2", "8.1", "8.0", "7.4" }
+            .Select(version =>
+            {
+                return new InstallablePhpVersionDto(
+                    version,
+                    _installed.Any(item => string.Equals(item.Version, version, StringComparison.Ordinal)));
+            })
+            .ToList();
+
+        return Task.FromResult(Result<IReadOnlyList<InstallablePhpVersionDto>>.Ok(offered));
+    }
+
     /// <summary>Replays the scripted stream.</summary>
     /// <param name="version">The version asked for.</param>
     /// <param name="cancellationToken">Ignored.</param>

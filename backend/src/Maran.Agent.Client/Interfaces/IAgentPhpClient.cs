@@ -17,6 +17,16 @@ public interface IAgentPhpClient
     /// </returns>
     Task<Result<IReadOnlyList<PhpVersionDto>>> ListVersionsAsync(CancellationToken cancellationToken);
 
+    /// <summary>Lists the PHP versions the server can install, newest first, installed ones included.</summary>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// The installable versions each flagged as installed or not, or a typed failure. The set is what
+    /// the agent's package repository offers for this host, so it is the one an install is validated
+    /// against and the one an install picker is filled from.
+    /// </returns>
+    Task<Result<IReadOnlyList<InstallablePhpVersionDto>>> ListInstallableVersionsAsync(
+        CancellationToken cancellationToken);
+
     /// <summary>Installs a PHP version and its FPM runtime, reporting progress as it goes.</summary>
     /// <param name="version">Two-component version to install, e.g. <c>8.4</c>.</param>
     /// <param name="cancellationToken">Cancellation for the stream.</param>

@@ -54,6 +54,12 @@ public sealed class RecordingAgentPhpClient : IAgentPhpClient
         _appearsAfterInstall = thenInstalled;
     }
 
+    /// <summary>The range the agent's repository offers unless a test narrows it, newest first.</summary>
+    private static readonly string[] SupportedRange = ["8.4", "8.3", "8.2", "8.1", "8.0", "7.4"];
+
+    /// <summary>The narrowed range set by <see cref="OfferOnly"/>, or null for the full range.</summary>
+    private string[]? _installableOverride;
+
     /// <summary>The version the staged install adds to the installed list, if any.</summary>
     private string? _appearsAfterInstall;
 
@@ -72,6 +78,39 @@ public sealed class RecordingAgentPhpClient : IAgentPhpClient
         return Task.FromResult(_failure is null
             ? Result<IReadOnlyList<PhpVersionDto>>.Ok(_installed)
             : Result<IReadOnlyList<PhpVersionDto>>.Fail(_failure));
+    }
+
+    /// <summary>
+    /// Answers the full supported range, each version flagged by whether it is in the installed list
+    /// at the moment of the call, so an install that appears in the list is reflected here too.
+    /// </summary>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>The installable versions, newest first, or the configured failure.</returns>
+    public Task<Result<IReadOnlyList<InstallablePhpVersionDto>>> ListInstallableVersionsAsync(
+        CancellationToken cancellationToken)
+    {
+        if (_failure is not null)
+        {
+            return Task.FromResult(Result<IReadOnlyList<InstallablePhpVersionDto>>.Fail(_failure));
+        }
+
+        IReadOnlyList<InstallablePhpVersionDto> offered = (_installableOverride ?? SupportedRange)
+            .Select(version =>
+            {
+                return new InstallablePhpVersionDto(
+                    version,
+                    _installed.Any(item => string.Equals(item.Version, version, StringComparison.Ordinal)));
+            })
+            .ToList();
+
+        return Task.FromResult(Result<IReadOnlyList<InstallablePhpVersionDto>>.Ok(offered));
+    }
+
+    /// <summary>Narrows the installable range this fake offers, newest first.</summary>
+    /// <param name="versions">The versions to offer; any other version is not installable here.</param>
+    public void OfferOnly(params string[] versions)
+    {
+        _installableOverride = versions;
     }
 
     /// <inheritdoc/>

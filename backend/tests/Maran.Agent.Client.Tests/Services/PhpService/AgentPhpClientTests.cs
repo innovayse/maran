@@ -12,6 +12,57 @@ public sealed class AgentPhpClientTests
     /// <summary>How long any stream test may wait before it is a failure rather than a hang.</summary>
     private static readonly TimeSpan StreamTimeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>The installable list maps each wire version with its installed flag, in the agent's order.</summary>
+    [Fact]
+    public async Task The_installable_list_maps_each_version_with_its_installed_flag_in_order()
+    {
+        var ok = new ListInstallablePhpVersionsOk();
+        ok.Versions.Add(new InstallablePhpVersion { Version = "8.4", Installed = false });
+        ok.Versions.Add(new InstallablePhpVersion { Version = "8.3", Installed = true });
+        var stub = new StubPhpService
+        {
+            InstallableResponse = new ListInstallablePhpVersionsResponse { Ok = ok },
+        };
+
+        var result = await NewClient(stub, NullLogger<AgentPhpClient>.Instance).ListInstallableVersionsAsync(
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            [new InstallablePhpVersionDto("8.4", false), new InstallablePhpVersionDto("8.3", true)],
+            result.Value);
+    }
+
+    /// <summary>An error from the installable query maps to a failed result with the agent's code.</summary>
+    [Fact]
+    public async Task An_installable_query_error_maps_to_a_failed_result_with_the_agent_code()
+    {
+        var stub = new StubPhpService
+        {
+            InstallableResponse = new ListInstallablePhpVersionsResponse
+            {
+                Error = new AgentError { Code = ErrorCode.SystemFailure, Message = "boom" },
+            },
+        };
+
+        var result = await NewClient(stub, NullLogger<AgentPhpClient>.Instance).ListInstallableVersionsAsync(
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentSystemFailure", result.Error!.Code);
+    }
+
+    /// <summary>An unset installable oneof maps to the invalid response error.</summary>
+    [Fact]
+    public async Task An_unset_installable_oneof_maps_to_invalid_response_error()
+    {
+        var result = await NewClient(new StubPhpService(), NullLogger<AgentPhpClient>.Instance)
+            .ListInstallableVersionsAsync(CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
     /// <summary>Ok payload maps to success result.</summary>
     [Fact]
     public async Task Ok_payload_maps_to_success_result()

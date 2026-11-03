@@ -61,6 +61,9 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// moved to it as the one-revision default: a revision-12 agent sends none of the three new fields,
 /// which protobuf reads as the unset zero, so the panel would have to guess at the answer it was
 /// handed, and a revision-12 agent ignores the ban term and would turn a timed ban into a permanent one.
+/// Revision 14 adds <c>PhpService.ListInstallablePhpVersions</c> (issue #330), and both ends moved to
+/// it: an older agent answers the rpc <c>UNIMPLEMENTED</c>, so the operator's PHP install picker could
+/// never be filled against it.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -87,10 +90,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 13;
+    public const uint Minimum = 14;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 13;
+    public const uint Maximum = 14;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

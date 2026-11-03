@@ -92,6 +92,39 @@ public sealed class InstallPhpVersionCommandHandler
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        // The boundary for the picker's advice: the version must be one the agent reports as
+        // installable on this host. The select in the SPA is only a convenience; a typed or replayed
+        // body is refused here, before a task is begun or the installer is reached.
+        var installable = await _php.ListInstallableVersionsAsync(cancellationToken);
+        if (!installable.IsSuccess)
+        {
+            await _journal.RecordFailureAsync(
+                AuditActions.PhpVersionInstalled,
+                command.Version,
+                command.IpAddress,
+                command.UserAgent,
+                cancellationToken);
+
+            return Result<IReadOnlyList<PhpVersionDto>>.Fail(installable.Error!);
+        }
+
+        var offered = installable.Value.Any(version =>
+        {
+            return string.Equals(version.Version, command.Version, StringComparison.Ordinal);
+        });
+        if (!offered)
+        {
+            await _journal.RecordFailureAsync(
+                AuditActions.PhpVersionInstalled,
+                command.Version,
+                command.IpAddress,
+                command.UserAgent,
+                cancellationToken);
+
+            return Result<IReadOnlyList<PhpVersionDto>>.Fail(
+                Error.Of(nameof(ErrorMessages.PhpVersionNotInstallable), ErrorType.Validation));
+        }
+
         var installed = await _php.ListVersionsAsync(cancellationToken);
         if (!installed.IsSuccess)
         {

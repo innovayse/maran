@@ -34,6 +34,22 @@ internal sealed class RecordingAgentPhpClient : IAgentPhpClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<IReadOnlyList<InstallablePhpVersionDto>>> ListInstallableVersionsAsync(
+        CancellationToken cancellationToken)
+    {
+        Calls++;
+
+        if (Calls <= FailuresBeforeSuccess)
+        {
+            throw AgentTransportFaults.ConnectRefused();
+        }
+
+        await Task.Yield();
+
+        return Result<IReadOnlyList<InstallablePhpVersionDto>>.Ok([new InstallablePhpVersionDto("8.3", true)]);
+    }
+
+    /// <inheritdoc/>
     public async IAsyncEnumerable<PhpInstallEvent> InstallVersionAsync(
         string version,
         [EnumeratorCancellation] CancellationToken cancellationToken)

@@ -45,6 +45,9 @@
   <data name="PhpInstallOutcomeUnobserved">
     <value>The server did not report whether this PHP version was installed. Nothing here can say it was, so it is reported as failed: check the server's package manager before trying again, because a half-finished install is the one state this cannot tell apart from a slow one.</value>
   </data>
+  <data name="PhpVersionNotInstallable">
+    <value>This PHP version cannot be installed on this server.</value>
+  </data>
   <data name="PhpVersionInvalidFormat">
     <value>This is not a valid PHP version.</value>
   </data>

@@ -49,6 +49,20 @@ public sealed class ResilientAgentPhpClient : IAgentPhpClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<IReadOnlyList<InstallablePhpVersionDto>>> ListInstallableVersionsAsync(
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.ListInstallableVersionsAsync(token);
+            },
+            _inner,
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public IAsyncEnumerable<PhpInstallEvent> InstallVersionAsync(
         string version,
         CancellationToken cancellationToken)

@@ -42,6 +42,19 @@ public sealed class ResilientAgentPhpClientTests
         Assert.Equal(2, inner.Calls);
     }
 
+    /// <summary>The installable listing retries a transport failure through the pipeline.</summary>
+    [Fact]
+    public async Task The_installable_listing_retries_a_transport_failure_through_the_pipeline()
+    {
+        var inner = new RecordingAgentPhpClient { FailuresBeforeSuccess = 1 };
+        var client = NewClient(inner);
+
+        var result = await client.ListInstallableVersionsAsync(default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+    }
+
     /// <summary>The install forwards the version it was asked for.</summary>
     /// <remarks>
     /// The install stream is passed through rather than wrapped: a package manager legitimately runs
@@ -56,7 +69,8 @@ public sealed class ResilientAgentPhpClientTests
 
         async Task DrainAsync()
         {
-            await foreach (var unused in client.InstallVersionAsync("8.4", default))
+            await using var drained = client.InstallVersionAsync("8.4", default).GetAsyncEnumerator();
+            while (await drained.MoveNextAsync())
             {
                 // The events themselves are the client's contract, not the decorator's.
             }
