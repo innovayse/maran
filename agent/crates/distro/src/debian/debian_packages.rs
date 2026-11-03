@@ -1,6 +1,7 @@
 //! Package and binary names on the Debian family, how its package manager
 //! reports a failed install, and how it reports the updates it knows of.
 
+use crate::is_printable_token::is_printable_token;
 use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
@@ -272,14 +273,14 @@ fn is_summary(line: &str) -> bool {
 /// between the version and the architecture bracket, kept as apt prints them.
 fn parse_inst(rest: &str) -> Option<Option<PendingUpdate>> {
     let (name, rest) = rest.split_once(' ')?;
-    if !is_token(name) {
+    if !is_printable_token(name) {
         return None;
     }
 
     let (installed, rest) = match rest.strip_prefix('[') {
         Some(bracketed) => {
             let (installed, after) = bracketed.split_once("] ")?;
-            if !is_token(installed) {
+            if !is_printable_token(installed) {
                 return None;
             }
             (Some(installed), after)
@@ -298,7 +299,7 @@ fn parse_inst(rest: &str) -> Option<Option<PendingUpdate>> {
     }
 
     let (version, origins) = inside.split_once(' ').unwrap_or((inside, ""));
-    if !is_token(version) {
+    if !is_printable_token(version) {
         return None;
     }
     let source = match origins.rsplit_once(" [") {
@@ -315,13 +316,6 @@ fn parse_inst(rest: &str) -> Option<Option<PendingUpdate>> {
         installed_version: Some(installed.to_owned()),
         source: source.to_owned(),
     }))
-}
-
-/// Whether `text` is a non-empty run of printable, non-space ASCII: what a
-/// package name or a version is, and nothing a log line or a wire field could be
-/// confused by.
-fn is_token(text: &str) -> bool {
-    !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
 #[cfg(test)]

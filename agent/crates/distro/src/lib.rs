@@ -22,6 +22,7 @@ pub mod detection;
 pub mod family;
 pub mod file_transfer_facts;
 pub mod firewall_facts;
+mod is_printable_token;
 pub mod package_facts;
 pub mod package_failure;
 pub mod pending_update;

@@ -313,6 +313,8 @@ agent/
     │       │                  identical on both families today — the identical one
     │       │                  is the trap, because it is the one that reads as
     │       │                  safe to type into the template as a literal.
+    │       ├── is_printable_token.rs  crate-private: the one test both families'
+    │       │                  pending-updates readers apply to every field they accept
     │       ├── pending_update.rs · pending_updates_failure.rs · catalogue_probe.rs
     │       │                  PendingUpdate (one package with a newer version in the host's
     │       │                  cache), PendingUpdatesFailure (why a read gave no answer: an exit

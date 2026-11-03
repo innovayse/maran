@@ -1,6 +1,7 @@
 //! Package and binary names on the RHEL family, how its package manager
 //! reports a failed install, and how it reports the updates it knows of.
 
+use crate::is_printable_token::is_printable_token;
 use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
@@ -215,7 +216,10 @@ fn parse_row(line: &str) -> Option<PendingUpdate> {
     {
         return None;
     }
-    if ![name, version, repository].into_iter().all(is_token) {
+    if ![name, version, repository]
+        .into_iter()
+        .all(is_printable_token)
+    {
         return None;
     }
 
@@ -225,11 +229,6 @@ fn parse_row(line: &str) -> Option<PendingUpdate> {
         installed_version: None,
         source: repository.to_owned(),
     })
-}
-
-/// Whether `text` is a non-empty run of printable, non-space ASCII.
-fn is_token(text: &str) -> bool {
-    !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
 #[cfg(test)]
