@@ -48,4 +48,18 @@
     <value>Բացեք վահանակը, անցեք հրավերն ընդունելու էջ և մուտքագրեք այս կոդը․
 {0}</value>
   </data>
+  <data name="MembershipOfferSubject">
+    <value>Ձեզ հրավիրում են միանալ հոսթինգ հաշվի թիմին</value>
+  </data>
+  <data name="MembershipOfferBody">
+    <value>{0} սեփականատերը Ձեզ տեղ է առաջարկել իր թիմում։
+
+Առայժմ ոչինչ չի փոխվել։ Մուտք գործեք վահանակ և բացեք Ձեր հաշվի էջը՝ առաջարկը ընդունելու կամ մերժելու համար։ Առաջարկը գործում է 14 օր։ Եթե այն չէիք սպասում, մերժեք այն կամ անտեսեք այս նամակը։</value>
+  </data>
+  <data name="MembershipOfferAccountNamed">
+    <value>«{0}» հոսթինգ հաշվի</value>
+  </data>
+  <data name="MembershipOfferAccountUnnamed">
+    <value>հոսթինգ հաշվի</value>
+  </data>
 </root>

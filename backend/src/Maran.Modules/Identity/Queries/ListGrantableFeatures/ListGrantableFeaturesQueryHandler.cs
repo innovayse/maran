@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Common;
+using Maran.Modules.Identity.Mappers;
 using Maran.Modules.Identity.Resources;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
@@ -20,9 +21,6 @@ namespace Maran.Modules.Identity.Queries.ListGrantableFeatures;
 /// </remarks>
 public sealed class ListGrantableFeaturesQueryHandler
 {
-    /// <summary>Key prefix of a feature's name in <see cref="DisplayNames"/>.</summary>
-    private const string KeyPrefix = "AccountFeature";
-
     /// <summary>Establishes that the caller owns the account they are acting for.</summary>
     private readonly SubUserOwnerGuard _guard;
 
@@ -55,7 +53,7 @@ public sealed class ListGrantableFeaturesQueryHandler
         IReadOnlyList<GrantableFeatureDto> features = AccountFeature.All.Members()
             .Select(feature =>
             {
-                return new GrantableFeatureDto(feature, _displayNames[KeyPrefix + feature].Value);
+                return GrantableFeatureMapper.From(feature, _displayNames);
             })
             .ToList();
 

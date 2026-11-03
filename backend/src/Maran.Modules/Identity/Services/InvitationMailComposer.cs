@@ -60,22 +60,8 @@ public sealed class InvitationMailComposer
     /// <returns>The message to publish as <see cref="SendMailRequested"/>.</returns>
     public SendMailRequested Compose(string recipient, string token, string language)
     {
-        var ownerCulture = CultureInfo.GetCultureInfo(
-            PanelLanguages.IsSupported(language) ? language : PanelLanguages.English);
-        var requestCulture = CultureInfo.CurrentCulture;
-        var requestUiCulture = CultureInfo.CurrentUICulture;
-
-        try
-        {
-            CultureInfo.CurrentCulture = ownerCulture;
-            CultureInfo.CurrentUICulture = ownerCulture;
-            return Render(recipient, token);
-        }
-        finally
-        {
-            CultureInfo.CurrentCulture = requestCulture;
-            CultureInfo.CurrentUICulture = requestUiCulture;
-        }
+        using var scope = new RecipientCultureScope(language);
+        return Render(recipient, token);
     }
 
     /// <summary>Renders the message in whatever culture is current.</summary>

@@ -48,4 +48,18 @@ The link stops working in seven days and can be used once.</value>
     <value>Open the panel, go to the accept-invitation page, and enter this code:
 {0}</value>
   </data>
+  <data name="MembershipOfferSubject">
+    <value>You have been invited to join a hosting account</value>
+  </data>
+  <data name="MembershipOfferBody">
+    <value>The owner of {0} has offered you a place on its team.
+
+Nothing has changed yet. Sign in to the panel and open your account page to accept or decline the offer. The offer stops being available after 14 days. If you were not expecting it, you can decline it or ignore this message.</value>
+  </data>
+  <data name="MembershipOfferAccountNamed">
+    <value>the hosting account "{0}"</value>
+  </data>
+  <data name="MembershipOfferAccountUnnamed">
+    <value>a hosting account</value>
+  </data>
 </root>
