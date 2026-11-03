@@ -114,7 +114,7 @@ fn the_rhel_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 25] = [
+const EXPECTED_BINARIES: [(&str, &str); 26] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
@@ -140,10 +140,11 @@ const EXPECTED_BINARIES: [(&str, &str); 25] = [
     ("gzip", "/usr/bin/gzip"),
     ("database_dump", "/usr/bin/mariadb-dump"),
     ("getent", "/usr/bin/getent"),
+    ("package_query", "/usr/bin/dnf"),
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [String; 25] {
+fn actual_binaries() -> [String; 26] {
     [
         RhelAdapter.useradd_binary().to_string(),
         RhelAdapter.usermod_binary().to_string(),
@@ -170,6 +171,7 @@ fn actual_binaries() -> [String; 25] {
         RhelAdapter.gzip_binary().to_string(),
         RhelAdapter.database_dump_binary().to_string(),
         RhelAdapter.getent_binary().to_string(),
+        RhelAdapter.package_query_binary().to_string(),
     ]
 }
 
@@ -240,7 +242,7 @@ fn declared_binary_methods() -> usize {
 
 /// Every program the RHEL adapter lets the agent execute, with the method that names it.
 ///
-/// One entry per `AdapterBinary`-returning method of the trait (29 fixed paths
+/// One entry per `AdapterBinary`-returning method of the trait (30 fixed paths
 /// plus the version-built php-fpm validator). `sh` and the login shell are not
 /// here: they are written somewhere, never executed by the agent, so they stay
 /// plain strings (see the type assertion below).
@@ -269,6 +271,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("ipcrm", RhelAdapter.ipcrm_binary()),
         ("passwd", RhelAdapter.passwd_binary()),
         ("getent", RhelAdapter.getent_binary()),
+        ("package_query", RhelAdapter.package_query_binary()),
         ("setquota", RhelAdapter.setquota_binary()),
         ("quota", RhelAdapter.quota_binary()),
         ("quotaon", RhelAdapter.quotaon_binary()),
@@ -383,4 +386,22 @@ fn the_rhel_family_names_the_directory_its_at_daemon_spools_to() {
 #[test]
 fn the_rhel_family_names_the_real_directory_of_its_mail_spool() {
     assert_eq!(RhelAdapter.mail_spool_directory(), "/var/spool/mail");
+}
+
+/// The pending-updates read on the RHEL family is cache-only, and says so in its
+/// arguments: `-C` is what stops the run contacting a repository.
+#[test]
+fn the_rhel_family_reads_pending_updates_from_the_cache_only() {
+    assert!(RhelAdapter.pending_updates_arguments().contains(&"-C"));
+    assert_eq!(
+        RhelAdapter.package_query_binary().to_string(),
+        RhelAdapter.package_manager()
+    );
+}
+
+/// `dnf check-update -C` exits 1 on a host whose cache was never built, so this
+/// family needs no separate probe.
+#[test]
+fn the_rhel_family_runs_no_catalogue_probe() {
+    assert!(RhelAdapter.catalogue_probe().is_none());
 }

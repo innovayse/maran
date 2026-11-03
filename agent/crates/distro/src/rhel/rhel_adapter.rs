@@ -6,12 +6,15 @@ use crate::DistroAdapter;
 use crate::account_programs::AccountPrograms;
 use crate::adapter_binary::AdapterBinary;
 use crate::backup_facts::BackupFacts;
+use crate::catalogue_probe::CatalogueProbe;
 use crate::database_facts::DatabaseFacts;
 use crate::family::DistroFamily;
 use crate::file_transfer_facts::FileTransferFacts;
 use crate::firewall_facts::FirewallFacts;
 use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
+use crate::pending_update::PendingUpdate;
+use crate::pending_updates_failure::PendingUpdatesFailure;
 use crate::php_facts::PhpFacts;
 use crate::rhel::{rhel_packages, rhel_paths, rhel_services};
 use crate::scheduling_facts::SchedulingFacts;
@@ -175,6 +178,28 @@ impl PackageFacts for RhelAdapter {
 
     fn journal_binary(&self) -> AdapterBinary {
         rhel_services::journal_binary()
+    }
+
+    fn package_query_binary(&self) -> AdapterBinary {
+        rhel_services::package_query_binary()
+    }
+
+    fn catalogue_probe(&self) -> Option<CatalogueProbe> {
+        // `dnf check-update -C` fails by itself against a cache that was never
+        // built, so this family needs no probe.
+        None
+    }
+
+    fn pending_updates_arguments(&self) -> &'static [&'static str] {
+        rhel_packages::PENDING_UPDATES_ARGUMENTS
+    }
+
+    fn read_pending_updates(
+        &self,
+        status: i32,
+        stdout: &str,
+    ) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure> {
+        rhel_packages::read_pending_updates(status, stdout)
     }
 }
 

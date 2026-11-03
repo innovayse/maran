@@ -44,6 +44,18 @@ pub fn journal_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/bin/journalctl")
 }
 
+/// Absolute path of the program the agent runs to read the pending package
+/// updates, for the process-execution allow-list (issue #324).
+///
+/// `apt-get` at `/usr/bin/apt-get`, the same file
+/// [`crate::PackageFacts::package_manager`] names as plain text for the install
+/// unit. This is the one package-manager path the agent itself may execute, and
+/// it is only ever given the constant arguments of the pending-updates read.
+#[must_use]
+pub fn package_query_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/apt-get")
+}
+
 /// Absolute path of the transient-unit starter, for the process-execution
 /// allow-list.
 ///

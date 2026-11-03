@@ -1,0 +1,12 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  libbrotli1 libcurl4t64 libdb5.3t64 libgssapi-krb5-2 libk5crypto3
+  libkeyutils1 libkrb5-3 libkrb5support0 libldap2 libnghttp2-14 libpsl5t64
+  librtmp1 libsasl2-2 libsasl2-modules-db libssh-4
+Use 'apt autoremove' to remove them.
+The following packages will be REMOVED:
+  curl
+0 upgraded, 0 newly installed, 1 to remove and 67 not upgraded.
+Remv curl [8.5.0-2ubuntu10.16]
