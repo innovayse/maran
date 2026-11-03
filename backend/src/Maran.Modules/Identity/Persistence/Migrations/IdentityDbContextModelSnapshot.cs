@@ -335,6 +335,11 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.Property<bool>("ForceTwoFactorForAdmins")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("ForceTwoFactorForResellers")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<int>("LockoutMinutes")
                         .HasColumnType("integer");
 
@@ -438,6 +443,11 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.Property<int>("FailedLoginAttempts")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsSuspended")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTimeOffset?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -481,6 +491,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<Guid?>("ResellerId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -505,6 +518,11 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_Users_AccountId")
                         .HasFilter("\"AccountId\" IS NOT NULL");
+
+                    b.HasIndex("ResellerId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_ResellerId")
+                        .HasFilter("\"ResellerId\" IS NOT NULL");
 
                     b.HasIndex("Username")
                         .IsUnique()

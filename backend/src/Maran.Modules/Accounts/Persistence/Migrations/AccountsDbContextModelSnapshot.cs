@@ -56,6 +56,9 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .HasMaxLength(253)
                         .HasColumnType("character varying(253)");
 
+                    b.Property<Guid?>("ResellerId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -72,6 +75,9 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                     b.HasIndex("PrimaryDomain")
                         .IsUnique()
                         .HasDatabaseName("IX_Accounts_PrimaryDomain");
+
+                    b.HasIndex("ResellerId")
+                        .HasDatabaseName("IX_Accounts_ResellerId");
 
                     b.ToTable("Accounts", "accounts");
                 });
@@ -115,16 +121,73 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid?>("ResellerId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DisplayNameKey")
                         .IsUnique()
                         .HasDatabaseName("IX_Plans_DisplayNameKey");
 
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Plans_Name_Unowned")
+                        .HasFilter("\"ResellerId\" IS NULL");
+
+                    b.HasIndex("ResellerId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Plans_ResellerId_Name")
+                        .HasFilter("\"ResellerId\" IS NOT NULL");
+
                     b.ToTable("Plans", "accounts", t =>
                         {
                             t.HasCheckConstraint("CK_Plans_NameMirroredInKey", "\"Name\" IS NULL OR \"DisplayNameKey\" = \"Name\"");
                         });
+                });
+
+            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Reseller", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AllocationRevision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContactEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasDefaultValue("en");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Resellers_Name");
+
+                    b.ToTable("Resellers", "accounts");
                 });
 
             modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Account", b =>
@@ -135,10 +198,22 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Accounts_Plans_PlanId");
+
+                    b.HasOne("Maran.Modules.Accounts.Domain.Entities.Reseller", null)
+                        .WithMany()
+                        .HasForeignKey("ResellerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_Accounts_Resellers_ResellerId");
                 });
 
             modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Plan", b =>
                 {
+                    b.HasOne("Maran.Modules.Accounts.Domain.Entities.Reseller", null)
+                        .WithMany()
+                        .HasForeignKey("ResellerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_Plans_Resellers_ResellerId");
+
                     b.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.RuntimeLimits", "RuntimeLimits", b1 =>
                         {
                             b1.Property<Guid>("PlanId")
@@ -243,6 +318,145 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         });
 
                     b.Navigation("RuntimeLimits")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Reseller", b =>
+                {
+                    b.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.ResellerEnvelope", "Envelope", b1 =>
+                        {
+                            b1.Property<Guid>("ResellerId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<long>("DiskPoolMb")
+                                .HasColumnType("bigint")
+                                .HasColumnName("DiskPoolMb");
+
+                            b1.Property<long>("Features")
+                                .HasColumnType("bigint")
+                                .HasColumnName("Features");
+
+                            b1.Property<int>("MaxAccounts")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxAccounts");
+
+                            b1.Property<int>("MaxCronEntries")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxCronEntries");
+
+                            b1.Property<int>("MaxDatabases")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxDatabases");
+
+                            b1.Property<int>("MaxDiskQuotaMb")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxDiskQuotaMb");
+
+                            b1.Property<int>("MaxFtpUsers")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxFtpUsers");
+
+                            b1.Property<int>("MaxPhpWorkersPerPool")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxPhpWorkersPerPool");
+
+                            b1.Property<int>("MaxPlans")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxPlans");
+
+                            b1.Property<int>("MaxSftpUsers")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxSftpUsers");
+
+                            b1.Property<int>("MaxSites")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxSites");
+
+                            b1.HasKey("ResellerId");
+
+                            b1.ToTable("Resellers", "accounts");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ResellerId");
+
+                            b1.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.RuntimeLimits", "RuntimeLimits", b2 =>
+                                {
+                                    b2.Property<Guid>("ResellerEnvelopeResellerId")
+                                        .HasColumnType("uuid");
+
+                                    b2.HasKey("ResellerEnvelopeResellerId");
+
+                                    b2.ToTable("Resellers", "accounts");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("ResellerEnvelopeResellerId");
+
+                                    b2.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.ResourceLimit", "CpuQuotaPercent", b3 =>
+                                        {
+                                            b3.Property<Guid>("RuntimeLimitsResellerEnvelopeResellerId")
+                                                .HasColumnType("uuid");
+
+                                            b3.Property<int?>("Maximum")
+                                                .HasColumnType("integer")
+                                                .HasColumnName("MaxCpuQuotaPercent");
+
+                                            b3.HasKey("RuntimeLimitsResellerEnvelopeResellerId");
+
+                                            b3.ToTable("Resellers", "accounts");
+
+                                            b3.WithOwner()
+                                                .HasForeignKey("RuntimeLimitsResellerEnvelopeResellerId");
+                                        });
+
+                                    b2.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.ResourceLimit", "MaxProcesses", b3 =>
+                                        {
+                                            b3.Property<Guid>("RuntimeLimitsResellerEnvelopeResellerId")
+                                                .HasColumnType("uuid");
+
+                                            b3.Property<int?>("Maximum")
+                                                .HasColumnType("integer")
+                                                .HasColumnName("MaxProcesses");
+
+                                            b3.HasKey("RuntimeLimitsResellerEnvelopeResellerId");
+
+                                            b3.ToTable("Resellers", "accounts");
+
+                                            b3.WithOwner()
+                                                .HasForeignKey("RuntimeLimitsResellerEnvelopeResellerId");
+                                        });
+
+                                    b2.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.ResourceLimit", "MemoryMaxMb", b3 =>
+                                        {
+                                            b3.Property<Guid>("RuntimeLimitsResellerEnvelopeResellerId")
+                                                .HasColumnType("uuid");
+
+                                            b3.Property<int?>("Maximum")
+                                                .HasColumnType("integer")
+                                                .HasColumnName("MaxMemoryMb");
+
+                                            b3.HasKey("RuntimeLimitsResellerEnvelopeResellerId");
+
+                                            b3.ToTable("Resellers", "accounts");
+
+                                            b3.WithOwner()
+                                                .HasForeignKey("RuntimeLimitsResellerEnvelopeResellerId");
+                                        });
+
+                                    b2.Navigation("CpuQuotaPercent")
+                                        .IsRequired();
+
+                                    b2.Navigation("MaxProcesses")
+                                        .IsRequired();
+
+                                    b2.Navigation("MemoryMaxMb")
+                                        .IsRequired();
+                                });
+
+                            b1.Navigation("RuntimeLimits")
+                                .IsRequired();
+                        });
+
+                    b.Navigation("Envelope")
                         .IsRequired();
                 });
 #pragma warning restore 612, 618
