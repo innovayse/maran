@@ -8,13 +8,13 @@
  *
  * It is found the way `UiInput` is, and for the same reason: the decorative borders
  * are 1.2 to 1.5:1 against a panel and the fill (`bg-surface-2`) only 1.06:1, so the
- * boundary is the control-edge token `border-border-control` (`--bc`), 3.57:1 on
- * `--s1`, 3.36 on `--s2` and 3.08 on `--s3` in dark, 3.63 / 3.30 / 3.07 in light (WCAG
+ * boundary is the control-edge token `border-border-control` (`--bc`), 3.98:1 on
+ * `--s1`, 3.74 on `--s2` and 3.43 on `--s3` in dark, 3.79 / 3.43 / 3.20 in light (WCAG
  * 1.4.11 asks 3:1). The visible label and the `shadow-focus` ring sit on top of it.
- * Hover steps the edge to `border-text-secondary` (7.08:1 on a dark panel, 6.00 on a
- * light one): that is a 1.98:1 step away from `--bc` in dark and 1.65:1 in light,
- * where the muted tier would move it only 1.50:1 / 1.49:1 — too small to read as a
- * response. See {@link UiInput} for the measured figures and the error-text pairs,
+ * Hover steps the edge one notch stronger to `border-border-control-hover`, the same step
+ * on every control. Focus turns the edge `border-accent` and `shadow-field-focus` adds a
+ * crisp 1px ring of the same colour (a 2px solid edge, no halo); the danger state does the
+ * same in `danger`. See {@link UiInput} for the measured figures and the error-text pairs,
  * which are identical here.
  *
  * LOADING. Inside a {@link UiForm} with `loading`, the label stays (it is the form's real text)
@@ -100,7 +100,7 @@ const onInput = (event: Event): void => {
       :class="
         hasError
           ? 'border-danger focus-visible:shadow-field-focus-danger'
-          : 'border-border-control hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus'
+          : 'border-border-control enabled:hover:border-border-control-hover focus-visible:border-accent focus-visible:shadow-field-focus'
       "
       @input="onInput"
     />

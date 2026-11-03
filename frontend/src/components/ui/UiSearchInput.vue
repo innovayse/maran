@@ -11,10 +11,17 @@
  * boundary, `border-border-control` (`--bc`), the dedicated 3:1 control-edge token that WCAG
  * 1.4.11 asks of the visual information identifying a control, because the field's own fill
  * is only about 1.06:1 against the panel and the decorative borders are weaker still. The
- * always-visible label and the `shadow-focus` ring sit on top of that edge. The hover edge is
- * `hover:border-text-secondary`, a step darker than the resting edge and deliberately not a
- * `text-muted` token: a text-tier retune must not be able to move a field edge, and hover
- * only strengthens an edge that already passes on its own.
+ * always-visible label and the crisp 1px `shadow-field-focus` ring (paired with `border-accent`)
+ * sit on top of that edge. The hover edge is `enabled:hover:border-border-control-hover`, a
+ * dedicated token a step stronger than the resting edge and deliberately not a `text-muted`
+ * token: a text-tier retune must not be able to move a field edge, and hover only strengthens
+ * an edge that already passes on its own.
+ *
+ * ERROR. Same contract as {@link UiInput}: a non-empty `error` prop (already translated by the
+ * caller) draws the edge `border-danger` with the `shadow-field-focus-danger` ring on focus,
+ * turns the label and glyph `text-danger`, sets `aria-invalid`, and renders the message below
+ * the field, referenced by `aria-describedby`. The message text is `text-danger`, so the field
+ * must not sit on the pressed surface (`--s3`), as for {@link UiInput}.
  *
  * The clear button is a 32px square, above the 24px minimum target, and its glyph is
  * `text-text-secondary` (6.65:1 on the field fill) so a control you are asked to hit is not
@@ -53,6 +60,8 @@ const props = withDefaults(
     ariaExpanded?: boolean
     /** Id of the option the keyboard is on, announced while focus stays in the field (combobox mode). */
     ariaActivedescendant?: string
+    /** Already-translated validation message; when set, the field renders as invalid. */
+    error?: string | null
   }>(),
   {
     placeholder: undefined,
@@ -60,6 +69,7 @@ const props = withDefaults(
     ariaControls: undefined,
     ariaExpanded: undefined,
     ariaActivedescendant: undefined,
+    error: null,
   },
 )
 
@@ -74,8 +84,16 @@ const emit = defineEmits<{
 /** Stable, unique id pair for this instance's `<label for>`/`<input id>`. */
 const fieldId: string = useId()
 
+/** Id of the rendered error message, referenced by the input's `aria-describedby`. */
+const errorId: string = `${fieldId}-error`
+
 /** The underlying input element, needed to restore focus after the clear button is used. */
 const inputElement: Ref<HTMLInputElement | null> = ref(null)
+
+/** Whether the field is currently in an error state. */
+const hasError: ComputedRef<boolean> = computed(() => {
+  return props.error !== null && props.error !== undefined
+})
 
 /** Whether there is a query to clear; the clear button is meaningless on an empty field. */
 const hasValue: ComputedRef<boolean> = computed(() => {
@@ -130,13 +148,21 @@ const onClear = (): void => {
 
 <template>
   <div class="flex flex-col gap-1">
-    <label :for="fieldId" class="text-xs font-bold wrap-anywhere text-text-muted">{{
-      label
-    }}</label>
+    <label
+      :for="fieldId"
+      class="text-xs font-bold wrap-anywhere"
+      :class="hasError ? 'text-danger' : 'text-text-muted'"
+      >{{ label }}</label
+    >
     <div class="relative flex items-center">
       <!-- Decorative glyph: the field is already named by its label, so the
            magnifier repeats nothing to a screen reader. -->
-      <UiIcon name="search" size="sm" class="pointer-events-none absolute left-3 text-text-muted" />
+      <UiIcon
+        name="search"
+        size="sm"
+        class="pointer-events-none absolute left-3"
+        :class="hasError ? 'text-danger' : 'text-text-muted'"
+      />
       <!-- The side paddings are geometry, not taste: `pl-9` clears the magnifier
            at `left-3`, `pr-[calc(var(--d-inset)+0.5rem)]` clears the `size-inset` clear button at `right-1`. Move
            either inset and the text runs under the glyph. 16px text below `sm`
@@ -150,9 +176,16 @@ const onClear = (): void => {
         :aria-expanded="ariaExpanded"
         :aria-activedescendant="ariaActivedescendant"
         :aria-autocomplete="inputRole === 'combobox' ? 'list' : undefined"
+        :aria-invalid="hasError"
+        :aria-describedby="hasError ? errorId : undefined"
         :value="modelValue"
         :placeholder="placeholder"
-        class="min-h-control w-full rounded-control border border-border-control bg-surface-2 py-1.5 pr-[calc(var(--d-inset)+0.5rem)] pl-9 text-base text-text-primary transition-colors placeholder:text-text-muted enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus focus-visible:outline-none sm:text-sm"
+        class="min-h-control w-full rounded-control border bg-surface-2 py-1.5 pr-[calc(var(--d-inset)+0.5rem)] pl-9 text-base text-text-primary transition-colors placeholder:text-text-muted focus-visible:outline-none sm:text-sm"
+        :class="
+          hasError
+            ? 'border-danger focus-visible:shadow-field-focus-danger'
+            : 'border-border-control enabled:hover:border-border-control-hover focus-visible:border-accent focus-visible:shadow-field-focus'
+        "
         @input="onInput"
         @keydown.enter.prevent="onEnter"
       />
@@ -167,5 +200,6 @@ const onClear = (): void => {
         <span class="sr-only">{{ clearLabel }}</span>
       </button>
     </div>
+    <p v-if="hasError" :id="errorId" class="text-sm text-danger wrap-anywhere">{{ error }}</p>
   </div>
 </template>

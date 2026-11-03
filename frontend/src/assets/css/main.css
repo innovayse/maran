@@ -48,9 +48,15 @@ html[data-theme='dark'] {
      are 1.2-1.5:1 against a panel and fine for decoration, but WCAG 1.4.11 needs 3:1 for the
      visual information that identifies a control, and a field's fill (--s2) is only 1.06:1 against
      the panel it sits on — so in the dark theme the border was the only thing showing where a
-     field is, and it was invisible. Measured against every surface a field can sit on:
-     3.57 on --s1, 3.36 on --s2, 3.08 on --s3. */
-  --bc: #656d76;
+     field is, and it was invisible. It is tinted toward the shell's cool blue hue (the surfaces
+     are #101216-#1d2126) instead of a flat neutral grey, so a field belongs to the panel it sits
+     on. Measured against every surface a field can sit on: 3.98 on --s1, 3.74 on --s2,
+     3.43 on --s3 (4.25 on --bg).
+     --bch is the same edge one step stronger, for hover: one value for every control, so no
+     field answers the pointer differently from its neighbour. 6.04 on --s1, 5.68 on --s2,
+     5.22 on --s3. */
+  --bc: #68748a;
+  --bch: #8793a8;
 
   /* Text, in descending prominence. Measured on --bg / --s1 / --s2:
      t1 16.77 / 15.70 / 14.75, t2 7.56 / 7.08 / 6.65, t3 5.72 / 5.36 / 5.03. */
@@ -204,7 +210,8 @@ html[data-theme='light'] {
   --s3: #e9ecf0;
   --b1: #e2e5ea;
   --b2: #d2d6dd;
-  --bc: #80878f; /* 3.63 on --s1, 3.30 on --s2, 3.07 on --s3 */
+  --bc: #788497; /* tinted to the shell hue: 3.79 on --s1, 3.43 on --s2, 3.20 on --s3 (3.53 on --bg) */
+  --bch: #5b6779; /* hover, one step stronger: 5.74 on --s1, 5.20 on --s2, 4.84 on --s3 */
   --t1: #14171b;
   --t2: #5c646d;
   --t3: #636b73;
@@ -231,6 +238,7 @@ html[data-theme='light'] {
   --color-border-subtle: var(--b1);
   --color-border-strong: var(--b2);
   --color-border-control: var(--bc);
+  --color-border-control-hover: var(--bch);
   --color-text-primary: var(--t1);
   --color-text-secondary: var(--t2);
   --color-text-muted: var(--t3);
@@ -302,13 +310,17 @@ html[data-theme='light'] {
   --shadow-focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--ac);
   --shadow-focus-danger: 0 0 0 2px var(--bg), 0 0 0 4px var(--rd);
   /*
-   * A text field's focus. The field already draws its own border, so focus turns that border
-   * into the solid accent (the 3:1 indicator: 4.81:1 dark, 3.89:1 light) and adds a soft halo
-   * outside it. The halo is decoration only; the solid border carries the contrast. This keeps
-   * a focused field to one quiet edge instead of border, gap and ring stacked together.
+   * A text field's focus. The field already draws its own 1px border, so focus turns that
+   * border into the solid accent and adds a second 1px ring of the same colour directly
+   * outside it: one crisp 2px solid accent edge and nothing translucent. Both halves are the
+   * indicator, so the ring is measured as a graphic against the surface the field sits on:
+   * --ac is 4.81 on --s1, 4.52 on --s2, 4.16 on --s3 in the dark theme and 3.89 / 3.53 / 3.29
+   * in the light one. Danger uses --rd the same way: 4.79 / 4.50 / 4.13 dark, 5.62 / 5.10 /
+   * 4.74 light. An earlier 3px halo at 25% mixed into a muddy band on a dark surface and
+   * made the edge look thick and dirty; a low-alpha halo is not a focus indicator.
    */
-  --shadow-field-focus: 0 0 0 3px color-mix(in oklab, var(--ac) 25%, transparent);
-  --shadow-field-focus-danger: 0 0 0 3px color-mix(in oklab, var(--rd) 25%, transparent);
+  --shadow-field-focus: 0 0 0 1px var(--ac);
+  --shadow-field-focus-danger: 0 0 0 1px var(--rd);
 }
 
 /*
