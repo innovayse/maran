@@ -91,13 +91,15 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // three-state account facts and the explicit ban term (issue #323); revision
     // 14 adds `ListInstallablePhpVersions` (issue #330); revision 15 adds
     // `EndSftpSessions` and `ERROR_CODE_AGENT_SATURATED` (issues #339 and #333);
-    // revision 16 adds `ERROR_CODE_RUN_NOT_STOPPED` (issue #336).
+    // revision 16 adds `ERROR_CODE_RUN_NOT_STOPPED` (issue #336); revision 17 is
+    // the contract before backup verification; revision 18 adds `VerifyBackup`
+    // (issue #134).
     // The panel's
     // `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 17);
+    assert_eq!(info.proto_version, 18);
 }
 
 #[tokio::test]
