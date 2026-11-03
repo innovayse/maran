@@ -1,0 +1,17 @@
+# Maran
+
+> A self-hosted hosting control panel for Linux servers. Manage websites, PHP versions, SSL certificates, databases, file transfer, backups and the firewall from a browser. The panel is written in C#; a small Rust agent is the only process that holds root.
+
+Maran is for hosting providers, agencies and system administrators who run their own Linux servers and give customers their own cabinets. It runs on your server rather than as a service. The interface is available in English, Russian and Armenian. The source is available under the Business Source License 1.1, free to self-host, converting to Apache 2.0 on 29 August 2030. It is built by Innovayse LLC.
+
+## Start here
+
+- [README](https://github.com/innovayse/maran/blob/main/README.md): what Maran is, supported systems, installation and project status
+- [Documentation site](https://maran.innovayse.com/docs): installation, accounts, websites, SSL, databases and the API
+- [Architecture](https://github.com/innovayse/maran/blob/main/README.md#architecture): the three processes and why only one holds root
+- [Full documentation in one file](https://maran.innovayse.com/llms-full.txt): the English docs concatenated for language models
+
+## Contributing
+
+- [CONTRIBUTING](https://github.com/innovayse/maran/blob/main/CONTRIBUTING.md): how to propose and submit changes
+- [Good first issues](https://github.com/innovayse/maran/labels/good%20first%20issue): small, well-scoped tasks for new contributors
