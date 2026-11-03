@@ -1,10 +1,8 @@
 //! Server assembly: socket preparation, peer-cred enforcement, service registry.
 
-use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::Path;
 
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
-use maran_distro::DistroAdapter;
 use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
 use maran_ops::backup::ProcessBackupHost;
 use maran_ops::cron::ProcessCronHost;
@@ -14,13 +12,10 @@ use maran_ops::firewall::ProcessFirewallHost;
 use maran_ops::ftps::ProcessFtpsHost;
 use maran_ops::logins::ProcessLoginsHost;
 use maran_ops::monitor::ProcessMonitorHost;
-use maran_ops::php::{
-    PhpHost, PoolTreeDecision, PoolTreeOutcome, ProcessPhpHost, reload_pool_trees,
-};
-use maran_ops::sftp::{ProcessSftpHost, SftpHost, reconcile_orphan_key_files};
-use maran_ops::sites::{ProcessSiteHost, SiteMaintenanceHost, SitesOpError, reload_web_server};
+use maran_ops::php::ProcessPhpHost;
+use maran_ops::sftp::ProcessSftpHost;
+use maran_ops::sites::ProcessSiteHost;
 use maran_ops::ssl::{ProcessPanelChallengeHost, ProcessSslHost};
-use tokio::net::UnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 
@@ -53,18 +48,10 @@ use crate::services::sites::sites_service::SitesServiceImpl;
 use crate::services::ssl::ssl_service::SslServiceImpl;
 use crate::services::system::system_service::SystemServiceImpl;
 use crate::shutdown::{StopSignals, drain_deadline};
-
-/// Permissions the socket is created with: owner and group only.
-///
-/// The agent runs as root, so the socket's group is what lets the panel user
-/// reach it; world access would hand the panel's full command set to every local
-/// account on the machine.
-const SOCKET_MODE: u32 = 0o660;
-
-/// Permissions the socket's directory is created with: owner and group traversal
-/// only. In production systemd owns `/run/maran` and applies the same mode; this
-/// covers a developer run, where the directory is created here.
-const DIRECTORY_MODE: u32 = 0o750;
+use crate::startup::bind_socket::bind_socket;
+use crate::startup::reconcile_php_pool_trees::reconcile_php_pool_trees;
+use crate::startup::reconcile_sftp_key_files::reconcile_sftp_key_files;
+use crate::startup::reconcile_web_tree::reconcile_web_tree;
 
 /// Binds `socket_path` and serves the contract until the process is stopped.
 ///
@@ -165,28 +152,8 @@ pub async fn serve(
     // been accepted yet.
     reconcile_sftp_key_files(&ProcessSftpHost::new(), adapter);
 
-    // The directory is created before the socket and no wider than the socket
-    // itself, because binding is not atomic with respect to permissions: the
-    // kernel creates the socket using the process umask — typically world
-    // readable — and only the next statement narrows it. A directory nobody else
-    // can traverse closes that window without a umask call, which would mean an
-    // `unsafe` libc wrapper outside the one module allowed to hold them
-    // (rules/rust.md).
-    if let Some(directory) = socket_path.parent() {
-        std::fs::DirBuilder::new()
-            .recursive(true)
-            .mode(DIRECTORY_MODE)
-            .create(directory)?;
-    }
-
-    // A socket file left by a killed process would make bind fail with
-    // "address in use", so the stale entry is removed rather than reported.
-    if socket_path.exists() {
-        std::fs::remove_file(socket_path)?;
-    }
-
-    let listener = UnixListener::bind(socket_path)?;
-    std::fs::set_permissions(socket_path, std::fs::Permissions::from_mode(SOCKET_MODE))?;
+    // The socket directory, a stale socket and the bind itself are `bind_socket`'s.
+    let listener = bind_socket(socket_path)?;
 
     tracing::info!(
         socket = %socket_path.display(),
@@ -405,261 +372,6 @@ pub async fn serve(
     let _ = std::fs::remove_file(socket_path);
 
     Ok(())
-}
-
-/// What [`reconcile_web_tree`] found and did, so a test can observe the
-/// decision rather than the log line it produced.
-///
-/// Three outcomes and not a `Result`, because the two failures are different
-/// jobs for an operator and are logged at different levels: a tree the
-/// validator rejects is a broken file somebody must fix, and a reload that
-/// refuses on an accepted tree is usually a web server that is not running
-/// yet.
-#[derive(Debug, PartialEq, Eq)]
-enum WebTreeReconciliation {
-    /// The tree on disk validated and the running server was reloaded onto it.
-    Applied,
-    /// The validator rejected what is on disk. Nothing was reloaded.
-    Refused,
-    /// The tree validated but the reload did not take.
-    NotReloaded,
-}
-
-/// Validates the web configuration tree on disk at startup and, when it
-/// passes, reloads the running server onto it.
-///
-/// # Why this exists
-///
-/// `ops::safe_write` renames new content over the live target BEFORE
-/// validating it, deliberately and correctly: the validating tool reads the
-/// real tree by path, and a temporary file matches no include glob. The cost
-/// is an on-disk midpoint. A process killed between that rename and the
-/// commit leaves content no validator has accepted at the real path, with the
-/// `RollbackGuard` that would have undone it gone with the process — and the
-/// running server unaffected, because it has not been asked to reload. Until
-/// this call existed, nothing on the host ever looked: the next reload from
-/// any cause was the first thing to find out, and at a restart or a reboot
-/// that means every site on the host failing to come up at once.
-///
-/// # Why observation rather than a record of intent
-///
-/// A journal written before each rename would say more — which write was
-/// killed, and what to put back. It is refused here because it is a file of
-/// the agent's own on every customer host, which `rules/architecture.md`
-/// forbids ("the agent MUST stay stateless"), and because a record that
-/// disagrees with the disk is wrong and cannot know it. Re-validating observes
-/// the artefact the system actually uses, on the path it reads it from
-/// (`rules/testing.md`), needs no new state, and catches every cause of a bad
-/// tree rather than only this one.
-///
-/// # What it does NOT observe
-///
-/// Only the web tree — the vhosts under `AgentPaths::NGINX_INCLUDE_DIRECTORY`
-/// and the TLS material `nginx -t` loads with them. The php-fpm pool trees are
-/// [`reconcile_php_pool_trees`]'s, beside this call, and are no longer a blind
-/// spot: they are version-keyed, so that pass enumerates the installed
-/// versions first and answers one outcome per version.
-///
-/// What remains unobserved is the two systemd jail-mount trees and
-/// `vsftpd.conf`. They cannot be observed this way at all: they pass a MUTATING
-/// command as their validator (`systemctl daemon-reload`, and `systemctl
-/// restart` for FTPS), so re-running it at a start would restart the daemon and
-/// drop every live session rather than ask it a question. Closing that costs a
-/// PURE validator per tree, which is what does not exist here: `vsftpd` has no
-/// `-t`, and a systemd unit file has no check-without-load reachable through
-/// this workspace's `DistroAdapter`. The ruling about those three is stated in
-/// full on `maran_ops::safe_write::model::Validator`, which is where the
-/// mutating validators are constructed and counted; what this file does about
-/// them is decline to re-run an action and say so. The blind spot is
-/// named in this function's own log output rather than only here, and
-/// `the_only_startup_reconciliations_are_restores_web_php_pools_and_sftp_keys`
-/// goes red the day one of the three gains a pass.
-///
-/// A second blind spot sits inside the tree it does read: a site creation
-/// killed between the rename of its vhost and the check of `nginx -t`'s warning
-/// that one of its names is already served leaves a colliding vhost live, and
-/// this pass cannot catch it, because that tree validates with exit 0 — the
-/// warning is not this pass's refusal — so it reloads the colliding file.
-///
-/// # Why it never refuses the start
-///
-/// This process is the operator's only remote repair tool. Refusing to start
-/// on a bad tree removes it at exactly the moment it is needed, and takes
-/// accounts, databases, backups and monitoring down for a defect in one file —
-/// the same trade the backup-dependency check above is decided by. There is
-/// also nothing to roll back to: the previous content lived only in the dead
-/// process's memory, and the only undo available here would be to delete the
-/// file, which destroys a site rather than restoring one.
-fn reconcile_web_tree(
-    host: &dyn SiteMaintenanceHost,
-    distro: &dyn DistroAdapter,
-) -> WebTreeReconciliation {
-    match reload_web_server(host, distro) {
-        Ok(()) => {
-            tracing::info!(
-                "the web configuration tree on disk validated and the running server was \
-                 reloaded onto it. UNOBSERVED HERE: the SFTP and FTPS jail mount units \
-                 and vsftpd.conf — those three trees have no validator that can be run \
-                 without also acting on the daemon. The php-fpm pool trees ARE observed, \
-                 by reconcile_php_pool_trees, one outcome per installed version. ALSO \
-                 UNOBSERVED HERE: a vhost left by a site creation killed mid-write whose \
-                 host name another vhost already serves, which nginx -t reports as a \
-                 warning and exit 0"
-            );
-            WebTreeReconciliation::Applied
-        }
-        Err(SitesOpError::NginxValidation { stderr }) => {
-            tracing::error!(
-                %stderr,
-                "the web configuration tree on disk is REJECTED by its own validator at \
-                 startup, so it was not reloaded. Something wrote this tree without \
-                 finishing — a config write killed between its rename and its \
-                 validation is the case this check exists for. The running server is \
-                 unaffected and will refuse a reload, but it will FAIL TO START at the \
-                 next restart or reboot, and every config write on this host will fail \
-                 validation until the named file is fixed by hand. Nothing here can undo \
-                 it: the previous content is gone with the process that held it"
-            );
-            WebTreeReconciliation::Refused
-        }
-        Err(error) => {
-            tracing::warn!(
-                %error,
-                "the web configuration tree validated but the reload did not take; the \
-                 running server may still be serving an older configuration than the one \
-                 on disk"
-            );
-            WebTreeReconciliation::NotReloaded
-        }
-    }
-}
-
-/// Validates every installed PHP version's php-fpm pool tree on disk at
-/// startup and, for each that passes, reloads that version's service onto it.
-///
-/// # Why this exists, and why it is separate from the web pass
-///
-/// The same on-disk midpoint, in the other tree `ops::safe_write` renames
-/// into. `php-fpm -t` reads the pool directory by path, so the rename precedes
-/// the validation there for the same reason it does under nginx, and a process
-/// killed in that window leaves a pool file no validator accepted at the real
-/// path with the `RollbackGuard` gone. The consequence is sharper than nginx's
-/// in one respect: php-fpm refuses to START on a pool file it cannot parse, so
-/// at the next restart every site on the host using that version stops serving
-/// at once, and the panel's own screens say the pool was written.
-///
-/// It is a second function rather than an arm of [`reconcile_web_tree`] because
-/// the answer is per VERSION, not per host: `php-fpm8.3 -t` reads only `8.3`'s
-/// pool directory, so one broken file says nothing about the other versions and
-/// must not be reported as though it did. Folding them would also lose the
-/// version an operator has to go and fix, which is the only actionable part of
-/// the message.
-///
-/// # What it observes, and what it still cannot
-///
-/// It observes the artefact the daemon reads, on the path it reads it from,
-/// through the same validator and the same service name every individual pool
-/// write uses — so it needs no state of its own, which is what
-/// `rules/architecture.md` requires of this process ("the agent MUST stay
-/// stateless"). What it cannot see is WHICH write was killed, or anything that
-/// happened while this process was not running: it reports on the tree as it is
-/// now, never on the history that produced it. A version with no pool directory
-/// is not installed and yields no outcome, which is the honest answer and not a
-/// silence — there is no tree there to observe.
-///
-/// # Why it never refuses the start
-///
-/// The same trade [`reconcile_web_tree`] is decided by, and it is not re-argued
-/// here: this process is the operator's only remote repair tool, and there is
-/// nothing to roll back to, because the previous pool file died with the
-/// process that held it in memory.
-fn reconcile_php_pool_trees(
-    host: &dyn PhpHost,
-    distro: &dyn DistroAdapter,
-) -> Vec<PoolTreeOutcome> {
-    let outcomes = reload_pool_trees(host, distro);
-
-    if outcomes.is_empty() {
-        tracing::info!(
-            "no PHP version is installed, so there is no php-fpm pool tree to validate at \
-             this start"
-        );
-        return outcomes;
-    }
-
-    for outcome in &outcomes {
-        match outcome.decision {
-            PoolTreeDecision::Applied => tracing::info!(
-                version = %outcome.version,
-                "this version's php-fpm pool tree on disk validated and its service was \
-                 reloaded onto it"
-            ),
-            PoolTreeDecision::Refused => tracing::error!(
-                version = %outcome.version,
-                stderr = %outcome.stderr,
-                "this version's php-fpm pool tree on disk is REJECTED by its own \
-                 validator at startup, so it was not reloaded. Something wrote this tree \
-                 without finishing — a pool write killed between its rename and its \
-                 validation is the case this check exists for. The running php-fpm is \
-                 unaffected and will refuse a reload, but it will FAIL TO START at the \
-                 next restart or reboot, and every site on this host using this version \
-                 stops serving when it does. Nothing here can undo it: the previous pool \
-                 file is gone with the process that held it"
-            ),
-            PoolTreeDecision::NotReloaded => tracing::warn!(
-                version = %outcome.version,
-                stderr = %outcome.stderr,
-                "this version's php-fpm pool tree validated but the reload did not take; \
-                 its workers may still be serving an older pool than the one on disk"
-            ),
-        }
-    }
-
-    outcomes
-}
-
-/// Removes the SFTP key files whose login is gone, at startup, and logs what it
-/// did.
-///
-/// # Why it exists
-///
-/// A login's key file is addressed by the login's name, and a login created
-/// later under that name would authenticate with the keys of the one that
-/// came before. Deletion removes the file first and creation purges a new
-/// name's file, but a process killed between the steps of either, or a file put
-/// there by hand, leaves one behind; this pass is what removes it. It needs no
-/// state of its own — the directory and the password database are both read as
-/// they are now (`rules/architecture.md`: the agent is stateless).
-///
-/// # Why it never refuses the start
-///
-/// The same trade [`reconcile_web_tree`] is decided by: this process is the
-/// operator's only remote repair tool, and a stale key file is a risk to be
-/// reported, not a reason to take every other rpc down. An unreadable password
-/// database removes nothing (`reconcile_orphan_key_files`), and the failure is
-/// logged for the operator.
-///
-/// Answers how many files were removed, or `None` when the pass failed, so a
-/// test can observe the outcome without reading the log.
-fn reconcile_sftp_key_files(host: &dyn SftpHost, distro: &dyn DistroAdapter) -> Option<usize> {
-    match reconcile_orphan_key_files(host, distro) {
-        Ok(removed) => {
-            tracing::info!(
-                removed,
-                "SFTP key files whose login no longer exists were removed"
-            );
-            Some(removed)
-        }
-        Err(error) => {
-            tracing::warn!(
-                %error,
-                "the SFTP key directory could not be reconciled against the password \
-                 database, so a key file whose login is gone may remain. Nothing was \
-                 removed on the strength of an answer that could not be read"
-            );
-            None
-        }
-    }
 }
 
 #[cfg(test)]

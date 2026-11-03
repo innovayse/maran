@@ -631,9 +631,6 @@ pub trait DistroAdapter: Send + Sync {
     /// that directory's merged-`/usr` symlink rather than as a second binary.
     fn nft_binary(&self) -> AdapterBinary;
 
-    /// The file the packaged nftables service reads at boot, and therefore the
-    /// one file the installer wires the agent's include lines into.
-    ///
     /// Name of the cron service unit.
     ///
     /// The one place the two families' cron packaging shows: `cron` on the

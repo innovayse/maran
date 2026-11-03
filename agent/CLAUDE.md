@@ -40,8 +40,9 @@ tests can start a real server in-process on a temporary socket.
 |---|---|
 | `src/main.rs` | tracing setup, flag parsing, start. Nothing else. |
 | `src/lib.rs` | module declarations; includes generated proto once for the crate. |
-| `src/server.rs` | socket preparation, permissions, service registry. |
+| `src/server.rs` | `serve`: the startup order, the service registry and the bounded drain. |
 | `src/error.rs` | `StartupError` — fatal startup failures only. |
+| `src/startup/` | what the daemon does before it serves, each pass run BEFORE the first connection is accepted: `bind_socket.rs` (socket directory, stale socket, bind, mode `0660`), `reconcile_web_tree.rs` with `web_tree_reconciliation.rs` (its outcome), `reconcile_php_pool_trees.rs` and `reconcile_sftp_key_files.rs`. `server.rs` keeps `serve` and the service registry. |
 | `src/config/` | command-line and environment parsing: `invocation.rs` (what the command line asked for — run the daemon, print usage, or render one of the two firewall files the installer seeds from; refuses an argument this binary does not define, and matches a subcommand at the first position only), `agent_options.rs` (the answer it carries), `options_error.rs`. |
 | `src/peercred/` | who may connect at all. `peer_policy.rs` = the rule, `peer_guard.rs` = the check. Authorisation starts below the RPC layer. |
 | `src/services/<service>/` | one folder per proto service. `<service>_service.rs` = the tonic trait impl, `<area>_status.rs` = the error → gRPC code mapping, `validated_*.rs` = one proto-to-input bundle per request shape. Today: `system/`, `accounts/`, `sites/`, `ssl/`, `php/`, `files/`, `db/`, `sftp/`, `ftps/`, `cron/`, `firewall/`, `backup/`, `monitor/`. A folder is one PROTO SERVICE, not one ops area, so `sftp/` also holds `logins_status.rs`: the rpc that locks an account's logins is served beside the SFTP rpcs it was written with, and `ops::logins` has no service of its own to map from. |

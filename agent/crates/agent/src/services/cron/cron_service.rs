@@ -8,8 +8,8 @@ use tonic::{Request, Response, Status};
 
 use crate::proto::cron_service_server::CronService;
 use crate::proto::{
-    CreateCronEntryOk, CreateCronEntryRequest, CreateCronEntryResponse, CronEnvironmentVariable,
-    DeleteCronEntryOk, DeleteCronEntryRequest, DeleteCronEntryResponse, GetCronEntryOutputRequest,
+    CreateCronEntryOk, CreateCronEntryRequest, CreateCronEntryResponse, DeleteCronEntryOk,
+    DeleteCronEntryRequest, DeleteCronEntryResponse, GetCronEntryOutputRequest,
     GetCronEntryOutputResponse, GetCronEnvironmentOk, GetCronEnvironmentRequest,
     GetCronEnvironmentResponse, ListCronEntriesOk, ListCronEntriesRequest, ListCronEntriesResponse,
     RunCronEntryRequest, RunCronEntryResponse, SetAccountCronSuspendedOk,
@@ -23,6 +23,7 @@ use crate::proto::{
 };
 use crate::services::cron::cron_status::to_agent_error;
 use crate::services::cron::entry_output::entry_output;
+use crate::services::cron::environment_variables::environment_variables;
 use crate::services::cron::listed_entry::listed_entry;
 use crate::services::cron::run_outcome::run_outcome;
 use crate::services::cron::validated_creation::validated_creation;
@@ -326,13 +327,7 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
 
         let result = match result {
             Ok(environment) => get_cron_environment_response::Result::Ok(GetCronEnvironmentOk {
-                variables: environment
-                    .into_iter()
-                    .map(|variable| CronEnvironmentVariable {
-                        name: variable.name.as_str().to_owned(),
-                        value: variable.value.as_str().to_owned(),
-                    })
-                    .collect(),
+                variables: environment_variables(environment),
             }),
             Err(error) => get_cron_environment_response::Result::Error(error),
         };

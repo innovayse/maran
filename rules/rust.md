@@ -90,6 +90,12 @@ agent/
     │   ├── build.rs           compiles proto/agent/v1/ via tonic-build
     │   ├── src/
     │   │   ├── lib.rs · main.rs · server.rs · error.rs
+    │   │   ├── startup/       what the daemon does before it serves, each pass before the
+    │   │   │                  first connection is accepted: bind_socket.rs (directory, stale
+    │   │   │                  socket, bind, mode) · reconcile_web_tree.rs +
+    │   │   │                  web_tree_reconciliation.rs (its outcome) ·
+    │   │   │                  reconcile_php_pool_trees.rs · reconcile_sftp_key_files.rs —
+    │   │   │                  split out of server.rs, which keeps `serve` and the registry
     │   │   ├── config/        invocation.rs (the command line) · agent_options.rs · options_error.rs
     │   │   ├── peercred/      peer_policy.rs (who may connect) · peer_guard.rs (the check)
     │   │   └── services/      one FOLDER per proto service:
@@ -133,7 +139,7 @@ agent/
     │   │       │              beside it for the vsftpd daemon — a separate service,
     │   │       │              not a mode of this one: different daemon, different
     │   │       │              auth model, its own TLS material.
-    │   │       ├── cron/      cron_service.rs · cron_status.rs
+    │   │       ├── cron/      cron_service.rs · cron_status.rs · the wire-payload builders (entry_output.rs · environment_variables.rs · listed_entry.rs · run_outcome.rs)
     │   │       ├── firewall/  firewall_service.rs · firewall_status.rs
     │   │       ├── backup/    backup_service.rs · backup_status.rs
     │   │       ├── monitor/   monitor_service.rs · monitor_status.rs
