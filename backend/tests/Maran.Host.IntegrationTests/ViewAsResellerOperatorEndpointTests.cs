@@ -167,9 +167,16 @@ public sealed class ViewAsResellerOperatorEndpointTests : IAsyncLifetime
         using (var scope = factory.Services.CreateScope())
         {
             var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-            foreach (var login in await identity.Users.Where(u => u.Username == "olive" || u.Username == "gus").ToListAsync())
+
+            // A customer's login is made unable to sign in the way the product does it: the membership
+            // that ties it to its account is suspended. User.Suspend is a reseller's login only.
+            var logins = await identity.Users
+                .Where(u => u.Username == "olive" || u.Username == "gus")
+                .Select(u => u.Id)
+                .ToListAsync();
+            foreach (var membership in await identity.AccountMemberships.Where(m => logins.Contains(m.UserId)).ToListAsync())
             {
-                login.Suspend();
+                membership.Suspend();
             }
 
             await identity.SaveChangesAsync();
