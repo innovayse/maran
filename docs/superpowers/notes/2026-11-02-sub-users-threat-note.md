@@ -22,8 +22,8 @@ read it.
 | An owner names another account's sub-user (IDOR) | The account is never a parameter; it is the caller's own token. Membership lookups filter by it, so another account's person, the owner themselves, and an unknown id are all 404 `SubUserNotFound`. Covered by `SubUsersEndpointTests`. |
 | A removed member keeps using a live access token | Gated endpoints read the membership on each call and `AccountMemberGrants` fails closed when there is no row, so removal refuses them at once. Sessions are deleted with the login (or revoked for this account), so the refresh token stops renewing. |
 | A member uses a feature the owner withheld, with the plan including it | The grants window refuses with 403 `AccountFeatureNotGranted`, independently of the menu and the plan. |
-| The invitation endpoint is used to mail strangers | The action carries the `invitation` rate limit (per client address). The mail goes through the existing Notifications path; nothing about the token is journalled, logged or stored beyond its digest. |
-| Joining an existing person to the team without consent | Refused: a taken login name or address is a 409. Joining an existing login is a separate, consenting flow that does not exist yet. |
+| The invitation endpoint is used to mail strangers | The action carries the `invitation-sending` rate limit (per account; issue #341 split it from the acceptance bucket) and a per-account cap on sub-users. The mail goes through the existing Notifications path; nothing about the token is journalled, logged or stored beyond its digest. |
+| Joining an existing person to the team without consent | Refused: a taken login name or address creates nothing and mails nobody, and is answered exactly as a free one (issue #341, see 2026-11-03-invitation-threat-note.md). Joining an existing login is a separate, consenting flow that does not exist yet. |
 | Role or grants forged through the request | `IpAddress`, `UserAgent` and the route `UserId` are `[JsonIgnore][BindNever]` members stamped by the action; the account comes from the token. |
 
 ## What this does NOT cover (stated limits)
