@@ -94,5 +94,19 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // enforced by the database rather than only by the command, so a race cannot create twins.
         builder.HasIndex(u => u.Username).IsUnique().HasDatabaseName("IX_Users_Username");
         builder.HasIndex(u => u.Email).IsUnique().HasDatabaseName("IX_Users_Email");
+
+        // EXPAND-ONLY: the previous release (1.0.0-beta.4) reads and writes Users."AccountId" and its
+        // partial unique index, so both stay in the schema for one more release. This release neither
+        // reads nor writes the column: it is a SHADOW property, so no entity member exposes it and a
+        // new login stores NULL there (the column has always been nullable, an administrator's is
+        // NULL). The account a login may act for is its AccountMembership rows. It is named
+        // LegacyAccountId, not AccountId, so the tenant census (TenantScopeTests) does not mistake a
+        // login for an account's row. The release after beta.5 drops the column and the index.
+        // Partial, because PostgreSQL counts NULLs as distinct in a unique index.
+        builder.Property<Guid?>("LegacyAccountId").HasColumnName("AccountId");
+        builder.HasIndex("LegacyAccountId")
+            .IsUnique()
+            .HasFilter("\"AccountId\" IS NOT NULL")
+            .HasDatabaseName("UX_Users_AccountId");
     }
 }

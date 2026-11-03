@@ -390,6 +390,10 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.Property<long?>("LastTotpWindow")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid?>("LegacyAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("AccountId");
+
                     b.Property<bool>("LegacyAccountSuspended")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -442,6 +446,11 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique()
                         .HasDatabaseName("IX_Users_Email");
+
+                    b.HasIndex("LegacyAccountId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_AccountId")
+                        .HasFilter("\"AccountId\" IS NOT NULL");
 
                     b.HasIndex("Username")
                         .IsUnique()

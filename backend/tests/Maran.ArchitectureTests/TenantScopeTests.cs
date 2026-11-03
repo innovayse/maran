@@ -67,7 +67,8 @@ public sealed class TenantScopeTests
     /// <b>What is no longer listed, and why that is not a loss of coverage.</b> <c>User</c>,
     /// <c>Session</c>, <c>PasswordResetToken</c>, <c>InvitationToken</c>, <c>RecoveryCode</c> and
     /// <c>PinnedPage</c> used to be exempt here because the census reached them through <c>User.AccountId</c>
-    /// and the required relationships hanging off it. A login names no account any more (issue #325): it
+    /// and the required relationships hanging off it. A login names no account any more (issue #325; the legacy column is a shadow property the census
+    /// does not walk): it
     /// belongs to a PERSON, who may hold several accounts or, for an administrator, none, so these rows are
     /// not an account's rows and the census correctly stops seeing them. What was true of them is
     /// unchanged — they are read at sign-in or by an unauthenticated caller holding a token, before any

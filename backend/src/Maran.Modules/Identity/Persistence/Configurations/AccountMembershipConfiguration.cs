@@ -52,8 +52,8 @@ public sealed class AccountMembershipConfiguration : IEntityTypeConfiguration<Ac
 
         // At most one OWNER per account: two would be two keys to the same account, and the database
         // refuses the second so a concurrent redelivery of AccountCreated or a double-clicked resend
-        // cannot create it. This is what the dropped UX_Users_AccountId used to guarantee from the
-        // login's side. Partial, because any number of members may be added to one account. It is
+        // cannot create it. This is what UX_Users_AccountId guarantees from the login's side for
+        // the previous release, which this release no longer relies on. Partial, because any number of members may be added to one account. It is
         // keyed on (AccountId, Role) rather than on AccountId alone because EF Core refuses a second
         // index over the same property set as IX_AccountMemberships_AccountId below.
         builder.HasIndex(membership => new { membership.AccountId, membership.Role })

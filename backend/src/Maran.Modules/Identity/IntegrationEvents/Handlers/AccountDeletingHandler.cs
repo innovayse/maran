@@ -34,8 +34,8 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// where a foreign key is a suggestion) and so the method answers "what do you release for an
 /// account" in full. What does NOT guard the mapping any more is the architecture census:
 /// <c>AccountCascadeTests.Every_dependent_of_a_tenant_row_is_removed_with_it</c> walks the
-/// dependents of tenant rows, and a login stopped being one when its account column was dropped
-/// (issue #325). The assertion that the credentials are gone is
+/// dependents of tenant rows, and a login stopped being one when this release stopped reading its
+/// account column (issue #325). The assertion that the credentials are gone is
 /// <c>AccountDeletionCascadeTests</c>, against real PostgreSQL.
 /// </para>
 /// <para>

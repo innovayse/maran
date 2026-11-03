@@ -1,3 +1,4 @@
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -19,10 +20,24 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                 nullable: false,
                 defaultValue: "Active");
 
+            // The one-owner-per-account guarantee, stated on the memberships so it no longer depends on
+            // Users."AccountId" (kept, with its own unique index UX_Users_AccountId, for the previous
+            // release and dropped in the release after this one). Keyed on (AccountId, Role) rather than
+            // on AccountId alone because EF Core refuses a second index over the same property set.
+            migrationBuilder.CreateIndex(
+                name: "UX_AccountMemberships_AccountId_Owner",
+                schema: "identity",
+                table: "AccountMemberships",
+                columns: new[] { "AccountId", "Role" },
+                unique: true,
+                filter: "\"Role\" = 'Owner'");
+
             // raw-sql: one-time expand backfill, parameter-free. Until now a suspension was stored on the
             // owner's login (Users."Lifecycle" Suspended or InvitedAccountSuspended); it is now the state
             // of the membership, so every membership of an account whose owner login was suspended
-            // (the owner's own and every added member's) becomes Suspended (issue #326). Idempotent.
+            // (the owner's own and every added member's) becomes Suspended (issue #326). It reads
+            // Users."AccountId", which this release keeps but no longer writes, so it matters only for
+            // logins created by an earlier release.
             migrationBuilder.Sql(
                 """
                 UPDATE identity."AccountMemberships" AS m
@@ -36,7 +51,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
             // into the claimed and the unclaimed one, and the legacy State / IsAccountSuspended pair is
             // restated to agree with what the application now writes. Lifecycle was added after the last
             // release (AddUserLifecycle), so no release reads the two values this removes; the legacy
-            // pair is rewritten for agreement only. Idempotent.
+            // pair is rewritten for agreement only.
             migrationBuilder.Sql(
                 """
                 UPDATE identity."Users" SET
@@ -50,8 +65,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // raw-sql: restore the login-wide suspension the previous shape stored, from the owner's
-            // membership, before the column that holds the truth is dropped.
+            // raw-sql: restore the login-wide suspension the previous shape stored, from the OWNER's
+            // membership only, before the column that holds the truth is dropped. An added member's
+            // suspension is not restored: the previous shape had no per-member suspension to restore it to.
             migrationBuilder.Sql(
                 """
                 UPDATE identity."Users" AS u SET
@@ -61,6 +77,11 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                 FROM identity."AccountMemberships" AS m
                 WHERE m."UserId" = u."Id" AND m."Role" = 'Owner' AND m."State" = 'Suspended';
                 """);
+
+            migrationBuilder.DropIndex(
+                name: "UX_AccountMemberships_AccountId_Owner",
+                schema: "identity",
+                table: "AccountMemberships");
 
             migrationBuilder.DropColumn(
                 name: "State",

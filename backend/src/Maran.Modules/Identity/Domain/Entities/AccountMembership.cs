@@ -12,7 +12,8 @@ namespace Maran.Modules.Identity.Domain.Entities;
 /// <para>
 /// <b>This table is the truth about which accounts a login may act for, and about whether it may
 /// act for each of them right now.</b> The login itself carries no account and no suspension: the
-/// older <c>Users.AccountId</c> column was dropped once every reader had moved here (issue #325), and
+/// older <c>Users.AccountId</c> column is no longer read or written by this release, which keeps it only
+/// so the previous release can still run against the schema (issue #325), and
 /// a suspension is the <see cref="State"/> of the one membership it concerns (issue #326), so a person
 /// holding two accounts loses access to the suspended one and keeps the other.
 /// </para>

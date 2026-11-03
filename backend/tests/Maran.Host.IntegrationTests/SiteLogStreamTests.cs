@@ -299,8 +299,8 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
 
     /// <summary>The stream budget belongs to the account and is not multiplied by its panel sessions.</summary>
     /// <remarks>
-    /// Two sessions rather than two logins: <c>UX_Users_AccountId</c> now guarantees at most one
-    /// login per hosting account (see <c>AccountCreatedHandler</c>), so "five staff accounts" is no
+    /// Two sessions rather than two logins: <c>UX_AccountMemberships_AccountId_Owner</c> guarantees at most one
+    /// owner login per hosting account (see <c>AccountCreatedHandler</c>), so "five staff accounts" is no
     /// longer a shape the domain allows. The scenario the budget actually has to survive is still
     /// real — the same customer open in two browser tabs, each with its own access token — which is
     /// exactly what two independent sign-ins of the one login produce.
