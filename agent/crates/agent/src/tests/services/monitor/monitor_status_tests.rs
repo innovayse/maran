@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_distro::PendingUpdatesFailure;
 use maran_ops::monitor::MonitorError;
 
 use super::to_agent_error;
@@ -19,6 +20,9 @@ fn every_variant() -> Vec<MonitorError> {
         MonitorError::FilesystemUnavailable,
         MonitorError::ServiceManagerUnavailable { code: 4 },
         MonitorError::AccountsUnavailable,
+        MonitorError::UpdateCatalogueUnavailable {
+            reason: PendingUpdatesFailure::Unsuccessful { status: 1 },
+        },
     ]
 }
 
@@ -144,4 +148,19 @@ fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
     // Positive control: the scan does find the wildcard it is measured against.
     let wildcard = wildcard.expect("the mapping ends in a wildcard arm");
     assert!(bound.expect("the bound variant has its own arm") < wildcard);
+}
+
+#[test]
+fn an_unreadable_update_catalogue_is_reported_with_its_reason_and_no_tool_output() {
+    let error = to_agent_error(&MonitorError::UpdateCatalogueUnavailable {
+        reason: PendingUpdatesFailure::CatalogueNotBuilt,
+    });
+
+    assert_eq!(error.code, ErrorCode::SystemFailure as i32);
+    assert!(
+        error.message.contains("catalogue has not been built"),
+        "{}",
+        error.message
+    );
+    assert!(error.tool_output.is_empty());
 }

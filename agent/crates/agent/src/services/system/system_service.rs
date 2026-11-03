@@ -61,8 +61,10 @@ use crate::proto::{
 /// termination of one SFTP login's open sessions and the refusal of a cron run
 /// past the agent's concurrency bound (issues #339 and #333). 16 adds
 /// `ERROR_CODE_RUN_NOT_STOPPED`, the answer to a cron run whose unit could not
-/// be confirmed stopped after a ceiling ended it (issue #336).
-const PROTO_VERSION: u32 = 16;
+/// be confirmed stopped after a ceiling ended it (issue #336). 17 adds
+/// `MonitorService.ListPendingUpdates`, the packages the host's package manager
+/// already knows a newer version of, read from its cache alone (issue #324).
+const PROTO_VERSION: u32 = 17;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {
