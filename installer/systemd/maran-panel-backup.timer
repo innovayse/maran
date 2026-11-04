@@ -1,0 +1,36 @@
+# Starts maran-panel-backup.service on the operator's schedule (issue #129).
+#
+# THIS FILE HAS NO OnCalendar= ON PURPOSE, and a timer installed without one never fires. The
+# calendar value comes from the root-only config file (SCHEDULE in /etc/maran/panel-backup.conf),
+# validated against a strict allow-list by `maran panel-backup-schedule enable`, which renders it into
+#
+#     /etc/systemd/system/maran-panel-backup.timer.d/schedule.conf
+#
+# and only then enables this timer. Two consequences, both intended:
+#   * A fresh install, or an enable that was refused, leaves nothing scheduled. systemd refuses to
+#     start a timer that has no trigger ("Timer unit lacks value setting"), which is the safe
+#     failure: no unattended root job exists until a human wrote the config.
+#   * The value is written into a unit by root from a validated string, never interpolated from
+#     anything an unprivileged process can influence (rules/security.md item 4).
+# `systemd-analyze verify` on this file alone will therefore warn about the missing trigger; verify it
+# together with the drop-in.
+#
+# The installer installs this timer and never enables it (installer/lib/67-panel-backup.sh).
+[Unit]
+Description=Maran panel backup schedule
+Documentation=man:systemd.timer(5)
+
+[Timer]
+# Catches up a run the machine slept through: a server that was off at the scheduled minute takes its
+# backup when it next boots rather than waiting a day. The state is kept by systemd under
+# /var/lib/systemd/timers. UNOBSERVED HERE: the catch-up itself.
+Persistent=true
+# Up to fifteen minutes of random delay, so a fleet of servers configured with the same SCHEDULE does
+# not upload to the same storage in the same second. Applied on top of the calendar time, so
+# SCHEDULE is when the window opens.
+RandomizedDelaySec=15min
+# The service this timer starts, stated so the pairing does not rest on the shared file name alone.
+Unit=maran-panel-backup.service
+
+[Install]
+WantedBy=timers.target

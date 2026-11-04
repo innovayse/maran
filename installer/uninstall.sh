@@ -53,6 +53,28 @@ stop_and_disable_services() {
   systemctl disable maran-api.service maran-agent.service 2>/dev/null || true
 }
 
+# remove_panel_backup_schedule: takes back the scheduled panel backup's units and nothing else.
+#
+# Disabled and stopped first, so a timer cannot fire while the wrapper it runs is being removed;
+# then the service, the timer and the drop-in directories `maran panel-backup-schedule enable`
+# writes (the schedule, and a possible ReadWritePaths= for another output directory). Whatever the
+# operator did NOT enable is simply absent, and every command tolerates that.
+#
+# It NEVER removes the output directory or an archive in it: the archives are the point of the
+# feature, and after an uninstall they are the only way back to this panel's database and keys.
+# note_panel_backups_kept says so at the end. The config file goes with /etc/maran, which is
+# removed further down; the passphrase and S3 credential files live elsewhere and are the
+# operator's.
+remove_panel_backup_schedule() {
+  echo "Removing the scheduled panel backup..."
+  systemctl disable --now maran-panel-backup.timer 2>/dev/null || true
+  systemctl stop maran-panel-backup.service 2>/dev/null || true
+  rm -f /etc/systemd/system/maran-panel-backup.timer /etc/systemd/system/maran-panel-backup.service
+  rm -rf /etc/systemd/system/maran-panel-backup.timer.d /etc/systemd/system/maran-panel-backup.service.d
+  systemctl daemon-reload 2>/dev/null || true
+  systemctl reset-failed maran-panel-backup.service 2>/dev/null || true
+}
+
 remove_systemd_units() {
   echo "Removing systemd units..."
   rm -f /etc/systemd/system/maran-api.service /etc/systemd/system/maran-agent.service
@@ -981,6 +1003,26 @@ note_backups_kept() {
   echo "        decommission this server."
 }
 
+# MARAN_PANEL_BACKUP_OUT_DIR: where the scheduled panel backup writes (installer/lib/67-panel-backup.sh).
+# Named here only to be reported and kept; this file never deletes it.
+readonly MARAN_PANEL_BACKUP_OUT_DIR=/var/backups/maran-panel
+
+# note_panel_backups_kept: prints the panel backup directory, how many archives are in it and the
+# fact that they were left alone. It deletes nothing. The count matches the archive name the verb
+# writes and retention prunes, directly inside the directory (`find` does not follow symlinks), and
+# names no file: an uninstall transcript is pasted into tickets.
+note_panel_backups_kept() {
+  if [ ! -d "$MARAN_PANEL_BACKUP_OUT_DIR" ]; then
+    echo "No panel backup directory at ${MARAN_PANEL_BACKUP_OUT_DIR}; nothing to keep."
+    return
+  fi
+  local archives
+  archives="$(find "$MARAN_PANEL_BACKUP_OUT_DIR" -maxdepth 1 -type f -name 'maran-panel-backup-*.tar.gpg' 2>/dev/null | wc -l)"
+  echo "KEEPING ${MARAN_PANEL_BACKUP_OUT_DIR} (${archives} panel backup archive(s)). They are the only"
+  echo "        way back to this panel's database and keys, and this uninstaller never deletes them."
+  echo "        Keep their passphrase file too; remove the directory by hand when you no longer need them."
+}
+
 # note_customer_data_untouched: explicit statement of what this script never touches,
 # printed unconditionally so an operator never has to guess.
 note_customer_data_untouched() {
@@ -991,6 +1033,7 @@ This uninstaller never touches:
   - Customer sites, files, or per-account databases
   - MariaDB itself, or any database in it
   - Backups under /var/backups/maran (counted above)
+  - Panel backups under /var/backups/maran-panel (counted above)
 
 Remove those yourself if you intend to decommission the server entirely.
 EOF
@@ -1002,6 +1045,9 @@ main() {
   # account belongs to this product, and it does not survive remove_var_lib.
   record_legacy_service_user
   stop_and_disable_services
+  # Before the wrapper and /etc/maran go: a timer that fires between those removals would run a
+  # backup against a half-removed panel.
+  remove_panel_backup_schedule
   remove_systemd_units
   remove_nginx_vhost
   # Before /etc/maran goes: the marker that says whether we enabled nftables lives there.
@@ -1026,6 +1072,7 @@ main() {
   remove_sftp_group
   remove_service_user
   note_backups_kept
+  note_panel_backups_kept
   note_customer_data_untouched
   echo "Maran uninstall complete."
 }
