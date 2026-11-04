@@ -52,7 +52,7 @@ import ShellRail from '../components/shell/ShellRail.vue'
 import ShellSidebar from '../components/shell/ShellSidebar.vue'
 import ShellTabBar from '../components/shell/ShellTabBar.vue'
 import ShellViewingAsBanner from '../components/shell/ShellViewingAsBanner.vue'
-import { useNavigation } from '../composables/useNavigation'
+import { useNavigationState } from '../composables/useNavigationState'
 import { useNavigationRole } from '../composables/useNavigationRole'
 import { useLocaleStore } from '../stores/locale'
 import { useModulesStore } from '../stores/modules'
@@ -62,6 +62,7 @@ import { FALLBACK_GROUP } from '../router/navigationTree'
 import { locateNavigation } from '../utils/locateNavigation'
 import { PAGE_EYEBROW_KEY } from '../utils/pageEyebrowKey'
 import { PAGE_HEADING_KEY } from '../utils/pageHeadingKey'
+import type { NavigationEntry } from '../types/navigation'
 import type { PageHeading } from '../types/pageHeading'
 
 /**
@@ -84,7 +85,7 @@ const WIDE_QUERY = '(min-width: 64rem)'
 const { t } = useI18n()
 const route = useRoute()
 const navigationRole = useNavigationRole()
-const entries = useNavigation()
+const navigationState = useNavigationState()
 const modulesStore = useModulesStore()
 const tasksStore = useTasksStore()
 const badgesStore = useNavigationBadgesStore()
@@ -111,6 +112,20 @@ const isCompact: ComputedRef<boolean> = computed(() => {
 /** Whether the navigation drawer is open. */
 const drawerOpen: ComputedRef<boolean> = computed(() => {
   return navigation.value === 'drawerOpen'
+})
+
+/**
+ * The entries every menu draws. While a customer's first answer is on its way there is nothing to
+ * offer yet, so every menu gets an empty list, and the sidebar, drawer, rail and tab bar say why by
+ * drawing a skeleton ({@link loadingNavigation}); the palette and favourites simply list nothing.
+ */
+const entries: ComputedRef<readonly NavigationEntry[]> = computed(() => {
+  return navigationState.value.state === 'ready' ? navigationState.value.entries : []
+})
+
+/** Whether the navigation's first answer is still on its way. */
+const loadingNavigation: ComputedRef<boolean> = computed(() => {
+  return navigationState.value.state === 'loading'
 })
 
 /** Whether the jump-to palette is open. */
@@ -315,8 +330,13 @@ onBeforeUnmount((): void => {
 
       <div class="flex min-h-0 flex-1 gap-3">
         <template v-if="!isCompact">
-          <ShellRail v-if="navigation === 'rail'" :entries="entries" @expand="expandNavigation" />
-          <ShellSidebar v-else :entries="entries" @collapse="collapseNavigation" />
+          <ShellRail
+            v-if="navigation === 'rail'"
+            :entries="entries"
+            :loading="loadingNavigation"
+            @expand="expandNavigation"
+          />
+          <ShellSidebar v-else :entries="entries" :loading="loadingNavigation" @collapse="collapseNavigation" />
         </template>
 
         <!-- The content inset lives here rather than in each page: every screen gets the same
@@ -348,13 +368,14 @@ onBeforeUnmount((): void => {
       <ShellTabBar
         v-if="isCompact"
         :entries="entries"
+        :loading="loadingNavigation"
         :navigation-open="drawerOpen"
         @open-navigation="openDrawer"
       />
     </div>
 
     <ShellDrawer v-if="isCompact" :open="drawerOpen" @close="closeDrawer">
-      <ShellSidebar :entries="entries" compact @navigate="closeDrawer" />
+      <ShellSidebar :entries="entries" :loading="loadingNavigation" compact @navigate="closeDrawer" />
     </ShellDrawer>
 
     <ShellCommandPalette :open="paletteOpen" :entries="entries" @close="closePalette" />

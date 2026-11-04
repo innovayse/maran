@@ -102,7 +102,7 @@ public sealed class ResellerIsolationTests : IAsyncLifetime
             }
         }
 
-        var stored = await world.AccountsAsync(async accounts => { return await accounts.Accounts.AsNoTracking().ToListAsync(); });
+        var stored = await world.AccountsAsync(async accounts => { return await accounts.Accounts.IgnoreQueryFilters().AsNoTracking().ToListAsync(); });
         Assert.Equal(3, stored.Count);
         foreach (var (id, planId) in new[] { (stranger.AccountId, stranger.PlanId), (world.HouseAccountId, world.HousePlanId) })
         {
@@ -166,7 +166,7 @@ public sealed class ResellerIsolationTests : IAsyncLifetime
 
         var names = await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Plans.AsNoTracking().Select(plan => plan.DisplayNameKey).ToListAsync();
+            return await accounts.Plans.IgnoreQueryFilters().AsNoTracking().Select(plan => plan.DisplayNameKey).ToListAsync();
         });
         Assert.Equal(["AlphaPlan", "BravoPlan", ResellerWorld.HousePlanName], names.Order());
         var refusals = await world.AuditEntriesAsync(AccountAuditActions.PlanUpdated, AccountAuditActions.PlanDeleted);
@@ -203,10 +203,10 @@ public sealed class ResellerIsolationTests : IAsyncLifetime
             Assert.Equal((HttpStatusCode.NotFound, "PlanNotFound"), await ProblemDocument.SignatureAsync(moved));
         }
 
-        Assert.Equal(3, await world.AccountsAsync(async accounts => { return await accounts.Accounts.CountAsync(); }));
+        Assert.Equal(3, await world.AccountsAsync(async accounts => { return await accounts.Accounts.IgnoreQueryFilters().CountAsync(); }));
         Assert.Equal(self.PlanId, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Accounts.Where(account => account.Id == self.AccountId)
+            return await accounts.Accounts.IgnoreQueryFilters().Where(account => account.Id == self.AccountId)
                 .Select(account => account.PlanId)
                 .SingleAsync();
         }));

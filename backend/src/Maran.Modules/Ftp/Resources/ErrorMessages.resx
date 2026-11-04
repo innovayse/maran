@@ -19,7 +19,7 @@
     <value>This host name is too long. A host name may be at most 253 characters.</value>
   </data>
   <data name="FtpsPassiveAddressInvalid">
-    <value>The passive address must be an IPv4 address written plainly, such as 203.0.113.7 — not a host name, not an IPv6 address, which the PASV reply has no form for, and no leading zeros. Leave it blank if your server is not behind NAT.</value>
+    <value>The passive address must be an IPv4 address written plainly, such as 203.0.113.7, not a host name, not an IPv6 address, which the PASV reply has no form for, and no leading zeros. Leave it blank if your server is not behind NAT.</value>
   </data>
   <data name="FtpsHostnameNotServed">
     <value>This panel does not serve a site for this host name. Add the site first, then enable FTPS for it.</value>

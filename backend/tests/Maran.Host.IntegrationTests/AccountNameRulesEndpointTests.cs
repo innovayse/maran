@@ -178,7 +178,7 @@ public sealed class AccountNameRulesEndpointTests : IAsyncLifetime
         Assert.NotEqual(HttpStatusCode.BadRequest, response.StatusCode);
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        Assert.Equal("ru", (await context.Accounts.SingleAsync(account => account.Name == "acme")).OwnerLanguage);
+        Assert.Equal("ru", (await context.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Name == "acme")).OwnerLanguage);
     }
 
     /// <summary>Posts a creation request.</summary>
@@ -224,7 +224,7 @@ public sealed class AccountNameRulesEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
 
-        return await context.Accounts.CountAsync(account => account.Name == name);
+        return await context.Accounts.IgnoreQueryFilters().CountAsync(account => account.Name == name);
     }
 
     /// <summary>Boots the host with the recording agent in place of the real one.</summary>

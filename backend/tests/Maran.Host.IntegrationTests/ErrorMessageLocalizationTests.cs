@@ -296,7 +296,7 @@ public sealed class ErrorMessageLocalizationTests : IAsyncLifetime
         using (var scope = factory.Services.CreateScope())
         {
             var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-            planId = await accounts.Plans.Select(plan => plan.Id).FirstAsync();
+            planId = await accounts.Plans.IgnoreQueryFilters().Select(plan => plan.Id).FirstAsync();
         }
 
         var response = await client.PostAsJsonAsync(

@@ -84,17 +84,20 @@ public interface IAccountDirectory
     /// by accident — and an unscoped method on a scoped interface is what that accident looks like.
     /// </para>
     /// <para>
-    /// <b>It is unscoped because its one caller has no tenant to scope by.</b> It exists for the
-    /// host-wide disk view: an administrator comparing what the agent measured under every home
-    /// directory against what each account's plan allows. That reading is about the machine, and a
-    /// version of it filtered to the signed-in user's own account would answer a question nobody
-    /// asked while hiding the account that is actually full.
+    /// <b>It is unscoped because its callers have no tenant to scope by.</b> It serves one
+    /// administrator-only route, the host-wide disk view: an administrator comparing what the agent
+    /// measured under every home directory against what each account's plan allows. That reading is
+    /// about the machine, and a version of it filtered to the signed-in user's own account would
+    /// answer a question nobody asked while hiding the account that is actually full. It also serves
+    /// unattended work that runs with no principal at all: the backup run, backup retention, backup
+    /// reclamation at start-up and the PHP site reconcile at start-up.
     /// </para>
     /// <para>
     /// <b>The whole authorization burden therefore sits on the caller, and there is no second
     /// line.</b> A customer who reached this would learn every other tenant's system user name — the
     /// name that addresses every agent operation — plus their plan's allowances. Anything reading it
-    /// MUST be gated to administrators at its own boundary; today's one caller is behind
+    /// MUST be gated to administrators at its own boundary or run with no request at all; the
+    /// one route that reads it is behind
     /// <c>[Authorize(Policy = AuthorizationPolicies.AdminOnly)]</c> on every route of its controller,
     /// and an integration test asserts a signed-in customer is refused on each of them.
     /// </para>

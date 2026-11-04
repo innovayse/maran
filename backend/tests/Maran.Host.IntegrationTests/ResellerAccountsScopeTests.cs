@@ -1,5 +1,6 @@
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Persistence;
+using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,15 +9,10 @@ namespace Maran.Host.IntegrationTests;
 /// <summary>
 /// The Accounts module's own database context against a real PostgreSQL, with no HTTP in between
 /// (issue #179): a reseller caller sees the accounts, plans and reseller row it owns and nothing else,
-/// whatever a handler asks for — the structural layer under the endpoint isolation tests — and every
-/// other caller is not narrowed, which is the stated limit of the filter.
+/// whatever a handler asks for — the structural layer under the endpoint isolation tests. The
+/// administrator sees every row, a customer its own account and plan, and an anonymous caller nothing
+/// (the filters fail closed).
 /// </summary>
-/// <remarks>
-/// The second test is a statement of what the filter does NOT do, kept as a test so the limit cannot
-/// drift unnoticed: the filters only narrow a reseller, and the other callers are scoped by the
-/// controllers' policies and the account directory. Making the context fail closed for them is a separate
-/// hardening, and the day it lands this test is what changes with it.
-/// </remarks>
 [Collection(SharedDatabase.Name)]
 public sealed class ResellerAccountsScopeTests : IAsyncLifetime
 {
@@ -71,23 +67,53 @@ public sealed class ResellerAccountsScopeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// A context opened for the caller of unattended work, or for a customer, is not narrowed: it sees
-    /// every account, plan and reseller. This is the inverse control of the test above — the filter
-    /// narrows only a reseller — and the limit the module's remarks state.
+    /// A context opened for an administrator sees every account, plan and reseller. This is the inverse
+    /// control of the reseller test above: the narrowing is the reseller's alone, not the context's.
     /// </summary>
-    /// <param name="caller">Which caller opens the context.</param>
-    [Theory]
-    [InlineData("anonymous")]
-    [InlineData("customer")]
-    public async Task The_accounts_context_does_not_narrow_a_caller_that_is_not_a_reseller(string caller)
+    [Fact]
+    public async Task The_accounts_context_shows_an_administrator_every_row()
     {
         await using var world = await new ResellerFixtureBuilder(_pg).BuildAsync();
-        ICurrentUser principal = caller == "customer" ? new AccountCustomer(world.Alpha.AccountId) : new NoPrincipal();
-        await using var context = Open(principal);
+        await using var context = Open(new AdministratorUser());
 
         Assert.Equal(3, await context.Accounts.CountAsync());
         Assert.Equal(3, await context.Plans.CountAsync());
         Assert.Equal(2, await context.Resellers.CountAsync());
+    }
+
+    /// <summary>
+    /// A context opened for the caller of unattended work, which holds no principal, shows nothing: the
+    /// filters fail closed, and work that really needs rows says so with <c>IgnoreQueryFilters()</c>.
+    /// </summary>
+    [Fact]
+    public async Task The_accounts_context_shows_an_anonymous_caller_nothing()
+    {
+        await using var world = await new ResellerFixtureBuilder(_pg).BuildAsync();
+        await using var context = Open(new NoPrincipal());
+
+        Assert.Equal(0, await context.Accounts.CountAsync());
+        Assert.Equal(0, await context.Plans.CountAsync());
+        Assert.Equal(0, await context.Resellers.CountAsync());
+        Assert.Equal(3, await context.Accounts.IgnoreQueryFilters().CountAsync());
+    }
+
+    /// <summary>
+    /// A context opened for a customer shows the one account it acts for and that account's plan, and no
+    /// reseller row.
+    /// </summary>
+    [Fact]
+    public async Task The_accounts_context_shows_a_customer_only_its_own_account_and_plan()
+    {
+        await using var world = await new ResellerFixtureBuilder(_pg).BuildAsync();
+        await using var context = Open(new AccountCustomer(world.Alpha.AccountId));
+
+        Assert.Equal(
+            [world.Alpha.AccountName],
+            await context.Accounts.AsNoTracking().Select(account => account.Name).ToListAsync());
+        Assert.Equal(
+            [world.Alpha.PlanName],
+            await context.Plans.AsNoTracking().Select(plan => plan.DisplayNameKey).ToListAsync());
+        Assert.Equal(0, await context.Resellers.CountAsync());
     }
 
     /// <summary>Opens a context straight onto this test's database, as the given caller.</summary>
@@ -98,5 +124,12 @@ public sealed class ResellerAccountsScopeTests : IAsyncLifetime
         return new AccountsDbContext(
             new DbContextOptionsBuilder<AccountsDbContext>().UseNpgsql(_pg.GetConnectionString()).Options,
             principal);
+    }
+
+    /// <summary>The principal of a signed-in server administrator, whose scope is the whole server.</summary>
+    private sealed class AdministratorUser : ICurrentUser
+    {
+        /// <inheritdoc />
+        public Caller Caller { get; } = new AdministratorCaller(Guid.NewGuid(), "admin");
     }
 }

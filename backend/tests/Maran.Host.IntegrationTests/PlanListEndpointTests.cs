@@ -213,7 +213,7 @@ public sealed class PlanListEndpointTests : IAsyncLifetime
     {
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        return await context.Plans.SingleAsync(plan => plan.Name == name);
+        return await context.Plans.IgnoreQueryFilters().SingleAsync(plan => plan.Name == name);
     }
 
     /// <summary>Reads a successful JSON answer.</summary>

@@ -43,7 +43,7 @@ public sealed class AgentOutageEndpointTests : IAsyncLifetime
 
     /// <summary>The Russian text of <c>AgentUnavailable</c>.</summary>
     private const string UnavailableRussian =
-        "Ваш сервер сейчас не отвечает, поэтому выполнение запроса не подтверждено. Повторите попытку через минуту, а если ошибка повторяется — обратитесь в поддержку.";
+        "Ваш сервер сейчас не отвечает, поэтому выполнение запроса не подтверждено. Повторите попытку через минуту, а если ошибка повторяется, обратитесь в поддержку.";
 
     /// <summary>The Armenian text of <c>AgentUnavailable</c>.</summary>
     private const string UnavailableArmenian =

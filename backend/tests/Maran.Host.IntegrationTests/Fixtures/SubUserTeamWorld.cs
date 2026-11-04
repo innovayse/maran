@@ -159,7 +159,8 @@ public static class SubUserTeamWorld
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        var account = await accounts.Accounts.SingleAsync(candidate => candidate.Name == accountName);
+        var account = await accounts.Accounts.IgnoreQueryFilters()
+            .SingleAsync(candidate => candidate.Name == accountName);
         account.Suspend();
         await accounts.SaveChangesAsync();
 
@@ -177,7 +178,7 @@ public static class SubUserTeamWorld
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        return await accounts.Accounts.Where(account => account.Name == accountName)
+        return await accounts.Accounts.IgnoreQueryFilters().Where(account => account.Name == accountName)
             .Select(account => account.Id)
             .SingleAsync();
     }

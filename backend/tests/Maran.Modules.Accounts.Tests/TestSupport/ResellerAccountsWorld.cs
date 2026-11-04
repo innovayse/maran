@@ -9,7 +9,7 @@ namespace Maran.Modules.Accounts.Tests.TestSupport;
 /// <summary>
 /// One in-memory database holding two resellers, each with a plan and an account, and the
 /// administrator's own plan, so a test can act as any caller against the same rows. Every row is
-/// seeded through an administrator's context, which the reseller filters do not narrow.
+/// seeded through an administrator's context, which no query filter narrows.
 /// </summary>
 public sealed class ResellerAccountsWorld : IDisposable
 {

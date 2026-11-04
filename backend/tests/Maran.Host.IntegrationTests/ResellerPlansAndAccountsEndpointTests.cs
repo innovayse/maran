@@ -93,7 +93,7 @@ public sealed class ResellerPlansAndAccountsEndpointTests : IAsyncLifetime
         Assert.Equal("PlanInUse", await ProblemDocument.CodeAsync(response));
         Assert.Equal(1, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Plans.CountAsync(plan => plan.Id == world.Alpha.PlanId);
+            return await accounts.Plans.IgnoreQueryFilters().CountAsync(plan => plan.Id == world.Alpha.PlanId);
         }));
         var refused = Assert.Single(await world.AuditEntriesAsync(AccountAuditActions.PlanDeleted));
         Assert.Equal(("alpha", false), (refused.ActorUsername, refused.Succeeded));
@@ -162,7 +162,7 @@ public sealed class ResellerPlansAndAccountsEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, unnamed.StatusCode);
         var owners = await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Accounts.AsNoTracking()
+            return await accounts.Accounts.IgnoreQueryFilters().AsNoTracking()
                 .Where(account => account.Name == "alphatwo" || account.Name == "alphathree")
                 .Select(account => account.ResellerId)
                 .ToListAsync();

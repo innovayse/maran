@@ -788,6 +788,7 @@ spa	sites/choices.spec.ts	2	0	0
 spa	sites/panel-names.spec.ts	4	0	0
 spa	sites/php-install-select.spec.ts	3	0	0
 spa	tasks/panel-names.spec.ts	2	0	0
+spa	shell/member-navigation-account-switch.spec.ts	4	0	0
 spa	shell/member-navigation.spec.ts	5	0	0
 spa	monitoring/pending-updates.spec.ts	15	0	0
 spa	customer/membership-offers.spec.ts	8	0	0

@@ -40,8 +40,9 @@ namespace Maran.Modules.Accounts.Services;
 /// </para>
 /// <para>
 /// <see cref="ListAsync"/> is the deliberate exception and the interface says so: it answers with
-/// every account on the host and applies no scope at all, because the host-wide disk view it exists
-/// for has no tenant to scope by. Its authorization lives entirely at its caller's boundary.
+/// every account on the host and applies no scope at all, bypassing the context's query filters
+/// explicitly, because the host-wide view it exists for has no tenant to scope by. Its authorization
+/// lives entirely at its caller's boundary.
 /// </para>
 /// </remarks>
 public sealed class AccountDirectory : IAccountDirectory
@@ -99,19 +100,17 @@ public sealed class AccountDirectory : IAccountDirectory
     /// No tenant scope, by contract — see <see cref="IAccountDirectory.ListAsync"/>, which states
     /// the exposure and puts the whole authorization burden on the caller. There is deliberately no
     /// administrator check here to mirror <see cref="FindAsync"/>'s: this method runs from the
-    /// administrator's host disk view and would also have to run from a timer one day, where there
+    /// administrator's host disk view and also runs from unattended work, where there
     /// is no principal at all and a check against one would silently answer "nothing" rather than
     /// fail — the failure mode <c>CertificateRenewalHandler</c> and <c>TaskRetentionHandler</c> both
     /// record. A check that answers emptiness instead of refusing is not a security control, it is
     /// a feature that stops working in the dark.
     /// </para>
     /// <para>
-    /// There is no <c>IgnoreQueryFilters()</c> call either, and its absence is deliberate rather
-    /// than an oversight: <see cref="AccountsDbContext"/>'s query filter narrows a reseller and no
-    /// other caller, and the administrator's host-wide disk view this method exists for is the
-    /// administrator's, which the filter leaves whole — so the call would suppress nothing the
-    /// administrator sees. A reseller who somehow reached this method would be shown only the accounts
-    /// it owns, which is the safe direction; this method is not exposed to it.
+    /// The call bypasses <see cref="AccountsDbContext"/>'s query filters, on both accounts and plans,
+    /// on purpose: the filters fail closed (an anonymous caller sees nothing) and this method is
+    /// reached by unattended work with no principal, so a scoped read would silently answer an empty
+    /// list. The bypass is explicit and carries its reason on the line, as every other one does.
     /// </para>
     /// <para>
     /// Every account is returned, suspended ones included. A suspended account's files are still on
@@ -122,7 +121,12 @@ public sealed class AccountDirectory : IAccountDirectory
     /// </remarks>
     public async Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken)
     {
-        return await ProjectSnapshots(_dbContext.Accounts.AsNoTracking()).ToListAsync(cancellationToken);
+#pragma warning disable RS0030 // unattended runs have no principal; the fail-closed filters would answer nothing
+        var accounts = _dbContext.Accounts.IgnoreQueryFilters().AsNoTracking();
+        var plans = _dbContext.Plans.IgnoreQueryFilters().AsNoTracking();
+#pragma warning restore RS0030
+
+        return await ProjectSnapshots(accounts, plans).ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -216,19 +220,24 @@ public sealed class AccountDirectory : IAccountDirectory
         Guid accountId,
         CancellationToken cancellationToken)
     {
-        return await ProjectSnapshots(accounts.Where(account => account.Id == accountId))
+        var plans = _dbContext.Plans.AsNoTracking();
+
+        return await ProjectSnapshots(accounts.Where(account => account.Id == accountId), plans)
             .SingleOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>Joins accounts to their plans and projects each pair to the snapshot other modules read.</summary>
     /// <param name="accounts">The accounts to project.</param>
+    /// <param name="plans">The plans the accounts are joined to, under the same scope as the accounts.</param>
     /// <returns>One snapshot per account.</returns>
-    private IQueryable<AccountSnapshot> ProjectSnapshots(IQueryable<Account> accounts)
+    private static IQueryable<AccountSnapshot> ProjectSnapshots(
+        IQueryable<Account> accounts,
+        IQueryable<Plan> plans)
     {
         // Expression lambdas, not the braced form used elsewhere in this repository: EF Core
         // translates these into SQL, and a statement-bodied lambda cannot become an expression tree.
         return accounts.Join(
-            _dbContext.Plans.AsNoTracking(),
+            plans,
             account => account.PlanId,
             plan => plan.Id,
             (account, plan) => new AccountSnapshot(

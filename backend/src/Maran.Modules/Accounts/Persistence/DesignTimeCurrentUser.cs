@@ -8,10 +8,11 @@ namespace Maran.Modules.Accounts.Persistence;
 /// the MODEL — the shape of the tables — which it cannot do without constructing the context.
 /// </summary>
 /// <remarks>
-/// It reports an administrator because the reseller filters must not narrow a generated migration:
-/// a migration describes the table, and making that depend on a fabricated reseller id is a trap for
-/// the next reader. Nothing here ever runs at runtime — the Host registers the real
-/// <c>ICurrentUser</c> through DI — and no query is ever executed against this principal.
+/// It reports an administrator so that none of the fail-closed filters (reseller, customer,
+/// anonymous) narrows the model of a generated migration: a migration describes the table, and
+/// making that depend on a fabricated reseller or account id is a trap for the next reader. Nothing
+/// here ever runs at runtime: the Host registers the real <c>ICurrentUser</c> through DI, and no
+/// query is ever executed against this principal.
 /// </remarks>
 public sealed class DesignTimeCurrentUser : ICurrentUser
 {

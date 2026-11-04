@@ -5,7 +5,7 @@
  * work, with an optional locked state for licence-gated entries that must
  * stay visible rather than disappear (rules/architecture.md: a disabled
  * module's routes resolve to the upgrade page, never a blank screen).
- * Used by the sidebar (`useNavigation` entries), by the collapsed rail, and by
+ * Used by the sidebar (`useNavigationState` entries), by the collapsed rail, and by
  * plain in-content "go here" links (e.g. the 404 page's way back).
  *
  * **The current destination is a solid `--acf` fill with white text and the

@@ -116,6 +116,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
                 membership => membership.UserId == user.Id && membership.AccountId == accountId));
         Assert.Equal("new@example.com", login.Email);
         var account = await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Accounts
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .SingleAsync(candidate => candidate.Id == accountId);
         Assert.Equal("new@example.com", account.OwnerEmail);
@@ -143,6 +144,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         Assert.Contains("EmailTaken", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         using var scope = factory.Services.CreateScope();
         var account = await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Accounts
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .SingleAsync(candidate => candidate.Id == accountId);
         Assert.Equal(string.Empty, account.OwnerEmail);
@@ -226,7 +228,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         using (var scope = factory.Services.CreateScope())
         {
             var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-            (await accounts.Accounts.SingleAsync(account => account.Id == accountId)).Suspend();
+            (await accounts.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Id == accountId)).Suspend();
             await accounts.SaveChangesAsync();
         }
 
@@ -318,6 +320,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
     {
         using var scope = factory.Services.CreateScope();
         return (await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Accounts
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .SingleAsync(account => account.Id == accountId)).PlanId;
     }
