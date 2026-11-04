@@ -625,7 +625,8 @@ assert_directory_check_refuses() {
 # an artifact is downloaded into, checksummed in and extracted from.
 #
 # It is the highest-value directory in the whole install: the file that comes out of it is
-# /usr/local/maran/agent/maran-agent, which maran-agent.service starts as root. While it
+# /usr/local/maran/releases/<version>/agent/maran-agent (reached through the static link
+# /usr/local/maran/agent -> current/agent), which maran-agent.service starts as root. While it
 # lived under /var/lib/maran the api's uid owned it, and because every archive used to be
 # checksummed before ANY of them was extracted, the api could replace agent.tar.gz in that
 # window and install a root backdoor.
@@ -673,11 +674,14 @@ assert_the_release_staging_directory_is_root_only() {
 
 # run_staging_step: step 50's code in a child, the way install.sh runs it.
 #
-# SCRIPT_DIR is exported because 50-artifacts.sh resolves the release signing key against
-# it in a top-level `readonly`, and under `set -u` an unset variable would kill the source
-# before a single function was defined — a failure that looks nothing like the one this
-# check is about. It points at the installer tree this image carries; nothing below reads
-# the key, and no check here depends on it existing.
+# SCRIPT_DIR is exported because 50-artifacts.sh locates everything it does not define itself
+# against it: the release signing key, and the CLI libraries (cli/lib/*.sh) it sources for the
+# manifest, verification, unpack and layout functions. Under `set -u` an unset variable would
+# kill the source before a single function was defined, a failure that looks nothing like the
+# one this check is about. It points at the installer tree this image carries, which holds
+# cli/ and keys/ (the Dockerfile copies both); the functions the checks below call are the
+# step's own plus the library functions the step sources, and nothing here extracts a function
+# from the step's text, so a function that moves between the two is found where it now is.
 run_staging_step() {
   local snippet="$1" path_prefix="${2:-}"
   local search_path="$PATH"
@@ -773,7 +777,7 @@ assert_staging_gate_refuses() {
     || fail "the install(1) stand-in in ${shim_dir} was never executed, so prepare_staging_dir met no violation at all and the refusal below would have been about nothing"
 
   [ "$status" -ne 0 ] \
-    || fail "step 50's prepare_staging_dir ACCEPTED ${what}. The archive extracted from that directory becomes /usr/local/maran/agent/maran-agent, which systemd runs as root."
+    || fail "step 50's prepare_staging_dir ACCEPTED ${what}. The archive extracted from that directory becomes /usr/local/maran/releases/<version>/agent/maran-agent, which systemd runs as root through the /usr/local/maran/agent link."
   case "$output" in
     *"$expected_message"*) ;;
     *) fail "prepare_staging_dir refused ${what}, but its diagnosis does not contain '${expected_message}' — it said: ${output}" ;;

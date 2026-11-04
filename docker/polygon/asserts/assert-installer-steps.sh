@@ -244,10 +244,16 @@ require_installer_file "$FTPS_STEP" installer/lib/89-ftps.sh
 require_installer_file "$CLI_STEP" installer/lib/66-cli.sh
 require_installer_file "$CLI_WRAPPER_SOURCE" installer/cli/maran
 for __cli_lib in common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup-config.sh \
-  panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh panel-backup-schedule.sh panel-restore.sh; do
+  panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh panel-backup-schedule.sh panel-restore.sh \
+  release-version.sh release-verify.sh release-unpack.sh release-layout.sh panel-dump.sh update-dumps.sh \
+  update-health.sh update.sh rollback.sh; do
   require_installer_file "${CLI_LIB_SOURCE_DIR}/${__cli_lib}" "installer/cli/lib/${__cli_lib}"
 done
 unset __cli_lib
+# The release-signing public key step 66 installs for the CLI and step 50 verifies the first
+# install against: a package without it makes both steps fail by name, so a missing COPY must be a
+# named failure here and not only inside them.
+require_installer_file "${INSTALLER_ROOT}/keys/release-signing.pub" installer/keys/release-signing.pub
 require_installer_file "$PANEL_BACKUP_STEP" installer/lib/67-panel-backup.sh
 require_installer_file "$PANEL_BACKUP_SERVICE_SOURCE" installer/systemd/maran-panel-backup.service
 require_installer_file "$PANEL_BACKUP_TIMER_SOURCE" installer/systemd/maran-panel-backup.timer
@@ -504,6 +510,8 @@ for __part in \
   "${ASSERT_PARTS_DIR}/ftps.sh" \
   "${ASSERT_PARTS_DIR}/artifacts-and-packages.sh" \
   "${ASSERT_PARTS_DIR}/cli-recovery.sh" \
+  "${ASSERT_PARTS_DIR}/cli-update.sh" \
+  "${ASSERT_PARTS_DIR}/release-layout.sh" \
   "${ASSERT_PARTS_DIR}/log-retention.sh"; do
   [ -r "$__part" ] || fail "assert-installer-steps.sh: ${__part} is not in this image; the Dockerfile must COPY docker/polygon/asserts/parts/"
   # shellcheck source=/dev/null
@@ -591,6 +599,11 @@ main() {
   assert_the_site_log_root_check_can_see_each_property_break
   assert_the_release_staging_directory_is_root_only
   assert_the_staging_gate_refuses_what_install_left_wrong
+  # After both staging assertions, which leave step 50's staging directory as they found it, and
+  # before the agent unit ones: this RUNS step 50 and step 66 on a synthetic signed bundle and then
+  # puts /usr/local/maran, release.state and the key back. It needs the service account step 40
+  # creates above (issue #128).
+  assert_a_fresh_install_leaves_the_release_layout_the_design_requires
   assert_the_agent_unit_declares_its_writable_roots
   assert_the_agent_unit_never_makes_usr_writable
   assert_the_agent_unit_keeps_its_measured_hardening
@@ -644,7 +657,12 @@ main() {
   # run only as root (issue #129). Before the uninstaller ones: it installs the wrapper and step 67's
   # units, and removes them again, and the two below install and remove them for their own reasons.
   assert_the_scheduled_panel_backup_verbs_refuse_what_they_should
+  # The update and rollback verbs (issue #128) refuse before they read, hostile values reach no
+  # command, and a refused run changes nothing. Right after the scheduled-backup verbs, which it
+  # reuses the helpers of and which leave the image as they found it.
+  assert_the_update_and_rollback_verbs_refuse_what_they_should
   assert_the_uninstaller_removes_the_break_glass_command
+  assert_the_uninstaller_removes_the_release_layout_and_the_update_state
   assert_the_uninstaller_removes_the_panel_backup_schedule_and_keeps_the_archives
   echo "Installer steps 40, 41, 50, 60, 66, 67, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
   echo "the on-disk boundary the two privilege-escalation fixes moved, verified inside the polygon."

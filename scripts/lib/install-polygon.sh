@@ -38,12 +38,14 @@ bundle=""
 publish=""
 browser="no"
 panel_recovery="yes"
+update_rollback="yes"
 arch="x86_64"
 
 usage() {
   cat >&2 <<'USAGE'
 usage: maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--arch <a>]
-                       [--publish PORT] [--browser] [--no-panel-recovery] [--keep]
+                       [--publish PORT] [--browser] [--no-panel-recovery]
+                       [--no-update-rollback] [--keep]
 
   --os <version>  any folder under docker/polygon/images (default: ubuntu24). An unknown value
                   prints the list rather than guessing at a family.
@@ -76,6 +78,15 @@ usage: maran installer [--os <version>] [--mode local|get|offline] [--bundle PAT
                   installs a SECOND fresh server from the same image and restores onto it, then
                   requires the same administrator, account, owner and decryptable secret. It costs
                   a second full install; skip it while iterating on something else.
+  --no-update-rollback
+                  skip the update-and-rollback stage (issue #128). By default, after the stages above,
+                  the harness installs a THIRD server from a signed offline bundle (release A, signed
+                  by a throwaway key whose public half replaces the package's key inside that
+                  container only), seeds data and a site, runs `maran update --offline-tarball` to
+                  release B and `maran rollback`, then plants a release whose api cannot run and
+                  requires the automatic rollback, and bundles with a flipped artifact byte, another
+                  signing key or no signature, which must change nothing. The network fetch path is
+                  NOT exercised. It costs a third full install; skip it while iterating elsewhere.
   --keep          leave the containers running afterwards for inspection.
 
 The verdict is built from systemd and the panel, never from the installer's exit code alone:
@@ -93,6 +104,7 @@ while [ $# -gt 0 ]; do
     --publish) publish="${2:?--publish needs a port}"; shift 2 ;;
     --browser) browser="yes"; shift ;;
     --no-panel-recovery) panel_recovery="no"; shift ;;
+    --no-update-rollback) update_rollback="no"; shift ;;
     --keep) keep="yes"; shift ;;
     -h|--help) usage ;;
     *) echo "install-polygon.sh: unknown argument '$1'" >&2; usage ;;
@@ -396,6 +408,10 @@ recovery_expect() {
 . "${root}/scripts/lib/install-polygon-schedule.sh"
 # shellcheck source=install-polygon-recovery.sh
 . "${root}/scripts/lib/install-polygon-recovery.sh"
+# The update-and-rollback stage (issue #128): its own signed bundles, its own third server, and the
+# recovery stage's API helpers to seed and read the panel.
+# shellcheck source=install-polygon-update.sh
+. "${root}/scripts/lib/install-polygon-update.sh"
 
 # stage_lockout_recovery: first-admin setup, a locked account, the recovery command, and a link
 # that works exactly once.
@@ -672,6 +688,12 @@ stage_browser() {
 # little, and a count is the only thing that says so.
 MINIMUM_PANEL_RECOVERY_CHECKS=100
 
+# The update-and-rollback stage makes about 190 checks when nothing stops it early (counted from
+# scripts/lib/install-polygon-update.sh: host bundle controls, layout, five rounds of data
+# assertions, update, rollback, two broken releases, four refusals) and about 175 when the site cannot
+# be observed. 150 sits below both and above where a stage that stopped after seeding ends (about 50).
+MINIMUM_UPDATE_CHECKS=150
+
 if [ "$failures" -eq 0 ]; then
   if [ "$browser" = "yes" ]; then
     stage_browser
@@ -688,8 +710,16 @@ if [ "$failures" -eq 0 ]; then
   else
     echo "    panel-recovery stage SKIPPED by --no-panel-recovery: the issue #129 closing criterion (back up, install fresh, restore, same administrators and secrets) was not run."
   fi
+  if [ "$update_rollback" = "yes" ]; then
+    checks_before_update="$recovery_checks"
+    stage_update_rollback
+    [ $((recovery_checks - checks_before_update)) -ge "$MINIMUM_UPDATE_CHECKS" ] \
+      || note "the update-rollback stage made only $((recovery_checks - checks_before_update)) checks, fewer than the ${MINIMUM_UPDATE_CHECKS} it makes when nothing stops it early; a stage that returned early observed little"
+  else
+    echo "    update-rollback stage SKIPPED by --no-update-rollback: the issue #128 closing criterion (update, rollback, automatic rollback of a broken release, refusal of untrusted bundles) was not run."
+  fi
 else
-  echo "    browser (when asked), lockout-recovery, diagnostics and panel-recovery stages NOT RUN: the install itself failed above, and a recovery stage scored on a half-installed panel would be reporting on the install."
+  echo "    browser (when asked), lockout-recovery, diagnostics, panel-recovery and update-rollback stages NOT RUN: the install itself failed above, and a recovery stage scored on a half-installed panel would be reporting on the install."
 fi
 
 if [ "$keep" = "yes" ]; then
