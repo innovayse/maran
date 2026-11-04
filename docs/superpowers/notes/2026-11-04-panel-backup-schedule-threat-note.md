@@ -261,3 +261,131 @@ Stated limits of that proof, so it is not mistaken for more:
    `systemd.time(7)`, not against every systemd version's parser.
 6. Behaviour when the clock jumps, the timer fires during a panel upgrade, or two runs overlap beyond
    the guard described in section 1.
+
+## Deviations found when the code landed
+
+Everything above was written before the code. This section was written afterwards, by reading the
+code on the branch `fix/129-panel-backup-schedule` (`installer/cli/lib/panel-backup*.sh`,
+`installer/systemd/maran-panel-backup.service` and `.timer`, `installer/lib/67-panel-backup.sh`,
+`installer/panel-backup.conf.example`, `installer/uninstall.sh`, `scripts/lib/install-polygon*.sh`,
+`docker/polygon/asserts/parts/panel-backup-units.sh`). It is written by the same author as the code
+and discharges nothing: the second review stays OUTSTANDING and the branch MUST NOT merge to `main`.
+Where a deviation below weakens a requirement above, the requirement above is the standard and the
+deviation is a defect or a decision the reviewer must accept.
+
+1. **`SCHEDULE` is checked for shape first and by systemd second, and only `enable` asks systemd.**
+   `cli_pbconfig_schedule_valid` is a positive regular expression (at most 64 characters: `hourly`,
+   `daily`, `weekly`, `monthly`, or an optional weekday list or range, an optional date of `*` or
+   digits, and a time of day). It checks the shape, not the ranges. `maran panel-backup-schedule
+   enable` then runs `systemd-analyze calendar` on the value and refuses if systemd does not accept
+   it. The scheduled job itself reads `SCHEDULE` through the same shape check but never asks systemd
+   and does not use it (the timer does), so a value systemd would reject cannot be reached by the job,
+   only by `enable`, which refuses it. Steps with `/`, a `*` minute and names of months are not
+   accepted: the allow-list is narrower than `systemd.time(7)`, on purpose.
+2. **Retention can leave `KEEP` + 1 archives.** The order is the UTC stamp in the name, then the
+   process number. An archive whose stamp lies in the future (a clock set back, a copied file) ranks
+   first, and the archive just written ranks below it. The new archive is never removed, so when its
+   rank is above `KEEP` it stays together with the `KEEP` newest, which is `KEEP` + 1 files. Nothing
+   good is lost; the directory is one larger than configured until the future-stamped file leaves the
+   window. Retention also counts and deletes manual archives written into the same directory under
+   the same name shape.
+3. **The `OUT_DIR` guard is stricter than the note says.** Beyond `/`, `/root`, `/etc`, `/home`,
+   retention refuses any directory inside a system tree (`bin boot dev etc home lib lib32 lib64 proc
+   root run sbin sys usr`), the shared directories `/var/lib /var/log /var/backups /var/cache
+   /var/spool /var/tmp /var/mail`, and the panel's own `/etc/maran`, `/var/lib/maran` and
+   `/var/lib/maran-cli-staging`. The directory check is "a real directory owned by root that group
+   and others cannot write" (the check the manual verb already used), so a root-owned 0755 directory
+   passes; the installer creates 0700 but the job does not require it.
+4. **A non-default `OUT_DIR` does not work under the unit, and the code says otherwise in three
+   places.** The unit's `ReadWritePaths=` names `/var/backups/maran-panel`,
+   `/var/lib/maran-cli-staging` and `/run` and nothing else. The comment in the service unit says
+   `enable` "must add that directory to ReadWritePaths= in a service drop-in ... or refuse", and a
+   comment in `uninstall.sh` says `enable` writes "a possible ReadWritePaths= for another output
+   directory". `enable` does neither: it writes only the timer's schedule drop-in and validates
+   `OUT_DIR` without comparing it with the unit. With another directory the archive cannot be created
+   and the job fails with the "refusing to write ... cannot be created" message. The operator can
+   add a drop-in by hand (documented in `docs/operations/panel-disaster-recovery.md`, "A different
+   OUT_DIR"). Those two comments describe behaviour that does not exist and are to be corrected, or
+   `enable` made to do what they say (rules/architecture.md, "A doc comment that describes what the
+   code does not do"). `uninstall.sh` removes `maran-panel-backup.service.d` whole, so such a drop-in
+   goes with it, and it reports only the default directory's archives as kept.
+5. **The S3 upload needs `curl` 7.75 or later and the product does not check the version.** `--aws-sigv4`
+   arrived in 7.75. The installer's comment in `installer/lib/20-dependencies.sh` records
+   `curl-minimal-7.76.1` on the AlmaLinux 9 family; the other supported systems' versions were not
+   read from their own documentation here. A host whose curl is older (AlmaLinux or Rocky 8, which
+   are not in the supported list, ship an older one) has no code path that says so: curl rejects the
+   unknown option, the status is read as `000`, the exit status is not one the retry list covers, and
+   the run ends as `outcome=rejected-000` with the local archive kept. The polygon stage checks the
+   container's curl before it starts the stand-in and skips the upload leg with a printed reason when
+   it is older, so on such a system the upload is UNOBSERVED there.
+6. **Credentials reach curl through a `--config` file, as `user = "ID:SECRET"`, in a per-upload
+   directory under the stage.** The file is created by the shell's `printf` builtin under `umask 077`
+   with `noclobber` set (an exclusive create), in `<stage>/upload.XXXXXX/curl.cfg`. It is removed when
+   the upload function returns and, if the process is killed, with the stage by the EXIT trap. The key
+   id and the secret are first held in the shell's own variables (not exported, not on any argv,
+   unset after the file is written); each must be the first line of a root-only file made only of
+   `A-Za-z0-9/+=_.-`, at most 512 characters, which is also what makes the value safe inside the
+   quoted config line. The curl run is `curl -q --proto =https --tlsv1.2 --max-redirs 0 --fail
+   --silent --show-error --aws-sigv4 aws:amz:<region>:s3 --config <file> --header
+   'x-amz-content-sha256: UNSIGNED-PAYLOAD' --output /dev/null --write-out %{http_code}`; its stderr is
+   dropped. `-q` is first so root's `~/.curlrc` is not read. The payload is therefore unsigned and
+   protected by TLS only, which the note did not state.
+7. **More than one journal line per run.** The note required one line. The scheduled verb writes one
+   line `verb=panel-backup-scheduled outcome=written|failed-<status>` per run, and the upload writes
+   its own `verb=panel-backup-upload outcome=uploaded|size-mismatch|rejected-<HTTP status>|failed-<status>|refused`.
+   A run with an upload writes two lines, and a failed upload shows two failure lines. Both carry
+   fixed words and at most a three-digit status. The reason for a failure is a fixed sentence on the
+   unit's output (`maran: <sentence>` on stderr), also free of secrets and tool output. Retries are
+   fixed at three tries, a 10 second pause, 30 seconds to connect and two hours per request, for
+   connection failures and 5xx answers only.
+8. **Hardening: set, and left off.** Set: `NoNewPrivileges`, `ProtectSystem=strict` with the three
+   `ReadWritePaths`, `ProtectHome=yes`, `PrivateTmp`, `ProtectKernelTunables`, `ProtectKernelModules`,
+   `ProtectKernelLogs`, `ProtectControlGroups`, `ProtectClock`, `ProtectHostname`, `RestrictSUIDSGID`,
+   `RestrictRealtime`, `RestrictNamespaces`, `LockPersonality`, `SystemCallArchitectures=native`,
+   `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK`, plus `UMask=0077`, `Nice=10`,
+   `IOSchedulingClass=idle`, `TimeoutStartSec=4h` and `StartLimitIntervalSec=0`. Left off, with the
+   reason written in the unit: `PrivateDevices` (the journal line goes through `/dev/log` and a private
+   `/dev` is believed, not checked, to lack it), `PrivateNetwork` (the upload needs the network),
+   `CapabilityBoundingSet` (the union that `runuser`, `tar`, `install`, PAM and gpg need was derived
+   by reading, and a missing member fails at night as `EPERM`), `SystemCallFilter` and
+   `MemoryDenyWriteExecute` (not measured for `pg_dump`, gpg and PAM on both families),
+   `ProtectProc` and `ProcSubset`. `ProtectHome=yes` is the directive operators feel: the passphrase
+   and the S3 credential files must live outside `/root` and `/home` (the documentation and the
+   example configuration say `/etc/maran-backup`, and not `/etc/maran`, which is archived). The
+   polygon stage keeps its test credentials under `/etc/maran` for convenience, which the example
+   advises against for a real server. The service has no `[Install]` section and the timer has no
+   `OnCalendar=` of its own.
+9. **Confirmed as required.** The wrapper refuses a non-root caller with 77 before reading anything.
+   The configuration reader is the strict allow-list the note describes and additionally refuses a
+   file over 4096 bytes, a NUL byte, any control character in any line (so CRLF), a backslash, and a
+   parent directory not owned by root or writable by group or others; the S3 keys are all or nothing.
+   `enable` writes nothing before every check has passed, and writes the drop-in by `mktemp` beside
+   the target and `mv`. A concurrent run exits at once through a non-blocking `flock`. Retention runs
+   only after a successful backup, lists with the exact name pattern, does not follow links and
+   removes with `rm --`. `uninstall.sh` removes the units and both drop-in directories and never an
+   archive.
+
+### What the author could not verify (code is now on the branch; none of it has been run)
+
+The author did not run the installer, the polygon, `systemd-analyze` or any test; the lead runs the
+gate pass. The polygon stage (`stage_panel_recovery`) is written to observe several items below, but
+until it has run on a real systemd container each is a claim and not a measurement.
+
+1. `runuser` to the service account and `pg_dump` under `ProtectSystem=strict` with the three
+   `ReadWritePaths`: read, not observed. The stage starts the service by name and asserts success, on
+   one family and one PostgreSQL major per run.
+2. SELinux enforcing on AlmaLinux and Rocky: the polygon containers do not run it, so `restorecon` on
+   the drop-in and after a restore, and the unit's access to `/var/backups/maran-panel`, are
+   unexercised.
+3. The timer firing at `SCHEDULE` and `Persistent=true` catching up after downtime: the stage starts the
+   service by name and does not wait for the clock.
+4. Real S3-compatible providers: the stand-in recomputes Signature Version 4 for one bucket, path-style.
+   Whether a given provider answers a signed `HEAD` with a `Content-Length` is untested; without one
+   the run reports a size mismatch and fails, which is safe but would make that provider unusable.
+5. `curl` 7.75 or later on every supported system (see 5 above), and the upload's command line and
+   environment while curl runs (the process is too short-lived for the stage to sample).
+6. A clock that jumps, a timer firing during a panel upgrade (the backup lock covers an overlap with a
+   restore or another backup, not with the installer), and a restore proof on both PostgreSQL majors
+   and both families.
+7. Item 10 of `rules/security.md`: the owner's recorded decision to accept this configured outbound
+   call, and the spec amendment, are still not on record.
