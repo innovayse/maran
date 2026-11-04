@@ -8,7 +8,7 @@
 #
 # WHY IT EXISTS (issue #310). A two-architecture build (`maran release build --arch both`) stages
 # `<component>-<arch>.tar.gz` for each architecture and signs ONE manifest holding both. The offline
-# installer path (installer/lib/50-artifacts.sh `use_offline_tarball`) is shaped differently: it
+# installer path (`step_artifacts` in installer/lib/50-artifacts.sh) is shaped differently: it
 # reads the key `<component>-${MARAN_ARCH}` from the manifest but opens the UNSUFFIXED
 # `<component>.tar.gz`, because an offline bundle is carried to one machine. The previous packager
 # tarred the unsuffixed names, which a two-architecture build never writes, so it failed and the
@@ -22,7 +22,9 @@
 # in the manifest, unused by the installer, and are still covered by the signature.
 
 # Where a component's entry file must sit inside its tarball, at the archive ROOT (the installer
-# extracts each archive straight into ${MARAN_INSTALL_ROOT}/<component>). Pinned by the systemd units
+# and `maran update` unpack each archive into /usr/local/maran/releases/<version>/<component>
+# through cli_layout_install_release, installer/cli/lib/release-layout.sh, after
+# installer/cli/lib/release-verify.sh has verified it). Pinned by the systemd units
 # and nginx vhost named in release-bundle.sh's header; a tarball missing its entry file checksums
 # perfectly and still starts nothing on the server.
 package_entry_file() {
@@ -45,6 +47,49 @@ manifest_version() {
   printf '%s' "$version"
 }
 
+# manifest_channel: <manifest.json>. The signed top-level "channel" string (stable or beta), or
+# nothing when the manifest has none. The pattern is anchored to the start of the line, where the
+# builder writes it between "version" and "artifacts"; the installer's awk reader keys on
+# `"<component>-<arch>"` blocks and never looks at this line, so the field is additive.
+manifest_channel() {
+  sed -n 's/^[[:space:]]*"channel"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -1
+}
+
+# manifest_url_channels: <manifest.json>. The first path segment of every artifact "url", one per
+# line (https://<host>/<channel>/<component>-<arch>.tar.gz). The builder writes the channel into
+# every URL, so these are the channel the bundle was built FOR, independent of the "channel" field.
+manifest_url_channels() {
+  sed -n 's#^[[:space:]]*"url"[[:space:]]*:[[:space:]]*"https://[^/"]*/\([^/"]*\)/.*#\1#p' "$1"
+}
+
+# check_manifest_channel: <manifest.json>. Returns 1 naming the problem when the manifest has no
+# "channel" field (a bundle built before the field existed cannot be told apart from one whose field
+# was stripped, so it is refused), when the field is neither stable nor beta, or when any artifact
+# url names a different channel than the field. Run only AFTER the signature has verified, so the
+# field it reads is the signed one; a tampered field is the signature's refusal, not this one's.
+check_manifest_channel() {
+  local manifest="$1" channel url_channels
+  channel="$(manifest_channel "$manifest")"
+  case "$channel" in
+    stable|beta) ;;
+    "")
+      echo "verify: ${manifest##*/} carries no \"channel\" field; rebuild it with: maran release build" >&2
+      return 1
+      ;;
+    *)
+      echo "verify: ${manifest##*/} names channel '${channel}', which is neither stable nor beta" >&2
+      return 1
+      ;;
+  esac
+  url_channels="$(manifest_url_channels "$manifest" | sort -u)"
+  if [ "$url_channels" != "$channel" ]; then
+    echo "verify: ${manifest##*/} says channel '${channel}' but its artifact urls name" \
+      "'${url_channels//$'\n'/ }'; the bundle was not built for one channel" >&2
+    return 1
+  fi
+  return 0
+}
+
 # manifest_arches: <manifest.json>. Each architecture the manifest holds all three components for,
 # one per line. A half-present architecture is not listed: it cannot be installed, so it must not be
 # packaged as if it could.
@@ -60,10 +105,12 @@ manifest_arches() {
   return 0
 }
 
-# manifest_sha256: <manifest.json> <component> <arch>. The installer's own reader (manifest_field in
-# installer/lib/50-artifacts.sh), copied verbatim for the one field, so the value compared below is
-# the value the installer would compare. A reader of a different shape could agree with this script
-# and disagree with the installer (rules/testing.md: observe what the system actually uses).
+# manifest_sha256: <manifest.json> <component> <arch>. A small awk reader for the one field. It is
+# NOT a copy of the installer's reader (cli_release_manifest_field in
+# installer/cli/lib/release-verify.sh, which tracks brace depth), so it is a reader of a different
+# shape that could agree with this script and disagree with the installer; the selftest's accepted
+# bundle is what shows the two agree on a manifest this build writes
+# (rules/testing.md: observe what the system actually uses).
 manifest_sha256() {
   awk -v key="\"${2}-${3}\"" -v field="\"sha256\"" '
     $0 ~ key { in_block=1 }
@@ -79,9 +126,12 @@ manifest_sha256() {
 }
 
 # verify_offline_tarball: <tarball> <arch> <public key>. Extracts the tarball into a fresh directory
-# and repeats what use_offline_tarball and unpack_artifacts do for MARAN_ARCH=<arch>: signature over
-# manifest.json, signature over integrity-manifest.json (the code-integrity hash list ships in the
-# same bundle, so an unsigned or altered one must be refused here and not discovered on a server),
+# and repeats what cli_release_verify_offline (installer/cli/lib/release-verify.sh) and
+# cli_layout_install_release (installer/cli/lib/release-layout.sh) do for MARAN_ARCH=<arch>:
+# signature over manifest.json, the signed channel field (present, stable or beta, and the one
+# every artifact url names), signature over integrity-manifest.json (the code-integrity hash
+# list ships in the same bundle, so an unsigned or altered one must be refused here and not
+# discovered on a server),
 # then for api, agent and frontend the sha256 of the UNSUFFIXED archive against the
 # `<component>-<arch>` manifest entry, then the entry file at each archive's root. Returns 1 naming
 # the first failure. Reads the artefact that will be shipped, not the staging directory it came from.
@@ -94,6 +144,8 @@ verify_offline_tarball() {
     echo "verify: ${tarball##*/} is missing manifest.json or manifest.json.sig" >&2; rc=1
   elif ! verify_release_file "$pubkey" "${dir}/manifest.json" "${dir}/manifest.json.sig"; then
     echo "verify: manifest signature in ${tarball##*/} does NOT verify against ${pubkey}" >&2; rc=1
+  elif ! check_manifest_channel "${dir}/manifest.json"; then
+    echo "verify: manifest channel check failed for ${tarball##*/}" >&2; rc=1
   elif [ ! -f "${dir}/integrity-manifest.json" ] || [ ! -f "${dir}/integrity-manifest.json.sig" ]; then
     echo "verify: ${tarball##*/} is missing integrity-manifest.json or integrity-manifest.json.sig" >&2; rc=1
   elif ! verify_release_file "$pubkey" "${dir}/integrity-manifest.json" "${dir}/integrity-manifest.json.sig"; then

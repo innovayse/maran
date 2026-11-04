@@ -38,6 +38,7 @@ plant_signed_bundle() {
   {
     echo "{"
     echo "  \"version\": \"selftest\","
+    echo "  \"channel\": \"stable\","
     echo "  \"artifacts\": {"
     for arch in $arches; do
       for component in $MARAN_COMPONENTS; do
@@ -175,6 +176,42 @@ cmd_package_selftest() {
   echo "${VERDICT_PREFIX}: OK — the untouched bundle still verifies (inverse control, expected)."
 
   echo
+  echo "-- case 3c: the signed channel field is checked, and a correct one is accepted --"
+  # Three bundles that differ from $good in the channel line alone. The first is edited AFTER
+  # signing (the signature must refuse it); the other two are re-signed, so only the channel check
+  # can see them. The inverse control is the next paragraph's beta bundle, re-signed with a correct
+  # channel and urls, which a check mutated to refuse every channel would refuse.
+  local ch_tamper="${work}/channel-tampered" ch_none="${work}/channel-none"
+  local ch_skew="${work}/channel-skew" ch_beta="${work}/channel-beta"
+  cp -r "$good" "$ch_tamper"
+  sed -i 's/"channel": "stable"/"channel": "beta"/' "${ch_tamper}/manifest.json"
+  cmp -s "${good}/manifest.json" "${ch_tamper}/manifest.json" \
+    && release_failed "package selftest: case 3c's sed did not change the channel, so it proves nothing."
+  package_must_refuse "a bundle whose channel was edited after signing" "${work}/o-ch-tamper" \
+    "manifest signature in .* does NOT verify" \
+    --bundle "$ch_tamper" --out "${work}/o-ch-tamper" --pubkey "$pub"
+  cp -r "$good" "$ch_none"
+  sed -i '/"channel"/d' "${ch_none}/manifest.json"
+  sign_release_file "${keydir}/a.key" "${ch_none}/manifest.json" "${ch_none}/manifest.json.sig"
+  package_must_refuse "a signed bundle whose manifest has no channel field" "${work}/o-ch-none" \
+    'carries no "channel" field' \
+    --bundle "$ch_none" --out "${work}/o-ch-none" --pubkey "$pub"
+  cp -r "$good" "$ch_skew"
+  sed -i 's/"channel": "stable"/"channel": "beta"/' "${ch_skew}/manifest.json"
+  sign_release_file "${keydir}/a.key" "${ch_skew}/manifest.json" "${ch_skew}/manifest.json.sig"
+  package_must_refuse "a signed bundle whose channel (beta) disagrees with its stable urls" \
+    "${work}/o-ch-skew" "artifact urls name" \
+    --bundle "$ch_skew" --out "${work}/o-ch-skew" --pubkey "$pub"
+  cp -r "$good" "$ch_beta"
+  sed -i 's/"channel": "stable"/"channel": "beta"/; s#/stable/#/beta/#' "${ch_beta}/manifest.json"
+  sign_release_file "${keydir}/a.key" "${ch_beta}/manifest.json" "${ch_beta}/manifest.json.sig"
+  cmd_package --bundle "$ch_beta" --out "${work}/o-ch-beta" --pubkey "$pub" >/dev/null \
+    || release_failed "package selftest: a correctly signed beta bundle was refused; the channel" \
+      "check refuses everything, or the fixture is broken."
+  echo "${VERDICT_PREFIX}: OK, a correctly signed beta bundle with beta urls packaged and verified" \
+    "(inverse control, expected)."
+
+  echo
   echo "-- case 4: a machine without openssl answers DID NOT RUN, status 2, not a verdict --"
   local empty_path="${work}/empty-path" refusal status=0
   install -d "$empty_path"
@@ -186,7 +223,12 @@ cmd_package_selftest() {
   fi
 
   echo
-  release_ok "package selftest: a two-architecture build packaged into one openssl-verified bundle per architecture, each carrying its own architecture's archives; tampering, a missing signature, an untrusted key, an altered or missing integrity-manifest signature, an absent architecture, an ambiguous --out and an unrunnable archive were all refused with nothing left on disk, and a missing openssl refused with DID NOT RUN."
+  release_ok "package selftest: a two-architecture build packaged into one openssl-verified bundle" \
+    "per architecture, each carrying its own architecture's archives; tampering, a missing" \
+    "signature, an untrusted key, an altered or missing integrity-manifest signature, a channel" \
+    "that was edited, absent or at odds with the urls (while a correct beta bundle was accepted)," \
+    "an absent architecture, an ambiguous --out and an unrunnable archive were all refused with" \
+    "nothing left on disk, and a missing openssl refused with DID NOT RUN."
 }
 
 # plant_resign: <bundle dir> <key>. Rewrites the manifest's agent-x86_64 checksum to the bundle's
