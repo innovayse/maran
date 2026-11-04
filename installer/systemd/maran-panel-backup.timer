@@ -18,7 +18,6 @@
 # The installer installs this timer and never enables it (installer/lib/67-panel-backup.sh).
 [Unit]
 Description=Maran panel backup schedule
-Documentation=man:systemd.timer(5)
 
 [Timer]
 # Catches up a run the machine slept through: a server that was off at the scheduled minute takes its

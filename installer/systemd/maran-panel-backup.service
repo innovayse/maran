@@ -20,7 +20,6 @@
 # reason is written in the "Deliberately NOT set" block, so an omission reads as a decision.
 [Unit]
 Description=Maran panel backup (encrypted archive of the panel's database, keys and configuration)
-Documentation=man:systemd.timer(5)
 # The upload is the only part that needs the network, and it is optional; Wants= (not Requires=)
 # keeps a host without a configured network target from failing the whole backup. PostgreSQL is
 # ordered before because pg_dump reads the panel database over its unix socket.
