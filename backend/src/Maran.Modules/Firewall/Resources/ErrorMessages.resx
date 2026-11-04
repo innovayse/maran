@@ -28,7 +28,7 @@
     <value>This is not an address the firewall can ban.</value>
   </data>
   <data name="BanAddressLoopback">
-    <value>A loopback address cannot be banned: this host accepts loopback traffic before any ban is consulted, so the ban would block nothing. Ban the address the traffic reaches this server from instead — the one shown for the connection, not 127.0.0.1 or ::1.</value>
+    <value>A loopback address cannot be banned: this host accepts loopback traffic before any ban is consulted, so the ban would block nothing. Ban the address the traffic reaches this server from instead: the one shown for the connection, not 127.0.0.1 or ::1.</value>
   </data>
   <data name="BanDurationInvalid">
     <value>A ban lasts between one minute and one year; leave the duration empty for a permanent ban.</value>
