@@ -37,12 +37,13 @@ keep="no"
 bundle=""
 publish=""
 browser="no"
+panel_recovery="yes"
 arch="x86_64"
 
 usage() {
   cat >&2 <<'USAGE'
 usage: maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--arch <a>]
-                       [--publish PORT] [--browser] [--keep]
+                       [--publish PORT] [--browser] [--no-panel-recovery] [--keep]
 
   --os <version>  any folder under docker/polygon/images (default: ubuntu24). An unknown value
                   prints the list rather than guessing at a family.
@@ -67,7 +68,15 @@ usage: maran installer [--os <version>] [--mode local|get|offline] [--bundle PAT
                   the UI, sign in through /login and require the dashboard. Implies --publish
                   (18443 unless --publish names a port). Needs frontend/node_modules and a
                   Playwright chromium on THIS machine; their absence fails the verdict.
-  --keep          leave the container running afterwards for inspection.
+  --no-panel-recovery
+                  skip the panel-recovery stage (issue #129). By default, after the checks above, the
+                  harness creates an administrator second factor, an account and its owner's login,
+                  runs the scheduled panel backup (retention, upload to an S3 stand-in, the schedule
+                  verb, the systemd unit), takes the archive off the server, stops that server,
+                  installs a SECOND fresh server from the same image and restores onto it, then
+                  requires the same administrator, account, owner and decryptable secret. It costs
+                  a second full install; skip it while iterating on something else.
+  --keep          leave the containers running afterwards for inspection.
 
 The verdict is built from systemd and the panel, never from the installer's exit code alone:
 an install that exits 0 with a dead root daemon has happened (issue #42).
@@ -83,6 +92,7 @@ while [ $# -gt 0 ]; do
     --arch) arch="${2:?--arch needs a value}"; shift 2 ;;
     --publish) publish="${2:?--publish needs a port}"; shift 2 ;;
     --browser) browser="yes"; shift ;;
+    --no-panel-recovery) panel_recovery="no"; shift ;;
     --keep) keep="yes"; shift ;;
     -h|--help) usage ;;
     *) echo "install-polygon.sh: unknown argument '$1'" >&2; usage ;;
@@ -145,6 +155,90 @@ log_dir="${root}/.polygon-logs"
 mkdir -p "$log_dir"
 log="${log_dir}/install-${os}-${arch}-${mode}.log"
 
+# Containers this run started besides the one under test (the panel-recovery stage's second server
+# and its object-store stand-in). Removed with it at the end, kept with it under --keep.
+extra_containers=()
+
+# start_server_container: starts a FRESH container named $1 from the install image and waits for its
+# systemd to finish booting. Returns 1, with the reason on stderr, when it never does.
+#   $1 = container name, the rest = extra `docker run` arguments (a published port).
+#
+# --privileged plus the host's cgroup tree is what lets systemd be systemd here: it manages real
+# cgroups, builds real mount namespaces, and applies the unit hardening the panel and agent units
+# declare. Without it every directive this harness exists to exercise is silently inert.
+# The published port is optional and off by default: a mapped port is a port this machine now
+# listens on, and most runs have no browser to point at it.
+start_server_container() {
+  local name="$1"
+  shift
+  docker rm -f "$name" >/dev/null 2>&1 || true
+  docker run -d --name "$name" --platform "$platform" --privileged --cgroupns=host \
+    "$@" \
+    -v /sys/fs/cgroup:/sys/fs/cgroup:rw "$image" >/dev/null
+
+  # Wait for the boot to settle before installing into it. `degraded` is accepted and `running` is
+  # not required: a masked unit or a container-only failure can degrade the target without bearing on
+  # anything Maran does, and the per-unit checks below are what actually decide the verdict.
+  boot_state=""
+  for _ in $(seq 1 45); do
+    boot_state="$(docker exec "$name" systemctl is-system-running 2>&1 | tr -d '\r' || true)"
+    case "$boot_state" in running|degraded) return 0 ;; esac
+    sleep 2
+  done
+  echo "install-polygon.sh: systemd never finished booting in ${name} (last state: ${boot_state:-none})." >&2
+  echo "Without a real init this harness proves nothing, so it refuses rather than reporting on a stand-in." >&2
+  docker logs "$name" 2>&1 | tail -30 >&2
+  return 1
+}
+
+# install_panel_into: the install itself, into container $1, its output in file $2. Sets
+# installer_status to the installer's exit status. `local` copies THIS tree, so a fix can be tested
+# without cutting a release; `get` runs the documented one-liner verbatim, so what it tests is what a
+# reader would actually get.
+#   $1 = container name, $2 = log file.
+install_panel_into() {
+  local name="$1" logfile="$2"
+  installer_status=0
+  if [ "$mode" = "local" ]; then
+    docker exec "$name" rm -rf /root/installer
+    docker cp "${root}/installer" "${name}:/root/installer" >/dev/null
+    docker exec "$name" bash -c 'cd /root/installer && bash install.sh --channel beta' \
+      >"$logfile" 2>&1 || installer_status=$?
+  elif [ "$mode" = "offline" ]; then
+    # The installer's own --offline-tarball path, given a bundle built from this tree. It verifies the
+    # bundle's signature exactly as an online install verifies the manifest's, so this mode tests the
+    # artifacts without weakening anything about how they are trusted.
+    docker exec "$name" rm -rf /root/installer
+    docker cp "${root}/installer" "${name}:/root/installer" >/dev/null
+    docker cp "$bundle" "${name}:/root/maran-bundle.tar.gz" >/dev/null
+    docker exec "$name" bash -c \
+      'cd /root/installer && bash install.sh --offline-tarball /root/maran-bundle.tar.gz' \
+      >"$logfile" 2>&1 || installer_status=$?
+  else
+    # The documented command verbatim — `| sudo bash` — because that is what a reader runs.
+    #
+    # `sudo` can be unusable INSIDE the container for a reason that has nothing to do with Maran: the
+    # HOST's AppArmor profile for `unix-chkpwd` denies it dac_read_search and dac_override, so PAM
+    # cannot read the shadow file and sudo refuses with "Authentication service cannot retrieve
+    # authentication info". Measured on an Ubuntu host against the EL8 image; the EL8 image is fine on
+    # a real server, which runs no such profile.
+    #
+    # That is reported and then worked around, never hidden: the container's shell is already root, so
+    # running the same pipeline without sudo exercises everything about Maran that the documented
+    # command would — the published get.sh, its checksum guard, the signature, the install — while the
+    # line below makes it plain that the sudo half was not what got tested here.
+    if docker exec "$name" sudo -n true >/dev/null 2>&1; then
+      docker exec "$name" bash -c \
+        'curl -sSL https://get.maran.innovayse.com | sudo bash' >"$logfile" 2>&1 || installer_status=$?
+    else
+      echo "    note: sudo is unusable in this container (the host's AppArmor denies unix_chkpwd), so the"
+      echo "          documented pipeline ran without it. Everything after the pipe is unchanged."
+      docker exec "$name" bash -c \
+        'curl -sSL https://get.maran.innovayse.com | bash' >"$logfile" 2>&1 || installer_status=$?
+    fi
+  fi
+}
+
 # A FRESH container per run, unconditionally. Re-running into a half-installed container tests the
 # resume/repair path, which is a different question wearing the same name: the defects this harness
 # is for are the ones a first install on a clean host hits.
@@ -153,76 +247,12 @@ docker rm -f "$container" >/dev/null 2>&1 || true
 docker build -q --platform "$platform" --build-arg "BASE_IMAGE=${base_image}" \
   -f "${root}/docker/polygon/images/${dockerfile}" -t "$image" "${root}/docker/polygon" >/dev/null
 
-# --privileged plus the host's cgroup tree is what lets systemd be systemd here: it manages real
-# cgroups, builds real mount namespaces, and applies the unit hardening the panel and agent units
-# declare. Without it every directive this harness exists to exercise is silently inert.
-# The published port is optional and off by default: a mapped port is a port this machine now
-# listens on, and most runs have no browser to point at it.
 publish_args=()
 [ -n "$publish" ] && publish_args=(-p "127.0.0.1:${publish}:8443")
+start_server_container "$container" "${publish_args[@]}" || exit 1
+echo "    systemd: ${boot_state}"
 
-docker run -d --name "$container" --platform "$platform" --privileged --cgroupns=host \
-  "${publish_args[@]}" \
-  -v /sys/fs/cgroup:/sys/fs/cgroup:rw "$image" >/dev/null
-
-# Wait for the boot to settle before installing into it. `degraded` is accepted and `running` is
-# not required: a masked unit or a container-only failure can degrade the target without bearing on
-# anything Maran does, and the per-unit checks below are what actually decide the verdict.
-booted="no"
-for _ in $(seq 1 45); do
-  state="$(docker exec "$container" systemctl is-system-running 2>&1 | tr -d '\r' || true)"
-  case "$state" in running|degraded) booted="yes"; break ;; esac
-  sleep 2
-done
-if [ "$booted" != "yes" ]; then
-  echo "install-polygon.sh: systemd never finished booting in the container (last state: ${state:-none})." >&2
-  echo "Without a real init this harness proves nothing, so it refuses rather than reporting on a stand-in." >&2
-  docker logs "$container" 2>&1 | tail -30 >&2
-  exit 1
-fi
-echo "    systemd: ${state}"
-
-# The install itself. `local` copies THIS tree, so a fix can be tested without cutting a release;
-# `get` runs the documented one-liner verbatim, so what it tests is what a reader would actually get.
-installer_status=0
-if [ "$mode" = "local" ]; then
-  docker exec "$container" rm -rf /root/installer
-  docker cp "${root}/installer" "${container}:/root/installer" >/dev/null
-  docker exec "$container" bash -c 'cd /root/installer && bash install.sh --channel beta' \
-    >"$log" 2>&1 || installer_status=$?
-elif [ "$mode" = "offline" ]; then
-  # The installer's own --offline-tarball path, given a bundle built from this tree. It verifies the
-  # bundle's signature exactly as an online install verifies the manifest's, so this mode tests the
-  # artifacts without weakening anything about how they are trusted.
-  docker exec "$container" rm -rf /root/installer
-  docker cp "${root}/installer" "${container}:/root/installer" >/dev/null
-  docker cp "$bundle" "${container}:/root/maran-bundle.tar.gz" >/dev/null
-  docker exec "$container" bash -c \
-    'cd /root/installer && bash install.sh --offline-tarball /root/maran-bundle.tar.gz' \
-    >"$log" 2>&1 || installer_status=$?
-else
-  # The documented command verbatim — `| sudo bash` — because that is what a reader runs.
-  #
-  # `sudo` can be unusable INSIDE the container for a reason that has nothing to do with Maran: the
-  # HOST's AppArmor profile for `unix-chkpwd` denies it dac_read_search and dac_override, so PAM
-  # cannot read the shadow file and sudo refuses with "Authentication service cannot retrieve
-  # authentication info". Measured on an Ubuntu host against the EL8 image; the EL8 image is fine on
-  # a real server, which runs no such profile.
-  #
-  # That is reported and then worked around, never hidden: the container's shell is already root, so
-  # running the same pipeline without sudo exercises everything about Maran that the documented
-  # command would — the published get.sh, its checksum guard, the signature, the install — while the
-  # line below makes it plain that the sudo half was not what got tested here.
-  if docker exec "$container" sudo -n true >/dev/null 2>&1; then
-    docker exec "$container" bash -c \
-      'curl -sSL https://get.maran.innovayse.com | sudo bash' >"$log" 2>&1 || installer_status=$?
-  else
-    echo "    note: sudo is unusable in this container (the host's AppArmor denies unix_chkpwd), so the"
-    echo "          documented pipeline ran without it. Everything after the pipe is unchanged."
-    docker exec "$container" bash -c \
-      'curl -sSL https://get.maran.innovayse.com | bash' >"$log" 2>&1 || installer_status=$?
-  fi
-fi
+install_panel_into "$container" "$log"
 echo "    installer exit: ${installer_status} (log: ${log#"$root"/})"
 
 # The verdict. Every line below asks systemd or the panel, never the installer: the installer's own
@@ -353,6 +383,19 @@ recovery_expect() {
   recovery_checks=$((recovery_checks + 1))
   [ "$2" = "$3" ] || note "recovery: $1: got '$2', expected '$3'"
 }
+
+# The panel-recovery stage (issue #129) and what it is built from. Sourced rather than written here
+# because it is four concerns -- the panel's API, the S3 stand-in, the scheduled-backup half, the
+# restore half -- and this file is already the longest in scripts/lib. They share this file's globals
+# (container, note, recovery_expect) and nothing else.
+# shellcheck source=install-polygon-panel-api.sh
+. "${root}/scripts/lib/install-polygon-panel-api.sh"
+# shellcheck source=install-polygon-s3.sh
+. "${root}/scripts/lib/install-polygon-s3.sh"
+# shellcheck source=install-polygon-schedule.sh
+. "${root}/scripts/lib/install-polygon-schedule.sh"
+# shellcheck source=install-polygon-recovery.sh
+. "${root}/scripts/lib/install-polygon-recovery.sh"
 
 # stage_lockout_recovery: first-admin setup, a locked account, the recovery command, and a link
 # that works exactly once.
@@ -624,6 +667,11 @@ stage_browser() {
   fi
 }
 
+# The two stages above make at least 20 checks when nothing stops them early; the panel-recovery
+# stage makes at least MINIMUM_PANEL_RECOVERY_CHECKS on its own. A stage that returned early observed
+# little, and a count is the only thing that says so.
+MINIMUM_PANEL_RECOVERY_CHECKS=100
+
 if [ "$failures" -eq 0 ]; then
   if [ "$browser" = "yes" ]; then
     stage_browser
@@ -632,14 +680,28 @@ if [ "$failures" -eq 0 ]; then
   stage_diagnostics
   [ "$recovery_checks" -ge 20 ] \
     || note "the lockout-recovery and diagnostics stages made only ${recovery_checks} checks, fewer than the 20 they make when nothing stops them early; a stage that returned early observed little (see ${recovery_log#"$root"/})"
+  if [ "$panel_recovery" = "yes" ]; then
+    checks_before_panel_recovery="$recovery_checks"
+    stage_panel_recovery
+    [ $((recovery_checks - checks_before_panel_recovery)) -ge "$MINIMUM_PANEL_RECOVERY_CHECKS" ] \
+      || note "the panel-recovery stage made only $((recovery_checks - checks_before_panel_recovery)) checks, fewer than the ${MINIMUM_PANEL_RECOVERY_CHECKS} it makes when nothing stops it early; a stage that returned early observed little"
+  else
+    echo "    panel-recovery stage SKIPPED by --no-panel-recovery: the issue #129 closing criterion (back up, install fresh, restore, same administrators and secrets) was not run."
+  fi
 else
-  echo "    browser (when asked), lockout-recovery and diagnostics stages NOT RUN: the install itself failed above, and a recovery stage scored on a half-installed panel would be reporting on the install."
+  echo "    browser (when asked), lockout-recovery, diagnostics and panel-recovery stages NOT RUN: the install itself failed above, and a recovery stage scored on a half-installed panel would be reporting on the install."
 fi
 
 if [ "$keep" = "yes" ]; then
   echo "    container kept: docker exec -it ${container} bash"
+  for extra in ${extra_containers[@]+"${extra_containers[@]}"}; do
+    echo "    container kept: docker exec -it ${extra} bash"
+  done
 else
   docker rm -f "$container" >/dev/null 2>&1 || true
+  for extra in ${extra_containers[@]+"${extra_containers[@]}"}; do
+    docker rm -f "$extra" >/dev/null 2>&1 || true
+  done
 fi
 
 if [ "$failures" -gt 0 ]; then
