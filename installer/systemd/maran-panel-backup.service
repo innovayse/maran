@@ -71,7 +71,8 @@ ProtectSystem=strict
 # /home and /root are made inaccessible. The verb never reads either, with one consequence an
 # operator has to know: PASSPHRASE_FILE, S3_ACCESS_KEY_ID_FILE and S3_SECRET_FILE must NOT live under
 # /root or /home when the schedule is on (the unit would not find them, and the verb would refuse
-# with "is not a regular file"). installer/panel-backup.conf.example shows a path outside both.
+# with "is not a regular file"); `maran panel-backup-schedule enable` refuses such a path up front.
+# installer/panel-backup.conf.example shows a path outside both.
 ProtectHome=yes
 # Anything a child writes to /tmp lands in a private directory that is gone when the job ends. The
 # verb itself stages nothing there: the plaintext stage is under the staging base below, on real
@@ -85,11 +86,13 @@ PrivateTmp=yes
 #                              (customer account backups, the agent's) so that retention, which
 #                              deletes files here, can never be pointed at customer data.
 #                              IF AN OPERATOR SETS ANOTHER OUT_DIR the verb cannot write it under
-#                              this unit: `maran panel-backup-schedule enable` must add that
-#                              directory to ReadWritePaths= in a service drop-in (and `disable`
-#                              remove it), or refuse. It is not widened here to a parent such as
-#                              /var/backups, because that would make every other backup directory
-#                              writable to a job whose only need is one.
+#                              this unit as shipped: `maran panel-backup-schedule enable` writes
+#                              that one directory to ReadWritePaths= in the service drop-in
+#                              maran-panel-backup.service.d/outdir.conf (and refuses when it is not
+#                              a plain directory); `disable`, and `enable` with the default
+#                              directory, remove the drop-in. It is not widened here to a parent
+#                              such as /var/backups, because that would make every other backup
+#                              directory writable to a job whose only need is one.
 #   /var/lib/maran-cli-staging the verb's plaintext stage and lock file (MARAN_CLI_STAGING_BASE,
 #                              installer/cli/lib/common.sh), root:root 0700. The verb creates it on
 #                              first use, which a read-only /var/lib forbids, so the installer step
