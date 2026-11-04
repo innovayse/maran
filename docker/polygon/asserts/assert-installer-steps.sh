@@ -646,7 +646,7 @@ main() {
   assert_the_scheduled_panel_backup_verbs_refuse_what_they_should
   assert_the_uninstaller_removes_the_break_glass_command
   assert_the_uninstaller_removes_the_panel_backup_schedule_and_keeps_the_archives
-  echo "Installer steps 40, 41, 50, 60, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
+  echo "Installer steps 40, 41, 50, 60, 66, 67, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
   echo "the on-disk boundary the two privilege-escalation fixes moved, verified inside the polygon."
 }
 

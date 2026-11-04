@@ -529,3 +529,249 @@ remove_binaries' _ "$mutant" 2>&1)" \
   echo "The uninstaller removes /usr/local/sbin/maran, /usr/local/maran/cli and /var/lib/maran-cli-staging — and a copy of it without those two lines leaves both in place, so this check can see a survivor."
   echo "UNOBSERVED HERE: this is the uninstaller's remove_binaries against files this assertion installed, not an uninstall of a real install. It does not show that main() reaches remove_binaries."
 }
+
+# ---------------------------------------------------------------------------------------------
+# The scheduled panel backup (issue #129): the uninstaller takes back the units and keeps the
+# archives.
+#
+# The archives in /var/backups/maran-panel are the only way back to this panel's database and the key
+# that decrypts every secret in it, so the promise has two halves that pull against each other: the
+# timer, the service and the drop-ins `maran panel-backup-schedule enable` wrote must GO (a timer left
+# behind would run `maran panel-backup --scheduled` against a wrapper that no longer exists), and every
+# archive must STAY. A promise about a removal and a promise about an absence of removal are both
+# satisfied by an uninstaller that does nothing, so each is proved in both directions with a mutant.
+# ---------------------------------------------------------------------------------------------
+
+# The files planted under the panel backup directory: one archive in the exact name the verb writes
+# and retention prunes, a near miss that is not one, and an operator's own file. The count the
+# uninstaller reports must be 1, which is the only way to see that it counts by the same pattern.
+readonly PLANTED_PANEL_ARCHIVE="/var/backups/maran-panel/maran-panel-backup-20260101T000000Z-1.tar.gpg"
+readonly PLANTED_PANEL_NEAR_MISS="/var/backups/maran-panel/maran-panel-backup-20260101T000000Z-2.tar.gpg.part"
+readonly PLANTED_PANEL_OPERATOR_FILE="/var/backups/maran-panel/operator-notes.txt"
+readonly PLANTED_PANEL_ARCHIVE_BYTES="polygon planted panel archive -- the only way back to the panel"
+
+# prepare_a_panel_backup_uninstall_trial: the state a panel with the schedule ON would be in, built
+# with the installer's own steps and the paths the verb writes: the wrapper (step 66), the units and
+# the output directory (step 67), a timer drop-in and a service drop-in, the timer enabled through the
+# stand-in, and the three planted files.
+prepare_a_panel_backup_uninstall_trial() {
+  run_cli_step >/dev/null || fail "step 66's step_cli could not install the command the uninstall trial removes"
+  run_panel_backup_step >/dev/null || fail "step 67's step_panel_backup could not install the units the uninstall trial removes"
+  install -d -m 0755 -o root -g root "$PANEL_BACKUP_DROPIN_DIR" "${PANEL_BACKUP_UNIT_DIR}/${PANEL_BACKUP_SERVICE_FILE}.d"
+  printf '[Timer]\nOnCalendar=\nOnCalendar=daily\n' > "${PANEL_BACKUP_DROPIN_DIR}/schedule.conf"
+  printf '[Service]\nReadWritePaths=/srv/polygon-other-out-dir\n' > "${PANEL_BACKUP_UNIT_DIR}/${PANEL_BACKUP_SERVICE_FILE}.d/override.conf"
+  systemctl enable --now -- "$PANEL_BACKUP_TIMER_FILE" >/dev/null \
+    || fail "the polygon's systemctl refused to enable the timer for the uninstall trial"
+  printf '%s\n' "$PLANTED_PANEL_ARCHIVE_BYTES" > "$PLANTED_PANEL_ARCHIVE"
+  printf '%s\n' "$PLANTED_PANEL_ARCHIVE_BYTES" > "$PLANTED_PANEL_NEAR_MISS"
+  printf 'notes\n' > "$PLANTED_PANEL_OPERATOR_FILE"
+  chmod 0600 "$PLANTED_PANEL_ARCHIVE" "$PLANTED_PANEL_NEAR_MISS" "$PLANTED_PANEL_OPERATOR_FILE"
+  [ -f "${PANEL_BACKUP_UNIT_DIR}/${PANEL_BACKUP_TIMER_FILE}" ] && [ -f "${PANEL_BACKUP_UNIT_DIR}/${PANEL_BACKUP_SERVICE_FILE}" ] \
+    && [ -f "${PANEL_BACKUP_DROPIN_DIR}/schedule.conf" ] && [ -f "$PLANTED_PANEL_ARCHIVE" ] \
+    || fail "the uninstall trial's starting state is incomplete, so what is absent afterwards would prove nothing"
+}
+
+# panel_backup_uninstall_outcome: runs the uninstaller at <path> the way main() runs the relevant
+# deleters -- `$2` is the snippet -- and answers whether the schedule is gone and every archive is still
+# there. Prints a diagnosis and returns 1 when not; prints the uninstaller's own output and returns 0
+# when so. A function that RETURNS rather than one that calls fail, because it is used in opposite
+# directions: on the real uninstaller, which must pass, and on two mutants, which must not.
+#   $1 = uninstaller path, $2 = shell snippet that calls its functions.
+panel_backup_uninstall_outcome() {
+  local uninstaller="$1" snippet="$2" output status=0 leftover
+  output="$(bash -c 'set -euo pipefail
+. "$1"
+eval "$2"' _ "$uninstaller" "$snippet" 2>&1)" || status=$?
+  if [ "$status" -ne 0 ]; then
+    printf 'the uninstaller exited %s; it said: %s\n' "$status" "$output"
+    return 1
+  fi
+  for leftover in \
+    "${PANEL_BACKUP_UNIT_DIR}/${PANEL_BACKUP_TIMER_FILE}" "${PANEL_BACKUP_UNIT_DIR}/${PANEL_BACKUP_SERVICE_FILE}" \
+    "$PANEL_BACKUP_DROPIN_DIR" "${PANEL_BACKUP_UNIT_DIR}/${PANEL_BACKUP_SERVICE_FILE}.d"; do
+    if [ -e "$leftover" ] || [ -L "$leftover" ]; then
+      printf 'the uninstaller LEFT %s behind: a timer or service that outlives the wrapper runs a backup against a panel that is no longer there\n' "$leftover"
+      return 1
+    fi
+  done
+  if [ ! -d "$PANEL_BACKUP_OUT_DIR" ]; then
+    printf 'the uninstaller DELETED %s. That directory holds the only way back to the panel'"'"'s database and keys. It said: %s\n' "$PANEL_BACKUP_OUT_DIR" "$output"
+    return 1
+  fi
+  if [ ! -f "$PLANTED_PANEL_ARCHIVE" ]; then
+    printf 'the uninstaller DELETED the panel backup archive %s. It said: %s\n' "$PLANTED_PANEL_ARCHIVE" "$output"
+    return 1
+  fi
+  if ! printf '%s\n' "$PLANTED_PANEL_ARCHIVE_BYTES" | cmp -s - "$PLANTED_PANEL_ARCHIVE"; then
+    printf 'the archive at %s survived the uninstall with different bytes in it\n' "$PLANTED_PANEL_ARCHIVE"
+    return 1
+  fi
+  for leftover in "$PLANTED_PANEL_NEAR_MISS" "$PLANTED_PANEL_OPERATOR_FILE"; do
+    if [ ! -f "$leftover" ]; then
+      printf 'the uninstaller DELETED %s, which is not one of ours to remove\n' "$leftover"
+      return 1
+    fi
+  done
+  printf '%s' "$output"
+  return 0
+}
+
+# uninstaller_main_defect: prints why main() of the uninstaller at $1 would not reach the schedule
+# removal in the right place, and prints nothing when it would. TEXT, over main's body only: the
+# function bodies are run below, and what no run can show is whether main() CALLS them.
+#
+# Two properties. The schedule is removed before the wrapper and /etc/maran go (a timer that fires
+# between those removals runs a backup against a half-removed panel), and the note that says the
+# archives were kept is printed. The calls are matched as whole words at the start of a line.
+uninstaller_main_defect() {
+  local body schedule binaries config note
+  body="$(sed -n '/^main() {/,/^}/p' "$1" | sed 's/^[[:space:]]*#.*$//')"
+  [ -n "$body" ] || { echo "has no main() this check can read"; return 0; }
+  schedule="$(grep -nE '^[[:space:]]*remove_panel_backup_schedule([[:space:]]|$)' <<<"$body" | head -1 | cut -d: -f1 || true)"
+  binaries="$(grep -nE '^[[:space:]]*remove_binaries([[:space:]]|$)' <<<"$body" | head -1 | cut -d: -f1 || true)"
+  config="$(grep -nE '^[[:space:]]*remove_config_and_state([[:space:]]|$)' <<<"$body" | head -1 | cut -d: -f1 || true)"
+  note="$(grep -nE '^[[:space:]]*note_panel_backups_kept([[:space:]]|$)' <<<"$body" | head -1 | cut -d: -f1 || true)"
+  [ -n "$schedule" ] || { echo "main() never calls remove_panel_backup_schedule"; return 0; }
+  [ -n "$binaries" ] && [ -n "$config" ] || { echo "main() no longer calls remove_binaries and remove_config_and_state, so the order cannot be judged"; return 0; }
+  [ "$schedule" -lt "$binaries" ] && [ "$schedule" -lt "$config" ] \
+    || { echo "main() removes the wrapper or /etc/maran before the schedule, so a timer can fire against a half-removed panel"; return 0; }
+  [ -n "$note" ] || { echo "main() never calls note_panel_backups_kept, so the operator is not told the archives were left"; return 0; }
+  return 0
+}
+
+# assert_the_uninstaller_removes_the_panel_backup_schedule_and_keeps_the_archives: the real
+# uninstaller takes back the timer, the service and both drop-in directories, leaves every file in the
+# panel backup directory byte for byte (the near miss and the operator's file too), and names the
+# directory and the number of archives in it; then two mutants are refused.
+#
+# The mutants are copies with ONE line changed, each shown to have landed (a count of the anchor and
+# `cmp`, because a mutation that silently failed to apply is how three mutations here were scored
+# blind). The first adds the deletion of the panel backup directory, the one line this whole promise
+# is about; the second deletes the line that removes the units. The outcome check must refuse the first
+# naming the archive and the second naming the unit it left.
+#
+# UNOBSERVED HERE: the uninstaller's shell functions against files this assertion planted, not an
+# uninstall of a real install. No systemd runs, so a timer that is "stopped and disabled" is the
+# stand-in recording the request; and the text check on main() sees that the functions are called and
+# in what order, not that the calls are reached on every path (an early exit above them passes it).
+assert_the_uninstaller_removes_the_panel_backup_schedule_and_keeps_the_archives() {
+  local output diagnosis mutant work anchor restored deletion line
+  local schedule_snippet='remove_panel_backup_schedule
+note_panel_backups_kept'
+  local full_snippet='remove_panel_backup_schedule
+remove_var_lib
+remove_logs
+remove_binaries
+note_panel_backups_kept'
+
+  panel_backup_note_prior_state
+
+  # The text check on main(): the real file passes, and a copy missing a call or calling the removal
+  # last does not.
+  diagnosis="$(uninstaller_main_defect "$UNINSTALLER")"
+  [ -z "$diagnosis" ] \
+    || fail "installer/uninstall.sh ${diagnosis}"
+  work="$(mktemp -d)"
+  sed '/^[[:space:]]*remove_panel_backup_schedule$/d' "$UNINSTALLER" > "${work}/no-call.sh"
+  cmp -s "$UNINSTALLER" "${work}/no-call.sh" \
+    && fail "the control that deletes main()'s call to remove_panel_backup_schedule changed nothing, so it proves nothing"
+  [ -n "$(uninstaller_main_defect "${work}/no-call.sh")" ] \
+    || fail "the main() check ACCEPTED an uninstaller whose main never calls remove_panel_backup_schedule"
+  sed '/^[[:space:]]*note_panel_backups_kept$/d' "$UNINSTALLER" > "${work}/no-note.sh"
+  cmp -s "$UNINSTALLER" "${work}/no-note.sh" \
+    && fail "the control that deletes main()'s call to note_panel_backups_kept changed nothing, so it proves nothing"
+  [ -n "$(uninstaller_main_defect "${work}/no-note.sh")" ] \
+    || fail "the main() check ACCEPTED an uninstaller whose main never calls note_panel_backups_kept"
+  # Moved after remove_binaries: the call is deleted where it is and added again after that call.
+  sed -e '/^[[:space:]]*remove_panel_backup_schedule$/d' -e 's/^\([[:space:]]*\)remove_binaries$/\1remove_binaries\n\1remove_panel_backup_schedule/' "$UNINSTALLER" > "${work}/late.sh"
+  cmp -s "$UNINSTALLER" "${work}/late.sh" \
+    && fail "the control that moves remove_panel_backup_schedule after remove_binaries changed nothing, so it proves nothing"
+  [ -n "$(uninstaller_main_defect "${work}/late.sh")" ] \
+    || fail "the main() check ACCEPTED an uninstaller that removes the schedule after the wrapper"
+  rm -rf -- "${work:?}"
+
+  # The real uninstaller, with the full set of deleters that could reach the directory.
+  prepare_a_panel_backup_uninstall_trial
+  output="$(panel_backup_uninstall_outcome "$UNINSTALLER" "$full_snippet")" \
+    || fail "the real uninstaller did not remove the panel backup schedule and keep the archives: ${output}"
+  case "$output" in
+    *"$PANEL_BACKUP_OUT_DIR"*) ;;
+    *) fail "the uninstaller kept the panel backup directory but never named it. An operator finishing a decommission has to be told where the data it refused to delete is: ${output}" ;;
+  esac
+  case "$output" in
+    *"(1 panel backup archive(s))"*) ;;
+    *) fail "the uninstaller did not report exactly 1 panel backup archive (one archive, one near miss and one operator file were planted); a report that counts by a looser pattern than the one retention prunes by tells the operator the wrong number: ${output}" ;;
+  esac
+  # The stand-in recorded the disable the uninstaller asked for, so the timer is not left enabled.
+  [ "$(head -1 "${UNIT_STATE_DIRECTORY}/${PANEL_BACKUP_TIMER_FILE}.enabled" 2>/dev/null || true)" = "disabled" ] \
+    || fail "the uninstaller removed the timer unit without asking systemctl to disable it first"
+
+  # What the full set of deleters took out (the wrapper, /usr/local/maran, /var/lib/maran and its
+  # siblings), put back by the installer's own steps, as the backup-root assertion does.
+  run_user_step 'create_directory_layout' >/dev/null \
+    || fail "step 40's create_directory_layout could not restore the layout this assertion's deleters removed"
+  run_installer_step 'install_sftp_prerequisites' >/dev/null \
+    || fail "step 86's install_sftp_prerequisites could not restore the SFTP jail base this assertion's deleters removed"
+  for restored in /var/backups/maran /var/lib/maran /var/lib/maran-scratch /var/lib/maran-sftp; do
+    [ -d "$restored" ] \
+      || fail "${restored} is missing after this assertion restored the layout"
+  done
+
+  # Mutant 1: the one line the promise is about, after the line that removes the drop-in directories.
+  anchor='  rm -rf /etc/systemd/system/maran-panel-backup.timer.d /etc/systemd/system/maran-panel-backup.service.d'
+  deletion='  rm -rf /var/backups/maran-panel'
+  [ "$(grep -cxF -- "$anchor" "$UNINSTALLER")" -eq 1 ] \
+    || fail "uninstall.sh no longer carries exactly one '${anchor}' line in the form this assertion mutates; it would be mutating nothing"
+  mutant="$(mktemp)"
+  { while IFS= read -r line; do
+      printf '%s\n' "$line"
+      [ "$line" != "$anchor" ] || printf '%s\n' "$deletion"
+    done < "$UNINSTALLER"
+  } > "$mutant"
+  [ "$(grep -cxF -- "$deletion" "$mutant")" -eq 1 ] \
+    || fail "the inverse control planted $(grep -cxF -- "$deletion" "$mutant") deletions of the panel backup directory instead of exactly one"
+  cmp -s "$UNINSTALLER" "$mutant" \
+    && fail "the inverse control's copy of the uninstaller is identical to the original, so the deletion never applied"
+  prepare_a_panel_backup_uninstall_trial
+  if diagnosis="$(panel_backup_uninstall_outcome "$mutant" "$schedule_snippet")"; then
+    rm -f -- "$mutant"
+    fail "an uninstaller carrying the deletion of ${PANEL_BACKUP_OUT_DIR} PASSED this assertion, so it cannot see the deletion it exists for and its green verdict above means nothing"
+  fi
+  case "$diagnosis" in
+    *"DELETED"*"$PANEL_BACKUP_OUT_DIR"*|*"DELETED"*"$PLANTED_PANEL_ARCHIVE"*) ;;
+    *) rm -f -- "$mutant"; fail "the deletion inverse control was refused, but the diagnosis does not name what was lost: ${diagnosis}" ;;
+  esac
+  rm -f -- "$mutant"
+
+  # Mutant 2: the line that removes the units, deleted. The units must be seen to survive.
+  anchor='  rm -f /etc/systemd/system/maran-panel-backup.timer /etc/systemd/system/maran-panel-backup.service'
+  [ "$(grep -cxF -- "$anchor" "$UNINSTALLER")" -eq 1 ] \
+    || fail "uninstall.sh no longer carries exactly one '${anchor}' line in the form this assertion mutates; it would be mutating nothing"
+  mutant="$(mktemp)"
+  grep -vxF -- "$anchor" "$UNINSTALLER" > "$mutant" || true
+  cmp -s "$UNINSTALLER" "$mutant" \
+    && fail "the unit-removal inverse control's copy of the uninstaller is identical to the original, so the survival below would be about nothing"
+  [ "$(grep -cxF -- "$anchor" "$mutant" || true)" -eq 0 ] \
+    || fail "the unit-removal inverse control still carries the removal line"
+  prepare_a_panel_backup_uninstall_trial
+  if diagnosis="$(panel_backup_uninstall_outcome "$mutant" "$schedule_snippet")"; then
+    rm -f -- "$mutant"
+    fail "an uninstaller WITHOUT the line that removes the units PASSED this assertion, so it cannot see a unit that outlives the wrapper"
+  fi
+  case "$diagnosis" in
+    *"LEFT"*"maran-panel-backup."*) ;;
+    *) rm -f -- "$mutant"; fail "the unit-removal inverse control was refused, but the diagnosis does not name the unit it left: ${diagnosis}" ;;
+  esac
+  rm -f -- "$mutant"
+
+  # Put everything back: the mutant runs removed some units and not others, and the archives are this
+  # assertion's own planted files (a directory that is not empty afterwards is a failure to say so).
+  rm -f -- "${PANEL_BACKUP_UNIT_DIR:?}/${PANEL_BACKUP_TIMER_FILE:?}" "${PANEL_BACKUP_UNIT_DIR:?}/${PANEL_BACKUP_SERVICE_FILE:?}"
+  rm -rf -- "${PANEL_BACKUP_DROPIN_DIR:?}" "${PANEL_BACKUP_UNIT_DIR:?}/${PANEL_BACKUP_SERVICE_FILE:?}.d"
+  rm -f -- "$PLANTED_PANEL_ARCHIVE" "$PLANTED_PANEL_NEAR_MISS" "$PLANTED_PANEL_OPERATOR_FILE"
+  remove_the_installed_break_glass_command
+  panel_backup_restore_prior_state
+
+  echo "The uninstaller removes maran-panel-backup.timer and .service and both drop-in directories (asking systemctl to disable the timer first), leaves the panel backup directory and every file in it byte for byte, names the directory and counts exactly the 1 archive, and its main() calls the schedule removal before the wrapper and /etc/maran go -- while an uninstaller that deletes the panel backup directory and one without the unit-removal line are each refused naming what they lost (the main() check shown to refuse three planted breaks)."
+  echo "UNOBSERVED HERE: this is the uninstaller's shell functions against files this assertion planted, not an uninstall of a real install. No systemd runs, so 'stopped and disabled' is the polygon's systemctl recording the request, and the main() check reads TEXT: it sees the calls and their order, not that an early exit above them is never taken."
+}
