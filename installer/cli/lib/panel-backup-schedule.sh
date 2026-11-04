@@ -17,7 +17,7 @@
 # argument.
 
 readonly MARAN_PBSCHED_USAGE="Usage: maran panel-backup-schedule enable|disable|status"
-readonly MARAN_PBSCHED_TIMER="maran-panel-backup.timer"
+readonly MARAN_PBSCHED_TIMER="$MARAN_CLI_BACKUP_TIMER_UNIT"
 readonly MARAN_PBSCHED_SERVICE="maran-panel-backup.service"
 readonly MARAN_PBSCHED_UNIT_DIR="/etc/systemd/system"
 readonly MARAN_PBSCHED_DROPIN_DIR="${MARAN_PBSCHED_UNIT_DIR}/${MARAN_PBSCHED_TIMER}.d"

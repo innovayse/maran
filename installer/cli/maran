@@ -12,6 +12,8 @@
 #   maran panel-backup --scheduled
 #   maran panel-backup-schedule enable|disable|status
 #   maran panel-restore --passphrase-file FILE --replace-this-panel ARCHIVE
+#   maran update [--check] [--channel stable|beta] [--offline-tarball PATH] [--yes]
+#   maran rollback [--restore-database] [--yes]
 #   maran help
 #
 # Nothing the operator types is ever interpreted: the verb is matched against a fixed list, every
@@ -57,6 +59,24 @@ readonly MARAN_CLI_LIB_DIR="/usr/local/maran/cli/lib"
 . "${MARAN_CLI_LIB_DIR}/panel-backup-schedule.sh"
 # shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/panel-restore.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/release-version.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/release-verify.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/release-unpack.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/release-layout.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/panel-dump.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/update-dumps.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/update-health.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/update.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/rollback.sh"
 
 # cli_usage: the help text, on stdout.
 cli_usage() {
@@ -81,6 +101,13 @@ Usage: maran <command>
   panel-restore --passphrase-file FILE --replace-this-panel ARCHIVE
                                            Replace this freshly installed panel's database, keys
                                            and licence with those of a panel-backup archive.
+  update [--check] [--channel stable|beta] [--offline-tarball PATH] [--yes]
+                                           Check for, or install, a newer signed release: verify,
+                                           dump the database, switch, migrate, restart, and roll
+                                           back by itself if the panel does not become healthy.
+  rollback [--restore-database] [--yes]    Return to the previous release. --restore-database also
+                                           restores the pre-update dump and drops every write made
+                                           since it was taken.
   help                                     This text.
 USAGE
 }
@@ -95,6 +122,8 @@ main() {
     panel-backup) cli_panel_backup "$@" ;;
     panel-backup-schedule) cli_panel_backup_schedule "$@" ;;
     panel-restore) cli_panel_restore "$@" ;;
+    update) cli_update "$@" ;;
+    rollback) cli_rollback "$@" ;;
     help|--help|-h) cli_usage ;;
     *)
       echo "maran: unknown command" >&2

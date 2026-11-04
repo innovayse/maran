@@ -7,9 +7,10 @@
 # dead server's encrypted columns are unreadable anywhere else, because the key that wrote them
 # lived only in this host's /etc/maran/panel.env.
 #
-# The database is read by the service account (pg_dump over the unix socket, peer authentication):
-# root opens the output file and hands the descriptor over, so root never authenticates to
-# PostgreSQL and the service account never writes into a root directory.
+# The database is read by the service account (pg_dump, peer authentication), through
+# cli_dump_database in panel-dump.sh: root opens the output file and hands the descriptor over, so
+# root never authenticates to PostgreSQL and the service account never writes into a root
+# directory.
 #
 # `--scheduled` is the same backup run by the systemd timer: its arguments come from
 # /etc/maran/panel-backup.conf (panel-backup-config.sh), and after the archive exists it applies
@@ -28,26 +29,18 @@ cli_panel_backup_cleanup() {
 
 # cli_panel_backup_stage: writes the plaintext members into $1, the inner tar's directory.
 cli_panel_backup_stage() {
-  local dir="$1" host database username
-  host="$(cli_panel_env_value Database__Host)"
-  database="$(cli_panel_env_value Database__Database)"
-  username="$(cli_panel_env_value Database__Username)"
-  [ -n "$host" ] && [ -n "$database" ] && [ -n "$username" ] \
-    || cli_fail "${MARAN_CLI_ENV_FILE} does not name the panel database (Database__Host, __Database, __Username)"
+  local dir="$1" database
 
+  # The dump is panel-dump.sh's (every schema, read by the service account); it refuses first when
+  # panel.env does not name the database, so the manifest below never describes a dump that failed.
+  cli_dump_database "${dir}/${MARAN_PANEL_ARCHIVE_DATABASE}"
+
+  database="$(cli_panel_env_value Database__Database)"
   {
     echo "format=${MARAN_PANEL_ARCHIVE_FORMAT}"
     echo "created=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo "database=${database}"
   } > "${dir}/${MARAN_PANEL_ARCHIVE_MANIFEST}"
-
-  # Every schema, Wolverine's message store included: a restore that dropped in-flight messages
-  # would lose work the panel had accepted. --no-owner because the restoring role is the panel's
-  # own on the new host, whatever this one was called.
-  runuser -u "$MARAN_CLI_SERVICE_USER" -- pg_dump --format=custom --no-owner --no-privileges \
-    --host="$host" --username="$username" --dbname="$database" \
-    > "${dir}/${MARAN_PANEL_ARCHIVE_DATABASE}" \
-    || cli_fail "pg_dump of the panel database failed; nothing was written"
 
   # The two trees travel whole, numeric owners kept, so an operator restoring by hand on the new
   # host has every file; panel-restore puts back only what a fresh install cannot regenerate.

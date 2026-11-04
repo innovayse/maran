@@ -21,7 +21,7 @@ cli_status() {
   local healthy=0 unit
 
   echo "Services (active / enabled):"
-  for unit in maran-api.service maran-agent.service postgresql.service nginx.service; do
+  for unit in "$MARAN_CLI_API_UNIT" "$MARAN_CLI_AGENT_UNIT" postgresql.service nginx.service; do
     cli_status_unit "$unit" || healthy=1
   done
   # FTPS ships switched off; it is only a health question once an administrator has enabled it.
