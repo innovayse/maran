@@ -1,0 +1,156 @@
+# The scheduled encrypted backup of the panel itself (issue #129): its database, keys, licence and
+# configuration, taken by `maran panel-backup --scheduled`, pruned to the newest KEEP archives and,
+# when the operator configured S3-compatible storage, copied off the server.
+#
+# What starts it: maran-panel-backup.timer, and only after an operator wrote
+# /etc/maran/panel-backup.conf and ran `maran panel-backup-schedule enable`. The installer installs
+# this unit and never enables the timer, so a fresh install runs no unattended root job until a human
+# has chosen a passphrase file. This unit has no [Install] section for the same reason: nothing
+# starts it at boot, and `systemctl start maran-panel-backup.service` runs one backup by hand.
+#
+# What it is NOT: a daemon, and a second implementation of the backup. It runs the same verb an
+# operator types; `--scheduled` only moves the arguments into the root-only config file and adds
+# retention and upload after the archive exists. Argument handling, the config reader, retention and
+# the upload are in installer/cli/lib/, and the argument for each is in
+# docs/superpowers/notes/2026-11-04-panel-backup-schedule-threat-note.md.
+#
+# Every directive below was derived by READING the verb (installer/cli/lib/panel-backup.sh and
+# panel-archive.sh), not by watching it run under this unit: the polygon stage owes that observation,
+# and the threat note lists it as unverified. A directive the verb cannot live with is left out and the
+# reason is written in the "Deliberately NOT set" block, so an omission reads as a decision.
+[Unit]
+Description=Maran panel backup (encrypted archive of the panel's database, keys and configuration)
+# The upload is the only part that needs the network, and it is optional; Wants= (not Requires=)
+# keeps a host without a configured network target from failing the whole backup. PostgreSQL is
+# ordered before because pg_dump reads the panel database over its unix socket.
+After=network-online.target postgresql.service
+Wants=network-online.target
+# The default start rate limit would refuse a sixth manual start within ten seconds with a
+# start-limit-hit that never ran the verb. A timer fires once a day and an operator retries by hand,
+# so the limit protects nothing here and would only replace the verb's one-line journal entry with a
+# message about systemd.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+# Root: the verb reads /etc/maran/panel.env (the key that decrypts every stored secret), archives
+# /etc/maran and /var/lib/maran, and starts pg_dump as the service account through `runuser`, which
+# only root may do. The identity is the wrapper's own requirement (it exits 77 for anyone else), so
+# it is stated rather than left to the default.
+User=root
+# The absolute path the installer puts the wrapper at (installer/lib/66-cli.sh). One fixed argv:
+# no shell, no value from the environment, no template. The wrapper replaces PATH with the root-owned
+# system directories itself, so nothing here sets one.
+ExecStart=/usr/local/sbin/maran panel-backup --scheduled
+# `no` (the default, stated): the unit must show `inactive` between runs and `failed` after a bad one,
+# because `systemctl --failed` is what an operator monitors. RemainAfterExit=yes would show a finished
+# backup as `active` for ever and hide the day it stopped working.
+RemainAfterExit=no
+# Oneshot has NO timeout by default, so a hung upload would hold the verb's lock for ever and every
+# later night would exit non-zero with "another panel backup or restore is running". Four hours is a
+# ceiling for a stuck transfer on a large panel, not an expected duration. The timeout kills the
+# verb part-way; its EXIT trap removes the unfinished archive and the plaintext stage.
+TimeoutStartSec=4h
+# Yield to the panel: a nightly archive of a database must not compete with requests for disk or CPU.
+Nice=10
+IOSchedulingClass=idle
+# 0077: the archive, the stage directory and the curl config file are created owner-only from their
+# first byte. The verb sets `umask 077` itself; this makes the unit true to it before the verb runs.
+UMask=0077
+
+# --- Hardening ----------------------------------------------------------------------
+# A root job that reads the panel's encryption key and may open a connection to an address an
+# operator wrote into a file is a place to remove everything the job has no use for.
+NoNewPrivileges=yes
+# ProtectSystem=strict makes the whole filesystem read-only to this job except ReadWritePaths= below.
+# The verb writes in exactly three places: the output directory, the staging base and /run. It reads
+# /etc/maran, /var/lib/maran, the passphrase and S3 credential files, and /etc/ssl for curl, all of
+# which a read-only view leaves readable.
+ProtectSystem=strict
+# /home and /root are made inaccessible. The verb never reads either, with one consequence an
+# operator has to know: PASSPHRASE_FILE, S3_ACCESS_KEY_ID_FILE and S3_SECRET_FILE must NOT live under
+# /root or /home when the schedule is on (the unit would not find them, and the verb would refuse
+# with "is not a regular file"); `maran panel-backup-schedule enable` refuses such a path up front.
+# installer/panel-backup.conf.example shows a path outside both.
+ProtectHome=yes
+# Anything a child writes to /tmp lands in a private directory that is gone when the job ends. The
+# verb itself stages nothing there: the plaintext stage is under the staging base below, on real
+# storage, because it holds a full copy of the database.
+PrivateTmp=yes
+# The three writable paths, one entry per reason. Each must EXIST before the unit starts, because
+# ProtectSystem=strict makes a missing entry a startup failure (226/NAMESPACE), by name:
+#
+#   /var/backups/maran-panel   the default OUT_DIR, root:root 0700, created by
+#                              installer/lib/67-panel-backup.sh. A SIBLING of /var/backups/maran
+#                              (customer account backups, the agent's) so that retention, which
+#                              deletes files here, can never be pointed at customer data.
+#                              IF AN OPERATOR SETS ANOTHER OUT_DIR the verb cannot write it under
+#                              this unit as shipped: `maran panel-backup-schedule enable` writes
+#                              that one directory to ReadWritePaths= in the service drop-in
+#                              maran-panel-backup.service.d/outdir.conf (and refuses when it is not
+#                              a plain directory); `disable`, and `enable` with the default
+#                              directory, remove the drop-in. It is not widened here to a parent
+#                              such as /var/backups, because that would make every other backup
+#                              directory writable to a job whose only need is one.
+#   /var/lib/maran-cli-staging the verb's plaintext stage and lock file (MARAN_CLI_STAGING_BASE,
+#                              installer/cli/lib/common.sh), root:root 0700. The verb creates it on
+#                              first use, which a read-only /var/lib forbids, so the installer step
+#                              creates it as well.
+#   /run                       the whole of /run, not a subdirectory: gpg may start gpg-agent, whose
+#                              socket lives under its --homedir (inside the staging directory
+#                              above) or under /run/user/<uid>; `logger` and PAM reach the journal
+#                              through sockets under /run/systemd. Connecting to a socket needs no
+#                              write access, so this entry is the belt on writes only; it costs
+#                              nothing because /run is a tmpfs.
+ReadWritePaths=/var/backups/maran-panel /var/lib/maran-cli-staging /run
+# --- What the job's children need, and the measurement still owed ---------------------
+# The verb spawns: runuser -> pg_dump (as the service account), gpg, tar, flock, mktemp, logger and,
+# when S3 is configured, curl. `runuser` needs a PAM stack: /etc/pam.d/runuser, which on both
+# families is pam_rootok for authentication and pam_limits / pam_unix (and, on the Debian family,
+# the common-session-noninteractive include, which can reach pam_systemd) for the session. Reading
+# /etc/pam.d and /usr/lib*/security is allowed by the read-only view; pam_unix logs to syslog and
+# pam_systemd talks to logind over a unix socket, both of which only need connect() and the
+# sockets above. NOT VERIFIED: that this stack opens cleanly under ProtectSystem=strict on
+# both families with SELinux enforcing (AlmaLinux/Rocky). If it does not, the failure will be
+# `runuser: Authentication failure` or `System error` from pg_dump, and the first directive to
+# loosen is ProtectSystem=strict to `full` -- not any of the ones below.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+# runuser, gpg, tar and curl create no namespace.
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# IP for the optional upload and its name lookups, unix for PostgreSQL, the journal and gpg-agent,
+# netlink because libpam's audit module and name resolution open a netlink socket on the RHEL family
+# (the FTPS unit records the same need for the same library).
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+# --- Deliberately NOT set -------------------------------------------------------------
+# Each of these was weighed against the verb and left off. None has been measured under this unit;
+# add one only together with the run that shows the verb still works.
+#   PrivateDevices=         `logger` (the verb's journal line, which is the job's failure record)
+#                           writes to /dev/log, and a private /dev is believed to have no such
+#                           symlink (not checked here), so the one line an operator relies on
+#                           could silently go missing. Worth revisiting once a run shows the
+#                           journal line survives it.
+#   PrivateNetwork=         the S3 upload is a requirement when configured.
+#   CapabilityBoundingSet=  the set the verb needs is the union of what runuser (CAP_SETUID,
+#                           CAP_SETGID, CAP_AUDIT_WRITE on the RHEL family), tar/install (CAP_CHOWN,
+#                           CAP_DAC_OVERRIDE, CAP_DAC_READ_SEARCH, CAP_FOWNER), pam_limits
+#                           (CAP_SYS_RESOURCE) and gpg need, derived here by reading rather than
+#                           observing; a member missing from it fails at 3 a.m. as EPERM. Narrowing
+#                           it is a follow-up that needs the run, and the ProtectSystem=strict and
+#                           NoNewPrivileges= above already bound what a compromised child can do.
+#   SystemCallFilter=       the same reasoning: @system-service is plausible for every child and
+#                           unmeasured for pg_dump, gpg and PAM on both families.
+#   MemoryDenyWriteExecute= OpenSSL, gnupg and libpq generate no code at run time, but the PAM
+#                           modules and NSS plugins `runuser` loads are third-party shared objects
+#                           that have not been checked against it.
+#   ProtectProc=, ProcSubset=  unmeasured for gpg-agent, pg_dump and PAM under hidepid; the sandbox
+#                           above does not depend on them.

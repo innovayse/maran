@@ -40,7 +40,7 @@ cli_panel_require_passphrase_file() {
   [[ "$mode" =~ ^[46]00$ ]] || cli_fail "--passphrase-file must have mode 0600 or 0400"
   # Measured by awk on the first line, which is the line gpg takes: the length is the only fact
   # about the passphrase this script ever learns.
-  length="$(awk 'NR == 1 { print length($0); exit }' -- "$file")"
+  length="$(awk 'NR == 1 { print length($0); exit }' < "$file")"
   [ "${length:-0}" -ge "$MARAN_PANEL_PASSPHRASE_MIN_LENGTH" ] \
     || cli_fail "the passphrase must be at least ${MARAN_PANEL_PASSPHRASE_MIN_LENGTH} characters long"
 }

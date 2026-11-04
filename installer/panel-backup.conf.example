@@ -1,0 +1,54 @@
+# /etc/maran/panel-backup.conf: settings for the scheduled panel backup (issue #129).
+#
+# Copy this file to /etc/maran/panel-backup.conf, edit it, make it root:root 0600, then run
+#     maran panel-backup-schedule enable
+# `enable` refuses and names the first problem when the file is missing, readable by anyone but
+# root, or invalid. `maran panel-backup-schedule status` shows what is scheduled.
+#
+# THE FILE IS DATA, NOT A SHELL SCRIPT. It is never sourced. Each line is blank, a comment, or exactly
+# KEY=VALUE for one of the keys below; a value is everything after the first `=`. Do not quote values
+# and do not use $, backticks, backslashes or spaces in them. An unknown key, a duplicate key, a line
+# without `=` or a control character is a refusal, not a skip.
+#
+# NO SECRET GOES IN THIS FILE. The passphrase and the S3 credentials live in separate files, each
+# root:root 0600, and this file only names them, so it can be shown to a colleague or attached to a
+# ticket. All values below are placeholders.
+#
+# While the schedule is on, keep those secret files OUT of /root and /home: the scheduled job runs
+# with both hidden from it. A directory such as /etc/maran-backup (root:root 0700) works. Do not put
+# them under /etc/maran: that tree is archived, and a passphrase stored inside the archive it
+# protects is no protection.
+
+# File holding the archive's passphrase on its first line, at least 20 characters. Absolute path of
+# letters, digits, '.', '_', '-' and '/'. root:root, mode 0600 or 0400. Whoever has an archive and
+# this passphrase has the whole panel; keep a copy of the passphrase somewhere other than this server.
+PASSPHRASE_FILE=/etc/maran-backup/passphrase
+
+# Directory the archives are written to. Absolute path, no `..`, root-owned and not writable by
+# anyone else. Default /var/backups/maran-panel, created by the installer. Another directory must
+# also be made writable to the backup unit (see maran-panel-backup.service, ReadWritePaths=).
+#OUT_DIR=/var/backups/maran-panel
+
+# How many archives to keep, 1 to 365. After a SUCCESSFUL backup the newest KEEP archives are kept
+# and older ones in OUT_DIR whose names match maran-panel-backup-<UTC>-<pid>.tar.gpg are removed.
+# Nothing else in the directory is touched, and nothing is ever removed from S3. Default 14.
+#KEEP=14
+
+# When to run, as a systemd OnCalendar value (see `man systemd.time`). The timer adds up to 15
+# minutes of random delay. Default is every day at 02:30. Examples: *-*-* 02:30:00,
+# Sun *-*-* 03:00:00, *-*-01 04:15:00
+#SCHEDULE=*-*-* 02:30:00
+
+# --- Optional upload to S3-compatible storage ---------------------------------------
+# Leave every S3_ key out to keep archives on this server only: then no connection is made. To
+# upload, set all of the keys below except S3_PREFIX, which is optional. Only the already encrypted
+# .tar.gpg file is sent, over HTTPS, and the upload counts as done only when the stored object's
+# size matches the local file.
+#S3_ENDPOINT=https://s3.example.invalid
+#S3_BUCKET=example-bucket
+#S3_REGION=example-region-1
+#S3_PREFIX=maran-panel
+# Files holding the access key id and the secret key, one value on the first line of each.
+# root:root 0600, outside /root and /home.
+#S3_ACCESS_KEY_ID_FILE=/etc/maran-backup/s3-access-key-id
+#S3_SECRET_FILE=/etc/maran-backup/s3-secret

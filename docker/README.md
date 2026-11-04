@@ -653,7 +653,7 @@ is one this project keeps paying for when it is blurred:
 | folder | what lives there | what it does to a test |
 |---|---|---|
 | `images/` | the five `.Dockerfile`s | provides the host under test |
-| `stand-ins/` | `systemctl-stand-in.sh`, `setquota-stand-in.sh` | makes a test PASS by pretending |
+| `stand-ins/` | `systemctl-stand-in.sh`, `setquota-stand-in.sh`, `s3-stand-in.py` | makes a test PASS by pretending |
 | `asserts/` | `assert-installer-steps.sh`, `quota-harness.sh`, `pam-witness.c` | makes a test FAIL by measuring |
 
 A stand-in is not a weaker assert; it is the opposite of one. `systemctl-stand-in.sh` "starts or
@@ -662,7 +662,7 @@ stops NOTHING" by its own header, and four defects hid behind exactly that (#39,
 ## The install polygon: the documented install path on a real init
 
     maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--arch <a>]
-                    [--publish PORT] [--browser] [--keep]
+                    [--publish PORT] [--browser] [--no-panel-recovery] [--keep]
 
 `<version>` is any folder under `docker/polygon/images`: thirteen at the time of writing, covering
 Ubuntu 22.04/24.04/26.04, Debian 12/13, and AlmaLinux, Rocky Linux and Oracle Linux 8/9/10 — except
@@ -708,6 +708,42 @@ is in `.polygon-logs/browser-<os>-<arch>-<mode>.log`. The everyday suite ignores
 no server it fails on `ERR_CONNECTION_REFUSED`, and against `openssl s_server` presenting an Ed25519
 certificate it fails on `ERR_SSL_VERSION_OR_CIPHER_MISMATCH` at the first navigation. Only Chromium
 runs; other browsers' TLS stacks are unobserved.
+
+**The panel-recovery stage (issue #129)** is the closing criterion of the panel backup work, and it runs
+by default after the lockout-recovery and diagnostics stages; `--no-panel-recovery` skips it, because it
+costs a second full install. It lives in `scripts/lib/install-polygon-recovery.sh`, with the panel API
+helpers, the S3 stand-in's setup and the scheduled-backup half in `install-polygon-panel-api.sh`,
+`install-polygon-s3.sh` and `install-polygon-schedule.sh`. In order, against the container the other
+stages use:
+
+1. On the installed panel it creates a plan, a hosting account and the account owner's login through the
+   API, and turns on the administrator's second factor. The second-factor secret is the encrypted value:
+   the stage reads the column and shows the secret is not stored in the clear, so a restore that brought
+   back a database under the wrong key would fail the later sign-in instead of passing it.
+2. It runs the scheduled half: the configuration file's refusals (world-readable, a symlink, a bad
+   `SCHEDULE`, an unknown key), three scheduled runs under `KEEP=2` (the newest two stay, the operator's
+   own files in the directory stay), a backup that fails and deletes nothing, the upload to the S3
+   stand-in with HEAD size verification and refused credentials, `maran panel-backup-schedule
+   enable|status|disable`, and the service started by name under systemd.
+3. It takes the archive off the server (from the stand-in's bucket when one ran), **stops that server**,
+   and installs a SECOND fresh server from the same image. The two servers' encryption keys, signing keys
+   and setup tokens are first shown to differ: that is the positive control without which a restore that
+   restored nothing would still sign the administrator in.
+4. On the second server a restore with the wrong passphrase is refused and leaves `panel.env` byte-identical
+   and the panel running; the right passphrase restores, and the stage requires the same administrator's
+   password AND one-time code (computed from the ORIGINAL secret), the account in the list, the owner's
+   login, the old keys back and every other line of the new install's `panel.env` unchanged. A second
+   restore, from the archive the manual verb wrote, repeats it.
+
+`s3-stand-in.py` runs in a third container of the same image (python is installed into it at run time, never
+into a server under test), serves one bucket path-style over TLS with a certificate the harness made and
+installed into the *server's system trust store*, and **recomputes AWS Signature Version 4**, so a wrong key id
+and a wrong secret are both refused. It is a stand-in in this directory's sense: it makes the upload testable
+by pretending to be a provider, and it proves nothing about any real one. On a system whose `curl` predates
+`--aws-sigv4` (7.75; AlmaLinux and Rocky 8) the upload cannot run and the stage prints `UNOBSERVED HERE`
+instead. The stage also prints, every run, what it did not see: the timer firing on the clock, disk quota
+(the account is created with the suite images' `setquota` stand-in in place), the licence, the account's
+files, SELinux enforcing, and curl's argv during the upload.
 
 The three modes answer three different questions. `local` installs from the working tree over the
 released artifacts, so an installer fix is testable with no release at all. `offline` installs a

@@ -263,6 +263,16 @@ COPY installer/lib/90-finish.sh /tmp/maran-installer/lib/90-finish.sh
 COPY installer/lib/66-cli.sh /tmp/maran-installer/lib/66-cli.sh
 COPY installer/cli /tmp/maran-installer/cli
 
+# Step 67, the scheduled panel backup (issue #129), and the payload it installs: the service and the
+# timer (RUN through step_panel_backup and compared byte for byte with the installed copies) and the
+# example configuration, which the step reads from $SCRIPT_DIR and places beside the CLI libraries.
+# docker/polygon/asserts/parts/panel-backup-units.sh drives the step; absent, it aborts by name on a
+# missing payload file, which is what a forgotten COPY must look like.
+COPY installer/lib/67-panel-backup.sh /tmp/maran-installer/lib/67-panel-backup.sh
+COPY installer/systemd/maran-panel-backup.service /tmp/maran-installer/systemd/maran-panel-backup.service
+COPY installer/systemd/maran-panel-backup.timer /tmp/maran-installer/systemd/maran-panel-backup.timer
+COPY installer/panel-backup.conf.example /tmp/maran-installer/panel-backup.conf.example
+
 # Step 89 and what it needs, all four RUN or READ by the assert script and none of them
 # repeated by this image. The step is the FTPS installer step: it masks the distribution's
 # vsftpd.service, installs the package from its OWN `vsftpd_packages_for_family`, creates the

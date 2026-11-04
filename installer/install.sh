@@ -372,6 +372,9 @@ main() {
   # The break-glass `maran` command, after the schema (it shares the panel binary and environment
   # that step proved work) and before the panel starts.
   run_step 66-cli.sh          step_cli
+  # The units of the scheduled panel backup, right after the verb they run. Installed and NOT
+  # enabled: the operator writes the config and enables the timer (`maran panel-backup-schedule`).
+  run_step 67-panel-backup.sh step_panel_backup
   run_step 70-services.sh     step_services
   run_step 80-nginx.sh        step_nginx
   # After 80, because it validates and reloads the tree 80 has just made complete, and before

@@ -8,7 +8,9 @@
 #
 # Placed after 65-schema.sh and before 70-services.sh: it needs only the panel binary 50-artifacts.sh
 # installed, and a step that cannot copy a file should stop the install while the operator watches.
-# Re-running overwrites both, so an update always leaves the command matching the installed panel.
+# The library list below is the install list: a library the wrapper sources but this loop omits makes
+# every verb fail on the server. Re-running overwrites both, so an update always leaves the command
+# matching the installed panel.
 
 readonly MARAN_CLI_SOURCE_DIR="${SCRIPT_DIR:?must be set by install.sh}/cli"
 readonly MARAN_CLI_WRAPPER_PATH="/usr/local/sbin/maran"
@@ -35,7 +37,8 @@ step_cli() {
     echo "NOTE: /usr/local/sbin is group-writable (mode ${sbin_mode}); members of that group could replace /usr/local/sbin/maran."
   fi
   install -d -m 0755 -o root -g root /usr/local/maran/cli "$MARAN_CLI_LIB_INSTALL_DIR"
-  for lib in common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup.sh panel-restore.sh; do
+  for lib in common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup-config.sh \
+    panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh panel-backup-schedule.sh panel-restore.sh; do
     install -m 0644 -o root -g root "${MARAN_CLI_SOURCE_DIR}/lib/${lib}" "${MARAN_CLI_LIB_INSTALL_DIR}/${lib}"
   done
   install -m 0700 -o root -g root "${MARAN_CLI_SOURCE_DIR}/maran" "$MARAN_CLI_WRAPPER_PATH"

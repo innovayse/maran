@@ -10,9 +10,13 @@
 # The database is read by the service account (pg_dump over the unix socket, peer authentication):
 # root opens the output file and hands the descriptor over, so root never authenticates to
 # PostgreSQL and the service account never writes into a root directory.
+#
+# `--scheduled` is the same backup run by the systemd timer: its arguments come from
+# /etc/maran/panel-backup.conf (panel-backup-config.sh), and after the archive exists it applies
+# retention (panel-backup-retention.sh) and uploads when S3 is configured (panel-backup-upload.sh).
 
 readonly MARAN_PANEL_BACKUP_DEFAULT_OUT="/root"
-readonly MARAN_PANEL_BACKUP_USAGE="Usage: maran panel-backup --passphrase-file FILE [--out DIR]"
+readonly MARAN_PANEL_BACKUP_USAGE="Usage: maran panel-backup --passphrase-file FILE [--out DIR] | maran panel-backup --scheduled"
 
 # cli_panel_backup_cleanup: the EXIT-trap half of this verb — an archive that was created but not
 # finished is removed, so a failed run never leaves a truncated file that looks like a backup.
@@ -53,23 +57,14 @@ cli_panel_backup_stage() {
     || cli_fail "could not archive ${MARAN_PANEL_STATE_DIR}; nothing was written"
 }
 
-# cli_panel_backup: the verb. Arguments: --passphrase-file FILE [--out DIR].
-cli_panel_backup() {
-  local out="$MARAN_PANEL_BACKUP_DEFAULT_OUT" passphrase_file="" arg
-  while [ "$#" -gt 0 ]; do
-    arg="$1"
-    case "$arg" in
-      --out|--passphrase-file)
-        [ "$#" -ge 2 ] || cli_fail "${arg} needs a value. ${MARAN_PANEL_BACKUP_USAGE}"
-        if [ "$arg" = "--out" ]; then out="$2"; else passphrase_file="$2"; fi
-        shift
-        ;;
-      *) cli_fail "unknown option. ${MARAN_PANEL_BACKUP_USAGE}" ;;
-    esac
-    shift
-  done
-  [ -n "$passphrase_file" ] || cli_fail "$MARAN_PANEL_BACKUP_USAGE"
-
+# cli_panel_backup_execute: takes one backup — checks, stages, encrypts — and leaves the archive's
+# path in CLI_PANEL_BACKUP_TARGET. Shared by the manual verb and the scheduled job so there is one
+# implementation of the backup; the caller decides what to log and print. The stage directory, its
+# lock and the EXIT trap stay open on return, so a caller that goes on (retention, upload) works
+# inside the same private stage and every exit still cleans up.
+#   $1 = passphrase file, $2 = output directory.
+cli_panel_backup_execute() {
+  local passphrase_file="$1" out="$2"
   cli_require_private_out_dir "$out"
   cli_panel_require_passphrase_file "$passphrase_file"
   [ -d "$MARAN_PANEL_ETC_DIR" ] && [ -d "$MARAN_PANEL_STATE_DIR" ] \
@@ -107,9 +102,75 @@ cli_panel_backup() {
     || cli_fail "could not encrypt the archive; nothing was written"
   exec 9>&-
   CLI_PANEL_BACKUP_OK=1
+}
+
+# cli_panel_backup_scheduled_run: the work of one scheduled run, in the order that keeps the last
+# good archive safe: configuration, backup, retention (only after the backup succeeded), upload. A
+# failure of retention or upload does not skip the other, and does not touch the local archive; it
+# is reported once, at the end, so the unit fails visibly. Runs in a subshell of
+# cli_panel_backup_scheduled, so a refusal (cli_fail) ends only this run.
+cli_panel_backup_scheduled_run() {
+  cli_pbconfig_load
+  cli_panel_backup_execute "$MARAN_PBCONF_PASSPHRASE_FILE" "$MARAN_PBCONF_OUT_DIR"
+  local retention_failed=0 upload_failed=0
+  cli_pbretention_apply "$MARAN_PBCONF_OUT_DIR" "$MARAN_PBCONF_KEEP" "$CLI_PANEL_BACKUP_TARGET" \
+    || retention_failed=1
+  if [ -n "$MARAN_PBCONF_S3_ENDPOINT" ]; then
+    cli_pbupload_send "$CLI_PANEL_BACKUP_TARGET" || upload_failed=1
+  fi
+  [ "$retention_failed" -eq 0 ] || cli_fail "the archive was written and kept, but retention failed"
+  [ "$upload_failed" -eq 0 ] || cli_fail "the archive was written and kept locally, but the upload failed"
+  echo "Scheduled panel backup written: ${CLI_PANEL_BACKUP_TARGET}"
+}
+
+# cli_panel_backup_scheduled: `maran panel-backup --scheduled`, what the systemd service runs. Takes
+# its arguments from the configuration file, not the command line. Exactly one audit line goes to
+# the journal under the maran-cli tag whatever the outcome, carrying the verb and the outcome only,
+# and a failure returns non-zero so the unit shows `failed`.
+#
+# The run is a subshell so that any refusal inside it, however deep, comes back here as a status and
+# is logged. errexit is switched off in this shell around it and back on inside it: a subshell that
+# is the left side of `||` would run with errexit disabled and silently continue past failures.
+cli_panel_backup_scheduled() {
+  local status=0
+  set +e
+  ( set -e; cli_panel_backup_scheduled_run )
+  status=$?
+  set -e
+  if [ "$status" -eq 0 ]; then
+    cli_audit_log panel-backup-scheduled written
+  else
+    cli_audit_log panel-backup-scheduled "failed-${status}"
+  fi
+  return "$status"
+}
+
+# cli_panel_backup: the verb. Arguments: --passphrase-file FILE [--out DIR], or --scheduled alone.
+cli_panel_backup() {
+  local out="$MARAN_PANEL_BACKUP_DEFAULT_OUT" passphrase_file="" arg
+  if [ "${1:-}" = "--scheduled" ]; then
+    [ "$#" -eq 1 ] || cli_fail "--scheduled takes no other option. ${MARAN_PANEL_BACKUP_USAGE}"
+    cli_panel_backup_scheduled
+    return
+  fi
+  while [ "$#" -gt 0 ]; do
+    arg="$1"
+    case "$arg" in
+      --out|--passphrase-file)
+        [ "$#" -ge 2 ] || cli_fail "${arg} needs a value. ${MARAN_PANEL_BACKUP_USAGE}"
+        if [ "$arg" = "--out" ]; then out="$2"; else passphrase_file="$2"; fi
+        shift
+        ;;
+      *) cli_fail "unknown option. ${MARAN_PANEL_BACKUP_USAGE}" ;;
+    esac
+    shift
+  done
+  [ -n "$passphrase_file" ] || cli_fail "$MARAN_PANEL_BACKUP_USAGE"
+
+  cli_panel_backup_execute "$passphrase_file" "$out"
   cli_audit_log panel-backup written
 
-  echo "Panel backup: ${target}"
+  echo "Panel backup: ${CLI_PANEL_BACKUP_TARGET}"
   echo
   echo "This archive holds the panel's database and the key that decrypts every secret in it."
   echo "Whoever has the archive and its passphrase has this panel. Copy it off this server, keep"
