@@ -140,6 +140,11 @@ mod s3_object_store_host;
 // Private: the live per-dump ceiling, derived from the same measurement.
 mod scratch_dump_ceiling;
 mod swap_home;
+// Private: where one verification stages its manifest and whose every file it
+// reads must be, filled from `AgentPaths` by the entry point and from a test's
+// own directories by a test.
+mod verification_placement;
+mod verify_backup;
 mod verify_backup_binaries;
 mod write_sidecar;
 
@@ -156,6 +161,7 @@ pub use model::backup_manifest::{BackupManifest, MANIFEST_VERSION};
 pub use model::backup_stage::BackupStage;
 pub use model::backup_state::BackupState;
 pub use model::backup_summary::BackupSummary;
+pub use model::backup_verification::BackupVerification;
 pub use model::extract_identity::ExtractIdentity;
 pub use model::extract_spec::ExtractSpec;
 pub use model::manifest_database::ManifestDatabase;
@@ -176,4 +182,5 @@ pub use real_executable_lookup::RealExecutableLookup;
 pub use recover_restores::recover_restores;
 pub use restore_backup::restore_backup;
 pub use s3_object_store_host::S3ObjectStoreHost;
+pub use verify_backup::verify_backup;
 pub use verify_backup_binaries::verify_backup_binaries;

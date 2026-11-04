@@ -99,6 +99,25 @@ public sealed class PartialRestoreAgentBackupClient : IAgentBackupClient
         return Task.FromResult(Result.Ok());
     }
 
+    /// <summary>The answer every verification gets; a not-implemented failure until a test sets one.</summary>
+    public Result<AgentBackupVerification> VerifyResult { get; set; } =
+        Result<AgentBackupVerification>.Fail(Error.Of("AgentNotImplemented", ErrorType.Unavailable));
+
+    /// <summary>Not reachable from these tests; answers <see cref="VerifyResult"/>.</summary>
+    /// <param name="accountUsername">The account that owns the backup.</param>
+    /// <param name="backupId">The backup to verify.</param>
+    /// <param name="destination">Where the artifact resides.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The scripted result, a failure by default so nothing reads it as a sound artifact.</returns>
+    public Task<Result<AgentBackupVerification>> VerifyBackupAsync(
+        string accountUsername,
+        string backupId,
+        AgentBackupDestination destination,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(VerifyResult);
+    }
+
     /// <summary>Answers as the shipping agent does: no probe is performed at all.</summary>
     /// <param name="destination">The destination that would be probed.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

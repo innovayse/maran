@@ -1,9 +1,11 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.BackupService;
+using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Models;
 using Maran.Modules.Backups.Resources;
 using Maran.Sdk.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace Maran.Modules.Backups.Services;
 
@@ -32,22 +34,59 @@ namespace Maran.Modules.Backups.Services;
 /// that changes shape while it is being read, and a percentage in a table whose other columns
 /// describe a finished artifact.
 /// </para>
+/// <para>
+/// <b>Verification follows a completed run and is its own fact (issue #134).</b>
+/// <see cref="VerifyCompletedAsync"/> has <see cref="BackupVerifier"/> read the finished artifact back
+/// and record the answer on the row beside the run's status, never in place of it: the run produced
+/// an archive, and a later finding about that archive must not turn it into a failed run that
+/// retention treats as disposable. A verification that could not run — the agent busy, saturated or
+/// unreachable, a bound reached on a slow host — records nothing and mails nothing, because it found
+/// nothing about the artifact; only a typed finding marks the row failed and tells the administrator.
+/// </para>
 /// </remarks>
 public sealed class BackupRunner
 {
+    /// <summary>Pre-compiled log delegate for a verification that could not be carried out.</summary>
+    private static readonly Action<ILogger, Guid, Exception?> LogVerificationUnavailable =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Warning,
+            new EventId(1, nameof(BackupRunner)),
+            "The verification of backup {BackupId} could not be carried out; the row keeps its previous "
+            + "verification state and the run's outcome is unchanged");
+
     /// <summary>The agent, which owns every byte of every archive.</summary>
     private readonly IAgentBackupClient _agent;
 
     /// <summary>The panel-wide task journal, so an operator can watch a run instead of waiting on it.</summary>
     private readonly ITaskRecorder _tasks;
 
+    /// <summary>Reads a finished artifact back, records and journals what it found.</summary>
+    private readonly BackupVerifier _verifier;
+
+    /// <summary>Tells the administrator about an artifact that has just been found damaged.</summary>
+    private readonly BackupVerificationAnnouncer _announcer;
+
+    /// <summary>Where a verification that could not be carried out is reported.</summary>
+    private readonly ILogger<BackupRunner> _logger;
+
     /// <summary>Creates the runner.</summary>
     /// <param name="agent">The agent client that makes the archive.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
-    public BackupRunner(IAgentBackupClient agent, ITaskRecorder tasks)
+    /// <param name="verifier">Reads a finished artifact back, records and journals what it found.</param>
+    /// <param name="announcer">Tells the administrator about an artifact that has just been found damaged.</param>
+    /// <param name="logger">Where a verification that could not be carried out is reported.</param>
+    public BackupRunner(
+        IAgentBackupClient agent,
+        ITaskRecorder tasks,
+        BackupVerifier verifier,
+        BackupVerificationAnnouncer announcer,
+        ILogger<BackupRunner> logger)
     {
         _agent = agent;
         _tasks = tasks;
+        _verifier = verifier;
+        _announcer = announcer;
+        _logger = logger;
     }
 
     /// <summary>Runs one backup to its end and reports what it produced.</summary>
@@ -103,6 +142,66 @@ public sealed class BackupRunner
         // The sequence ended without a terminal event at all. Whether an artifact exists on the
         // destination is unknown, so this is a truncation and never a completion.
         return Failure(nameof(ErrorMessages.BackupTruncated));
+    }
+
+    /// <summary>Reads a just-completed backup's artifact back and records what that found.</summary>
+    /// <param name="backup">
+    /// The row the run completed. A row that is not <see cref="Domain.Enums.BackupStatus.Completed"/>
+    /// has no artifact and must not be passed; the entity refuses to record against it in any case.
+    /// </param>
+    /// <param name="accountUsername">System user name of the account the backup is of.</param>
+    /// <param name="cancellationToken">Cancels the verification.</param>
+    /// <returns>A task that completes once the verification is recorded and a finding is announced.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Never throws on the verification's account, and so never makes the run fail.</b> The
+    /// verification is bounded by the agent's own call deadlines; whatever it raises that is not the
+    /// caller's cancellation — the agent, the write of the finding, the mail — is logged and read as
+    /// "could not verify now", which leaves the run's outcome as it was. Reading a transient fault as
+    /// a failed artifact would tell the administrator a backup is corrupt because a socket dropped.
+    /// </para>
+    /// <para>
+    /// <b>The mail follows the record.</b> The verifier saves the finding before it answers, so the
+    /// administrator is never told of a finding the panel's own screen does not show.
+    /// </para>
+    /// </remarks>
+    public async Task VerifyCompletedAsync(
+        Backup backup,
+        string accountUsername,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await VerifyAndAnnounceAsync(backup, accountUsername, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            LogVerificationUnavailable(_logger, backup.Id, exception);
+        }
+    }
+
+    /// <summary>Asks the verifier and announces a finding about the artifact.</summary>
+    /// <param name="backup">The completed row.</param>
+    /// <param name="accountUsername">System user name of the account the backup is of.</param>
+    /// <param name="cancellationToken">Cancels the verification and the writes.</param>
+    /// <returns>A task that completes once the answer is handled.</returns>
+    private async Task VerifyAndAnnounceAsync(
+        Backup backup,
+        string accountUsername,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await _verifier.VerifyAsync(backup, accountUsername, cancellationToken);
+
+        // The verifier has already recorded and journalled a sound artifact or a finding. Whether a
+        // finding is announced is the announcer's rule, not the runner's: a verification that was not
+        // performed found nothing about the artifact and is never announced, and a finding on a backup
+        // already recorded as failed is not news. A row this run has just written is not yet failed,
+        // so its first finding is always announced.
+        await _announcer.AnnounceAsync(backup, accountUsername, outcome, cancellationToken);
     }
 
     /// <summary>Builds the outcome of a run that produced no usable artifact.</summary>

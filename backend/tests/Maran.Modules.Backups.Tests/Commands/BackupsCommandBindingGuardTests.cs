@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Maran.Modules.Backups.Commands.CreateBackup;
 using Maran.Modules.Backups.Commands.RestoreBackup;
 using Maran.Modules.Backups.Commands.SaveBackupSchedule;
+using Maran.Modules.Backups.Commands.VerifyBackup;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Maran.Modules.Backups.Tests.Commands;
@@ -55,6 +56,9 @@ public sealed class BackupsCommandBindingGuardTests
                 { typeof(RestoreBackupCommand), nameof(RestoreBackupCommand.UserAgent) },
                 { typeof(SaveBackupScheduleCommand), nameof(SaveBackupScheduleCommand.IpAddress) },
                 { typeof(SaveBackupScheduleCommand), nameof(SaveBackupScheduleCommand.UserAgent) },
+                { typeof(VerifyBackupCommand), nameof(VerifyBackupCommand.BackupId) },
+                { typeof(VerifyBackupCommand), nameof(VerifyBackupCommand.IpAddress) },
+                { typeof(VerifyBackupCommand), nameof(VerifyBackupCommand.UserAgent) },
             };
         }
     }
@@ -113,6 +117,27 @@ public sealed class BackupsCommandBindingGuardTests
 
         Assert.NotNull(command);
         Assert.Equal(string.Empty, command!.IpAddress);
+        Assert.Equal(string.Empty, command.UserAgent);
+    }
+
+    /// <summary>A body naming the members of a verification fills none of them.</summary>
+    /// <remarks>
+    /// The verify endpoint has no body at all, so this is the guard on the TYPE rather than on a
+    /// route that exists: a verification whose id could be filled from a body would let one id sit
+    /// in the URL and another in the JSON.
+    /// </remarks>
+    [Fact]
+    public void A_body_cannot_fill_any_member_of_a_verification()
+    {
+        const string Body = """
+            {"backupId":"99999999-9999-9999-9999-999999999999","ipAddress":"6.6.6.6","userAgent":"ATTACKER"}
+            """;
+
+        var command = JsonSerializer.Deserialize<VerifyBackupCommand>(Body, BodyOptions);
+
+        Assert.NotNull(command);
+        Assert.Equal(Guid.Empty, command!.BackupId);
+        Assert.Equal(string.Empty, command.IpAddress);
         Assert.Equal(string.Empty, command.UserAgent);
     }
 

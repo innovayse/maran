@@ -309,6 +309,11 @@ const BACKUPS: Backup[] = [
     finishedAt: '2026-09-06T03:04:00Z',
     failureCode: null,
     failureDisplayName: null,
+    verificationState: 'notVerified',
+    verificationStateName: 'Not verified',
+    verifiedAt: null,
+    verificationFailureCode: null,
+    verificationFailureDisplayName: null,
   },
   {
     id: '77777777-7777-7777-7777-777777777772',
@@ -326,6 +331,11 @@ const BACKUPS: Backup[] = [
     finishedAt: '2026-09-07T03:01:00Z',
     failureCode: 'DestinationUnreachable',
     failureDisplayName: 'The backup destination could not be reached',
+    verificationState: 'notVerified',
+    verificationStateName: 'Not verified',
+    verifiedAt: null,
+    verificationFailureCode: null,
+    verificationFailureDisplayName: null,
   },
   {
     id: '77777777-7777-7777-7777-777777777773',
@@ -343,6 +353,11 @@ const BACKUPS: Backup[] = [
     finishedAt: '2026-09-05T03:02:00Z',
     failureCode: null,
     failureDisplayName: null,
+    verificationState: 'notVerified',
+    verificationStateName: 'Not verified',
+    verifiedAt: null,
+    verificationFailureCode: null,
+    verificationFailureDisplayName: null,
   },
 ]
 

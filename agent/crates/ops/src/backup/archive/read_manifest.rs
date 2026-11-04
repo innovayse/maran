@@ -1,6 +1,7 @@
 //! Reading the manifest out of an archive, before anything trusts the archive.
 
 use std::fs::read;
+use std::os::unix::fs::MetadataExt as _;
 use std::path::Path;
 
 use crate::backup::backup_error::BackupError;
@@ -11,6 +12,16 @@ use crate::backup::model::extract_spec::ExtractSpec;
 
 /// The manifest's name, at the archive's root and in the scratch it lands in.
 const MANIFEST_FILE: &str = "manifest.json";
+
+/// The largest manifest this agent will read: 4 MiB.
+///
+/// A manifest holds one short line per database plus a handful of scalars, so a
+/// real one is a few kilobytes and one for an account with thousands of
+/// databases is well under a megabyte. The ceiling is far above any of those and
+/// far below anything that would matter to a root process reading it whole; it
+/// exists so that an artifact that has been replaced cannot make the agent
+/// allocate what its manifest member says.
+const MANIFEST_CEILING_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Extracts `manifest.json` root-side and answers what it says.
 ///
@@ -35,9 +46,18 @@ const MANIFEST_FILE: &str = "manifest.json";
 ///   one account, and restoring one account's databases over another's is the
 ///   single worst thing this operation could be talked into.
 ///
+/// - A manifest member that did not come out as a plain file with a single link
+///   ([`BackupError::MemberNotRegularFile`]). `tar` extracts a symbolic link
+///   member as a symbolic link, and reading it would follow the link as root;
+///   the member is judged by what the extraction left on disk, with
+///   `symlink_metadata`, before any byte of it is read. The layout scan cannot
+///   catch this, because it decides on names.
+/// - A manifest larger than `MANIFEST_CEILING_BYTES`
+///   ([`BackupError::ManifestTooLarge`]), refused before it is parsed.
+///
 /// # Errors
 ///
-/// The two above, plus [`BackupError::ArchiveFailed`] when the member cannot be
+/// The ones above, plus [`BackupError::ArchiveFailed`] when the member cannot be
 /// extracted, [`BackupError::Bound`] when the archiver was killed at its
 /// deadline, and [`BackupError::ManifestUnwritable`] when what landed cannot be
 /// read or parsed — the same variant the create side uses for the same
@@ -55,7 +75,18 @@ pub(crate) fn read_manifest(
         part: ArchivePart::Manifest,
     })?;
 
-    let bytes = read(scratch.join(MANIFEST_FILE)).map_err(|_| BackupError::ManifestUnwritable)?;
+    let extracted = scratch.join(MANIFEST_FILE);
+    let metadata = extracted
+        .symlink_metadata()
+        .map_err(|_| BackupError::ManifestUnwritable)?;
+    if !metadata.is_file() || metadata.nlink() != 1 {
+        return Err(BackupError::MemberNotRegularFile);
+    }
+    if metadata.len() > MANIFEST_CEILING_BYTES {
+        return Err(BackupError::ManifestTooLarge);
+    }
+
+    let bytes = read(&extracted).map_err(|_| BackupError::ManifestUnwritable)?;
     let manifest: BackupManifest =
         serde_json::from_slice(&bytes).map_err(|_| BackupError::ManifestUnwritable)?;
 

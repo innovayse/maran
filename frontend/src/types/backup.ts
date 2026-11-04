@@ -22,6 +22,15 @@ export type BackupStatus = 'running' | 'completed' | 'failed'
 export type BackupKind = 'manual' | 'scheduled' | 'preDeletion' | 'preRestore'
 
 /**
+ * Whether a backup's artifact has been re-read after the run and found sound, mirroring the
+ * backend's `BackupVerificationState`, which crosses the wire as a camelCase NAME.
+ *
+ * `notVerified` is not a failure: it is a backup nobody has checked yet, and the screen must not
+ * draw it as one. Verification is its own fact beside {@link BackupStatus} and never rewrites it.
+ */
+export type BackupVerificationState = 'notVerified' | 'verified' | 'failed'
+
+/**
  * Outward view of one backup, mirroring the backend's `BackupDto` field for field.
  *
  * It carries no path, no bucket and no object key, because the backend's DTO carries none: where
@@ -88,6 +97,23 @@ export interface Backup {
    * falls back to the code in that case rather than rendering an empty cell.
    */
   failureDisplayName: string | null
+  /** Whether the artifact was re-read after the run and found sound. */
+  verificationState: BackupVerificationState
+  /** The verification state as an operator reads it, in the request's language. */
+  verificationStateName: string
+  /** When the artifact was last verified, as an ISO-8601 string, or `null` when it never was. */
+  verifiedAt: string | null
+  /**
+   * The machine-stable code of what the last verification found wrong, or `null` when it did not
+   * fail. It travels BESIDE {@link Backup.verificationFailureDisplayName}, as a run's `failureCode`
+   * does: the code is what an operator quotes in a support ticket and does not change with the language.
+   */
+  verificationFailureCode: string | null
+  /**
+   * The same finding named in the caller's language, or `null` when nothing failed. The panel owns
+   * no text for it (rules/vue.md): it is rendered as given, with the code printed beneath it.
+   */
+  verificationFailureDisplayName: string | null
 }
 
 /**
@@ -246,8 +272,8 @@ export type BackupAttentionLoad =
 /**
  * Typed access to the backups endpoints.
  *
- * Five calls, matching the five routes `BackupsController` publishes. `restore` is one of them,
- * backed by the panel's `POST /api/v1/backups/{id}/restore`.
+ * Seven calls, matching the seven routes `BackupsController` publishes. `verify` and `restore` are two of them,
+ * backed by the panel's `POST /api/v1/backups/{id}/verify` and `POST /api/v1/backups/{id}/restore`.
  *
  * Called from Pinia stores only — never from a component (rules/vue.md).
  */
@@ -290,6 +316,14 @@ export interface BackupsApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    */
   remove: (id: string, signal?: AbortSignal) => Promise<void>
+
+  /**
+   * Re-reads a backup's artifact on the server and records whether it is sound.
+   * @param id The backup to verify.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The backup with its verification state as the panel now holds it.
+   */
+  verify: (id: string, signal?: AbortSignal) => Promise<Backup>
 
   /**
    * Replaces an account from one of its backups: its home directory is swapped for the archive's

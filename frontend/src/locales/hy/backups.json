@@ -17,7 +17,8 @@
         "size": "Չափ",
         "databases": "Բազաներ",
         "startedAt": "Սկսված",
-        "finishedAt": "Ավարտված"
+        "finishedAt": "Ավարտված",
+        "verification": "Ստուգում"
       },
       "confirmDelete": "Ջնջե՞լ այս պատճենը։ Այն կվերանա, և այստեղից հետ բերել հնարավոր չէ։",
       "confirmDeleteTitle": "Ջնջել {account}-ի պատճենը {startedAt}-ից",
@@ -39,7 +40,8 @@
         "kind": "Պատճառ",
         "from": "Սկսված՝ սկսած",
         "to": "Սկսված՝ մինչև"
-      }
+      },
+      "verifiedAt": "Ստուգվել է {when}"
     },
     "form": {
       "fields": {
@@ -192,6 +194,11 @@
       "filters": {
         "kind": "Պահոցի տեսակ"
       }
+    },
+    "verify": {
+      "action": "Ստուգել հիմա",
+      "actionFor": "Ստուգել հիմա՝ {account}-ի պատճենը",
+      "working": "Ստուգվում է…"
     }
   }
 }

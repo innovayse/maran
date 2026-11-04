@@ -61,6 +61,16 @@ export const useBackupsStore = defineStore('backups', () => {
    */
   const removeErrorMessage: Ref<string | null> = ref(null)
 
+  /** The backup whose verification is in flight, or `null`; it disables that row's Verify now button. */
+  const verifyingId: Ref<string | null> = ref(null)
+
+  /**
+   * Backend-localized message from the most recent verification request the panel refused, or
+   * `null`. A verification that RAN and found the artifact unsound is not an error here: it comes
+   * back as a record whose state is `failed`, and the row shows it.
+   */
+  const verifyErrorMessage: Ref<string | null> = ref(null)
+
   /**
    * Backend-localized message from the most recent failed create attempt, or `null`. Kept apart
    * from the list's own refusal so a rejected create does not blank the list's own error.
@@ -156,6 +166,30 @@ export const useBackupsStore = defineStore('backups', () => {
   }
 
   /**
+   * Asks the panel to re-read a backup's artifact and record whether it is sound, then replaces
+   * that one row with the record the panel answered. Only the row is patched, not the page: a
+   * verification changes no field a sort or filter reads, so the row cannot change place.
+   * @param id The backup to verify.
+   * @returns True when the panel answered with a record, whatever the record's verification state.
+   */
+  const verify = async (id: string): Promise<boolean> => {
+    verifyingId.value = id
+    try {
+      const verified = await api.verify(id)
+      backups.value = backups.value.map((row) => {
+        return row.id === id ? verified : row
+      })
+      verifyErrorMessage.value = null
+      return true
+    } catch (error) {
+      verifyErrorMessage.value = error instanceof ApiError ? error.message : null
+      return false
+    } finally {
+      verifyingId.value = null
+    }
+  }
+
+  /**
    * Forgets the outcome of any previous restore, so a dialog opening on a second row does not show
    * what happened on the first.
    * @returns Nothing.
@@ -210,11 +244,14 @@ export const useBackupsStore = defineStore('backups', () => {
     acting,
     removeErrorMessage,
     createErrorMessage,
+    verifyingId,
+    verifyErrorMessage,
     restoreRun,
     list,
     loadAttention,
     create,
     remove,
+    verify,
     clearRestore,
     restore,
   }

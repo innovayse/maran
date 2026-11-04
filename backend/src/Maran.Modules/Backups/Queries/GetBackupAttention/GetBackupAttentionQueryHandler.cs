@@ -96,6 +96,8 @@ public sealed class GetBackupAttentionQueryHandler
                 ownerNames,
                 _failureNames.Of(newest.RunFailureCode),
                 _backupNames.Of(newest.Status),
-                _backupNames.Of(newest.Kind))));
+                _backupNames.Of(newest.Kind),
+                _backupNames.Of(newest.VerificationState),
+                _failureNames.Of(newest.VerificationFailureCode))));
     }
 }

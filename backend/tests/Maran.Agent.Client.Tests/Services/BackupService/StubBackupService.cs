@@ -19,6 +19,9 @@ internal sealed class StubBackupService : IBackupServiceInvoker
     /// <summary>Response returned from <see cref="DeleteBackupAsync"/>.</summary>
     public DeleteBackupResponse DeleteResponse { get; set; } = new();
 
+    /// <summary>Response returned from <see cref="VerifyBackupAsync"/>.</summary>
+    public VerifyBackupResponse VerifyResponse { get; set; } = new();
+
     /// <summary>Response returned from <see cref="ProbeDestinationAsync"/>.</summary>
     public ProbeDestinationResponse ProbeResponse { get; set; } = new();
 
@@ -42,6 +45,9 @@ internal sealed class StubBackupService : IBackupServiceInvoker
 
     /// <summary>The last request <see cref="DeleteBackupAsync"/> received.</summary>
     public DeleteBackupRequest? LastDeleteRequest { get; private set; }
+
+    /// <summary>The last request <see cref="VerifyBackupAsync"/> received, or null when it was never called.</summary>
+    public VerifyBackupRequest? LastVerifyRequest { get; private set; }
 
     /// <summary>The last request <see cref="ProbeDestinationAsync"/> received.</summary>
     public ProbeDestinationRequest? LastProbeRequest { get; private set; }
@@ -93,6 +99,16 @@ internal sealed class StubBackupService : IBackupServiceInvoker
         LastDeleteRequest = request;
 
         return Task.FromResult(DeleteResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<VerifyBackupResponse> VerifyBackupAsync(
+        VerifyBackupRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastVerifyRequest = request;
+
+        return Task.FromResult(VerifyResponse);
     }
 
     /// <inheritdoc/>

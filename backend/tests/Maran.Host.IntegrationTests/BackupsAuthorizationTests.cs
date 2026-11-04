@@ -68,6 +68,7 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/backups/{id}" },
             { "DELETE", "/api/v1/backups/{id}" },
             { "POST", "/api/v1/backups/{id}/restore" },
+            { "POST", "/api/v1/backups/{id}/verify" },
         };
     }
 
@@ -83,6 +84,7 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/backups/{id}" },
             { "DELETE", "/api/v1/backups/{id}" },
             { "POST", "/api/v1/backups/{id}/restore" },
+            { "POST", "/api/v1/backups/{id}/verify" },
         };
     }
 
@@ -354,8 +356,8 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
         if (method == "POST")
         {
-            // One body serves both POST routes: create reads the account, restore reads the typed
-            // confirmation, and each ignores the other's field. The confirmation is a well-formed
+            // One body serves all three POST routes: create reads the account, restore reads the typed
+            // confirmation, verify reads nothing, and each ignores the other's field. The confirmation is a well-formed
             // user name on purpose — a malformed one would be refused by the validator with 400 and
             // the theory would then be measuring the validator rather than the tenancy refusal it
             // is about. It matches no account here, so the restore is still refused; it is refused

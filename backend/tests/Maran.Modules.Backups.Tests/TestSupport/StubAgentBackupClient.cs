@@ -167,6 +167,40 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
             ListResult ?? Result<IReadOnlyList<AgentBackupSummary>>.Ok([]));
     }
 
+    /// <summary>The account name and backup id of every verification asked for, in order.</summary>
+    public List<(string AccountUsername, string BackupId)> Verifications { get; } = [];
+
+    /// <summary>The answer <see cref="VerifyBackupAsync"/> gives; null means a sound artifact.</summary>
+    /// <remarks>
+    /// Settable rather than constructor-supplied for the reason <see cref="ListResult"/> gives. A test
+    /// that does not set it gets a successful verification with small, non-zero counts, so a run that
+    /// is not about verification neither alerts nor reads an empty artifact; a test about a corrupt
+    /// artifact scripts the failure code the agent would have answered.
+    /// </remarks>
+    public Result<AgentBackupVerification>? VerifyResult { get; set; }
+
+    /// <summary>Run at the moment a verification is asked for, before it answers; may throw.</summary>
+    /// <remarks>
+    /// Reaches the one case a scripted answer cannot express: the call raising instead of answering,
+    /// which is what a dropped socket does and which a verification must not turn into a failed run.
+    /// </remarks>
+    public Action? OnVerify { get; set; }
+
+    /// <inheritdoc />
+    public Task<Result<AgentBackupVerification>> VerifyBackupAsync(
+        string accountUsername,
+        string backupId,
+        AgentBackupDestination destination,
+        CancellationToken cancellationToken)
+    {
+        Verifications.Add((accountUsername, backupId));
+        Destinations.Add(destination);
+        OnVerify?.Invoke();
+
+        return Task.FromResult(
+            VerifyResult ?? Result<AgentBackupVerification>.Ok(new AgentBackupVerification(3, 1, 4096)));
+    }
+
     /// <inheritdoc />
     public Task<Result> DeleteAsync(
         string accountUsername,

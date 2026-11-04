@@ -17,6 +17,8 @@ pub mod channel_restore_sink;
 pub mod db_host_catalog;
 pub mod home_group;
 pub mod remote_destination_refused;
+pub mod reported_verify_backup;
 pub mod to_backup_info;
 pub mod validated_destination;
 pub mod validated_restore;
+pub mod validated_verification;

@@ -17,7 +17,8 @@
         "size": "Размер",
         "databases": "Базы данных",
         "startedAt": "Начата",
-        "finishedAt": "Завершена"
+        "finishedAt": "Завершена",
+        "verification": "Проверка"
       },
       "confirmDelete": "Удалить эту копию? Она исчезнет, и вернуть её отсюда нельзя.",
       "confirmDeleteTitle": "Удалить копию {account} от {startedAt}",
@@ -39,7 +40,8 @@
         "kind": "Причина",
         "from": "Начата с",
         "to": "Начата по"
-      }
+      },
+      "verifiedAt": "Проверена {when}"
     },
     "form": {
       "fields": {
@@ -192,6 +194,11 @@
       "filters": {
         "kind": "Тип хранилища"
       }
+    },
+    "verify": {
+      "action": "Проверить сейчас",
+      "actionFor": "Проверить сейчас: копия {account}",
+      "working": "Проверяется…"
     }
   }
 }

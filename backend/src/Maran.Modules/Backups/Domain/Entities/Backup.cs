@@ -153,6 +153,32 @@ public sealed class Backup
     /// </remarks>
     internal string LegacyOrphanedAccountUsername { get; private set; }
 
+    /// <summary>
+    /// Whether the finished artifact has been read back and found sound;
+    /// <see cref="BackupVerificationState.NotVerified"/> until a verification answers.
+    /// </summary>
+    /// <remarks>
+    /// <b>A fact of its own, never a rewrite of <see cref="Status"/>.</b> A completed run whose
+    /// artifact later fails verification stays <see cref="BackupStatus.Completed"/>: the run did what
+    /// it reported, and the artifact is what turned out not to be restorable. The column is added
+    /// with a default, so a row written by the previous release reads as not verified, which is the
+    /// truth about it.
+    /// </remarks>
+    public BackupVerificationState VerificationState { get; private set; }
+
+    /// <summary>When the latest verification answered, or <c>null</c> while none has.</summary>
+    public DateTimeOffset? VerifiedAt { get; private set; }
+
+    /// <summary>
+    /// The machine-stable code of why the latest verification failed, or <c>null</c> unless
+    /// <see cref="VerificationState"/> is <see cref="BackupVerificationState.Failed"/>.
+    /// </summary>
+    /// <remarks>
+    /// A code and never the agent's sentence, for the reason <see cref="RunFailureCode"/> is
+    /// (rules/security.md item 8).
+    /// </remarks>
+    public string? VerificationFailureCode { get; private set; }
+
     /// <summary>Opens the record of a backup that has just been started.</summary>
     /// <param name="id">The identity, which is also the agent's backup id.</param>
     /// <param name="accountId">The account being backed up.</param>
@@ -182,6 +208,9 @@ public sealed class Backup
         LegacyFailureCode = string.Empty;
         DeletedAccountUsername = null;
         LegacyOrphanedAccountUsername = string.Empty;
+        VerificationState = BackupVerificationState.NotVerified;
+        VerifiedAt = null;
+        VerificationFailureCode = null;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>
@@ -241,6 +270,52 @@ public sealed class Backup
         FinishedAt = finishedAt;
         RunFailureCode = failureCode;
         LegacyFailureCode = failureCode;
+    }
+
+    /// <summary>Records that the artifact was read back and matched what the run recorded.</summary>
+    /// <param name="at">The instant the verification answered, taken from <see cref="IClock"/>.</param>
+    /// <remarks>
+    /// <para>
+    /// Only a <see cref="BackupStatus.Completed"/> backup has an artifact to verify; any other row
+    /// is left untouched. Verifying again overwrites the previous answer — the latest read of the
+    /// artifact is the one that is true now, and a failure recorded last week must not outlive a
+    /// verification that has since passed.
+    /// </para>
+    /// </remarks>
+    public void MarkVerified(DateTimeOffset at)
+    {
+        if (Status != BackupStatus.Completed)
+        {
+            return;
+        }
+
+        VerificationState = BackupVerificationState.Verified;
+        VerifiedAt = at;
+        VerificationFailureCode = null;
+    }
+
+    /// <summary>Records that the artifact was read back, or could not be, and was found unsound.</summary>
+    /// <param name="at">The instant the verification answered, taken from <see cref="IClock"/>.</param>
+    /// <param name="failureCode">The machine-stable code of the failure. Never a supplied sentence.</param>
+    /// <remarks>
+    /// <para>
+    /// Refuses a row that is not <see cref="BackupStatus.Completed"/> and refuses an empty code: a
+    /// failed verification with no reason is a finding an operator cannot act on, and a
+    /// <see cref="BackupVerificationState.Failed"/> row whose code is blank would render as no
+    /// failure at all. It never touches <see cref="Status"/>: the run's own outcome is a different
+    /// fact. Verifying again overwrites the previous answer, as <see cref="MarkVerified"/> does.
+    /// </para>
+    /// </remarks>
+    public void MarkVerificationFailed(DateTimeOffset at, string failureCode)
+    {
+        if (Status != BackupStatus.Completed || string.IsNullOrEmpty(failureCode))
+        {
+            return;
+        }
+
+        VerificationState = BackupVerificationState.Failed;
+        VerifiedAt = at;
+        VerificationFailureCode = failureCode;
     }
 
     /// <summary>Whether this backup's artifact may be deleted at the caller's request.</summary>

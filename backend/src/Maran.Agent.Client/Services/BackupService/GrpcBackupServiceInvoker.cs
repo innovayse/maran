@@ -53,6 +53,14 @@ internal sealed class GrpcBackupServiceInvoker : IBackupServiceInvoker
     }
 
     /// <inheritdoc/>
+    public async Task<VerifyBackupResponse> VerifyBackupAsync(
+        VerifyBackupRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.VerifyBackupAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<DeleteBackupResponse> DeleteBackupAsync(
         DeleteBackupRequest request,
         CancellationToken cancellationToken)

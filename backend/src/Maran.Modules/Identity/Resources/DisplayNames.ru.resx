@@ -256,6 +256,15 @@
   <data name="AuditActionBackupDestinationSaved">
     <value>Запрошено хранилище резервных копий</value>
   </data>
+  <data name="AuditActionBackupVerified">
+    <value>Резервная копия проверена</value>
+  </data>
+  <data name="AuditActionBackupVerificationFailed">
+    <value>Проверка резервной копии не пройдена</value>
+  </data>
+  <data name="AuditActionBackupVerificationNotPerformed">
+    <value>Проверку резервной копии не удалось выполнить</value>
+  </data>
   <data name="AuditActionLicenceStatusRead">
     <value>Прочитан статус лицензии</value>
   </data>

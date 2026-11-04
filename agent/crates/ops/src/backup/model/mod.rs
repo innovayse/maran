@@ -7,6 +7,7 @@ pub mod backup_manifest;
 pub mod backup_stage;
 pub mod backup_state;
 pub mod backup_summary;
+pub mod backup_verification;
 pub mod extract_identity;
 pub mod extract_spec;
 pub mod manifest_database;

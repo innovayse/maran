@@ -75,6 +75,15 @@ public sealed class BackupsModule : IPanelModule
         services.AddScoped<DefaultBackupDestinationSeeder>();
         services.AddScoped<BackupRunner>();
         services.AddScoped<BackupAlertMailer>();
+
+        // Scoped, because it saves through the request-scoped context and journals as the current
+        // caller. The one path a verification takes: the endpoint's handler and the run both ask it.
+        services.AddScoped<BackupVerifier>();
+
+        // Scoped, because it raises the alert through the request-scoped journal. The one place the
+        // rule "announce a finding once, on the transition into failed" is applied, for the run and for
+        // the endpoint alike.
+        services.AddScoped<BackupVerificationAnnouncer>();
         services.AddScoped<RestoreRunner>();
 
         // The one act this module exposes to another (spec §12). Registered against the Sdk

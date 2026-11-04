@@ -398,7 +398,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::accounts::{AccountError, AccountOperations, ProcessSystemHost};
 use maran_ops::backup::{
     BackupError, BackupStage, ProgressSink, RestoreSink, RestoreStage, create_backup,
-    delete_backup, list_backups, restore_backup,
+    delete_backup, list_backups, restore_backup, verify_backup,
 };
 use maran_ops::db::{CreateDatabaseRequest, ProcessDbHost, create_database};
 use maran_ops::php::ProcessPhpHost;
@@ -990,6 +990,80 @@ fn deleting_a_backup_removes_both_files_and_deleting_again_reports_not_found() {
     let repeated = delete_backup(&root(), account.name(), &fixture_id())
         .expect_err("deleting a backup that is gone reports it");
     assert!(matches!(repeated, BackupError::NotFound), "{repeated}");
+}
+
+#[test]
+#[ignore = "verifies a real artifact, then damages one byte of it: polygon only"]
+fn a_real_artifact_verifies_and_one_flipped_byte_in_it_is_refused() {
+    let server = PolygonMariadb::start();
+    let account = PolygonAccount::create("polybackseven");
+    clear_backups(account.name());
+    give_account_a_database(&server, account.name());
+    write(account.home().join("index.html"), HOME_FILE_CONTENTS).expect("a file in the home");
+
+    let floor = maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+        .expect("a one-mebibyte floor");
+    create_backup(
+        &ProcessBackupHost::new(polygon_distro()),
+        &catalog(),
+        account.name(),
+        &fixture_id(),
+        &root(),
+        &floor,
+        &mut RecordingSink::default(),
+    )
+    .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
+    let artifact = artifact_of(account.name(), &fixture_id());
+    let host = ProcessBackupHost::new(polygon_distro());
+
+    // The inverse control: the artifact exactly as creation published it
+    // verifies, so the refusal below is about the byte and not about a
+    // verification that refuses every real artifact.
+    let verified = verify_backup(&host, account.name(), &fixture_id(), &root(), &floor)
+        .unwrap_or_else(|error| panic!("a freshly created artifact must verify: {error}"));
+    assert_eq!(
+        verified.artifact_bytes,
+        metadata(&artifact).expect("the artifact").len()
+    );
+    assert_eq!(
+        verified.database_count, 1,
+        "the one database the account owns"
+    );
+    assert!(
+        verified.member_count >= 4,
+        "manifest, home, databases and the dump at least: {}",
+        verified.member_count
+    );
+    assert!(
+        !AgentPaths::backup_verification_scratch_dir(&fixture_id()).exists(),
+        "a verification left its scratch behind"
+    );
+
+    // Damage one byte of the real file, in place, keeping its length, owner
+    // and mode, the way bit rot does.
+    let original = std::fs::read(&artifact).expect("root reads the artifact");
+    let mut damaged = original.clone();
+    let middle = damaged.len() / 2;
+    damaged[middle] ^= 0xff;
+    std::fs::write(&artifact, &damaged).expect("root rewrites the artifact in place");
+
+    let refused = verify_backup(&host, account.name(), &fixture_id(), &root(), &floor);
+    assert!(
+        matches!(refused, Err(BackupError::ChecksumMismatch)),
+        "an artifact with one flipped byte must be a checksum mismatch, got {refused:?}"
+    );
+    assert!(
+        !AgentPaths::backup_verification_scratch_dir(&fixture_id()).exists(),
+        "a refused verification left its scratch behind"
+    );
+
+    // Put the byte back: the same call verifies again, which shows the
+    // refusal followed the byte and that a verification changes nothing it
+    // read.
+    std::fs::write(&artifact, &original).expect("root restores the artifact");
+    let again = verify_backup(&host, account.name(), &fixture_id(), &root(), &floor)
+        .unwrap_or_else(|error| panic!("the restored artifact must verify again: {error}"));
+    assert_eq!(again, verified);
 }
 
 // --- The scratch ceiling's measurement, checked against a second implementation ---

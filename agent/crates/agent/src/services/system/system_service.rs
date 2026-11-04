@@ -63,8 +63,10 @@ use crate::proto::{
 /// `ERROR_CODE_RUN_NOT_STOPPED`, the answer to a cron run whose unit could not
 /// be confirmed stopped after a ceiling ended it (issue #336). 17 adds
 /// `MonitorService.ListPendingUpdates`, the packages the host's package manager
-/// already knows a newer version of, read from its cache alone (issue #324).
-const PROTO_VERSION: u32 = 17;
+/// already knows a newer version of, read from its cache alone (issue #324). 18 adds
+/// `BackupService.VerifyBackup`, the read-only check that a stored backup still
+/// matches its record (issue #134).
+const PROTO_VERSION: u32 = 18;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

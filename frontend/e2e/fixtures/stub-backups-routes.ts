@@ -132,6 +132,11 @@ export const stubBackups = async (page: Page, backups: Backup[]): Promise<() => 
         finishedAt: '2026-09-07T09:02:00Z',
         failureCode: null,
         failureDisplayName: null,
+        verificationState: 'notVerified',
+        verificationStateName: 'Not verified',
+        verifiedAt: null,
+        verificationFailureCode: null,
+        verificationFailureDisplayName: null,
       }
       backups.unshift(created)
       await route.fulfill({
@@ -254,5 +259,66 @@ export const stubBackupRestore = async (
 
   return (): unknown[] => {
     return submitted
+  }
+}
+
+/** The verify endpoint. `*` never spans a `/`, so this cannot collide with the single-backup one. */
+const VERIFY_PATTERN = '**/api/v1/backups/*/verify'
+
+/**
+ * What the stubbed panel answers a verification with: the record as it holds it afterwards (a
+ * verification that RAN and found the artifact unsound is still a record, in state `failed`), or a
+ * refusal as an RFC 7807 problem.
+ */
+export type BackupVerifyAnswer =
+  | { kind: 'record'; changes: Pick<
+      Backup,
+      | 'verificationState'
+      | 'verificationStateName'
+      | 'verifiedAt'
+      | 'verificationFailureCode'
+      | 'verificationFailureDisplayName'
+    > }
+  | { kind: 'problem'; status: number; code: string; detail: string }
+
+/**
+ * Fulfils `POST /api/v1/backups/{id}/verify` with one prepared answer and records the ids that
+ * reached it. A record answer is applied to the stub's own array too, so the list the page reads
+ * again agrees with what the verification said.
+ *
+ * Installed AFTER {@link stubBackups} in a spec, for the same reason {@link stubBackupDeletion} is.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param backups The same array handed to {@link stubBackups}.
+ * @param answer What the panel answers.
+ * @returns A function answering the backup ids verified so far, oldest first.
+ */
+export const stubBackupVerification = async (
+  page: Page,
+  backups: Backup[],
+  answer: BackupVerifyAnswer,
+): Promise<() => string[]> => {
+  const verified: string[] = []
+
+  await page.route(VERIFY_PATTERN, async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2) ?? ''
+    verified.push(id)
+    if (answer.kind === 'problem') {
+      await route.fulfill({
+        status: answer.status,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ code: answer.code, title: 'Verification refused', detail: answer.detail }),
+      })
+      return
+    }
+    const index = backups.findIndex((backup) => {
+      return backup.id === id
+    })
+    const updated: Backup = { ...backups[index], ...answer.changes }
+    backups[index] = updated
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(updated) })
+  })
+
+  return (): string[] => {
+    return verified
   }
 }

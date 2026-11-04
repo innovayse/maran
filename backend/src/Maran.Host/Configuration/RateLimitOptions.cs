@@ -107,4 +107,20 @@ public sealed class RateLimitOptions
 
     /// <summary>The window <see cref="BackupRestoreMaxRequests"/> is counted over, in seconds.</summary>
     public int BackupRestoreWindowSeconds { get; set; } = 3600;
+
+    /// <summary>
+    /// On-request backup verifications allowed for one hosting account within
+    /// <see cref="BackupVerifyWindowSeconds"/>.
+    /// </summary>
+    /// <remarks>
+    /// Ten: each one makes the root agent read a whole archive and hash it, so the number bounds disk
+    /// I/O the account can cause, and ten in an hour covers checking a month of dailies once. The
+    /// verification the panel runs itself after every backup does not pass through this limiter.
+    /// </remarks>
+    [Range(1, 1_000)]
+    public int BackupVerifyMaxRequests { get; set; } = 10;
+
+    /// <summary>The window <see cref="BackupVerifyMaxRequests"/> is counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int BackupVerifyWindowSeconds { get; set; } = 3600;
 }
