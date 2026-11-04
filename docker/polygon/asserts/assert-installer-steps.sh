@@ -122,6 +122,15 @@ readonly FTPS_STEP="${INSTALLER_LIB}/89-ftps.sh"
 readonly CLI_STEP="${INSTALLER_LIB}/66-cli.sh"
 readonly CLI_WRAPPER_SOURCE="${INSTALLER_ROOT}/cli/maran"
 readonly CLI_LIB_SOURCE_DIR="${INSTALLER_ROOT}/cli/lib"
+# Step 67, the scheduled panel backup's installer step, and the three files it installs or reads
+# from the package: the service, the timer and the documented example configuration. The step is
+# RUN (its own step_panel_backup, in a child) and the units are READ for their effective lines; see
+# parts/panel-backup-units.sh. Resolved by the step against $SCRIPT_DIR and $LIB_DIR, so a missing
+# COPY stops the step by name and not only this script.
+readonly PANEL_BACKUP_STEP="${INSTALLER_LIB}/67-panel-backup.sh"
+readonly PANEL_BACKUP_SERVICE_SOURCE="${INSTALLER_ROOT}/systemd/maran-panel-backup.service"
+readonly PANEL_BACKUP_TIMER_SOURCE="${INSTALLER_ROOT}/systemd/maran-panel-backup.timer"
+readonly PANEL_BACKUP_EXAMPLE_SOURCE="${INSTALLER_ROOT}/panel-backup.conf.example"
 # The package-manager adapter step 89 installs through. `install_vsftpd_package` refuses by name
 # when `pkg_install` is undefined, so a missing COPY here is a named failure and not a skip.
 readonly DEPENDENCIES_STEP="${INSTALLER_LIB}/20-dependencies.sh"
@@ -234,10 +243,15 @@ require_installer_file "$UNINSTALLER" installer/uninstall.sh
 require_installer_file "$FTPS_STEP" installer/lib/89-ftps.sh
 require_installer_file "$CLI_STEP" installer/lib/66-cli.sh
 require_installer_file "$CLI_WRAPPER_SOURCE" installer/cli/maran
-for __cli_lib in common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup.sh panel-restore.sh; do
+for __cli_lib in common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup-config.sh \
+  panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh panel-backup-schedule.sh panel-restore.sh; do
   require_installer_file "${CLI_LIB_SOURCE_DIR}/${__cli_lib}" "installer/cli/lib/${__cli_lib}"
 done
 unset __cli_lib
+require_installer_file "$PANEL_BACKUP_STEP" installer/lib/67-panel-backup.sh
+require_installer_file "$PANEL_BACKUP_SERVICE_SOURCE" installer/systemd/maran-panel-backup.service
+require_installer_file "$PANEL_BACKUP_TIMER_SOURCE" installer/systemd/maran-panel-backup.timer
+require_installer_file "$PANEL_BACKUP_EXAMPLE_SOURCE" installer/panel-backup.conf.example
 require_installer_file "$DEPENDENCIES_STEP" installer/lib/20-dependencies.sh
 require_installer_file "$FTPS_UNIT_SOURCE" installer/systemd/maran-ftps.service
 require_installer_file "$FTPS_LOGROTATE_SOURCE" installer/logrotate/maran-ftps
@@ -485,6 +499,7 @@ for __part in \
   "${ASSERT_PARTS_DIR}/directory-layout.sh" \
   "${ASSERT_PARTS_DIR}/units-and-preflight.sh" \
   "${ASSERT_PARTS_DIR}/php-install-unit.sh" \
+  "${ASSERT_PARTS_DIR}/panel-backup-units.sh" \
   "${ASSERT_PARTS_DIR}/uninstaller.sh" \
   "${ASSERT_PARTS_DIR}/ftps.sh" \
   "${ASSERT_PARTS_DIR}/artifacts-and-packages.sh" \
@@ -550,6 +565,13 @@ main() {
   # and the socket assertion above leaves the unit directory clean for them.
   assert_the_php_install_unit_is_the_one_fixed_oneshot_the_design_allows
   assert_step_70_installs_the_php_install_unit_root_owned_and_never_enabled
+  # The scheduled panel backup's units (issue #129), after the two units above for the same reason
+  # they follow each other: every one of them installs into /etc/systemd/system and removes only its
+  # own files, so none is holding a file another is about to look for. These three put the image
+  # back as they found it, which includes /var/backups/maran-panel and the staging directory.
+  assert_the_panel_backup_service_and_timer_are_what_the_design_allows
+  assert_step_67_installs_the_panel_backup_units_with_exact_modes_and_enables_nothing
+  assert_the_panel_backup_service_cannot_be_started_by_a_non_root_user
 
   # Last of all, and deliberately: these RUN step 40's create_directory_layout, which
   # re-modes /run/maran and re-owns /var/lib/maran to the values a real install leaves.
@@ -618,7 +640,12 @@ main() {
   # both of these install into /usr/local, and the second RUNS the uninstaller's remove_binaries,
   # which takes /usr/local/maran with it (the layout is put back inside the assertion).
   assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should
+  # The scheduled-backup verbs refuse before they read, parse a hostile configuration as data and
+  # run only as root (issue #129). Before the uninstaller ones: it installs the wrapper and step 67's
+  # units, and removes them again, and the two below install and remove them for their own reasons.
+  assert_the_scheduled_panel_backup_verbs_refuse_what_they_should
   assert_the_uninstaller_removes_the_break_glass_command
+  assert_the_uninstaller_removes_the_panel_backup_schedule_and_keeps_the_archives
   echo "Installer steps 40, 41, 50, 60, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
   echo "the on-disk boundary the two privilege-escalation fixes moved, verified inside the polygon."
 }
