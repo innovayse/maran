@@ -8,6 +8,8 @@
 # panel. The archive's whole /etc/maran and /var/lib/maran are inside it for anything else an
 # operator wants by hand.
 #
+# The database itself is put back by cli_restore_database in panel-dump.sh.
+#
 # Nothing from the archive is executed or sourced: the manifest is matched against fixed lines,
 # tar members are extracted by exact name into the private stage, and the two key values are
 # validated against the base64 alphabet before they are written (rules/security.md item 4).
@@ -15,7 +17,6 @@
 readonly MARAN_PANEL_RESTORE_USAGE="Usage: maran panel-restore --passphrase-file FILE --replace-this-panel ARCHIVE"
 readonly MARAN_PANEL_RESTORE_KEYS="Security__EncryptionKey Jwt__SigningKey"
 readonly MARAN_PANEL_LICENCE_FILE="licence.json"
-readonly MARAN_PANEL_MIGRATE_BINARY="/usr/local/maran/api/Maran.Host"
 # Both keys are base64 of at least 32 bytes, which is 44 characters; nothing outside the alphabet
 # (no newline, no carriage return, no control character) can pass.
 readonly MARAN_PANEL_KEY_PATTERN='^[A-Za-z0-9+/]{43,}={0,2}$'
@@ -78,35 +79,13 @@ cli_panel_restore_prepare_env() {
   chmod 0640 -- "$CLI_PANEL_RESTORE_ENV_TEMP"
 }
 
-# cli_panel_restore_database: replaces the panel database with the archived dump ($1), as the
-# service account, in ONE transaction: a failure part-way rolls everything back and leaves the
-# database this install created untouched.
-cli_panel_restore_database() {
-  local dump="$1" host database username
-  host="$(cli_panel_env_value Database__Host)"
-  database="$(cli_panel_env_value Database__Database)"
-  username="$(cli_panel_env_value Database__Username)"
-  [ -n "$host" ] && [ -n "$database" ] && [ -n "$username" ] \
-    || cli_fail "${MARAN_CLI_ENV_FILE} does not name the panel database (Database__Host, __Database, __Username)"
-  runuser -u "$MARAN_CLI_SERVICE_USER" -- pg_restore --clean --if-exists --no-owner --no-privileges \
-    --single-transaction --exit-on-error --host="$host" --username="$username" --dbname="$database" \
-    < "$dump" \
-    || cli_fail "pg_restore failed and was rolled back; the database is as the install left it"
-}
-
 # cli_panel_restore_migrate: brings the restored schema forward to the installed release, the way
 # installer/lib/65-schema.sh does: the panel's own binary, as the service account, with the panel's
-# environment read in a subshell.
+# environment (cli_run_as_service in common.sh).
 cli_panel_restore_migrate() {
-  [ -x "$MARAN_PANEL_MIGRATE_BINARY" ] || cli_fail "${MARAN_PANEL_MIGRATE_BINARY} is missing"
-  (
-    set -a
-    # shellcheck disable=SC1090
-    . "$MARAN_CLI_ENV_FILE"
-    set +a
-    cd "$(dirname "$MARAN_PANEL_MIGRATE_BINARY")" || exit 1
-    exec runuser -u "$MARAN_CLI_SERVICE_USER" -- "$MARAN_PANEL_MIGRATE_BINARY" --migrate
-  ) || cli_fail "the restored database could not be migrated to this release"
+  [ -x "$MARAN_CLI_BINARY" ] || cli_fail "${MARAN_CLI_BINARY} is missing"
+  cli_run_as_service "$MARAN_CLI_BINARY" --migrate \
+    || cli_fail "the restored database could not be migrated to this release"
 }
 
 # cli_panel_restore_licence: installs the archived licence, when the archive carries one, with the
@@ -179,7 +158,9 @@ cli_panel_restore() {
   # From here the panel is down; the EXIT trap starts it again on any refusal.
   systemctl stop "$MARAN_PANEL_SERVICE" || cli_fail "could not stop ${MARAN_PANEL_SERVICE}"
   CLI_PANEL_RESTORE_STOPPED=1
-  cli_panel_restore_database "$dump"
+  # cli_restore_database (panel-dump.sh): the service account, ONE transaction, so a failure
+  # part-way rolls everything back and leaves the database this install created untouched.
+  cli_restore_database "$dump"
   # The keys follow the data at once: a database written under the archived key is unreadable
   # under this install's key, so the rename is the very next step after the commit.
   mv -f -- "$CLI_PANEL_RESTORE_ENV_TEMP" "$MARAN_CLI_ENV_FILE"

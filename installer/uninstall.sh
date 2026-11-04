@@ -652,9 +652,20 @@ remove_sftp_group() {
   echo "'maran-sftp' group removed."
 }
 
+# remove_binaries: takes the panel's code and the CLI back out. /usr/local/maran holds the whole
+# release layout (releases/<version>, current, the api/agent/frontend links through it, and the
+# CLI's libraries and release-signing key); rm -rf unlinks a symbolic link and never follows it, so
+# a link inside the tree cannot take its target with it. Two things the self-update keeps OUTSIDE
+# that tree go by name: /etc/maran/release.state (which names releases that are now gone, and must
+# not survive an /etc/maran kept for its firewall includes) and /var/backups/maran-update (the
+# pre-update dumps, a full copy of the panel database that belongs to the panel being removed; the
+# customer backups and the operator's own panel archives stay, see note_backups_kept and
+# note_panel_backups_kept).
 remove_binaries() {
   echo "Removing Maran binaries..."
   rm -rf /usr/local/maran
+  rm -f /etc/maran/release.state
+  rm -rf /var/backups/maran-update
   # The break-glass command and its diagnostics staging directory (the libraries went with
   # /usr/local/maran above).
   rm -f /usr/local/sbin/maran

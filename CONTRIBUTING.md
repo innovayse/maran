@@ -73,6 +73,7 @@ maran api                                     # SPA request bodies against the c
 maran migrate check                           # a model edited without a migration
 maran migrate guard                           # a migration that destroys what the last release reads
 maran lock selftest                           # the tree write-lock refuses AND proceeds
+maran update-selftest                         # panel self-update: verify, layout, unpack refusals
 maran licenses --check                        # third-party notices match the dependencies
 cd backend  && dotnet test
 cd frontend && npm run lint && npm run typecheck && npm run build && npx playwright test

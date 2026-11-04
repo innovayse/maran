@@ -1,33 +1,41 @@
 #!/usr/bin/env bash
 # Builds, signs and verifies the release bundle `installer/lib/50-artifacts.sh` expects.
 #
-# That step is the installer's only trust boundary (its own header comment,
-# installer/lib/50-artifacts.sh:1-6): it will not unpack anything until a manifest's
+# That step is the installer's only trust boundary (see the header comment of
+# installer/lib/50-artifacts.sh): it will not unpack anything until a manifest's
 # ECDSA P-384 signature verifies against installer/keys/release-signing.pub
-# (installer/lib/50-artifacts.sh:28) and each component's sha256 inside that
-# now-trusted manifest matches the bytes on disk (installer/lib/50-artifacts.sh:123-150,
-# 179-206). Nothing produced a manifest or a signed bundle before this file — see
+# (installer/cli/lib/release-verify.sh, cli_release_verify_manifest) and each component's
+# sha256 inside that now-trusted manifest matches the bytes on disk (re-checked by
+# cli_layout_install_release in installer/cli/lib/release-layout.sh immediately before it
+# unpacks). The `maran update` command goes through the same two libraries.
+# Nothing produced a manifest or a signed bundle before this file; see
 # docs/superpowers/notes/2026-09-19-release-bundle-signing-threat-note.md for the threat
 # model this closes and does not close.
 #
-# Manifest shape read by installer/lib/50-artifacts.sh:91-104 (manifest_field, a plain
+# Manifest shape read by cli_release_manifest_field (installer/cli/lib/release-verify.sh, a plain
 # awk reader — no jq at install time):
-#   {"artifacts": {"<component>-<arch>": {"url": "...", "sha256": "<hex>"}}}
-# "url" is meaningless for the offline path (installer/lib/50-artifacts.sh's
-# use_offline_tarball never reads it) but is still written per component so an online
+#   {"version": "<ver>", "channel": "stable|beta",
+#    "artifacts": {"<component>-<arch>": {"url": "...", "sha256": "<hex>"}}}
+# "channel" is an additive, signed field the installer's reader never looks at (it keys on the
+# `"<component>-<arch>"` blocks); the self-update CLI refuses a manifest whose channel differs from
+# the one it asked for. check_manifest_channel (release-package.sh) holds a built bundle to it.
+# "url" is meaningless for the offline path (the offline branch of installer/lib/50-artifacts.sh
+# and cli_release_verify_offline never read it) but is still written per component so an online
 # release channel can serve the same manifest this script produces.
 #
-# Offline bundle shape read by use_offline_tarball (installer/lib/50-artifacts.sh:159-178):
+# Offline bundle shape read by the installer step `step_artifacts` (installer/lib/50-artifacts.sh)
+# and by cli_release_verify_offline (installer/cli/lib/release-verify.sh):
 # a single tar.gz whose root holds manifest.json, manifest.json.sig, and
-# api.tar.gz / agent.tar.gz / frontend.tar.gz — each of those, once extracted, landing at
-# installer/lib/50-artifacts.sh's unpack_artifacts destinations
-# (installer/lib/50-artifacts.sh:179-206):
+# api.tar.gz / agent.tar.gz / frontend.tar.gz, each of those, once verified, unpacked by
+# cli_layout_install_release (installer/cli/lib/release-layout.sh) into
+# /usr/local/maran/releases/<version>/<component>, where `current` points at the release and
+# /usr/local/maran/<component> reaches it through that link:
 #   api/Maran.Host        (installer/systemd/maran-api.service:24 ExecStart=)
 #   agent/maran-agent      (installer/systemd/maran-agent.service:70 ExecStart=)
 #   frontend/*             (installer/nginx/maran.conf:129 root /usr/local/maran/frontend;)
 # so each component tarball's files sit at ITS OWN ROOT, not nested under a version or
-# bin/ subdirectory — 50-artifacts.sh extracts each with `tar -xzf ... -C
-# ${MARAN_INSTALL_ROOT}/${component}` and adds no path of its own.
+# bin/ subdirectory: cli_layout_install_release unpacks each into
+# releases/<version>/<component> and adds no path of its own.
 #
 # Usage:
 #   scripts/maran release build   [--version <ver>] [--out <dir>]   assemble the bundle
@@ -136,7 +144,7 @@ dotnet_rid() {
 }
 
 # sha256_of: one place for the checksum command, matching
-# installer/lib/50-artifacts.sh:126-132's verify_artifact_checksum exactly (sha256sum,
+# cli_release_check_sha256 (installer/cli/lib/release-verify.sh) exactly (sha256sum,
 # first whitespace-separated field).
 sha256_of() {
   sha256sum "$1" | awk '{print $1}'
@@ -190,7 +198,7 @@ require_tool() {
 
 # build_component: publishes/builds one component and tars its OUTPUT DIRECTORY's
 # contents at the tarball root (never the directory itself as a top-level entry) — the
-# nesting installer/lib/50-artifacts.sh's unpack_artifacts assumes.
+# nesting cli_layout_install_release (installer/cli/lib/release-layout.sh) assumes.
 #
 # A component this session cannot build here (no toolchain, no network, tree lock held by
 # the other lane's quota work) is a NOT DONE, stated loudly, never a placeholder file: an
@@ -383,8 +391,8 @@ build_frontend() {
 }
 
 # tar_component: tars a staged output directory's CONTENTS at the archive root, matching
-# what use_offline_tarball's per-component `tar -xzf ... -C
-# ${MARAN_INSTALL_ROOT}/${component}` expects to find (installer/lib/50-artifacts.sh:179-206).
+# what cli_layout_install_release (installer/cli/lib/release-layout.sh), which unpacks each
+# component into /usr/local/maran/releases/<version>/<component>, expects to find.
 tar_component() {
   local src_dir="$1" dest_tar="$2"
   ( cd "$src_dir" && tar -czf "$dest_tar" . )
@@ -409,8 +417,8 @@ readonly INTEGRITY_MANIFEST_MIN_FILES=50
 # populate and tar_component already tars — never the installed filesystem (§4: this is a
 # positive list of what a release CONTAINS, not a live filesystem scan) — and keys each
 # entry by "<component>/<path relative to that component's staged root>", matching
-# installer/lib/50-artifacts.sh's own extraction targets
-# (${MARAN_INSTALL_ROOT}/${component}), so api/, agent/, frontend/ entries cannot collide.
+# the installer's own unpack targets (releases/<version>/<component>, made by
+# cli_layout_install_release), so api/, agent/, frontend/ entries cannot collide.
 write_integrity_manifest() {
   local out_dir="$1" version="$2"
   local manifest="${out_dir}/integrity-manifest.json"
@@ -563,15 +571,17 @@ cmd_build() {
   # manifest.json.
   write_integrity_manifest "$out_dir" "$version"
 
-  # manifest.json: hand-built with the exact field names manifest_field's awk reader
-  # scans for (installer/lib/50-artifacts.sh:91-104) — "url" and "sha256" as quoted JSON
-  # string values on their own line inside each "<component>-<arch>" block. jq would be
+  # manifest.json: hand-built with the exact field names the awk reader
+  # cli_release_manifest_field (installer/cli/lib/release-verify.sh) scans for: "url" and
+  # "sha256" as quoted JSON string values on their own line inside each "<component>-<arch>"
+  # block. jq would be
   # cleaner but the installer never assumes jq is present at verify time, and a manifest
   # this script cannot also read with a bare awk scan would be a shape the installer's
   # own reader cannot be trusted to parse either.
   {
     echo "{"
     echo "  \"version\": \"${version}\","
+    echo "  \"channel\": \"${channel}\","
     echo "  \"artifacts\": {"
     local first=1
     for arch in ${arch_list//,/ }; do
@@ -600,8 +610,8 @@ require_signing_key() {
   local key="$1"
   if [ -z "$key" ]; then
     echo "50-artifacts.sh's trust boundary is only as good as this key never entering the" >&2
-    echo "repository. Pass --key <path> or set MARAN_RELEASE_SIGNING_KEY to an Ed25519" >&2
-    echo "private key file OUTSIDE this working tree. This script will not generate one," >&2
+    echo "repository. Pass --key <path> or set MARAN_RELEASE_SIGNING_KEY to an ECDSA P-384" >&2
+    echo "private key file (signs with SHA-384) OUTSIDE this working tree. This script will not generate one," >&2
     echo "will not default to a path inside the repository, and will not print key material." >&2
     echo "Where that key lives in production is Innovayse's decision, not this script's." >&2
     release_failed "no signing key given"
@@ -650,11 +660,11 @@ cmd_sign() {
   echo "Signed ${bundle_dir}/integrity-manifest.json -> ${bundle_dir}/integrity-manifest.json.sig"
 }
 
-# verify_bundle: the SAME two checks installer/lib/50-artifacts.sh performs — same
-# openssl invocation (verify_manifest_signature, installer/lib/50-artifacts.sh:70-88) and
-# same checksum comparison (verify_artifact_checksum, installer/lib/50-artifacts.sh:
-# 126-132) — run here so a bundle this script accepts is a bundle the installer accepts,
-# not a bundle that merely looks right to a differently-shaped check
+# verify_bundle: the SAME two checks the installer and `maran update` perform: the same
+# openssl invocation (cli_release_verify_manifest, installer/cli/lib/release-verify.sh) and the
+# same checksum comparison (cli_release_check_sha256, same file). They run here so a bundle
+# this script accepts is a bundle the installer accepts, not a bundle that merely looks
+# right to a differently-shaped check
 # (rules/testing.md "a check must be able to observe what it reports on").
 verify_bundle() {
   local bundle_dir="$1" pubkey="$2"
@@ -666,6 +676,11 @@ verify_bundle() {
     echo "verify: manifest signature does NOT verify against ${pubkey}" >&2
     return 1
   fi
+
+  # After the signature, so the field read is the signed one: a channel edited after signing is the
+  # signature's refusal above, and a manifest signed without one (or with urls for another channel)
+  # is refused here.
+  check_manifest_channel "${bundle_dir}/manifest.json" || return 1
 
   # Driven by the MANIFEST's own keys rather than a fixed list, because a published bundle now
   # carries one set per architecture (issue #53) while an offline bundle and the selftest's fixture
@@ -777,6 +792,7 @@ cmd_selftest() {
   {
     echo "{"
     echo "  \"version\": \"selftest\","
+    echo "  \"channel\": \"${channel}\","
     echo "  \"artifacts\": {"
     local first=1
     for component in api agent frontend; do
@@ -902,6 +918,7 @@ cmd_selftest() {
     {
       echo "{"
       echo "  \"version\": \"selftest\","
+      echo "  \"channel\": \"${channel}\","
       echo "  \"artifacts\": {"
       for pub_arch in $arches; do
         for pub_component in $MARAN_COMPONENTS; do
@@ -953,7 +970,72 @@ cmd_selftest() {
   echo "UNOBSERVED HERE: the build-side refusal of a --arch both build is not exercised, because that would run the real toolchains."
 
   echo
-  release_ok "selftest: build -> sign -> verify accepted a good bundle, refused a tampered one and an unsigned one, wrote a complete integrity-manifest.json across all three components, verified and refused it exactly like manifest.json, documented the signature-does-not-re-derive-hashes gap, refused a build below the vacuity floor, and held a published release to both architectures."
+  echo "-- outcome 9: the signed channel field --"
+  # Each broken copy differs from the untouched bundle in the channel and nothing else, and the
+  # untouched bundle (outcome 1) and a correctly re-signed beta bundle (below) are the inverse
+  # controls: a check mutated to refuse every manifest fails the beta case.
+  local ch_dir ch_out
+  ch_dir="${work}/channel-tampered"
+  cp -r "$bundle" "$ch_dir"
+  sed -i 's/"channel": "stable"/"channel": "beta"/' "${ch_dir}/manifest.json"
+  if cmp -s "${bundle}/manifest.json" "${ch_dir}/manifest.json"; then
+    release_failed "selftest: outcome 9's sed did not change the channel, so the tamper step is broken" \
+      "and this proves nothing."
+  fi
+  if ch_out="$(verify_bundle "$ch_dir" "${keydir}/throwaway.pub" 2>&1)"; then
+    release_failed "selftest: verify ACCEPTED a manifest whose channel was edited after signing;" \
+      "the channel is not covered by the signature."
+  elif printf '%s' "$ch_out" | grep -q 'signature does NOT verify'; then
+    echo "${VERDICT_PREFIX}: OK, a channel edited after signing REFUSED by the signature (expected)."
+  else
+    release_failed "selftest: a tampered channel was refused for another reason than the signature: ${ch_out}"
+  fi
+
+  ch_dir="${work}/channel-missing"
+  cp -r "$bundle" "$ch_dir"
+  sed -i '/"channel"/d' "${ch_dir}/manifest.json"
+  sign_release_file "${keydir}/throwaway.key" "${ch_dir}/manifest.json" "${ch_dir}/manifest.json.sig"
+  if ch_out="$(verify_bundle "$ch_dir" "${keydir}/throwaway.pub" 2>&1)"; then
+    release_failed "selftest: verify ACCEPTED a correctly signed manifest with no channel field;" \
+      "the presence check is decoration."
+  elif printf '%s' "$ch_out" | grep -q 'carries no "channel" field'; then
+    echo "${VERDICT_PREFIX}: OK, a signed manifest without a channel REFUSED," \
+      "naming the missing field (expected)."
+  else
+    release_failed "selftest: a manifest without a channel was refused for another reason: ${ch_out}"
+  fi
+
+  ch_dir="${work}/channel-mismatch"
+  cp -r "$bundle" "$ch_dir"
+  sed -i 's/"channel": "stable"/"channel": "beta"/' "${ch_dir}/manifest.json"
+  sign_release_file "${keydir}/throwaway.key" "${ch_dir}/manifest.json" "${ch_dir}/manifest.json.sig"
+  if ch_out="$(verify_bundle "$ch_dir" "${keydir}/throwaway.pub" 2>&1)"; then
+    release_failed "selftest: verify ACCEPTED a signed manifest whose channel (beta) disagrees with its stable urls."
+  elif printf '%s' "$ch_out" | grep -q 'artifact urls name'; then
+    echo "${VERDICT_PREFIX}: OK, a signed manifest whose channel disagrees with its urls REFUSED (expected)."
+  else
+    release_failed "selftest: a channel/url mismatch was refused for another reason: ${ch_out}"
+  fi
+
+  ch_dir="${work}/channel-beta"
+  cp -r "$bundle" "$ch_dir"
+  sed -i 's/"channel": "stable"/"channel": "beta"/; s#/stable/#/beta/#' "${ch_dir}/manifest.json"
+  sign_release_file "${keydir}/throwaway.key" "${ch_dir}/manifest.json" "${ch_dir}/manifest.json.sig"
+  if verify_bundle "$ch_dir" "${keydir}/throwaway.pub"; then
+    echo "${VERDICT_PREFIX}: OK, a correctly signed beta manifest with beta urls ACCEPTED" \
+      "(inverse control, expected)."
+  else
+    release_failed "selftest: a correctly signed beta bundle was refused; the channel check" \
+      "refuses everything, or the fixture is broken."
+  fi
+
+  echo
+  release_ok "selftest: build -> sign -> verify accepted a good bundle, refused a tampered one and" \
+    "an unsigned one, wrote a complete integrity-manifest.json across all three components," \
+    "verified and refused it exactly like manifest.json, documented the" \
+    "signature-does-not-re-derive-hashes gap, refused a build below the vacuity floor, held a" \
+    "published release to both architectures, and held the signed channel field (tamper, absence" \
+    "and url disagreement refused; a correct beta accepted)."
 }
 
 command_name="${1:-}"

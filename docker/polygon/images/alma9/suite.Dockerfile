@@ -275,6 +275,9 @@ COPY installer/lib/90-finish.sh /tmp/maran-installer/lib/90-finish.sh
 # parts/uninstaller.sh also reads the step as one of install.sh's run_step lines.
 COPY installer/lib/66-cli.sh /tmp/maran-installer/lib/66-cli.sh
 COPY installer/cli /tmp/maran-installer/cli
+# The release signing public key: step 66 bakes it into the CLI directory and step 50 verifies a
+# release against it (parts/release-layout.sh compares the installed copy with this one).
+COPY installer/keys /tmp/maran-installer/keys
 
 # Step 67, the scheduled panel backup (issue #129), and the payload it installs: the service and the
 # timer (RUN through step_panel_backup and compared byte for byte with the installed copies) and the

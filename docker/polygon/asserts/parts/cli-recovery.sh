@@ -15,12 +15,14 @@
 # follow: an assertion that read them out of 66-cli.sh would agree with that file by construction.
 readonly CLI_WRAPPER_INSTALLED="/usr/local/sbin/maran"
 readonly CLI_LIB_INSTALLED_DIR="/usr/local/maran/cli/lib"
-# Eleven libraries: the seven that existed before the scheduled panel backup, plus its four (the
-# configuration reader, retention, the upload and the schedule verb). The number is CLI_LIB_COUNT and
-# every message and census below uses it, so a library added to the list without raising it fails the
-# directory census instead of passing a stale count.
-readonly CLI_LIB_NAMES="common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup-config.sh panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh panel-backup-schedule.sh panel-restore.sh"
-readonly CLI_LIB_COUNT=11
+# Twenty libraries: the seven that existed before the scheduled panel backup, its four (the
+# configuration reader, retention, the upload and the schedule verb), and the nine of the self-update
+# (issue #128: release-version, release-verify, release-unpack, release-layout, panel-dump,
+# update-dumps, update-health, update, rollback). The number is CLI_LIB_COUNT and every message and
+# census below uses it, so a library added to the list without raising it fails the directory census
+# instead of passing a stale count.
+readonly CLI_LIB_NAMES="common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup-config.sh panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh panel-backup-schedule.sh panel-restore.sh release-version.sh release-verify.sh release-unpack.sh release-layout.sh panel-dump.sh update-dumps.sh update-health.sh update.sh rollback.sh"
+readonly CLI_LIB_COUNT=20
 # The file a hostile argument tries to create. Its absence means something only because the same
 # directory is shown to accept a file (see assert_the_break_glass_command_never_interprets_its_input).
 readonly CLI_INJECTION_WITNESS="/tmp/maran-polygon-cli-injected"
@@ -316,18 +318,23 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
     || fail "the fixed-argv search covered $(printf '%s\n' $code_files | wc -l) files, expected the wrapper and its ${CLI_LIB_COUNT} libraries"
   checked=$((checked + 1))
 
-  # The one place the panel's binary is started is a fixed argv ending in the typed words, and the
-  # wrapper pins its own PATH. Counted with a pattern that also matches the real line, so a rename
-  # of either cannot leave this passing over nothing.
-  [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/common.sh" | grep -cE '^[[:space:]]*exec runuser -u "\$MARAN_CLI_SERVICE_USER" -- "\$MARAN_CLI_BINARY" --cli "\$@"$')" -eq 1 ] \
-    || fail "common.sh no longer starts the panel with exactly 'exec runuser -u \"\$MARAN_CLI_SERVICE_USER\" -- \"\$MARAN_CLI_BINARY\" --cli \"\$@\"'"
-  # runuser appears on exactly four lines, each a fixed argv as the service account: the panel's
-  # --cli mode, its --migrate mode (panel-restore), pg_dump (panel-backup) and pg_restore
-  # (panel-restore). A fifth is something new that runs as somebody, and is read before it passes.
-  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -c 'runuser')" -eq 4 ] \
-    || fail "the break-glass command mentions runuser on a line other than the four known ones (--cli, --migrate, pg_dump, pg_restore)"
-  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" -- (pg_dump|pg_restore|"\$MARAN_PANEL_MIGRATE_BINARY" --migrate|"\$MARAN_CLI_BINARY" --cli)')" -eq 4 ] \
-    || fail "a runuser line no longer runs one of the four fixed commands as the service account"
+  # The wrapper pins its own PATH, and every start of a binary as the service account is a fixed
+  # argv. Counted with patterns that also match the real lines, so a rename of either cannot leave
+  # this passing over nothing.
+  # runuser appears on exactly three lines, each a fixed argv as the service account: the ONE
+  # helper that runs a panel binary as that account (cli_run_as_service in common.sh, used for the
+  # --cli mode, the restore's --migrate and the update's --migrate alike), and pg_dump and
+  # pg_restore (panel-dump.sh, the one place they are spelled). A fourth is something new that runs
+  # as somebody, and is read before it passes. Counted per file so that one file's lines cannot
+  # stand in for another's.
+  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -c 'runuser')" -eq 3 ] \
+    || fail "the break-glass command mentions runuser on a line other than the three known ones (cli_run_as_service in common.sh, pg_dump and pg_restore in panel-dump.sh)"
+  [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/common.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" --')" -eq 1 ] \
+    || fail "common.sh no longer runs a panel binary as the service account on exactly one 'runuser -u \"\$MARAN_CLI_SERVICE_USER\" --' line (cli_run_as_service)"
+  [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/panel-dump.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" -- pg_dump ')" -eq 1 ] \
+    || fail "panel-dump.sh no longer runs pg_dump as the service account on exactly one 'runuser -u \"\$MARAN_CLI_SERVICE_USER\" -- pg_dump' line"
+  [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/panel-dump.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" -- pg_restore ')" -eq 1 ] \
+    || fail "panel-dump.sh no longer runs pg_restore as the service account on exactly one 'runuser -u \"\$MARAN_CLI_SERVICE_USER\" -- pg_restore' line"
   grep -qxF 'PATH=/usr/sbin:/usr/bin:/sbin:/bin' "$CLI_WRAPPER_INSTALLED" \
     || fail "the wrapper no longer pins PATH=/usr/sbin:/usr/bin:/sbin:/bin on a line of its own"
   checked=$((checked + 1))
@@ -337,7 +344,7 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
 
   echo "The break-glass command: ${CLI_WRAPPER_INSTALLED} is 0700 root:root and its ${CLI_LIB_COUNT} libraries 0644 root:root under root-only 0755 directories, step 66 created no setuid file and no sudoers entry, a non-root caller gets exit 77 (and the same copy run as root is accepted), an unknown verb gets 64, hostile verbs and identifiers create nothing (witness file shown creatable), panel-restore refuses without its confirmation and panel-backup refuses a passphrase file others can read (and accepts a 0600 one as far as the absent panel), a hostile PATH cannot supply the euid check, and no line of the wrapper or its libraries evals or starts 'sh -c' (the search shown to find all four planted shapes and none of the look-alikes). ${checked} checks made."
   echo "UNOBSERVED HERE: the fixed-argv check reads TEXT. It sees 'eval' and a shell started with -c; it does not see an unquoted expansion of operator input, a here-document that is later sourced, or a command built across lines. The shell quoting itself was reviewed by reading and by the hostile inputs above, not by a formal analysis."
-  echo "UNOBSERVED HERE: this image boots no systemd and holds no panel, so status, admin-reset-password, collect-diagnostics, panel-backup and panel-restore are run only as far as their argument handling. Their behaviour against a live panel is scored by scripts/lib/install-polygon.sh (lockout-recovery and diagnostics stages). SELinux contexts on the wrapper and /usr/local/maran/cli are not exercised by a container build."
+  echo "UNOBSERVED HERE: this image boots no systemd and holds no panel, so status, admin-reset-password, collect-diagnostics, panel-backup, panel-restore, update and rollback are run only as far as their argument handling (the last two in parts/cli-update.sh). Their behaviour against a live panel is scored by scripts/lib/install-polygon.sh (lockout-recovery and diagnostics stages). SELinux contexts on the wrapper and /usr/local/maran/cli are not exercised by a container build."
 }
 
 # ---------------------------------------------------------------------------------------------

@@ -18,12 +18,13 @@ readonly MARAN_PANEL_ARCHIVE_STATE="var-lib-maran.tar"
 # The trees the archive carries whole, and the service the restore stops and starts.
 readonly MARAN_PANEL_ETC_DIR="/etc/maran"
 readonly MARAN_PANEL_STATE_DIR="/var/lib/maran"
-readonly MARAN_PANEL_SERVICE="maran-api.service"
+readonly MARAN_PANEL_SERVICE="$MARAN_CLI_API_UNIT"
 # A passphrase shorter than this is refused. A floor against the obvious mistake, not a strength
 # meter: the archive is as sensitive as root on the server.
 readonly MARAN_PANEL_PASSPHRASE_MIN_LENGTH=20
-# Held for the whole run, so a backup and a restore never share the staging base at once, and so a
-# stage directory left by a run that was killed can be removed safely by the next one.
+# Held for the whole run, so a backup, a restore, an update and a rollback never run at once (they
+# share the staging base and the panel), and so a stage directory left by a run that was killed can
+# be removed safely by the next one.
 readonly MARAN_PANEL_LOCK_FILE="panel-archive.lock"
 readonly MARAN_PANEL_STAGE_PREFIX="panel-archive."
 
@@ -55,7 +56,7 @@ cli_panel_open_stage() {
   # Descriptor 8 stays open for the life of the process; the kernel drops the lock when it exits,
   # however it exits, so a killed run never leaves the lock held.
   exec 8> "${MARAN_CLI_STAGING_BASE}/${MARAN_PANEL_LOCK_FILE}"
-  flock -n 8 || cli_fail "another panel backup or restore is running"
+  flock -n 8 || cli_fail "another panel backup, restore, update or rollback is running"
   for stale in "${MARAN_CLI_STAGING_BASE}/${MARAN_PANEL_STAGE_PREFIX}"*; do
     [ -d "$stale" ] && [ ! -L "$stale" ] && rm -rf -- "$stale"
   done

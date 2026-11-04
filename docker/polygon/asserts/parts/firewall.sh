@@ -64,6 +64,45 @@ rendered by the agent so that one set of templates produces both the seed and ev
   echo "87-firewall.sh seeds both files through the agent and writes no ruleset text of its own."
 }
 
+# The directories the two fixtures below create for their agent stand-in, deepest last, so the
+# cleanup can remove exactly what the fixture made and nothing that was there before it.
+FIREWALL_FIXTURE_MADE_DIRECTORIES=()
+
+# firewall_fixture_make_agent_directory: makes the directory of the agent stand-in ($1 is the
+# stand-in's path) and records every directory it had to create. A path that already is a real
+# directory is used as found and never recorded, so the cleanup cannot remove it. A symbolic link
+# at the directory (the release layout's /usr/local/maran/agent -> current/agent) is refused: the
+# stand-in would be written into a release tree, which this fixture must never touch, and
+# `install -d` through a dangling one would create a directory where the layout keeps a link.
+firewall_fixture_make_agent_directory() {
+  local directory missing=() candidate
+  directory="$(dirname -- "$1")"
+  FIREWALL_FIXTURE_MADE_DIRECTORIES=()
+  candidate="$directory"
+  while [ ! -e "$candidate" ] && [ ! -L "$candidate" ]; do
+    missing=("$candidate" "${missing[@]}")
+    candidate="$(dirname -- "$candidate")"
+  done
+  [ ! -L "$directory" ] \
+    || fail "${directory} is a symbolic link, so a stand-in written there would land in a release tree. This fixture refuses to run over a real release layout."
+  for candidate in "${missing[@]}"; do
+    install -d -m 0755 -- "$candidate"
+    FIREWALL_FIXTURE_MADE_DIRECTORIES+=("$candidate")
+  done
+}
+
+# firewall_fixture_remove_agent_directory: removes, deepest first, the directories
+# firewall_fixture_make_agent_directory created. `rmdir`, never `rm -rf`: a directory that is not
+# empty or that is now a link is a surprise worth failing on, not something to delete through.
+firewall_fixture_remove_agent_directory() {
+  local index
+  for ((index = ${#FIREWALL_FIXTURE_MADE_DIRECTORIES[@]} - 1; index >= 0; index--)); do
+    rmdir -- "${FIREWALL_FIXTURE_MADE_DIRECTORIES[index]}" \
+      || fail "${FIREWALL_FIXTURE_MADE_DIRECTORIES[index]} was created by this fixture and could not be removed again"
+  done
+  FIREWALL_FIXTURE_MADE_DIRECTORIES=()
+}
+
 # assert_firewall_seeding_composes: what the STEP does with a Firewall__SshPorts value —
 # which argv reaches the agent, whether the files are written, and whether a bad list stops
 # the install.
@@ -94,7 +133,7 @@ assert_firewall_seeding_composes() {
 refuses to run rather than destroy a real installation's file."
   done
 
-  install -d -m 0755 "$(dirname "$agent")"
+  firewall_fixture_make_agent_directory "$agent"
   cat > "$agent" <<'FAKE'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> /tmp/maran-fake-agent-argv
@@ -177,6 +216,7 @@ $(cat "$step_output")"
 where the next boot would read it"
 
   rm -f "$agent" "$panel_env" "$argv_log" /etc/maran/firewall.nft /etc/maran/firewall-bans.nft
+  firewall_fixture_remove_agent_directory
   echo "The step builds one --ssh-port per port, refuses a list or a rendering it cannot read, and stops"
   echo "before anything reaches the live path."
 }
@@ -359,7 +399,7 @@ assert_firewall_keeps_firewalld_until_its_own_table_is_loaded() {
 refuses to run rather than destroy a real installation's file."
   done
 
-  install -d -m 0755 "$(dirname "$agent")"
+  firewall_fixture_make_agent_directory "$agent"
   printf '#!/bin/sh\nexit 9\n' > "$agent"
   chmod 0755 "$agent"
   install -d -m 0750 /etc/maran
@@ -377,6 +417,7 @@ step_firewall' 2>&1)" || status=$?
   enabled="$(systemctl is-enabled firewalld 2>/dev/null || true)"
   active="$(systemctl is-active firewalld 2>/dev/null || true)"
   rm -f "$agent" "$panel_env"
+  firewall_fixture_remove_agent_directory
   rm -rf "$UNIT_STATE_DIRECTORY"
 
   [ "$status" -ne 0 ] \

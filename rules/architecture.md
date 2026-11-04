@@ -120,7 +120,7 @@ frontend/              Vue 3 SPA (rules/vue.md)
 installer/             native production install: lib/ (numbered steps), systemd/, nginx/
 installer/cli/         the root-only `maran` break-glass command (status, admin-reset-password,
                        collect-diagnostics, panel-backup (also `--scheduled`, the unattended run),
-                       panel-backup-schedule, panel-restore): a fixed-verb wrapper plus
+                       panel-backup-schedule, panel-restore, update, rollback): a fixed-verb wrapper plus
                        lib/, installed by lib/66-cli.sh
                        to /usr/local/sbin; it adds no daemon, port or RPC and reaches the panel only
                        through `Maran.Host --cli` run as the service account

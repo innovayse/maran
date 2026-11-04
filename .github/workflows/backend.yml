@@ -15,12 +15,14 @@ on:
       - 'backend/**'
       - 'proto/**'
       - 'scripts/**'
+      - 'installer/cli/**'
       - '.github/workflows/backend.yml'
   pull_request:
     paths:
       - 'backend/**'
       - 'proto/**'
       - 'scripts/**'
+      - 'installer/cli/**'
       - '.github/workflows/backend.yml'
   schedule:
     # Nightly, on the default branch: the PostgreSQL 13 lane and the performance budgets are not on
@@ -86,6 +88,64 @@ jobs:
       #     this tree's lock, and the selftest refuses outright if something does.
       - name: Tree lock selftest — the refusal contract every gate below rests on
         run: bash scripts/maran lock selftest
+
+      # THE PANEL SELF-UPDATE'S OWN SELFTEST (issue #128), second, for the same reason the lock
+      # selftest is first: it is pure shell, needs no SDK, no node, no cargo, no root and no
+      # container, so it sits ahead of `setup-dotnet` and fails in seconds.
+      #
+      # WHAT IT PROVES. The logic of `maran update` and `maran rollback` that the installer's
+      # promise of a reversible update rests on: manifest and offline-bundle verification, the
+      # release layout (switch, previous, state file), and the refusals of the archive unpacker
+      # (installer/cli/lib/release-verify.sh, release-layout.sh, release-unpack.sh). `installer/cli/**`
+      # is in this workflow's path filters so an edit to those libraries runs the job that guards
+      # them; `scripts/**` already covers the selftest itself.
+      #
+      # WHAT IT CANNOT SEE, stated rather than implied. It runs as an unprivileged user with no
+      # systemd and no database, so the real service stop, migration and health gate are
+      # unobserved here: a polygon run (docker/polygon/asserts/parts/cli-update.sh) is where the
+      # update command meets a real host, and this step says nothing about it.
+      #
+      # SCORED ON THE PRINTED VERDICT LINE, not on a status, like every verdict step below. The
+      # line is `UPDATE-SELFTEST VERDICT: OK (<n> checks)`; a run that exits 0 without printing it
+      # fails, and one that prints it and then exits non-zero fails too, because the two disagree
+      # and neither is then evidence. `UPDATE-SELFTEST VERDICT: DID NOT RUN` (the harness's word
+      # for a refusal, status 2) is failed under its own message: nothing was checked.
+      #
+      # `timeout-minutes` is the job's (20, above). This step has no measured duration of its own
+      # yet: it is pure shell and expected to take seconds. The 5 minutes below is a hang guard
+      # with NO measured basis, to be re-measured from the first dev runs and then replaced by a
+      # value sized from them (rules/testing.md: each limit names the runs it was sized from).
+      - name: "Update selftest: the self-update logic every update and rollback rests on"
+        timeout-minutes: 5
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/update-selftest"
+          status=0
+          bash scripts/maran update-selftest 2>&1 |
+            tee "$RUNNER_TEMP/update-selftest/selftest.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line above, not this)"
+          if grep -qa '^UPDATE-SELFTEST VERDICT: DID NOT RUN' "$RUNNER_TEMP/update-selftest/selftest.log"; then
+            echo "::error::the update selftest REFUSED and checked nothing; the reason it gives is"
+            echo "printed above. It is failed here because nothing on a runner should be able to"
+            echo "refuse it, but do not read this as a finding about the update logic: no case ran."
+            exit 1
+          fi
+          if ! grep -qa '^UPDATE-SELFTEST VERDICT: OK' "$RUNNER_TEMP/update-selftest/selftest.log"; then
+            echo "::error::the update selftest did not print 'UPDATE-SELFTEST VERDICT: OK'. This lane"
+            echo "passes on the harness's verdict line, never on an exit code, and no such line was"
+            echo "printed."
+            echo "--- what the selftest reported ---"
+            if ! grep -aE '^(UPDATE-SELFTEST VERDICT|REFUSED)' "$RUNNER_TEMP/update-selftest/selftest.log"; then
+              echo "(no verdict-shaped line in the output; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/update-selftest/selftest.log" || echo "(the output is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the update selftest printed 'UPDATE-SELFTEST VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
 
       # The EXACT patch, not `9.0.x`. A floating band is resolved by the action at run time, so
       # the SDK that builds a release is whichever one was current that morning, and nothing in

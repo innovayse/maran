@@ -1,47 +1,91 @@
 #!/usr/bin/env bash
-# Step 50: fetch the release artifacts (maran-api, maran-agent, frontend
-# bundle) over HTTPS and verify their Ed25519 signature against a manifest BEFORE
-# unpacking anything. An artifact that cannot be verified aborts the install — this is
-# the installer's only trust boundary against a compromised download mirror or a
-# man-in-the-middle on the download path, so it is never bypassed, never made a warning.
-# Also supports a fully offline install from a pre-verified local tarball.
+# Step 50: obtain the release (maran-api, maran-agent, frontend bundle), verify it and place it in
+# the release layout. This file only sequences the steps; everything that decides whether bytes are
+# trusted or where they go lives in the `maran` command's libraries (installer/cli/lib/), which the
+# installer package carries and this step sources, so the first install and `maran update` apply
+# one implementation of each rule and cannot drift apart:
+#   release-version.sh  version / release-name validation and ordering
+#   release-verify.sh   fetch the manifest, verify its ECDSA P-384 signature (SHA-384 digest) with
+#                       the package's public key, fetch artifacts, check each sha256, offline bundles
+#   release-unpack.sh   vet an archive's members, extract it safely
+#   release-layout.sh   releases/, `current`, static links, release.state, legacy adoption
+# An artifact that cannot be verified aborts the install (cli_fail exits 1): this is the installer's
+# only trust boundary against a compromised mirror or a man-in-the-middle, so it is never bypassed
+# and never made a warning. Also supports a fully offline install from a local tarball.
+#
+# Release layout this step produces (shared with `maran update` and `maran rollback`):
+#   /usr/local/maran/releases/<version>/{api,agent,frontend}   root:root, never written afterwards
+#   /usr/local/maran/current -> releases/<version>             swapped atomically (symlink + mv -T)
+#   /usr/local/maran/{api,agent,frontend} -> current/<c>       static, so no unit or vhost path changes
+#   /etc/maran/release.state                                   CHANNEL, VERSION, PREVIOUS
+# A host installed before this layout (real directories at /usr/local/maran/{api,agent,frontend})
+# is adopted on the way: its directories move into releases/<name> (cli_layout_adopt_legacy).
+#
+# Re-running the installer (every case ends with `current`, the static links and release.state agreeing):
+#   - a host with no layout (fresh install): the release is unpacked, `current` and the links are made.
+#   - the SAME version as the one `current` points at, or as PREVIOUS: cli_layout_install_release refuses
+#     `replace` for both, so the tree already on disk is KEPT, but only after it passes
+#     release_tree_problem (the api and agent binaries, frontend/index.html, three real component
+#     directories, and no entry that is not root's, is group/world writable or is a link). A tree that
+#     fails is REPAIRED, never silently accepted and never left for a service to trip over: the freshly
+#     verified archives are unpacked into releases/<version>.partial, published under the temporary
+#     release name <version>-repair, `current` is switched to it when it named the damaged tree, the
+#     damaged directory is replaced by a hard-linked copy of the repaired one, `current` is switched
+#     back, and the temporary name is removed. `current` names an existing release at every instant, so
+#     there is no moment at which a restart finds it dangling.
+#   - a DIFFERENT, newer version: unpacked beside the others; the release `current` named becomes
+#     PREVIOUS (the rollback target). An abandoned directory of the same name left by a failed update is
+#     replaced; one that is `current` or PREVIOUS is never replaced (see above).
+#   - a LOWER version than the one installed is refused: a replayed older signed bundle must not turn a
+#     re-run of the installer into a downgrade. `maran rollback` is the verb that goes backwards.
+#   - a pre-layout host: its real directories are adopted into releases/legacy-<stamp> first, and that
+#     name becomes PREVIOUS.
+# CHANNEL: online it is the requested channel (the fetch refuses a manifest signed for another one);
+# when no --channel was given and release.state already records one, that recorded channel is the
+# requested one (resolve_channel), so a re-run never moves a beta host to stable by omission;
+# offline it is the channel the signed manifest declares, since an operator who typed no --channel must
+# not have a beta bundle recorded as stable.
+# An offline tarball must sit in a directory that is owned by root and not group/world writable (the
+# CLI copies it once and trusts only the copy); /tmp does not qualify, move the file to /root.
+#
+# The libraries are sourced here, not in install.sh, because they hold definitions only: common.sh
+# and the others execute nothing at source time except common.sh's scrub of the environment
+# variables that could redirect openssl, curl, tar or the dynamic loader (OPENSSL_CONF, CURL_HOME,
+# TAR_OPTIONS, LD_PRELOAD, PG* and the like), which is wanted for every command this installer runs
+# as root from here on.
 set -euo pipefail
 
-readonly MARAN_RELEASE_BASE_URL="https://releases.maran.innovayse.com"
-readonly MARAN_INSTALL_ROOT="/usr/local/maran"
-# MARAN_ARTIFACT_TMP: staging for downloaded archives between verification and extraction.
+# The libraries ship in the installer package next to this step's installer (SCRIPT_DIR, exported
+# by install.sh), the same directory 66-cli.sh installs them from.
+: "${SCRIPT_DIR:?must be set by install.sh}"
+for MARAN_ARTIFACTS_LIB in common release-version release-verify release-unpack release-layout; do
+  [ -f "${SCRIPT_DIR}/cli/lib/${MARAN_ARTIFACTS_LIB}.sh" ] \
+    || { echo "50-artifacts.sh: ${SCRIPT_DIR}/cli/lib/${MARAN_ARTIFACTS_LIB}.sh" \
+           "is missing from the installer package." >&2
+         exit 1; }
+  # shellcheck disable=SC1090
+  . "${SCRIPT_DIR}/cli/lib/${MARAN_ARTIFACTS_LIB}.sh"
+done
+unset MARAN_ARTIFACTS_LIB
+
+# MARAN_PACKAGE_RELEASE_KEY: the ECDSA P-384 public key that signs release manifests, as shipped in
+# the installer package and handed to the verifier as an argument (never fetched at install time:
+# an attacker who could serve the installer AND a fake manifest would otherwise control both halves
+# of the trust check). Resolved against the package, NOT the install root: /usr/local/maran is
+# populated by THIS step, so a key looked up there could never exist on a first install. 66-cli.sh
+# installs the same file for `maran update`, which is how both verify against one key.
+readonly MARAN_PACKAGE_RELEASE_KEY="${SCRIPT_DIR}/keys/release-signing.pub"
+
+# MARAN_ARTIFACT_TMP: staging for the manifest and archives between verification and extraction.
 # It is deliberately NOT under /var/lib/maran: that directory is created maran:maran 0750 by
 # 40-user.sh and is in maran-api.service's ReadWritePaths=, so the unprivileged uid the api
-# runs as owns it and can place any entry inside it — a symlink or a directory of its own at
+# runs as owns it and can place any entry inside it, a symlink or a directory of its own at
 # the staging name. Root would then download into a directory the api controls, and because
 # every archive is checksummed before ANY of them is extracted, the api could swap
 # agent.tar.gz in that window; the extracted file becomes /usr/local/maran/agent/maran-agent,
 # which maran-agent.service runs as root. Staging lives directly under /var/lib instead
 # (root:root 0755), where no unprivileged uid can create an entry at all.
 readonly MARAN_ARTIFACT_TMP="/var/lib/maran-artifact-staging"
-
-# MARAN_RELEASE_PUBLIC_KEY_PEM: the Ed25519 public key that signs release manifests,
-# baked into the installer itself (never fetched at install time — an attacker who can
-# serve the installer AND a fake manifest would otherwise control both halves of the
-# trust check). This is a placeholder key ID; the real key ships from Innovayse's
-# release signing infrastructure and is substituted into this file at release-build time.
-# Resolved against the installer package (SCRIPT_DIR, exported by install.sh), NOT against
-# the install root: /usr/local/maran is created and populated by THIS step, so a key looked
-# up there could never exist on a first install and every install would abort on a missing
-# key. The key ships next to the installer, which is also what makes it "baked in".
-readonly MARAN_RELEASE_PUBLIC_KEY_PEM="${SCRIPT_DIR}/keys/release-signing.pub"
-
-# manifest_url / artifact_url: versioned by channel (stable|beta), set via
-# MARAN_CHANNEL exported by install.sh.
-manifest_url() { echo "${MARAN_RELEASE_BASE_URL}/${MARAN_CHANNEL}/manifest.json"; }
-manifest_sig_url() { echo "${MARAN_RELEASE_BASE_URL}/${MARAN_CHANNEL}/manifest.json.sig"; }
-
-# fetch: downloads to a fixed staging path, failing loudly on any HTTP or TLS error.
-# --fail turns a 4xx/5xx into a non-zero exit instead of silently saving an error page.
-fetch() {
-  local url="$1" dest="$2"
-  curl --fail --silent --show-error --location --output "$dest" "$url"
-}
 
 # prepare_staging_dir: creates the staging directory as a fresh, root-owned, root-only
 # directory, and refuses to continue if it is anything else. `mkdir -p` was not enough on its
@@ -69,184 +113,197 @@ prepare_staging_dir() {
   fi
 }
 
-# verify_manifest_signature: checks the manifest's ECDSA P-384 signature against the baked-in
-# public key using `openssl dgst`, the one verifier every supported openssl has. Aborts the entire install on any
-# failure — a bad signature is treated identically to a network error: install stops.
-verify_manifest_signature() {
-  local manifest="$1" sig="$2"
-  if [ ! -f "$MARAN_RELEASE_PUBLIC_KEY_PEM" ]; then
-    echo "50-artifacts.sh: release signing public key not found at ${MARAN_RELEASE_PUBLIC_KEY_PEM}" >&2
-    echo "  This key ships embedded with the installer package; a bare copy of install.sh" >&2
-    echo "  without its accompanying keys/ directory cannot verify releases and MUST NOT be used." >&2
-    exit 1
-  fi
-  # `openssl dgst -verify`, NOT `pkeyutl -verify -rawin`, and the difference decides which
-  # distributions can install Maran at all. `-rawin` arrived in OpenSSL 3.0; AlmaLinux 8, Rocky 8,
-  # Ubuntu 20.04 and Debian 11 ship OpenSSL 1.1.1, whose pkeyutl has no such option and whose CLI
-  # cannot verify Ed25519 in any form. On those hosts the old invocation failed for a reason that
-  # had nothing to do with the signature, and this function then told the operator to suspect a
-  # compromised mirror (issue #52).
-  #
-  # `dgst` with an ECDSA key works identically on OpenSSL 1.1.1 and 3.x, so there is one code path
-  # here and no "verify whichever the host can manage" branch — a supply-chain check with a fallback
-  # is only as strong as its weakest branch. The digest is named explicitly and must match
-  # scripts/lib/release-bundle.sh's MARAN_SIGNATURE_DIGEST; the two are the same decision written on
-  # both sides of the wire, which is why each cites the other.
-  if ! openssl dgst -sha384 -verify "$MARAN_RELEASE_PUBLIC_KEY_PEM" \
-      -signature "$sig" "$manifest" >/dev/null 2>&1; then
-    echo "50-artifacts.sh: manifest signature verification FAILED. Aborting install." >&2
-    echo "  The release manifest's ECDSA P-384 signature does not match the trusted key." >&2
-    echo "  This can mean a corrupted download or a compromised mirror. Do not retry" >&2
-    echo "  blindly; verify you are downloading from ${MARAN_RELEASE_BASE_URL} and" >&2
-    echo "  contact Innovayse support if the problem persists." >&2
-    exit 1
-  fi
-}
-
-# manifest_field: extracts one field for the current OS arch/component from the JSON
-# manifest without requiring jq (not guaranteed present at this point in the install).
-# Manifest shape: {"artifacts": {"<component>-<arch>": {"url": "...", "sha256": "..."}}}
-# A minimal grep/sed reader is sufficient because the manifest is a small, machine-
-# generated, flat structure — not arbitrary attacker-shaped JSON.
-manifest_field() {
-  local manifest="$1" component="$2" field="$3"
-  local key="${component}-${MARAN_ARCH}"
-  # The trailing comma is the whole point of `,?` here. This matched only `"[^"]*"[[:space:]]*$` —
-  # a quoted value at END OF LINE — and the manifest is ordinary pretty-printed JSON, where every
-  # field except the last in its object is followed by one. Measured against the published
-  # 1.0.0-beta.2 manifest: `sha256` (written last) read correctly and `url` (written first) came
-  # back EMPTY, so the step reported "manifest has no entry for api-x86_64" about an entry that was
-  # sitting there. No online install could fetch anything.
-  #
-  # The comma is stripped from the captured value along with the quotes, because a URL ending in a
-  # comma is not a URL and the failure would then move downstream to curl.
-  awk -v key="\"${key}\"" -v field="\"${field}\"" '
-    $0 ~ key { in_block=1 }
-    in_block && $0 ~ field {
-      match($0, /"[^"]*"[[:space:]]*,?[[:space:]]*$/)
-      val = substr($0, RSTART, RLENGTH)
-      gsub(/[",[:space:]]/, "", val)
-      print val
-      exit
-    }
-    in_block && /}/ { in_block=0 }
-  ' "$manifest"
-}
-
-# verify_artifact_checksum: the manifest itself is authenticated (Ed25519); each listed
-# artifact's sha256 inside that trusted manifest is the second, cheap check that the
-# downloaded bytes match exactly what the manifest promised.
-verify_artifact_checksum() {
-  local file="$1" expected="$2" actual
-  actual="$(sha256sum "$file" | awk '{print $1}')"
-  if [ "$actual" != "$expected" ]; then
-    echo "50-artifacts.sh: checksum mismatch for $(basename "$file"): expected ${expected}, got ${actual}. Aborting." >&2
-    exit 1
-  fi
-}
-
-# download_and_verify_online: the default path — fetch manifest + signature, verify,
-# then fetch and checksum-verify each component before any of it is unpacked.
-download_and_verify_online() {
-  prepare_staging_dir
-  local manifest="${MARAN_ARTIFACT_TMP}/manifest.json"
-  local sig="${MARAN_ARTIFACT_TMP}/manifest.json.sig"
-
-  fetch "$(manifest_url)" "$manifest"
-  fetch "$(manifest_sig_url)" "$sig"
-  verify_manifest_signature "$manifest" "$sig"
-  echo "Release manifest signature verified."
-
-  local component url checksum dest
-  for component in api agent frontend; do
-    url="$(manifest_field "$manifest" "$component" "url")"
-    checksum="$(manifest_field "$manifest" "$component" "sha256")"
-    if [ -z "$url" ] || [ -z "$checksum" ]; then
-      echo "50-artifacts.sh: manifest has no entry for ${component}-${MARAN_ARCH}." >&2
-      echo "This release was not built for this machine's architecture (${MARAN_ARCH})." >&2
-      echo "Install a release that ships ${MARAN_ARCH} artifacts, or run the installer on a supported architecture." >&2
-      exit 1
-    fi
-    dest="${MARAN_ARTIFACT_TMP}/${component}.tar.gz"
-    fetch "$url" "$dest"
-    verify_artifact_checksum "$dest" "$checksum"
-    echo "Verified artifact: ${component} (${MARAN_ARCH})"
-  done
-}
-
-# use_offline_tarball: enterprise path. The operator supplies one tarball that already
-# bundles manifest.json + manifest.json.sig + every component archive; it is verified
-# with the exact same signature/checksum logic as the online path, never a lesser check.
-use_offline_tarball() {
-  local bundle="$1"
-  if [ ! -f "$bundle" ]; then
-    echo "50-artifacts.sh: offline tarball not found: ${bundle}" >&2
-    exit 1
-  fi
-  prepare_staging_dir
-  tar -xzf "$bundle" -C "$MARAN_ARTIFACT_TMP"
-
-  local manifest="${MARAN_ARTIFACT_TMP}/manifest.json"
-  local sig="${MARAN_ARTIFACT_TMP}/manifest.json.sig"
-  if [ ! -f "$manifest" ] || [ ! -f "$sig" ]; then
-    echo "50-artifacts.sh: offline bundle is missing manifest.json or manifest.json.sig" >&2
-    exit 1
-  fi
-  verify_manifest_signature "$manifest" "$sig"
-  echo "Offline bundle manifest signature verified."
-
-  local component checksum dest
-  for component in api agent frontend; do
-    checksum="$(manifest_field "$manifest" "$component" "sha256")"
-    dest="${MARAN_ARTIFACT_TMP}/${component}.tar.gz"
-    if [ ! -f "$dest" ]; then
-      echo "50-artifacts.sh: offline bundle is missing ${component}.tar.gz" >&2
-      exit 1
-    fi
-    verify_artifact_checksum "$dest" "$checksum"
-    echo "Verified artifact (offline): ${component} (${MARAN_ARCH})"
-  done
-}
-
-# unpack_artifacts: only reached once every archive has passed signature+checksum
-# verification. Unpacks each component into its own subdirectory under the install
-# root; nothing here executes downloaded content, it only extracts files.
+# stage_release: fills the staging directory with a verified manifest and the three archives,
+# either from the release host (the channel's signed manifest, whose signed channel field must
+# equal the requested one) or from the operator's offline bundle (which carries no URL to disagree
+# with). Both paths end in the same state: manifest.json, manifest.json.sig and <component>.tar.gz
+# whose signature and sha256 have been checked against the package key. cli_layout_install_release
+# checks each sha256 again immediately before extracting it.
 #
-# Each archive's sha256 is checked AGAIN here, immediately before its own extraction, against
-# the same Ed25519-signed manifest. The earlier check verifies all three archives in one loop
-# and extraction happens afterwards, so the first check authenticates the bytes at check time
-# and says nothing about the bytes tar actually reads. The staging directory is root-only, so
-# nothing should be able to change them in between — this second check is what turns "should"
-# into an observation, and it is the difference between the install ABORTING and root
-# extracting a swapped maran-agent that maran-agent.service then runs as root.
-unpack_artifacts() {
-  local component checksum
-  local manifest="${MARAN_ARTIFACT_TMP}/manifest.json"
-  for component in api agent frontend; do
-    checksum="$(manifest_field "$manifest" "$component" "sha256")"
-    if [ -z "$checksum" ]; then
-      echo "50-artifacts.sh: no sha256 for ${component}-${MARAN_ARCH} at extraction time. Aborting." >&2
-      exit 1
+# The offline verifier is run in a subshell with errexit set INSIDE it and switched off around it
+# (a plain `|| ...` would disable errexit for everything the library does), so its own messages are
+# kept and, when it refused the tarball's directory, the operator is told what to do about it.
+stage_release() {
+  local out status
+  if [ -n "${MARAN_OFFLINE_TARBALL:-}" ]; then
+    set +e
+    out="$( ( set -e; cli_release_verify_offline "$MARAN_OFFLINE_TARBALL" "$MARAN_ARTIFACT_TMP" \
+      "$MARAN_PACKAGE_RELEASE_KEY" ) 2>&1 )"
+    status=$?
+    set -e
+    [ -z "$out" ] || printf '%s\n' "$out" >&2
+    if [ "$status" -ne 0 ]; then
+      case "$out" in
+        *"holding the offline tarball"*)
+          echo "install.sh: an offline tarball is only read from a directory that root owns and nobody else can" >&2
+          echo "  write. A directory such as /tmp, a user's home or a shared download folder does not qualify." >&2
+          echo "  Move the file to a root-owned directory, for example: mv ${MARAN_OFFLINE_TARBALL} /root/" >&2
+          echo "  and run the installer again with --offline-tarball /root/$(basename -- "$MARAN_OFFLINE_TARBALL")." >&2
+          ;;
+      esac
+      exit "$status"
     fi
-    verify_artifact_checksum "${MARAN_ARTIFACT_TMP}/${component}.tar.gz" "$checksum"
-    install -d -m 0755 "${MARAN_INSTALL_ROOT}/${component}"
-    tar -xzf "${MARAN_ARTIFACT_TMP}/${component}.tar.gz" -C "${MARAN_INSTALL_ROOT}/${component}"
-  done
-  chown -R root:root "$MARAN_INSTALL_ROOT"
-  # Only the api binary needs to be runnable by the panel user's systemd unit; the
-  # unit itself runs the binary as `panel` while the file stays root-owned (0755 =
-  # world-readable+executable, not writable by panel), so a compromised api process
-  # cannot modify its own binary on disk.
+    echo "Offline bundle verified."
+  else
+    cli_release_fetch_manifest "$MARAN_CHANNEL" "$MARAN_ARTIFACT_TMP" "$MARAN_PACKAGE_RELEASE_KEY"
+    echo "Release manifest signature verified."
+    cli_release_fetch_artifacts "${MARAN_ARTIFACT_TMP}/manifest.json" "$MARAN_ARTIFACT_TMP"
+    echo "Artifacts downloaded and verified."
+  fi
 }
 
-step_artifacts() {
-  echo "Fetching and verifying release artifacts (channel: ${MARAN_CHANNEL})..."
-  if [ -n "${MARAN_OFFLINE_TARBALL}" ]; then
-    use_offline_tarball "$MARAN_OFFLINE_TARBALL"
+# resolve_channel: settles MARAN_CHANNEL before anything is fetched. An explicit --channel
+# (MARAN_CHANNEL_GIVEN=1, set only by install.sh's flag) always wins. Without it, a host whose
+# release.state records a channel keeps that channel; a fresh host keeps install.sh's default.
+resolve_channel() {
+  local recorded
+  [ "${MARAN_CHANNEL_GIVEN:-0}" != "1" ] || return 0
+  recorded="$(cli_layout_state_read CHANNEL)" || exit 1
+  [ -z "$recorded" ] || MARAN_CHANNEL="$recorded"
+}
+
+# staged_channel: prints the channel to record in release.state. Online it is the requested channel
+# (the fetch already refused any other). Offline the signed manifest's own channel wins; an old bundle
+# with no channel field records the requested one.
+staged_channel() {
+  local declared
+  declared="$(cli_release_manifest_field "${MARAN_ARTIFACT_TMP}/manifest.json" channel)" || exit 1
+  if [ -z "$declared" ] || [ "$declared" = "$MARAN_CHANNEL" ]; then
+    printf '%s\n' "${declared:-$MARAN_CHANNEL}"
+  elif [ -n "${MARAN_OFFLINE_TARBALL:-}" ]; then
+    echo "Offline bundle is for channel ${declared}; recording that channel." >&2
+    printf '%s\n' "$declared"
   else
-    download_and_verify_online
+    cli_fail "asked for channel ${MARAN_CHANNEL} but the signed manifest is for ${declared}"
   fi
-  unpack_artifacts
-  rm -rf "$MARAN_ARTIFACT_TMP"
-  echo "Artifacts installed under ${MARAN_INSTALL_ROOT}."
+}
+
+# release_tree_problem VERSION: prints why releases/VERSION cannot be started from, and prints nothing
+# when it can. It asks for what the units execute (api/Maran.Host and agent/maran-agent as regular,
+# executable, non-link files; frontend/index.html as a regular file), for the three component
+# directories to be real directories, and for a tree only root can change: any entry that is a link,
+# not owned by root:root or writable by group or others is a problem. Always returns 0.
+release_tree_problem() {
+  local base="${MARAN_LAYOUT_ROOT}/releases/${1}" entry found
+  for entry in api agent frontend; do
+    [ -d "${base}/${entry}" ] && [ ! -L "${base}/${entry}" ] || { echo "${entry}/ is not a real directory"; return 0; }
+  done
+  for entry in api/Maran.Host agent/maran-agent; do
+    [ -f "${base}/${entry}" ] && [ ! -L "${base}/${entry}" ] && [ -x "${base}/${entry}" ] \
+      || { echo "no executable ${entry}"; return 0; }
+  done
+  [ -f "${base}/frontend/index.html" ] && [ ! -L "${base}/frontend/index.html" ] \
+    || { echo "no frontend/index.html"; return 0; }
+  found="$(find -P "$base" \( -type l -o ! -user root -o ! -group root -o -perm /022 \) -print -quit)" \
+    || { echo "the tree cannot be inspected"; return 0; }
+  [ -z "$found" ] || echo "${found} is a link, is not owned by root or can be written by others"
+}
+
+# require_release_entries VERSION: refuses (cli_fail) when release_tree_problem finds anything. Run on
+# the tree that will be live, whether this run unpacked it, repaired it or kept the one installed.
+require_release_entries() {
+  local problem
+  problem="$(release_tree_problem "$1")"
+  [ -z "$problem" ] || cli_fail "release ${1} is not usable: ${problem}"
+}
+
+# repair_release VERSION STAGEDIR: replaces the tree of a release that is `current` or PREVIOUS (which
+# cli_layout_install_release refuses to touch) with one unpacked from the staged, verified archives.
+# The manifest's version must be VERSION and each sha256 is re-checked immediately before unpacking,
+# as cli_layout_install_release does. Sequence, with `current` naming an existing release throughout:
+# unpack into <VERSION>.partial, publish it as <VERSION>-repair, point `current` at that name if it
+# named the damaged tree, replace releases/<VERSION> by a hard-linked copy of the repaired tree, point
+# `current` back, remove the temporary name.
+repair_release() {
+  local version="$1" stage="$2" releases="${MARAN_LAYOUT_ROOT:?}/releases" manifest arch c current
+  local partial="${releases}/${1:?}.partial" pivot="${1:?}-repair"
+  cli_version_is_semver "$pivot" || cli_fail "cannot name a temporary release for ${version}"
+  manifest="${stage}/manifest.json"
+  [ "$(cli_release_manifest_field "$manifest" version)" = "$version" ] \
+    || cli_fail "the manifest in ${stage} is not for release ${version}"
+  arch="$(cli_release_arch)"
+  for c in "${MARAN_LAYOUT_COMPONENTS[@]}"; do
+    cli_release_check_sha256 "${stage}/${c}.tar.gz" "$(cli_release_manifest_field "$manifest" "${c}-${arch}.sha256")"
+  done
+  current="$(cli_layout_current_version)" || exit 1
+  rm -rf --one-file-system -- "$partial" "${releases}/${pivot}"
+  mkdir -m 0755 -- "$partial" || cli_fail "cannot create ${partial}"
+  cli_layout_unpack_release "$stage" "$partial" \
+    || { rm -rf --one-file-system -- "$partial"; cli_fail "release ${version} could not be unpacked safely"; }
+  sync
+  mv -T -- "$partial" "${releases}/${pivot}" || cli_fail "cannot publish ${releases}/${pivot}"
+  if [ "$current" = "$version" ]; then cli_layout_point_current "$pivot"; fi
+  rm -rf --one-file-system -- "${releases}/${version}"
+  cp -a --link -- "${releases}/${pivot}" "$partial" || cli_fail "cannot rebuild ${releases}/${version}"
+  mv -T -- "$partial" "${releases}/${version}" || cli_fail "cannot publish ${releases}/${version}"
+  if [ "$current" = "$version" ]; then cli_layout_point_current "$version"; fi
+  rm -rf --one-file-system -- "${releases}/${pivot}"
+  sync -- "$releases"
+}
+
+# previous_release VERSION CANDIDATE...: prints the first candidate that is a valid release name, is
+# not VERSION and still exists under releases/, and nothing when none qualifies: the release
+# `maran rollback` would return to after VERSION is installed.
+previous_release() {
+  local version="$1" candidate
+  shift
+  for candidate in "$@"; do
+    if cli_version_is_release_name "$candidate" && [ "$candidate" != "$version" ] \
+        && [ -d "${MARAN_LAYOUT_ROOT}/releases/${candidate}" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+}
+
+# step_artifacts: stages and verifies the release, unpacks it into releases/<version> (never into
+# the live tree), adopts a pre-layout install if there is one, points `current` and the static
+# links at the new release, and records release.state. Nothing downloaded is executed here, and the
+# manifest's version is validated by cli_version_is_semver before it becomes a path.
+step_artifacts() {
+  local version channel adopted installed current prior prior_previous previous state_dir problem
+  resolve_channel
+  echo "Fetching and verifying release artifacts (channel: ${MARAN_CHANNEL})..."
+  state_dir="$(dirname -- "$MARAN_LAYOUT_STATE_FILE")"
+  [ -d "$state_dir" ] && [ ! -L "$state_dir" ] || cli_fail "${state_dir} is not a real directory"
+  install -d -o root -g root -m 0755 "$MARAN_LAYOUT_ROOT"
+  prepare_staging_dir
+  stage_release
+
+  version="$(cli_release_manifest_field "${MARAN_ARTIFACT_TMP}/manifest.json" version)" || exit 1
+  cli_version_is_semver "$version" || cli_fail "the signed manifest carries no valid release version"
+  channel="$(staged_channel)" || exit 1
+  current="$(cli_layout_current_version)" || exit 1
+  prior="$(cli_layout_state_read VERSION)" || exit 1
+  prior_previous="$(cli_layout_state_read PREVIOUS)" || exit 1
+
+  installed="${current:-$prior}"
+  if [ -n "$installed" ] && cli_version_gt "$installed" "$version"; then
+    cli_fail "release ${installed} is installed and is newer than ${version}; the installer does not downgrade" \
+      "(maran rollback goes back to the previous release)"
+  fi
+
+  if [ -e "${MARAN_LAYOUT_ROOT}/releases/${version}" ] \
+      && { [ "$version" = "$current" ] || [ "$version" = "$prior_previous" ]; }; then
+    problem="$(release_tree_problem "$version")"
+    if [ -z "$problem" ]; then
+      echo "Release ${version} is already installed and its tree is intact; keeping it."
+    else
+      echo "Release ${version} is installed but unusable (${problem}); repairing it from the verified archives." >&2
+      repair_release "$version" "$MARAN_ARTIFACT_TMP"
+    fi
+  else
+    cli_layout_install_release "$version" "$MARAN_ARTIFACT_TMP" replace
+  fi
+  require_release_entries "$version"
+
+  adopted="$(cli_layout_adopt_legacy)" || exit 1
+  previous="$(previous_release "$version" "$adopted" "$installed" "$prior" "$prior_previous")"
+  cli_layout_switch "$version"
+  cli_layout_link_static
+  cli_layout_state_write "$channel" "$version" "$previous"
+
+  rm -rf --one-file-system -- "${MARAN_ARTIFACT_TMP:?}" "${MARAN_LAYOUT_ROOT:?}/releases/${version:?}-repair"
+  echo "Release ${version} (channel ${channel}) installed under ${MARAN_LAYOUT_ROOT}/releases;" \
+    "${MARAN_LAYOUT_ROOT}/current points at it."
 }

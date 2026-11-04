@@ -194,8 +194,8 @@ starts it.
 In this order: read and check the configuration, take the backup into `OUT_DIR` (the same code as
 the manual verb), apply retention, upload when S3 is configured. A failed retention does not skip
 the upload and a failed upload does not undo retention; either makes the run fail at the end, after
-both were tried. Only one backup or restore runs at a time on a server: a second one exits at once
-with "another panel backup or restore is running". On success the run prints the path of the new
+both were tried. Only one backup, restore, update or rollback runs at a time on a server: a second one exits at once
+with "another panel backup, restore, update or rollback is running". On success the run prints the path of the new
 archive:
 
 ```

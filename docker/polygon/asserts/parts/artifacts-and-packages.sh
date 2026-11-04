@@ -53,50 +53,100 @@
 # which is the same question asked cheaply. What this does NOT cover, stated rather than implied:
 # everything else in step 30 — the rewrite, the restart, and the no-TCP assertion — still runs
 # nowhere.
-# assert_the_manifest_reader_reads_every_field_not_only_the_last: 50-artifacts.sh's manifest_field
-# against pretty-printed JSON of the shape `maran release build` writes.
+# assert_the_manifest_reader_reads_every_field_not_only_the_last: the release manifest reader
+# (cli_release_manifest_field in installer/cli/lib/release-verify.sh, which step 50 and
+# `maran update` both read a manifest through) against pretty-printed JSON of the shape
+# `maran release build` writes.
 #
-# WHY THIS EXISTS. The reader matched a quoted value only at END OF LINE, and every JSON field
-# except the last in its object is followed by a comma — so it read `sha256`, written last, and
-# returned EMPTY for `url`, written first. Step 50 then refused with "manifest has no entry for
-# api-x86_64" about an entry that was in the file. No online install could fetch anything, and
-# 1.0.0-beta.1 and beta.2 were both published with it.
+# WHY THIS EXISTS. The reader step 50 used to carry matched a quoted value only at END OF LINE, and
+# every JSON field except the last in its object is followed by a comma, so it read `sha256`,
+# written last, and returned EMPTY for `url`, written first. Step 50 then refused with "manifest has
+# no entry for api-x86_64" about an entry that was in the file. No online install could fetch
+# anything, and 1.0.0-beta.1 and beta.2 were both published with it. The reader now lives in one
+# place, the CLI's own library, and this assertion follows it there.
 #
 # It reached a real server for the same reason #34 did: nothing here runs step 50 against a real
 # signed manifest, and the offline path does not use this function at all, so the release selftest
 # passing says nothing about it.
+#
+# KEY syntax: `version`, `channel`, or `<component>-<arch>.url` / `<component>-<arch>.sha256`.
+# UNOBSERVED HERE: the reader is run on a hand-written manifest, not on one `maran release build`
+# produced and signed, and the signature check that must precede any read is not run here.
 assert_the_manifest_reader_reads_every_field_not_only_the_last() {
-  local dir manifest url sha
+  local dir manifest url sha lib_dir="/tmp/maran-installer/cli/lib" lib
   dir="$(mktemp -d)"
   manifest="${dir}/manifest.json"
   cat >"$manifest" <<'MANIFEST'
 {
   "version": "0.0.0-assert",
+  "channel": "beta",
   "artifacts": {
     "api-x86_64": {
       "url": "https://example.invalid/beta/api-x86_64.tar.gz",
       "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "agent-x86_64": {
+      "url": "https://example.invalid/beta/agent-x86_64.tar.gz",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "agent-aarch64": {
+      "url": "https://example.invalid/beta/agent-aarch64.tar.gz",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
     }
   }
 }
 MANIFEST
 
-  # The function under test, sourced from the step itself rather than copied here: a copy would go
-  # on passing after the original changed, which is the failure this whole file exists against.
-  MARAN_ARCH=x86_64
-  eval "$(sed -n '/^manifest_field() {/,/^}/p' /tmp/maran-installer/lib/50-artifacts.sh)"
+  # The function under test, sourced from the library itself rather than copied here: a copy would
+  # go on passing after the original changed, which is the failure this whole file exists against.
+  # The files are sourced in the order the wrapper sources them, in a child shell per read, so the
+  # readonly constants they define never reach this script.
+  for lib in common.sh release-version.sh release-verify.sh; do
+    [ -f "${lib_dir}/${lib}" ] \
+      || fail "${lib_dir}/${lib} is missing from this image, so the manifest reader cannot be sourced; the Dockerfile copies installer/cli whole, so the library no longer exists under that name."
+  done
+  read_manifest_field() {
+    bash -c 'set -euo pipefail
+. "$1/common.sh"
+. "$1/release-version.sh"
+. "$1/release-verify.sh"
+cli_release_manifest_field "$2" "$3"' _ "$lib_dir" "$manifest" "$1" 2>&1
+  }
 
-  url="$(manifest_field "$manifest" api url)"
-  sha="$(manifest_field "$manifest" api sha256)"
+  url="$(read_manifest_field api-x86_64.url)"
+  sha="$(read_manifest_field api-x86_64.sha256)"
 
   [ "$url" = "https://example.invalid/beta/api-x86_64.tar.gz" ] \
-    || fail "manifest_field read url as '${url}' — a field followed by a comma is every field but
+    || fail "cli_release_manifest_field read api-x86_64.url as '${url}': a field followed by a comma is every field but
 the last one, and this is the shape 'manifest has no entry for api-x86_64' was reported about."
   [ "$sha" = "1111111111111111111111111111111111111111111111111111111111111111" ] \
-    || fail "manifest_field read sha256 as '${sha}'."
+    || fail "cli_release_manifest_field read api-x86_64.sha256 as '${sha}'."
 
-  # The inverse control: the pattern this replaced must FAIL on the same file, or the assertion
-  # cannot tell the fixed reader from the broken one.
+  # Every other kind of key, and the entries after the first: a reader that returned the first
+  # match in the file, or the last, would read the api entry's values here.
+  [ "$(read_manifest_field version)" = "0.0.0-assert" ] \
+    || fail "cli_release_manifest_field read version as '$(read_manifest_field version)', not 0.0.0-assert"
+  [ "$(read_manifest_field channel)" = "beta" ] \
+    || fail "cli_release_manifest_field read channel as '$(read_manifest_field channel)', not beta"
+  [ "$(read_manifest_field agent-x86_64.url)" = "https://example.invalid/beta/agent-x86_64.tar.gz" ] \
+    || fail "cli_release_manifest_field read agent-x86_64.url as '$(read_manifest_field agent-x86_64.url)': it returned another entry's value"
+  [ "$(read_manifest_field agent-aarch64.sha256)" = "3333333333333333333333333333333333333333333333333333333333333333" ] \
+    || fail "cli_release_manifest_field read agent-aarch64.sha256 as '$(read_manifest_field agent-aarch64.sha256)': it did not tell the architectures of one component apart"
+
+  # Inverse controls, the half that shows the reads above are not "prints something". A key the
+  # manifest does not carry reads as EMPTY (the caller decides whether that is an error), and a key
+  # outside the syntax is refused instead of being handed to awk.
+  [ -z "$(read_manifest_field frontend-x86_64.url)" ] \
+    || fail "cli_release_manifest_field answered '$(read_manifest_field frontend-x86_64.url)' for an entry the manifest does not carry"
+  local refusal status=0
+  refusal="$(read_manifest_field 'api-x86_64.url;touch /tmp/maran-polygon-manifest-key-witness')" || status=$?
+  [ "$status" -ne 0 ] \
+    || fail "cli_release_manifest_field accepted a key carrying a semicolon and a command: ${refusal}"
+  [ ! -e /tmp/maran-polygon-manifest-key-witness ] \
+    || fail "a manifest key was interpreted by a shell: /tmp/maran-polygon-manifest-key-witness exists"
+
+  # The inverse control: the pattern step 50 used to carry must FAIL on the same file, or the
+  # assertion cannot tell the fixed reader from the broken one.
   local old
   old="$(awk -v key='"api-x86_64"' -v field='"url"' '
     $0 ~ key { in_block=1 }
@@ -111,9 +161,9 @@ the last one, and this is the shape 'manifest has no entry for api-x86_64' was r
     || fail "the end-of-line-only pattern read url as '${old}' from a comma-terminated line, so this
 assertion proves nothing about the fix."
 
+  unset -f read_manifest_field
   rm -rf -- "$dir"
-  echo "assert-installer-steps.sh: manifest_field reads a comma-terminated field, and the pattern it
-  replaced does not."
+  echo "assert-installer-steps.sh: cli_release_manifest_field reads a comma-terminated field, every entry and every top-level key, answers nothing for an absent one and refuses a key outside its syntax; the pattern it replaced does not."
 }
 
 assert_the_postgresql_conf_resolver_finds_a_real_debian_layout() {

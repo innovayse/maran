@@ -662,7 +662,8 @@ stops NOTHING" by its own header, and four defects hid behind exactly that (#39,
 ## The install polygon: the documented install path on a real init
 
     maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--arch <a>]
-                    [--publish PORT] [--browser] [--no-panel-recovery] [--keep]
+                    [--publish PORT] [--browser] [--no-panel-recovery]
+                    [--no-update-rollback] [--keep]
 
 `<version>` is any folder under `docker/polygon/images`: thirteen at the time of writing, covering
 Ubuntu 22.04/24.04/26.04, Debian 12/13, and AlmaLinux, Rocky Linux and Oracle Linux 8/9/10 — except
@@ -751,6 +752,15 @@ signed bundle built from this tree (`maran release build && sign && package`), w
 fixes are proved before anything is published — it is what showed the glibc 2.34 agent running on
 both families. `get` runs the documented one-liner and so tests what a reader actually receives,
 which is only meaningful after a release.
+
+**The update-and-rollback stage (issue #128)** runs by default after the panel-recovery stage;
+`--no-update-rollback` skips it, because it costs a third full install. It lives in
+`scripts/lib/install-polygon-update.sh`. It installs a THIRD server from a signed offline bundle
+(release A, signed by a throwaway key whose public half replaces the package's key inside that
+container only), seeds data and a site, runs `maran update --offline-tarball` to release B and
+`maran rollback`, then plants a release whose api cannot run and requires the automatic rollback,
+and bundles with a flipped artifact byte, another signing key or no signature, which must change
+nothing. The network fetch path is NOT exercised.
 
 **What it does not settle**, for the same reasons `systemd.Dockerfile`'s section below gives: the
 kernel is this machine's, so quota, SELinux, firewall rules and enablement-at-boot remain claims

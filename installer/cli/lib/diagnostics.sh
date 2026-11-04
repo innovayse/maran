@@ -70,7 +70,7 @@ cli_diag_collect() {
 
   cli_diag_add status.txt cli_status
   cli_diag_add_file os-release.txt /etc/os-release all
-  cli_diag_add units.txt systemctl cat maran-api.service maran-agent.service maran-ftps.service
+  cli_diag_add units.txt systemctl cat "$MARAN_CLI_API_UNIT" "$MARAN_CLI_AGENT_UNIT" maran-ftps.service
   cli_diag_add unit-states.txt systemctl list-units --all --no-pager 'maran-*' postgresql.service nginx.service
   cli_diag_add_file nginx-maran.conf /etc/nginx/conf.d/maran.conf all
   cli_diag_add_file nginx-maran-sites.conf /etc/nginx/conf.d/maran-sites.conf all
@@ -80,7 +80,7 @@ cli_diag_collect() {
 
   if [ "$logs" = "logs" ]; then
     cli_diag_add journal.txt journalctl --no-pager --since '7 days ago' \
-      -n "$MARAN_DIAG_JOURNAL_LINES" -u maran-api.service -u maran-agent.service -u nginx.service
+      -n "$MARAN_DIAG_JOURNAL_LINES" -u "$MARAN_CLI_API_UNIT" -u "$MARAN_CLI_AGENT_UNIT" -u nginx.service
     # Only the product's own top-level logs; /var/log/maran/sites holds customers' logs and is not
     # on the list.
     for file in /var/log/maran/*.log /var/log/maran/*.log.1; do
@@ -121,13 +121,14 @@ cli_diag_scan() {
     # substring match made PasswordReset__PanelUrl a "secret", found its URL in the logs and refused
     # every bundle on every install (#68's real-install run).
     [[ "${name,,}" =~ (key|token|password|secret|connectionstring|credential)$ ]] || continue
-    value="$(
-      set -a
-      # shellcheck disable=SC1090
-      . "$MARAN_CLI_ENV_FILE"
-      set +a
-      printf '%s' "${!name-}"
-    )"
+    # This runs under `if !` in the caller, where errexit is off, so a refused read is tested here:
+    # a bundle that could not be scanned is not a bundle that passed.
+    if ! value="$(cli_panel_env_value "$name")"; then
+      rm -rf -- "$scan"
+      CLI_DIAG_SCAN=""
+      echo "maran: could not read ${name} from ${MARAN_CLI_ENV_FILE} for the scan" >&2
+      return 1
+    fi
     # One pattern per line of the value: a multi-line value fed to `grep -f` whole would contribute
     # an empty pattern for a blank line, which matches everything.
     while IFS= read -r piece; do
