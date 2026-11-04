@@ -67,6 +67,59 @@ public sealed class AccountDirectoryNamesTests
         Assert.Empty(names);
     }
 
+    /// <summary>The scoped name lookup is not the unattended bypass: an anonymous caller is named nothing.</summary>
+    /// <remarks>
+    /// What is observed here is the directory's own scope check: <see cref="AccountDirectory.NamesOfAsync"/>
+    /// keeps only the ids the caller sees before it reads the context, so the answer would be the same
+    /// with the context's query filter removed. The filter itself is proved in
+    /// <c>AccountsDbContextFailClosedTests</c>, and the account selector's own window, which bypasses it,
+    /// in <c>AccountNameDirectoryTests</c>. The context is built for the same anonymous caller, as in
+    /// production, and the very same ids are named for an administrator in the test above, so the empty
+    /// answer is the scope check and not missing rows.
+    /// </remarks>
+    [Fact]
+    public async Task An_anonymous_caller_is_named_no_names_by_the_scoped_lookup_s_own_scope_check()
+    {
+        var database = Guid.NewGuid().ToString();
+        Guid accountId;
+        await using (var seed = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin()))
+        {
+            accountId = await SeedAsync(seed, "acme");
+        }
+
+        var anonymous = FakeCurrentUser.Anonymous();
+        await using var dbContext = AccountsTestContext.CreateOn(database, anonymous);
+
+        var names = await new AccountDirectory(dbContext, anonymous)
+            .NamesOfAsync([accountId], CancellationToken.None);
+
+        Assert.Empty(names);
+    }
+
+    /// <summary>A customer reads only their own account's name through a context filtered for them.</summary>
+    [Fact]
+    public async Task A_customer_reads_only_their_own_accounts_name_through_a_context_filtered_for_them()
+    {
+        var database = Guid.NewGuid().ToString();
+        Guid own;
+        Guid stranger;
+        await using (var seed = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin()))
+        {
+            own = await SeedAsync(seed, "acme");
+            stranger = await SeedAsync(seed, "globex");
+        }
+
+        var customer = FakeCurrentUser.Customer(own);
+        await using var dbContext = AccountsTestContext.CreateOn(database, customer);
+
+        var names = await new AccountDirectory(dbContext, customer)
+            .NamesOfAsync([own, stranger], CancellationToken.None);
+
+        var only = Assert.Single(names);
+        Assert.Equal(own, only.Key);
+        Assert.Equal("acme", only.Value);
+    }
+
     /// <summary>An unknown id is simply absent from the answer.</summary>
     [Fact]
     public async Task An_unknown_id_is_simply_absent_from_the_answer()
@@ -80,7 +133,10 @@ public sealed class AccountDirectoryNamesTests
         Assert.Equal(acme, Assert.Single(names).Key);
     }
 
-    /// <summary>Builds a fresh, isolated in-memory context.</summary>
+    /// <summary>
+    /// Builds a fresh, isolated in-memory context for an administrator, which no query filter narrows —
+    /// so the tests reading through it observe the directory's own comparison as the only defence.
+    /// </summary>
     private static AccountsDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AccountsDbContext>()

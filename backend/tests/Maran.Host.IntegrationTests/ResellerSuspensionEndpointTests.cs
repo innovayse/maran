@@ -134,7 +134,7 @@ public sealed class ResellerSuspensionEndpointTests : IAsyncLifetime
 
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        Assert.Equal(AccountStatus.Active, await accounts.Accounts.Where(a => a.Id == acme).Select(a => a.Status).SingleAsync());
+        Assert.Equal(AccountStatus.Active, await accounts.Accounts.IgnoreQueryFilters().Where(a => a.Id == acme).Select(a => a.Status).SingleAsync());
     }
 
     /// <summary>

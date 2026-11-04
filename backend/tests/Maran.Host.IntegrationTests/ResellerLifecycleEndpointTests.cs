@@ -57,7 +57,7 @@ public sealed class ResellerLifecycleEndpointTests : IAsyncLifetime
         Assert.Equal("suspended", body.RootElement.GetProperty("status").GetString());
         var reseller = await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Resellers.AsNoTracking().SingleAsync(r => r.Id == world.Alpha.ResellerId);
+            return await accounts.Resellers.IgnoreQueryFilters().AsNoTracking().SingleAsync(r => r.Id == world.Alpha.ResellerId);
         });
         Assert.Equal(ResellerStatus.Suspended, reseller.Status);
         var login = await world.IdentityAsync(async identity =>
@@ -69,7 +69,7 @@ public sealed class ResellerLifecycleEndpointTests : IAsyncLifetime
 
         var account = await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Accounts.AsNoTracking().SingleAsync(a => a.Id == world.Alpha.AccountId);
+            return await accounts.Accounts.IgnoreQueryFilters().AsNoTracking().SingleAsync(a => a.Id == world.Alpha.AccountId);
         });
         Assert.Equal(AccountStatus.Active, account.Status);
         using var anonymous = world.Factory.CreateClient();
@@ -150,11 +150,11 @@ public sealed class ResellerLifecycleEndpointTests : IAsyncLifetime
 
         Assert.Equal(1, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Plans.CountAsync(p => p.ResellerId == world.Alpha.ResellerId);
+            return await accounts.Plans.IgnoreQueryFilters().CountAsync(p => p.ResellerId == world.Alpha.ResellerId);
         }));
         Assert.Equal(1, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Accounts.CountAsync(a => a.ResellerId == world.Alpha.ResellerId);
+            return await accounts.Accounts.IgnoreQueryFilters().CountAsync(a => a.ResellerId == world.Alpha.ResellerId);
         }));
         Assert.Empty(world.Agent.Created);
         var refusals = await world.AuditEntriesAsync(
@@ -239,7 +239,7 @@ public sealed class ResellerLifecycleEndpointTests : IAsyncLifetime
         Assert.Equal("ResellerHasAccounts", await ProblemDocument.CodeAsync(response));
         Assert.Equal(1, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Resellers.CountAsync(reseller => reseller.Id == id);
+            return await accounts.Resellers.IgnoreQueryFilters().CountAsync(reseller => reseller.Id == id);
         }));
         Assert.Equal(1, await world.IdentityAsync(async identity =>
         {

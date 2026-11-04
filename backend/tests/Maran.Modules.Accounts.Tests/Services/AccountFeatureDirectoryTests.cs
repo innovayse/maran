@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Services;
@@ -68,7 +69,74 @@ public sealed class AccountFeatureDirectoryTests
         Assert.False(await directory.IncludesAsync(Guid.NewGuid(), AccountFeature.Cron, CancellationToken.None));
     }
 
-    /// <summary>Builds a fresh, isolated in-memory context.</summary>
+    /// <summary>A customer is answered from their own plan through a context filtered for them.</summary>
+    /// <remarks>
+    /// The directory and the context are built for the same customer, as in production, so the join
+    /// onto the plan passes through the customer's plan filter: a filter that hid the customer's own
+    /// plan would answer no for the feature the plan includes.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_is_answered_from_their_own_plan_through_a_context_filtered_for_them()
+    {
+        var database = Guid.NewGuid().ToString();
+        Guid accountId;
+        await using (var seed = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin()))
+        {
+            accountId = await SeedAsync(seed, "acme", AccountFeature.Databases | AccountFeature.Cron);
+            await SeedAsync(seed, "other", AccountFeature.All);
+        }
+
+        var customer = FakeCurrentUser.Customer(accountId);
+        await using var dbContext = AccountsTestContext.CreateOn(database, customer);
+        var directory = new AccountFeatureDirectory(dbContext, customer);
+
+        Assert.True(await directory.IncludesAsync(accountId, AccountFeature.Databases, CancellationToken.None));
+        Assert.False(await directory.IncludesAsync(accountId, AccountFeature.Backups, CancellationToken.None));
+    }
+
+    /// <summary>An anonymous caller, an accountless customer and a reseller are answered no for any account.</summary>
+    /// <remarks>
+    /// What is observed here is the directory's own scope check: it refuses these callers before it reads
+    /// the context at all, so the answer would be the same with the context's query filter removed. The
+    /// filter itself is proved in <c>AccountsDbContextFailClosedTests</c>. The contexts are built for the
+    /// same callers, as in production, and the inverse control is the administrator, asked the same
+    /// question over the same database, so the refusal is the check and not missing rows.
+    /// </remarks>
+    [Fact]
+    public async Task Callers_that_see_no_account_are_answered_no_by_the_directory_s_own_scope_check()
+    {
+        var database = Guid.NewGuid().ToString();
+        Guid accountId;
+        await using (var seed = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin()))
+        {
+            accountId = await SeedAsync(seed, "acme", AccountFeature.All);
+        }
+
+        ICurrentUser[] blind =
+        [
+            FakeCurrentUser.Anonymous(),
+            FakeCurrentUser.AccountlessCustomer(),
+            FakeCurrentUser.Reseller(Guid.NewGuid()),
+        ];
+        foreach (var caller in blind)
+        {
+            await using var dbContext = AccountsTestContext.CreateOn(database, caller);
+
+            Assert.False(await new AccountFeatureDirectory(dbContext, caller)
+                .IncludesAsync(accountId, AccountFeature.Databases, CancellationToken.None));
+        }
+
+        var admin = FakeCurrentUser.Admin();
+        await using var adminContext = AccountsTestContext.CreateOn(database, admin);
+
+        Assert.True(await new AccountFeatureDirectory(adminContext, admin)
+            .IncludesAsync(accountId, AccountFeature.Databases, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Builds a fresh, isolated in-memory context for an administrator, which no query filter narrows —
+    /// so the tests reading through it observe the directory's own comparison as the only defence.
+    /// </summary>
     private static AccountsDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AccountsDbContext>()

@@ -8,13 +8,14 @@ namespace Maran.Modules.Accounts.Services;
 /// header's account selector, read without the caller's tenant scope.
 /// </summary>
 /// <remarks>
-/// No scope is applied here, deliberately and by contract — see the interface, which puts the
-/// authorization burden on the caller. There is no <c>IgnoreQueryFilters()</c> call either:
-/// <see cref="AccountsDbContext"/>'s query filter narrows a reseller caller and no other, and this
-/// window answers the header's account selector, which a reseller does not have, so the call would
-/// suppress nothing any caller of this window sees (the same reasoning
-/// <see cref="AccountDirectory.ListAsync"/> records). A reseller that did reach it would be shown the
-/// names of its own accounts only, which is the safe direction.
+/// No caller scope is applied here, deliberately and by contract, see the interface, which puts the
+/// authorization burden on the caller. <see cref="AccountsDbContext"/> fails closed: an anonymous or
+/// accountless caller sees no account at all, and a customer sees only the account it is acting for.
+/// This window serves the header's account selector, which lists whichever accounts the login holds,
+/// the active one included and every one of them for a customer acting for none, so the read bypasses
+/// the query filter explicitly with <c>IgnoreQueryFilters()</c> and an inline suppression carrying the
+/// reason. The ids come from the caller's own memberships, which the caller has already resolved, and
+/// only id and name are returned.
 /// </remarks>
 public sealed class AccountNameDirectory : IAccountNameDirectory
 {
@@ -40,7 +41,9 @@ public sealed class AccountNameDirectory : IAccountNameDirectory
         }
 
         // The selectors are delegates run after the read, not translated, so they are braced.
+#pragma warning disable RS0030 // ids come from the caller's own memberships; only id and name are returned
         return await _dbContext.Accounts
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(account => requested.Contains(account.Id))
             .ToDictionaryAsync(
@@ -53,5 +56,6 @@ public sealed class AccountNameDirectory : IAccountNameDirectory
                     return account.Name;
                 },
                 cancellationToken);
+#pragma warning restore RS0030
     }
 }

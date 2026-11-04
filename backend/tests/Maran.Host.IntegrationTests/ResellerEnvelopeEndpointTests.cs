@@ -82,7 +82,7 @@ public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
         Assert.Equal([field], await ProblemDocument.EnvelopeFieldsAsync(response));
         Assert.Equal(1, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Plans.CountAsync(plan => plan.ResellerId == world.Alpha.ResellerId);
+            return await accounts.Plans.IgnoreQueryFilters().CountAsync(plan => plan.ResellerId == world.Alpha.ResellerId);
         }));
         var refused = Assert.Single(await world.AuditEntriesAsync(AccountAuditActions.PlanCreated));
         Assert.Equal(("alpha", "Over", false), (refused.ActorUsername, refused.Subject, refused.Succeeded));
@@ -164,7 +164,7 @@ public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
         Assert.Equal("ResellerPlanLimitReached", await ProblemDocument.CodeAsync(fourth));
         Assert.Equal(3, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Plans.CountAsync(plan => plan.ResellerId == world.Alpha.ResellerId);
+            return await accounts.Plans.IgnoreQueryFilters().CountAsync(plan => plan.ResellerId == world.Alpha.ResellerId);
         }));
         var entries = await world.AuditEntriesAsync(AccountAuditActions.PlanCreated);
         Assert.Equal(
@@ -196,7 +196,7 @@ public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
         Assert.Equal(["alphatwo"], world.Agent.Created);
         Assert.Equal(2, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Accounts.CountAsync(account => account.ResellerId == world.Alpha.ResellerId);
+            return await accounts.Accounts.IgnoreQueryFilters().CountAsync(account => account.ResellerId == world.Alpha.ResellerId);
         }));
         await SubUserTeamWorld.MailToAsync(world.Mailer, "alphatwo@example.com");
         Assert.DoesNotContain(world.Mailer.Sent, mail => { return mail.Recipient == "alphathree@example.com"; });
@@ -300,7 +300,7 @@ public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
 
         var storedDisk = await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Plans.Where(plan => plan.Id == world.Alpha.PlanId).Select(plan => plan.DiskQuotaMb).SingleAsync();
+            return await accounts.Plans.IgnoreQueryFilters().Where(plan => plan.Id == world.Alpha.PlanId).Select(plan => plan.DiskQuotaMb).SingleAsync();
         });
         var entry = Assert.Single(await world.AuditEntriesAsync(AccountAuditActions.PlanUpdated));
         Assert.Equal(("alpha", accepted), (entry.ActorUsername, entry.Succeeded));
@@ -340,7 +340,7 @@ public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await alpha.GetAsync($"/api/v1/plans/{world.Alpha.PlanId}")).StatusCode);
         Assert.Equal(5_120, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Plans.Where(p => p.Id == world.Alpha.PlanId).Select(p => p.DiskQuotaMb).SingleAsync();
+            return await accounts.Plans.IgnoreQueryFilters().Where(p => p.Id == world.Alpha.PlanId).Select(p => p.DiskQuotaMb).SingleAsync();
         }));
         Assert.Empty(world.Agent.Created);
     }
@@ -381,11 +381,11 @@ public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
         var loserName = RacerNames.Single(name => { return name != winnerName; });
         Assert.Equal(2, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Accounts.CountAsync(account => account.ResellerId == world.Alpha.ResellerId);
+            return await accounts.Accounts.IgnoreQueryFilters().CountAsync(account => account.ResellerId == world.Alpha.ResellerId);
         }));
         Assert.Equal(0, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Accounts.CountAsync(account => account.Name == loserName);
+            return await accounts.Accounts.IgnoreQueryFilters().CountAsync(account => account.Name == loserName);
         }));
         Assert.Equal([loserName], agent.Deleted);
     }
@@ -434,7 +434,7 @@ public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
     {
         return await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Accounts.Where(account => account.Id == accountId)
+            return await accounts.Accounts.IgnoreQueryFilters().Where(account => account.Id == accountId)
                 .Select(account => account.PlanId)
                 .SingleAsync();
         });

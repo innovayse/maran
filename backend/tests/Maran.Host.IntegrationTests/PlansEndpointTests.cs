@@ -103,7 +103,7 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         Assert.Equal(anonymous ? HttpStatusCode.Unauthorized : HttpStatusCode.Forbidden, response.StatusCode);
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        Assert.Equal(1, await accounts.Plans.CountAsync());
+        Assert.Equal(1, await accounts.Plans.IgnoreQueryFilters().CountAsync());
     }
 
     /// <summary>
@@ -271,7 +271,7 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "olive");
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        accounts.Plans.Remove(await accounts.Plans.SingleAsync(plan => plan.Id == planId));
+        accounts.Plans.Remove(await accounts.Plans.IgnoreQueryFilters().SingleAsync(plan => plan.Id == planId));
 
         var failure = await Assert.ThrowsAsync<DbUpdateException>(async () =>
         {

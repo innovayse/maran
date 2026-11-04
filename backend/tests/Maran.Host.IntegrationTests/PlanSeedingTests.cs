@@ -88,7 +88,8 @@ public sealed class PlanSeedingTests : IAsyncLifetime
         const int EditedQuota = 12_345;
         await using (var context = OpenContext())
         {
-            var business = await context.Plans.SingleAsync(plan => plan.Id == PlanSeeder.BusinessPlanId);
+            var business = await context.Plans.IgnoreQueryFilters()
+                .SingleAsync(plan => plan.Id == PlanSeeder.BusinessPlanId);
             // Through EF's own metadata, because a plan's properties are private-set: the panel has
             // no edit-a-plan operation yet, and this test is about what a RESTART does to a row an
             // operator has changed, not about how they changed it.
@@ -102,10 +103,12 @@ public sealed class PlanSeedingTests : IAsyncLifetime
         }
 
         await using var after = OpenContext();
-        var reread = await after.Plans.AsNoTracking().SingleAsync(plan => plan.Id == PlanSeeder.BusinessPlanId);
+        var reread = await after.Plans.IgnoreQueryFilters()
+            .AsNoTracking()
+            .SingleAsync(plan => plan.Id == PlanSeeder.BusinessPlanId);
 
         Assert.Equal(EditedQuota, reread.DiskQuotaMb);
-        Assert.Equal(3, await after.Plans.CountAsync());
+        Assert.Equal(3, await after.Plans.IgnoreQueryFilters().CountAsync());
     }
 
     /// <summary>Applies the Accounts migrations to the empty database, the way the installer does.</summary>
@@ -162,6 +165,6 @@ public sealed class PlanSeedingTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
 
-        return await context.Plans.AsNoTracking().Select(plan => plan.Id).ToListAsync();
+        return await context.Plans.IgnoreQueryFilters().AsNoTracking().Select(plan => plan.Id).ToListAsync();
     }
 }

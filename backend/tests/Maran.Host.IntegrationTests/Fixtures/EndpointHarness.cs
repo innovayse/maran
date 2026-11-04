@@ -148,9 +148,10 @@ public static class EndpointHarness
         // The default plan is shared by every account a test seeds without naming one: plan names are
         // unique, so a second "Base" would be refused by the database.
         var stored = plan
-            ?? await context.Plans.SingleOrDefaultAsync(candidate => candidate.DisplayNameKey == "Base")
+            ?? await context.Plans.IgnoreQueryFilters()
+                .SingleOrDefaultAsync(candidate => candidate.DisplayNameKey == "Base")
             ?? Plan.Define(Guid.NewGuid(), "Base", 5_120, 5, 2, 3, 0, 5, 5);
-        if (!await context.Plans.AnyAsync(candidate => candidate.Id == stored.Id))
+        if (!await context.Plans.IgnoreQueryFilters().AnyAsync(candidate => candidate.Id == stored.Id))
         {
             context.Plans.Add(stored);
         }

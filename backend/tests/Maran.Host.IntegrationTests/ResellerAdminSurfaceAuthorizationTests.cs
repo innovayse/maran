@@ -90,7 +90,7 @@ public sealed class ResellerAdminSurfaceAuthorizationTests : IAsyncLifetime
         var response = await SendAsync(alpha, method, route.Replace(IdPlaceholder, world.Alpha.ResellerId.ToString(), StringComparison.Ordinal));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Equal(2, await world.AccountsAsync(async accounts => { return await accounts.Resellers.CountAsync(); }));
+        Assert.Equal(2, await world.AccountsAsync(async accounts => { return await accounts.Resellers.IgnoreQueryFilters().CountAsync(); }));
         Assert.Empty(await world.AuditEntriesAsync(
             AccountAuditActions.ResellerCreated,
             AccountAuditActions.ResellerEnvelopeChanged,
@@ -147,7 +147,7 @@ public sealed class ResellerAdminSurfaceAuthorizationTests : IAsyncLifetime
         Assert.Equal("AccountFinalBackupSkipForbidden", await ProblemDocument.CodeAsync(own));
         Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
         Assert.Equal("AccountFinalBackupSkipForbidden", await ProblemDocument.CodeAsync(foreign));
-        Assert.Equal(3, await world.AccountsAsync(async accounts => { return await accounts.Accounts.CountAsync(); }));
+        Assert.Equal(3, await world.AccountsAsync(async accounts => { return await accounts.Accounts.IgnoreQueryFilters().CountAsync(); }));
         Assert.Empty(world.Agent.Deleted);
         var entries = await world.AuditEntriesAsync(AccountAuditActions.AccountDeleted);
         Assert.Equal(2, entries.Count);

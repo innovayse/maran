@@ -6,8 +6,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Maran.Modules.Accounts.Tests.Persistence;
 
 /// <summary>
-/// The narrowing query filters of <see cref="AccountsDbContext"/>: a reseller's context shows it the
-/// accounts, plans and reseller rows it owns and no others, and no other kind of caller is narrowed.
+/// The reseller narrowing of the query filters of <see cref="AccountsDbContext"/>: a reseller's context
+/// shows it the accounts, plans and reseller rows it owns and no others, and the administrator, who is
+/// not narrowed, is the control that proves the narrowing is the filter's work and not an empty seed.
+/// The answers for every other kind of caller are proved in <see cref="AccountsDbContextFailClosedTests"/>.
 /// Every refusing control has its accepting control beside it, so a filter that hid everything, or
 /// nothing, would fail one of them.
 /// </summary>
@@ -113,44 +115,12 @@ public sealed class AccountsDbContextResellerFilterTests
         Assert.Empty(await dbContext.Resellers.ToListAsync());
     }
 
-    /// <summary>An administrator is not narrowed: it sees every account, plan and reseller.</summary>
+    /// <summary>An administrator is not narrowed: it sees every account, plan and reseller (the control).</summary>
     [Fact]
     public async Task An_administrator_is_not_narrowed()
     {
         await SeedAsync();
         await using var dbContext = AccountsTestContext.CreateOn(_database, FakeCurrentUser.Admin());
-
-        await AssertSeesEverythingAsync(dbContext);
-    }
-
-    /// <summary>A customer is not narrowed by the reseller filters: they leave it as it was.</summary>
-    [Fact]
-    public async Task A_customer_is_not_narrowed_by_the_reseller_filters()
-    {
-        await SeedAsync();
-        await using var dbContext = AccountsTestContext.CreateOn(
-            _database,
-            FakeCurrentUser.Customer(Guid.NewGuid()));
-
-        await AssertSeesEverythingAsync(dbContext);
-    }
-
-    /// <summary>A customer login acting for no account is not narrowed by the reseller filters.</summary>
-    [Fact]
-    public async Task An_accountless_customer_is_not_narrowed_by_the_reseller_filters()
-    {
-        await SeedAsync();
-        await using var dbContext = AccountsTestContext.CreateOn(_database, FakeCurrentUser.AccountlessCustomer());
-
-        await AssertSeesEverythingAsync(dbContext);
-    }
-
-    /// <summary>Unattended work, with no principal, is not narrowed by the reseller filters.</summary>
-    [Fact]
-    public async Task Unattended_work_is_not_narrowed_by_the_reseller_filters()
-    {
-        await SeedAsync();
-        await using var dbContext = AccountsTestContext.CreateOn(_database, FakeCurrentUser.Anonymous());
 
         await AssertSeesEverythingAsync(dbContext);
     }
