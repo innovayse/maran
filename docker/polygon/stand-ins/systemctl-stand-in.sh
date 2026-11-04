@@ -349,10 +349,15 @@ record_state() {
 # installer installs and never starts. Such a unit reads DORMANT_ACTIVE_STATE and
 # DORMANT_ENABLEMENT until a verb records otherwise — the state a real host holds
 # it in until the panel drives it. A template instance such as
-# `maran-php-install@php83-php-fpm.service` matches its `@*` pattern.
+# `maran-php-install@php83-php-fpm.service` matches its `@*` pattern. The scheduled
+# panel backup's timer and service (issue #129) are dormant for the same reason: step 67
+# installs both and enables neither, because the operator switches the timer on with
+# `maran panel-backup-schedule enable` after writing the configuration, so a stand-in
+# that reported the timer enabled would make "step 67 left it off" unobservable.
 is_dormant_panel_unit() {
     case "$1" in
         maran-ftps.service | maran-php-install@*.service) return 0 ;;
+        maran-panel-backup.timer | maran-panel-backup.service) return 0 ;;
     esac
     return 1
 }
