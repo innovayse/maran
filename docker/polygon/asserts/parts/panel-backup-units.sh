@@ -89,8 +89,8 @@ panel_backup_note_prior_state() {
 
 # panel_backup_restore_prior_state: removes what step 67 and the verbs created since
 # panel_backup_note_prior_state, and nothing that was there before. The directories go only when
-# they are empty: a rmdir that fails is a signal that an assertion left an archive, and the next
-# assertion's absence checks must not inherit it.
+# they are empty (the output directory) or are ours (the staging base): a rmdir that fails is a signal
+# that an assertion left an archive, and the next assertion's absence checks must not inherit it.
 panel_backup_restore_prior_state() {
   rm -f -- "${PANEL_BACKUP_UNIT_DIR}/${PANEL_BACKUP_SERVICE_FILE}" "${PANEL_BACKUP_UNIT_DIR}/${PANEL_BACKUP_TIMER_FILE}"
   rm -rf -- "$PANEL_BACKUP_DROPIN_DIR"
@@ -103,8 +103,9 @@ panel_backup_restore_prior_state() {
       || fail "${PANEL_BACKUP_OUT_DIR} is not empty after the scheduled panel backup assertions, so one of them left an archive behind"
   fi
   if [ "$PANEL_BACKUP_HAD_STAGING_DIR" -eq 0 ] && [ -d "$PANEL_BACKUP_STAGING_DIR" ] && [ ! -L "$PANEL_BACKUP_STAGING_DIR" ]; then
-    rmdir -- "$PANEL_BACKUP_STAGING_DIR" \
-      || fail "${PANEL_BACKUP_STAGING_DIR} is not empty after the scheduled panel backup assertions, so one of them left a stage behind"
+    # rm -rf and not rmdir: the verb leaves its lock file in the staging base on purpose (flock needs a
+    # file), and everything in a directory this part created is this part's.
+    rm -rf -- "$PANEL_BACKUP_STAGING_DIR"
   fi
   if [ "$PANEL_BACKUP_HAD_ETC_MARAN" -eq 0 ] && [ -d /etc/maran ]; then
     rmdir -- /etc/maran 2>/dev/null || true
