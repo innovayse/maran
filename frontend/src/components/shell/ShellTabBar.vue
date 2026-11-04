@@ -33,12 +33,23 @@
  * The "More" button is the second opener of the drawer; `aria-expanded` follows the same
  * state as the hamburger's. Its accessible name is its visible word, so the two openers have
  * different names and a script can tell them apart.
+ *
+ * **Loading (issue #366).** While a customer's first answer for the active account is on its way
+ * (`loading`), four {@link UiSkeleton} placeholders stand in for the four destinations, which are
+ * the only part that depends on the entries. The bar keeps its landmark, its accessible name and
+ * `aria-busy`. The placeholders sit in a `UiLoadingRegion` (laid out with `display: contents`, so
+ * they stay grid items of the bar): they are mounted at once, so the space is held, but stay
+ * invisible for the first 150 ms and a fast answer shows none. The region announces the wait once,
+ * politely; the placeholders are decorative and hidden from assistive technology. "More" does not depend on the entries, so it stays drawn and
+ * usable, so the drawer can still be opened while the destinations load.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import UiLoadingRegion from '../ui/UiLoadingRegion.vue'
 import UiNavPlanned from '../ui/UiNavPlanned.vue'
+import UiSkeleton from '../ui/UiSkeleton.vue'
 import { useNavigationRole } from '../../composables/useNavigationRole'
 import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { RouteLocationRaw } from 'vue-router'
@@ -104,12 +115,20 @@ type Tab =
     }
 
 /** Props accepted by {@link ShellTabBar}. */
-const props = defineProps<{
-  /** Navigation entries the shell is showing, exactly as the sidebar renders them. */
-  entries: readonly NavigationEntry[]
-  /** Whether the navigation drawer is open, reported as the More button's `aria-expanded`. */
-  navigationOpen: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** Navigation entries the shell is showing, exactly as the sidebar renders them. */
+    entries: readonly NavigationEntry[]
+    /** Whether the navigation drawer is open, reported as the More button's `aria-expanded`. */
+    navigationOpen: boolean
+    /**
+     * Whether the first answer for the active account is still on its way. The bar then draws
+     * placeholders in place of the destinations: an empty bar would read as "nothing is allowed".
+     */
+    loading?: boolean
+  }>(),
+  { loading: false },
+)
 
 /** Events emitted by {@link ShellTabBar}. */
 const emit = defineEmits<{
@@ -188,20 +207,38 @@ const openNavigation = (): void => {
   <nav
     class="grid h-16 flex-none grid-cols-[repeat(5,minmax(min-content,1fr))] rounded-panel border border-border-subtle bg-surface-1 px-1"
     :aria-label="t('app.shell.tabBarLabel')"
+    :aria-busy="loading ? 'true' : undefined"
   >
-    <template v-for="tab in tabs" :key="tab.entry.key">
-      <UiNavPlanned v-if="tab.kind === 'planned'" :hint="t('app.nav.plannedHint')" tab>
-        <UiIcon :name="tab.entry.icon" size="lg" />
-        <span class="max-w-full">{{ tab.label }}</span>
-      </UiNavPlanned>
-      <RouterLink
-        v-else
-        :to="tab.target"
-        class="m-0.5 flex min-w-0 flex-col items-center justify-center gap-1 rounded-control px-0 text-center text-xs leading-tight font-semibold text-text-secondary transition-colors focus-visible:shadow-focus focus-visible:outline-none [&.router-link-active]:bg-accent-soft [&.router-link-active]:text-accent-text"
+    <!-- Loading: the region mounts the placeholders at once, keeps them invisible for the first
+         150 ms and announces the wait itself. `contents` takes its own box out of the layout, so
+         the placeholders stay grid items of the bar. "More" below is not part of the wait and
+         stays usable. -->
+    <UiLoadingRegion v-if="loading" state="loading" class="contents">
+      <div
+        v-for="position in DESTINATIONS"
+        :key="position"
+        class="m-0.5 flex min-w-0 flex-col items-center justify-center gap-2"
+        aria-hidden="true"
       >
-        <UiIcon :name="tab.entry.icon" size="lg" />
-        <span class="max-w-full">{{ tab.label }}</span>
-      </RouterLink>
+        <UiSkeleton shape="circle" size="md" />
+        <div class="w-10"><UiSkeleton shape="line" size="sm" /></div>
+      </div>
+    </UiLoadingRegion>
+    <template v-else>
+      <template v-for="tab in tabs" :key="tab.entry.key">
+        <UiNavPlanned v-if="tab.kind === 'planned'" :hint="t('app.nav.plannedHint')" tab>
+          <UiIcon :name="tab.entry.icon" size="lg" />
+          <span class="max-w-full">{{ tab.label }}</span>
+        </UiNavPlanned>
+        <RouterLink
+          v-else
+          :to="tab.target"
+          class="m-0.5 flex min-w-0 flex-col items-center justify-center gap-1 rounded-control px-0 text-center text-xs leading-tight font-semibold text-text-secondary transition-colors focus-visible:shadow-focus focus-visible:outline-none [&.router-link-active]:bg-accent-soft [&.router-link-active]:text-accent-text"
+        >
+          <UiIcon :name="tab.entry.icon" size="lg" />
+          <span class="max-w-full">{{ tab.label }}</span>
+        </RouterLink>
+      </template>
     </template>
 
     <UiButton

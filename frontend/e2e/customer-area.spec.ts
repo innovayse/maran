@@ -114,7 +114,7 @@ test.describe('the customer area, end to end', () => {
 
     // --- server-wide entries absent from the navigation.
     //
-    // The audit journal is gated on ROLE alone (useNavigation.ts), independent of the module
+    // The audit journal is gated on ROLE alone (useNavigationState.ts), independent of the module
     // catalogue, so this is a control on the mechanism itself and not on what the fixture
     // happened to list: a customer role must hide it even though the sidebar renders every
     // other entry.

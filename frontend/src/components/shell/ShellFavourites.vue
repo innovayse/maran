@@ -5,7 +5,7 @@
  * that already gives way to the breadcrumb, the search field and the language name on a phone.
  *
  * **The server stores keys; this menu decides what is drawn.** A pin is drawn only when its key
- * names a page the person can open right now, found in the navigation `useNavigation` built for
+ * names a page the person can open right now, found in the navigation `useNavigationState` built for
  * their role, the module catalogue and the plan. A pin for a page that has since been withdrawn
  * from them, or is still planned, stays stored and is simply not listed, so it comes back if the
  * page is offered again. Offering is advice: every endpoint behind a page enforces access itself.
@@ -28,7 +28,7 @@ import type { NavigationEntry } from '../../types/navigation'
 
 /** Props accepted by {@link ShellFavourites}. */
 const props = defineProps<{
-  /** The navigation entries the shell built for the signed-in person, as `useNavigation` returns them. */
+  /** The navigation entries the shell built for the signed-in person, as `useNavigationState` returns them. */
   entries: readonly NavigationEntry[]
 }>()
 

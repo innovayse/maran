@@ -27,7 +27,10 @@ export interface AccountAccess {
 export interface HeldAccountAccess {
   /** The account the caller was acting for when the standing was read. */
   accountId: string
-  /** What the caller is to that account; `null` when the panel reports none. */
+  /**
+   * What the caller is to that account; `null` when the panel reports none, or when the read for
+   * that account failed. The account id is recorded either way, because it marks the read as settled.
+   */
   access: AccountAccess | null
 }
 

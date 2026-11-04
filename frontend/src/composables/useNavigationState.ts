@@ -9,16 +9,25 @@ import { useTasksStore } from '../stores/tasks'
 import { buildNavigation } from '../utils/buildNavigation'
 import { useNavigationRole } from './useNavigationRole'
 import type { ModuleState } from '../types/module'
-import type { NavigationAccountAccess, NavigationEntry, NavigationPlanFeatures } from '../types/navigation'
+import type { MyAccount } from '../types/account'
+import type { HeldAccountAccess } from '../types/profile'
+import type {
+  NavigationAccountAccess,
+  NavigationGrants,
+  NavigationPlanFeatures,
+  NavigationState,
+} from '../types/navigation'
 
 /**
- * The shell's navigation for the signed-in caller, built from the navigation tree
- * (`router/navigationTree.ts`) by `utils/buildNavigation.ts` against the caller's role, the module
- * catalogue, the routes this bundle registers and the live counts the shell already holds. The
- * sidebar, rail, drawer, tab bar and jump-to palette all render this one list.
- * @returns A computed list of {@link NavigationEntry} in drawing order.
+ * The state of the shell's navigation for the signed-in caller. Once ready it carries the entries
+ * built from the navigation tree (`router/navigationTree.ts`) by `utils/buildNavigation.ts` against
+ * the caller's role, the module catalogue, the routes this bundle registers and the live counts the
+ * shell already holds; the sidebar, rail, drawer, tab bar and jump-to palette all render that one
+ * list. It is `loading`, with no entries, only while a customer's first answer for the account they
+ * act for is on its way; operators, logins with no account and failed reads are always `ready`.
+ * @returns A computed {@link NavigationState}: loading, or ready with the entries in drawing order.
  */
-export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
+export const useNavigationState = (): ComputedRef<NavigationState> => {
   const role = useNavigationRole()
   const modulesStore = useModulesStore()
   const authStore = useAuthStore()
@@ -27,6 +36,35 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
   const tasksStore = useTasksStore()
   const badgesStore = useNavigationBadgesStore()
   const router = useRouter()
+
+  /**
+   * What the plan read says about features, for the account the caller acts for.
+   * @param mine The plan read as held, or `null` when the caller owns no account or the read failed.
+   * @param active The account the caller acts for.
+   * @returns Reported features only when the read is for the active account and lists them; otherwise unreported.
+   */
+  const planFeaturesOf = (mine: MyAccount | null, active: string): NavigationPlanFeatures => {
+    if (mine === null || mine.id !== active || mine.plan.features === undefined) {
+      return { state: 'unreported' }
+    }
+    return { state: 'reported', features: new Set(mine.plan.features) }
+  }
+
+  /**
+   * What the caller's standing on the account says about what a member may reach.
+   * @param held The standing as held, or `null` before any answer.
+   * @param customer True when the caller is a customer; an operator's standing is never asked for.
+   * @returns The owner, a member with their granted features, or unreported when nothing is known.
+   */
+  const accountAccessOf = (held: HeldAccountAccess | null, customer: boolean): NavigationAccountAccess => {
+    if (!customer || held === null || held.access === null) {
+      return { state: 'unreported' }
+    }
+    if (held.access.role === 'owner') {
+      return { state: 'owner' }
+    }
+    return { state: 'member', features: new Set(held.access.features) }
+  }
 
   // A customer's menu follows their plan and, for a member, what the owner granted, so the shell
   // reads their own account and their standing on it once they are signed in, and again when the
@@ -50,36 +88,58 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
   )
 
   /**
-   * The features of the signed-in customer's plan, or unreported when they are not known: an
-   * administrator, a read still on its way or failed, and an account read left over from somebody
-   * who signed in before (its id is not this caller's).
+   * The grants the menu is drawn from. They follow the account the caller acts for, but only once
+   * BOTH reads have settled (arrived, or failed, which leaves them unreported and so offers every
+   * item). A plan read that ended for another account than the active one counts as settled with
+   * no answer, never as pending. While either is still on its way the previous grants are kept as they
+   * were, so a switch of account never draws a menu from the plan of one account and the grants of
+   * the other, and never from neither. For a login that acts for no account nothing is reported:
+   * every item is offered, since hiding is advice. `null` means the first answer for the account is
+   * still on its way and there are no earlier grants to keep, which a customer's navigation reports
+   * as `loading` (an operator's reads `null` as nothing reported): a switch of account reloads the panel
+   * (`ShellAccountSelector`), so the page that asks for the new account's standing starts with none.
    */
-  const planFeatures = computed<NavigationPlanFeatures>(() => {
+  const grants = computed<NavigationGrants | null>((previous) => {
+    const unreported: NavigationGrants = {
+      planFeatures: { state: 'unreported' },
+      accountAccess: { state: 'unreported' },
+    }
+    const active = authStore.user?.accountId ?? null
+    if (active === null) {
+      // Nobody acts for an account: nothing carried over from a previous sign-in may colour the menu.
+      return unreported
+    }
     const mine = accountsStore.mine
-    if (mine === null || mine.id !== authStore.user?.accountId || mine.plan.features === undefined) {
-      return { state: 'unreported' }
-    }
-    return { state: 'reported', features: new Set(mine.plan.features) }
-  })
-
-  /**
-   * The caller's standing on the account they act for: owner, or a member with the features the
-   * owner granted. Unreported for an administrator, a read still on its way or failed, a login that
-   * acts for no account, and a standing read for another account than the one now active.
-   */
-  const accountAccess = computed<NavigationAccountAccess>(() => {
     const held = accessStore.held
-    const current = role.value === 'customer' && held?.accountId === authStore.user?.accountId
-    if (!current || held === null || held.access === null) {
-      return { state: 'unreported' }
+    const customer = role.value === 'customer'
+    // Pending means only that a read is in flight. A plan read that has ended, for whatever account
+    // (or none), is an answer: if it is not for the active account it says nothing and offers every
+    // item, rather than holding the menu on stale grants for good. An operator's standing is never
+    // asked for, so only a customer waits on it.
+    const planSettled = accountsStore.mineState !== 'loading'
+    const accessSettled = !customer || held?.accountId === active
+    if (!planSettled || !accessSettled) {
+      return previous ?? null
     }
-    return held.access.role === 'owner'
-      ? { state: 'owner' }
-      : { state: 'member', features: new Set(held.access.features) }
+    return {
+      planFeatures: planFeaturesOf(mine, active),
+      accountAccess: accountAccessOf(held, customer),
+    }
   })
 
-  return computed<NavigationEntry[]>(() => {
-    return buildNavigation({
+  return computed<NavigationState>(() => {
+    const known = grants.value
+    // A customer's first answer is still on its way: offering every item now would flash a menu the
+    // answer then shrinks, so the state is `loading` until it arrives (a failed read settles it as
+    // unreported and offers everything). An operator's menu never waits on a customer's standing.
+    if (known === null && role.value === 'customer') {
+      return { state: 'loading' }
+    }
+    const { planFeatures, accountAccess } = known ?? {
+      planFeatures: { state: 'unreported' as const },
+      accountAccess: { state: 'unreported' as const },
+    }
+    const entries = buildNavigation({
       role: role.value,
       catalogue: modulesStore.modules,
       modules: new Map(
@@ -87,8 +147,8 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
           return [module.name, module.state]
         }),
       ),
-      planFeatures: planFeatures.value,
-      accountAccess: accountAccess.value,
+      planFeatures,
+      accountAccess,
       // Each count is present only when the panel answered with a real one: a kind still loading,
       // refused or failed is left out, so it draws no badge (never a zero standing in for it). The
       // failed count is read once by the shell (`DefaultLayout`); the others by the badges store.
@@ -100,5 +160,6 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
         return router.hasRoute(name)
       },
     })
+    return { state: 'ready', entries }
   })
 }

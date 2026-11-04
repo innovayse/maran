@@ -175,7 +175,10 @@ test('switching the active account reads the standing again and the menu follows
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
-  await stubMyAccount(page, OWN_ACCOUNT)
+  // The account read answers for whichever account is active, as the panel does.
+  await stubMyAccount(page, (): MyAccount => {
+    return { ...OWN_ACCOUNT, id: state.activeAccountId }
+  })
   await stubAccountMemberships(page, state)
   // The person owns olive and is a databases-only member of shop: the answer follows the active account.
   await stubProfile(page, (): ProfileStub => {
