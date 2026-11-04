@@ -37,20 +37,28 @@ readonly MARAN_PANEL_BACKUP_STAGING_DIR="/var/lib/maran-cli-staging"
 readonly MARAN_PANEL_BACKUP_EXAMPLE_SOURCE="${SCRIPT_DIR:?must be set by install.sh}/panel-backup.conf.example"
 readonly MARAN_PANEL_BACKUP_EXAMPLE_DEST="/usr/local/maran/cli/panel-backup.conf.example"
 
-# panel_backup_require_private_directory: creates $1 root:root 0700 when absent, then OBSERVES it.
+# panel_backup_refuse_foreign_node: refuses when $1 is a symbolic link or a non-directory.
 #
 # `install -d` accepts an existing path and re-modes a directory, but it follows a symbolic link, so
-# a link planted at the name would send root's archives elsewhere. A link or a non-directory is
-# therefore a refusal made BEFORE anything is created or changed, and the result is read back rather
-# than assumed — the same discipline 66-cli.sh applies to /usr/local/sbin.
-panel_backup_require_private_directory() {
-  local path="$1" observed
+# a link planted at the name would send root's archives elsewhere. The refusal is made BEFORE
+# anything is created or changed. The creation itself stays a literal `install -d <path>` in
+# step_panel_backup, because `maran structure` check 24 pairs each unit's ReadWritePaths= against
+# those literal lines (issue #41) and cannot read a path held in a variable.
+panel_backup_refuse_foreign_node() {
+  local path="$1"
   if [ -L "$path" ] || { [ -e "$path" ] && [ ! -d "$path" ]; }; then
     echo "67-panel-backup.sh: ${path} is a symbolic link or not a directory. Refusing to write" >&2
     echo "  root's backups through it. Move it aside and re-run the installer." >&2
     exit 1
   fi
-  install -d -m 0700 -o root -g root "$path"
+}
+
+# panel_backup_observe_private_directory: reads $1 back and requires root:root 0700.
+#
+# The result is observed rather than assumed, the same discipline 66-cli.sh applies to
+# /usr/local/sbin.
+panel_backup_observe_private_directory() {
+  local path="$1" observed
   observed="$(stat -c '%a %u %g' -- "$path")"
   if [ "$observed" != "700 0 0" ]; then
     echo "67-panel-backup.sh: ${path} is '${observed}' (mode owner group) but must be '700 0 0'." >&2
@@ -75,8 +83,13 @@ install_panel_backup_units() {
 
 step_panel_backup() {
   echo "Installing the scheduled panel backup units..."
-  panel_backup_require_private_directory "$MARAN_PANEL_BACKUP_OUT_DIR"
-  panel_backup_require_private_directory "$MARAN_PANEL_BACKUP_STAGING_DIR"
+  panel_backup_refuse_foreign_node "$MARAN_PANEL_BACKUP_OUT_DIR"
+  panel_backup_refuse_foreign_node "$MARAN_PANEL_BACKUP_STAGING_DIR"
+  # Literal paths, equal to the two constants above: see panel_backup_refuse_foreign_node.
+  install -d -m 0700 -o root -g root /var/backups/maran-panel
+  install -d -m 0700 -o root -g root /var/lib/maran-cli-staging
+  panel_backup_observe_private_directory "$MARAN_PANEL_BACKUP_OUT_DIR"
+  panel_backup_observe_private_directory "$MARAN_PANEL_BACKUP_STAGING_DIR"
   install_panel_backup_units
 
   [ -f "$MARAN_PANEL_BACKUP_EXAMPLE_SOURCE" ] \
