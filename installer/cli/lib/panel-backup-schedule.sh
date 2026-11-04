@@ -91,7 +91,7 @@ cli_pbsched_require_visible_to_unit() {
     for tree in $MARAN_PBSCHED_HIDDEN_TREES; do
       case "$candidate" in
         "$tree"|"$tree"/*)
-          cli_fail "${key} (${path}) is under ${tree}, which the scheduled job cannot read (ProtectHome=yes); move the file to /etc/maran"
+          cli_fail "${key} (${path}) is under ${tree}, which the scheduled job cannot read (ProtectHome=yes); move the file to /etc/maran-backup"
           ;;
       esac
     done
