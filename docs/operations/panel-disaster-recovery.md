@@ -56,7 +56,10 @@ The scheduled job runs with `/root` and `/home` hidden from it (`ProtectHome=yes
 passphrase or credential file under either is invisible to the job, which then refuses with "is not
 a regular file". Keep the files of the schedule in a directory of their own, for example
 `/etc/maran-backup`, and not under `/etc/maran`: that tree is inside every archive, and a passphrase
-stored in the archive it protects protects nothing. (The manual flow above is unaffected: a manual
+stored in the archive it protects protects nothing. `maran panel-backup-schedule enable` checks this
+for you: it refuses, naming the key and the path, when `PASSPHRASE_FILE` or, with S3 configured,
+`S3_ACCESS_KEY_ID_FILE` or `S3_SECRET_FILE` is under `/root` or `/home`, whether written that way
+or reached through a symlink, so the first night's run cannot fail on it. (The manual flow above is unaffected: a manual
 run is not under the unit, so `/root/maran-backup.passphrase` keeps working for it.)
 
 ```
@@ -110,28 +113,30 @@ never enables the timer and never writes the configuration.
 ### A different OUT_DIR
 
 The service unit may write to exactly three places: `/var/backups/maran-panel`,
-`/var/lib/maran-cli-staging` and `/run` (`ReadWritePaths=`). `maran panel-backup-schedule enable`
-validates `OUT_DIR` but does not change the unit, so with any other `OUT_DIR` the job cannot create
-its archive and fails. To use another directory, create it (root:root, 0700) and add it to the
-unit yourself in a drop-in, then reload systemd:
+`/var/lib/maran-cli-staging` and `/run` (`ReadWritePaths=`). For any other `OUT_DIR`,
+`maran panel-backup-schedule enable` adds that one directory to the unit itself, so there is nothing
+to edit by hand. Create the directory first (root:root, 0700); `enable` refuses, naming `OUT_DIR`,
+when it does not exist or is a symlink:
 
 ```
 sudo install -d -m 0700 -o root -g root /srv/maran-panel-backups
-sudo systemctl edit maran-panel-backup.service
 ```
 
-with, in the editor:
+then set `OUT_DIR=/srv/maran-panel-backups` in the configuration and run `enable`. It writes
+`/etc/systemd/system/maran-panel-backup.service.d/outdir.conf`:
 
 ```
 [Service]
 ReadWritePaths=/srv/maran-panel-backups
 ```
 
-```
-sudo systemctl daemon-reload
-```
+and reloads systemd. The directory is the validated `OUT_DIR` and nothing else is added to the unit.
+With the default `OUT_DIR` no drop-in exists: `enable` removes one left by an earlier configuration,
+and `disable` removes it too, so the writable set always matches the configuration. Run `enable`
+again after changing `OUT_DIR`.
 
-The path has to exist before the unit starts, or systemd refuses to start it (status 226/NAMESPACE).
+The directory has to exist whenever the unit starts, or systemd refuses to start it (status
+226/NAMESPACE): do not remove it while the schedule is on.
 Retention also refuses a directory at the top level, inside a system tree (`/bin`, `/boot`, `/dev`,
 `/etc`, `/home`, `/lib*`, `/proc`, `/root`, `/run`, `/sbin`, `/sys`, `/usr`), one of `/var/lib`,
 `/var/log`, `/var/backups`, `/var/cache`, `/var/spool`, `/var/tmp`, `/var/mail`, or the panel's own
@@ -148,17 +153,20 @@ sudo maran panel-backup-schedule disable
 `enable` first refuses, naming the first problem and changing nothing, when the timer or service
 unit is not installed, or the configuration is missing, readable or writable by others or invalid
 (it checks exactly what the job checks, including that the passphrase and the S3 credential files
-pass their file checks), or `systemd-analyze calendar` does not accept `SCHEDULE`. Only then does it
-write the timer's schedule as a drop-in, `/etc/systemd/system/maran-panel-backup.timer.d/schedule.conf`,
-reload systemd and run `systemctl enable --now` on the timer. It prints:
+pass their file checks), one of those files is under `/root` or `/home` (see "Where the secret files
+go"), a non-default `OUT_DIR` is not a plain directory, or `systemd-analyze calendar` does not accept
+`SCHEDULE`. Only then does it write the timer's schedule as a drop-in,
+`/etc/systemd/system/maran-panel-backup.timer.d/schedule.conf`, write or remove the `OUT_DIR` drop-in
+(see "A different OUT_DIR"), reload systemd and run `systemctl enable --now` on the timer. It prints
+only fixed text, not the schedule or any configured value:
 
 ```
-Scheduled panel backup enabled: *-*-* 02:30:00
+Scheduled panel backup enabled.
 Check the next run with: maran panel-backup-schedule status
 ```
 
-Run `enable` again after editing `SCHEDULE`; it rewrites the drop-in. `disable` stops and disables
-the timer, removes that drop-in and prints `Scheduled panel backup disabled. Existing archives and
+Run `enable` again after editing `SCHEDULE` or `OUT_DIR`; it rewrites the drop-ins. `disable` stops
+and disables the timer, removes both drop-ins and prints `Scheduled panel backup disabled. Existing archives and
 the configuration are untouched.` It never touches the archives or the configuration. `status`
 reads systemd only (never the configuration) and prints, for example:
 
