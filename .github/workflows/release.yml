@@ -1,0 +1,493 @@
+name: release
+
+# A TAGGED RELEASE (issue #154). The threat note this workflow implements is
+# docs/superpowers/notes/2026-11-04-release-pipeline-threat-note.md; its second review is
+# OUTSTANDING, so this file MUST NOT reach `main` until a reviewer other than its author has read
+# that note against it (rules/security.md, "Sensitive change escalation").
+#
+# THE SHAPE, and why it is four jobs and not one.
+#
+#   check      validates the tag and that its commit is on main. Holds nothing secret.
+#   build      builds the UNSIGNED bundle for both architectures, the SBOMs and the notes. Runs the
+#              third-party SBOM generators. Holds no secret and no write permission.
+#   sign       the ONLY job that sees the signing key (environment `release`, required reviewers).
+#              Writes the key, signs, deletes the key, verifies, packages. Read-only repository access.
+#   publish    the ONLY job with `contents: write`. It never sees the key. It re-verifies the signed
+#              bundle and only then creates the GitHub release.
+#
+# The signing and the publishing are separate jobs on purpose: the job that holds the key has no
+# way to write to the repository, and the job that can write has no way to sign.
+#
+# TRIGGER: a push of a tag matching `v*`, nothing else. Never `pull_request` or
+# `pull_request_target`, so a fork cannot reach the environment's secret. The `check` job then
+# applies a STRICT regex, because `v*` also matches `vandal`.
+#
+# NOT AUTOMATED HERE: the mirror to the release host (releases.maran.innovayse.com) is an owner
+# decision recorded on issue #154. This workflow publishes a GitHub release only.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Nothing in this workflow needs more than reading the repository, except the publish job, which
+# says so itself. A job that declares nothing gets exactly this.
+permissions:
+  contents: read
+
+# One run per tag, and never cancelled: a release that is signing or publishing must not be killed
+# half-way by a second push of the same tag, which would leave a release created without its
+# assets. A second run for the same tag queues behind the first.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    # NEVER RUN: this workflow has not run yet. Estimate: the job does a checkout, one `git fetch`
+    # and a regex, which is seconds, so 5 minutes is a hang guard with NO measured basis, to be
+    # replaced from the first tag run.
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      channel: ${{ steps.tag.outputs.channel }}
+    steps:
+      # Full history because the ancestry test below needs `main`'s commits. Credentials are not
+      # persisted: nothing after this step needs to push, and a stored token is one more thing a
+      # later step could print.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # WHAT THIS JOB IS AND IS NOT. The tag regex and the main-ancestor test below are guard rails
+      # against MISTAKES (a typo'd tag, a tag on a throwaway branch). They are NOT security controls
+      # against someone who can push tags: a tag run executes the workflow file AS TAGGED, so a person
+      # who can push a tag can push one whose copy of this file has these jobs removed. The real
+      # gates are outside this file: the `release` environment restricted to `v*` tags with a
+      # required reviewer other than the person who pushed the tag, and a repository tag ruleset
+      # limiting who may create `v*` tags. Both are owner settings this change cannot make or verify.
+      #
+      # The tag name is attacker-influenced text (anyone who can push a tag chooses it). It reaches
+      # the shell ONLY through `env:`, as data, and is matched against the pattern below before
+      # anything else uses it; it is never interpolated into a command line.
+      #
+      # The pattern is `v<major>.<minor>.<patch>` with an optional SemVer pre-release suffix
+      # (`-beta.5`); numeric parts have no leading zeros. Channel: `beta` when there is a suffix,
+      # `stable` otherwise. The version handed to the build is the tag WITHOUT the leading `v`.
+      - name: The tag is a release version, and says which channel
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+          TAG_PATTERN: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$TAG" | grep -qE "$TAG_PATTERN"; then
+            echo "::error::the tag is not a release version (v1.2.3 or v1.2.3-beta.5); nothing was built."
+            exit 1
+          fi
+          version="${TAG#v}"
+          case "$version" in
+            *-*) channel=beta ;;
+            *) channel=stable ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "release $version on the $channel channel"
+
+      # A tag on a throwaway branch must not be signed. The tagged commit has to be reachable from
+      # `main`. The full-history checkout above already carries `origin/main`; no second fetch is
+      # made. The ref is asserted to exist first, so a checkout that did not bring it fails the step
+      # instead of "could not look" being read as "is an ancestor".
+      - name: The tagged commit is on main
+        run: |
+          set -euo pipefail
+          git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null \
+            || { echo "::error::refs/remotes/origin/main is absent; cannot decide whether the tag is on main."; exit 1; }
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
+            echo "::error::the tagged commit is not reachable from origin/main. A release is cut from main only."
+            exit 1
+          fi
+          echo "the tagged commit is an ancestor of origin/main"
+
+  build:
+    needs: check
+    runs-on: ubuntu-24.04
+    # NEVER RUN: this workflow has not run yet, so there is no measured basis. The estimate is built
+    # from what is documented, not measured: the agent builder image plus a cargo release build is
+    # the step agent.yml's polygon legs resemble (15-19 min on a native x86_64 runner, image build
+    # included, successful dev runs); the aarch64 agent builds under qemu, which scripts/lib/
+    # release-bundle.sh documents as "slow" without a figure, so none is assumed; two `dotnet
+    # publish` runs and the SPA build make up the rest (the SBOM generators run in their own job). The build is guessed at about 60 minutes; 120 is that doubled. Re-measure
+    # from the first tag run and replace this with the runs it was sized from.
+    timeout-minutes: 120
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      CHANNEL: ${{ needs.check.outputs.channel }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          # Full history and tags: the changelog reads the merged pull requests since the previous
+          # tag, and the build derives its clock from the tagged commit.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The EXACT patch, for the reason backend.yml gives: a band is resolved at run time, so the
+      # SDK that builds a release would be whichever was current that morning. Kept equal to
+      # backend.yml's pin by hand; the assertion below proves the pin took.
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.317'
+
+      - name: The SDK is the one this repository is built against
+        run: |
+          want=9.0.317
+          have="$(dotnet --version 2>&1 | head -1)"
+          echo "dotnet --version -> $have"
+          if [ "$have" != "$want" ]; then
+            echo "::error::dotnet SDK is '$have', and this repository builds on $want."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # The agent's build.rs compiles the proto contract with protoc (rules/proto.md).
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # UNPINNED: `tonistiigi/binfmt` is pulled by tag, not digest, exactly as the script documents it.
+      # The owner may pin it by digest; this runs in `build`, which holds no key and no write token.
+      #
+      # The aarch64 agent is built inside an aarch64 container, which needs the host's binfmt
+      # handlers. This is the command scripts/lib/release-bundle.sh itself documents (and refuses
+      # without), run from the image it names rather than from a third-party action.
+      - name: Register aarch64 emulation
+        run: docker run --privileged --rm tonistiigi/binfmt --install arm64
+
+      # The unsigned bundle, both architectures (a published release owes both; `--publish` refuses
+      # anything else). SOURCE_DATE_EPOCH is the tagged commit's own time, so a rebuild from the tag
+      # derives the same clock. The version and channel are the validated outputs of `check`, passed
+      # as data through `env:`. `--out` is ABSOLUTE: the agent builder mounts it with `docker -v`, which
+      # rejects a relative path. This job installs no third-party generator (see the `sbom` job).
+      - name: Build the unsigned bundle
+        run: |
+          set -euo pipefail
+          epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
+          bash scripts/maran release build \
+            --version "$VERSION" --channel "$CHANNEL" --arch both --publish \
+            --out "$PWD/release-out/bundle" --source-date-epoch "$epoch"
+
+      # The notes are written to a FILE from the merged pull requests since the previous tag; PR
+      # titles are stripped of control characters by the script and the file is passed to the
+      # release with `--notes-file`, never inlined into a command. The tag is read from the
+      # runner's own variable, quoted, as data.
+      - name: Generate the release notes
+        run: |
+          set -euo pipefail
+          bash scripts/maran release changelog --to "$GITHUB_REF_NAME" --out "$PWD/release-out/RELEASE_NOTES.md"
+
+      # UNSIGNED, and says so in its name: nothing downstream may treat it as a release until the
+      # `sign` job has signed it and `publish` has verified it.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-unsigned
+          path: release-out/
+          if-no-files-found: error
+          retention-days: 7
+
+  sbom:
+    needs: check
+    runs-on: ubuntu-24.04
+    # NEVER RUN: no measured basis. A cold `cargo install` of the Rust generator plus restores for
+    # the .NET and npm components is the expected bulk; estimated at about 20 minutes, so 45 is that
+    # doubled and a hang guard. Re-measure from the first tag run.
+    timeout-minutes: 45
+    steps:
+      # A separate job from `build` on purpose: the three SBOM generators are third-party programs,
+      # and in their own job they can neither alter the bytes that get signed nor reach the key.
+      # This job holds no secret and no write permission. LIMIT, stated: each generator is pinned to
+      # an exact version, but the npm and NuGet generators' own transitive dependencies are pinned
+      # only at the top level (by the install command), not by digest; a compromised generator can
+      # still emit a wrong SBOM (threat note, item 4).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.317'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # The generators are pinned in ONE table (scripts/lib/release-sbom.sh) and the script prints
+      # it as `<component> <tool> <version> <install command>`. The install commands come from this
+      # repository at the tagged commit. `</dev/null` keeps an install command from consuming the
+      # list this loop is reading.
+      - name: Install the pinned SBOM generators
+        run: |
+          set -euo pipefail
+          bash scripts/maran release sbom --print-tools | tee "$RUNNER_TEMP/sbom-tools.txt"
+          [ -s "$RUNNER_TEMP/sbom-tools.txt" ] || { echo "::error::no SBOM tools were listed"; exit 1; }
+          while read -r component tool tool_version install_command; do
+            [ -n "$component" ] || continue
+            echo "::group::install $tool $tool_version for $component"
+            bash -c "$install_command" </dev/null
+            echo "::endgroup::"
+          done < "$RUNNER_TEMP/sbom-tools.txt"
+
+      # They read lockfiles and restored project assets, not the network (threat note, item 4).
+      # `--out` is absolute. The verify step passes on the LAST printed verdict line being OK as
+      # well as on the exit status.
+      - name: Generate and verify the SBOMs
+        run: |
+          set -euo pipefail
+          bash scripts/maran release sbom --out "$PWD/release-out/sbom" --component all
+          log="$RUNNER_TEMP/sbom-verify.log"
+          status=0
+          bash scripts/maran release sbom --verify "$PWD/release-out/sbom" >"$log" 2>&1 || status=$?
+          cat "$log"
+          last="$(grep -a 'VERDICT:' "$log" | tail -n 1 || true)"
+          case "$last" in
+            *'VERDICT: OK'*) ;;
+            *) echo "::error::the last verdict line of sbom --verify is not OK (got: '$last')."; exit 1 ;;
+          esac
+          [ "$status" -eq 0 ] || { echo "::error::sbom --verify exited $status."; exit 1; }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-sbom
+          path: release-out/sbom/
+          if-no-files-found: error
+          retention-days: 7
+
+  sign:
+    needs: [check, build, sbom]
+    runs-on: ubuntu-24.04
+    # The protected environment: the owner configures required reviewers on it, and the signing key
+    # is its secret. A run stops here until a reviewer approves, and that wait does not count
+    # against the timeout below (timeout-minutes covers execution, not the approval queue).
+    environment: release
+    # NEVER RUN: no measured basis. The job downloads an artifact, signs one small manifest, and
+    # re-verifies and repackages both architectures' bundles (tar and openssl, no compilation), which
+    # is an estimated few minutes. 15 is a hang guard with no measurement behind it.
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      CHANNEL: ${{ needs.check.outputs.channel }}
+    # Read-only on purpose: this job holds the key, so it is given no way to write to the repository.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-unsigned
+          path: release-out
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-sbom
+          path: release-out/sbom
+
+      # THE KEY'S LIFE: written here, used by the one step after, deleted by the step after that.
+      # The secret is in the environment of THIS step only, which runs two shell builtins and no
+      # other program; `umask 077` makes the file 0600 from creation (no window where it is
+      # readable); tracing is switched off so a stray `set -x` cannot print it. The key goes to
+      # $RUNNER_TEMP, which no upload step reads.
+      - name: Write the signing key
+        env:
+          MARAN_RELEASE_SIGNING_KEY: ${{ secrets.MARAN_RELEASE_SIGNING_KEY }}
+        run: |
+          set +x
+          set -euo pipefail
+          if [ -z "$MARAN_RELEASE_SIGNING_KEY" ]; then
+            echo "::error::the release environment has no MARAN_RELEASE_SIGNING_KEY secret."
+            exit 1
+          fi
+          umask 077
+          printf '%s\n' "$MARAN_RELEASE_SIGNING_KEY" > "$RUNNER_TEMP/release-signing.key"
+
+      # The key is passed to the script BY PATH, never by value; the secret is not in this step's
+      # environment at all. `--publish` refuses a manifest that lacks either architecture.
+      - name: Sign the manifest
+        run: |
+          set +x
+          set -euo pipefail
+          bash scripts/maran release sign --key "$RUNNER_TEMP/release-signing.key" \
+            --bundle "$PWD/release-out/bundle" --publish
+
+      # `if: always()`: the key is removed whether signing worked or not, and straight after the
+      # one step that needs it, so nothing below runs with a key on disk. `shred` where it exists,
+      # `rm` as the fallback, and a final test that the file is gone.
+      - name: Remove the signing key
+        if: always()
+        run: |
+          set +x
+          key="$RUNNER_TEMP/release-signing.key"
+          shred -u "$key" 2>/dev/null || rm -f "$key"
+          if [ -e "$key" ]; then
+            echo "::error::the signing key file could not be removed."
+            exit 1
+          fi
+          echo "the signing key file is gone"
+
+      # The verification the installer would make, over what was just signed: both architectures,
+      # the signature against the pinned public key, every checksum.
+      - name: Verify the signed bundle
+        run: |
+          set -euo pipefail
+          # Passes on the LAST printed verdict line being OK AND on the exit status, never on either alone.
+          log="$RUNNER_TEMP/verify-sign.log"
+          status=0
+          bash scripts/maran release verify --bundle "$PWD/release-out/bundle" --publish >"$log" 2>&1 || status=$?
+          cat "$log"
+          last="$(grep -a 'RELEASE VERDICT:' "$log" | tail -n 1 || true)"
+          case "$last" in
+            *'RELEASE VERDICT: OK'*) ;;
+            *) echo "::error::the last verdict line is not OK (got: '$last')."; exit 1 ;;
+          esac
+          [ "$status" -eq 0 ] || { echo "::error::verify exited $status."; exit 1; }
+
+      # One offline tarball per architecture, each extracted and verified with the installer's own
+      # checks before it is reported.
+      - name: Package the offline bundles
+        run: bash scripts/maran release package --bundle "$PWD/release-out/bundle" --arch both --out "$PWD/release-out/offline"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-signed
+          path: release-out/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [check, build, sbom, sign]
+    runs-on: ubuntu-24.04
+    # NEVER RUN: no measured basis. Verification repeats the sign job's, and `gh release create`
+    # uploads roughly the size of the bundle (both architectures' components plus two offline
+    # tarballs, an estimated few hundred MB); the estimate is a few minutes. 15 is a hang guard
+    # with no measurement behind it.
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      CHANNEL: ${{ needs.check.outputs.channel }}
+    # The only write permission in this workflow, on the only job that never sees the signing key.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-signed
+          path: release-out
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-sbom
+          path: release-out/sbom
+
+      # VERIFY BEFORE PUBLISH, again, in the job that can publish: this job does not take the sign
+      # job's word for it. No key is needed, only the pinned public key in the repository. The
+      # release is created only if both of these, and the SBOM check, pass (each step fails the job).
+      - name: Verify the signed bundle before anything is published
+        run: |
+          set -euo pipefail
+          # Passes on the LAST printed verdict line being OK AND on the exit status, never on either alone.
+          log="$RUNNER_TEMP/verify-publish.log"
+          status=0
+          bash scripts/maran release verify --bundle "$PWD/release-out/bundle" --publish >"$log" 2>&1 || status=$?
+          cat "$log"
+          last="$(grep -a 'RELEASE VERDICT:' "$log" | tail -n 1 || true)"
+          case "$last" in
+            *'RELEASE VERDICT: OK'*) ;;
+            *) echo "::error::the last verdict line is not OK (got: '$last')."; exit 1 ;;
+          esac
+          [ "$status" -eq 0 ] || { echo "::error::verify exited $status."; exit 1; }
+          log="$RUNNER_TEMP/sbom-verify-publish.log"
+          status=0
+          bash scripts/maran release sbom --verify "$PWD/release-out/sbom" >"$log" 2>&1 || status=$?
+          cat "$log"
+          last="$(grep -a 'VERDICT:' "$log" | tail -n 1 || true)"
+          case "$last" in
+            *'VERDICT: OK'*) ;;
+            *) echo "::error::the last verdict line of sbom --verify is not OK (got: '$last')."; exit 1 ;;
+          esac
+          [ "$status" -eq 0 ] || { echo "::error::sbom --verify exited $status."; exit 1; }
+
+      # Flatten what is attached into one directory. Every file is named explicitly, so a file that
+      # is missing fails the copy and the job, rather than being skipped by a glob.
+      - name: Stage the release assets
+        run: |
+          set -euo pipefail
+          assets=release-out/assets
+          mkdir -p "$assets"
+          b=release-out/bundle
+          for f in manifest.json manifest.json.sig integrity-manifest.json integrity-manifest.json.sig; do
+            cp -- "$b/$f" "$assets/$f"
+          done
+          for component in api agent frontend; do
+            for arch in x86_64 aarch64; do
+              cp -- "$b/$component-$arch.tar.gz" "$assets/$component-$arch.tar.gz"
+            done
+          done
+          for arch in x86_64 aarch64; do
+            cp -- "release-out/offline/maran-offline-$VERSION-$arch.tar.gz" "$assets/"
+          done
+          sbom_count=0
+          while IFS= read -r -d '' f; do
+            cp -- "$f" "$assets/"
+            sbom_count=$((sbom_count + 1))
+          done < <(find release-out/sbom -type f -print0)
+          [ "$sbom_count" -gt 0 ] || { echo "::error::no SBOM files to attach."; exit 1; }
+          # Written outside the directory first, so the checksum file does not list itself.
+          (cd "$assets" && sha256sum -- * > ../SHA256SUMS)
+          mv release-out/SHA256SUMS "$assets/SHA256SUMS"
+          ls -l "$assets"
+
+      # The tag is read from the runner's own variable and the version and channel from validated
+      # outputs, all as data. The notes are a file. `--verify-tag` refuses to create a tag.
+      # A beta is a GitHub pre-release.
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          args=(--repo "$GITHUB_REPOSITORY" --verify-tag --title "Maran $VERSION" --notes-file release-out/RELEASE_NOTES.md)
+          if [ "$CHANNEL" = beta ]; then
+            args+=(--prerelease)
+          fi
+          assets=()
+          while IFS= read -r -d '' f; do
+            assets+=("$f")
+          done < <(find release-out/assets -type f -print0 | sort -z)
+          gh release create "$GITHUB_REF_NAME" "${args[@]}" "${assets[@]}"
+
+      - name: Say what was not done
+        run: |
+          {
+            echo "### Release published to GitHub only"
+            echo "The mirror to releases.maran.innovayse.com is not automated here (owner decision pending, issue #154)."
+            echo "The installer's update channel will not see this release until it is mirrored."
+          } | tee -a "$GITHUB_STEP_SUMMARY"

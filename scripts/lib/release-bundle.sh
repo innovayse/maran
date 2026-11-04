@@ -46,6 +46,12 @@
 #   scripts/maran release selftest                                  build+sign+verify, and prove
 #                                                                     tamper and unsigned bundles
 #                                                                     are BOTH refused
+#   scripts/maran release sbom|changelog|rebuild [arguments]        CycloneDX SBOMs, release notes, and a
+#                                                                   rebuild of the agent from a tag
+#   scripts/maran release sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest
+#                                                                   the matching selftests (no docker)
+# SOURCE_DATE_EPOCH (digits), or `build --source-date-epoch <n>` which sets it and wins over the
+# environment, makes tarballs byte-reproducible and pins the agent build's clock and path prefixes.
 #
 # The private signing key NEVER lives in this repository and this script never writes,
 # prints or generates one for real use (rules/security.md #8, #9): `sign` takes its path
@@ -64,6 +70,20 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 . "$root/scripts/lib/release-package.sh"
 # shellcheck disable=SC1091
 . "$root/scripts/lib/release-package-selftest.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-reproducible.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-sbom.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-sbom-selftest.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-changelog.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-changelog-selftest.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-rebuild.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-rebuild-selftest.sh"
 
 VERDICT_PREFIX="RELEASE VERDICT"
 
@@ -78,9 +98,10 @@ release_failed() {
 
 usage() {
   cat >&2 <<'USAGE'
-usage: maran release <build|sign|verify|package|selftest|package-selftest> [arguments]
+usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|selftest|package-selftest|sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest> [arguments]
 
   build     [--version <ver>] [--channel stable|beta] [--out <dir>] [--arch <list>|both] [--publish]
+            [--source-date-epoch <n>]
             assemble api+agent+frontend into a manifest'd bundle dir. --arch defaults to this
             host's; `both` builds x86_64 and aarch64, which is what a PUBLISHED release needs
             (preflight accepts both, so a release with one leaves ARM64 operators nothing to
@@ -99,6 +120,11 @@ usage: maran release <build|sign|verify|package|selftest|package-selftest> [argu
                                                 is reported (default: every arch the manifest holds,
                                                 into <bundle>-offline/maran-offline-<ver>-<arch>.tar.gz;
                                                 a single arch may take --out <file>.tar.gz)
+  sbom|changelog|rebuild [arguments]            CycloneDX SBOM per component, release notes from merged
+                                                pull requests, rebuild of the agent from a tag
+  sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest
+                                                the matching selftests; none needs docker (the last
+                                                names that blind spot itself)
   package-selftest                              plant a two-architecture signed bundle, package it,
                                                 prove each result verifies AND that every broken
                                                 bundle is refused (rules/testing.md inverse controls)
@@ -286,6 +312,10 @@ verify_release_file() {
   openssl dgst -"$MARAN_SIGNATURE_DIGEST" -verify "$1" -signature "$3" "$2" >/dev/null 2>&1
 }
 
+# build_agent: <staging> [arch]. Builds the agent inside the architecture's glibc-floor builder image
+# with docker, refuses a binary above the floor, and stages it at <staging>/agent-<arch>/maran-agent.
+# <staging> must be absolute (docker -v rejects a relative mount); cmd_build guarantees it. In
+# deterministic mode (SOURCE_DATE_EPOCH set) the docker run also gets a fixed clock and path remaps.
 build_agent() {
   local staging="$1" arch="${2:-$(arch_name)}"
   # docker rather than cargo, and the substitution is the fix for issue #48: a plain
@@ -328,7 +358,8 @@ build_agent() {
   #
   # --user with the caller's uid keeps the build from leaving root-owned files in the staging
   # directory, which a non-root release would then be unable to remove.
-  local work="${staging}/.agent-build"
+  local work="${staging}/.agent-build" repro_env=()
+  release_reproducible_docker_env repro_env
   rm -rf -- "$work"
   install -d "$work"
   # The REPOSITORY ROOT is mounted, not agent/ alone: agent/crates/agent/build.rs compiles the shared
@@ -342,6 +373,7 @@ build_agent() {
     -e HOME=/work \
     -e CARGO_HOME=/work/.cargo \
     -e CARGO_TARGET_DIR=/work/target \
+    ${repro_env[@]+"${repro_env[@]}"} \
     -w /src/agent "$image" \
     cargo build --release --locked -p maran-agent \
     >"${staging}/.agent-build-${arch}.log" 2>&1 \
@@ -395,6 +427,8 @@ build_frontend() {
 # component into /usr/local/maran/releases/<version>/<component>, expects to find.
 tar_component() {
   local src_dir="$1" dest_tar="$2"
+  # Deterministic mode is opt-in (release-reproducible.sh); unset, the archive is what it always was.
+  if [ "${SOURCE_DATE_EPOCH+x}" = "x" ]; then release_tar_deterministic "$src_dir" "$dest_tar"; return; fi
   ( cd "$src_dir" && tar -czf "$dest_tar" . )
 }
 
@@ -484,6 +518,8 @@ cmd_build() {
       --channel) channel="${2:?--channel requires a value}"; shift 2 ;;
       --out) out_dir="${2:?--out requires a value}"; shift 2 ;;
       --publish) publish=1; shift ;;
+      # The flag sets the variable the environment would, and wins over it (one value, one source).
+      --source-date-epoch) SOURCE_DATE_EPOCH="${2:?--source-date-epoch requires a value}"; export SOURCE_DATE_EPOCH; shift 2 ;;
       # --arch: a comma-separated list, or `both` for the pair a published release needs. Defaults
       # to the host's architecture further down, so an unadorned build is unchanged (issue #53).
       --arch)
@@ -494,6 +530,7 @@ cmd_build() {
       *) echo "release build: unknown argument: $1" >&2; usage ;;
     esac
   done
+  [ "${SOURCE_DATE_EPOCH+x}" != "x" ] || release_check_source_date_epoch "$SOURCE_DATE_EPOCH"
   [ -n "$version" ] || version="0.0.0-dev-$(date -u +%Y%m%dT%H%M%SZ)"
   # The channel is part of every artifact URL the manifest publishes, and the manifest is what the
   # signature covers — so a bundle built for one channel and served from another is a bundle whose
@@ -523,6 +560,8 @@ cmd_build() {
 
   rm -rf -- "$out_dir"
   install -d "$out_dir"
+  # Absolute, because build_agent mounts "${out_dir}/.agent-build" with docker -v, which refuses a relative path.
+  out_dir="$(cd "$out_dir" && pwd)"
 
   # The architectures this bundle is for. Defaults to the host's, so a plain `maran release build`
   # behaves exactly as it did; `--arch x86_64,aarch64` builds the publishable pair (issue #53).
@@ -871,7 +910,11 @@ cmd_selftest() {
   # "these bytes were signed by this key" — it does not re-derive any hash inside them.
   local defective="${work}/defective-manifest.json"
   cp "${bundle}/integrity-manifest.json" "$defective"
-  sed -i '0,/": "[0-9a-f]\{64\}"/{s/": "0/": "1/; s/": "1/": "2/}' "$defective"
+  # Whatever the first hex digit is, it becomes a DIFFERENT one (0 becomes 1, anything else becomes 0).
+  # The earlier form only changed a leading 0 or 1, so it changed nothing whenever the first
+  # entry's hash began with another digit, which depends on the order `find` lists files in and
+  # failed on a CI runner while passing on a workstation.
+  sed -i '0,/": "[0-9a-f]\{64\}"/{s/": "0/": "\x01/; s/": "\([1-9a-f]\)/": "0/; s/\x01/1/}' "$defective"
   if cmp -s "${bundle}/integrity-manifest.json" "$defective"; then
     release_failed "selftest: outcome 6's sed did not actually change any byte — the corruption step itself is broken, so this proves nothing."
   fi
@@ -1049,6 +1092,13 @@ case "$command_name" in
   package) cmd_package "$@" ;;
   selftest) cmd_selftest "$@" ;;
   package-selftest) cmd_package_selftest "$@" ;;
+  sbom) release_sbom_main "$@" ;;
+  sbom-selftest) release_sbom_selftest "$@" ;;
+  changelog) release_changelog_main "$@" ;;
+  changelog-selftest) release_changelog_selftest "$@" ;;
+  rebuild) release_rebuild_main "$@" ;;
+  rebuild-selftest) release_rebuild_selftest "$@" ;;
+  reproducible-selftest) release_reproducible_selftest "$@" ;;
   -h|--help|help) usage ;;
   *) echo "unknown release subcommand: $command_name" >&2; usage ;;
 esac

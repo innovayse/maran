@@ -17,6 +17,10 @@ on:
       - 'scripts/**'
       - 'installer/cli/**'
       - '.github/workflows/backend.yml'
+      # The release pipeline's selftests run in the `ci` job below, so the workflow that defines the
+      # release (and the builder image its agent is built in) has to run them when it changes.
+      - '.github/workflows/release.yml'
+      - 'docker/release/**'
   pull_request:
     paths:
       - 'backend/**'
@@ -24,6 +28,10 @@ on:
       - 'scripts/**'
       - 'installer/cli/**'
       - '.github/workflows/backend.yml'
+      # The release pipeline's selftests run in the `ci` job below, so the workflow that defines the
+      # release (and the builder image its agent is built in) has to run them when it changes.
+      - '.github/workflows/release.yml'
+      - 'docker/release/**'
   schedule:
     # Nightly, on the default branch: the PostgreSQL 13 lane and the performance budgets are not on
     # the pull request path, so this is what keeps them measured when nothing is pushed.
@@ -144,6 +152,57 @@ jobs:
           if [ "$status" -ne 0 ]; then
             echo "::error::the update selftest printed 'UPDATE-SELFTEST VERDICT: OK' and then exited $status."
             echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
+      # THE RELEASE PIPELINE'S SELFTESTS (issue #154). Until this step, nothing in any workflow ran
+      # `maran release selftest` or `package-selftest`, and the four added with the release workflow
+      # (sbom, changelog, rebuild, reproducible) had no home either: a gate not named in a workflow
+      # is not a gate (rules/testing.md). They belong here for the reason the update selftest does:
+      # `.github/workflows/release.yml` only ever runs on a pushed tag, with the signing key, so a
+      # broken refusal in the scripts it calls would otherwise be discovered by a release attempt.
+      # `scripts/**` is already in this workflow's path filters; `release.yml` and `docker/release/**`
+      # were added beside it.
+      #
+      # WHAT THEY CANNOT SEE, stated rather than implied. Each runs on synthetic bundles and planted
+      # fixtures, so none of them builds the real agent (docker) or the real API and SPA, signs with
+      # the real key, or reaches a package registry: the release workflow itself, a tag run, is
+      # unobserved here. The reproducible selftest prints its own blind spot (the agent binary's
+      # determinism needs docker).
+      #
+      # SCORED ON THE LAST PRINTED `VERDICT:` LINE PER VERB BEING OK, not on a status: a verb that exits 0 without
+      # printing one fails, one that prints it and then exits non-zero fails (the two disagree), and a
+      # `DID NOT RUN` refusal fails under its own message. The loop does not stop at the first failure,
+      # so one run names every broken verb.
+      #
+      # `timeout-minutes` is 10: pure shell and openssl, expected to take seconds to a minute or two
+      # each, but the five verbs have NO measured duration yet (this step has never run). 10 is a
+      # hang guard with no measured basis, to be replaced by a value sized from the first dev runs.
+      - name: "Release selftests: the signing, packaging, SBOM, changelog and rebuild logic a tag release rests on"
+        timeout-minutes: 10
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-selftest"
+          failed=""
+          for verb in selftest package-selftest sbom-selftest changelog-selftest rebuild-selftest reproducible-selftest; do
+            log="$RUNNER_TEMP/release-selftest/$verb.log"
+            echo "::group::maran release $verb"
+            status=0
+            bash scripts/maran release "$verb" >"$log" 2>&1 || status=$?
+            cat "$log"
+            echo "::endgroup::"
+            if grep -qa 'VERDICT: DID NOT RUN' "$log"; then
+              echo "::error::release $verb REFUSED and checked nothing (reason in its log above); no case ran."
+              failed="$failed $verb"
+            elif ! grep -aE 'VERDICT:' "$log" | tail -n 1 | grep -qaE 'VERDICT: OK'; then
+              echo "::error::the LAST verdict line of release $verb is not 'VERDICT: OK' (or none was printed). This lane passes on the last printed verdict, never on an exit code."
+              failed="$failed $verb"
+            elif [ "$status" -ne 0 ]; then
+              echo "::error::release $verb printed 'VERDICT: OK' and then exited $status; the two disagree, so neither is evidence."
+              failed="$failed $verb"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::release selftests failed:$failed"
             exit 1
           fi
 
