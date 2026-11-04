@@ -9,6 +9,8 @@
 #   maran admin-reset-password <email|username> [--clear-two-factor] [--allow-non-terminal]
 #   maran collect-diagnostics [--out DIR] [--no-logs]
 #   maran panel-backup --passphrase-file FILE [--out DIR]
+#   maran panel-backup --scheduled
+#   maran panel-backup-schedule enable|disable|status
 #   maran panel-restore --passphrase-file FILE --replace-this-panel ARCHIVE
 #   maran help
 #
@@ -44,7 +46,15 @@ readonly MARAN_CLI_LIB_DIR="/usr/local/maran/cli/lib"
 # shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/panel-archive.sh"
 # shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/panel-backup-config.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/panel-backup-retention.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/panel-backup-upload.sh"
+# shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/panel-backup.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/panel-backup-schedule.sh"
 # shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/panel-restore.sh"
 
@@ -63,6 +73,11 @@ Usage: maran <command>
   panel-backup --passphrase-file FILE [--out DIR]
                                            Write an encrypted archive of the panel's database,
                                            keys, licence and configuration (0600 .tar.gpg).
+  panel-backup --scheduled                 Take the backup the configuration file describes, keep
+                                           the newest archives and upload if S3 is configured.
+  panel-backup-schedule enable|disable|status
+                                           Switch the scheduled panel backup on or off, or show
+                                           its timer and last result.
   panel-restore --passphrase-file FILE --replace-this-panel ARCHIVE
                                            Replace this freshly installed panel's database, keys
                                            and licence with those of a panel-backup archive.
@@ -78,6 +93,7 @@ main() {
     admin-reset-password) cli_reset "$@" ;;
     collect-diagnostics) cli_diagnostics "$@" ;;
     panel-backup) cli_panel_backup "$@" ;;
+    panel-backup-schedule) cli_panel_backup_schedule "$@" ;;
     panel-restore) cli_panel_restore "$@" ;;
     help|--help|-h) cli_usage ;;
     *)
