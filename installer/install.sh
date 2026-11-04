@@ -3,6 +3,23 @@
 #
 # Usage: sudo bash install.sh [--offline-tarball <path>] [--channel stable|beta]
 #
+#   --offline-tarball <path>  install from a release bundle you carried to the server instead of
+#                             downloading one (no network call is made). The file MUST sit in a
+#                             directory that root owns and that group and others cannot write: the
+#                             installer copies it once and trusts only the copy, and refuses a file
+#                             whose directory anyone else could write. /tmp, a user's home and a
+#                             shared download folder do not qualify, so move the file first, for
+#                             example to /root:  mv /tmp/maran-bundle.tar.gz /root/
+#   --channel stable|beta     the release channel to install from. Online it must match the channel
+#                             the signed manifest declares; with an offline bundle the channel the
+#                             bundle declares is the one recorded. Without this flag a host whose
+#                             /etc/maran/release.state already records a channel keeps the RECORDED
+#                             channel (a beta host re-run online stays on beta); a fresh host gets
+#                             stable. An explicit --channel always overrides the recorded one.
+#
+# Re-running is safe: the same version keeps (and, if damaged, repairs) its tree, a newer version is
+# installed beside it, an older one is refused (see lib/50-artifacts.sh).
+#
 # Run from an unpacked, verified installer package — never piped straight from the network
 # into a shell. Piping is not merely discouraged: it cannot work here, because the steps in
 # lib/, the systemd units, the nginx template and the release signing key are all resolved
@@ -115,14 +132,18 @@ export MARAN_AGENT_SOCKET_PATH
 # --- CLI arguments -----------------------------------------------------------------
 # Parsed once here and exported so any step file can read them without re-parsing argv.
 MARAN_CHANNEL="stable"
+MARAN_CHANNEL_GIVEN=0
 MARAN_OFFLINE_TARBALL=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --channel)
       MARAN_CHANNEL="${2:?--channel requires a value}"
+      MARAN_CHANNEL_GIVEN=1
       shift 2
       ;;
     --offline-tarball)
+      # Read only from a root-owned, not group/world-writable directory (step 50 says so and tells the
+      # operator to move the file, e.g. to /root, when it is not).
       MARAN_OFFLINE_TARBALL="${2:?--offline-tarball requires a path}"
       shift 2
       ;;
@@ -132,7 +153,16 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
-export MARAN_CHANNEL MARAN_OFFLINE_TARBALL
+# The channel becomes part of a download URL and is persisted in /etc/maran/release.state by step 50,
+# so anything but the two published channels is refused here, before a step sees it.
+case "$MARAN_CHANNEL" in
+  stable|beta) ;;
+  *)
+    echo "install.sh: --channel must be stable or beta, not '${MARAN_CHANNEL}'" >&2
+    exit 2
+    ;;
+esac
+export MARAN_CHANNEL MARAN_CHANNEL_GIVEN MARAN_OFFLINE_TARBALL
 
 # require_root: the installer performs privileged operations (package install, service
 # management, user creation) from step 20 onward; refuse early rather than fail deep
@@ -366,6 +396,9 @@ main() {
   run_step 30-postgresql.sh   step_postgresql
   run_step 40-user.sh         step_user
   run_step 41-log-retention.sh step_log_retention
+  # Unpacks into /usr/local/maran/releases/<version>, points `current` and the static
+  # {api,agent,frontend} links at it (adopting a pre-layout install), and records the channel and
+  # version in /etc/maran/release.state, the layout `maran update` and `maran rollback` work on.
   run_step 50-artifacts.sh    step_artifacts
   run_step 60-config.sh       step_config
   run_step 65-schema.sh       step_schema

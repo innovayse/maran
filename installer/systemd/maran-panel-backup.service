@@ -47,7 +47,7 @@ ExecStart=/usr/local/sbin/maran panel-backup --scheduled
 # backup as `active` for ever and hide the day it stopped working.
 RemainAfterExit=no
 # Oneshot has NO timeout by default, so a hung upload would hold the verb's lock for ever and every
-# later night would exit non-zero with "another panel backup or restore is running". Four hours is a
+# later night would exit non-zero with "another panel backup, restore, update or rollback is running". Four hours is a
 # ceiling for a stuck transfer on a large panel, not an expected duration. The timeout kills the
 # verb part-way; its EXIT trap removes the unfinished archive and the plaintext stage.
 TimeoutStartSec=4h
