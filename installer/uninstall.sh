@@ -57,7 +57,8 @@ stop_and_disable_services() {
 #
 # Disabled and stopped first, so a timer cannot fire while the wrapper it runs is being removed;
 # then the service, the timer and the drop-in directories `maran panel-backup-schedule enable`
-# writes (the schedule, and a possible ReadWritePaths= for another output directory). Whatever the
+# writes (the timer's schedule.conf, and the service's outdir.conf holding ReadWritePaths= when
+# OUT_DIR is not the default); each directory goes whole. Whatever the
 # operator did NOT enable is simply absent, and every command tolerates that.
 #
 # It NEVER removes the output directory or an archive in it: the archives are the point of the
