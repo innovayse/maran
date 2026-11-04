@@ -24,31 +24,52 @@
  * square's glow is clipped at the panel edge rather than at the square, and it never scrolls
  * sideways (the screen-reader-only labels are absolutely positioned).
  *
+ * **Loading (issue #366).** While a customer's first answer for the active account is on its way
+ * (`loading`), a few icon-sized {@link UiSkeleton} circles stand in for the entries inside the same
+ * named navigation landmark, marked `aria-busy`. The circles sit in a `UiLoadingRegion`, so they
+ * are mounted at once (the space is held) but stay invisible for the first 150 ms: a fast answer
+ * shows no placeholder. The region announces the wait once, politely; the circles are decorative,
+ * hidden from assistive technology, and are not links or buttons.
+ *
  * Active and hover states are drawn by `UiNavLink`; this component adds no colour of its own.
  */
 import { onBeforeUnmount, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import UiLoadingRegion from '../ui/UiLoadingRegion.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
 import UiNavLink from '../ui/UiNavLink.vue'
 import UiNavPlanned from '../ui/UiNavPlanned.vue'
+import UiSkeleton from '../ui/UiSkeleton.vue'
 import { useCurrentSection } from '../../composables/useCurrentSection'
 import { navigationLabelText } from '../../utils/navigationLabelText'
 import type { NavigationEntry } from '../../types/navigation'
 
 /** Props accepted by {@link ShellRail}. */
-defineProps<{
-  /** Navigation entries to render, in catalogue order, as built by `useNavigation`. */
-  entries: readonly NavigationEntry[]
-}>()
+withDefaults(
+  defineProps<{
+    /** Navigation entries to render, in catalogue order, as built by `useNavigationState`. */
+    entries: readonly NavigationEntry[]
+    /**
+     * Whether the first answer for the active account is still on its way. The rail then draws
+     * icon-sized placeholders in place of the entries: an empty rail would read as "nothing is
+     * allowed" and the permissive one would offer what may be refused a moment later.
+     */
+    loading?: boolean
+  }>(),
+  { loading: false },
+)
 
 /** Events emitted by {@link ShellRail}. */
 const emit = defineEmits<{
   /** Requests that the shell expand the rail back into the full sidebar. */
   (e: 'expand'): void
 }>()
+
+/** How many placeholder icons the loading skeleton draws; a UI constant, not a count of anything real. */
+const SKELETON_ROWS = 5
 
 /** How long the flyout survives the pointer leaving, so it can cross the gap to the flyout. */
 const CLOSE_DELAY_MS = 150
@@ -168,7 +189,21 @@ onBeforeUnmount(cancelClose)
 <template>
   <aside class="flex w-14 flex-none flex-col gap-2.5 rounded-panel border border-border-subtle bg-surface-1 py-2.5">
     <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2.5">
-      <UiNav :label="t('app.nav.ariaLabel')">
+      <!-- Loading: the landmark keeps its name and is marked busy. The region mounts the placeholders
+           at once, keeps them invisible for the first 150 ms and announces the wait itself; it sits
+           inside the list item, around the list, so the markup stays valid. -->
+      <UiNav v-if="loading" :label="t('app.nav.ariaLabel')" aria-busy="true">
+        <UiNavItem>
+          <UiLoadingRegion state="loading">
+            <ul class="flex flex-col gap-0.5" aria-hidden="true">
+              <UiNavItem v-for="row in SKELETON_ROWS" :key="row">
+                <UiSkeleton shape="circle" size="lg" />
+              </UiNavItem>
+            </ul>
+          </UiLoadingRegion>
+        </UiNavItem>
+      </UiNav>
+      <UiNav v-else :label="t('app.nav.ariaLabel')">
         <UiNavItem v-for="entry in entries" :key="entry.key">
           <!-- Pointer and focus listeners only decide whether the flyout is shown; every control
                inside is a real link that works without them. -->

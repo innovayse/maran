@@ -19,7 +19,7 @@ const GROUP_ORDER: readonly string[] = [
  * Every entry appears exactly once, inside the group it was built for and in drawing order.
  * Groups with no entries are omitted: a customer's menu has no infrastructure, and an empty label
  * over nothing would read as a bug.
- * @param entries The entries `useNavigation` built.
+ * @param entries The entries `useNavigationState` built.
  * @returns The non-empty groups, in drawing order.
  */
 export const groupNavigation = (entries: readonly NavigationEntry[]): NavigationGroup[] => {

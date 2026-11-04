@@ -31,7 +31,7 @@ const navigationRoleOf = (role: UserRole | undefined): NavigationRole => {
 
 /**
  * The role the navigation tree is filtered for, for every reader of the tree: the menu itself
- * (`useNavigation`), the tab bar, and the places that locate a screen in it (the breadcrumb, the
+ * (`useNavigationState`), the tab bar, and the places that locate a screen in it (the breadcrumb, the
  * page eyebrow). One answer for all of them, because the tree lists the same page in a different
  * place for a different role (the customer's tasks under Activity, an operator's under Monitoring,
  * issue #312).

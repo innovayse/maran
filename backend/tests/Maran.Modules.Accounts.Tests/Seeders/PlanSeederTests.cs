@@ -195,4 +195,69 @@ public sealed class PlanSeederTests
 
         Assert.Equal("Agency", Assert.Single(await dbContext.Plans.ToListAsync()).Name);
     }
+
+    /// <summary>Seeding as the anonymous start-up caller inserts the three standard plans.</summary>
+    /// <remarks>
+    /// The seeder runs at boot with no principal, and the context shows an anonymous caller no plan.
+    /// The plans are written through that context and counted through an administrator's over the
+    /// same database, so the count is the stored rows and not what the anonymous filter lets through.
+    /// </remarks>
+    [Fact]
+    public async Task Seeding_as_the_anonymous_start_up_caller_inserts_the_three_standard_plans()
+    {
+        var database = Guid.NewGuid().ToString();
+
+        await using (var startUp = AccountsTestContext.CreateOn(database, FakeCurrentUser.Anonymous()))
+        {
+            await new PlanSeeder(startUp).SeedAsync(CancellationToken.None);
+        }
+
+        await using var reader = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin());
+        Assert.Equal(3, await reader.Plans.CountAsync());
+    }
+
+    /// <summary>A second start-up as the anonymous caller finds the stored plans and inserts nothing.</summary>
+    /// <remarks>
+    /// The existence check must see the stored plans although the anonymous filter hides every one:
+    /// a filtered check answers "none" on every boot and the insert collides with the fixed ids. Each
+    /// start-up gets its own context and seeder, as each process start does.
+    /// </remarks>
+    [Fact]
+    public async Task A_second_start_up_as_the_anonymous_caller_inserts_nothing()
+    {
+        var database = Guid.NewGuid().ToString();
+        for (var start = 0; start < 2; start++)
+        {
+            await using var startUp = AccountsTestContext.CreateOn(database, FakeCurrentUser.Anonymous());
+
+            await new PlanSeeder(startUp).SeedAsync(CancellationToken.None);
+        }
+
+        await using var reader = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin());
+        Assert.Equal(3, await reader.Plans.CountAsync());
+    }
+
+    /// <summary>A start-up as the anonymous caller adds nothing to a panel that already has a plan.</summary>
+    /// <remarks>
+    /// The plan belongs to a reseller, the case an owner-scoped or filtered existence check would miss.
+    /// </remarks>
+    [Fact]
+    public async Task A_start_up_as_the_anonymous_caller_adds_nothing_to_a_panel_that_already_has_a_plan()
+    {
+        var database = Guid.NewGuid().ToString();
+        await using (var seed = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin()))
+        {
+            seed.Plans.Add(Plan.Define(
+                Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8, resellerId: Guid.NewGuid()));
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var startUp = AccountsTestContext.CreateOn(database, FakeCurrentUser.Anonymous()))
+        {
+            await new PlanSeeder(startUp).SeedAsync(CancellationToken.None);
+        }
+
+        await using var reader = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin());
+        Assert.Equal("Agency", Assert.Single(await reader.Plans.ToListAsync()).Name);
+    }
 }

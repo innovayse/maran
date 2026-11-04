@@ -334,7 +334,7 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
     {
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<Maran.Modules.Accounts.Persistence.AccountsDbContext>();
-        return await context.Accounts.Where(a => a.Name == accountName).Select(a => a.Id).SingleAsync();
+        return await context.Accounts.IgnoreQueryFilters().Where(a => a.Name == accountName).Select(a => a.Id).SingleAsync();
     }
 
     /// <summary>Counts the view-as sessions ever issued.</summary>

@@ -13,12 +13,14 @@ const ACCOUNTS_LIST_PATTERN = /\/api\/v1\/accounts(\/choices)?(\?.*)?$/
 /**
  * Fulfils `GET /api/v1/accounts/me` with the given account, as the panel answers a customer.
  * @param page The Playwright page whose network the route is installed on.
- * @param account The account the stub reports as the caller's own.
+ * @param account The account the stub reports as the caller's own, or a function that builds it on
+ *   each request, for a spec whose answer changes (the caller switched accounts).
  * @returns Resolves once the route is installed.
  */
-export const stubMyAccount = async (page: Page, account: MyAccount): Promise<void> => {
+export const stubMyAccount = async (page: Page, account: MyAccount | (() => MyAccount)): Promise<void> => {
   await page.route(MY_ACCOUNT_PATTERN, async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(account) })
+    const answer = typeof account === 'function' ? account() : account
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(answer) })
   })
 }
 

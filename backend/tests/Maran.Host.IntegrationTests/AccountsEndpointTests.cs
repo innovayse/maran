@@ -107,7 +107,8 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
         // A second, independent DbContext instance against the same container — proves the row is
         // durably persisted in PostgreSQL, not just tracked by the first context's change tracker.
         await using var readContext = new AccountsDbContext(options, new NoPrincipal());
-        var reloaded = await readContext.Accounts.FindAsync(account.Id);
+        var reloaded = await readContext.Accounts.IgnoreQueryFilters()
+            .SingleOrDefaultAsync(row => row.Id == account.Id);
 
         Assert.NotNull(reloaded);
         Assert.Equal("roundtrip", reloaded!.Name);

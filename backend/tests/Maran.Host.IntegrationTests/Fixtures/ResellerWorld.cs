@@ -22,8 +22,8 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 /// </para>
 /// <para>
 /// Reads go through the module contexts of a fresh scope. That scope has no request, so the caller is
-/// anonymous and the reseller filters do not narrow it: a test reads what is stored, not what a
-/// reseller may see.
+/// anonymous and the Accounts context's fail-closed filters would show it nothing: a test that reads
+/// what is stored, not what a caller may see, says so with <c>IgnoreQueryFilters()</c> on the read.
 /// </para>
 /// </remarks>
 public sealed class ResellerWorld : IAsyncDisposable

@@ -291,7 +291,7 @@ public static class IdentityResellerWorld
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        return await accounts.Accounts.AsNoTracking()
+        return await accounts.Accounts.IgnoreQueryFilters().AsNoTracking()
             .Where(account => account.Name == accountName)
             .Select(account => account.Id)
             .SingleAsync();

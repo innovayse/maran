@@ -183,8 +183,8 @@ public sealed class ViewAsResellerEndpointTests : IAsyncLifetime
         Assert.Empty(wrong);
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-        Assert.Equal(3, await accounts.Accounts.CountAsync());
-        Assert.Equal(AccountStatus.Active, await accounts.Accounts.Where(a => a.Id == world.Acme).Select(a => a.Status).SingleAsync());
+        Assert.Equal(3, await accounts.Accounts.IgnoreQueryFilters().CountAsync());
+        Assert.Equal(AccountStatus.Active, await accounts.Accounts.IgnoreQueryFilters().Where(a => a.Id == world.Acme).Select(a => a.Status).SingleAsync());
     }
 
     /// <summary>The state endpoint reports the reseller kind and what the banner shows; an own token reports none.</summary>

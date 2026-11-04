@@ -59,6 +59,12 @@ export const useAccountsStore = defineStore('accounts', () => {
   let planChoicesTicket = 0
 
   /**
+   * Numbers each read of the caller's own account, so only the latest read may write {@link mine}:
+   * a superseded read that settles late is dropped. Not reactive, because nothing renders it.
+   */
+  let mineTicket = 0
+
+  /**
    * The name read in flight for each id. A second caller asking for the same id awaits the same
    * read rather than returning early, so it never decides on a name that is still on its way.
    */
@@ -379,15 +385,28 @@ export const useAccountsStore = defineStore('accounts', () => {
    * `GetMyAccountQueryHandler`). `mineErrorMessage` stays `null` for it, so the
    * page's empty state — written for exactly this case — renders instead of a
    * red alert repeating a "not found" sentence that was never a malfunction.
+   *
+   * The latest call wins: an answer to a read that a newer call superseded is dropped and writes
+   * no state, so a slow earlier read can never replace the account of a later one.
    * @returns Resolves once the request has settled, successfully or not.
    */
   const loadMine = async (): Promise<void> => {
+    mineTicket += 1
+    const ticket = mineTicket
     mineState.value = 'loading'
     try {
-      mine.value = await api.getMine()
+      const answer = await api.getMine()
+      if (ticket !== mineTicket) {
+        // A newer read superseded this one; its answer is the one that decides the state.
+        return
+      }
+      mine.value = answer
       mineErrorMessage.value = null
       mineState.value = 'loaded'
     } catch (error) {
+      if (ticket !== mineTicket) {
+        return
+      }
       mine.value = null
       const ownsNone = error instanceof ApiError && error.status === 404
       mineErrorMessage.value = error instanceof ApiError && !ownsNone ? error.message : null

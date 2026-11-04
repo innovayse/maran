@@ -13,7 +13,7 @@ namespace Maran.Modules.Accounts.Tests.TestSupport;
 public static class AccountsTestContext
 {
     /// <summary>
-    /// Creates the context for an administrator, which the reseller filters do not narrow.
+    /// Creates the context for an administrator, which no query filter narrows.
     /// </summary>
     /// <param name="interceptors">Interceptors to attach, for a test that arranges a failed save.</param>
     /// <returns>A context over its own in-memory database.</returns>
@@ -22,8 +22,11 @@ public static class AccountsTestContext
         return Create(FakeCurrentUser.Admin(), interceptors);
     }
 
-    /// <summary>Creates the context for a given caller, whose reseller scope the filters close over.</summary>
-    /// <param name="currentUser">The principal the context's query filters are evaluated for.</param>
+    /// <summary>Creates the context for a given caller, whose kind the fail-closed filters close over.</summary>
+    /// <param name="currentUser">
+    /// The principal the context's query filters are evaluated for; an anonymous or accountless one sees
+    /// no account, plan or reseller through it.
+    /// </param>
     /// <param name="interceptors">Interceptors to attach, for a test that arranges a failed save.</param>
     /// <returns>A context over its own in-memory database.</returns>
     public static AccountsDbContext Create(ICurrentUser currentUser, params IInterceptor[] interceptors)

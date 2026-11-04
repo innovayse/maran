@@ -209,7 +209,7 @@ public sealed class AccountListEndpointTests : IAsyncLifetime
         {
             // Active orders before Suspended, so suspending alpha makes the status order bravo, alpha.
             var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-            (await accounts.Accounts.SingleAsync(account => account.Name == "alpha")).Suspend();
+            (await accounts.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Name == "alpha")).Suspend();
             await accounts.SaveChangesAsync();
         }
 
@@ -248,7 +248,7 @@ public sealed class AccountListEndpointTests : IAsyncLifetime
         using (var scope = factory.Services.CreateScope())
         {
             var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-            (await accounts.Accounts.SingleAsync(account => account.Name == "bravo")).Suspend();
+            (await accounts.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Name == "bravo")).Suspend();
             await accounts.SaveChangesAsync();
         }
 

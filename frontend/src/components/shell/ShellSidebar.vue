@@ -61,6 +61,13 @@
  * shares, and it is drawn by `UiNavSection` as wide as every other row. The current row is kept in
  * view on every navigation and when the catalogue arrives (`useRevealCurrentRow`).
  *
+ * **Loading (issue #366).** While a customer's first answer for the active account is on its way
+ * (`loading`), a fixed number of {@link UiSkeleton} rows stands in for the entries inside the same
+ * named navigation landmark, marked `aria-busy`. The rows sit in a `UiLoadingRegion`, so they are
+ * mounted at once (the space is held) but stay invisible for the first 150 ms: a fast answer shows
+ * no placeholder. The region announces the wait once, politely; the rows are decorative and hidden
+ * from assistive technology.
+ *
  * **Density (issue #200).** 216px wide, 18px icons, tighter rows and group labels from tablet
  * width up; in the drawer (below 1024px) rows keep a 44px touch height (`UiNavLink`).
  */
@@ -70,8 +77,10 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import UiLoadingRegion from '../ui/UiLoadingRegion.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
+import UiSkeleton from '../ui/UiSkeleton.vue'
 import ShellSidebarEntry from './ShellSidebarEntry.vue'
 import ShellUserBlock from './ShellUserBlock.vue'
 import { groupNavigation } from '../../utils/groupNavigation'
@@ -83,15 +92,21 @@ import type { NavigationGroup } from '../../types/navigationGroup'
 /** Props accepted by {@link ShellSidebar}. */
 const props = withDefaults(
   defineProps<{
-    /** Navigation entries to render, in catalogue order, as built by `useNavigation`. */
+    /** Navigation entries to render, in catalogue order, as built by `useNavigationState`. */
     entries: readonly NavigationEntry[]
     /**
      * Whether the sidebar is being shown inside the drawer. It then draws no panel of its own
      * and drops the collapse control.
      */
     compact?: boolean
+    /**
+     * Whether the first answer for the active account is still on its way. The sidebar then draws
+     * a skeleton in place of the entries: an empty menu would read as "nothing is allowed" and the
+     * permissive one would offer what may be refused a moment later.
+     */
+    loading?: boolean
   }>(),
-  { compact: false },
+  { compact: false, loading: false },
 )
 
 /** Events emitted by {@link ShellSidebar}. */
@@ -104,6 +119,9 @@ const emit = defineEmits<{
    */
   (e: 'navigate'): void
 }>()
+
+/** How many placeholder rows the loading skeleton draws; a UI constant, not a count of anything real. */
+const SKELETON_ROWS = 6
 
 /** Storage key under which the open sections are remembered for this viewer. */
 const OPEN_SECTIONS_KEY = 'maran.nav.openSections'
@@ -284,7 +302,22 @@ useRevealCurrentRow(scroller, (): readonly NavigationEntry[] => {
         </UiButton>
       </div>
 
-      <UiNav :label="t('app.nav.ariaLabel')">
+      <!-- Loading: the landmark keeps its name and is marked busy. The region mounts the placeholders
+           at once, so the space is held, keeps them invisible for the first 150 ms, and announces
+           the wait itself; the rows are decorative. The region sits inside the list item, around
+           the list, so the markup stays valid. -->
+      <UiNav v-if="loading" :label="t('app.nav.ariaLabel')" aria-busy="true">
+        <UiNavItem>
+          <UiLoadingRegion state="loading">
+            <ul class="flex flex-col gap-0.5" aria-hidden="true">
+              <UiNavItem v-for="row in SKELETON_ROWS" :key="row" class="py-0.5">
+                <UiSkeleton shape="block" control="field" />
+              </UiNavItem>
+            </ul>
+          </UiLoadingRegion>
+        </UiNavItem>
+      </UiNav>
+      <UiNav v-else :label="t('app.nav.ariaLabel')">
         <UiNavItem v-for="group in groups" :key="group.key" class="mt-1.5 first:mt-0">
           <p
             :id="`nav-group-${group.key}`"

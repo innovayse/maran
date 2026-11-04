@@ -361,6 +361,13 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
                 services.RemoveAll<IAgentAccountsClient>();
                 services.AddSingleton(agent);
 
+                // The deletion is dispatched here over the bus with no request around it, but in
+                // production only an administrator's (or a reseller's) controller sends it. The
+                // Accounts context is fail-closed, so the host's anonymous caller would see no
+                // account to delete; the command runs as the administrator that really sends it.
+                services.RemoveAll<ICurrentUser>();
+                services.AddSingleton<ICurrentUser>(new AdministratorPrincipal());
+
                 // The deletion now takes a final backup BEFORE it releases anything (spec §12), and
                 // a failed final backup refuses the deletion. Without a stand-in these tests reach
                 // the real gRPC client, which has no socket here, and every one of them fails with

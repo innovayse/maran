@@ -18,7 +18,12 @@ import type { HeldAccountAccess } from '../types/profile'
 export const useAccountAccessStore = defineStore('accountAccess', () => {
   const api = useProfileApi()
 
-  /** The standing as last answered, or `null` before the first answer, after a failure and after sign-out. */
+  /**
+   * The standing as last answered, with the account it was read for, or `null` before the first
+   * answer and after sign-out. A read on its way leaves the previous answer in place, so the menu
+   * keeps the grants it was drawn from until the new account's have arrived; a failed read replaces
+   * it with an answer holding no standing.
+   */
   const held: Ref<HeldAccountAccess | null> = ref(null)
 
   /** The in-flight read, so a newer read or {@link clear} abandons it instead of applying a stale answer. */
@@ -40,10 +45,12 @@ export const useAccountAccessStore = defineStore('accountAccess', () => {
         held.value = { accountId, access: profile.accountAccess }
       }
     } catch {
-      // Advice only: a failed read leaves the standing unreported. An aborted one is a newer read
-      // or a sign-out, and must not overwrite what that one decided.
+      // Advice only: a failed read leaves the standing unreported. It is still recorded against its
+      // account, so the navigation sees the read for that account as settled and falls back to the
+      // permissive menu instead of waiting for grants that will not come. An aborted one is a newer
+      // read or a sign-out, and must not overwrite what that one decided.
       if (!controller.signal.aborted) {
-        held.value = null
+        held.value = { accountId, access: null }
       }
     }
   }

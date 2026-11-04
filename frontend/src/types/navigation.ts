@@ -195,6 +195,18 @@ export type NavigationAccountAccess =
       features: ReadonlySet<AccountFeatureName>
     }
 
+/**
+ * The grants one menu is drawn from: the plan's features and the caller's standing, taken together
+ * for one account. They are replaced as a pair, so a menu is never built from the plan of one
+ * account and the grants of another.
+ */
+export interface NavigationGrants {
+  /** What the panel reported about the plan features. */
+  planFeatures: NavigationPlanFeatures
+  /** What the panel reported about the caller's standing. */
+  accountAccess: NavigationAccountAccess
+}
+
 /** What the shell knows about the caller and the panel when it builds the navigation. */
 export interface NavigationContext {
   /** The signed-in caller's role. */
@@ -260,6 +272,20 @@ export interface NavigationEntry {
    */
   children: NavigationEntry[]
 }
+
+/**
+ * What the shell can say about its navigation right now. `loading` means exactly one thing: a
+ * customer's first answer for the account they act for (the plan read and the standing read) is
+ * still on its way and there are no earlier grants to keep, so any menu drawn now would be a guess
+ * the answer then shrinks. Operators and logins that act for no account are always `ready`, and a
+ * read that failed settles as `ready` with every item offered (advice errs permissive,
+ * rules/security.md). A menu is never drawn empty to mean "wait": waiting is its own arm.
+ */
+export type NavigationState =
+  /** The first answer for a customer's active account is still on its way; there are no entries yet. */
+  | { state: 'loading' }
+  /** The menu is known; `entries` are in drawing order. */
+  | { state: 'ready'; entries: NavigationEntry[] }
 
 /**
  * Where a screen sits in the navigation, as `utils/locateNavigation.ts` derives it from the tree:

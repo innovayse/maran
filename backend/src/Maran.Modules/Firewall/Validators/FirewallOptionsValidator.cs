@@ -56,11 +56,11 @@ public sealed class FirewallOptionsValidator : IValidateOptions<FirewallOptions>
             failures.Add(
                 $"{FirewallOptions.SshPortsEnvironmentKey} is empty. It must list every port this "
                 + "host's sshd listens on, comma-separated (for example 22,2200,2222). It is not "
-                + "defaulted to 22, because a firewall rendered for a port sshd is not using — and "
-                + "not for the one it is — locks this server's administrator out with no remote way "
+                + "defaulted to 22, because a firewall rendered for a port sshd is not using, and "
+                + "not for the one it is, locks this server's administrator out with no remote way "
                 + "back in. On a server it belongs in /etc/maran/panel.env, which the installer "
                 + "writes; on a workstation, in the repository's .env, which scripts/dev seeds from "
-                + ".env.example once — an .env made before this key existed will not have it. "
+                + ".env.example once: an .env made before this key existed will not have it. "
                 + "installer/panel.env.example is the authority for the value.");
         }
         else if (options.SshPortNumbers.Count == 0)
@@ -78,7 +78,7 @@ public sealed class FirewallOptionsValidator : IValidateOptions<FirewallOptions>
             failures.Add(
                 $"{FirewallOptions.PanelPortEnvironmentKey} is {panelPort}, which is not a port in "
                 + "1-65535. It is the PUBLIC port of the panel's nginx vhost (8443 by default), never "
-                + "whatever ASPNETCORE_URLS names — a unix socket on a server, a loopback port in "
+                + "whatever ASPNETCORE_URLS names: a unix socket on a server, a loopback port in "
                 + "development. Opening a loopback port here leaves the panel reachable until the "
                 + "first rule change and unreachable afterwards. On a server it belongs in "
                 + "/etc/maran/panel.env; on a workstation, in the repository's .env, seeded from "

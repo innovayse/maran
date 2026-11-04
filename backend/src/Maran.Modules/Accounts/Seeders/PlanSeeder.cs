@@ -60,6 +60,7 @@ public sealed class PlanSeeder
     /// Idempotent: running this against a database that already holds any plan inserts nothing.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <b>Only into a panel with no plans, not "whichever standard plan is absent".</b> The seeder used
     /// to top the three back up on every start, which was harmless while nothing could remove a plan.
     /// Now an administrator can delete one, and a deletion that returns at the next restart is a plan
@@ -68,11 +69,25 @@ public sealed class PlanSeeder
     /// and an edited one stays edited. The cost is that an operator who deletes every plan and
     /// restarts has the three standard ones back — the same state as a new installation, and no
     /// account could be created in the plan-less one anyway.
+    /// </para>
+    /// <para>
+    /// <b>The existence read bypasses the plan filter explicitly.</b> The seeder runs at start-up as
+    /// the anonymous caller, and the context shows an anonymous caller no plan at all, so a filtered
+    /// read would answer "none" on every boot and the insert would collide with the fixed ids. The
+    /// bypass is the only read here; the rest of the method only adds rows.
+    /// </para>
     /// </remarks>
     /// <param name="cancellationToken">Cancels the seed.</param>
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
-        if (await _dbContext.Plans.AsNoTracking().AnyAsync(cancellationToken))
+#pragma warning disable RS0030 // seeding runs as AnonymousCaller, who sees no plan; the check must see every plan
+        var panelHoldsPlans = await _dbContext.Plans
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .AnyAsync(cancellationToken);
+#pragma warning restore RS0030
+
+        if (panelHoldsPlans)
         {
             return;
         }

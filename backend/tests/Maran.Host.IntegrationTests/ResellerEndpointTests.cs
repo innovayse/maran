@@ -64,7 +64,7 @@ public sealed class ResellerEndpointTests : IAsyncLifetime
 
         var stored = await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Resellers.AsNoTracking().SingleAsync(reseller => reseller.Id == id);
+            return await accounts.Resellers.IgnoreQueryFilters().AsNoTracking().SingleAsync(reseller => reseller.Id == id);
         });
         Assert.Equal("charlie@example.com", stored.ContactEmail);
         Assert.Equal("ru", stored.Language);
@@ -108,7 +108,7 @@ public sealed class ResellerEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal("ResellerNameTaken", await ProblemDocument.CodeAsync(response));
-        Assert.Equal(2, await world.AccountsAsync(async accounts => { return await accounts.Resellers.CountAsync(); }));
+        Assert.Equal(2, await world.AccountsAsync(async accounts => { return await accounts.Resellers.IgnoreQueryFilters().CountAsync(); }));
         var refused = Assert.Single(await world.AuditEntriesAsync(AccountAuditActions.ResellerCreated));
         Assert.Equal(("admin", name, false), (refused.ActorUsername, refused.Subject, refused.Succeeded));
     }
@@ -142,7 +142,7 @@ public sealed class ResellerEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(code, await ProblemDocument.CodeAsync(response));
-        Assert.Equal(2, await world.AccountsAsync(async accounts => { return await accounts.Resellers.CountAsync(); }));
+        Assert.Equal(2, await world.AccountsAsync(async accounts => { return await accounts.Resellers.IgnoreQueryFilters().CountAsync(); }));
         Assert.Empty(await world.AuditEntriesAsync(AccountAuditActions.ResellerCreated));
     }
 
@@ -222,12 +222,12 @@ public sealed class ResellerEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, lowered.StatusCode);
         var stored = await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Resellers.AsNoTracking().SingleAsync(reseller => reseller.Id == world.Alpha.ResellerId);
+            return await accounts.Resellers.IgnoreQueryFilters().AsNoTracking().SingleAsync(reseller => reseller.Id == world.Alpha.ResellerId);
         });
         Assert.Equal((0, 0L, 0), (stored.Envelope.MaxAccounts, stored.Envelope.DiskPoolMb, stored.Envelope.MaxPlans));
         Assert.Equal(1, await world.AccountsAsync(async accounts =>
         {
-            return await accounts.Accounts.CountAsync(account => account.ResellerId == world.Alpha.ResellerId);
+            return await accounts.Accounts.IgnoreQueryFilters().CountAsync(account => account.ResellerId == world.Alpha.ResellerId);
         }));
         var entries = await world.AuditEntriesAsync(AccountAuditActions.ResellerEnvelopeChanged);
         Assert.Equal(

@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Services;
@@ -89,9 +90,9 @@ public sealed class AccountDirectoryTests
         Assert.Equal(17, snapshot.MaxFtpUsers);
     }
 
-    /// <summary>A customer cannot read another tenants snapshot.</summary>
+    /// <summary>A customer cannot read the snapshot of another tenant.</summary>
     [Fact]
-    public async Task A_customer_cannot_read_another_tenants_snapshot()
+    public async Task A_customer_cannot_read_the_snapshot_of_another_tenant()
     {
         // Without this scope, a customer could learn another tenant's SYSTEM USER NAME — the name
         // that addresses every agent operation — by guessing an account id.
@@ -105,9 +106,9 @@ public sealed class AccountDirectoryTests
         Assert.Null(snapshot);
     }
 
-    /// <summary>An unknown account and another tenants account are indistinguishable.</summary>
+    /// <summary>An unknown account and the account of another tenant are indistinguishable.</summary>
     [Fact]
-    public async Task An_unknown_account_and_another_tenants_account_are_indistinguishable()
+    public async Task An_unknown_account_and_the_account_of_another_tenant_are_indistinguishable()
     {
         // Both answer null, so the response cannot be used to discover which account ids exist.
         await using var dbContext = CreateDbContext();
@@ -184,7 +185,130 @@ public sealed class AccountDirectoryTests
         Assert.Null(snapshot);
     }
 
-    /// <summary>Builds a fresh, isolated in-memory context.</summary>
+    /// <summary>
+    /// The host-wide list answers every account with its own plan's figures to every kind of caller,
+    /// an anonymous one included — the unattended runs (backup, retention, PHP reconcile) that use it
+    /// have no principal, and the context's filters would show such a caller nothing.
+    /// </summary>
+    /// <remarks>
+    /// One account is owned by a reseller on that reseller's plan and one by the administrator on the
+    /// administrator's, so a list that bypassed the account filter but not the plan filter (or the
+    /// reverse) loses a row or a plan figure here. The control reads the very same database through an
+    /// anonymous context and finds neither table's rows, so the list is the bypass and not an open filter.
+    /// </remarks>
+    [Fact]
+    public async Task The_host_wide_list_answers_every_account_with_its_plan_to_every_kind_of_caller()
+    {
+        var database = Guid.NewGuid().ToString();
+        var reseller = ResellerTestData.Reseller("agency");
+        await using (var seed = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin()))
+        {
+            var resoldPlan = Plan.Define(
+                Guid.NewGuid(), "Resold", 1_000, 7, 2, 3, 17, 13, 11, resellerId: reseller.Id);
+            var directPlan = Plan.Define(Guid.NewGuid(), "Direct", 2_000, 9, 2, 3, 17, 13, 11);
+            seed.Resellers.Add(reseller);
+            seed.Plans.AddRange(resoldPlan, directPlan);
+            seed.Accounts.Add(new Account(
+                Guid.NewGuid(), "resold", "resold.example.com", resoldPlan.Id, ResellerTestData.CreatedAt,
+                resellerId: reseller.Id));
+            seed.Accounts.Add(new Account(
+                Guid.NewGuid(), "direct", "direct.example.com", directPlan.Id, ResellerTestData.CreatedAt));
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var anonymous = AccountsTestContext.CreateOn(database, FakeCurrentUser.Anonymous()))
+        {
+            Assert.Empty(await anonymous.Accounts.ToListAsync());
+            Assert.Empty(await anonymous.Plans.ToListAsync());
+        }
+
+        ICurrentUser[] callers =
+        [
+            FakeCurrentUser.Anonymous(),
+            FakeCurrentUser.AccountlessCustomer(),
+            FakeCurrentUser.Customer(Guid.NewGuid()),
+            FakeCurrentUser.Reseller(Guid.NewGuid()),
+            FakeCurrentUser.Admin(),
+        ];
+        foreach (var caller in callers)
+        {
+            await using var dbContext = AccountsTestContext.CreateOn(database, caller);
+
+            var snapshots = await new AccountDirectory(dbContext, caller).ListAsync(CancellationToken.None);
+
+            Assert.Equal(2, snapshots.Count);
+            Assert.Equal(7, Assert.Single(snapshots, snapshot =>
+            {
+                return snapshot.Username == "resold";
+            }).MaxSites);
+            Assert.Equal(9, Assert.Single(snapshots, snapshot =>
+            {
+                return snapshot.Username == "direct";
+            }).MaxSites);
+        }
+    }
+
+    /// <summary>A customer reads their own snapshot, plan figures included, through their own context.</summary>
+    /// <remarks>
+    /// The directory and the context are built for the same customer, as in production, so the
+    /// snapshot's join onto the plan passes through the customer's plan filter: a filter that hid the
+    /// customer's own plan would turn this answer into null.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_reads_their_own_snapshot_through_a_context_filtered_for_them()
+    {
+        var database = Guid.NewGuid().ToString();
+        Guid accountId;
+        await using (var seed = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin()))
+        {
+            accountId = await SeedAsync(seed, "acme");
+            await SeedAsync(seed, "theirs");
+        }
+
+        var customer = FakeCurrentUser.Customer(accountId);
+        await using var dbContext = AccountsTestContext.CreateOn(database, customer);
+
+        var snapshot = await new AccountDirectory(dbContext, customer).FindAsync(accountId, CancellationToken.None);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal("acme", snapshot.Username);
+        Assert.Equal(7, snapshot.MaxSites);
+        Assert.Equal(17, snapshot.MaxFtpUsers);
+    }
+
+    /// <summary>A customer cannot read the snapshot of another tenant when the context is built for them.</summary>
+    /// <remarks>
+    /// What is observed here is the directory's own scope check: it refuses an id other than the
+    /// customer's account before it reads the context, so the answer would be the same with the
+    /// context's query filter removed. The filter itself is proved in
+    /// <c>AccountsDbContextFailClosedTests</c>. The tests earlier in this class read through an
+    /// administrator's context; this one builds the context for the customer, as in production, with
+    /// the customer's own account read in the same context as the positive control.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_cannot_read_the_snapshot_of_another_tenant_when_the_context_is_built_for_them()
+    {
+        var database = Guid.NewGuid().ToString();
+        Guid mine;
+        Guid theirs;
+        await using (var seed = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin()))
+        {
+            mine = await SeedAsync(seed, "mine");
+            theirs = await SeedAsync(seed, "theirs");
+        }
+
+        var customer = FakeCurrentUser.Customer(mine);
+        await using var dbContext = AccountsTestContext.CreateOn(database, customer);
+        var directory = new AccountDirectory(dbContext, customer);
+
+        Assert.Null(await directory.FindAsync(theirs, CancellationToken.None));
+        Assert.NotNull(await directory.FindAsync(mine, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Builds a fresh, isolated in-memory context for an administrator, which no query filter narrows —
+    /// so the tests reading through it observe the directory's own comparison as the only defence.
+    /// </summary>
     private static AccountsDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AccountsDbContext>()

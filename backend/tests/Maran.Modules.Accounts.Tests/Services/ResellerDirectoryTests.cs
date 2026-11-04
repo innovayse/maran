@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Accounts.Tests.Services;
 
@@ -71,6 +72,45 @@ public sealed class ResellerDirectoryTests
 
             Assert.Null(await directory.FindAsync(reseller.Id, CancellationToken.None));
         }
+    }
+
+    /// <summary>The same callers read no reseller when the context is built for each of them.</summary>
+    /// <remarks>
+    /// What is observed here is the directory's own scope check: it refuses these callers before it reads
+    /// the context, so the answer would be the same with the context's query filter removed. The filter
+    /// itself is proved in <c>AccountsDbContextFailClosedTests</c>. The test above reads through an
+    /// administrator's context; here each context is built for its caller, as in production, and the
+    /// administrator reads the same row over the same database as the inverse control, so the refusal is
+    /// the check and not a missing row.
+    /// </remarks>
+    [Fact]
+    public async Task A_caller_that_is_neither_administrator_nor_reseller_is_refused_by_the_directory_s_scope_check()
+    {
+        var database = Guid.NewGuid().ToString();
+        var reseller = ResellerTestData.Reseller();
+        await using (var seed = AccountsTestContext.CreateOn(database, FakeCurrentUser.Admin()))
+        {
+            seed.Resellers.Add(reseller);
+            await seed.SaveChangesAsync();
+        }
+
+        ICurrentUser[] callers =
+        [
+            FakeCurrentUser.Customer(Guid.NewGuid()),
+            FakeCurrentUser.AccountlessCustomer(),
+            FakeCurrentUser.Anonymous(),
+        ];
+        foreach (var caller in callers)
+        {
+            await using var dbContext = AccountsTestContext.CreateOn(database, caller);
+
+            Assert.Null(await new ResellerDirectory(dbContext, caller).FindAsync(reseller.Id, CancellationToken.None));
+        }
+
+        var admin = FakeCurrentUser.Admin();
+        await using var adminContext = AccountsTestContext.CreateOn(database, admin);
+
+        Assert.NotNull(await new ResellerDirectory(adminContext, admin).FindAsync(reseller.Id, CancellationToken.None));
     }
 
     /// <summary>An administrator asking for an id that does not exist is answered null.</summary>
