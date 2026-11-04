@@ -296,19 +296,26 @@ deviation is a defect or a decision the reviewer must accept.
    `/var/lib/maran-cli-staging`. The directory check is "a real directory owned by root that group
    and others cannot write" (the check the manual verb already used), so a root-owned 0755 directory
    passes; the installer creates 0700 but the job does not require it.
-4. **A non-default `OUT_DIR` does not work under the unit, and the code says otherwise in three
-   places.** The unit's `ReadWritePaths=` names `/var/backups/maran-panel`,
-   `/var/lib/maran-cli-staging` and `/run` and nothing else. The comment in the service unit says
-   `enable` "must add that directory to ReadWritePaths= in a service drop-in ... or refuse", and a
-   comment in `uninstall.sh` says `enable` writes "a possible ReadWritePaths= for another output
-   directory". `enable` does neither: it writes only the timer's schedule drop-in and validates
-   `OUT_DIR` without comparing it with the unit. With another directory the archive cannot be created
-   and the job fails with the "refusing to write ... cannot be created" message. The operator can
-   add a drop-in by hand (documented in `docs/operations/panel-disaster-recovery.md`, "A different
-   OUT_DIR"). Those two comments describe behaviour that does not exist and are to be corrected, or
-   `enable` made to do what they say (rules/architecture.md, "A doc comment that describes what the
-   code does not do"). `uninstall.sh` removes `maran-panel-backup.service.d` whole, so such a drop-in
-   goes with it, and it reports only the default directory's archives as kept.
+4. **A non-default `OUT_DIR` is handled by a second drop-in, and `enable` refuses what the unit
+   cannot see.** The unit's `ReadWritePaths=` names `/var/backups/maran-panel`,
+   `/var/lib/maran-cli-staging` and `/run` and nothing else. Commit 916ed358 made
+   `maran panel-backup-schedule enable` write `/etc/systemd/system/maran-panel-backup.service.d/outdir.conf`
+   (`[Service]` and `ReadWritePaths=<OUT_DIR>`) for any `OUT_DIR` other than the default, and remove it
+   for the default; `disable` removes it, and so does `uninstall.sh` (it removes the service drop-in
+   directory whole). The directory is the value the configuration reader accepted, rendered by root
+   and moved into place by rename, with no operator text echoed (rules/security.md item 4). `enable`
+   refuses, naming `OUT_DIR`, when that directory is missing or a symlink, because systemd would fail
+   to build the unit's namespace over it (226/NAMESPACE). The same commit makes `enable` refuse a
+   `PASSPHRASE_FILE`, and with S3 configured an `S3_ACCESS_KEY_ID_FILE` or `S3_SECRET_FILE`, that is
+   under `/root` or `/home` (as written or after resolving symlinks), since `ProtectHome=yes` hides
+   both from the job; the first problem is named by key and path. `enable` no longer prints
+   `SCHEDULE`: its output is fixed text. This item previously recorded that `enable` did neither and
+   that two comments (the service unit's and `uninstall.sh`'s) described behaviour that did not exist;
+   both now describe the code. Still OUTSTANDING and unobserved: no one has run `enable` with a custom
+   `OUT_DIR` against a real systemd and seen the job write there. Known wording defect for the next
+   code change: the refusal for a hidden file says "move the file to /etc/maran", while the
+   operator documentation advises `/etc/maran-backup`, because `/etc/maran` is inside every archive.
+   `uninstall.sh` reports only the default directory's archives as kept.
 5. **The S3 upload needs `curl` 7.75 or later and the product does not check the version.** `--aws-sigv4`
    arrived in 7.75. The installer's comment in `installer/lib/20-dependencies.sh` records
    `curl-minimal-7.76.1` on the AlmaLinux 9 family; the other supported systems' versions were not
@@ -389,3 +396,11 @@ until it has run on a real systemd container each is a claim and not a measureme
    and both families.
 7. Item 10 of `rules/security.md`: the owner's recorded decision to accept this configured outbound
    call, and the spec amendment, are still not on record.
+
+### Owner decision on item 10: NOT recorded here
+
+The S3 upload is an operator-configured outbound call from the server. `rules/security.md` item 10
+says no new outbound calls and asks for a spec change first, not a PR. Section 4 above argues the
+case; it cannot grant it. **The owner's decision is NOT recorded in this note or anywhere in this
+branch, and the spec has not been amended.** The pull request for this branch must say so in plain
+words, next to the OUTSTANDING second review, so that nobody reads the argument as an approval.
