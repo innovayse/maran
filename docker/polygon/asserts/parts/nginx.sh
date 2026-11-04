@@ -306,6 +306,7 @@ $(nginx -t 2>&1)"
 # customer's site vhosts, which the agent renders from its own templates.
 assert_the_panel_vhost_can_never_log_a_query_string() {
   local dest entry_copy="" served_copy outcome root_backup="" document_root port
+  local ancestor created_dirs=()
 
   # The census first: it reads one file, touches no service, and reports the cheapest failure
   # before nginx is asked for anything.
@@ -350,6 +351,14 @@ measuring nginx's error path instead of its access log." ;;
     root_backup="$(mktemp)"
     cp -p "${document_root}/index.html" "$root_backup"
   fi
+  # Every directory the probe is about to create — the root and each missing parent — is recorded
+  # first, deepest first, so the cleanup below removes exactly those and the image is left as it was
+  # found. A later part (parts/release-layout.sh) refuses to run when /usr/local/maran/frontend exists.
+  ancestor="$document_root"
+  while [ "$ancestor" != "/" ] && [ ! -e "$ancestor" ]; do
+    created_dirs+=("$ancestor")
+    ancestor="$(dirname "$ancestor")"
+  done
   install -d -m 0755 "$document_root"
   printf '<!doctype html><title>polygon</title>\n' > "${document_root}/index.html"
 
@@ -367,6 +376,10 @@ measuring nginx's error path instead of its access log." ;;
     cp -p "$root_backup" "${document_root}/index.html"
     rm -f "$root_backup"
   fi
+  # Only what this assertion created, and only while empty: rmdir refuses anything else.
+  for ancestor in "${created_dirs[@]}"; do
+    rmdir "$ancestor" 2>/dev/null || true
+  done
   rm -f "$VHOST_LOG_ACCESS_LOG" "$VHOST_LOG_ERROR_LOG"
   rm -f "$dest"
   if [ -n "$entry_copy" ]; then

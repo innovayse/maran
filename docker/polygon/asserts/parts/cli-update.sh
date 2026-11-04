@@ -60,7 +60,11 @@ cli_upd_layout_state() {
       printf '%s absent\n' "$path"
     fi
   done
-  find /usr/local/maran/releases /var/backups/maran-update -mindepth 1 2>/dev/null | sort
+  # find exits 1 when either directory is absent, which is the ordinary state of a fresh image, and
+  # under `set -o pipefail` that status would become this function's: the bare assignment that
+  # captures the "before" snapshot would then end the whole build with no message. An absent
+  # directory is already reported above as `absent`, so the listing may be empty without a failure.
+  { find /usr/local/maran/releases /var/backups/maran-update -mindepth 1 2>/dev/null || true; } | sort
 }
 
 # cli_upd_run: the installed wrapper with the given arguments and standard input closed, so a
@@ -227,6 +231,10 @@ STUB
   # update.sh vets the path's characters right after parsing its arguments, before the lock and
   # before any read of the layout or the disk, so these two refusals need nothing else in place.
   hostile_path="${work}/bundle;touch ${CLI_INJECTION_WITNESS}\$(touch ${CLI_INJECTION_WITNESS})"$'\n'"line.tar.gz"
+  # The witness path inside the hostile name carries slashes of its own, so the name is a chain of
+  # directories and the file only exists once that chain does. Without it the printf below fails
+  # with "No such file or directory" and the build dies there, naming nothing.
+  mkdir -p -- "$(dirname -- "$hostile_path")"
   printf 'not a bundle\n' > "$hostile_path"
   [ -f "$hostile_path" ] \
     || fail "the hostile bundle path cannot be created in ${work}, so it being refused below would only mean the file was absent"

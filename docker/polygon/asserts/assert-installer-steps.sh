@@ -20,7 +20,17 @@
 # panel that could not create a site: the image RUNS THE INSTALLER'S FUNCTIONS.
 # It never repeats their work. An image that performs the edit itself and then
 # asserts the edit is present proves only that the image works.
-set -euo pipefail
+set -Eeuo pipefail
+
+# A `set -e` death is otherwise ANONYMOUS: bash prints nothing, the Dockerfile RUN just ends with a
+# non-zero status, and the reader is left bisecting a build that takes minutes per attempt. This
+# trap names the file, line, function chain and command of every failure that `set -e` is about to
+# turn into an exit. ERR is not raised for a command in an `if`/`while` condition, a `!` pipeline,
+# or any non-final member of an `&&`/`||` list, which is exactly the set `set -e` also ignores, so it
+# is silent for the refusals an assertion deliberately probes. `-E` carries it into functions and
+# command substitutions. `fail` exits through `exit 1`, which raises no ERR, so its own message
+# stays the only line a deliberate failure prints.
+trap 'echo "assert-installer-steps.sh: died at ${BASH_SOURCE[0]}:${LINENO} in ${FUNCNAME[*]:-main}: ${BASH_COMMAND}" >&2' ERR
 
 readonly INSTALLER_ROOT="/tmp/maran-installer"
 readonly INSTALLER_LIB="${INSTALLER_ROOT}/lib"

@@ -175,13 +175,25 @@ create_directory_layout' \
   # The controls come first, so the checkers are shown capable before their silence is believed.
   work="$(mktemp -d)"
   install -d -m 0755 "${work}/plant/real-directory"
+  # The checker also demands that a link RESOLVE, so the control that must be accepted needs a real
+  # target, spelled the way the installer spells its own: relative, and resolved from the link's own
+  # directory (`current` -> releases/<v>, `api` -> current/api). A link to a name nothing holds is
+  # planted separately, as a control that must be refused for that reason alone.
+  : > "${work}/plant/wrong-target"
+  install -d -m 0755 "${work}/plant/releases/x"
   ln -s wrong-target "${work}/plant/wrong-link"
+  ln -s releases/x "${work}/plant/current"
+  ln -s nothing-is-here "${work}/plant/dangling-link"
   [ -n "$(release_layout_link_problem "${work}/plant/real-directory" "wrong-target")" ] \
     || fail "the link checker reports nothing for a real directory where a symbolic link is required, so its silence over ${RELEASE_LAYOUT_ROOT}/current means nothing"
   [ -n "$(release_layout_link_problem "${work}/plant/wrong-link" "releases/x")" ] \
     || fail "the link checker reports nothing for a link with the wrong target text, so its silence over the real links means nothing"
+  [ -n "$(release_layout_link_problem "${work}/plant/dangling-link" "nothing-is-here")" ] \
+    || fail "the link checker reports nothing for a link whose target text is right but resolves to nothing, so its silence over the real links does not show they resolve"
   [ -z "$(release_layout_link_problem "${work}/plant/wrong-link" "wrong-target")" ] \
-    || fail "the link checker refuses a link whose target text is exactly the expected one, so it refuses everything and its refusals below prove nothing"
+    || fail "the link checker refuses a link whose target text is exactly the expected one and which resolves, so it refuses everything and its refusals below prove nothing: $(release_layout_link_problem "${work}/plant/wrong-link" "wrong-target")"
+  [ -z "$(release_layout_link_problem "${work}/plant/current" "releases/x")" ] \
+    || fail "the link checker refuses a relative link spelled the way the installer writes 'current' (releases/<v>) and resolving from the link's own directory, so it refuses everything: $(release_layout_link_problem "${work}/plant/current" "releases/x")"
   install -d -m 0755 "${work}/plant/tree"
   : > "${work}/plant/tree/writable"
   chmod 0666 "${work}/plant/tree/writable"
