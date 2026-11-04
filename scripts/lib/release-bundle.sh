@@ -910,7 +910,11 @@ cmd_selftest() {
   # "these bytes were signed by this key" — it does not re-derive any hash inside them.
   local defective="${work}/defective-manifest.json"
   cp "${bundle}/integrity-manifest.json" "$defective"
-  sed -i '0,/": "[0-9a-f]\{64\}"/{s/": "0/": "1/; s/": "1/": "2/}' "$defective"
+  # Whatever the first hex digit is, it becomes a DIFFERENT one (0 becomes 1, anything else becomes 0).
+  # The earlier form only changed a leading 0 or 1, so it changed nothing whenever the first
+  # entry's hash began with another digit, which depends on the order `find` lists files in and
+  # failed on a CI runner while passing on a workstation.
+  sed -i '0,/": "[0-9a-f]\{64\}"/{s/": "0/": "\x01/; s/": "\([1-9a-f]\)/": "0/; s/\x01/1/}' "$defective"
   if cmp -s "${bundle}/integrity-manifest.json" "$defective"; then
     release_failed "selftest: outcome 6's sed did not actually change any byte — the corruption step itself is broken, so this proves nothing."
   fi
