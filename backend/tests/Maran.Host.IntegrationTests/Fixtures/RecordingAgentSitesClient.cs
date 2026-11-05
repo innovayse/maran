@@ -27,6 +27,9 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <summary>Every <c>(account, domain, retired PHP version)</c> the panel asked to remove, in order.</summary>
     public List<(string Account, string Domain, string RetiredPhpVersion)> Deleted { get; } = [];
 
+    /// <summary>How many web-server reloads the panel ordered.</summary>
+    public int Reloads { get; private set; }
+
     /// <summary>When set, every removal is refused with this code, so an abort can be exercised.</summary>
     public string? RefuseWith { get; init; }
 
@@ -144,11 +147,12 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         throw new NotSupportedException();
     }
 
-    /// <summary>Not exercised by these tests.</summary>
-    /// <param name="cancellationToken">Unused.</param>
-    /// <returns>Never returns.</returns>
+    /// <summary>Counts the reload the panel ordered, and answers as the agent would.</summary>
+    /// <param name="cancellationToken">Unused: nothing here awaits.</param>
+    /// <returns>Success.</returns>
     public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
-        throw new NotSupportedException();
+        Reloads += 1;
+        return Task.FromResult(Result.Ok());
     }
 }

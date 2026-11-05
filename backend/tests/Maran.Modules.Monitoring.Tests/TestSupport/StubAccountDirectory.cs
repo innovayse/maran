@@ -69,4 +69,11 @@ public sealed class StubAccountDirectory : IAccountDirectory
         // Refused for the same reason as NamesOfAsync: nothing in this module searches by owner.
         throw new NotSupportedException("Monitoring searches no account names.");
     }
+
+    /// <inheritdoc />
+    public Task<AccountSystemUser?> FindSystemUserAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        // Refused rather than answered: only unattended certificate renewal asks this question.
+        throw new NotSupportedException("These tests read no account's system user unscoped.");
+    }
 }

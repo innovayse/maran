@@ -27,6 +27,8 @@ namespace Maran.Sdk.Interfaces;
 /// <see cref="ListAsync"/> applies NONE and hands back every account on the host, because its one
 /// use — the administrator's host-wide disk view — has no tenant to scope by. Its own remarks say
 /// so at length; nothing may call it without gating itself to administrators first.
+/// <see cref="FindSystemUserAsync"/> also applies NONE, answers one account's system user name by id
+/// to every caller alike, and is for unattended work only; it is never reached from a request path.
 /// </para>
 /// </remarks>
 public interface IAccountDirectory
@@ -145,4 +147,33 @@ public interface IAccountDirectory
     /// parameter per id.
     /// </remarks>
     Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads one account's system user name, applying NO tenant scope and answering every caller alike.
+    /// For unattended work only: it must never be reached from a request path.
+    /// </summary>
+    /// <param name="accountId">
+    /// The account to read, by id only. The caller must hold the id from its own row, never from a
+    /// request.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>
+    /// The account's id and system user name, or <c>null</c> when no such account exists. Nothing
+    /// else about the account is returned, and the member cannot list.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>This member deliberately breaks the scoping promise of <see cref="FindAsync"/>.</b> Unattended
+    /// work (certificate renewal) runs with no principal, so <see cref="FindAsync"/> answers it nothing
+    /// by design; this member answers the same for an anonymous caller, an administrator and a customer
+    /// of another account. A handler on a request path that passed it an id a caller supplied would
+    /// disclose whether that account exists and its system user name — an IDOR with a 200 in place of a
+    /// 404 (rules/security.md item 6).
+    /// </para>
+    /// <para>
+    /// Its only legitimate caller is unattended work that holds the id from its own row. Callers are
+    /// listed by <c>grep -rnE "FindSystemUserAsync" backend/src --include=*.cs</c>.
+    /// </para>
+    /// </remarks>
+    Task<AccountSystemUser?> FindSystemUserAsync(Guid accountId, CancellationToken cancellationToken);
 }
