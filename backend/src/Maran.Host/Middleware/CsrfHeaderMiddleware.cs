@@ -12,7 +12,12 @@ namespace Maran.Host.Middleware;
 ///
 /// It applies only to a request that actually carries a cookie. One authenticated purely by an
 /// <c>Authorization</c> header cannot be forged cross-site at all — nothing attaches that header
-/// automatically — so demanding the header there would break API clients to prevent nothing.
+/// automatically — so demanding the header there would break API clients to prevent nothing. The
+/// same holds for a call authenticated by the <c>X-Api-Key</c> header: a browser never attaches it
+/// and a cross-origin <c>fetch</c> that sets it needs a preflight this server never answers. Such a
+/// call carries no cookie and so is outside this rule as written; one that does carry a cookie is
+/// still held to the header, which is stricter and harmless, and a cookie can never authenticate a
+/// key call because the key handler reads the header only.
 /// </remarks>
 public sealed class CsrfHeaderMiddleware
 {

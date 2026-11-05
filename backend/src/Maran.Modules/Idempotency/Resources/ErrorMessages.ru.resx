@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="IdempotencyKeyInvalid">
+    <value>Заголовок Idempotency-Key недопустим. Используйте от 1 до 255 букв, цифр, точек, двоеточий, дефисов или подчёркиваний.</value>
+  </data>
+  <data name="IdempotencyKeyReused">
+    <value>Этот Idempotency-Key уже использован для другого запроса. Для нового запроса используйте новый ключ.</value>
+  </data>
+  <data name="IdempotencyRequestInProgress">
+    <value>Запрос с этим Idempotency-Key ещё выполняется. Повторите попытку чуть позже.</value>
+  </data>
+  <data name="IdempotencyResponseNotStored">
+    <value>Первый ответ на этот Idempotency-Key не был сохранён, поэтому его нельзя повторить. Проверьте результат исходного запроса.</value>
+  </data>
+</root>

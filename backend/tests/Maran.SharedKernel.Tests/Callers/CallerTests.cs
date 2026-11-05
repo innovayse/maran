@@ -96,4 +96,20 @@ public sealed class CallerTests
         Assert.Null(alone.ViewedBy);
         Assert.NotEqual(alone, viewed);
     }
+
+    /// <summary>An API key caller names its key and scopes, is no login, and is no other kind of caller.</summary>
+    [Fact]
+    public void An_api_key_caller_names_its_key_and_scopes_and_is_no_login()
+    {
+        var keyId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        Caller caller = new ApiKeyCaller(keyId, ["self.read"]);
+
+        var apiKey = Assert.IsType<ApiKeyCaller>(caller);
+        Assert.IsNotAssignableFrom<PrincipalCaller>(caller);
+        Assert.Equal(keyId, apiKey.KeyId);
+        Assert.Equal(["self.read"], apiKey.Scopes);
+        Assert.Equal("api-key:66666666666666666666666666666666", apiKey.ActorName);
+        Assert.NotEqual<Caller>(apiKey, AnonymousCaller.Instance);
+        Assert.NotEqual<Caller>(apiKey, new AdministratorCaller(keyId, "root"));
+    }
 }

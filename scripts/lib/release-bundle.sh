@@ -81,6 +81,12 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck disable=SC1091
 . "$root/scripts/lib/release-changelog-selftest.sh"
 # shellcheck disable=SC1091
+. "$root/scripts/lib/openapi-emit.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-openapi.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-openapi-selftest.sh"
+# shellcheck disable=SC1091
 . "$root/scripts/lib/release-rebuild.sh"
 # shellcheck disable=SC1091
 . "$root/scripts/lib/release-rebuild-selftest.sh"
@@ -98,7 +104,7 @@ release_failed() {
 
 usage() {
   cat >&2 <<'USAGE'
-usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|selftest|package-selftest|sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest> [arguments]
+usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|openapi|selftest|package-selftest|sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest|openapi-selftest> [arguments]
 
   build     [--version <ver>] [--channel stable|beta] [--out <dir>] [--arch <list>|both] [--publish]
             [--source-date-epoch <n>]
@@ -122,7 +128,10 @@ usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|selftest|
                                                 a single arch may take --out <file>.tar.gz)
   sbom|changelog|rebuild [arguments]            CycloneDX SBOM per component, release notes from merged
                                                 pull requests, rebuild of the agent from a tag
-  sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest
+  openapi   --out <dir>                         write the tree's OpenAPI document as <dir>/openapi.json and
+                                                print its sha256; refuses a document that was not generated
+                                                or describes no operation. Not signed.
+  sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest|openapi-selftest
                                                 the matching selftests; none needs docker (the last
                                                 names that blind spot itself)
   package-selftest                              plant a two-architecture signed bundle, package it,
@@ -1098,6 +1107,8 @@ case "$command_name" in
   changelog-selftest) release_changelog_selftest "$@" ;;
   rebuild) release_rebuild_main "$@" ;;
   rebuild-selftest) release_rebuild_selftest "$@" ;;
+  openapi) release_openapi_main "$@" ;;
+  openapi-selftest) release_openapi_selftest "$@" ;;
   reproducible-selftest) release_reproducible_selftest "$@" ;;
   -h|--help|help) usage ;;
   *) echo "unknown release subcommand: $command_name" >&2; usage ;;

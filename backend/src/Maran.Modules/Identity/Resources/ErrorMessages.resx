@@ -165,4 +165,28 @@
   <data name="ViewAsResellerNotFound">
     <value>That reseller was not found, or it has no login to view as.</value>
   </data>
+  <data name="ApiKeyNotFound">
+    <value>That API key was not found.</value>
+  </data>
+  <data name="ApiKeyNameInvalid">
+    <value>The key name must be 1 to 64 characters with no control characters.</value>
+  </data>
+  <data name="ApiKeyScopeUnknown">
+    <value>Choose at least one scope from the list the panel offers.</value>
+  </data>
+  <data name="ApiKeyCidrInvalid">
+    <value>Each allowed address must be a valid address or range such as 203.0.113.0/24, at most 16 of them, and not a range that matches every address.</value>
+  </data>
+  <data name="ApiKeyExpiryInvalid">
+    <value>The expiry must be a moment in the future.</value>
+  </data>
+  <data name="ApiKeyLimitReached">
+    <value>The panel already holds the maximum number of API keys. Revoke one that is no longer needed.</value>
+  </data>
+  <data name="ApiKeyPrefixUnavailable">
+    <value>The key could not be created because no free key prefix was found. Please try again.</value>
+  </data>
+  <data name="ApiKeyStatusFilterInvalid">
+    <value>The status filter must be active, revoked or expired.</value>
+  </data>
 </root>

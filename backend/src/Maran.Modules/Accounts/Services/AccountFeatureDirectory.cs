@@ -85,9 +85,10 @@ public sealed class AccountFeatureDirectory : IAccountFeatureDirectory
             AdministratorCaller => true,
             CustomerCaller customer => customer.AccountId == accountId,
             ResellerCaller => false,
+            ApiKeyCaller => false,
             AnonymousCaller => false,
             AccountlessCustomerCaller => false,
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
         };
     }
 }

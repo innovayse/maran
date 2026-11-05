@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Maran.Modules.Licensing.Domain.Enums;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -155,9 +156,13 @@ public sealed class LicensingAuditJournal
         bool succeeded,
         CancellationToken cancellationToken)
     {
-        var (userId, username) = _currentUser.Caller is PrincipalCaller principal
-            ? (principal.UserId, principal.Username)
-            : (Guid.Empty, string.Empty);
+        var (userId, username) = _currentUser.Caller switch
+        {
+            PrincipalCaller principal => (principal.UserId, principal.Username),
+            ApiKeyCaller apiKey => (Guid.Empty, apiKey.ActorName),
+            AnonymousCaller => (Guid.Empty, string.Empty),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
+        };
 
         await _auditWriter.WriteAsync(
             new AuditEntry(

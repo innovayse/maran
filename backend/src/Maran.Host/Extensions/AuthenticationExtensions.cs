@@ -1,8 +1,10 @@
 using System.Text;
 using Maran.Host.Authorization;
+using Maran.Host.RateLimiting;
 using Maran.Host.Security;
 using Maran.Modules.Identity.Options;
 using Maran.Sdk.Contracts;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -10,10 +12,13 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Maran.Host.Extensions;
 
-/// <summary>Wires bearer-token authentication and the panel's authorization policies.</summary>
+/// <summary>Wires bearer-token and API key authentication and the panel's authorization policies.</summary>
 public static class AuthenticationExtensions
 {
-    /// <summary>Registers the JWT bearer handler, the role policies and the 403 problem-body writer.</summary>
+    /// <summary>
+    /// Registers the JWT bearer handler (the default scheme), the opt-in API key scheme, the role and API
+    /// key policies and the 403 problem-body writer.
+    /// </summary>
     /// <param name="services">The application service collection.</param>
     /// <param name="configuration">Configuration the <see cref="JwtOptions"/> are read from.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -55,9 +60,22 @@ public static class AuthenticationExtensions
                 {
                     OnTokenValidated = ViewAsSessionValidation.OnTokenValidatedAsync,
                 };
-            });
+            })
 
-        services.AddAuthorization(RolePolicies.Configure);
+            // Registered as a scheme and NOT as the default: AddAuthentication above fixed JWT bearer
+            // as the default, and only a policy that names this scheme (ApiKeyPolicies) ever runs it.
+            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+                ApiKeyDefaults.Scheme,
+                configureOptions: null);
+
+        // Singleton: the failed-attempt counts of every client address outlive any one request.
+        services.AddSingleton<ApiKeyFailureLimiter>();
+
+        services.AddAuthorization(options =>
+        {
+            RolePolicies.Configure(options);
+            ApiKeyPolicies.Configure(options);
+        });
 
         // A policy refusal gets a localized RFC 7807 body instead of an empty 403; every other
         // result still goes through the framework's own handler.

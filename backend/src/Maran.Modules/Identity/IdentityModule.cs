@@ -8,6 +8,7 @@ using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Maran.Modules.Identity;
 
@@ -98,12 +99,27 @@ public sealed class IdentityModule : IPanelModule
         // request's own DbContext.
         services.AddScoped<SubUserOwnerGuard>();
         services.AddScoped<ISubUserTeamLock, SubUserTeamLock>();
+        services.AddScoped<IApiKeyCreationLock, ApiKeyCreationLock>();
         services.AddScoped<IAccountMemberGrants, AccountMemberGrants>();
 
         services.AddScoped<PasswordResetLinkBuilder>();
         services.AddScoped<AdminRecoveryIssuer>();
         services.AddScoped<AuditActionDisplayNames>();
         services.AddScoped<AuditOutcomeDisplayNames>();
+
+        // API keys (issue #144): the scope names the create dialog offers, and the authenticator the
+        // Host's ApiKey scheme asks through the Sdk window. Scoped, because the authenticator reads and
+        // stamps the request's own DbContext and reads the row on every call (no cache, so a revocation
+        // takes effect on the next request).
+        services.AddScoped<ApiKeyScopeDisplayNames>();
+        services.AddScoped<ApiKeyStatusDisplayNames>();
+        services.AddScoped<IApiKeyAuthenticator, ApiKeyAuthenticator>();
+
+        // The per-call audit of key calls: global, and a no-op for every caller that is not an API key.
+        services.Configure<MvcOptions>(options =>
+        {
+            options.Filters.Add<ApiKeyAuditFilter>();
+        });
 
         // Singleton: it holds one row for the life of the process and is read on the sign-in path,
         // the token-issuing path and every password validator. It resolves its scoped DbContext

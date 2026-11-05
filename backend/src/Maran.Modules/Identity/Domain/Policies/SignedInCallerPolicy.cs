@@ -27,9 +27,11 @@ public static class SignedInCallerPolicy
             CustomerCaller customer => customer,
             AccountlessCustomerCaller accountless => accountless,
             ResellerCaller reseller => reseller,
+            ApiKeyCaller => throw new InvalidOperationException(
+                "This operation requires a signed-in panel login, and the request is an API key."),
             AnonymousCaller => throw new InvalidOperationException(
                 "This operation requires a signed-in caller, and the request is anonymous."),
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: one of its five cases."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: one of its six cases."),
         };
     }
 }

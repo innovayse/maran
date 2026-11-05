@@ -67,6 +67,7 @@ public sealed class Program
         builder.Services.AddPanelSeeding();
         builder.Services.AddLicensingStartupCheck(builder.Configuration);
         builder.Services.AddPanelCli();
+        builder.Services.AddPanelOpenApi(cli);
 
         var app = builder.Build();
 

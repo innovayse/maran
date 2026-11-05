@@ -1,6 +1,7 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# NEW ROW 2026-11-05 (issues #144/#136/#143, one branch): edited by hand, NOT measured. backend Maran.Modules.Idempotency.Tests.dll 29 is the count of [Fact]/[Theory] attributes (a Theory counts once, so the real total is at least this); CI re-measures every row. Rows of projects that gained tests on the branch (Sdk, SharedKernel, Identity, Host.Tests) are left unraised: a gain is not gated, a drop is.
 # RE-MEASURED 2026-11-01 (merge of dev's #133 into #132): edited by hand, each row base + #132's delta + #133's delta.
 # maran_agent [unittests src/lib.rs] 436+6+4 = 446; maran_agent_core [unittests src/lib.rs] 515+8+12 = 535;
 # maran_ops [unittests src/lib.rs] 1770+10+7 = 1787; Maran.Agent.Client.Tests.dll 380+4+3 = 387;
@@ -569,6 +570,7 @@ backend	Maran.ArchitectureTests.dll	104	0	0
 backend	Maran.Host.Tests.dll	521	0	0
 backend	Maran.Host.IntegrationTests.dll	1134	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
+backend	Maran.Modules.Idempotency.Tests.dll	29	0	0
 # RAISED 2026-11-01 (issue #149, accessibility): edited by hand. Three new spa rows from e2e/accessibility/:
 # axe-scan 11 (5 screens x 2 themes + the planted-violation control), document-language 2, reduced-motion 2.
 # Measured by `maran test spa` (169 targets: 1132 passed / 1 failed / 2 ignored; the one failure,

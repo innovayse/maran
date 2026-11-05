@@ -1,3 +1,4 @@
+using Maran.Sdk.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -56,6 +57,24 @@ public sealed class UndeclaredAuthorizationController : ControllerBase
     [AllowAnonymous]
     [HttpGet("anonymous")]
     public IActionResult AnonymousAsync()
+    {
+        return Ok();
+    }
+
+    /// <summary>Names the <c>ApiKey</c> scheme with a policy that is not an API key policy.</summary>
+    /// <returns>Nothing meaningful; the body is never executed.</returns>
+    [Authorize(AuthenticationSchemes = ApiKeyDefaults.Scheme, Policy = AuthorizationPolicies.AdminOnly)]
+    [HttpGet("api-key-scheme-wrong-policy")]
+    public IActionResult ApiKeySchemeWithWrongPolicyAsync()
+    {
+        return Ok();
+    }
+
+    /// <summary>Names an API key policy without the <c>ApiKey</c> scheme.</summary>
+    /// <returns>Nothing meaningful; the body is never executed.</returns>
+    [Authorize(Policy = ApiKeyPolicyNames.ServerRead)]
+    [HttpGet("api-key-policy-without-scheme")]
+    public IActionResult ApiKeyPolicyWithoutSchemeAsync()
     {
         return Ok();
     }

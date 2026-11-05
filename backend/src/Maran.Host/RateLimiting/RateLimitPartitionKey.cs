@@ -5,7 +5,8 @@ namespace Maran.Host.RateLimiting;
 
 /// <summary>
 /// Builds the key a rate-limit partition is measured against: the caller's hosting account, then
-/// their panel user, then their address.
+/// their panel user, then their address. A request authenticated by an
+/// API key is keyed by the key before any of them.
 /// </summary>
 /// <remarks>
 /// One implementation, shared by every policy that limits an authenticated caller, because the two
@@ -28,9 +29,18 @@ public static class RateLimitPartitionKey
 {
     /// <summary>Builds the partition key for one request.</summary>
     /// <param name="context">The current HTTP request.</param>
-    /// <returns>The key, prefixed with which of the three identities it names.</returns>
+    /// <returns>The key, prefixed with which of the four identities it names.</returns>
     public static string For(HttpContext context)
     {
+        // First, so an integration's calls are budgeted per key and not per address: every integration
+        // behind one NAT would otherwise share the address budget and a noisy one would starve the rest.
+        // Only a principal the API key handler authenticated counts: the claim alone is not enough.
+        var keyId = context.User.FindFirst(PanelClaimTypes.ApiKeyId)?.Value;
+        if (!string.IsNullOrEmpty(keyId) && context.User.Identity?.AuthenticationType == ApiKeyDefaults.Scheme)
+        {
+            return $"apikey:{keyId}";
+        }
+
         var accountId = context.User.FindFirst(PanelClaimTypes.AccountId)?.Value;
         if (!string.IsNullOrEmpty(accountId))
         {

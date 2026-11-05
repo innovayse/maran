@@ -291,6 +291,71 @@ public sealed class HttpContextCurrentUserTests
         Assert.Same(AnonymousCaller.Instance, user.Caller);
     }
 
+    /// <summary>A principal authenticated by the API key scheme is an API key caller, with only known scopes.</summary>
+    [Fact]
+    public void A_principal_of_the_api_key_scheme_is_an_api_key_caller_holding_only_known_scopes()
+    {
+        var keyId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        var user = CurrentUser(
+            ApiKeyDefaults.Scheme,
+            (PanelClaimTypes.ApiKeyId, keyId.ToString()),
+            (PanelClaimTypes.ApiKeyScope, ApiKeyScopes.SelfRead),
+            (PanelClaimTypes.ApiKeyScope, "accounts.write"));
+
+        var apiKey = Assert.IsType<ApiKeyCaller>(user.Caller);
+        Assert.Equal(keyId, apiKey.KeyId);
+        Assert.Equal([ApiKeyScopes.SelfRead], apiKey.Scopes);
+    }
+
+    /// <summary>A bearer token carrying a key id is refused, never read as an API key.</summary>
+    [Fact]
+    public void A_bearer_token_carrying_a_key_id_is_refused()
+    {
+        var user = CurrentUser(
+            "Bearer",
+            (PanelClaimTypes.UserId, UserId.ToString()),
+            (PanelClaimTypes.Role, nameof(UserRole.Admin)),
+            (PanelClaimTypes.ApiKeyId, Guid.NewGuid().ToString()));
+
+        Assert.Throws<UnrecognisedPrincipalException>(() =>
+        {
+            return user.Caller;
+        });
+    }
+
+    /// <summary>An API key principal with no readable key id is refused.</summary>
+    [Fact]
+    public void An_api_key_principal_with_no_readable_key_id_is_refused()
+    {
+        var user = CurrentUser(ApiKeyDefaults.Scheme, (PanelClaimTypes.ApiKeyId, "not-a-guid"));
+
+        Assert.Throws<UnrecognisedPrincipalException>(() =>
+        {
+            return user.Caller;
+        });
+    }
+
+    /// <summary>Builds the accessor over a principal of the named authentication scheme.</summary>
+    /// <param name="authenticationType">The scheme the principal was authenticated by.</param>
+    /// <param name="claims">The claims the principal carries.</param>
+    /// <returns>The current user over that principal.</returns>
+    private static HttpContextCurrentUser CurrentUser(
+        string authenticationType,
+        params (string Type, string Value)[] claims)
+    {
+        var context = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                claims.Select(c =>
+                {
+                    return new Claim(c.Type, c.Value);
+                }),
+                authenticationType)),
+        };
+
+        return new HttpContextCurrentUser(new HttpContextAccessor { HttpContext = context });
+    }
+
     private static HttpContextCurrentUser CurrentUser(params (string Type, string Value)[] claims)
     {
         var context = new DefaultHttpContext

@@ -5,6 +5,7 @@ using Maran.Modules.Databases;
 using Maran.Modules.Firewall;
 using Maran.Modules.Ftp;
 using Maran.Modules.Identity;
+using Maran.Modules.Idempotency;
 using Maran.Modules.Monitoring;
 using Maran.Modules.Notifications;
 using Maran.Modules.Sftp;
@@ -55,5 +56,6 @@ public static class ModuleRegistry
             new MonitoringModule(),
             new NotificationsModule(),
             new BackupsModule(),
+            new IdempotencyModule(),
         ];
 }

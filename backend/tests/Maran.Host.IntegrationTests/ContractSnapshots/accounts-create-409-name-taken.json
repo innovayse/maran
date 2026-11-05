@@ -1,0 +1,8 @@
+{
+  "code": "AccountNameTaken",
+  "correlationId": "<correlationId>",
+  "detail": "<text>",
+  "status": 409,
+  "title": "<text>",
+  "type": "https://httpstatuses.io/409"
+}
