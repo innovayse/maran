@@ -5,15 +5,17 @@
 //! Split out of `sftp_on_a_real_host.rs` when that suite outgrew one file, so the
 //! suites that now share these do not each keep a copy.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
+use maran_agent_core::validation::system::ssh_public_key::SshPublicKey;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::sftp::{
-    AccountJail, ProcessSftpHost, SftpUserRequest, create_sftp_user, delete_sftp_user,
+    AccountJail, AuthorizedKeySet, ProcessSftpHost, SftpUserRequest, create_sftp_user,
+    delete_sftp_user, set_sftp_authorized_keys,
 };
 
 use crate::polygon_account::PolygonAccount;
@@ -123,6 +125,40 @@ impl PolygonSftpLogin {
             .expect("the planted file must belong to the account");
 
         path
+    }
+
+    /// A fresh Ed25519 key pair in `directory`: the private half's path, and the
+    /// public half as `set_sftp_authorized_keys` takes it (issue #135).
+    ///
+    /// # Panics
+    ///
+    /// Panics when `ssh-keygen` is missing or refuses, or writes a key the agent
+    /// would not accept.
+    pub fn key_pair(directory: &Path) -> (PathBuf, AuthorizedKeySet) {
+        let identity = directory.join("id_ed25519");
+        let made = Command::new("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "", "-C", "polygon@test", "-f"])
+            .arg(&identity)
+            .output()
+            .expect("the polygon image ships ssh-keygen");
+        assert!(made.status.success(), "ssh-keygen: {}", Self::said(&made));
+
+        let public = std::fs::read_to_string(identity.with_extension("pub")).expect("a public key");
+        let key = SshPublicKey::parse(public.trim()).expect("ssh-keygen writes an accepted key");
+
+        (identity, AuthorizedKeySet::new(vec![key]).expect("one key"))
+    }
+
+    /// Replaces this login's key set, panicking with the agent's answer on refusal.
+    pub fn set_keys(&self, keys: &AuthorizedKeySet) {
+        set_sftp_authorized_keys(
+            &ProcessSftpHost::new(),
+            Self::distro(),
+            &self.account,
+            &self.user,
+            keys,
+        )
+        .unwrap_or_else(|error| panic!("setting the login's keys must succeed: {error}"));
     }
 
     /// Everything the sftp client printed, both streams together.

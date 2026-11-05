@@ -74,6 +74,71 @@ public sealed class SftpAuditJournal
         await WriteAsync(action, subject, ipAddress, userAgent, succeeded: false, cancellationToken);
     }
 
+    /// <summary>Records a key change that took effect.</summary>
+    /// <param name="action">The action name, <c>SftpKeyAdded</c> or <c>SftpKeyRemoved</c>.</param>
+    /// <param name="loginName">The login's name.</param>
+    /// <param name="label">The key's label, as stored.</param>
+    /// <param name="fingerprint">The key's fingerprint.</param>
+    /// <param name="ipAddress">The caller's address.</param>
+    /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    public async Task RecordKeySuccessAsync(
+        string action,
+        string loginName,
+        string label,
+        string fingerprint,
+        string ipAddress,
+        string userAgent,
+        CancellationToken cancellationToken)
+    {
+        var subject = KeySubject(loginName, label, fingerprint);
+
+        await WriteAsync(action, subject, ipAddress, userAgent, succeeded: true, cancellationToken);
+    }
+
+    /// <summary>Records a key change that was refused or did not complete.</summary>
+    /// <param name="action">The action that was attempted.</param>
+    /// <param name="loginName">The login's name, or the supplied identifier when no row was found.</param>
+    /// <param name="label">
+    /// The key's label as STORED, or empty when the failure came before a label was held — a label the
+    /// caller typed and nothing has accepted yet is not written into a journal that is never deleted.
+    /// </param>
+    /// <param name="fingerprint">The key's fingerprint, or empty when the key was never parsed.</param>
+    /// <param name="ipAddress">The caller's address.</param>
+    /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    public async Task RecordKeyFailureAsync(
+        string action,
+        string loginName,
+        string label,
+        string fingerprint,
+        string ipAddress,
+        string userAgent,
+        CancellationToken cancellationToken)
+    {
+        var subject = KeySubject(loginName, label, fingerprint);
+
+        await WriteAsync(action, subject, ipAddress, userAgent, succeeded: false, cancellationToken);
+    }
+
+    /// <summary>Composes the subject of a key entry from the three facts it may carry.</summary>
+    /// <param name="loginName">The login's name.</param>
+    /// <param name="label">The key's label, or empty.</param>
+    /// <param name="fingerprint">The key's fingerprint, or empty.</param>
+    /// <returns>
+    /// The non-empty parts joined with <c>" | "</c>. The key body, the comment of the pasted line and
+    /// the agent's text are never parameters of this method, so none of them can reach the journal.
+    /// </returns>
+    private static string KeySubject(string loginName, string label, string fingerprint)
+    {
+        return string.Join(
+            " | ",
+            new[] { loginName, label, fingerprint }.Where(part =>
+            {
+                return part.Length > 0;
+            }));
+    }
+
     /// <summary>Builds and stores one entry.</summary>
     /// <param name="action">The action name.</param>
     /// <param name="subject">What the action was attempted on.</param>

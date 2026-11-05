@@ -36,6 +36,8 @@ const emit = defineEmits<{
   (e: 'sort', field: string): void
   /** A row's menu asked for an action. */
   (e: 'act', row: SftpUser, action: SftpUserAction): void
+  /** A row's menu asked to open that login's public keys. */
+  (e: 'keys', row: SftpUser): void
 }>()
 
 const { t } = useI18n()
@@ -91,6 +93,9 @@ const accountName = (login: SftpUser): string => {
         :chevron="false"
       >
         <template #trigger><UiIcon name="ellipsis" size="md" /></template>
+        <UiDropdownItem @select="emit('keys', row)">
+          {{ t('sftp.list.keys') }}
+        </UiDropdownItem>
         <UiDropdownItem @select="emit('act', row, 'resetPassword')">
           {{ t('sftp.list.resetPassword') }}
         </UiDropdownItem>

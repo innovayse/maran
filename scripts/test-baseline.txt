@@ -521,6 +521,7 @@ rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	3
 rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	15
 rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	4
 rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	9
+rust	sftp_key_sessions_on_a_real_host [tests/sftp_key_sessions_on_a_real_host.rs]	0	0	1
 rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	0	5
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
@@ -646,6 +647,7 @@ spa	disk-usage.spec.ts	3	0	0
 spa	file-transfer/account-filter.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	18	0	0
 spa	file-transfer/ftps-create.spec.ts	7	0	0
+spa	file-transfer/sftp-keys.spec.ts	18	0	0
 spa	file-transfer/ftps-list.spec.ts	9	0	0
 spa	file-transfer/ftps-server-state.spec.ts	11	0	0
 spa	file-transfer/ftps-server.spec.ts	12	0	0

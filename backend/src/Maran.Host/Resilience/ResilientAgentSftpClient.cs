@@ -125,4 +125,25 @@ public sealed class ResilientAgentSftpClient : IAgentSftpClient
             (Client: _inner, AccountUsername: accountUsername, SftpUsername: sftpUsername),
             cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result> SetAuthorizedKeysAsync(
+        string accountUsername,
+        string sftpUsername,
+        IReadOnlyList<string> publicKeys,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.Client.SetAuthorizedKeysAsync(
+                    state.AccountUsername, state.SftpUsername, state.PublicKeys, token);
+            },
+            (Client: _inner,
+             AccountUsername: accountUsername,
+             SftpUsername: sftpUsername,
+             PublicKeys: publicKeys),
+            cancellationToken);
+    }
 }

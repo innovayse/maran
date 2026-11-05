@@ -62,6 +62,10 @@ public sealed class SftpModule : IPanelModule
         // advisory lock it holds is scoped to that transaction and must be released by its commit.
         services.AddScoped<ISftpUserSlotGate, SftpUserSlotGate>();
 
+        // Scoped, because it opens a transaction on the request's own DbContext connection and the row
+        // lock it takes is released by that transaction's commit or rollback.
+        services.AddScoped<ISftpUserKeyLock, SftpUserKeyLock>();
+
         // This module's answer to how many SFTP logins an account owns, for the Accounts module's resource
         // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
         services.AddScoped<IAccountResourceCounter, SftpAccountResourceCounter>();

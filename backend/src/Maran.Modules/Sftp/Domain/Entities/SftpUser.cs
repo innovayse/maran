@@ -1,3 +1,7 @@
+using Maran.Modules.Sftp.Domain.Policies;
+using Maran.Modules.Sftp.Domain.ValueObjects;
+using Maran.Modules.Sftp.Resources;
+
 namespace Maran.Modules.Sftp.Domain.Entities;
 
 /// <summary>
@@ -39,9 +43,20 @@ namespace Maran.Modules.Sftp.Domain.Entities;
 /// account rather than chosen, renaming a system user is a delete and a create, and the password —
 /// the one thing that does change — is deliberately not here.
 /// </para>
+/// <para>
+/// The one thing that does belong to a login and change is its set of public keys
+/// (<see cref="Keys"/>). They are public material, so holding them in the panel is not the
+/// password problem above; the panel is the source of truth for the set and sends the agent the
+/// whole of it whenever it changes. The set is only complete in memory when the caller loaded
+/// <see cref="Keys"/> (an <c>Include</c>), under the per-login row lock the key handlers take, so
+/// <see cref="AddKey"/> and <see cref="RemoveKey"/> decide against the full set.
+/// </para>
 /// </remarks>
 public sealed class SftpUser
 {
+    /// <summary>The public keys registered for this login; EF Core reads and writes this field.</summary>
+    private readonly List<SftpUserKey> _keys = [];
+
     /// <summary>The row's identity, and the only identifier a customer's request may name.</summary>
     public Guid Id { get; private set; }
 
@@ -68,6 +83,18 @@ public sealed class SftpUser
     /// <summary>The instant the login was created.</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>
+    /// The public keys registered for this login. Empty unless the caller loaded them; a decision
+    /// about the set is only valid against a loaded one.
+    /// </summary>
+    public IReadOnlyCollection<SftpUserKey> Keys
+    {
+        get
+        {
+            return _keys;
+        }
+    }
+
     /// <summary>Records an SFTP login the agent has already created on the host.</summary>
     /// <param name="id">The row's identity.</param>
     /// <param name="accountId">The account that owns this login.</param>
@@ -88,5 +115,66 @@ public sealed class SftpUser
     {
         Name = string.Empty;
         FullName = string.Empty;
+    }
+
+    /// <summary>Registers a public key for this login.</summary>
+    /// <param name="keyId">The new row's identity.</param>
+    /// <param name="label">The customer's name for the key; trimmed, 1 to 64 characters, no control character.</param>
+    /// <param name="publicKey">The parsed key; its fingerprint must not already be on this login.</param>
+    /// <param name="createdAt">The registration instant, taken from <see cref="IClock"/>.</param>
+    /// <returns>
+    /// The new key, or <c>SftpKeyLabelInvalid</c> (validation) for a bad label, <c>SftpKeyDuplicate</c>
+    /// (conflict) when the fingerprint is already held, or <c>SftpKeyLimitReached</c> (conflict) when
+    /// the login already holds <see cref="SftpKeyLimits.MaxPerLogin"/> keys.
+    /// </returns>
+    public Result<SftpUserKey> AddKey(Guid keyId, string label, SftpPublicKey publicKey, DateTimeOffset createdAt)
+    {
+        var trimmed = label.Trim();
+        if (trimmed.Length == 0 || trimmed.Length > SftpKeyLimits.MaxLabelLength || trimmed.Any(char.IsControl))
+        {
+            return Result<SftpUserKey>.Fail(
+                Error.Of(nameof(ErrorMessages.SftpKeyLabelInvalid), ErrorType.Validation));
+        }
+
+        if (_keys.Any(key =>
+        {
+            return string.Equals(key.Fingerprint, publicKey.Fingerprint, StringComparison.Ordinal);
+        }))
+        {
+            return Result<SftpUserKey>.Fail(Error.Of(nameof(ErrorMessages.SftpKeyDuplicate), ErrorType.Conflict));
+        }
+
+        if (_keys.Count >= SftpKeyLimits.MaxPerLogin)
+        {
+            return Result<SftpUserKey>.Fail(Error.Of(nameof(ErrorMessages.SftpKeyLimitReached), ErrorType.Conflict));
+        }
+
+        var added = new SftpUserKey(keyId, this, trimmed, publicKey, createdAt);
+        _keys.Add(added);
+
+        return Result<SftpUserKey>.Ok(added);
+    }
+
+    /// <summary>Removes one of this login's keys.</summary>
+    /// <param name="keyId">The key's identity; a key of another login is simply not found here.</param>
+    /// <returns>
+    /// The removed key (so the caller can journal its label and fingerprint), or
+    /// <c>SftpKeyNotFound</c> (not found) when this login holds no such key. The removed row is
+    /// deleted on save because its relationship to the login is required.
+    /// </returns>
+    public Result<SftpUserKey> RemoveKey(Guid keyId)
+    {
+        var key = _keys.Find(candidate =>
+        {
+            return candidate.Id == keyId;
+        });
+        if (key is null)
+        {
+            return Result<SftpUserKey>.Fail(Error.Of(nameof(ErrorMessages.SftpKeyNotFound), ErrorType.NotFound));
+        }
+
+        _keys.Remove(key);
+
+        return Result<SftpUserKey>.Ok(key);
     }
 }
