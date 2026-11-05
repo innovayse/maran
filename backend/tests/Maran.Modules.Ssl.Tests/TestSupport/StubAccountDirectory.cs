@@ -16,6 +16,9 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <summary>Account ids this directory was asked about, in order.</summary>
     public List<Guid> Lookups { get; } = [];
 
+    /// <summary>Account ids <see cref="FindSystemUserAsync"/> was asked about, in order.</summary>
+    public List<Guid> SystemUserLookups { get; } = [];
+
     /// <summary>Creates a directory knowing the given snapshots.</summary>
     /// <param name="snapshots">The accounts this directory can answer for.</param>
     public StubAccountDirectory(params AccountSnapshot[] snapshots)
@@ -31,6 +34,20 @@ public sealed class StubAccountDirectory : IAccountDirectory
     {
         Lookups.Add(accountId);
         return Task.FromResult(_snapshots.GetValueOrDefault(accountId));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Answers the configured account's id and username by id alone and models nothing about scope,
+    /// exactly as the contract says the real member behaves for every caller.
+    /// </remarks>
+    public Task<AccountSystemUser?> FindSystemUserAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        SystemUserLookups.Add(accountId);
+        AccountSystemUser? user = _snapshots.TryGetValue(accountId, out var snapshot)
+            ? new AccountSystemUser(snapshot.Id, snapshot.Username)
+            : null;
+        return Task.FromResult(user);
     }
 
     /// <inheritdoc />

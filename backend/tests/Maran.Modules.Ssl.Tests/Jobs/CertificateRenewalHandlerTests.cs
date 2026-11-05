@@ -1,6 +1,7 @@
 using Maran.Modules.Ssl.Domain.Enums;
 using Maran.Modules.Ssl.Interfaces;
 using Maran.Modules.Ssl.Jobs;
+using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Services;
 using Maran.Modules.Ssl.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -171,6 +172,49 @@ public sealed class CertificateRenewalHandlerTests
         Assert.Equal(fixture.Username, install.Account);
         Assert.True(install.Site.HasCertificate);
         Assert.Equal([fixture.SiteFor("soon.example.com").Id], fixture.Sites.Attached);
+    }
+
+    /// <summary>A renewal reads the account through the system-user window and never through the scoped lookup.</summary>
+    [Fact]
+    public async Task A_renewal_reads_the_account_through_the_system_user_window_and_not_the_scoped_lookup()
+    {
+        using var fixture = new SslHandlerFixture(["soon.example.com"]);
+        await SeedAsync(fixture, "soon.example.com", 5);
+
+        var renewed = await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);
+
+        Assert.Equal(1, renewed);
+        Assert.Equal([fixture.AccountId], fixture.Accounts.SystemUserLookups);
+        Assert.Empty(fixture.Accounts.Lookups);
+    }
+
+    /// <summary>The ACME challenge is written under the system user name the window answered.</summary>
+    [Fact]
+    public async Task The_challenge_is_written_under_the_system_user_name_the_window_answered()
+    {
+        using var fixture = new SslHandlerFixture(["soon.example.com"]);
+        await SeedAsync(fixture, "soon.example.com", 5);
+
+        await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);
+
+        var challenge = Assert.IsType<SiteDocumentRootChallenge>(Assert.Single(fixture.Acme.Orders).Challenge);
+        Assert.Equal(fixture.Username, challenge.AccountUsername);
+    }
+
+    /// <summary>A null from the system-user window still records AccountNotFound and orders nothing.</summary>
+    [Fact]
+    public async Task A_null_from_the_system_user_window_records_account_not_found_and_orders_nothing()
+    {
+        using var fixture = new SslHandlerFixture(["soon.example.com"], knowsAccount: false);
+        await SeedAsync(fixture, "soon.example.com", 5);
+
+        var renewed = await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);
+
+        Assert.Equal(0, renewed);
+        var stored = await fixture.DbContext.Certificates.SingleAsync();
+        Assert.Equal("AccountNotFound", stored.LastRenewalFailureCode);
+        Assert.Empty(fixture.Acme.Orders);
+        Assert.Empty(fixture.Agent.Installs);
     }
 
     /// <summary>A reload the agent refuses does not undo the renewals the pass already made.</summary>
