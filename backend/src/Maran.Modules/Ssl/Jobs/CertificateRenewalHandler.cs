@@ -294,7 +294,9 @@ public sealed class CertificateRenewalHandler
                 certificate, nameof(ErrorMessages.SiteNotFound), taskId, cancellationToken);
         }
 
-        var account = await _accounts.FindAsync(certificate.AccountId, cancellationToken);
+        // The unattended window: renewal has no principal, so the scoped FindAsync would answer null
+        // for every account (issue #379). The id comes from the certificate's own row.
+        var account = await _accounts.FindSystemUserAsync(certificate.AccountId, cancellationToken);
         if (account is null)
         {
             return await RecordFailureAsync(
