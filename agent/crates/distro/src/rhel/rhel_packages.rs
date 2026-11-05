@@ -5,7 +5,10 @@ use crate::is_printable_token::is_printable_token;
 use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
+use crate::reboot_probe_failure::RebootProbeFailure;
+use crate::reboot_requirement::RebootRequirement;
 use crate::starts_with_http_status::starts_with_http_status;
+use crate::update_classification::UpdateClassification;
 
 /// Name of the OS package that provides php-fpm for `version`, e.g.
 /// `php83-php-fpm`.
@@ -228,7 +231,87 @@ fn parse_row(line: &str) -> Option<PendingUpdate> {
         available_version: version.to_owned(),
         installed_version: None,
         source: repository.to_owned(),
+        classification: UpdateClassification::Unmeasured,
     })
+}
+
+/// The arguments of the second, security-only cache read (issue #163).
+///
+/// `--security` restricts the answer to the updates the repository's advisories
+/// mark as security fixes; `-C` and `-q` are as in [`PENDING_UPDATES_ARGUMENTS`],
+/// so this run too refreshes nothing and contacts no repository. Measured on
+/// `almalinux:9` after `dnf makecache` to answer from the cache alone, with the
+/// same exit statuses and row grammar as the first reading (recorded in
+/// `tests/fixtures/package_manager/dnf_check_update_security_*.txt`). No operand
+/// exists, so no `--` is needed.
+pub const SECURITY_PENDING_UPDATES_ARGUMENTS: &[&str] = &["check-update", "--security", "-C", "-q"];
+
+/// Marks the rows of `updates` by the security-only reading `status` and
+/// `stdout` (issue #163).
+///
+/// The security reading is read by [`read_pending_updates`], so its statuses and
+/// grammar are the same and a line it does not know fails the whole marking. A
+/// row whose package name the security reading names is
+/// [`UpdateClassification::Security`], every other row is
+/// [`UpdateClassification::Ordinary`]: the metadata was read and does not call
+/// it a security fix. The match is by name alone, because the rows carry no
+/// architecture; on a multilib host a security update to one architecture of a
+/// name marks the other as well, which errs toward "security" for a package that
+/// has a security fix pending under that name.
+///
+/// # Errors
+///
+/// Returns the [`PendingUpdatesFailure`] of [`read_pending_updates`] for the
+/// security reading. The rows are then not marked, and the caller keeps them
+/// `Unmeasured`.
+pub fn mark_security_updates(
+    updates: Vec<PendingUpdate>,
+    status: i32,
+    stdout: &str,
+) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure> {
+    let security = read_pending_updates(status, stdout)?;
+    Ok(updates
+        .into_iter()
+        .map(|update| {
+            let is_security = security
+                .iter()
+                .any(|marked| marked.package_name == update.package_name);
+            PendingUpdate {
+                classification: if is_security {
+                    UpdateClassification::Security
+                } else {
+                    UpdateClassification::Ordinary
+                },
+                ..update
+            }
+        })
+        .collect())
+}
+
+/// The argument of the reboot probe, `needs-restarting -r`: it reports on the
+/// reboot question alone and takes no operand (issue #163).
+pub const REBOOT_PROBE_ARGUMENTS: &[&str] = &["-r"];
+
+/// The status `needs-restarting -r` exits with when no reboot is needed.
+const NEEDS_RESTARTING_NOT_REQUIRED_STATUS: i32 = 0;
+
+/// The status `needs-restarting -r` exits with when a reboot is required.
+const NEEDS_RESTARTING_REQUIRED_STATUS: i32 = 1;
+
+/// Reads the exit status of `needs-restarting -r`: 0 means no reboot is needed
+/// and 1 means one is (measured on `almalinux:9` against a clean container and
+/// one whose `glibc` was reinstalled, after `dnf install yum-utils`).
+///
+/// # Errors
+///
+/// Returns [`RebootProbeFailure::Unsuccessful`] for any other status — 127 for
+/// a program that is not installed included — and never `NotRequired`.
+pub fn read_reboot_probe_run(status: i32) -> Result<RebootRequirement, RebootProbeFailure> {
+    match status {
+        NEEDS_RESTARTING_NOT_REQUIRED_STATUS => Ok(RebootRequirement::NotRequired),
+        NEEDS_RESTARTING_REQUIRED_STATUS => Ok(RebootRequirement::Required),
+        status => Err(RebootProbeFailure::Unsuccessful { status }),
+    }
 }
 
 #[cfg(test)]

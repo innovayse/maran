@@ -87,7 +87,11 @@
       "emptyTitle": "Nothing to update",
       "emptyDescription": "The package cache lists no update for this server.",
       "noResultsTitle": "No packages match",
-      "noResultsDescription": "Change the search, or clear it to see every package."
+      "noResultsDescription": "Change the search, or clear it to see every package.",
+      "columnClassification": "Type",
+      "securitySummary": "{n} security update waiting | {n} security updates waiting",
+      "securityNone": "None of the waiting updates is a security update.",
+      "rebootRequired": "A reboot is required to finish applying updates."
     }
   }
 }

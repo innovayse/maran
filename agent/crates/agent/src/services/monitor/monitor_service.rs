@@ -5,7 +5,7 @@ use std::sync::Arc;
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_distro::DistroAdapter;
 use maran_ops::monitor::{
-    self, MachineIdentity, MonitorHost, PrimaryInterface, QuotaEnforceabilityStatus, SftpJailStatus,
+    self, MonitorHost, PrimaryInterface, QuotaEnforceabilityStatus, SftpJailStatus,
 };
 use tonic::{Request, Response, Status};
 
@@ -14,20 +14,23 @@ use crate::proto::{
     AccountDiskUsage, GetAccountsDiskUsageOk, GetAccountsDiskUsageRequest,
     GetAccountsDiskUsageResponse, GetClockSyncRequest, GetClockSyncResponse, GetHostMetricsRequest,
     GetHostMetricsResponse, GetQuotaEnforceabilityOk, GetQuotaEnforceabilityRequest,
-    GetQuotaEnforceabilityResponse, GetServerFingerprintInputsOk,
-    GetServerFingerprintInputsRequest, GetServerFingerprintInputsResponse, GetServiceStatusesOk,
-    GetServiceStatusesRequest, GetServiceStatusesResponse, GetSftpJailStatusOk,
-    GetSftpJailStatusRequest, GetSftpJailStatusResponse, HostMetrics, ListPendingUpdatesRequest,
-    ListPendingUpdatesResponse, MachineIdStatus, PrimaryInterfaceStatus, QuotaEnforceability,
-    QuotaEnforceabilityReason, ServiceStatus, SftpJailState, get_accounts_disk_usage_response,
-    get_host_metrics_response, get_quota_enforceability_response,
-    get_server_fingerprint_inputs_response, get_service_statuses_response,
-    get_sftp_jail_status_response,
+    GetQuotaEnforceabilityResponse, GetRebootRequirementRequest, GetRebootRequirementResponse,
+    GetServerFingerprintInputsOk, GetServerFingerprintInputsRequest,
+    GetServerFingerprintInputsResponse, GetServiceStatusesOk, GetServiceStatusesRequest,
+    GetServiceStatusesResponse, GetSftpJailStatusOk, GetSftpJailStatusRequest,
+    GetSftpJailStatusResponse, HostMetrics, ListPendingUpdatesRequest, ListPendingUpdatesResponse,
+    PrimaryInterfaceStatus, QuotaEnforceability, QuotaEnforceabilityReason, ServiceStatus,
+    SftpJailState, get_accounts_disk_usage_response, get_host_metrics_response,
+    get_quota_enforceability_response, get_server_fingerprint_inputs_response,
+    get_service_statuses_response, get_sftp_jail_status_response,
 };
 use crate::services::monitor::managed_service::managed_service;
 use crate::services::monitor::monitor_status::to_agent_error;
 use crate::services::monitor::reported_clock_sync::reported_clock_sync;
+use crate::services::monitor::reported_machine_id::reported_machine_id;
 use crate::services::monitor::reported_pending_updates::reported_pending_updates;
+use crate::services::monitor::reported_quota_enforceability_reason::reported_quota_enforceability_reason;
+use crate::services::monitor::reported_reboot_requirement::reported_reboot_requirement;
 use crate::services::monitor::reported_state::reported_state;
 use crate::services::monitor::validated_account_selection::validated_account_selection;
 use crate::services::wire::run_blocking::run_blocking;
@@ -252,7 +255,7 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
             Ok(QuotaEnforceabilityStatus::NotEnforceable(reason)) => {
                 get_quota_enforceability_response::Result::Ok(GetQuotaEnforceabilityOk {
                     enforceability: QuotaEnforceability::NotEnforceable as i32,
-                    reason: to_wire_quota_enforceability_reason(reason) as i32,
+                    reason: reported_quota_enforceability_reason(reason) as i32,
                 })
             }
             // `QuotaEnforceabilityStatus` is `#[non_exhaustive]`: a future
@@ -287,7 +290,7 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
         let result = match result {
             Ok(inputs) => {
                 get_server_fingerprint_inputs_response::Result::Ok(GetServerFingerprintInputsOk {
-                    machine_id: Some(to_wire_machine_id(inputs.machine_id)),
+                    machine_id: Some(reported_machine_id(inputs.machine_id)),
                     primary_interface: Some(to_wire_primary_interface(inputs.primary_interface)),
                 })
             }
@@ -335,30 +338,33 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
             result: Some(reported_pending_updates(result)),
         }))
     }
-}
 
-/// Converts the agent's own [`MachineIdentity`] onto its wire shape.
-///
-/// `MachineIdentity` is `#[non_exhaustive]`: a wildcard reports `present:
-/// false` for a future variant this match does not yet know, the same
-/// "unspecified/absent" fallback every other conversion in this file uses,
-/// rather than a broken build.
-#[must_use]
-fn to_wire_machine_id(identity: MachineIdentity) -> MachineIdStatus {
-    match identity {
-        MachineIdentity::Present(value) => MachineIdStatus {
-            present: true,
-            value,
-        },
-        _ => MachineIdStatus {
-            present: false,
-            value: String::new(),
-        },
+    /// Reports whether the host needs a reboot to run what is already installed
+    /// (issue #163). Reads only and takes no input.
+    ///
+    /// Cancellation class: STOP. The operation writes nothing and holds no
+    /// agent lock, so a client that leaves abandons nothing; the one bounded
+    /// program it may run is killed with its process group at its deadline
+    /// whether or not anyone is still listening.
+    async fn get_reboot_requirement(
+        &self,
+        _request: Request<GetRebootRequirementRequest>,
+    ) -> Result<Response<GetRebootRequirementResponse>, Status> {
+        let host = Arc::clone(&self.host);
+        let distro = self.distro;
+        let result = run_blocking("monitoring reading", to_agent_error, move || {
+            monitor::get_reboot_requirement(host.as_ref(), distro)
+        })
+        .await;
+
+        Ok(Response::new(GetRebootRequirementResponse {
+            result: Some(reported_reboot_requirement(result)),
+        }))
     }
 }
 
 /// Converts the agent's own [`PrimaryInterface`] onto its wire shape. Same
-/// non-exhaustive fallback as [`to_wire_machine_id`].
+/// non-exhaustive fallback as `reported_machine_id`.
 #[must_use]
 fn to_wire_primary_interface(interface: PrimaryInterface) -> PrimaryInterfaceStatus {
     match interface {
@@ -370,25 +376,5 @@ fn to_wire_primary_interface(interface: PrimaryInterface) -> PrimaryInterfaceSta
             present: false,
             value: String::new(),
         },
-    }
-}
-
-/// Converts the agent's own reason onto its wire mirror.
-///
-/// `QuotaUnenforceableReason` is `#[non_exhaustive]`: a wildcard covers a
-/// future variant with the same "unspecified" wire fallback the accounts
-/// service's own `to_wire_quota_state` uses, rather than a broken build.
-#[must_use]
-fn to_wire_quota_enforceability_reason(
-    reason: maran_ops::accounts::QuotaUnenforceableReason,
-) -> QuotaEnforceabilityReason {
-    match reason {
-        maran_ops::accounts::QuotaUnenforceableReason::MountedWithoutQuotaAccounting => {
-            QuotaEnforceabilityReason::MountedWithoutQuotaAccounting
-        }
-        maran_ops::accounts::QuotaUnenforceableReason::AccountingNotEnabled => {
-            QuotaEnforceabilityReason::AccountingNotEnabled
-        }
-        _ => QuotaEnforceabilityReason::Unspecified,
     }
 }

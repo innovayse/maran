@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Services.MonitorService;
+using Maran.Modules.Monitoring.Domain.Policies;
 using Maran.SharedKernel.Enums;
 using Maran.SharedKernel.Pagination;
 
@@ -12,7 +13,8 @@ namespace Maran.Modules.Monitoring.Queries.ListPendingUpdates;
 public static class ListPendingUpdatesSorts
 {
     /// <summary>
-    /// <see cref="PendingUpdateSortFields.PackageName"/> and <see cref="PendingUpdateSortFields.Source"/>,
+    /// The sortable fields <see cref="PendingUpdateSortFields.PackageName"/>,
+    /// <see cref="PendingUpdateSortFields.Source"/> and <see cref="PendingUpdateSortFields.Security"/>:
     /// by package name ascending when none is named, with ties broken by the package name.
     /// </summary>
     /// <remarks>
@@ -23,6 +25,7 @@ public static class ListPendingUpdatesSorts
     public static readonly SortMap<AgentPendingUpdate> Map = new SortMapBuilder<AgentPendingUpdate>()
         .By(PendingUpdateSortFields.PackageName, update => update.PackageName)
         .By(PendingUpdateSortFields.Source, update => update.Source)
+        .By(PendingUpdateSortFields.Security, update => PendingUpdateClassificationPolicy.RankOf(update.Classification))
         .DefaultTo(PendingUpdateSortFields.PackageName, SortDirection.Ascending)
         .TieBreaker(update => update.PackageName);
 }

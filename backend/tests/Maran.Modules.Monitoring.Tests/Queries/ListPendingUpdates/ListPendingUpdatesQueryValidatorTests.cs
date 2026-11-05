@@ -24,6 +24,36 @@ public sealed class ListPendingUpdatesQueryValidatorTests
             Sort: SortRequest.Parse("-source"))).IsValid);
     }
 
+    /// <summary>Every word of the classification vocabulary and the security sort are accepted.</summary>
+    /// <param name="word">The filter value.</param>
+    [Theory]
+    [InlineData("security")]
+    [InlineData("ordinary")]
+    [InlineData("unmeasured")]
+    public void Every_classification_word_and_the_security_sort_are_accepted(string word)
+    {
+        var result = _validator.Validate(new ListPendingUpdatesQuery(
+            Sort: SortRequest.Parse("security"),
+            Classification: FilterValue.Of(word)));
+
+        Assert.True(result.IsValid);
+    }
+
+    /// <summary>A classification outside the three words is refused with its own code.</summary>
+    /// <param name="word">The filter value.</param>
+    [Theory]
+    [InlineData("critical")]
+    [InlineData("Security")]
+    [InlineData("1")]
+    public void A_classification_outside_the_three_words_is_refused(string word)
+    {
+        var result = _validator.Validate(new ListPendingUpdatesQuery(Classification: FilterValue.Of(word)));
+
+        var failure = Assert.Single(result.Errors);
+        Assert.Equal("PendingUpdateClassificationUnknown", failure.ErrorCode);
+        Assert.Equal("Classification", failure.PropertyName);
+    }
+
     /// <summary>
     /// A sort the list does not expose is refused with the paging contract's code — the versions above
     /// all, because the panel cannot order them the way the package manager does.

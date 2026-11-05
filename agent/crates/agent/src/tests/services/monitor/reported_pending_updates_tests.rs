@@ -2,11 +2,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use maran_distro::PendingUpdate;
+use maran_distro::{PendingUpdate, UpdateClassification};
 
 use super::reported_pending_updates;
 use crate::proto::list_pending_updates_response;
-use crate::proto::{AgentError, ErrorCode, PendingUpdate as WirePendingUpdate};
+use crate::proto::{
+    AgentError, ErrorCode, PendingUpdate as WirePendingUpdate,
+    UpdateClassification as WireClassification,
+};
 
 /// An update as the distro crate reports it.
 fn update(name: &str, installed: Option<&str>) -> PendingUpdate {
@@ -15,6 +18,15 @@ fn update(name: &str, installed: Option<&str>) -> PendingUpdate {
         available_version: String::from("2.0-1"),
         installed_version: installed.map(str::to_owned),
         source: String::from("baseos"),
+        classification: UpdateClassification::Unmeasured,
+    }
+}
+
+/// An update carrying `classification`.
+fn classified(classification: UpdateClassification) -> PendingUpdate {
+    PendingUpdate {
+        classification,
+        ..update("acl", Some("1.0-1"))
     }
 }
 
@@ -29,7 +41,7 @@ fn wire_updates(outcome: Result<Vec<PendingUpdate>, AgentError>) -> Vec<WirePend
 }
 
 #[test]
-fn each_update_keeps_its_four_fields_and_the_order_it_was_read_in() {
+fn each_update_keeps_its_fields_and_the_order_it_was_read_in() {
     let wire = wire_updates(Ok(vec![
         update("zlib", Some("1.0-1")),
         update("acl", Some("1.0-1")),
@@ -43,12 +55,14 @@ fn each_update_keeps_its_four_fields_and_the_order_it_was_read_in() {
                 available_version: String::from("2.0-1"),
                 installed_version: String::from("1.0-1"),
                 source: String::from("baseos"),
+                classification: WireClassification::Unspecified as i32,
             },
             WirePendingUpdate {
                 package_name: String::from("acl"),
                 available_version: String::from("2.0-1"),
                 installed_version: String::from("1.0-1"),
                 source: String::from("baseos"),
+                classification: WireClassification::Unspecified as i32,
             },
         ]
     );
@@ -79,4 +93,37 @@ fn a_failed_reading_travels_as_the_error_and_not_as_an_empty_list() {
     let result = reported_pending_updates(Err(error.clone()));
 
     assert_eq!(result, list_pending_updates_response::Result::Error(error));
+}
+
+/// Each classification has its own wire value, and the three differ.
+#[test]
+fn each_classification_travels_as_its_own_wire_value() {
+    let wire = wire_updates(Ok(vec![
+        classified(UpdateClassification::Security),
+        classified(UpdateClassification::Ordinary),
+        classified(UpdateClassification::Unmeasured),
+    ]));
+
+    let sent: Vec<i32> = wire.iter().map(|update| update.classification).collect();
+    assert_eq!(
+        sent,
+        vec![
+            WireClassification::Security as i32,
+            WireClassification::Ordinary as i32,
+            WireClassification::Unspecified as i32,
+        ]
+    );
+}
+
+/// "Ordinary" is a measured answer: an entry whose classification was not read
+/// must reach the panel as the wire's zero and never as ordinary.
+#[test]
+fn an_unmeasured_update_is_sent_as_unspecified_and_never_as_ordinary() {
+    let wire = wire_updates(Ok(vec![classified(UpdateClassification::Unmeasured)]));
+
+    assert_eq!(
+        wire[0].classification,
+        WireClassification::Unspecified as i32
+    );
+    assert_ne!(wire[0].classification, WireClassification::Ordinary as i32);
 }

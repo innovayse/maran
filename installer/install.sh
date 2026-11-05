@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Maran native production installer entry point.
 #
-# Usage: sudo bash install.sh [--offline-tarball <path>] [--channel stable|beta]
+# Usage: sudo bash install.sh [--offline-tarball <path>] [--channel stable|beta] [--os-security-updates]
 #
 #   --offline-tarball <path>  install from a release bundle you carried to the server instead of
 #                             downloading one (no network call is made). The file MUST sit in a
@@ -16,6 +16,15 @@
 #                             /etc/maran/release.state already records a channel keeps the RECORDED
 #                             channel (a beta host re-run online stays on beta); a fresh host gets
 #                             stable. An explicit --channel always overrides the recorded one.
+#   --os-security-updates     opt in to unattended OS SECURITY updates, by the distribution's own
+#                             mechanism (unattended-upgrades, or dnf-automatic): step 68 installs it,
+#                             writes one root-owned configuration file and enables the distribution's
+#                             own timers. Security updates only, never an automatic reboot, and
+#                             database engines, nginx, PHP and vsftpd are held from the unattended run
+#                             (installer/lib/00-common.sh MARAN_OS_UPDATE_HOLD) — the panel lists them
+#                             as pending for you to apply in a maintenance window. Without this flag
+#                             nothing is installed, written or enabled. See
+#                             docs/installer/os-security-updates.md.
 #
 # Re-running is safe: the same version keeps (and, if damaged, repairs) its tree, a newer version is
 # installed beside it, an older one is refused (see lib/50-artifacts.sh).
@@ -134,6 +143,7 @@ export MARAN_AGENT_SOCKET_PATH
 MARAN_CHANNEL="stable"
 MARAN_CHANNEL_GIVEN=0
 MARAN_OFFLINE_TARBALL=""
+MARAN_OS_SECURITY_UPDATES="no"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --channel)
@@ -146,6 +156,11 @@ while [ "$#" -gt 0 ]; do
       # operator to move the file, e.g. to /root, when it is not).
       MARAN_OFFLINE_TARBALL="${2:?--offline-tarball requires a path}"
       shift 2
+      ;;
+    --os-security-updates)
+      # A switch with no value: step 68 reads the exported yes|no and nothing else.
+      MARAN_OS_SECURITY_UPDATES="yes"
+      shift
       ;;
     *)
       echo "install.sh: unknown argument: $1" >&2
@@ -162,7 +177,7 @@ case "$MARAN_CHANNEL" in
     exit 2
     ;;
 esac
-export MARAN_CHANNEL MARAN_CHANNEL_GIVEN MARAN_OFFLINE_TARBALL
+export MARAN_CHANNEL MARAN_CHANNEL_GIVEN MARAN_OFFLINE_TARBALL MARAN_OS_SECURITY_UPDATES
 
 # require_root: the installer performs privileged operations (package install, service
 # management, user creation) from step 20 onward; refuse early rather than fail deep
@@ -408,6 +423,10 @@ main() {
   # The units of the scheduled panel backup, right after the verb they run. Installed and NOT
   # enabled: the operator writes the config and enables the timer (`maran panel-backup-schedule`).
   run_step 67-panel-backup.sh step_panel_backup
+  # Opt-in (--os-security-updates): the distribution's own unattended SECURITY updates. With the flag
+  # absent this step prints one line and changes nothing. After 67 and before 70 so the panel's
+  # services start on a host whose package policy is already settled.
+  run_step 68-os-updates.sh   step_os_updates
   run_step 70-services.sh     step_services
   run_step 80-nginx.sh        step_nginx
   # After 80, because it validates and reloads the tree 80 has just made complete, and before

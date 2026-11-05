@@ -1,5 +1,7 @@
 //! One package the host's package manager already knows a newer version of.
 
+use crate::update_classification::UpdateClassification;
+
 /// A package with a newer version available in the host's package cache
 /// (issue #324).
 ///
@@ -27,4 +29,10 @@ pub struct PendingUpdate {
     /// Where the update comes from: the apt origin list as apt prints it, or
     /// the dnf repository id. May be empty.
     pub source: String,
+    /// Whether the metadata marks the update as a security fix (issue #163).
+    /// Set by the reader on the Debian family, which sees the origins in the
+    /// same output, and by [`crate::PackageFacts::mark_security_updates`] on the
+    /// RHEL family; [`crate::UpdateClassification::Unmeasured`] until then and
+    /// whenever the second reading failed.
+    pub classification: UpdateClassification,
 }

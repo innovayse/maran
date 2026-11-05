@@ -7,7 +7,9 @@ namespace Maran.Modules.Monitoring.Resources;
 /// Monitoring module owns: <c>MonitoringModuleDisplayName</c> (resolved via
 /// <see cref="MonitoringManifest"/>'s <c>DisplayNameKey</c>) and one <c>Service&lt;Member&gt;</c>
 /// entry per <see cref="Maran.Agent.Client.Services.MonitorService.AgentManagedService"/> member,
-/// and one <c>ServerKind&lt;Member&gt;</c> entry per <see cref="Domain.Enums.ServerKind"/> member.
+/// one <c>ServerKind&lt;Member&gt;</c> entry per <see cref="Domain.Enums.ServerKind"/> member, and one
+/// <c>PendingUpdateClassification&lt;Word&gt;</c> entry per word of
+/// <see cref="Domain.Policies.PendingUpdateClassificationPolicy.All"/>.
 /// </summary>
 public sealed class DisplayNames
 {

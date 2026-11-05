@@ -69,4 +69,13 @@
   <data name="ServerKindLocal">
     <value>Этот сервер (локальный)</value>
   </data>
+  <data name="PendingUpdateClassificationSecurity">
+    <value>Безопасность</value>
+  </data>
+  <data name="PendingUpdateClassificationOrdinary">
+    <value>Обычное</value>
+  </data>
+  <data name="PendingUpdateClassificationUnmeasured">
+    <value>Не определено</value>
+  </data>
 </root>

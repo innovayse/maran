@@ -147,7 +147,11 @@ agent/
     │   │       │              reported_verify_backup.rs (the outcome on the wire: an ok
     │   │       │              only for what the operation established, never an empty
     │   │       │              one for something it did not read, issue #134)
-    │   │       ├── monitor/   monitor_service.rs · monitor_status.rs · reported_clock_sync.rs · reported_pending_updates.rs
+    │   │       ├── monitor/   monitor_service.rs · monitor_status.rs · reported_clock_sync.rs · reported_pending_updates.rs ·
+    │   │       │              reported_reboot_requirement.rs (a probe that did not run is the error arm, never
+    │   │       │              NOT_REQUIRED, issue #163) · reported_machine_id.rs ·
+    │   │       │              reported_quota_enforceability_reason.rs — the wire-payload builders the service file
+    │   │       │              would otherwise inline
     │   │       └── wire/      NOT a proto service: the proto ↔ domain boundary shared
     │   │                      by EVERY service — invalid_input.rs · validated_account.rs ·
     │   │                      system_failure.rs · run_blocking.rs (the ONE
@@ -329,6 +333,18 @@ agent/
     │       │                  the RHEL family answers `None`, issue #324). Flat for the reason
     │       │                  package_failure.rs is; the reading is
     │       │                  `PackageFacts::read_pending_updates`
+    │       ├── update_classification.rs · reboot_requirement.rs ·
+    │       │   reboot_probe.rs · reboot_probe_failure.rs
+    │       │                  the shapes issue #163 adds beside the pending-updates ones, flat
+    │       │                  for the same reason. UpdateClassification (Unmeasured · Security ·
+    │       │                  Ordinary — a verdict about the READING, so a row whose metadata was
+    │       │                  not read is never `Ordinary`), RebootRequirement (NotRequired ·
+    │       │                  Required — a probe that did not run is not a value of it),
+    │       │                  RebootProbe (the family's way of asking: a marker file, or one
+    │       │                  program with constant arguments) and RebootProbeFailure (why a
+    │       │                  program's status gave no answer: an exit status, never a byte it
+    │       │                  printed). Read through `PackageFacts::{security_pending_updates_arguments,
+    │       │                  mark_security_updates, reboot_probe, read_reboot_probe_run}`
     │       ├── package_failure.rs  PackageFailure — refused source, unreachable source or
     │       │                  local: the verdict both families answer a failed package-manager
     │       │                  run with (`DistroAdapter::classify_package_failure`, issue #251).

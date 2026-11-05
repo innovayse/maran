@@ -65,8 +65,10 @@ use crate::proto::{
 /// `MonitorService.ListPendingUpdates`, the packages the host's package manager
 /// already knows a newer version of, read from its cache alone (issue #324). 18 adds
 /// `BackupService.VerifyBackup`, the read-only check that a stored backup still
-/// matches its record (issue #134).
-const PROTO_VERSION: u32 = 18;
+/// matches its record (issue #134). 19 adds `MonitorService.GetRebootRequirement` and
+/// `PendingUpdate.classification`, the reboot-required read and the security flag
+/// on a pending update (issue #163).
+const PROTO_VERSION: u32 = 19;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

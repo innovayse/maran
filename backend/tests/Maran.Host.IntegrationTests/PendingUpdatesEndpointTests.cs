@@ -19,11 +19,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Maran.Host.IntegrationTests;
 
 /// <summary>
-/// The pending updates surface over real HTTP against real PostgreSQL (issue #324): what an
-/// administrator reads, what a failed read answers, and that a customer reaches none of it.
+/// The pending updates surface over real HTTP against real PostgreSQL (issues #324 and #163): what an
+/// administrator reads, how each update is classified and filtered, whether the host needs a restart,
+/// what a failed read answers, and that a customer reaches none of it.
 /// </summary>
 /// <remarks>
-/// Who may reach the two routes is also asserted, route by route and in both directions, by
+/// Who may reach the routes is also asserted, route by route and in both directions, by
 /// <see cref="MonitoringAuthorizationTests"/>, where both are listed in the gating fixture. This
 /// class covers the shapes on the wire. The agent is the only substitution, and only because it is a
 /// separate root process that runs the host's package manager.
@@ -66,8 +67,9 @@ public sealed class PendingUpdatesEndpointTests : IAsyncLifetime
     public async Task An_administrator_reads_the_page_with_every_field()
     {
         await using var factory = CreateFactory(Reporting(
-            new AgentPendingUpdate("openssl", "3.0.13-2", "3.0.13-1", "noble-security"),
-            new AgentPendingUpdate("bash", "5.2-2", null, string.Empty)));
+            new AgentPendingUpdate(
+                "openssl", "3.0.13-2", "3.0.13-1", "noble-security", AgentUpdateClassification.Security),
+            new AgentPendingUpdate("bash", "5.2-2", null, string.Empty, AgentUpdateClassification.Ordinary)));
         await MigrateAsync(factory);
         await SeedUsersAsync(factory);
         using var client = await SignInAsync(factory, "admin");
@@ -86,6 +88,51 @@ public sealed class PendingUpdatesEndpointTests : IAsyncLifetime
         Assert.Equal("3.0.13-2", items[1].GetProperty("availableVersion").GetString());
         Assert.Equal("3.0.13-1", items[1].GetProperty("installedVersion").GetString());
         Assert.Equal("noble-security", items[1].GetProperty("source").GetString());
+        Assert.Equal("security", items[1].GetProperty("classification").GetString());
+        Assert.Equal("ordinary", items[0].GetProperty("classification").GetString());
+        Assert.Equal("Security", items[1].GetProperty("classificationName").GetString());
+        Assert.Equal("Ordinary", items[0].GetProperty("classificationName").GetString());
+    }
+
+    /// <summary>An administrator reads the classification choices in rank order, each with its name.</summary>
+    [Fact]
+    public async Task An_administrator_reads_the_classification_choices_in_order_with_their_names()
+    {
+        await using var factory = CreateFactory(Reporting());
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/updates/classifications");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var choices = body.RootElement.EnumerateArray().ToList();
+        Assert.Equal(
+            ["security", "ordinary", "unmeasured"],
+            choices.Select(choice =>
+            {
+                return choice.GetProperty("value").GetString()!;
+            }));
+        Assert.Equal(
+            ["Security", "Ordinary", "Not measured"],
+            choices.Select(choice =>
+            {
+                return choice.GetProperty("name").GetString()!;
+            }));
+    }
+
+    /// <summary>An anonymous caller is refused the classification choices.</summary>
+    [Fact]
+    public async Task An_anonymous_caller_is_refused_the_classification_choices()
+    {
+        await using var factory = CreateFactory(Reporting());
+        await MigrateAsync(factory);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/monitoring/updates/classifications");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     /// <summary>A search, a sort and a page are applied to the agent's whole answer.</summary>
@@ -93,9 +140,9 @@ public sealed class PendingUpdatesEndpointTests : IAsyncLifetime
     public async Task A_search_a_sort_and_a_page_are_applied_to_the_whole_answer()
     {
         await using var factory = CreateFactory(Reporting(
-            new AgentPendingUpdate("libssl3", "2", "1", "updates"),
-            new AgentPendingUpdate("openssl", "2", "1", "updates"),
-            new AgentPendingUpdate("bash", "2", "1", "updates")));
+            Ordinary("libssl3"),
+            Ordinary("openssl"),
+            Ordinary("bash")));
         await MigrateAsync(factory);
         await SeedUsersAsync(factory);
         using var client = await SignInAsync(factory, "admin");
@@ -137,8 +184,8 @@ public sealed class PendingUpdatesEndpointTests : IAsyncLifetime
     public async Task The_count_is_the_number_of_updates_the_agent_reported()
     {
         await using var factory = CreateFactory(Reporting(
-            new AgentPendingUpdate("bash", "2", "1", "updates"),
-            new AgentPendingUpdate("curl", "2", "1", "updates")));
+            Ordinary("bash"),
+            Security("curl")));
         await MigrateAsync(factory);
         await SeedUsersAsync(factory);
         using var client = await SignInAsync(factory, "admin");
@@ -148,6 +195,182 @@ public sealed class PendingUpdatesEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal(2, body.RootElement.GetProperty("count").GetInt32());
+        Assert.Equal(1, body.RootElement.GetProperty("securityCount").GetInt32());
+    }
+
+    /// <summary>The security count is null, not zero, while any update's classification was not measured.</summary>
+    [Fact]
+    public async Task The_security_count_is_null_while_any_update_is_unmeasured()
+    {
+        await using var factory = CreateFactory(Reporting(
+            Security("openssl"),
+            new AgentPendingUpdate("bash", "2", "1", "updates", AgentUpdateClassification.Unmeasured)));
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/updates/count");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(2, body.RootElement.GetProperty("count").GetInt32());
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("securityCount").ValueKind);
+    }
+
+    /// <summary>The security count is zero when every update was measured and none is a security one.</summary>
+    [Fact]
+    public async Task The_security_count_is_zero_when_every_update_was_measured_and_none_is_security()
+    {
+        await using var factory = CreateFactory(Reporting(Ordinary("bash")));
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/updates/count");
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, body.RootElement.GetProperty("securityCount").GetInt32());
+    }
+
+    /// <summary>The classification filter keeps exactly the rows of the named classification, server side.</summary>
+    /// <param name="classification">The filter value.</param>
+    /// <param name="expected">The package names that must remain, in package name order.</param>
+    [Theory]
+    [InlineData("security", new[] { "openssl" })]
+    [InlineData("ordinary", new[] { "bash", "curl" })]
+    [InlineData("unmeasured", new[] { "zlib" })]
+    public async Task The_classification_filter_keeps_only_the_rows_of_that_classification(
+        string classification,
+        string[] expected)
+    {
+        await using var factory = CreateFactory(Reporting(
+            Ordinary("curl"),
+            Security("openssl"),
+            Ordinary("bash"),
+            new AgentPendingUpdate("zlib", "2", "1", "updates", AgentUpdateClassification.Unmeasured)));
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync($"/api/v1/monitoring/updates?classification={classification}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(expected.Length, body.RootElement.GetProperty("total").GetInt32());
+        Assert.Equal(expected, PackageNames(body));
+    }
+
+    /// <summary>Sorting by security lists security updates first and descending lists them last.</summary>
+    [Fact]
+    public async Task Sorting_by_security_lists_security_updates_first_and_descending_last()
+    {
+        await using var factory = CreateFactory(Reporting(
+            Ordinary("bash"),
+            Security("openssl"),
+            Ordinary("curl"),
+            Security("libc6")));
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var ascending = await client.GetAsync("/api/v1/monitoring/updates?sort=security");
+        var descending = await client.GetAsync("/api/v1/monitoring/updates?sort=-security");
+
+        using var ascendingBody = JsonDocument.Parse(await ascending.Content.ReadAsStringAsync());
+        using var descendingBody = JsonDocument.Parse(await descending.Content.ReadAsStringAsync());
+        Assert.Equal(["libc6", "openssl", "bash", "curl"], PackageNames(ascendingBody));
+        // The tie-breaker flips with the direction, so each run of equals is reversed too.
+        Assert.Equal(["curl", "bash", "openssl", "libc6"], PackageNames(descendingBody));
+    }
+
+    /// <summary>A classification the list does not offer is refused with its code.</summary>
+    [Fact]
+    public async Task An_unknown_classification_is_refused_with_its_code()
+    {
+        await using var factory = CreateFactory(Reporting(Ordinary("bash")));
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/updates?classification=critical");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("PendingUpdateClassificationUnknown", body.RootElement.GetProperty("code").GetString());
+    }
+
+    /// <summary>An administrator reads whether a restart is required: true, false, or null when unmeasured.</summary>
+    /// <param name="requirement">What the agent measured.</param>
+    /// <param name="expected">The <c>required</c> value on the wire.</param>
+    [Theory]
+    [InlineData(AgentRebootRequirement.Required, JsonValueKind.True)]
+    [InlineData(AgentRebootRequirement.NotRequired, JsonValueKind.False)]
+    [InlineData(AgentRebootRequirement.Unmeasured, JsonValueKind.Null)]
+    public async Task An_administrator_reads_whether_a_restart_is_required(
+        AgentRebootRequirement requirement,
+        JsonValueKind expected)
+    {
+        var agent = new StubAgentMonitorClient
+        {
+            RebootRequirement = Result<AgentRebootRequirement>.Ok(requirement),
+        };
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/updates/reboot-required");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(expected, body.RootElement.GetProperty("required").ValueKind);
+    }
+
+    /// <summary>A probe the agent could not run fails the read with its typed status, never "not required".</summary>
+    /// <param name="type">The kind the agent's failure carries.</param>
+    /// <param name="code">The code the failure carries.</param>
+    /// <param name="status">The status that kind must answer with.</param>
+    [Theory]
+    [InlineData(ErrorType.Failure, "AgentSystemFailure", HttpStatusCode.InternalServerError)]
+    [InlineData(ErrorType.Unavailable, "AgentUnavailable", HttpStatusCode.ServiceUnavailable)]
+    public async Task A_reboot_probe_the_agent_could_not_run_fails_the_read_and_is_never_not_required(
+        ErrorType type,
+        string code,
+        HttpStatusCode status)
+    {
+        var agent = new StubAgentMonitorClient
+        {
+            RebootRequirement = Result<AgentRebootRequirement>.Fail(Error.Of(code, type)),
+        };
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/monitoring/updates/reboot-required");
+
+        Assert.Equal(status, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(code, body.RootElement.GetProperty("code").GetString());
+        Assert.False(body.RootElement.TryGetProperty("required", out _));
+    }
+
+    /// <summary>An anonymous caller is refused the reboot requirement.</summary>
+    [Fact]
+    public async Task An_anonymous_caller_is_refused_the_reboot_requirement()
+    {
+        var agent = new StubAgentMonitorClient
+        {
+            RebootRequirement = Result<AgentRebootRequirement>.Ok(AgentRebootRequirement.Required),
+        };
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/monitoring/updates/reboot-required");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.DoesNotContain("required", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     /// <summary>A catalogue the agent could not read fails both routes and is never an empty page or a zero.</summary>
@@ -185,7 +408,7 @@ public sealed class PendingUpdatesEndpointTests : IAsyncLifetime
     [InlineData("page=0", "ListPageOutOfRange")]
     public async Task A_request_outside_the_paging_contract_is_refused_with_its_code(string queryString, string code)
     {
-        await using var factory = CreateFactory(Reporting(new AgentPendingUpdate("bash", "2", "1", "updates")));
+        await using var factory = CreateFactory(Reporting(Ordinary("bash")));
         await MigrateAsync(factory);
         await SeedUsersAsync(factory);
         using var client = await SignInAsync(factory, "admin");
@@ -197,14 +420,18 @@ public sealed class PendingUpdatesEndpointTests : IAsyncLifetime
         Assert.Equal(code, body.RootElement.GetProperty("code").GetString());
     }
 
-    /// <summary>A signed-in customer is refused both routes and told nothing the agent reported.</summary>
+    /// <summary>A signed-in customer is refused every route and told nothing the agent reported.</summary>
     /// <param name="path">The route read.</param>
     [Theory]
     [InlineData("/api/v1/monitoring/updates")]
     [InlineData("/api/v1/monitoring/updates/count")]
+    [InlineData("/api/v1/monitoring/updates/reboot-required")]
+    [InlineData("/api/v1/monitoring/updates/classifications")]
     public async Task A_signed_in_customer_is_refused_and_told_nothing_the_agent_reported(string path)
     {
-        await using var factory = CreateFactory(Reporting(new AgentPendingUpdate("bash", "2", "1", "updates")));
+        var agent = Reporting(Ordinary("bash"));
+        agent.RebootRequirement = Result<AgentRebootRequirement>.Ok(AgentRebootRequirement.Required);
+        await using var factory = CreateFactory(agent);
         await MigrateAsync(factory);
         await SeedUsersAsync(factory);
         using var client = await SignInAsync(factory, "customer");
@@ -213,6 +440,35 @@ public sealed class PendingUpdatesEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.DoesNotContain("bash", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    /// <summary>An ordinary (not security) update of the named package.</summary>
+    /// <param name="name">The package name.</param>
+    /// <returns>The update as the agent reports it.</returns>
+    private static AgentPendingUpdate Ordinary(string name)
+    {
+        return new AgentPendingUpdate(name, "2", "1", "updates", AgentUpdateClassification.Ordinary);
+    }
+
+    /// <summary>A security update of the named package.</summary>
+    /// <param name="name">The package name.</param>
+    /// <returns>The update as the agent reports it.</returns>
+    private static AgentPendingUpdate Security(string name)
+    {
+        return new AgentPendingUpdate(name, "2", "1", "updates-security", AgentUpdateClassification.Security);
+    }
+
+    /// <summary>The package names of a page, in the order the page lists them.</summary>
+    /// <param name="body">The parsed page.</param>
+    /// <returns>The package names.</returns>
+    private static string[] PackageNames(JsonDocument body)
+    {
+        return body.RootElement.GetProperty("items").EnumerateArray()
+            .Select(row =>
+            {
+                return row.GetProperty("packageName").GetString()!;
+            })
+            .ToArray();
     }
 
     /// <summary>An agent double reporting exactly the given updates.</summary>

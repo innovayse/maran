@@ -87,6 +87,44 @@ public sealed class ResilientAgentMonitorClientTests
         Assert.Equal(2, inner.Calls);
     }
 
+    /// <summary>The reboot requirement read retries a transport failure through the pipeline.</summary>
+    [Fact]
+    public async Task The_reboot_requirement_read_retries_a_transport_failure_through_the_pipeline()
+    {
+        var inner = new RecordingAgentMonitorClient { FailuresBeforeSuccess = 1 };
+
+        var result = await Decorate(inner).GetRebootRequirementAsync(default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+    }
+
+    /// <summary>A transport outage on the reboot read is answered as an unavailable agent, never as a result.</summary>
+    [Fact]
+    public async Task A_transport_outage_on_the_reboot_read_answers_agent_unavailable_never_not_required()
+    {
+        var inner = new RecordingAgentMonitorClient { FailuresBeforeSuccess = int.MaxValue };
+
+        var result = await Decorate(inner).GetRebootRequirementAsync(default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+        Assert.Equal(3, inner.Calls);
+    }
+
+    /// <summary>A reboot read that never returns is abandoned by the pipelines timeout, never answered.</summary>
+    [Fact]
+    public async Task A_reboot_requirement_read_that_never_returns_is_abandoned_not_answered()
+    {
+        var inner = new RecordingAgentMonitorClient { Hangs = true };
+
+        var result = await Decorate(inner).GetRebootRequirementAsync(default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+    }
+
     /// <summary>A pending updates read that never returns is abandoned by the pipelines timeout, never answered empty.</summary>
     [Fact]
     public async Task A_pending_updates_read_that_never_returns_is_abandoned_not_answered_empty()

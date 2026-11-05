@@ -241,6 +241,20 @@ impl MonitorHost for ProcessMonitorHost {
         }
     }
 
+    /// Whether the marker entry at `path` exists, asked of the entry itself.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::RebootProbeNotRun`] when the lookup failed for
+    /// any reason but the entry not existing.
+    fn marker_present(&self, path: &Path) -> Result<bool, MonitorError> {
+        match fs::symlink_metadata(path) {
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(_) => Err(MonitorError::RebootProbeNotRun),
+        }
+    }
+
     /// Reads the kernel's IPv4 routing table, verbatim.
     ///
     /// # Errors

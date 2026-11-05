@@ -20,8 +20,8 @@ namespace Maran.Agent.Client.Services.MonitorService;
 /// quota outright, and nothing needs the uptime.
 ///
 /// One deprecated field — <c>ServiceStatus.running</c> — IS read, but only where <c>state</c> is absent. See
-/// <see cref="ToPanelState"/>: everywhere else the boolean is the two-valued reading the tri-state
-/// replaced, and reading it would put every socket-activated unit back in the "stopped" column.
+/// <see cref="ServiceStatusMapper.ToPanelState"/>: everywhere else the boolean is the two-valued reading the
+/// tri-state replaced, and reading it would put every socket-activated unit back in the "stopped" column.
 /// </remarks>
 public sealed class AgentMonitorClient : IAgentMonitorClient
 {
@@ -70,7 +70,7 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
 
         return response.ResultCase switch
         {
-            GetServiceStatusesResponse.ResultOneofCase.Ok => ToStatusesResult(response.Ok),
+            GetServiceStatusesResponse.ResultOneofCase.Ok => ServiceStatusMapper.ToStatusesResult(response.Ok),
             GetServiceStatusesResponse.ResultOneofCase.Error => Result<IReadOnlyList<AgentServiceStatus>>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetServiceStatusesAsync))),
             _ => Result<IReadOnlyList<AgentServiceStatus>>.Fail(
@@ -182,10 +182,26 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
         return response.ResultCase switch
         {
             ListPendingUpdatesResponse.ResultOneofCase.Ok => Result<IReadOnlyList<AgentPendingUpdate>>.Ok(
-                ToPendingUpdates(response.Ok)),
+                AgentPendingUpdateMapper.ToPendingUpdates(response.Ok)),
             ListPendingUpdatesResponse.ResultOneofCase.Error => Result<IReadOnlyList<AgentPendingUpdate>>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListPendingUpdatesAsync))),
             _ => Result<IReadOnlyList<AgentPendingUpdate>>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<AgentRebootRequirement>> GetRebootRequirementAsync(CancellationToken cancellationToken)
+    {
+        var response = await _invoker.GetRebootRequirementAsync(new GetRebootRequirementRequest(), cancellationToken);
+
+        return response.ResultCase switch
+        {
+            GetRebootRequirementResponse.ResultOneofCase.Ok => Result<AgentRebootRequirement>.Ok(
+                RebootRequirementMapper.ToRebootRequirement(response.Ok.Requirement)),
+            GetRebootRequirementResponse.ResultOneofCase.Error => Result<AgentRebootRequirement>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetRebootRequirementAsync))),
+            _ => Result<AgentRebootRequirement>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
@@ -284,8 +300,8 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
     /// when the wire states neither.
     /// </returns>
     /// <remarks>
-    /// Written out rather than cast, for the same reason <see cref="ToPanelState"/> is: a value this
-    /// build has no name for — UNSPECIFIED from an agent that predates the field, or a third state
+    /// Written out rather than cast, for the same reason <see cref="ServiceStatusMapper.ToPanelState"/> is: a
+    /// value this build has no name for — UNSPECIFIED from an agent that predates the field, or a third state
     /// from one newer than this panel — must not silently become a member the switch below never
     /// intended. It is refused as a failed read instead of being read as drifted: a failed read
     /// advances no alert, whereas "drifted" with an empty list of what is missing would raise one
@@ -331,91 +347,6 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
             metrics.FreeSpaceFloorBytes);
     }
 
-    /// <summary>Projects the wire statuses onto the panel's DTOs.</summary>
-    /// <param name="ok">The success payload of <c>GetServiceStatuses</c>.</param>
-    /// <returns>
-    /// One row per service the agent reported, in the order it sent them, or an
-    /// <c>AgentInvalidResponse</c> failure when a row names a service this build has no member for —
-    /// never a row standing in for a service nobody can name.
-    /// </returns>
-    private static Result<IReadOnlyList<AgentServiceStatus>> ToStatusesResult(GetServiceStatusesOk ok)
-    {
-        var statuses = new List<AgentServiceStatus>(ok.Services.Count);
-
-        foreach (var status in ok.Services)
-        {
-            var service = ToPanelService(status.Service);
-            if (service is null)
-            {
-                return Result<IReadOnlyList<AgentServiceStatus>>.Fail(
-                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
-            }
-
-            statuses.Add(new AgentServiceStatus(service.Value, ToPanelState(status), status.Detail));
-        }
-
-        return Result<IReadOnlyList<AgentServiceStatus>>.Ok(statuses);
-    }
-
-    /// <summary>Maps a wire service onto the panel's own.</summary>
-    /// <param name="service">The value the agent sent.</param>
-    /// <returns>
-    /// The matching member, or <c>null</c> for the unspecified wire value or one this build has no
-    /// name for.
-    /// </returns>
-    /// <remarks>
-    /// Written out rather than cast. A cast would hand callers an enum value outside the declared
-    /// set the first time a newer agent watches a unit this panel predates, and every switch over
-    /// the result would then fall through its arms silently.
-    /// </remarks>
-    private static AgentManagedService? ToPanelService(ManagedService service)
-    {
-        return service switch
-        {
-            ManagedService.WebServer => AgentManagedService.WebServer,
-            ManagedService.PhpFpm => AgentManagedService.PhpFpm,
-            ManagedService.Database => AgentManagedService.Database,
-            ManagedService.Ftp => AgentManagedService.Ftp,
-            ManagedService.Cron => AgentManagedService.Cron,
-            ManagedService.Ssh => AgentManagedService.Ssh,
-            _ => null,
-        };
-    }
-
-    /// <summary>Reads one row's state, resolving an agent too old to have sent one.</summary>
-    /// <param name="status">The row the agent sent.</param>
-    /// <returns>Up, down, or not known.</returns>
-    /// <remarks>
-    /// <c>state</c> is the field to read, and UNKNOWN is carried through as UNKNOWN. Mapping it onto
-    /// <see cref="AgentServiceState.Stopped"/> is the specific mistake this contract was widened to
-    /// prevent: on the Debian family the enabled SSH unit is a socket and the service it fronts is
-    /// inactive from boot until the first connection, so a panel that read that as an outage would
-    /// e-mail about one on every such host at every reboot — and the alert nobody can act on is the
-    /// alert that teaches an operator to ignore the rest.
-    ///
-    /// The unspecified arm is the ONE place the deprecated <c>running</c> boolean is read, and it is
-    /// read because an agent that predates the state field sends the proto3 default and did send the
-    /// boolean: taking UNSPECIFIED at face value there would report every service on an older agent
-    /// as not known, hiding a genuine outage behind a version difference. Within that arm the
-    /// boolean is the whole of what was ever known, so false is the two-valued contract's own
-    /// "stopped" — carried faithfully, conflation included, rather than improved upon here.
-    ///
-    /// Anything else — a state a newer agent added — is not known rather than resolved through the
-    /// boolean, because the boolean's relationship to a state this build has never heard of is
-    /// exactly what nobody can say.
-    /// </remarks>
-    private static AgentServiceState ToPanelState(ServiceStatus status)
-    {
-        return status.State switch
-        {
-            ServiceState.Running => AgentServiceState.Running,
-            ServiceState.Stopped => AgentServiceState.Stopped,
-            ServiceState.Unknown => AgentServiceState.Unknown,
-            ServiceState.Unspecified => status.Running ? AgentServiceState.Running : AgentServiceState.Stopped,
-            _ => AgentServiceState.Unknown,
-        };
-    }
-
     /// <summary>Projects the wire disk-usage listing onto the panel's DTOs.</summary>
     /// <param name="ok">The success payload of <c>GetAccountsDiskUsage</c>.</param>
     /// <returns>One row per account, carrying used bytes only.</returns>
@@ -429,32 +360,5 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
         }
 
         return usage;
-    }
-
-    /// <summary>Projects the wire update listing onto the panel's own rows.</summary>
-    /// <param name="ok">The success payload of <c>ListPendingUpdates</c>.</param>
-    /// <returns>One row per package, in the order the agent sent them.</returns>
-    /// <remarks>
-    /// The wire's empty <c>installed_version</c> means "this family does not report it" (dnf's
-    /// <c>check-update</c> names only the new version), and protobuf cannot tell that from a version
-    /// that is the empty string. The reading is made here, once, so the panel's row carries
-    /// <c>null</c> for "not reported" and never an empty string a screen would print as a version.
-    /// <c>source</c> may be empty on the wire and stays an empty string.
-    /// </remarks>
-    private static List<AgentPendingUpdate> ToPendingUpdates(ListPendingUpdatesOk ok)
-    {
-        var updates = new List<AgentPendingUpdate>(ok.Updates.Count);
-
-        foreach (var update in ok.Updates)
-        {
-            updates.Add(
-                new AgentPendingUpdate(
-                    update.PackageName,
-                    update.AvailableVersion,
-                    update.InstalledVersion.Length == 0 ? null : update.InstalledVersion,
-                    update.Source));
-        }
-
-        return updates;
     }
 }

@@ -210,3 +210,52 @@ fn the_host_runs_the_adapters_binary_and_returns_its_outcome() {
     assert_eq!(outcome.status, 0);
     assert!(outcome.stdout.trim().parse::<u32>().is_ok());
 }
+
+/// A marker that exists answers `true`, asked of the entry itself.
+#[test]
+fn a_marker_that_exists_is_present() {
+    let directory = tempfile::tempdir().unwrap();
+    let marker = directory.path().join("reboot-required");
+    std::fs::write(&marker, "").unwrap();
+
+    let present = ProcessMonitorHost::new().marker_present(&marker);
+
+    assert_eq!(present, Ok(true));
+}
+
+/// A link is the entry the probe asks about, never what it points at: a
+/// dangling link is still a marker that exists.
+#[test]
+fn a_dangling_link_is_a_marker_that_exists() {
+    let directory = tempfile::tempdir().unwrap();
+    let marker = directory.path().join("reboot-required");
+    std::os::unix::fs::symlink(directory.path().join("nowhere"), &marker).unwrap();
+
+    let present = ProcessMonitorHost::new().marker_present(&marker);
+
+    assert_eq!(present, Ok(true));
+}
+
+/// Only "no such entry" answers `false`: the lookup succeeded and said so.
+#[test]
+fn a_marker_that_is_absent_is_not_present() {
+    let directory = tempfile::tempdir().unwrap();
+
+    let present =
+        ProcessMonitorHost::new().marker_present(&directory.path().join("reboot-required"));
+
+    assert_eq!(present, Ok(false));
+}
+
+/// A lookup that failed for any other reason (here a path that goes THROUGH a
+/// file) has not said the host needs no reboot: it is the error, never `false`.
+#[test]
+fn a_marker_lookup_that_fails_is_an_error_and_not_an_absence() {
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("a-file");
+    std::fs::write(&file, "").unwrap();
+
+    let present = ProcessMonitorHost::new().marker_present(&file.join("reboot-required"));
+
+    assert_eq!(present, Err(MonitorError::RebootProbeNotRun));
+}

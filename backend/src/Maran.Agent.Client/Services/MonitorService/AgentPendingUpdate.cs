@@ -13,8 +13,14 @@ namespace Maran.Agent.Client.Services.MonitorService;
 /// (the wire's empty string, read once at the client boundary).
 /// </param>
 /// <param name="Source">The apt origin or dnf repository id the update comes from; empty when none was reported.</param>
+/// <param name="Classification">
+/// Whether the package manager marks the update as a security update;
+/// <see cref="AgentUpdateClassification.Unmeasured"/> when the agent did not say (the wire's
+/// unspecified, read once at the client boundary).
+/// </param>
 public sealed record AgentPendingUpdate(
     string PackageName,
     string AvailableVersion,
     string? InstalledVersion,
-    string Source);
+    string Source,
+    AgentUpdateClassification Classification);

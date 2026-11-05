@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Common;
 
 namespace Maran.Modules.Monitoring.Queries.GetPendingUpdateCount;
@@ -8,7 +9,9 @@ namespace Maran.Modules.Monitoring.Queries.GetPendingUpdateCount;
 /// A failed read is the agent's own typed failure and never a count of zero: a badge reading 0 on a
 /// host whose package cache could not be read would say "up to date" about something nobody checked.
 /// The caller draws no badge when this fails, and a zero is only ever the answer to a read that
-/// succeeded and found nothing pending.
+/// succeeded and found nothing pending. The security figure follows the same rule one level down: it
+/// is <c>null</c> unless every pending update was classified, because a count over a partial reading
+/// would understate and "0 security updates" is the answer this screen must not invent.
 /// </remarks>
 public sealed class GetPendingUpdateCountQueryHandler
 {
@@ -37,6 +40,20 @@ public sealed class GetPendingUpdateCountQueryHandler
             return Result<PendingUpdateCountDto>.Fail(updates.Error!);
         }
 
-        return Result<PendingUpdateCountDto>.Ok(new PendingUpdateCountDto(updates.Value.Count));
+        var anyUnmeasured = updates.Value.Any(update =>
+        {
+            return update.Classification == AgentUpdateClassification.Unmeasured;
+        });
+
+        int? securityCount = null;
+        if (!anyUnmeasured)
+        {
+            securityCount = updates.Value.Count(update =>
+            {
+                return update.Classification == AgentUpdateClassification.Security;
+            });
+        }
+
+        return Result<PendingUpdateCountDto>.Ok(new PendingUpdateCountDto(updates.Value.Count, securityCount));
     }
 }

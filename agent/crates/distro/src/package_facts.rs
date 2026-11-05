@@ -9,6 +9,9 @@ use crate::catalogue_probe::CatalogueProbe;
 use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
+use crate::reboot_probe::RebootProbe;
+use crate::reboot_probe_failure::RebootProbeFailure;
+use crate::reboot_requirement::RebootRequirement;
 
 /// The package manager, the reading of its failures, and the journal an install unit writes.
 pub trait PackageFacts: Send + Sync {
@@ -87,6 +90,57 @@ pub trait PackageFacts: Send + Sync {
         status: i32,
         stdout: &str,
     ) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure>;
+
+    /// The fixed arguments of a SECOND read-only, cache-only run that names the
+    /// security updates, or `None` when [`Self::read_pending_updates`] already
+    /// classifies every row (issue #163).
+    ///
+    /// The Debian family answers `None`: the simulated upgrade prints each
+    /// package's origin list, and a suite ending `-security` is read there. The
+    /// RHEL family answers `check-update --security -C -q`, run against the
+    /// same cache as the first reading and measured to answer from it alone
+    /// after `dnf makecache` (`tests/fixtures/package_manager/`). The run is
+    /// made with [`Self::package_query_binary`]; no operand exists, so no
+    /// caller value reaches it.
+    fn security_pending_updates_arguments(&self) -> Option<Vec<String>>;
+
+    /// Folds the second reading, the run of
+    /// [`Self::security_pending_updates_arguments`] (its exit `status` and
+    /// `stdout`), into the rows [`Self::read_pending_updates`] returned
+    /// (issue #163).
+    ///
+    /// The RHEL family marks every row whose package name the second reading
+    /// names [`crate::UpdateClassification::Security`] and every other row
+    /// [`crate::UpdateClassification::Ordinary`]; the Debian family has no
+    /// second reading and returns `updates` unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`PendingUpdatesFailure`] of the second reading, by the same
+    /// rules as [`Self::read_pending_updates`]. The caller then keeps the first
+    /// reading's rows as they were, `Unmeasured`, and never guesses
+    /// `Ordinary`.
+    fn mark_security_updates(
+        &self,
+        updates: Vec<PendingUpdate>,
+        status: i32,
+        stdout: &str,
+    ) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure>;
+
+    /// How this family finds out whether the host needs a reboot to run what is
+    /// already installed (issue #163): a marker file on the Debian family, a
+    /// program with constant arguments on the RHEL family.
+    fn reboot_probe(&self) -> RebootProbe;
+
+    /// Reads the exit `status` of a [`RebootProbe::Program`] run.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RebootProbeFailure::Unsuccessful`] for a status the program
+    /// gives no answer to, a missing program included, and
+    /// [`RebootProbeFailure::NotAProgramProbe`] on a family whose probe is a
+    /// marker file. A failure is never read as "no reboot is required".
+    fn read_reboot_probe_run(&self, status: i32) -> Result<RebootRequirement, RebootProbeFailure>;
 
     /// Absolute path of the journal reader, `journalctl`, for the
     /// process-execution allow-list.

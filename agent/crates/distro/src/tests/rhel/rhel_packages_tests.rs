@@ -9,10 +9,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::{
-    PENDING_UPDATES_ARGUMENTS, classify_package_failure, installable_php_versions, package_manager,
-    read_pending_updates,
+    PENDING_UPDATES_ARGUMENTS, REBOOT_PROBE_ARGUMENTS, SECURITY_PENDING_UPDATES_ARGUMENTS,
+    classify_package_failure, installable_php_versions, mark_security_updates, package_manager,
+    read_pending_updates, read_reboot_probe_run,
 };
-use crate::{PackageFailure, PendingUpdate, PendingUpdatesFailure};
+use crate::{
+    PackageFailure, PendingUpdate, PendingUpdatesFailure, RebootProbeFailure, RebootRequirement,
+    UpdateClassification,
+};
 
 /// `dnf install` against a repository answering its metadata with 404.
 const SOURCE_REFUSED: &str =
@@ -138,6 +142,22 @@ const LONG_AND_PLUS_NAMES: &str = include_str!(
 const OBSOLETING: &str =
     include_str!("../../../tests/fixtures/package_manager/dnf_check_update_obsoleting.txt");
 
+/// `dnf check-update -C -q` after `dnf makecache` on `almalinux:9`, recorded on
+/// 2026-11-04: three updates, one of which is not a security fix.
+const SECURITY_SUBSET_ALL: &str = include_str!(
+    "../../../tests/fixtures/package_manager/dnf_check_update_with_security_subset.txt"
+);
+
+/// `dnf check-update --security -C -q` on the same container and cache: the two
+/// curl packages only. Exit 100.
+const SECURITY_ONLY: &str =
+    include_str!("../../../tests/fixtures/package_manager/dnf_check_update_security_only.txt");
+
+/// `dnf check-update --security -C -q` with the two security packages excluded:
+/// no output at all. Exit 0.
+const SECURITY_NONE: &str =
+    include_str!("../../../tests/fixtures/package_manager/dnf_check_update_security_none.txt");
+
 /// The update named `name` in a read, or a panic naming the package.
 fn row<'a>(updates: &'a [PendingUpdate], name: &str) -> &'a PendingUpdate {
     updates
@@ -169,6 +189,7 @@ fn a_row_carries_the_new_version_the_repository_and_no_installed_version() {
             available_version: String::from("2.4.0-1.el9_8"),
             installed_version: None,
             source: String::from("baseos"),
+            classification: UpdateClassification::Unmeasured,
         }
     );
 }
@@ -336,4 +357,145 @@ fn a_heading_other_than_the_obsoleting_one_fails_the_whole_read() {
         read_pending_updates(100, &output),
         Err(PendingUpdatesFailure::UnrecognisedLine { .. })
     ));
+}
+
+#[test]
+fn the_security_run_is_cache_only_with_no_operand() {
+    assert_eq!(
+        SECURITY_PENDING_UPDATES_ARGUMENTS,
+        &["check-update", "--security", "-C", "-q"]
+    );
+}
+
+#[test]
+fn the_first_reading_leaves_every_row_unmeasured() {
+    let updates = read_pending_updates(100, SECURITY_SUBSET_ALL).unwrap();
+
+    assert_eq!(updates.len(), 3);
+    assert!(
+        updates
+            .iter()
+            .all(|update| update.classification == UpdateClassification::Unmeasured)
+    );
+}
+
+#[test]
+fn packages_the_security_reading_names_are_security_and_the_rest_ordinary() {
+    let updates = read_pending_updates(100, SECURITY_SUBSET_ALL).unwrap();
+
+    let marked = mark_security_updates(updates, 100, SECURITY_ONLY).unwrap();
+
+    assert_eq!(
+        row(&marked, "curl-minimal").classification,
+        UpdateClassification::Security
+    );
+    assert_eq!(
+        row(&marked, "libcurl-minimal").classification,
+        UpdateClassification::Security
+    );
+    assert_eq!(
+        row(&marked, "krb5-libs").classification,
+        UpdateClassification::Ordinary
+    );
+}
+
+#[test]
+fn marking_keeps_every_other_field_of_a_row() {
+    let updates = read_pending_updates(100, SECURITY_SUBSET_ALL).unwrap();
+    let before = row(&updates, "krb5-libs").clone();
+
+    let marked = mark_security_updates(updates, 100, SECURITY_ONLY).unwrap();
+
+    let after = row(&marked, "krb5-libs");
+    assert_eq!(after.available_version, before.available_version);
+    assert_eq!(after.source, before.source);
+    assert_eq!(after.installed_version, before.installed_version);
+}
+
+#[test]
+fn a_security_reading_with_nothing_to_name_makes_every_row_ordinary() {
+    let updates = read_pending_updates(100, SECURITY_SUBSET_ALL).unwrap();
+
+    let marked = mark_security_updates(updates, 0, SECURITY_NONE).unwrap();
+
+    assert_eq!(marked.len(), 3);
+    assert!(
+        marked
+            .iter()
+            .all(|update| update.classification == UpdateClassification::Ordinary)
+    );
+}
+
+#[test]
+fn a_package_only_the_security_reading_names_adds_no_row() {
+    let updates = read_pending_updates(100, SECURITY_SUBSET_ALL).unwrap();
+    let extra = format!("{SECURITY_ONLY}newer.x86_64 1.0-1.el9 baseos\n");
+
+    let marked = mark_security_updates(updates, 100, &extra).unwrap();
+
+    assert_eq!(marked.len(), 3);
+}
+
+#[test]
+fn marking_no_rows_is_an_empty_answer() {
+    assert_eq!(
+        mark_security_updates(Vec::new(), 100, SECURITY_ONLY).unwrap(),
+        Vec::new()
+    );
+}
+
+#[test]
+fn a_failed_security_reading_is_an_error_and_never_an_ordinary_verdict() {
+    let updates = read_pending_updates(100, SECURITY_SUBSET_ALL).unwrap();
+
+    assert_eq!(
+        mark_security_updates(updates, 1, "Error: Cache-only enabled but no cache\n"),
+        Err(PendingUpdatesFailure::Unsuccessful { status: 1 })
+    );
+}
+
+#[test]
+fn a_security_reading_with_a_line_outside_the_grammar_is_an_error() {
+    let updates = read_pending_updates(100, SECURITY_SUBSET_ALL).unwrap();
+
+    assert_eq!(
+        mark_security_updates(updates, 100, "not a row\n"),
+        Err(PendingUpdatesFailure::UnrecognisedLine { line: 1 })
+    );
+}
+
+#[test]
+fn a_security_reading_that_says_updates_exist_but_shows_none_is_an_error() {
+    let updates = read_pending_updates(100, SECURITY_SUBSET_ALL).unwrap();
+
+    assert_eq!(
+        mark_security_updates(updates, 100, ""),
+        Err(PendingUpdatesFailure::IncompleteOutput)
+    );
+}
+
+#[test]
+fn the_reboot_probe_run_takes_no_operand() {
+    assert_eq!(REBOOT_PROBE_ARGUMENTS, &["-r"]);
+}
+
+#[test]
+fn needs_restarting_exiting_zero_means_no_reboot_is_required() {
+    assert_eq!(read_reboot_probe_run(0), Ok(RebootRequirement::NotRequired));
+}
+
+#[test]
+fn needs_restarting_exiting_one_means_a_reboot_is_required() {
+    assert_eq!(read_reboot_probe_run(1), Ok(RebootRequirement::Required));
+}
+
+#[test]
+fn any_other_needs_restarting_status_is_an_error_and_never_not_required() {
+    // 127 is a shell's answer for a program that is not installed.
+    for status in [2, 127, 255, -1] {
+        assert_eq!(
+            read_reboot_probe_run(status),
+            Err(RebootProbeFailure::Unsuccessful { status })
+        );
+    }
 }
