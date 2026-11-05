@@ -647,6 +647,7 @@ spa	disk-usage.spec.ts	3	0	0
 spa	file-transfer/account-filter.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	18	0	0
 spa	file-transfer/ftps-create.spec.ts	7	0	0
+spa	file-transfer/sftp-keys.spec.ts	18	0	0
 spa	file-transfer/ftps-list.spec.ts	9	0	0
 spa	file-transfer/ftps-server-state.spec.ts	11	0	0
 spa	file-transfer/ftps-server.spec.ts	12	0	0
