@@ -114,4 +114,19 @@ internal sealed class StubSftpService : ISftpServiceInvoker
         LastEndSessionsRequest = request;
         return Task.FromResult(EndSessionsResponse);
     }
+
+    /// <summary>Response returned from <see cref="SetSftpAuthorizedKeysAsync"/>.</summary>
+    public SetSftpAuthorizedKeysResponse SetAuthorizedKeysResponse { get; set; } = new();
+
+    /// <summary>The last key-set request the stub received, for asserting the mapping.</summary>
+    public SetSftpAuthorizedKeysRequest? LastSetAuthorizedKeysRequest { get; private set; }
+
+    /// <inheritdoc/>
+    public Task<SetSftpAuthorizedKeysResponse> SetSftpAuthorizedKeysAsync(
+        SetSftpAuthorizedKeysRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastSetAuthorizedKeysRequest = request;
+        return Task.FromResult(SetAuthorizedKeysResponse);
+    }
 }

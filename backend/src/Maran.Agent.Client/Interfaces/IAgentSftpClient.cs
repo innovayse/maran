@@ -155,4 +155,38 @@ public interface IAgentSftpClient
         string accountUsername,
         string sftpUsername,
         CancellationToken cancellationToken);
+
+    /// <summary>Replaces the whole set of public keys one SFTP login may authenticate with.</summary>
+    /// <param name="accountUsername">System username of the owning account.</param>
+    /// <param name="sftpUsername">Login name suffix, namespaced under the account exactly as at creation.</param>
+    /// <param name="publicKeys">
+    /// The COMPLETE key set the login should hold afterwards, one OpenSSH public-key line each. An
+    /// empty list is valid and clears every key (the host removes the login's key file); it is the
+    /// caller's way to say "this login has no keys", not a request to leave the set unchanged.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// Success, or a typed failure — <c>AgentNotFound</c> when the account holds no such login,
+    /// <c>AgentInvalidInput</c> when the host refused a key (the whole request is refused and nothing
+    /// is written), and the retryable busy answer when the account's lock is held.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>The panel is the source of truth, and this call is a replace, never an add or a remove.</b>
+    /// The host converges to exactly the list it is sent, so a caller sends the full set read from its
+    /// own rows after the change. Idempotent: the same list twice leaves the same file, which is why
+    /// the resilience decorator may retry it.
+    /// </para>
+    /// <para>
+    /// This changes who may authenticate NEXT and closes no session already open. A caller that
+    /// removed or replaced a key follows it with <see cref="EndSessionsAsync"/>; a caller that only
+    /// added one does not. The key text is public material but is still caller input that ends in a
+    /// root-written file: it is not logged by this client, and the host re-validates every key.
+    /// </para>
+    /// </remarks>
+    Task<Result> SetAuthorizedKeysAsync(
+        string accountUsername,
+        string sftpUsername,
+        IReadOnlyList<string> publicKeys,
+        CancellationToken cancellationToken);
 }

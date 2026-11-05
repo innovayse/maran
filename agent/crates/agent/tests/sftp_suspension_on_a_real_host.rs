@@ -25,6 +25,9 @@ mod polygon_sshd;
 #[allow(dead_code)]
 #[path = "fixtures/polygon_sftp_login.rs"]
 mod polygon_sftp_login;
+// The key login and the fetch helpers are used by the sibling suite; this one
+// drives password sessions.
+#[allow(dead_code)]
 #[path = "fixtures/sftp_control_session.rs"]
 mod sftp_control_session;
 
@@ -546,7 +549,7 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
 
     // The control that makes a later failure mean something: this client can
     // transfer through this session while the account is in good standing.
-    let before = fetch_through(&mut session, "before");
+    let before = session.fetch_through("before");
     assert_eq!(
         before,
         PolygonSftpLogin::CUSTOMER_CONTENT,
@@ -605,7 +608,7 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
     // daemon has closed the connection (measured — see
     // `fixtures/sftp_control_session.rs`). A transfer cannot be faked that way:
     // either the file lands or the session is gone.
-    let (after, landed) = fetch_attempt(&mut session, "after");
+    let (after, landed) = session.fetch_attempt("after");
     assert!(
         landed.is_none(),
         "MEASURED: suspending an account ends the SFTP session it already had \
@@ -618,7 +621,7 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
     // The cross-tenant inverse control, and the harness's own liveness proof: a
     // session belonging to a DIFFERENT account is untouched and still moves
     // bytes, at the same moment, through the same daemon.
-    let neighbour_after = fetch_through(&mut neighbour_session, "neighbour-after");
+    let neighbour_after = neighbour_session.fetch_through("neighbour-after");
     assert_eq!(
         neighbour_after,
         PolygonSftpLogin::CUSTOMER_CONTENT,
@@ -643,52 +646,4 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
     drop(neighbour_session);
     drop(login);
     drop(neighbour_login);
-}
-
-/// Fetches the planted file through an already-open `session` and returns the
-/// bytes that landed.
-///
-/// The assertion is on the RETRIEVED FILE and not on what the client printed: a
-/// client that reported `Fetching` and wrote nothing would satisfy a check on
-/// its output, and the question is whether a suspended customer's data still
-/// moves.
-///
-/// # Panics
-///
-/// Panics when the download landed nowhere, quoting what the session said —
-/// which is the outcome that would mean the daemon HAD closed the session.
-fn fetch_through(session: &mut SftpControlSession, tag: &str) -> String {
-    let (said, landed) = fetch_attempt(session, tag);
-
-    landed.unwrap_or_else(|| {
-        panic!(
-            "the transfer through the open session landed nothing; \
-             the session said: {said}"
-        )
-    })
-}
-
-/// Tries to fetch the planted file through `session`, and reports BOTH what the
-/// session said and whether any bytes landed.
-///
-/// The fallible half of [`fetch_through`], and the two are one function because
-/// the cull test needs the same transfer to come back EMPTY while every other
-/// caller needs it to come back full — the rule of two applied to a measurement
-/// whose two directions must not be allowed to drift apart. A test asserting the
-/// session is gone and a test asserting it works therefore ask the daemon exactly
-/// the same question.
-///
-/// `probe_command` rather than `command`, because after the cull the client
-/// process is dead and the WRITE is what fails; `command` panics there by design.
-fn fetch_attempt(session: &mut SftpControlSession, tag: &str) -> (String, Option<String>) {
-    let landing = std::env::temp_dir().join(format!("maran-sftp-live-{tag}.txt"));
-    let _ = std::fs::remove_file(&landing);
-
-    let said = session.probe_command(&format!(
-        "get /home/{} {}",
-        PolygonSftpLogin::CUSTOMER_FILE,
-        landing.to_str().expect("a utf-8 path")
-    ));
-
-    (said, std::fs::read_to_string(&landing).ok())
 }

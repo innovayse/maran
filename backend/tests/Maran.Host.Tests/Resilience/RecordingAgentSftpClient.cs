@@ -32,6 +32,9 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
     /// <summary>The password of the last call.</summary>
     public SensitiveString? LastPassword { get; private set; }
 
+    /// <summary>The key set of the last <see cref="SetAuthorizedKeysAsync"/> call.</summary>
+    public IReadOnlyList<string>? LastPublicKeys { get; private set; }
+
     /// <inheritdoc/>
     public async Task<Result<string>> CreateAsync(
         string accountUsername,
@@ -123,5 +126,21 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
         }
 
         await Task.Yield();
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> SetAuthorizedKeysAsync(
+        string accountUsername,
+        string sftpUsername,
+        IReadOnlyList<string> publicKeys,
+        CancellationToken cancellationToken)
+    {
+        LastAccountUsername = accountUsername;
+        LastSftpUsername = sftpUsername;
+        LastPublicKeys = publicKeys;
+
+        await EnterAsync(cancellationToken);
+
+        return Result.Ok();
     }
 }

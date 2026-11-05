@@ -35,4 +35,17 @@ public static class SftpAuditActions
     /// the one thing an operator reading the reset above needs to know about it.
     /// </summary>
     public const string SftpUserSessionsEnded = "SftpUserSessionsEnded";
+
+    /// <summary>
+    /// A public key was added to an SFTP login. The entry names the login, the key's label and its
+    /// fingerprint — never the key itself — and is recorded on the refusal too.
+    /// </summary>
+    public const string SftpKeyAdded = "SftpKeyAdded";
+
+    /// <summary>
+    /// A public key was removed from an SFTP login, which also ends the login's open sessions. The
+    /// entry names the login, the key's label and its fingerprint, and is recorded on the refusal too:
+    /// a failed removal may mean a revoked key's sessions are still open.
+    /// </summary>
+    public const string SftpKeyRemoved = "SftpKeyRemoved";
 }

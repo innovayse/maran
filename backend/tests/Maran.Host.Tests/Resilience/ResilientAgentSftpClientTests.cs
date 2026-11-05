@@ -143,6 +143,69 @@ public sealed class ResilientAgentSftpClientTests
         Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
+    /// <summary>Setting a login's key set retries a transport failure and carries every argument unchanged.</summary>
+    [Fact]
+    public async Task Setting_authorized_keys_retries_a_transport_failure_and_carries_its_arguments_unchanged()
+    {
+        var inner = new RecordingAgentSftpClient { FailuresBeforeSuccess = 1 };
+        IReadOnlyList<string> keys = ["ssh-ed25519 AAAA-one", "ssh-ed25519 AAAA-two"];
+
+        var result = await Decorate(inner)
+            .SetAuthorizedKeysAsync("alice", "web", keys, default)
+            .WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("alice", inner.LastAccountUsername);
+        Assert.Equal("web", inner.LastSftpUsername);
+        Assert.Equal(keys, inner.LastPublicKeys);
+    }
+
+    /// <summary>An empty key set passes through the decorator as an empty list and succeeds.</summary>
+    [Fact]
+    public async Task Setting_an_empty_key_set_passes_through_the_decorator_and_succeeds()
+    {
+        var inner = new RecordingAgentSftpClient();
+
+        var result = await Decorate(inner)
+            .SetAuthorizedKeysAsync("alice", "web", [], default)
+            .WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(inner.LastPublicKeys!);
+    }
+
+    /// <summary>A transport outage on a key-set write is answered as an unavailable agent, not thrown.</summary>
+    [Fact]
+    public async Task A_transport_outage_on_setting_authorized_keys_answers_agent_unavailable_instead_of_throwing()
+    {
+        var inner = new RecordingAgentSftpClient { FailuresBeforeSuccess = int.MaxValue };
+
+        var result = await Decorate(inner)
+            .SetAuthorizedKeysAsync("alice", "web", ["ssh-ed25519 AAAA-one"], default)
+            .WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+        Assert.Equal(3, inner.Calls);
+    }
+
+    /// <summary>Setting a login's key set is abandoned by the pipeline's timeout when the agent hangs.</summary>
+    [Fact]
+    public async Task Setting_authorized_keys_that_never_returns_is_abandoned_by_the_pipelines_timeout()
+    {
+        var inner = new RecordingAgentSftpClient { Hangs = true };
+
+        var result = await Decorate(inner)
+            .SetAuthorizedKeysAsync("alice", "web", ["ssh-ed25519 AAAA-one"], default)
+            .WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+    }
+
     /// <summary>Wraps the recording client in the decorator under the real pipeline.</summary>
     /// <param name="inner">The recording client to wrap.</param>
     /// <returns>The decorated client.</returns>

@@ -60,6 +60,62 @@ namespace Maran.Modules.Sftp.Persistence.Migrations
 
                     b.ToTable("SftpUsers", "sftp");
                 });
+
+            modelBuilder.Entity("Maran.Modules.Sftp.Domain.Entities.SftpUserKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Algorithm")
+                        .IsRequired()
+                        .HasMaxLength(34)
+                        .HasColumnType("character varying(34)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("PublicKey")
+                        .IsRequired()
+                        .HasMaxLength(8192)
+                        .HasColumnType("character varying(8192)");
+
+                    b.Property<Guid>("SftpUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SftpUserId", "Fingerprint")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SftpUserKeys_SftpUserId_Fingerprint");
+
+                    b.ToTable("SftpUserKeys", "sftp");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Sftp.Domain.Entities.SftpUserKey", b =>
+                {
+                    b.HasOne("Maran.Modules.Sftp.Domain.Entities.SftpUser", "SftpUser")
+                        .WithMany("Keys")
+                        .HasForeignKey("SftpUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SftpUser");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Sftp.Domain.Entities.SftpUser", b =>
+                {
+                    b.Navigation("Keys");
+                });
 #pragma warning restore 612, 618
         }
     }

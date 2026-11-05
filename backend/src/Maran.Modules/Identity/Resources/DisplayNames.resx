@@ -138,6 +138,12 @@
   <data name="AuditActionSftpUserSessionsEnded">
     <value>SFTP sessions ended</value>
   </data>
+  <data name="AuditActionSftpKeyAdded">
+    <value>SFTP key added</value>
+  </data>
+  <data name="AuditActionSftpKeyRemoved">
+    <value>SFTP key removed</value>
+  </data>
   <data name="AuditActionFtpsEnabled">
     <value>FTPS enabled</value>
   </data>

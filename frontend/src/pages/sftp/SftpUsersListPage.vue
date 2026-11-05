@@ -27,9 +27,7 @@ import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
-import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
-import UiFilterSheet from '../../components/ui/UiFilterSheet.vue'
 import UiFilterTrigger from '../../components/ui/UiFilterTrigger.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
@@ -37,16 +35,19 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import SftpUserActionConfirm from '../../components/sftp/SftpUserActionConfirm.vue'
+import SftpKeysDialog from '../../components/sftp/SftpKeysDialog.vue'
+import SftpUsersFilterSheet from '../../components/sftp/SftpUsersFilterSheet.vue'
 import SftpUsersTable from '../../components/sftp/SftpUsersTable.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import SftpUserCreateForm from '../../components/sftp/SftpUserCreateForm.vue'
 import SftpUserCreatedDialog from '../../components/sftp/SftpUserCreatedDialog.vue'
-import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
+import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { useSftpStore } from '../../stores/sftp'
+import { useSftpKeysStore } from '../../stores/sftpKeys'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { CreateSftpUserRequest, SftpUser, SftpUserAction, PendingSftpUserAction } from '../../types/sftpUser'
 import { usePlanLimit } from '../../composables/usePlanLimit'
@@ -54,6 +55,7 @@ import { usePlanLimit } from '../../composables/usePlanLimit'
 
 const { t } = useI18n()
 const store = useSftpStore()
+const keysStore = useSftpKeysStore()
 const labels = useListLabels()
 const { isAdmin, isCustomer } = useCallerRole()
 /** Whether the plan still allows another SFTP login (issue #312); advice, the endpoint enforces. */
@@ -93,16 +95,6 @@ const isNarrowed: ComputedRef<boolean> = computed(() => {
 /** Whether the latest answer arrived and holds no rows at all. */
 const answeredNothing: ComputedRef<boolean> = computed(() => {
   return table.state.value.status === 'loaded' && table.total.value === 0
-})
-
-/** The account filter's picker, after an "any account" choice counted into the total. */
-const accountFilterPicker: ComputedRef<AccountPickerState> = computed(() => {
-  const state = accountPicker.value
-  return {
-    ...state,
-    options: [{ value: '', label: t('common.list.any') }, ...state.options],
-    total: state.total + 1,
-  }
 })
 
 /** One removable chip per applied filter. */
@@ -196,8 +188,21 @@ const dismissNotice = (): void => {
   notice.value = null
 }
 
-// The credential must not survive a navigation. The store outlives this page.
-onBeforeUnmount(store.dismissCredential)
+/**
+ * Opens the keys panel of one login.
+ * @param login The row the operator acted on.
+ * @returns Resolves once the first page of keys was read.
+ */
+const openKeys = (login: SftpUser): Promise<void> => {
+  return keysStore.open(login)
+}
+
+// The credential must not survive a navigation, and neither must an open keys panel. The stores
+// outlive this page.
+onBeforeUnmount((): void => {
+  store.dismissCredential()
+  keysStore.close()
+})
 </script>
 
 <template>
@@ -284,6 +289,7 @@ onBeforeUnmount(store.dismissCredential)
               :sort="table.sort.value"
               @sort="table.toggleSort"
               @act="ask"
+              @keys="openKeys"
             />
 
             <UiPagination
@@ -301,27 +307,15 @@ onBeforeUnmount(store.dismissCredential)
       </div>
     </UiCard>
 
-    <UiFilterSheet
+    <SftpUsersFilterSheet
       :open="filtersOpen"
-      :model-value="table.filters.value"
-      :title="t('common.list.filters')"
-      :close-label="t('common.close')"
-      :apply-label="t('common.list.apply')"
-      :reset-label="t('common.list.reset')"
-      @update:model-value="table.setFilters"
+      :filters="table.filters.value"
+      :account-picker="accountPicker"
+      :account-name="accountFilterName"
+      @apply="table.setFilters"
       @close="closeFilters"
-    >
-      <template #default="{ draft }">
-        <UiCombobox
-          v-model="draft.account"
-          v-bind="accountFilterPicker"
-          :label="t('sftp.list.filters.account')"
-          :placeholder="t('common.list.any')"
-          :selected-label="accountFilterName"
-          @search="searchAccounts"
-        />
-      </template>
-    </UiFilterSheet>
+      @search="searchAccounts"
+    />
 
     <SftpUserActionConfirm
       v-if="pending !== null"
@@ -330,6 +324,8 @@ onBeforeUnmount(store.dismissCredential)
       @close="cancel"
       @confirm="confirm"
     />
+
+    <SftpKeysDialog v-if="keysStore.login !== null" :login="keysStore.login" @close="keysStore.close" />
 
     <SftpUserCreatedDialog
       v-if="store.revealedCredential !== null"

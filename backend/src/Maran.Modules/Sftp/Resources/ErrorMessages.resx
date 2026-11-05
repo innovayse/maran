@@ -36,4 +36,25 @@
   <data name="AccountNotFound">
     <value>This account could not be found.</value>
   </data>
+  <data name="SftpKeyLimitReached">
+    <value>This SFTP user already has the maximum number of public keys. Remove a key you no longer use, then try again.</value>
+  </data>
+  <data name="SftpKeyDuplicate">
+    <value>This public key is already added to this SFTP user.</value>
+  </data>
+  <data name="SftpKeyNotFound">
+    <value>This public key could not be found.</value>
+  </data>
+  <data name="SftpKeyInvalid">
+    <value>This is not a valid public key. Paste a single line in the OpenSSH format, for example one that starts with ssh-ed25519.</value>
+  </data>
+  <data name="SftpKeyLabelInvalid">
+    <value>A key label must be 1 to 64 characters long and must not contain control characters.</value>
+  </data>
+  <data name="SftpSessionsNotEnded">
+    <value>The key is already refused for new sign-ins, but the open sessions of this SFTP user could not be ended and may still be running. The key is still listed; repeat the removal to end them.</value>
+  </data>
+  <data name="SftpKeyChangeFailed">
+    <value>The key change could not be saved. Check the list of keys, then try again.</value>
+  </data>
 </root>
