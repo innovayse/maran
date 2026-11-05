@@ -204,6 +204,7 @@ public sealed class CertificateRenewalAnonymousCallerTests : IAsyncLifetime
             new CertificateInstaller(agent, sites),
             agentSites,
             new CertificateAuditJournal(new RecordingAuditWriter(), principal),
+            new SilentAlertMailer(),
             new FixedInstantClock(),
             NullLogger<CertificateRenewalHandler>.Instance,
             new DiscardingTaskRecorder());
@@ -362,6 +363,19 @@ public sealed class CertificateRenewalAnonymousCallerTests : IAsyncLifetime
         public Task<Result> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
         {
             throw new NotSupportedException("Renewal of a site certificate removes no panel challenge.");
+        }
+    }
+
+    /// <summary>An expiry alert that raises nothing; the alert is not under test here.</summary>
+    private sealed class SilentAlertMailer : ISslAlertMailer
+    {
+        /// <inheritdoc />
+        public Task<bool> NotifyIfDueAsync(
+            Maran.Modules.Ssl.Domain.Entities.Certificate certificate,
+            DateTimeOffset now,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(false);
         }
     }
 

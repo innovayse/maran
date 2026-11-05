@@ -159,4 +159,72 @@ public sealed class CertificateTests
 
         Assert.Equal(DateTimeOffset.MinValue, certificate.NextAttemptAllowedAt());
     }
+
+    /// <summary>A new certificate has no expiry alert outstanding.</summary>
+    [Fact]
+    public void A_new_certificate_has_no_expiry_alert_outstanding()
+    {
+        var certificate = SslTestContext.Certificate(Guid.NewGuid(), "f.example.com", Now.AddDays(10));
+
+        Assert.Null(certificate.ExpiryAlertedAt);
+    }
+
+    /// <summary>Marking an expiry alert records the instant it was raised.</summary>
+    [Fact]
+    public void Marking_an_expiry_alert_records_the_instant_it_was_raised()
+    {
+        var certificate = SslTestContext.Certificate(Guid.NewGuid(), "g.example.com", Now.AddDays(10));
+
+        certificate.MarkExpiryAlerted(Now);
+
+        Assert.Equal(Now, certificate.ExpiryAlertedAt);
+    }
+
+    /// <summary>A second expiry alert mark keeps the first instant.</summary>
+    [Fact]
+    public void A_second_expiry_alert_mark_keeps_the_first_instant()
+    {
+        var certificate = SslTestContext.Certificate(Guid.NewGuid(), "h.example.com", Now.AddDays(10));
+
+        certificate.MarkExpiryAlerted(Now);
+        certificate.MarkExpiryAlerted(Now.AddDays(1));
+
+        Assert.Equal(Now, certificate.ExpiryAlertedAt);
+    }
+
+    /// <summary>Clearing the expiry alert forgets it.</summary>
+    [Fact]
+    public void Clearing_the_expiry_alert_forgets_it()
+    {
+        var certificate = SslTestContext.Certificate(Guid.NewGuid(), "i.example.com", Now.AddDays(10));
+        certificate.MarkExpiryAlerted(Now);
+
+        certificate.ClearExpiryAlert();
+
+        Assert.Null(certificate.ExpiryAlertedAt);
+    }
+
+    /// <summary>A failed renewal leaves the expiry alert in place.</summary>
+    [Fact]
+    public void A_failed_renewal_leaves_the_expiry_alert_in_place()
+    {
+        var certificate = SslTestContext.Certificate(Guid.NewGuid(), "j.example.com", Now.AddDays(10));
+        certificate.MarkExpiryAlerted(Now);
+
+        certificate.RenewalFailed("AcmeValidationFailed", Now.AddDays(1));
+
+        Assert.Equal(Now, certificate.ExpiryAlertedAt);
+    }
+
+    /// <summary>A successful renewal clears the expiry alert.</summary>
+    [Fact]
+    public void A_successful_renewal_clears_the_expiry_alert()
+    {
+        var certificate = SslTestContext.Certificate(Guid.NewGuid(), "k.example.com", Now.AddDays(10));
+        certificate.MarkExpiryAlerted(Now);
+
+        certificate.Renewed(Now.AddDays(90), Now.AddDays(1));
+
+        Assert.Null(certificate.ExpiryAlertedAt);
+    }
 }

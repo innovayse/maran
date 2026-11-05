@@ -15,4 +15,13 @@
   <data name="SslModuleDisplayName">
     <value>SSL-сертификаты</value>
   </data>
+  <data name="AcmeDirectoryKindProduction">
+    <value>Рабочий центр сертификации</value>
+  </data>
+  <data name="AcmeDirectoryKindStaging">
+    <value>Тестовый центр сертификации (сертификаты не считаются доверенными)</value>
+  </data>
+  <data name="AcmeDirectoryKindCustom">
+    <value>Собственный центр сертификации</value>
+  </data>
 </root>

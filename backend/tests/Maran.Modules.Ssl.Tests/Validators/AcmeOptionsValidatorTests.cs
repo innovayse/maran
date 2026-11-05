@@ -87,4 +87,57 @@ public sealed class AcmeOptionsValidatorTests
         Assert.NotNull(result.FailureMessage);
         Assert.Contains(nameof(AcmeOptions.ContactEmail), result.FailureMessage, StringComparison.Ordinal);
     }
+
+    /// <summary>Both well-known Let's Encrypt directories pass, the positive control for the refusals below.</summary>
+    /// <param name="url">The directory URL.</param>
+    [Theory]
+    [InlineData("https://acme-v02.api.letsencrypt.org/directory")]
+    [InlineData("https://acme-staging-v02.api.letsencrypt.org/directory")]
+    public void A_public_https_directory_passes(string url)
+    {
+        var options = new AcmeOptions { DirectoryUrl = url };
+
+        Assert.True(_validator.Validate(name: null, options).Succeeded);
+    }
+
+    /// <summary>A private certificate authority on a private address or port passes.</summary>
+    /// <param name="url">The directory URL.</param>
+    [Theory]
+    [InlineData("https://10.0.0.5:14000/dir")]
+    [InlineData("https://ca.internal.example:9000/acme/directory")]
+    [InlineData("https://localhost:14000/dir")]
+    public void A_private_authority_directory_passes(string url)
+    {
+        var options = new AcmeOptions { DirectoryUrl = url };
+
+        Assert.True(_validator.Validate(name: null, options).Succeeded);
+    }
+
+    /// <summary>A directory URL that is not a plain absolute https URL is refused.</summary>
+    /// <param name="url">The directory URL.</param>
+    [Theory]
+    [InlineData("http://acme-v02.api.letsencrypt.org/directory")]
+    [InlineData("ftp://ca.example/directory")]
+    [InlineData("/directory")]
+    [InlineData("acme-v02.api.letsencrypt.org/directory")]
+    [InlineData("https://")]
+    [InlineData("https://user:secret@ca.example/directory")]
+    [InlineData("https://user@ca.example/directory")]
+    [InlineData("https://ca.example/directory#frag")]
+    [InlineData("https://ca.example/directory#")]
+    [InlineData("https://ca.example/dir ectory")]
+    [InlineData(" https://ca.example/directory")]
+    [InlineData("https://ca.example/directory\r\nHost: evil")]
+    [InlineData("https://ca.example/dir\u0001ectory")]
+    [InlineData("")]
+    public void A_directory_that_is_not_a_plain_absolute_https_url_is_refused(string url)
+    {
+        var options = new AcmeOptions { DirectoryUrl = url };
+
+        var result = _validator.Validate(name: null, options);
+
+        Assert.True(result.Failed);
+        Assert.NotNull(result.FailureMessage);
+        Assert.Contains(nameof(AcmeOptions.DirectoryUrl), result.FailureMessage, StringComparison.Ordinal);
+    }
 }

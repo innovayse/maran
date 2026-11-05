@@ -4,6 +4,7 @@ using Maran.Modules.Ssl.Domain.Enums;
 using Maran.Modules.Ssl.Jobs;
 using Maran.Modules.Ssl.Mappers;
 using Maran.Modules.Ssl.Persistence;
+using Maran.Modules.Ssl.Services;
 using Maran.SharedKernel.Extensions;
 using Maran.SharedKernel.Utilities.Text;
 
@@ -31,13 +32,21 @@ public sealed class ListCertificatesQueryHandler
     /// <summary>The clock the status and the expiring window are measured against.</summary>
     private readonly IClock _clock;
 
+    /// <summary>Resolves each stored renewal failure code to the sentence in the caller's language.</summary>
+    private readonly CertificateRenewalFailureMessages _failures;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Ssl module's database context.</param>
     /// <param name="clock">The clock the status and the expiring window are measured against.</param>
-    public ListCertificatesQueryHandler(SslDbContext dbContext, IClock clock)
+    /// <param name="failures">Resolves each stored renewal failure code to its sentence.</param>
+    public ListCertificatesQueryHandler(
+        SslDbContext dbContext,
+        IClock clock,
+        CertificateRenewalFailureMessages failures)
     {
         _dbContext = dbContext;
         _clock = clock;
+        _failures = failures;
     }
 
     /// <summary>
@@ -88,6 +97,9 @@ public sealed class ListCertificatesQueryHandler
 
         var page = await certificates.ToPagedAsync(query, ListCertificatesSorts.Map, cancellationToken);
 
-        return Result<PagedResult<CertificateDto>>.Ok(page.Map(CertificateMapper.From));
+        return Result<PagedResult<CertificateDto>>.Ok(page.Map(certificate =>
+        {
+            return CertificateMapper.From(certificate, _failures.Describe(certificate.LastRenewalFailureCode));
+        }));
     }
 }

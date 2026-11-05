@@ -141,6 +141,7 @@ public static class ExpectedErrorStatuses
             ["CertificatePemRequired"] = ErrorType.Validation,
             ["CertificatePemTooLarge"] = ErrorType.Validation,
             ["CertificateNotFound"] = ErrorType.NotFound,
+            ["CertificateRenewalFailedGeneric"] = ErrorType.Failure,
             ["CertificateStatusUnknown"] = ErrorType.Validation,
             ["CronCommandInvalid"] = ErrorType.Validation,
             ["CronEntryAlreadyExists"] = ErrorType.Conflict,

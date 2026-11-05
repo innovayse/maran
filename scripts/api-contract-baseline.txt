@@ -309,6 +309,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/backups/attention
   GET /api/v1/backups/{}
   GET /api/v1/certificates
+  GET /api/v1/certificates/acme-directory
   GET /api/v1/cron-entries
   GET /api/v1/cron-entries/{}/output
   GET /api/v1/cron-entries/{}/runs

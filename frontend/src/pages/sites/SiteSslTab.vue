@@ -28,6 +28,7 @@
  * error. The actions below the list do not wait for it.
  */
 import { differenceInMilliseconds, parseISO } from "date-fns";
+import AcmeDirectoryLine from "../../components/ssl/AcmeDirectoryLine.vue";
 import CertificateCard from "../../components/ssl/CertificateCard.vue";
 import CustomCertificateForm from "../../components/ssl/CustomCertificateForm.vue";
 import { computed, onMounted, ref, type ComputedRef, type Ref } from "vue";
@@ -38,6 +39,7 @@ import UiCard from "../../components/ui/UiCard.vue";
 import UiConfirm from "../../components/ui/UiConfirm.vue";
 import UiEmptyState from "../../components/ui/UiEmptyState.vue";
 import UiLoadingRegion from "../../components/ui/UiLoadingRegion.vue";
+import { useCallerRole } from "../../composables/useCallerRole";
 import { useCertificatesStore } from "../../stores/certificates";
 import { useLocaleStore } from "../../stores/locale";
 import type { Certificate, CertificateAttention, CustomCertificateMaterial } from "../../types/certificate";
@@ -93,6 +95,7 @@ const props = defineProps<{
 const { t } = useI18n();
 const store = useCertificatesStore();
 const localeStore = useLocaleStore();
+const { isAdmin } = useCallerRole();
 
 /** Whether the upload form is open. */
 const isUploading: Ref<boolean> = ref(false);
@@ -201,6 +204,10 @@ const attentionOf = (certificate: Certificate): CertificateAttention | null => {
  * @returns Resolves once the request has settled, successfully or not.
  */
 const load = async (): Promise<void> => {
+  // The directory line is for administrators; the panel refuses everyone else, so it is not asked.
+  if (isAdmin.value) {
+    void store.loadAcmeDirectory();
+  }
   await store.load(props.siteId);
 };
 
@@ -283,6 +290,8 @@ onMounted(load);
 
 <template>
   <div class="flex flex-col gap-4">
+    <AcmeDirectoryLine v-if="isAdmin" :directory="store.acmeDirectory" />
+
     <UiLoadingRegion :state="store.listState">
       <template #error>
         <UiAlert variant="error">{{ store.errorMessage ?? t('app.status.unreachable') }}</UiAlert>

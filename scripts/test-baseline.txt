@@ -712,6 +712,7 @@ spa	shell/sidebar-submenu.spec.ts	9	0	0
 spa	shell/submenu-current-child.spec.ts	5	0	0
 spa	shell/tasks-naming.spec.ts	1	0	0
 spa	shell/theme-switch.spec.ts	4	0	0
+spa	sites/ssl-renewal-failures.spec.ts	10	0	0
 spa	sites/account-filter.spec.ts	3	0	0
 spa	sites/detail-loading.spec.ts	6	0	0
 spa	sites/detail.spec.ts	8	0	0

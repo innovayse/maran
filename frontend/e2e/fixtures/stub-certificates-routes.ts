@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { Certificate } from '../../src/types/certificate'
+import type { AcmeDirectory, Certificate } from '../../src/types/certificate'
 import { pagedAnswer, type PagedRules } from './paged-answer'
 
 /**
@@ -116,6 +116,38 @@ export const stubCertificatesProblem = async (page: Page, detail: string): Promi
   })
 }
 
+/** The ACME directory endpoint, administrators only. */
+const ACME_DIRECTORY_PATTERN = '**/api/v1/certificates/acme-directory'
+
+/**
+ * Fulfils `GET /api/v1/certificates/acme-directory` with the directory the panel reports. Register it
+ * AFTER {@link stubCertificates}: Playwright gives priority to the most recently registered route.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param directory The directory to report.
+ * @returns Resolves once the route is installed.
+ */
+export const stubAcmeDirectory = async (page: Page, directory: AcmeDirectory): Promise<void> => {
+  await page.route(ACME_DIRECTORY_PATTERN, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(directory) })
+  })
+}
+
+/**
+ * Fulfils `GET /api/v1/certificates/acme-directory` with a 500 problem, so a spec can assert a failed
+ * directory read leaves the tab working. Register it AFTER {@link stubCertificates}.
+ * @param page The Playwright page whose network the route is installed on.
+ * @returns Resolves once the route is installed.
+ */
+export const stubAcmeDirectoryFailure = async (page: Page): Promise<void> => {
+  await page.route(ACME_DIRECTORY_PATTERN, async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ code: 'HostUnexpectedError', title: 'Unexpected error', detail: 'The directory read failed.' }),
+    })
+  })
+}
+
 /**
  * Fulfils `POST /api/v1/certificates/custom` with a 400 RFC 7807 refusal carrying `code` and
  * `detail`, the way the panel refuses material it cannot install. Register it AFTER
@@ -168,5 +200,6 @@ export const certificateFor = (
     lastRenewalAttemptAt: null,
     lastRenewalErrorCode: null,
     consecutiveRenewalFailures: 0,
+    lastRenewalError: null,
   }
 }

@@ -142,10 +142,11 @@ public static class DisplayNameExemptions
             "LastRenewalErrorCode",
             DisplayNameExemptionKind.NotAnOperatorFacingName,
             "frontend/src/types/certificate.ts",
-            "Carried for diagnosis beside the failure count; no screen prints it. It is on this "
-            + "list rather than off the wire because a support session reads it from the response, "
-            + "and the day a screen does show it this entry stops being true — which is what the "
-            + "evidence check is for."),
+            "Carried for diagnosis beside the failure count; no screen prints it. The sentence a "
+            + "screen shows is the LastRenewalError member beside it, resolved by the backend in the "
+            + "reader's language. It is on this list rather than off the wire because a support "
+            + "session reads the code from the response, and the day a screen does show it this "
+            + "entry stops being true — which is what the evidence check is for."),
         new(
             "Maran.Modules.Ftp.Common.FtpsStatusDto",
             "DesiredState",

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="CertificateExpiryAlertSubject">
+    <value>{0} տիրույթի վկայագրի ժամկետը շուտով լրանում է</value>
+  </data>
+  <data name="CertificateExpiryAlertBody">
+    <value>{0} տիրույթի վկայագիրը լրանում է {2} UTC, մնացել է {1} օր, և դեռ չի երկարաձգվել։ Եթե վահանակը ինքնուրույն չերկարաձգի, թողարկեք այն վկայագրերի էջից։</value>
+  </data>
+  <data name="CertificateExpiryAlertLastFailure">
+    <value>Երկարաձգման վերջին փորձը ձախողվեց՝ {0}</value>
+  </data>
+</root>
