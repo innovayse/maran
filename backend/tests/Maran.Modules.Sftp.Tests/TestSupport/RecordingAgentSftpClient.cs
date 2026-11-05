@@ -115,4 +115,26 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
 
         return Task.FromResult(EndSessionsResult ?? Result<int>.Ok(0));
     }
+
+    /// <summary>Every key-set replacement this client was asked for, in order.</summary>
+    public List<AgentSetAuthorizedKeysCall> SetAuthorizedKeysCalls { get; } = [];
+
+    /// <summary>Runs when <see cref="SetAuthorizedKeysAsync"/> is called, so a test can observe the order of calls.</summary>
+    public Action? OnSetAuthorizedKeys { get; set; }
+
+    /// <summary>What <see cref="SetAuthorizedKeysAsync"/> answers; success by default.</summary>
+    public Result? SetAuthorizedKeysResult { get; set; }
+
+    /// <inheritdoc/>
+    public Task<Result> SetAuthorizedKeysAsync(
+        string accountUsername,
+        string sftpUsername,
+        IReadOnlyList<string> publicKeys,
+        CancellationToken cancellationToken)
+    {
+        SetAuthorizedKeysCalls.Add(new AgentSetAuthorizedKeysCall(accountUsername, sftpUsername, publicKeys.ToList()));
+        OnSetAuthorizedKeys?.Invoke();
+
+        return Task.FromResult(SetAuthorizedKeysResult ?? Result.Ok());
+    }
 }

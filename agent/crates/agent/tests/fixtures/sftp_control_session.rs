@@ -33,11 +33,13 @@
 //! daemon's key is not what any of these tests are about.
 
 use std::io::{BufRead as _, BufReader, Write as _};
+use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::thread;
 use std::time::Duration;
 
+use crate::polygon_sftp_login::PolygonSftpLogin;
 use crate::polygon_sshd::{PolygonSshd, SSHD_ADDRESS, SSHD_PORT};
 
 /// How long a single reply may take before the session reports it never came.
@@ -85,7 +87,8 @@ impl SftpControlSession {
     pub fn login(user: &str, password: &str) -> (Self, String) {
         let askpass = PolygonSshd::askpass(password);
 
-        let mut client = Command::new("sftp")
+        let mut command = Command::new("sftp");
+        command
             .args([
                 "-P",
                 SSHD_PORT,
@@ -103,7 +106,60 @@ impl SftpControlSession {
             ])
             .env("SSH_ASKPASS", &askpass)
             .env("SSH_ASKPASS_REQUIRE", "force")
-            .env("DISPLAY", ":0")
+            .env("DISPLAY", ":0");
+
+        Self::open(command)
+    }
+
+    /// Opens a session as `user` with the private key at `identity` and nothing
+    /// else, and returns it together with the client's first reply (issue #135).
+    ///
+    /// Password authentication is switched off on the CLIENT, as in
+    /// `PolygonSshd::sftp_with_key`, so a session that opens was opened by the
+    /// key: a quiet fallback to a password prompt would make a revoked key look
+    /// like a working one.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the client cannot be started at all, or when its pipes
+    /// cannot be taken.
+    pub fn login_with_key(user: &str, identity: &Path) -> (Self, String) {
+        let mut command = Command::new("sftp");
+        command.args([
+            "-P",
+            SSHD_PORT,
+            "-i",
+            &identity.display().to_string(),
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "PasswordAuthentication=no",
+            "-o",
+            "KbdInteractiveAuthentication=no",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-b",
+            "-",
+            &format!("{user}@{SSHD_ADDRESS}"),
+        ]);
+
+        Self::open(command)
+    }
+
+    /// Starts the client `command` describes with piped streams, and reads its
+    /// first reply. The one place a session is wired up, whatever it
+    /// authenticates with.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the client cannot be started at all, or when its pipes
+    /// cannot be taken.
+    fn open(mut command: Command) -> (Self, String) {
+        let mut client = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -208,6 +264,48 @@ impl SftpControlSession {
             });
 
         self.reply()
+    }
+
+    /// Tries to fetch the planted customer file through this session, and
+    /// reports BOTH what the session said and whether any bytes landed.
+    ///
+    /// The assertion belongs on the RETRIEVED FILE and not on what the client
+    /// printed: a client that reported `Fetching` and wrote nothing would
+    /// satisfy a check on its output, and the question is whether the
+    /// customer's data still moves. `probe_command` rather than a strict
+    /// command, because after a session is ended the client process is dead and
+    /// the WRITE is what fails.
+    pub fn fetch_attempt(&mut self, tag: &str) -> (String, Option<String>) {
+        let landing = std::env::temp_dir().join(format!("maran-sftp-live-{tag}.txt"));
+        let _ = std::fs::remove_file(&landing);
+
+        let said = self.probe_command(&format!(
+            "get /home/{} {}",
+            PolygonSftpLogin::CUSTOMER_FILE,
+            landing.to_str().expect("a utf-8 path")
+        ));
+
+        (said, std::fs::read_to_string(&landing).ok())
+    }
+
+    /// Fetches the planted customer file through this session and returns the
+    /// bytes that landed. The fallible half is [`Self::fetch_attempt`]; the two
+    /// ask the daemon exactly the same question, so a test asserting a session
+    /// is gone and one asserting it works cannot drift apart.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the download landed nowhere, quoting what the session said —
+    /// which is the outcome that would mean the daemon HAD closed the session.
+    pub fn fetch_through(&mut self, tag: &str) -> String {
+        let (said, landed) = self.fetch_attempt(tag);
+
+        landed.unwrap_or_else(|| {
+            panic!(
+                "the transfer through the open session landed nothing; \
+                 the session said: {said}"
+            )
+        })
     }
 
     /// Reads lines until the appended `pwd` has answered.

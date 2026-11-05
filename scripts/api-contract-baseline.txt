@@ -17,7 +17,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 48 endpoints, 183 members
+covered: 49 endpoints, 185 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -235,6 +235,9 @@ POST /api/v1/setup  ->  CompleteSetupCommand
 POST /api/v1/sftp-users  ->  CreateSftpUserCommand
   accountId: string
   name: string
+POST /api/v1/sftp-users/{}/keys  ->  AddSftpUserKeyCommand
+  label: string
+  publicKey: string
 POST /api/v1/sites  ->  CreateSiteCommand
   accountId: string
   domain: string
@@ -267,6 +270,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   DELETE /api/v1/resellers/{} — route-only call, no JSON body
   DELETE /api/v1/sessions/{} — route-only call, no JSON body
   DELETE /api/v1/sftp-users/{} — route-only call, no JSON body
+  DELETE /api/v1/sftp-users/{}/keys/{} — route-only call, no JSON body
   DELETE /api/v1/sites/{} — route-only call, no JSON body
   DELETE /api/v1/view-as — route-only call, no JSON body
   POST /api/v1/accounts/{}/reactivate — route-only call, no JSON body
@@ -361,6 +365,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/setup/state
   GET /api/v1/sftp-users
   GET /api/v1/sftp-users/{}
+  GET /api/v1/sftp-users/{}/keys
   GET /api/v1/sites
   GET /api/v1/sites/choices
   GET /api/v1/sites/limits

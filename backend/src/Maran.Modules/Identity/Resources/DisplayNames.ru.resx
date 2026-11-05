@@ -138,6 +138,12 @@
   <data name="AuditActionSftpUserSessionsEnded">
     <value>Завершены сеансы SFTP</value>
   </data>
+  <data name="AuditActionSftpKeyAdded">
+    <value>Добавлен ключ SFTP</value>
+  </data>
+  <data name="AuditActionSftpKeyRemoved">
+    <value>Удалён ключ SFTP</value>
+  </data>
   <data name="AuditActionFtpsEnabled">
     <value>Служба FTPS включена</value>
   </data>

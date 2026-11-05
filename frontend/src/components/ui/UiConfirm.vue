@@ -39,6 +39,7 @@
 import UiButton from './UiButton.vue'
 import UiIcon from './UiIcon.vue'
 import UiModal from './UiModal.vue'
+import type { FocusTarget } from '../../composables/useFocusTrap'
 import UiSpinner from './UiSpinner.vue'
 
 /** Props accepted by {@link UiConfirm}. */
@@ -66,8 +67,14 @@ const props = withDefaults(
     actingLabel: string
     /** Whether the action removes or interrupts something, which is how its button is weighted. */
     destructive?: boolean
+    /**
+     * Where focus goes on close when the control that opened the dialog is gone by then (a row the
+     * action removed). Pass it when the confirmation sits over another dialog, so focus stays inside
+     * that dialog's trap instead of falling to `<main>` behind it. See `UiModal`.
+     */
+    returnFocusTo?: FocusTarget
   }>(),
-  { acting: false, destructive: true },
+  { acting: false, destructive: true, returnFocusTo: undefined },
 )
 
 /** Events emitted by {@link UiConfirm}. */
@@ -108,6 +115,7 @@ const submit = (): void => {
     :title="title"
     :close-label="closeLabel"
     :dismissible="!acting"
+    :return-focus-to="returnFocusTo"
     @close="close"
   >
     <UiSpinner v-if="acting" :label="actingLabel" />

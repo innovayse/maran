@@ -44,6 +44,15 @@ public sealed class SftpDbContext : DbContext
         }
     }
 
+    /// <summary>The public keys of those logins, scoped to the tenant through the owning login.</summary>
+    public DbSet<SftpUserKey> SftpUserKeys
+    {
+        get
+        {
+            return Set<SftpUserKey>();
+        }
+    }
+
     /// <summary>
     /// True when the caller is an administrator, who sees every account's rows. Read per context
     /// instance by the tenant filter, which an expression tree cannot express as a type switch.
@@ -91,12 +100,19 @@ public sealed class SftpDbContext : DbContext
     {
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfiguration(new SftpUserConfiguration());
+        modelBuilder.ApplyConfiguration(new SftpUserKeyConfiguration());
 
         // Spec §8: a tenant row is not returned to another tenant PHYSICALLY, not by a handler
         // remembering to filter. An administrator sees everything; a customer's context carries
         // their account id and the filter closes over it.
         modelBuilder.Entity<SftpUser>().HasQueryFilter(sftpUser =>
             SeesEveryAccount || sftpUser.AccountId == OwnAccountId);
+
+        // A key belongs to whoever owns the login it opens, so its scope is read through the required
+        // relationship rather than from a second copy of the account id that could disagree with the
+        // login's own (rules/security.md item 6: every tenant entity is filtered).
+        modelBuilder.Entity<SftpUserKey>().HasQueryFilter(key =>
+            SeesEveryAccount || key.SftpUser.AccountId == OwnAccountId);
 
         base.OnModelCreating(modelBuilder);
     }

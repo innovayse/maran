@@ -1,8 +1,11 @@
+using Maran.Modules.Sftp.Commands.AddSftpUserKey;
 using Maran.Modules.Sftp.Commands.CreateSftpUser;
 using Maran.Modules.Sftp.Commands.DeleteSftpUser;
+using Maran.Modules.Sftp.Commands.RemoveSftpUserKey;
 using Maran.Modules.Sftp.Commands.ResetSftpUserPassword;
 using Maran.Modules.Sftp.Common;
 using Maran.Modules.Sftp.Queries.GetSftpUser;
+using Maran.Modules.Sftp.Queries.ListSftpUserKeys;
 using Maran.Modules.Sftp.Queries.ListSftpUsers;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -130,6 +133,79 @@ public sealed class SftpUsersController : BaseApiController
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeleteSftpUserCommand(id, ClientIpAddress, CallerUserAgent);
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Lists one page of the public keys registered for one SFTP login: label, algorithm, fingerprint
+    /// and when each was added — never the key itself. Another customer's login answers 404, not 403.
+    /// </summary>
+    /// <param name="id">The login whose keys to list.</param>
+    /// <param name="query">Paging, search by label and sort, from the query string.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("{id:guid}/keys")]
+    [ViewAsAccess(ViewAsAccess.Read)]
+    [ProducesResponseType(typeof(PagedResult<SftpUserKeyDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetKeysAsync(
+        Guid id,
+        [FromQuery] ListSftpUserKeysQuery query,
+        CancellationToken cancellationToken)
+    {
+        query = query with { SftpUserId = id };
+
+        return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<SftpUserKeyDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Registers a public key for one SFTP login, so the login can be signed into with the matching
+    /// private key. Another customer's login answers 404, not 403.
+    /// </summary>
+    /// <param name="id">The login the key is for.</param>
+    /// <param name="command">The label and the pasted key.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("{id:guid}/keys")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
+    [ProducesResponseType(typeof(SftpUserKeyDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> AddKeyAsync(
+        Guid id,
+        [FromBody] AddSftpUserKeyCommand command,
+        CancellationToken cancellationToken)
+    {
+        command = command with { SftpUserId = id, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+
+        var result = await _bus.InvokeAsync<Result<SftpUserKeyDto>>(command, cancellationToken);
+        return ToCreatedActionResult(
+            result, $"/api/v1/sftp-users/{id}/keys/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
+    }
+
+    /// <summary>
+    /// Removes one public key from a login and ends that login's open sessions, including ones that
+    /// signed in another way. Another customer's login or key answers 404, not 403.
+    /// </summary>
+    /// <param name="id">The login the key belongs to.</param>
+    /// <param name="keyId">The key to remove.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpDelete("{id:guid}/keys/{keyId:guid}")]
+    [ViewAsAccess(ViewAsAccess.Refused)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> RemoveKeyAsync(Guid id, Guid keyId, CancellationToken cancellationToken)
+    {
+        var command = new RemoveSftpUserKeyCommand(id, keyId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

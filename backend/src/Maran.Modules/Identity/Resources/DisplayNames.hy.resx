@@ -138,6 +138,12 @@
   <data name="AuditActionSftpUserSessionsEnded">
     <value>Ավարտվեցին SFTP նիստերը</value>
   </data>
+  <data name="AuditActionSftpKeyAdded">
+    <value>Ավելացվեց SFTP բանալի</value>
+  </data>
+  <data name="AuditActionSftpKeyRemoved">
+    <value>SFTP բանալին հեռացվեց</value>
+  </data>
   <data name="AuditActionFtpsEnabled">
     <value>FTPS ծառայությունը միացվեց</value>
   </data>

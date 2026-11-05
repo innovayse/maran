@@ -101,6 +101,48 @@ export interface RevealedSftpCredential {
 }
 
 /**
+ * One public key that may sign in as an SFTP login, mirroring the backend's `SftpUserKeyDto`
+ * field-for-field. The key body is never sent back: the panel keeps it, and the list shows only
+ * what lets a person recognise the key.
+ */
+export interface SftpUserKey {
+  /** The key's identity, and the only identifier a removal may name. */
+  id: string
+  /** The name the customer gave it ("Work laptop"), 1 to 64 characters. */
+  label: string
+  /** The key type as the panel read it from the key (`ssh-ed25519`, `ecdsa-sha2-nistp256`). */
+  algorithm: string
+  /** The SHA-256 fingerprint the panel computed, `SHA256:` then unpadded base64, as `ssh-keygen -l` prints it. */
+  fingerprint: string
+  /** The instant the key was added, as an ISO-8601 string. */
+  createdAt: string
+}
+
+/**
+ * What the keys list asks the panel for: one page, optionally narrowed by a search on the label.
+ * Sent as query parameters; the server validates every field.
+ */
+export interface SftpUserKeysQuery {
+  /** The 1-based page asked for. */
+  page: number
+  /** Rows per page; one of the sizes the panel accepts. */
+  pageSize: number
+  /** Free-text search on the label; empty for none. */
+  search: string
+}
+
+/**
+ * Request body for `POST /api/v1/sftp-users/{id}/keys`, binding the backend's
+ * `AddSftpUserKeyCommand` field-for-field. The login is named by the route, never by the body.
+ */
+export interface AddSftpUserKeyRequest {
+  /** The name to give the key, 1 to 64 characters. */
+  label: string
+  /** The public key as one `<algorithm> <base64> [comment]` line; the comment is dropped by the server. */
+  publicKey: string
+}
+
+/**
  * Typed access to the SFTP users endpoints.
  *
  * Called from Pinia stores only — never from a component (rules/vue.md).
@@ -136,6 +178,32 @@ export interface SftpApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    */
   remove: (id: string, signal?: AbortSignal) => Promise<void>
+
+  /**
+   * Lists one page of a login's public keys. Another customer's login answers 404, not 403.
+   * @param loginId The login whose keys are listed.
+   * @param query The page, size and label search.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The page the panel answered, with the total across every page.
+   */
+  listKeys: (loginId: string, query: SftpUserKeysQuery, signal?: AbortSignal) => Promise<Paged<SftpUserKey>>
+
+  /**
+   * Adds a public key to a login. Adding never ends an open session.
+   * @param loginId The login that gains the key.
+   * @param request The label and the key line.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The key as stored.
+   */
+  addKey: (loginId: string, request: AddSftpUserKeyRequest, signal?: AbortSignal) => Promise<SftpUserKey>
+
+  /**
+   * Removes a public key from a login; the login's open sessions are ended.
+   * @param loginId The login that loses the key.
+   * @param keyId The key to remove.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   */
+  removeKey: (loginId: string, keyId: string, signal?: AbortSignal) => Promise<void>
 }
 
 /** An action the panel offers on an SFTP login's row, confirmed by the operator before it is sent. */

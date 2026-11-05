@@ -56,6 +56,9 @@ public sealed class SftpAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/sftp-users/{id}" },
             { "POST", "/api/v1/sftp-users/{id}/password" },
             { "DELETE", "/api/v1/sftp-users/{id}" },
+            { "GET", "/api/v1/sftp-users/{id}/keys" },
+            { "POST", "/api/v1/sftp-users/{id}/keys" },
+            { "DELETE", "/api/v1/sftp-users/{id}/keys/{keyId}" },
         };
     }
 
@@ -69,6 +72,9 @@ public sealed class SftpAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/sftp-users/{id}" },
             { "POST", "/api/v1/sftp-users/{id}/password" },
             { "DELETE", "/api/v1/sftp-users/{id}" },
+            { "GET", "/api/v1/sftp-users/{id}/keys" },
+            { "POST", "/api/v1/sftp-users/{id}/keys" },
+            { "DELETE", "/api/v1/sftp-users/{id}/keys/{keyId}" },
         };
     }
 
@@ -337,12 +343,14 @@ public sealed class SftpAuthorizationTests : IAsyncLifetime
             .ToHashSet(StringComparer.Ordinal);
     }
 
-    /// <summary>Substitutes a login id into a route template.</summary>
+    /// <summary>Substitutes a login id, and a key id nobody holds, into a route template.</summary>
     /// <param name="path">The route template.</param>
     /// <param name="sftpUserId">The identifier to place in it.</param>
     private static string Substitute(string path, Guid sftpUserId)
     {
-        return path.Replace("{id}", sftpUserId.ToString(), StringComparison.Ordinal);
+        return path
+            .Replace("{id}", sftpUserId.ToString(), StringComparison.Ordinal)
+            .Replace("{keyId}", Guid.NewGuid().ToString(), StringComparison.Ordinal);
     }
 
     /// <summary>Boots the host against this class's PostgreSQL.</summary>
@@ -467,6 +475,12 @@ public sealed class SftpAuthorizationTests : IAsyncLifetime
         if (path.EndsWith("/api/v1/sftp-users", StringComparison.Ordinal))
         {
             return JsonContent.Create(new { accountId = Guid.NewGuid(), name = "newlogin" });
+        }
+
+        if (path.EndsWith("/keys", StringComparison.Ordinal))
+        {
+            // A key the validator accepts, so the request reaches the handler's tenant scoping.
+            return JsonContent.Create(new { label = "laptop", publicKey = SftpKeyFixtures.Ed25519 });
         }
 
         return JsonContent.Create(new { });

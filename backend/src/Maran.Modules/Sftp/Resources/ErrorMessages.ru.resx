@@ -36,4 +36,25 @@
   <data name="AccountNotFound">
     <value>Аккаунт не найден.</value>
   </data>
+  <data name="SftpKeyLimitReached">
+    <value>У этого пользователя SFTP уже максимальное число публичных ключей. Удалите ненужный ключ и повторите попытку.</value>
+  </data>
+  <data name="SftpKeyDuplicate">
+    <value>Этот публичный ключ уже добавлен этому пользователю SFTP.</value>
+  </data>
+  <data name="SftpKeyNotFound">
+    <value>Публичный ключ не найден.</value>
+  </data>
+  <data name="SftpKeyInvalid">
+    <value>Это не публичный ключ. Вставьте одну строку в формате OpenSSH, например начинающуюся с ssh-ed25519.</value>
+  </data>
+  <data name="SftpKeyLabelInvalid">
+    <value>Название ключа должно содержать от 1 до 64 символов и не должно содержать управляющих символов.</value>
+  </data>
+  <data name="SftpSessionsNotEnded">
+    <value>Ключ уже не принимается для новых входов, но открытые сеансы этого пользователя SFTP завершить не удалось, и они могут ещё работать. Ключ остаётся в списке; повторите удаление, чтобы завершить их.</value>
+  </data>
+  <data name="SftpKeyChangeFailed">
+    <value>Изменение ключей не удалось сохранить. Проверьте список ключей и повторите попытку.</value>
+  </data>
 </root>

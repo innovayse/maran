@@ -1,6 +1,12 @@
 import type { Page } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { CreatedSftpUser, SftpUser, SftpUserPassword } from '../../src/types/sftpUser'
+import type {
+  AddSftpUserKeyRequest,
+  CreatedSftpUser,
+  SftpUser,
+  SftpUserKey,
+  SftpUserPassword,
+} from '../../src/types/sftpUser'
 
 /** The collection endpoint the SFTP list and the create form both talk to, with or without a query. */
 const SFTP_USERS_PATTERN = /\/api\/v1\/sftp-users(\?.*)?$/
@@ -164,4 +170,135 @@ export const stubSftpUserActions = async (page: Page, fullName: string): Promise
       body: JSON.stringify(reset),
     })
   })
+}
+
+/** A login's key collection: `GET` lists a page, `POST` adds. The login id is in the path, then `/keys`. */
+const SFTP_USER_KEYS_PATTERN = /\/api\/v1\/sftp-users\/[^/]+\/keys(\?.*)?$/
+
+/** One key of a login: `DELETE` removes it. */
+const SFTP_USER_KEY_PATTERN = /\/api\/v1\/sftp-users\/[^/]+\/keys\/[^/?]+$/
+
+/** The fingerprint a stubbed add answers with, distinct from every catalogue fixture. */
+export const stubbedAddedKeyFingerprint = 'SHA256:AddedKeyFingerprintFromTheStub0123456789abc'
+
+/** How the keys endpoint searches (by label) and sorts, as the panel does. */
+const SFTP_KEY_RULES: PagedRules<SftpUserKey> = {
+  matches: (key, term) => {
+    return key.label.toLowerCase().includes(term)
+  },
+  sorts: {
+    label: (key) => {
+      return key.label
+    },
+    createdAt: (key) => {
+      return key.createdAt
+    },
+  },
+  filters: {},
+}
+
+/** Refusals a spec can have the keys stub answer with; each is an RFC 7807 `detail` the panel localized. */
+export interface SftpKeyRefusals {
+  /** The `detail` of a 400 answering every `POST`, or absent to accept. */
+  add?: string
+  /** The `detail` of a 409 answering every `DELETE`, or absent to accept. */
+  remove?: string
+}
+
+/** What a spec can read back from {@link stubSftpUserKeys}. */
+export interface SftpKeyStubReads {
+  /** Every list request so far, oldest first. */
+  listRequests: () => readonly URL[]
+  /** Every body `POST`ed so far, oldest first. */
+  added: () => readonly AddSftpUserKeyRequest[]
+  /** The path of every `DELETE` so far, oldest first. */
+  removed: () => readonly string[]
+}
+
+/**
+ * Fulfils the keys endpoints of any login: a page honouring `page`, `pageSize`, `search` and `sort`
+ * on `GET`, a created key on `POST` (which joins the catalogue), and an empty 204 on `DELETE` (which
+ * leaves it). A refusal from {@link SftpKeyRefusals} answers instead, with an RFC 7807 body, so a
+ * spec can assert the dialog renders the backend's own sentence verbatim.
+ *
+ * The two patterns are disjoint (the collection ends at `/keys`, a key's path continues past it), so the
+ * order of registration does not decide which route answers.
+ * @param page The Playwright page whose network the routes are installed on.
+ * @param keys The keys the stub knows, in their default order; mutated by an accepted add or remove.
+ * @param refusals Refusals to answer instead of accepting.
+ * @returns Readers of what the page asked.
+ */
+export const stubSftpUserKeys = async (
+  page: Page,
+  keys: SftpUserKey[],
+  refusals: SftpKeyRefusals = {},
+): Promise<SftpKeyStubReads> => {
+  const listRequests: URL[] = []
+  const added: AddSftpUserKeyRequest[] = []
+  const removed: string[] = []
+
+  await page.route(SFTP_USER_KEYS_PATTERN, async (route) => {
+    if (route.request().method() === 'POST') {
+      const submitted = route.request().postDataJSON() as AddSftpUserKeyRequest
+      added.push(submitted)
+      if (refusals.add !== undefined) {
+        await route.fulfill({
+          status: 400,
+          contentType: 'application/problem+json',
+          body: JSON.stringify({ code: 'SftpKeyInvalid', title: 'Validation', detail: refusals.add }),
+        })
+        return
+      }
+      const created: SftpUserKey = {
+        id: `aaaaaaaa-0000-0000-0000-${String(keys.length + 1).padStart(12, '0')}`,
+        label: submitted.label,
+        algorithm: submitted.publicKey.split(' ')[0] ?? '',
+        fingerprint: stubbedAddedKeyFingerprint,
+        createdAt: '2026-09-01T10:00:00Z',
+      }
+      keys.push(created)
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(created) })
+      return
+    }
+
+    listRequests.push(new URL(route.request().url()))
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pagedAnswer(keys, route.request().url(), SFTP_KEY_RULES)),
+    })
+  })
+
+  await page.route(SFTP_USER_KEY_PATTERN, async (route) => {
+    const path = new URL(route.request().url()).pathname
+    removed.push(path)
+    if (refusals.remove !== undefined) {
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ code: 'SftpSessionsNotEnded', title: 'Conflict', detail: refusals.remove }),
+      })
+      return
+    }
+    const keyId = path.split('/').at(-1)
+    const index = keys.findIndex((key) => {
+      return key.id === keyId
+    })
+    if (index >= 0) {
+      keys.splice(index, 1)
+    }
+    await route.fulfill({ status: 204 })
+  })
+
+  return {
+    listRequests: (): readonly URL[] => {
+      return listRequests
+    },
+    added: (): readonly AddSftpUserKeyRequest[] => {
+      return added
+    },
+    removed: (): readonly string[] => {
+      return removed
+    },
+  }
 }

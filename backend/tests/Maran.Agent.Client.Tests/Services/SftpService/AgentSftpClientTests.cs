@@ -486,4 +486,106 @@ public sealed class AgentSftpClientTests
         Assert.Equal("AgentSaturated", result.Error!.Code);
         Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
+
+    /// <summary>The key-set request carries the account, the login suffix and every key in order.</summary>
+    [Fact]
+    public async Task Setting_authorized_keys_sends_the_account_the_login_suffix_and_every_key_in_order()
+    {
+        var stub = new StubSftpService
+        {
+            SetAuthorizedKeysResponse = new SetSftpAuthorizedKeysResponse { Ok = new SetSftpAuthorizedKeysOk() },
+        };
+
+        await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .SetAuthorizedKeysAsync("alice", "web", ["ssh-ed25519 AAAA-one", "ssh-ed25519 AAAA-two"], CancellationToken.None);
+
+        var request = Assert.IsType<SetSftpAuthorizedKeysRequest>(stub.LastSetAuthorizedKeysRequest);
+        Assert.Equal("alice", request.AccountUsername);
+        Assert.Equal("web", request.SftpUsername);
+        Assert.Equal(["ssh-ed25519 AAAA-one", "ssh-ed25519 AAAA-two"], request.PublicKeys);
+    }
+
+    /// <summary>The ok payload maps to a successful result.</summary>
+    [Fact]
+    public async Task Setting_authorized_keys_ok_payload_maps_to_a_successful_result()
+    {
+        var stub = new StubSftpService
+        {
+            SetAuthorizedKeysResponse = new SetSftpAuthorizedKeysResponse
+            {
+                Ok = new SetSftpAuthorizedKeysOk { KeyCount = 1 },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .SetAuthorizedKeysAsync("alice", "web", ["ssh-ed25519 AAAA-one"], CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    /// <summary>An empty set is sent as an empty list and accepted: it is how every key of a login is cleared.</summary>
+    [Fact]
+    public async Task Setting_an_empty_key_set_is_sent_empty_and_accepted_to_clear_every_key()
+    {
+        var stub = new StubSftpService
+        {
+            SetAuthorizedKeysResponse = new SetSftpAuthorizedKeysResponse { Ok = new SetSftpAuthorizedKeysOk() },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .SetAuthorizedKeysAsync("alice", "web", [], CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(Assert.IsType<SetSftpAuthorizedKeysRequest>(stub.LastSetAuthorizedKeysRequest).PublicKeys);
+    }
+
+    /// <summary>A refused key maps to the validation code and its kind, never to a success.</summary>
+    [Fact]
+    public async Task Setting_authorized_keys_invalid_input_maps_to_a_validation_failure()
+    {
+        var stub = new StubSftpService
+        {
+            SetAuthorizedKeysResponse = new SetSftpAuthorizedKeysResponse
+            {
+                Error = new AgentError { Code = ErrorCode.InvalidInput, Message = "key 2 refused" },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .SetAuthorizedKeysAsync("alice", "web", ["not a key"], CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidInput", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+    }
+
+    /// <summary>A login the account does not hold maps to the not-found code.</summary>
+    [Fact]
+    public async Task Setting_authorized_keys_error_payload_maps_to_a_failed_result_with_the_agent_code()
+    {
+        var stub = new StubSftpService
+        {
+            SetAuthorizedKeysResponse = new SetSftpAuthorizedKeysResponse
+            {
+                Error = new AgentError { Code = ErrorCode.NotFound, Message = "no such login" },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance)
+            .SetAuthorizedKeysAsync("alice", "web", ["ssh-ed25519 AAAA-one"], CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentNotFound", result.Error!.Code);
+    }
+
+    /// <summary>A response carrying neither branch is an invalid response and never a success.</summary>
+    [Fact]
+    public async Task Setting_authorized_keys_empty_response_is_an_invalid_response()
+    {
+        var result = await new AgentSftpClient(new StubSftpService(), NullLogger<AgentSftpClient>.Instance)
+            .SetAuthorizedKeysAsync("alice", "web", [], CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
 }

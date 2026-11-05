@@ -36,4 +36,25 @@
   <data name="AccountNotFound">
     <value>Այս հաշիվը չի գտնվել։</value>
   </data>
+  <data name="SftpKeyLimitReached">
+    <value>Այս SFTP օգտատերն արդեն ունի հանրային բանալիների առավելագույն քանակը։ Հեռացրեք ավելորդ բանալին և նորից փորձեք։</value>
+  </data>
+  <data name="SftpKeyDuplicate">
+    <value>Այս հանրային բանալին արդեն ավելացված է այս SFTP օգտատիրոջը։</value>
+  </data>
+  <data name="SftpKeyNotFound">
+    <value>Հանրային բանալին չի գտնվել։</value>
+  </data>
+  <data name="SftpKeyInvalid">
+    <value>Սա վավեր հանրային բանալի չէ։ Տեղադրեք մեկ տող OpenSSH ձևաչափով, օրինակ՝ ssh-ed25519-ով սկսվող։</value>
+  </data>
+  <data name="SftpKeyLabelInvalid">
+    <value>Բանալու անվանումը պետք է լինի 1-ից 64 նիշ և չպետք է պարունակի կառավարող նիշեր։</value>
+  </data>
+  <data name="SftpSessionsNotEnded">
+    <value>Բանալին արդեն չի ընդունվում նոր մուտքերի համար, բայց այս SFTP օգտատիրոջ բաց սեանսները չհաջողվեց ավարտել, և դրանք կարող են դեռ աշխատել։ Բանալին մնում է ցանկում. կրկնեք հեռացումը՝ դրանք ավարտելու համար։</value>
+  </data>
+  <data name="SftpKeyChangeFailed">
+    <value>Բանալիների փոփոխությունը չհաջողվեց պահպանել։ Ստուգեք բանալիների ցանկը և նորից փորձեք։</value>
+  </data>
 </root>

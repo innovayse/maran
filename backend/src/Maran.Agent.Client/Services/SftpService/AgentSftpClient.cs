@@ -175,4 +175,32 @@ public sealed class AgentSftpClient : IAgentSftpClient
             _ => Result<int>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
+
+    /// <inheritdoc/>
+    public async Task<Result> SetAuthorizedKeysAsync(
+        string accountUsername,
+        string sftpUsername,
+        IReadOnlyList<string> publicKeys,
+        CancellationToken cancellationToken)
+    {
+        var request = new SetSftpAuthorizedKeysRequest
+        {
+            AccountUsername = accountUsername,
+            SftpUsername = sftpUsername,
+        };
+
+        // The whole set, in the caller's order; an empty list stays an empty repeated field, which the
+        // host reads as "remove the login's key file".
+        request.PublicKeys.AddRange(publicKeys);
+
+        var response = await _invoker.SetSftpAuthorizedKeysAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            SetSftpAuthorizedKeysResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetSftpAuthorizedKeysResponse.ResultOneofCase.Error => Result.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetAuthorizedKeysAsync))),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
 }

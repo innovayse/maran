@@ -2,10 +2,13 @@ import { useApi } from '../useApi'
 import { listQuery } from '../../utils/listQuery'
 import type { ListRequest, Paged } from '../../types/list'
 import type {
+  AddSftpUserKeyRequest,
   CreateSftpUserRequest,
   CreatedSftpUser,
   SftpApi,
   SftpUser,
+  SftpUserKey,
+  SftpUserKeysQuery,
   SftpUserPassword,
 } from '../../types/sftpUser'
 
@@ -24,7 +27,7 @@ const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
  * the returned object: the name is what appears in a stack trace, and the doc block sits next to
  * the call it describes (rules/vue.md).
  *
- * Two of the four calls answer with a password, and both are named for it — `create` and
+ * Two of the calls answer with a password, and both are named for it — `create` and
  * `resetPassword`. Nothing else in this file returns a credential, and nothing else may be made to:
  * the value exists for one response and is never stored anywhere it could be read back.
  * @returns The {@link SftpApi} bound to the panel's SFTP endpoints.
@@ -73,5 +76,41 @@ export const useSftpApi = (): SftpApi => {
     return api.delete<void>(`${SFTP_USERS_PATH}/${id}`, signal)
   }
 
-  return { list, create, resetPassword, remove }
+  /**
+   * Lists one page of a login's public keys, searched by label. A login belonging to somebody else
+   * answers 404, never 403.
+   * @param loginId The login whose keys are listed.
+   * @param query The page, size and label search.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The page the panel answered, with the total across every page.
+   */
+  const listKeys = (loginId: string, query: SftpUserKeysQuery, signal?: AbortSignal): Promise<Paged<SftpUserKey>> => {
+    // The keys list has no sort and no filter; the shared builder wants the full request shape.
+    const request: ListRequest = { ...query, sort: '', filters: {} }
+    return api.get<Paged<SftpUserKey>>(`${SFTP_USERS_PATH}/${loginId}/keys${listQuery(request, {})}`, signal)
+  }
+
+  /**
+   * Adds a public key to a login. Adding a key never ends an open session.
+   * @param loginId The login that gains the key.
+   * @param request The label and the key line.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The key as stored.
+   */
+  const addKey = (loginId: string, request: AddSftpUserKeyRequest, signal?: AbortSignal): Promise<SftpUserKey> => {
+    return api.post<SftpUserKey>(`${SFTP_USERS_PATH}/${loginId}/keys`, request, signal)
+  }
+
+  /**
+   * Removes a public key from a login. The login's open sessions are ended by the panel.
+   * @param loginId The login that loses the key.
+   * @param keyId The key to remove.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns Resolves once the panel removed the key; the answer is an empty 204.
+   */
+  const removeKey = (loginId: string, keyId: string, signal?: AbortSignal): Promise<void> => {
+    return api.delete<void>(`${SFTP_USERS_PATH}/${loginId}/keys/${keyId}`, signal)
+  }
+
+  return { list, create, resetPassword, remove, listKeys, addKey, removeKey }
 }

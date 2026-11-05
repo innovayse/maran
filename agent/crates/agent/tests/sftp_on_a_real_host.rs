@@ -46,17 +46,16 @@ mod polygon_sshd;
 mod polygon_sftp_login;
 
 use std::os::unix::fs::MetadataExt as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
-use maran_agent_core::validation::system::ssh_public_key::SshPublicKey;
 use maran_ops::logins::{ProcessLoginsHost, set_account_logins_locked};
 use maran_ops::sftp::{
     AuthorizedKeySet, ProcessSftpHost, SftpError, SftpUserRequest, create_sftp_user,
-    delete_sftp_user, set_sftp_authorized_keys, set_sftp_password,
+    delete_sftp_user, set_sftp_password,
 };
 
 use polygon_account::PolygonAccount;
@@ -649,39 +648,6 @@ fn the_sshd_configuration_this_product_writes_puts_no_idle_bound_on_an_sftp_sess
     drop(login);
 }
 
-/// A fresh Ed25519 key pair in a temporary directory: the private half's path,
-/// and the public half as `set_sftp_authorized_keys` takes it.
-fn polygon_key_pair(directory: &Path) -> (PathBuf, AuthorizedKeySet) {
-    let identity = directory.join("id_ed25519");
-    let made = Command::new("ssh-keygen")
-        .args(["-q", "-t", "ed25519", "-N", "", "-C", "polygon@test", "-f"])
-        .arg(&identity)
-        .output()
-        .expect("the polygon image ships ssh-keygen");
-    assert!(
-        made.status.success(),
-        "ssh-keygen: {}",
-        PolygonSftpLogin::said(&made)
-    );
-
-    let public = std::fs::read_to_string(identity.with_extension("pub")).expect("a public key");
-    let key = SshPublicKey::parse(public.trim()).expect("ssh-keygen writes an accepted key");
-
-    (identity, AuthorizedKeySet::new(vec![key]).expect("one key"))
-}
-
-/// Replaces `login`'s key set, panicking with the agent's answer on refusal.
-fn set_keys(login: &PolygonSftpLogin, keys: &AuthorizedKeySet) {
-    set_sftp_authorized_keys(
-        &ProcessSftpHost::new(),
-        PolygonSftpLogin::distro(),
-        &login.account,
-        &login.user,
-        keys,
-    )
-    .unwrap_or_else(|error| panic!("setting the login's keys must succeed: {error}"));
-}
-
 #[test]
 #[ignore = "authenticates with a real key against a real sshd: polygon only"]
 fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
@@ -693,7 +659,7 @@ fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
     let account = PolygonAccount::create("polysftpkeys");
     let login = PolygonSftpLogin::create(&account);
     let scratch = tempfile::tempdir().expect("a scratch directory");
-    let (identity, keys) = polygon_key_pair(scratch.path());
+    let (identity, keys) = PolygonSftpLogin::key_pair(scratch.path());
 
     // Inverse control: before any key is set, the key must NOT work, or the
     // success below would prove nothing about the file this code wrote.
@@ -704,7 +670,7 @@ fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
         PolygonSftpLogin::said(&unset)
     );
 
-    set_keys(&login, &keys);
+    login.set_keys(&keys);
     let with_key = sshd.sftp_with_key(login.name(), &identity, "pwd\n");
     assert!(
         with_key.status.success(),
@@ -712,10 +678,7 @@ fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
         PolygonSftpLogin::said(&with_key)
     );
 
-    set_keys(
-        &login,
-        &AuthorizedKeySet::new(Vec::new()).expect("an empty set"),
-    );
+    login.set_keys(&AuthorizedKeySet::new(Vec::new()).expect("an empty set"));
     let revoked = sshd.sftp_with_key(login.name(), &identity, "pwd\n");
     assert!(
         !revoked.status.success(),
@@ -723,7 +686,7 @@ fn a_key_logs_in_and_is_refused_once_revoked_or_suspended() {
         PolygonSftpLogin::said(&revoked)
     );
 
-    set_keys(&login, &keys);
+    login.set_keys(&keys);
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
         PolygonSftpLogin::distro(),
