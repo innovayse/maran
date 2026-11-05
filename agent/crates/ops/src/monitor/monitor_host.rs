@@ -181,6 +181,22 @@ pub trait MonitorHost: Send + Sync {
     /// read.
     fn read_sshd_config(&self, path: &str) -> Result<String, MonitorError>;
 
+    /// Whether the marker entry at `path` exists.
+    ///
+    /// `path` is what the `DistroAdapter` names as its reboot-required marker,
+    /// passed in because this seam names no platform location. The entry itself
+    /// is asked about, never what a link points at: presence of the marker is
+    /// the whole answer. The path is a constant in a root-owned system
+    /// directory and no caller value reaches it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::RebootProbeNotRun`] for every failure but "no
+    /// such entry": an absent marker answers `Ok(false)` only when the lookup
+    /// itself succeeded and said so, and a lookup that failed (permission
+    /// denied, an I/O error) has not said the host needs no reboot.
+    fn marker_present(&self, path: &Path) -> Result<bool, MonitorError>;
+
     /// Reads `/proc/mounts`, verbatim — the kernel's own live list of mounted
     /// filesystems and the options each was mounted with.
     ///

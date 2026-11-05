@@ -69,4 +69,13 @@
   <data name="ServerKindLocal">
     <value>Այս սերվերը (տեղային)</value>
   </data>
+  <data name="PendingUpdateClassificationSecurity">
+    <value>Անվտանգություն</value>
+  </data>
+  <data name="PendingUpdateClassificationOrdinary">
+    <value>Սովորական</value>
+  </data>
+  <data name="PendingUpdateClassificationUnmeasured">
+    <value>Չափված չէ</value>
+  </data>
 </root>

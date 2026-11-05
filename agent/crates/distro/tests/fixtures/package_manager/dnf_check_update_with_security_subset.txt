@@ -1,0 +1,4 @@
+
+curl-minimal.x86_64                    7.76.1-40.el9_8.9                  baseos
+krb5-libs.x86_64                       1.21.1-10.el9_8.1                  baseos
+libcurl-minimal.x86_64                 7.76.1-40.el9_8.9                  baseos

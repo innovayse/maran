@@ -15,4 +15,7 @@
   <data name="LogLevelUnknown">
     <value>That is not a log level the panel offers.</value>
   </data>
+  <data name="PendingUpdateClassificationUnknown">
+    <value>That is not a classification the updates list offers. Use security, ordinary or unmeasured.</value>
+  </data>
 </root>

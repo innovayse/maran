@@ -16,6 +16,9 @@ use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
 use crate::php_facts::PhpFacts;
+use crate::reboot_probe::RebootProbe;
+use crate::reboot_probe_failure::RebootProbeFailure;
+use crate::reboot_requirement::RebootRequirement;
 use crate::rhel::{rhel_packages, rhel_paths, rhel_services};
 use crate::scheduling_facts::SchedulingFacts;
 use crate::service_manager_facts::ServiceManagerFacts;
@@ -200,6 +203,38 @@ impl PackageFacts for RhelAdapter {
         stdout: &str,
     ) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure> {
         rhel_packages::read_pending_updates(status, stdout)
+    }
+
+    fn security_pending_updates_arguments(&self) -> Option<Vec<String>> {
+        Some(
+            rhel_packages::SECURITY_PENDING_UPDATES_ARGUMENTS
+                .iter()
+                .map(|argument| (*argument).to_owned())
+                .collect(),
+        )
+    }
+
+    fn mark_security_updates(
+        &self,
+        updates: Vec<PendingUpdate>,
+        status: i32,
+        stdout: &str,
+    ) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure> {
+        rhel_packages::mark_security_updates(updates, status, stdout)
+    }
+
+    fn reboot_probe(&self) -> RebootProbe {
+        RebootProbe::Program {
+            binary: rhel_services::needs_restarting_binary(),
+            arguments: rhel_packages::REBOOT_PROBE_ARGUMENTS
+                .iter()
+                .map(|argument| (*argument).to_owned())
+                .collect(),
+        }
+    }
+
+    fn read_reboot_probe_run(&self, status: i32) -> Result<RebootRequirement, RebootProbeFailure> {
+        rhel_packages::read_reboot_probe_run(status)
     }
 }
 

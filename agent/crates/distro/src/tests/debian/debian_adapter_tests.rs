@@ -410,3 +410,49 @@ fn the_debian_family_probes_for_a_built_catalogue_before_reading_updates() {
     assert!((probe.read)(0, "").is_err());
     assert!((probe.read)(0, "/var/lib/apt/lists/x_Packages.lz4\n").is_ok());
 }
+
+/// The simulated upgrade prints every package's origins, so this family needs
+/// no second reading to classify.
+#[test]
+fn the_debian_family_runs_no_second_security_reading() {
+    assert!(DebianAdapter.security_pending_updates_arguments().is_none());
+}
+
+/// With no second reading, marking hands the rows back as they were.
+#[test]
+fn the_debian_family_marks_nothing_and_returns_the_rows_unchanged() {
+    let rows = vec![crate::PendingUpdate {
+        package_name: String::from("libc6"),
+        available_version: String::from("2.39-0ubuntu8.9"),
+        installed_version: Some(String::from("2.39-0ubuntu8.1")),
+        source: String::from("Ubuntu:24.04/noble-security"),
+        classification: crate::UpdateClassification::Security,
+    }];
+
+    assert_eq!(
+        DebianAdapter
+            .mark_security_updates(rows.clone(), 0, "")
+            .unwrap(),
+        rows
+    );
+}
+
+/// The Debian family answers the reboot question with the marker file its package
+/// hooks create, and the path is absolute.
+#[test]
+fn the_debian_family_probes_for_a_reboot_with_a_marker_file() {
+    assert_eq!(
+        DebianAdapter.reboot_probe(),
+        crate::RebootProbe::Marker(std::path::PathBuf::from("/var/run/reboot-required"))
+    );
+}
+
+/// A marker file has no exit status, so reading one is refused and never answered
+/// "not required".
+#[test]
+fn the_debian_family_refuses_to_read_a_program_status_for_its_marker_probe() {
+    assert_eq!(
+        DebianAdapter.read_reboot_probe_run(0),
+        Err(crate::RebootProbeFailure::NotAProgramProbe)
+    );
+}

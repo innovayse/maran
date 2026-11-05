@@ -151,6 +151,17 @@ pub(crate) struct FakeMonitorHost {
     /// answers, so a program that is not the service manager (the package
     /// manager) can exit with a status of its own and print what it printed.
     answers: Mutex<BTreeMap<String, (i32, String)>>,
+    /// Answers chosen per command, keyed by ALL of the command's arguments
+    /// joined by single spaces. They win over `answers`, because two runs of
+    /// one program can end in the same argument (the RHEL family's two
+    /// `check-update` readings both end in `-q`) and still answer differently.
+    exact_answers: Mutex<BTreeMap<String, (i32, String)>>,
+    /// What `marker_present` answers: whether the entry exists, or a lookup that
+    /// failed.
+    marker: Mutex<Result<bool, MonitorError>>,
+    /// The path `marker_present` was last asked about, so a test can assert the
+    /// operation asked for the file the adapter names.
+    marker_path_requested: Mutex<Option<PathBuf>>,
     /// What `read_machine_id` answers: `Ok(Some(_))`, `Ok(None)` for a
     /// legitimately absent file, or `Err(_)` for a genuine read failure.
     machine_id: Mutex<Result<Option<String>, MonitorError>>,
@@ -188,6 +199,9 @@ impl FakeMonitorHost {
             commands: Mutex::new(Vec::new()),
             classes: Mutex::new(Vec::new()),
             answers: Mutex::new(BTreeMap::new()),
+            exact_answers: Mutex::new(BTreeMap::new()),
+            marker: Mutex::new(Ok(false)),
+            marker_path_requested: Mutex::new(None),
             machine_id: Mutex::new(Ok(Some(DEFAULT_MACHINE_ID.to_owned()))),
             ipv4_routes: Mutex::new(Ok(DEFAULT_IPV4_ROUTES.to_owned())),
         }
@@ -274,6 +288,39 @@ impl FakeMonitorHost {
             .unwrap()
             .insert(last_argument.to_owned(), (status, stdout.to_owned()));
         self
+    }
+
+    /// Makes the command whose arguments are exactly `arguments` exit with
+    /// `status` and print `stdout`. Wins over [`Self::with_command_answer`].
+    pub(crate) fn with_exact_command_answer(
+        self,
+        arguments: &[&str],
+        status: i32,
+        stdout: &str,
+    ) -> Self {
+        self.exact_answers
+            .lock()
+            .unwrap()
+            .insert(arguments.join(" "), (status, stdout.to_owned()));
+        self
+    }
+
+    /// Makes the reboot marker exist.
+    pub(crate) fn with_marker_present(self) -> Self {
+        *self.marker.lock().unwrap() = Ok(true);
+        self
+    }
+
+    /// Makes the lookup of the reboot marker fail the way a permission error
+    /// does, which is not the entry being absent.
+    pub(crate) fn with_unexaminable_marker(self) -> Self {
+        *self.marker.lock().unwrap() = Err(MonitorError::RebootProbeNotRun);
+        self
+    }
+
+    /// The path `marker_present` was last asked about, or `None` if never asked.
+    pub(crate) fn marker_path_requested(&self) -> Option<PathBuf> {
+        self.marker_path_requested.lock().unwrap().clone()
     }
 
     /// Every directory the host was asked to measure, in the order asked.
@@ -458,6 +505,15 @@ impl MonitorHost for FakeMonitorHost {
         self.commands.lock().unwrap().push(command);
         self.classes.lock().unwrap().push(class);
 
+        if let Some((status, stdout)) = self.exact_answers.lock().unwrap().get(&arguments.join(" "))
+        {
+            return Ok(CommandOutcome {
+                status: *status,
+                stdout: stdout.clone(),
+                stderr: String::new(),
+            });
+        }
+
         let last_argument = arguments.last().copied().unwrap_or_default();
         if let Some((status, stdout)) = self.answers.lock().unwrap().get(last_argument) {
             return Ok(CommandOutcome {
@@ -548,6 +604,12 @@ impl MonitorHost for FakeMonitorHost {
             .lock()
             .expect("machine-id path recorder") = Some(path.to_owned());
         self.machine_id.lock().unwrap().clone()
+    }
+
+    /// Records the path and answers the configured marker state.
+    fn marker_present(&self, path: &Path) -> Result<bool, MonitorError> {
+        *self.marker_path_requested.lock().unwrap() = Some(path.to_path_buf());
+        self.marker.lock().unwrap().clone()
     }
 
     /// Answers the configured IPv4 routing table text.

@@ -158,9 +158,9 @@ const signInWithData = async (page: Page): Promise<void> => {
   await stubPhpVersions(page, [])
   await stubDatabases(page, [SHOP])
   await stubPendingUpdates(page, [
-    { packageName: 'openssl', availableVersion: '3.0.13-0ubuntu3.5', installedVersion: '3.0.13-0ubuntu3.4', source: 'noble-security' },
-    { packageName: 'bash', availableVersion: '5.2.21-2ubuntu4', installedVersion: null, source: '' },
-  ])
+    { packageName: 'openssl', availableVersion: '3.0.13-0ubuntu3.5', installedVersion: '3.0.13-0ubuntu3.4', source: 'noble-security', classification: 'security' },
+    { packageName: 'bash', availableVersion: '5.2.21-2ubuntu4', installedVersion: null, source: '', classification: 'unmeasured' },
+  ], null, { securityCount: 1, reboot: true })
 }
 
 for (const theme of ['dark', 'light'] as const) {

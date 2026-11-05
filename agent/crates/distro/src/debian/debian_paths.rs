@@ -34,3 +34,15 @@ pub fn php_fpm_pool_directory(version: &str) -> String {
 pub fn nftables_include_target() -> &'static str {
     "/etc/nftables.conf"
 }
+
+/// Absolute path of the file the Debian family's package hooks create when an
+/// installed update needs a reboot to take effect (issue #163).
+///
+/// `/var/run` is a link to `/run`, so the file lives in a directory cleared at
+/// boot: its presence means "a reboot has not happened since the package that
+/// asked for it", which is exactly the question. The agent only looks at it and
+/// never creates or removes it.
+#[must_use]
+pub fn reboot_required_marker() -> &'static str {
+    "/var/run/reboot-required"
+}

@@ -11,7 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_agent_core::utils::call_class::CallClass;
-use maran_distro::PendingUpdatesFailure;
+use maran_distro::{PendingUpdatesFailure, UpdateClassification};
 
 use super::list_pending_updates;
 use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro};
@@ -36,15 +36,28 @@ const DNF_WITH_UPDATES: &str = include_str!(
     "../../../../distro/tests/fixtures/package_manager/dnf_check_update_with_updates.txt"
 );
 
+/// The security-only reading of the same cache: names two of the 115.
+const DNF_SECURITY_ONLY: &str = include_str!(
+    "../../../../distro/tests/fixtures/package_manager/dnf_check_update_security_only.txt"
+);
+
+/// The security-only reading of a cache holding no security update: empty.
+const DNF_SECURITY_NONE: &str = include_str!(
+    "../../../../distro/tests/fixtures/package_manager/dnf_check_update_security_none.txt"
+);
+
+/// The arguments of the RHEL family's first reading.
+const DNF_FIRST_READING: [&str; 3] = ["check-update", "-C", "-q"];
+
+/// The arguments of the RHEL family's second, security-only reading.
+const DNF_SECURITY_READING: [&str; 4] = ["check-update", "--security", "-C", "-q"];
+
 /// The fake answers a run by its LAST argument: this one ends the Debian
 /// family's simulation.
 const APT_SIMULATION: &str = "dist-upgrade";
 
 /// The last argument of the Debian family's catalogue probe.
 const APT_PROBE: &str = "$(FILENAME)";
-
-/// The last argument of the RHEL family's cache-only check.
-const DNF_CHECK: &str = "-q";
 
 /// A Debian-family host whose catalogue exists and whose simulation printed
 /// `simulation` and exited 0.
@@ -55,9 +68,31 @@ fn apt_host_printing(simulation: &str) -> FakeMonitorHost {
 }
 
 /// A RHEL-family host whose cache-only check exited `status` and printed
-/// `stdout`.
+/// `stdout`, and whose security-only reading found nothing. The two readings
+/// both end in `-q`, so each is answered by its whole argument list.
 fn dnf_host_answering(status: i32, stdout: &str) -> FakeMonitorHost {
-    FakeMonitorHost::from_alma_captures().with_command_answer(DNF_CHECK, status, stdout)
+    dnf_host_with_security_reading(status, stdout, 0, DNF_SECURITY_NONE)
+}
+
+/// A RHEL-family host whose first reading exited `status` printing `stdout`
+/// and whose security-only reading exited `security_status` printing
+/// `security_stdout`.
+fn dnf_host_with_security_reading(
+    status: i32,
+    stdout: &str,
+    security_status: i32,
+    security_stdout: &str,
+) -> FakeMonitorHost {
+    FakeMonitorHost::from_alma_captures()
+        .with_exact_command_answer(&DNF_FIRST_READING, status, stdout)
+        .with_exact_command_answer(&DNF_SECURITY_READING, security_status, security_stdout)
+}
+
+/// Whether every entry of `updates` carries `classification`.
+fn all_are(updates: &[maran_distro::PendingUpdate], classification: UpdateClassification) -> bool {
+    updates
+        .iter()
+        .all(|update| update.classification == classification)
 }
 
 #[test]
@@ -268,12 +303,21 @@ fn the_debian_run_is_a_simulation_and_the_rhel_run_is_cache_only() {
     );
     assert_eq!(
         dnf.commands(),
-        vec![vec![
-            String::from("/usr/bin/dnf"),
-            String::from("check-update"),
-            String::from("-C"),
-            String::from("-q"),
-        ]]
+        vec![
+            vec![
+                String::from("/usr/bin/dnf"),
+                String::from("check-update"),
+                String::from("-C"),
+                String::from("-q"),
+            ],
+            vec![
+                String::from("/usr/bin/dnf"),
+                String::from("check-update"),
+                String::from("--security"),
+                String::from("-C"),
+                String::from("-q"),
+            ],
+        ]
     );
 }
 
@@ -287,5 +331,115 @@ fn every_run_is_in_the_query_class() {
     list_pending_updates(&dnf, rhel_distro()).unwrap();
 
     assert_eq!(apt.classes(), vec![CallClass::Query, CallClass::Query]);
-    assert_eq!(dnf.classes(), vec![CallClass::Query]);
+    assert_eq!(dnf.classes(), vec![CallClass::Query, CallClass::Query]);
+}
+
+/// A Debian entry is classified from the origins printed in the same output: a
+/// suite ending `-security` among them is security, any other list ordinary.
+#[test]
+fn a_debian_update_published_by_the_security_suite_is_security_and_the_rest_ordinary() {
+    let host = apt_host_printing(APT_WITH_UPDATES);
+
+    let updates = list_pending_updates(&host, distro()).unwrap();
+
+    let named = |name: &str| {
+        updates
+            .iter()
+            .find(|update| update.package_name == name)
+            .unwrap()
+            .classification
+    };
+    assert_eq!(named("gcc-14-base"), UpdateClassification::Security);
+    assert_eq!(named("base-files"), UpdateClassification::Ordinary);
+}
+
+/// The first reading already classifies, so the Debian family asks no second
+/// question: the probe and the simulation are the only two runs.
+#[test]
+fn a_debian_host_is_not_asked_a_second_reading() {
+    let host = apt_host_printing(APT_WITH_UPDATES);
+
+    list_pending_updates(&host, distro()).unwrap();
+
+    assert_eq!(host.commands().len(), 2, "{:?}", host.commands());
+}
+
+/// The second reading names two of the 115 packages: those are security and
+/// every other row is a measured ordinary one.
+#[test]
+fn a_rhel_update_the_security_reading_names_is_security_and_the_rest_ordinary() {
+    let host = dnf_host_with_security_reading(100, DNF_WITH_UPDATES, 100, DNF_SECURITY_ONLY);
+
+    let updates = list_pending_updates(&host, rhel_distro()).unwrap();
+
+    let security: Vec<&str> = updates
+        .iter()
+        .filter(|update| update.classification == UpdateClassification::Security)
+        .map(|update| update.package_name.as_str())
+        .collect();
+    assert_eq!(updates.len(), 115);
+    assert_eq!(security, vec!["curl-minimal", "libcurl-minimal"]);
+    assert!(
+        updates
+            .iter()
+            .filter(|update| update.package_name != "curl-minimal")
+            .filter(|update| update.package_name != "libcurl-minimal")
+            .all(|update| update.classification == UpdateClassification::Ordinary)
+    );
+}
+
+/// A security reading that succeeded and named nothing is a measurement:
+/// every row is ordinary, and none is left unmeasured.
+#[test]
+fn a_rhel_host_whose_security_reading_names_nothing_has_every_update_ordinary() {
+    let host = dnf_host_with_security_reading(100, DNF_WITH_UPDATES, 0, DNF_SECURITY_NONE);
+
+    let updates = list_pending_updates(&host, rhel_distro()).unwrap();
+
+    assert_eq!(updates.len(), 115);
+    assert!(all_are(&updates, UpdateClassification::Ordinary));
+}
+
+/// The list is still returned when the second reading fails, and no row is
+/// guessed ordinary: each way the second reading can fail leaves all of them
+/// unmeasured.
+#[test]
+fn a_failed_security_reading_leaves_the_list_and_every_entry_unmeasured() {
+    let hosts = [
+        // A status the reader does not know.
+        dnf_host_with_security_reading(100, DNF_WITH_UPDATES, 1, ""),
+        // A line the reader does not know.
+        dnf_host_with_security_reading(100, DNF_WITH_UPDATES, 100, "a-row-with-one-field\n"),
+        // A run stopped at its deadline.
+        FakeMonitorHost::from_alma_captures()
+            .with_exact_command_answer(&DNF_FIRST_READING, 100, DNF_WITH_UPDATES)
+            .with_timed_out_service_manager(),
+        // A program that could not be started the second time.
+        FakeMonitorHost::from_alma_captures()
+            .with_exact_command_answer(&DNF_FIRST_READING, 100, DNF_WITH_UPDATES)
+            .with_absent_service_manager(),
+    ];
+
+    for host in hosts {
+        let updates = list_pending_updates(&host, rhel_distro()).unwrap();
+
+        assert_eq!(updates.len(), 115);
+        assert!(all_are(&updates, UpdateClassification::Unmeasured));
+    }
+}
+
+/// A failed FIRST reading is still an error when the second would have
+/// answered: the second reading cannot rescue what the first could not read.
+#[test]
+fn a_failed_first_rhel_reading_is_an_error_even_when_the_security_reading_answers() {
+    let host = dnf_host_with_security_reading(1, "", 100, DNF_SECURITY_ONLY);
+
+    let result = list_pending_updates(&host, rhel_distro());
+
+    assert_eq!(
+        result,
+        Err(MonitorError::UpdateCatalogueUnavailable {
+            reason: PendingUpdatesFailure::Unsuccessful { status: 1 }
+        })
+    );
 }

@@ -133,4 +133,21 @@ public interface IAgentMonitorClient
     /// date on no evidence at all. It is the same discipline <see cref="GetClockSyncAsync"/> follows.
     /// </remarks>
     Task<Result<IReadOnlyList<AgentPendingUpdate>>> ListPendingUpdatesAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads whether the host needs a reboot to finish applying updates it has already installed
+    /// (issue #163).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// The host's answer, or a typed failure when the agent could not run its probe. A reply stating no
+    /// requirement the panel can name is <see cref="AgentRebootRequirement.Unmeasured"/>.
+    /// </returns>
+    /// <remarks>
+    /// A failure here is NOT "no reboot needed" — it is the absence of any evidence, the same discipline
+    /// <see cref="GetClockSyncAsync"/> follows. A caller that turned a failed call into
+    /// <see cref="AgentRebootRequirement.NotRequired"/> would tell an operator a server is safe to leave
+    /// on no evidence at all.
+    /// </remarks>
+    Task<Result<AgentRebootRequirement>> GetRebootRequirementAsync(CancellationToken cancellationToken);
 }

@@ -56,6 +56,17 @@ pub fn package_query_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/bin/dnf")
 }
 
+/// Absolute path of the program that reports whether the host needs a reboot,
+/// for the process-execution allow-list (issue #163).
+///
+/// `needs-restarting` at `/usr/bin/needs-restarting`, shipped by `yum-utils`
+/// (which `dnf-utils` names as a provide) on AlmaLinux 9, where it was
+/// measured. It is only ever given the constant `-r` argument.
+#[must_use]
+pub fn needs_restarting_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/needs-restarting")
+}
+
 /// Absolute path of the transient-unit starter, for the process-execution
 /// allow-list.
 ///

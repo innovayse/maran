@@ -143,4 +143,17 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
             _inner,
             cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<AgentRebootRequirement>> GetRebootRequirementAsync(CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.GetRebootRequirementAsync(token);
+            },
+            _inner,
+            cancellationToken);
+    }
 }

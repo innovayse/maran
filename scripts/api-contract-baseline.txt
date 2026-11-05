@@ -344,7 +344,9 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/monitoring/metrics
   GET /api/v1/monitoring/services
   GET /api/v1/monitoring/updates
+  GET /api/v1/monitoring/updates/classifications
   GET /api/v1/monitoring/updates/count
+  GET /api/v1/monitoring/updates/reboot-required
   GET /api/v1/notifications/smtp
   GET /api/v1/notifications/smtp/security-modes
   GET /api/v1/panel-certificate

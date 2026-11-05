@@ -79,4 +79,12 @@ internal sealed class GrpcMonitorServiceInvoker : IMonitorServiceInvoker
     {
         return await _client.ListPendingUpdatesAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<GetRebootRequirementResponse> GetRebootRequirementAsync(
+        GetRebootRequirementRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.GetRebootRequirementAsync(request, cancellationToken: cancellationToken);
+    }
 }

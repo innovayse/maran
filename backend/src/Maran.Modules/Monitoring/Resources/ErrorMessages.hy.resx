@@ -15,4 +15,7 @@
   <data name="LogLevelUnknown">
     <value>Վահանակը մատյանի նման մակարդակ չի առաջարկում։</value>
   </data>
+  <data name="PendingUpdateClassificationUnknown">
+    <value>Թարմացումների ցանկում նման դասակարգում չկա։ Օգտագործեք security, ordinary կամ unmeasured։</value>
+  </data>
 </root>

@@ -405,3 +405,73 @@ fn the_rhel_family_reads_pending_updates_from_the_cache_only() {
 fn the_rhel_family_runs_no_catalogue_probe() {
     assert!(RhelAdapter.catalogue_probe().is_none());
 }
+
+/// The security reading of the RHEL family is the cache-only run with the
+/// security filter, as owned strings.
+#[test]
+fn the_rhel_family_reads_security_updates_from_the_cache_only() {
+    assert_eq!(
+        RhelAdapter.security_pending_updates_arguments(),
+        Some(vec![
+            String::from("check-update"),
+            String::from("--security"),
+            String::from("-C"),
+            String::from("-q"),
+        ])
+    );
+}
+
+/// The adapter's marking classifies by the second reading: a package it names is
+/// security, another is ordinary.
+#[test]
+fn the_rhel_family_marks_rows_by_the_security_reading() {
+    let mut rows = RhelAdapter
+        .read_pending_updates(
+            100,
+            "curl-minimal.x86_64 7.76.1-40.el9_8.9 baseos\nkrb5-libs.x86_64 1.21.1-10.el9_8.1 baseos\n",
+        )
+        .unwrap();
+    rows = RhelAdapter
+        .mark_security_updates(rows, 100, "curl-minimal.x86_64 7.76.1-40.el9_8.9 baseos\n")
+        .unwrap();
+
+    assert_eq!(
+        rows[0].classification,
+        crate::UpdateClassification::Security
+    );
+    assert_eq!(
+        rows[1].classification,
+        crate::UpdateClassification::Ordinary
+    );
+}
+
+/// The RHEL family answers the reboot question with a program, named by an
+/// absolute path and given the one `-r` argument.
+#[test]
+fn the_rhel_family_probes_for_a_reboot_with_needs_restarting() {
+    match RhelAdapter.reboot_probe() {
+        crate::RebootProbe::Program { binary, arguments } => {
+            assert_eq!(binary.to_string(), "/usr/bin/needs-restarting");
+            assert!(binary.as_path().is_absolute());
+            assert_eq!(arguments, vec![String::from("-r")]);
+        }
+        other => panic!("expected a program probe, got {other:?}"),
+    }
+}
+
+/// The adapter reads the probe's status: 0 is not required, 1 is required.
+#[test]
+fn the_rhel_family_reads_the_reboot_probe_status() {
+    assert_eq!(
+        RhelAdapter.read_reboot_probe_run(0),
+        Ok(crate::RebootRequirement::NotRequired)
+    );
+    assert_eq!(
+        RhelAdapter.read_reboot_probe_run(1),
+        Ok(crate::RebootRequirement::Required)
+    );
+    assert_eq!(
+        RhelAdapter.read_reboot_probe_run(127),
+        Err(crate::RebootProbeFailure::Unsuccessful { status: 127 })
+    );
+}

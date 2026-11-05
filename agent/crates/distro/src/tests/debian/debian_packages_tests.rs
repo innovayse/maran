@@ -17,10 +17,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::{
-    CATALOGUE_PROBE_ARGUMENTS, PENDING_UPDATES_ARGUMENTS, classify_package_failure,
-    installable_php_versions, package_manager, read_catalogue_probe, read_pending_updates,
+    CATALOGUE_PROBE_ARGUMENTS, PENDING_UPDATES_ARGUMENTS, classify_origins,
+    classify_package_failure, installable_php_versions, package_manager, read_catalogue_probe,
+    read_pending_updates, read_reboot_probe_run,
 };
-use crate::{PackageFailure, PendingUpdatesFailure};
+use crate::{PackageFailure, PendingUpdatesFailure, RebootProbeFailure, UpdateClassification};
 
 /// `apt-get install` against a mirror answering every archive with 404.
 const SOURCE_REFUSED: &str =
@@ -365,4 +366,96 @@ fn empty_output_is_incomplete_and_not_an_up_to_date_host() {
         read_pending_updates(0, ""),
         Err(PendingUpdatesFailure::IncompleteOutput)
     );
+}
+
+#[test]
+fn an_update_published_by_the_security_suite_is_security() {
+    let updates = read_pending_updates(0, WITH_UPDATES).unwrap();
+
+    assert_eq!(
+        row(&updates, "gcc-14-base").classification,
+        UpdateClassification::Security
+    );
+    assert_eq!(
+        row(&updates, "libc6").classification,
+        UpdateClassification::Security
+    );
+}
+
+#[test]
+fn an_update_published_only_by_the_updates_suite_is_ordinary() {
+    let updates = read_pending_updates(0, WITH_UPDATES).unwrap();
+
+    assert_eq!(
+        row(&updates, "base-files").classification,
+        UpdateClassification::Ordinary
+    );
+}
+
+#[test]
+fn a_recorded_read_has_both_classifications_and_none_unmeasured() {
+    let updates = read_pending_updates(0, WITH_UPDATES).unwrap();
+
+    assert!(
+        updates
+            .iter()
+            .any(|update| update.classification == UpdateClassification::Security)
+    );
+    assert!(
+        updates
+            .iter()
+            .any(|update| update.classification == UpdateClassification::Ordinary)
+    );
+    assert!(
+        updates
+            .iter()
+            .all(|update| update.classification != UpdateClassification::Unmeasured)
+    );
+}
+
+#[test]
+fn a_current_debian_security_suite_is_security() {
+    assert_eq!(
+        classify_origins("Debian-Security:12/stable-security"),
+        UpdateClassification::Security
+    );
+}
+
+#[test]
+fn one_security_origin_among_several_makes_the_update_security() {
+    assert_eq!(
+        classify_origins("Debian:12.5/stable, Debian-Security:12/stable-security"),
+        UpdateClassification::Security
+    );
+}
+
+#[test]
+fn a_suite_that_only_contains_security_in_its_name_is_ordinary() {
+    assert_eq!(
+        classify_origins("Ubuntu:24.04/noble-security-extras"),
+        UpdateClassification::Ordinary
+    );
+}
+
+#[test]
+fn a_security_spelling_in_the_origin_name_and_not_the_suite_is_ordinary() {
+    assert_eq!(
+        classify_origins("Vendor-security:1/stable"),
+        UpdateClassification::Ordinary
+    );
+}
+
+#[test]
+fn an_update_with_no_origin_is_ordinary() {
+    assert_eq!(classify_origins(""), UpdateClassification::Ordinary);
+}
+
+#[test]
+fn this_family_has_no_program_run_to_read_a_reboot_status_from() {
+    for status in [0, 1, 127] {
+        assert_eq!(
+            read_reboot_probe_run(status),
+            Err(RebootProbeFailure::NotAProgramProbe)
+        );
+    }
 }

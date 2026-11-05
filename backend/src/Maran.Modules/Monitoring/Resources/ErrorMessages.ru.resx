@@ -15,4 +15,7 @@
   <data name="LogLevelUnknown">
     <value>Панель не предлагает такого уровня журнала.</value>
   </data>
+  <data name="PendingUpdateClassificationUnknown">
+    <value>Такой классификации в списке обновлений нет. Используйте security, ordinary или unmeasured.</value>
+  </data>
 </root>

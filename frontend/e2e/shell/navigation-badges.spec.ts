@@ -120,6 +120,12 @@ test('the Updates item shows how many updates are waiting and says what it count
   await expect(page).toHaveURL('/servers/updates')
 })
 
+test('the Updates badge keeps the total when the security count is also known', async ({ page }) => {
+  await openWithUpdates(page, 200, { count: 7, securityCount: 2 })
+
+  await expect(mainNavigation(page).getByRole('link', { name: 'Updates 7 updates available' })).toBeVisible()
+})
+
 test('no updates waiting draws no badge', async ({ page }) => {
   await openWithUpdates(page, 200, { count: 0 })
 

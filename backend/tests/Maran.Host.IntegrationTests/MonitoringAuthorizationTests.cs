@@ -71,6 +71,9 @@ public sealed class MonitoringAuthorizationTests : IAsyncLifetime
             // (issue #324): the list and the count behind the navigation badge.
             { "GET", "/api/v1/monitoring/updates" },
             { "GET", "/api/v1/monitoring/updates/count" },
+            { "GET", "/api/v1/monitoring/updates/classifications" },
+            // Whether the host needs a restart to finish an update (issue #163), administrators only.
+            { "GET", "/api/v1/monitoring/updates/reboot-required" },
         };
     }
 

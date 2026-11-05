@@ -1,7 +1,7 @@
 //! Failures of the read-only monitoring operations.
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
-use maran_distro::PendingUpdatesFailure;
+use maran_distro::{PendingUpdatesFailure, RebootProbeFailure};
 
 /// The `code` reported when a program could not be started at all.
 ///
@@ -141,6 +141,30 @@ pub enum MonitorError {
     UpdateCatalogueUnavailable {
         /// Why the read did not produce an answer.
         reason: PendingUpdatesFailure,
+    },
+
+    /// The reboot probe could not be run at all: its marker file could not be
+    /// examined (any failure but the entry being absent) or its program could
+    /// not be started (issue #163).
+    ///
+    /// Never read as "no reboot is required": the agent did not find out, and a
+    /// panel that showed nothing for a probe that never ran would be telling the
+    /// operator a host is safe to leave. A missing program (the package that
+    /// provides it not installed) lands here too.
+    #[error("the reboot probe could not be run")]
+    RebootProbeNotRun,
+
+    /// The reboot probe's program ran and exited with a status its documentation
+    /// gives no answer to (issue #163).
+    ///
+    /// Its own variant beside [`Self::RebootProbeNotRun`] because the program
+    /// answered, and what it answered is a number worth keeping; `reason` holds
+    /// an exit status at most, never a byte the program printed. A run killed at
+    /// its deadline is [`Self::Bound`], not this.
+    #[error("the reboot probe gave no answer: {reason}")]
+    RebootProbeFailed {
+        /// Why the run could not be read as an answer.
+        reason: RebootProbeFailure,
     },
 
     /// A program this area ran was stopped by the agent: it ran past its

@@ -51,6 +51,15 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     /// <summary>The last pending-updates request the stub received, for asserting the call was made.</summary>
     public ListPendingUpdatesRequest? LastPendingUpdatesRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="GetRebootRequirementAsync"/> when no failure is set.</summary>
+    public GetRebootRequirementResponse RebootRequirementResponse { get; set; } = new();
+
+    /// <summary>The last reboot-requirement request the stub received, for asserting the call was made.</summary>
+    public GetRebootRequirementRequest? LastRebootRequirementRequest { get; private set; }
+
+    /// <summary>What <see cref="GetRebootRequirementAsync"/> throws instead of answering, or null to answer.</summary>
+    public Exception? RebootRequirementFailure { get; set; }
+
     /// <summary>The reply this stub returns for a fingerprint-inputs call.</summary>
     public GetServerFingerprintInputsResponse ServerFingerprintInputsResponse { get; set; } = new();
 
@@ -159,5 +168,20 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     {
         LastServerFingerprintInputsRequest = request;
         return Task.FromResult(ServerFingerprintInputsResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<GetRebootRequirementResponse> GetRebootRequirementAsync(
+        GetRebootRequirementRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastRebootRequirementRequest = request;
+
+        if (RebootRequirementFailure is not null)
+        {
+            throw RebootRequirementFailure;
+        }
+
+        return Task.FromResult(RebootRequirementResponse);
     }
 }

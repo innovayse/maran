@@ -4,7 +4,8 @@
  * the paging (`useServerTable`); this component draws the rows it is given, the loading placeholder
  * and the sortable headings.
  *
- * Sortable by package and by source, the two fields the panel can order stably. The version
+ * Sortable by package, source and classification (`security`, security updates first), the fields
+ * the panel can order stably. The version
  * columns have no sort: version strings do not order as text, and the panel offers no such key.
  *
  * **An installed version of `null` is "not reported", drawn as a dash.** The RHEL family's update
@@ -14,12 +15,23 @@
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
 import UiTable from '../ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import type { PendingUpdate } from '../../types/monitoring'
 
 /** What a cell prints for a value the package manager did not report. */
 const NOT_REPORTED = '—'
+
+/**
+ * The badge tone of each kind the SPA has a look for: security stands out and an ordinary update is
+ * informational. This is styling only; the words come from the panel (`classificationName`), and
+ * any other kind, including one the panel adds later, is drawn neutral.
+ */
+const BADGE_VARIANTS: Readonly<Record<string, BadgeVariant>> = {
+  security: 'danger',
+  ordinary: 'info',
+}
 
 /** Props accepted by {@link PendingUpdatesTable}. */
 defineProps<{
@@ -48,6 +60,7 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
     { key: 'installed', label: t('monitoring.updates.columnInstalled'), kind: 'mono' },
     { key: 'available', label: t('monitoring.updates.columnAvailable'), kind: 'mono' },
     { key: 'source', label: t('monitoring.updates.columnSource'), kind: 'text', sortField: 'source' },
+    { key: 'classification', label: t('monitoring.updates.columnClassification'), kind: 'badge', sortField: 'security' },
   ]
 })
 
@@ -58,6 +71,15 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
  */
 const reported = (value: string | null): string => {
   return value === null || value === '' ? NOT_REPORTED : value
+}
+
+/**
+ * The badge look of a classification: security stands out, a kind with no listed tone is neutral.
+ * @param classification The row's classification as the wire spells it.
+ * @returns The badge variant.
+ */
+const badgeVariant = (classification: string): BadgeVariant => {
+  return BADGE_VARIANTS[classification] ?? 'neutral'
 }
 </script>
 
@@ -76,5 +98,10 @@ const reported = (value: string | null): string => {
     <template #cell-installed="{ row }">{{ reported(row.installedVersion) }}</template>
     <template #cell-available="{ row }">{{ row.availableVersion }}</template>
     <template #cell-source="{ row }">{{ reported(row.source) }}</template>
+    <template #cell-classification="{ row }">
+      <UiBadge :variant="badgeVariant(row.classification)">
+        {{ row.classificationName }}
+      </UiBadge>
+    </template>
   </UiTable>
 </template>

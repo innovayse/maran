@@ -276,6 +276,12 @@ COPY installer/systemd/maran-panel-backup.service /tmp/maran-installer/systemd/m
 COPY installer/systemd/maran-panel-backup.timer /tmp/maran-installer/systemd/maran-panel-backup.timer
 COPY installer/panel-backup.conf.example /tmp/maran-installer/panel-backup.conf.example
 
+# Step 68, the opt-in unattended OS security updates (issue #163). The step is RUN twice by
+# docker/polygon/asserts/parts/os-security-updates.sh, flag off and flag on, and it installs the
+# distribution's package through step 20's pkg_install (COPY'd below with step 89). The step is also in the
+# census of install.sh's run_step lines, which refuses by name a step this image does not carry.
+COPY installer/lib/68-os-updates.sh /tmp/maran-installer/lib/68-os-updates.sh
+
 # Step 89 and what it needs, all four RUN or READ by the assert script and none of them
 # repeated by this image. The step is the FTPS installer step: it masks the distribution's
 # vsftpd.service, installs the package from its OWN `vsftpd_packages_for_family`, creates the

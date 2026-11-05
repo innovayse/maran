@@ -44,6 +44,11 @@ namespace Maran.Modules.Accounts.Services;
 /// explicitly, because the host-wide view it exists for has no tenant to scope by. Its authorization
 /// lives entirely at its caller's boundary.
 /// </para>
+/// <para>
+/// <see cref="FindSystemUserAsync"/> is the second, narrower exception: one account's system user name
+/// by id, with no scope, for unattended work that holds the id from its own row (certificate renewal).
+/// It cannot list and returns nothing but the id and the name (issue #379).
+/// </para>
 /// </remarks>
 public sealed class AccountDirectory : IAccountDirectory
 {
@@ -187,6 +192,25 @@ public sealed class AccountDirectory : IAccountDirectory
         return await accounts
             .Select(account => account.Id)
             .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// No tenant scope, by contract — see <see cref="IAccountDirectory.FindSystemUserAsync"/>. Unlike
+    /// <see cref="FindAsync"/> there is deliberately no <see cref="Sees"/> check: the caller is unattended
+    /// work with no principal, and a check against an absent principal would answer nothing in the dark.
+    /// The read touches the accounts set only: no plan join, and only the id and system user name leave.
+    /// </remarks>
+    public async Task<AccountSystemUser?> FindSystemUserAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+#pragma warning disable RS0030 // unattended renewal has no principal; the fail-closed filter would answer nothing
+        var accounts = _dbContext.Accounts.IgnoreQueryFilters().AsNoTracking();
+#pragma warning restore RS0030
+
+        return await accounts
+            .Where(account => account.Id == accountId)
+            .Select(account => new AccountSystemUser(account.Id, account.Name))
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>

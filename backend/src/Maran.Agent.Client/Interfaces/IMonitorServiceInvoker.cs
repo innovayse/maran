@@ -71,4 +71,12 @@ internal interface IMonitorServiceInvoker
     Task<ListPendingUpdatesResponse> ListPendingUpdatesAsync(
         ListPendingUpdatesRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>GetRebootRequirement</c>.</summary>
+    /// <param name="request">The empty request the rpc takes.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<GetRebootRequirementResponse> GetRebootRequirementAsync(
+        GetRebootRequirementRequest request,
+        CancellationToken cancellationToken);
 }
