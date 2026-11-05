@@ -51,6 +51,14 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     public Result<IReadOnlyList<AgentPendingUpdate>> PendingUpdates { get; set; } =
         Result<IReadOnlyList<AgentPendingUpdate>>.Ok([]);
 
+    /// <summary>What a request for the reboot requirement is answered with; not measured by default.</summary>
+    /// <remarks>
+    /// Unmeasured rather than "not required": a fixture that was not told the answer must not assert a
+    /// measurement nobody made, which is the exact claim the panel refuses to make for a failed probe.
+    /// </remarks>
+    public Result<AgentRebootRequirement> RebootRequirement { get; set; } =
+        Result<AgentRebootRequirement>.Ok(AgentRebootRequirement.Unmeasured);
+
     /// <summary>What <see cref="GetServerFingerprintAsync"/> answers.</summary>
     /// <remarks>
     /// Both halves null by default: a fixture that has not been told which machine it is on should
@@ -104,6 +112,12 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
         CancellationToken cancellationToken)
     {
         return Task.FromResult(PendingUpdates);
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<AgentRebootRequirement>> GetRebootRequirementAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(RebootRequirement);
     }
 
     /// <inheritdoc/>

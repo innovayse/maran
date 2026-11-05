@@ -11,7 +11,7 @@ use crate::proto::{AgentError, ErrorCode};
 /// place (rules/rust.md "Service anatomy").
 ///
 /// **Every variant is a system failure, and the short list is the point.** This
-/// area accepts no input at all — none of its three rpcs carries a field — so
+/// area accepts no input at all — none of its rpcs carries a field except the one that names accounts — so
 /// there is no `INVALID_INPUT` to map and no `NOT_FOUND`: a unit that is not
 /// installed on this host is reported as a STATE, not as a missing resource,
 /// and a service that is down is an answer rather than an error. What is left
@@ -39,6 +39,14 @@ pub fn to_agent_error(error: &MonitorError) -> AgentError {
         // must not be handed one for a read that failed (issue #324). `message`
         // carries only the reason's own words, an exit status or a line number.
         MonitorError::UpdateCatalogueUnavailable { .. } => ErrorCode::SystemFailure,
+        // The reboot probe could not be run, or answered with a status it gives
+        // no meaning to (issue #163). Named ahead of the wildcard so a missing arm
+        // cannot compile silently, and never `NOT_REQUIRED`: the panel must not be
+        // told a host is safe to leave by a probe that did not run. `message`
+        // carries an exit status at most.
+        MonitorError::RebootProbeNotRun | MonitorError::RebootProbeFailed { .. } => {
+            ErrorCode::SystemFailure
+        }
         // A deadline or an output cap ended the program and its process group was
         // killed. This is a fault of the host, never a verdict on the request: the
         // work may or may not have finished, and `tool_output` stays empty because

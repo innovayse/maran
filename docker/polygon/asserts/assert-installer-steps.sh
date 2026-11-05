@@ -141,6 +141,11 @@ readonly PANEL_BACKUP_STEP="${INSTALLER_LIB}/67-panel-backup.sh"
 readonly PANEL_BACKUP_SERVICE_SOURCE="${INSTALLER_ROOT}/systemd/maran-panel-backup.service"
 readonly PANEL_BACKUP_TIMER_SOURCE="${INSTALLER_ROOT}/systemd/maran-panel-backup.timer"
 readonly PANEL_BACKUP_EXAMPLE_SOURCE="${INSTALLER_ROOT}/panel-backup.conf.example"
+# Step 68, the opt-in unattended OS security updates (issue #163). RUN, not read: parts/os-security-updates-step.sh
+# drives its own step_os_updates twice over, flag off and flag on, and looks at what it left. The step
+# installs a package through step 20's pkg_install (DEPENDENCIES_STEP, below) and writes one file under
+# /etc, so a missing COPY stops the build at the assertion by name.
+readonly OS_UPDATES_STEP="${INSTALLER_LIB}/68-os-updates.sh"
 # The package-manager adapter step 89 installs through. `install_vsftpd_package` refuses by name
 # when `pkg_install` is undefined, so a missing COPY here is a named failure and not a skip.
 readonly DEPENDENCIES_STEP="${INSTALLER_LIB}/20-dependencies.sh"
@@ -266,6 +271,7 @@ unset __cli_lib
 require_installer_file "${INSTALLER_ROOT}/keys/release-signing.pub" installer/keys/release-signing.pub
 require_installer_file "$PANEL_BACKUP_STEP" installer/lib/67-panel-backup.sh
 require_installer_file "$PANEL_BACKUP_SERVICE_SOURCE" installer/systemd/maran-panel-backup.service
+require_installer_file "$OS_UPDATES_STEP" installer/lib/68-os-updates.sh
 require_installer_file "$PANEL_BACKUP_TIMER_SOURCE" installer/systemd/maran-panel-backup.timer
 require_installer_file "$PANEL_BACKUP_EXAMPLE_SOURCE" installer/panel-backup.conf.example
 require_installer_file "$DEPENDENCIES_STEP" installer/lib/20-dependencies.sh
@@ -516,6 +522,8 @@ for __part in \
   "${ASSERT_PARTS_DIR}/units-and-preflight.sh" \
   "${ASSERT_PARTS_DIR}/php-install-unit.sh" \
   "${ASSERT_PARTS_DIR}/panel-backup-units.sh" \
+  "${ASSERT_PARTS_DIR}/os-security-updates.sh" \
+  "${ASSERT_PARTS_DIR}/os-security-updates-step.sh" \
   "${ASSERT_PARTS_DIR}/uninstaller.sh" \
   "${ASSERT_PARTS_DIR}/ftps.sh" \
   "${ASSERT_PARTS_DIR}/artifacts-and-packages.sh" \
@@ -590,6 +598,14 @@ main() {
   assert_the_panel_backup_service_and_timer_are_what_the_design_allows
   assert_step_67_installs_the_panel_backup_units_with_exact_modes_and_enables_nothing
   assert_the_panel_backup_service_cannot_be_started_by_a_non_root_user
+  # Step 68, the opt-in unattended OS security updates (issue #163): the refusing half (the flag off writes
+  # nothing) and then its inverse control (the flag on writes the exact file and enables the distribution's
+  # timers). After the panel backup assertions, which leave /etc/systemd/system as they found it, because the
+  # first of these takes a listing of that directory and asserts the step added no name to it. It installs the
+  # distribution's unattended-update package, so it needs the package index this script's RUN refreshed.
+  assert_the_os_security_updates_step_changes_nothing_without_the_flag
+  assert_the_os_security_updates_step_writes_the_exact_configuration_when_asked
+  assert_the_os_updates_step_refuses_a_codename_or_a_hold_pattern_that_could_inject_a_line
 
   # Last of all, and deliberately: these RUN step 40's create_directory_layout, which
   # re-modes /run/maran and re-owns /var/lib/maran to the values a real install leaves.
@@ -674,7 +690,7 @@ main() {
   assert_the_uninstaller_removes_the_break_glass_command
   assert_the_uninstaller_removes_the_release_layout_and_the_update_state
   assert_the_uninstaller_removes_the_panel_backup_schedule_and_keeps_the_archives
-  echo "Installer steps 40, 41, 50, 60, 66, 67, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
+  echo "Installer steps 40, 41, 50, 60, 66, 67, 68, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
   echo "the on-disk boundary the two privilege-escalation fixes moved, verified inside the polygon."
 }
 

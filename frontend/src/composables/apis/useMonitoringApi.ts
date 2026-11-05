@@ -10,7 +10,9 @@ import type {
   MonitoringApi,
   PendingUpdate,
   PendingUpdateCount,
+  RebootRequirement,
   ServiceStatus,
+  UpdateClassificationChoice,
 } from '../../types/monitoring'
 
 /** The endpoint the bucketed samples behind the charts are read from. */
@@ -31,11 +33,17 @@ const ACCOUNTS_DISK_PATH = '/api/v1/monitoring/accounts-disk'
 /** The endpoint the pending operating-system updates are read from. */
 const UPDATES_PATH = '/api/v1/monitoring/updates'
 
+/** The endpoint the kinds of update, with their names, are read from. */
+const UPDATES_CLASSIFICATIONS_PATH = '/api/v1/monitoring/updates/classifications'
+
 /** The endpoint the number of pending updates is read from. */
 const UPDATES_COUNT_PATH = '/api/v1/monitoring/updates/count'
 
-/** The pending updates list takes no typed filter: its only narrowing is the search. */
-const UPDATES_FILTER_PARAMS: Readonly<Record<string, string>> = {}
+/** The endpoint that says whether the server needs a reboot. */
+const REBOOT_REQUIRED_PATH = '/api/v1/monitoring/updates/reboot-required'
+
+/** The pending updates list takes one typed filter, the classification, besides the search. */
+const UPDATES_FILTER_PARAMS: Readonly<Record<string, string>> = { classification: 'classification' }
 
 /** The per-account disk list takes no typed filter: its only narrowing is the search. */
 const ACCOUNTS_DISK_FILTER_PARAMS: Readonly<Record<string, string>> = {}
@@ -118,12 +126,30 @@ export const useMonitoringApi = (): MonitoringApi => {
   }
 
   /**
+   * Reads the kinds of update the list's classification filter offers.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The kinds, each named in the request's language.
+   */
+  const updateClassifications = (signal?: AbortSignal): Promise<UpdateClassificationChoice[]> => {
+    return api.get<UpdateClassificationChoice[]>(UPDATES_CLASSIFICATIONS_PATH, signal)
+  }
+
+  /**
    * Reads how many packages have an update available.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The count.
    */
   const pendingUpdateCount = (signal?: AbortSignal): Promise<PendingUpdateCount> => {
     return api.get<PendingUpdateCount>(UPDATES_COUNT_PATH, signal)
+  }
+
+  /**
+   * Reads whether the server needs a reboot to finish applying updates.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The requirement; `required` is `null` when it could not be measured.
+   */
+  const rebootRequirement = (signal?: AbortSignal): Promise<RebootRequirement> => {
+    return api.get<RebootRequirement>(REBOOT_REQUIRED_PATH, signal)
   }
 
   return {
@@ -133,6 +159,8 @@ export const useMonitoringApi = (): MonitoringApi => {
     listAccountDiskUsage,
     getClockSync,
     pendingUpdates,
+    updateClassifications,
     pendingUpdateCount,
+    rebootRequirement,
   }
 }

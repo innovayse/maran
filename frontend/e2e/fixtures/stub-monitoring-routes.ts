@@ -9,6 +9,7 @@ import type {
   MetricBucket,
   PendingUpdate,
   ServiceStatus,
+  UpdateClassificationChoice,
 } from '../../src/types/monitoring'
 
 /** The chart endpoint. The query part is optional in the pattern so a missing `range` still matches. */
@@ -254,11 +255,63 @@ const UPDATES_PATTERN = /\/api\/v1\/monitoring\/updates(\?.*)?$/
 /** The number of pending updates, read for the navigation badge. */
 const UPDATES_COUNT_PATTERN = /\/api\/v1\/monitoring\/updates\/count$/
 
+/** Whether the server needs a reboot to finish applying updates. */
+const REBOOT_REQUIRED_PATTERN = /\/api\/v1\/monitoring\/updates\/reboot-required$/
+
+/** The kinds list the filter sheet, the chip and the rows' names read. */
+const CLASSIFICATIONS_PATTERN = /\/api\/v1\/monitoring\/updates\/classifications$/
+
+/** The order a `security` sort gives the classifications: security updates first. */
+const CLASSIFICATION_ORDER: Readonly<Record<string, string>> = {
+  security: '0',
+  ordinary: '1',
+  unmeasured: '2',
+}
+
+/** What each shipped language calls the three kinds, as the backend's resource files do; order matches {@link CLASSIFICATION_ORDER}. */
+const CLASSIFICATION_NAMES: Readonly<Record<string, readonly [string, string, string]>> = {
+  en: ['Security', 'Ordinary', 'Not measured'],
+  ru: ['Безопасность', 'Обычное', 'Не проверено'],
+  hy: ['Անվտանգություն', 'Սովորական', 'Չստուգված'],
+}
+
+/** A pending update as a spec writes it: the stub names its kind in the language each request asks for. */
+export type StubbedPendingUpdate = Omit<PendingUpdate, 'classificationName'>
+
+/**
+ * Names the three kinds in the language a request asks for, falling back to English the way the
+ * panel does.
+ * @param acceptLanguage The request's `Accept-Language` header, or an empty string.
+ * @returns The kinds in the panel's order, each with its name.
+ */
+const classificationsFor = (acceptLanguage: string): UpdateClassificationChoice[] => {
+  const language = Object.keys(CLASSIFICATION_NAMES).find((candidate) => {
+    return acceptLanguage.toLowerCase().startsWith(candidate)
+  })
+  const [security, ordinary, unmeasured] = CLASSIFICATION_NAMES[language ?? 'en']
+  return [
+    { value: 'security', name: security },
+    { value: 'ordinary', name: ordinary },
+    { value: 'unmeasured', name: unmeasured },
+  ]
+}
+
+/** What the stub answers on the reboot-required route: a measured answer, an unmeasured one, or a 500. */
+export type StubbedReboot = boolean | null | 'failure'
+
+/** What a spec may say about the notices above the list; every field defaults to the quiet answer. */
+export interface StubbedUpdateNotices {
+  /** The count route's `securityCount`; `null` (the default) is "not measured". */
+  securityCount?: number | null
+  /** The reboot-required route's answer: `true`, `false`, `null` (not measured) or `'failure'` (a 500). */
+  reboot?: StubbedReboot
+}
+
 /**
  * How the pending updates list searches and sorts, as the panel does: the search reads the package
  * name, and the sorts are the two the panel whitelists, `packageName` and `source`.
  */
-const UPDATES_RULES: PagedRules<PendingUpdate> = {
+const UPDATES_RULES: PagedRules<StubbedPendingUpdate> = {
   matches: (row, term) => {
     return row.packageName.toLowerCase().includes(term)
   },
@@ -269,8 +322,15 @@ const UPDATES_RULES: PagedRules<PendingUpdate> = {
     source: (row) => {
       return row.source
     },
+    security: (row) => {
+      return CLASSIFICATION_ORDER[row.classification]
+    },
   },
-  filters: {},
+  filters: {
+    classification: (row, value) => {
+      return row.classification === value
+    },
+  },
 }
 
 /** Every pending updates list request the stub answered, in order, so a spec can read the query. */
@@ -281,19 +341,23 @@ export const pendingUpdateRequests: URL[] = []
  *
  * A stub given `failure` answers both routes with a 500 problem body carrying that message, the way
  * the panel fails a request when the agent could not read the package cache: the typed failure, never
- * an empty page and never a zero.
+ * an empty page and never a zero. The classification filter and the `security` sort are honoured as
+ * the panel does.
  * @param page The Playwright page whose network the routes are installed on.
- * @param updates Every update the stub knows; it answers them a page at a time, honouring `page`,
+ * @param updates Every update the stub knows, each given by its wire kind; the stub adds the kind's name in the request's language and answers them a page at a time, honouring `page`,
  * `pageSize`, `search` and `sort` as the panel does.
  * @param failure The problem `detail` to answer both routes with instead of the data, or `null`.
+ * @param notices The security count and the reboot-required answer; both default to "not measured".
  * @returns Resolves once the routes are installed.
  */
 export const stubPendingUpdates = async (
   page: Page,
-  updates: PendingUpdate[],
+  updates: StubbedPendingUpdate[],
   failure: string | null = null,
+  notices: StubbedUpdateNotices = {},
 ): Promise<void> => {
   pendingUpdateRequests.length = 0
+  const reboot = notices.reboot ?? null
 
   /**
    * Answers a request with the stubbed failure.
@@ -314,7 +378,24 @@ export const stubPendingUpdates = async (
       await fail(route, failure)
       return
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ count: updates.length }) })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ count: updates.length, securityCount: notices.securityCount ?? null }),
+    })
+  })
+
+  await page.route(REBOOT_REQUIRED_PATTERN, async (route: Route) => {
+    if (reboot === 'failure') {
+      await fail(route, 'The reboot requirement could not be read.')
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ required: reboot }) })
+  })
+
+  await page.route(CLASSIFICATIONS_PATTERN, async (route: Route) => {
+    const language = route.request().headers()['accept-language'] ?? ''
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(classificationsFor(language)) })
   })
 
   await page.route(UPDATES_PATTERN, async (route: Route) => {
@@ -323,10 +404,19 @@ export const stubPendingUpdates = async (
       await fail(route, failure)
       return
     }
+    // The panel names each row's kind in the language the request carries.
+    const names = classificationsFor(route.request().headers()['accept-language'] ?? '')
+    const answer = pagedAnswer(updates, route.request().url(), UPDATES_RULES)
+    const items: PendingUpdate[] = answer.items.map((row) => {
+      const named = names.find((choice) => {
+        return choice.value === row.classification
+      })
+      return { ...row, classificationName: named?.name ?? row.classification }
+    })
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(pagedAnswer(updates, route.request().url(), UPDATES_RULES)),
+      body: JSON.stringify({ ...answer, items }),
     })
   })
 }

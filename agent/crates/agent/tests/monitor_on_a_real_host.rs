@@ -45,12 +45,15 @@ mod polygon_account;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use maran_distro::{DistroAdapter, DistroFamily, adapter_for, detect};
+use maran_distro::{
+    DistroAdapter, DistroFamily, RebootProbe, RebootRequirement, UpdateClassification, adapter_for,
+    detect,
+};
 use maran_ops::monitor::{
     AccountSelection, MachineIdentity, PrimaryInterface, ProcessMonitorHost, ServiceState,
     ServiceStatus, SftpJailStatus, get_accounts_disk_usage, get_host_metrics,
-    get_server_fingerprint_inputs, get_service_statuses, get_sftp_jail_status,
-    list_pending_updates,
+    get_reboot_requirement, get_server_fingerprint_inputs, get_service_statuses,
+    get_sftp_jail_status, list_pending_updates,
 };
 
 use polygon_account::PolygonAccount;
@@ -648,6 +651,13 @@ fn pending_updates_are_a_list_or_a_typed_error_and_never_an_empty_list_for_an_un
             for update in &updates {
                 assert!(!update.package_name.is_empty(), "{update:?}");
                 assert!(!update.available_version.is_empty(), "{update:?}");
+                // The Debian family reads the classification out of the same
+                // output, so a row of it is never left unmeasured; the RHEL
+                // family's second reading may legitimately fail, and then every
+                // row is unmeasured, which is judged by the unit tests.
+                if distro.family() == DistroFamily::Debian {
+                    assert_ne!(update.classification, UpdateClassification::Unmeasured);
+                }
             }
         }
         (true, Err(error)) => panic!(
@@ -666,5 +676,50 @@ fn pending_updates_are_a_list_or_a_typed_error_and_never_an_empty_list_for_an_un
             ),
             "no catalogue must be the typed unavailable error, got {error:?}"
         ),
+    }
+}
+
+/// The reboot probe answers what the host's own marker or program says on a
+/// real host of each family, and an absent probe is an error and never "not
+/// required".
+///
+/// Judged against the disk. A marker-file family answers `Required` exactly
+/// when the marker exists. A program family whose program is installed answers
+/// one of the two requirements; one whose program is NOT installed (the
+/// polygon image carries no package that provides it unless built with one)
+/// must answer an error, because an `Ok(NotRequired)` there would tell the
+/// operator a host is safe to leave on the strength of a probe that never ran.
+///
+/// UNOBSERVED HERE: a polygon container has no running init system and no
+/// package hook has run, so a `Required` answer from a real update is not
+/// reachable; the unit tests drive that branch with a fake host.
+#[test]
+#[ignore = "runs the real reboot probe: polygon only"]
+fn the_reboot_probe_answers_from_the_host_and_an_absent_probe_is_an_error_not_a_no() {
+    PolygonAccount::require_polygon();
+    let distro = polygon_distro();
+
+    let result = get_reboot_requirement(&ProcessMonitorHost::new(), distro);
+
+    match distro.reboot_probe() {
+        RebootProbe::Marker(path) => {
+            let expected = if std::fs::symlink_metadata(&path).is_ok() {
+                RebootRequirement::Required
+            } else {
+                RebootRequirement::NotRequired
+            };
+            assert_eq!(result.unwrap(), expected);
+        }
+        RebootProbe::Program { binary, .. } => {
+            if Path::new(binary.as_str()).exists() {
+                result.expect("the probe program is installed and must run to an answer");
+            } else {
+                assert!(
+                    result.is_err(),
+                    "the probe program is absent and the read answered {result:?}: a probe that \
+                     never ran was reported as an answer"
+                );
+            }
+        }
     }
 }

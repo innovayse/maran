@@ -76,6 +76,43 @@ remove_panel_backup_schedule() {
   systemctl reset-failed maran-panel-backup.service 2>/dev/null || true
 }
 
+# remove_os_security_updates: takes back the one configuration file step 68 wrote, and nothing else
+# (issue #163).
+#
+# It does NOT remove `unattended-upgrades` or `dnf-automatic` and does NOT disable the distribution's
+# timers: after the install they are the customer's system, and an uninstall that silently stopped
+# security updates would weaken a server Maran no longer manages. It says so.
+#
+# A file is removed only when it carries the marker line step 68 writes (the same words as
+# MARAN_OS_UPDATES_MARKER in installer/lib/68-os-updates.sh, spelled here because this entry point
+# sources nothing from the installer; the polygon asserts the two agree). A file at the same path
+# without it is the operator's and is left alone. On the RHEL family removing /etc/dnf/automatic.conf
+# does NOT restore the package's default — this script does not do that, and what dnf-automatic then
+# does with no file was not observed; a copy of the file Maran replaced, if there is one, is at
+# <file>.maran-previous.
+remove_os_security_updates() {
+  local marker="Maran-managed by installer/lib/68-os-updates.sh" file removed=0
+  for file in /etc/apt/apt.conf.d/52maran-os-security-updates /etc/dnf/automatic.conf; do
+    [ -f "$file" ] || continue
+    if grep -qF -- "$marker" "$file"; then
+      rm -f -- "$file"
+      echo "Removed the unattended OS security update policy ${file}."
+      if [ -e "${file}.maran-previous" ]; then
+        echo "        The file Maran replaced is kept at ${file}.maran-previous."
+      fi
+      removed=1
+    else
+      echo "NOTE: ${file} was not written by Maran and is left in place."
+    fi
+  done
+  if [ "$removed" -eq 1 ]; then
+    echo "        The unattended-upgrades / dnf-automatic package and the distribution's own timers"
+    echo "        (apt-daily*.timer, dnf-automatic-install.timer) are NOT removed or disabled: they are"
+    echo "        this server's, not Maran's. Without this file they run with the package's own settings."
+    echo "        This uninstaller does not restore a package default for /etc/dnf/automatic.conf."
+  fi
+}
+
 remove_systemd_units() {
   echo "Removing systemd units..."
   rm -f /etc/systemd/system/maran-api.service /etc/systemd/system/maran-agent.service
@@ -1060,6 +1097,8 @@ main() {
   # Before the wrapper and /etc/maran go: a timer that fires between those removals would run a
   # backup against a half-removed panel.
   remove_panel_backup_schedule
+  # The opt-in OS update policy file only; the package and the distribution's timers stay.
+  remove_os_security_updates
   remove_systemd_units
   remove_nginx_vhost
   # Before /etc/maran goes: the marker that says whether we enabled nftables lives there.

@@ -78,6 +78,14 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 18 adds <c>BackupService.VerifyBackup</c> (issue #134), and both ends moved to it: a
 /// revision-17 agent answers the rpc <c>UNIMPLEMENTED</c>, so a backup could never be verified after
 /// its run and a corrupt artifact would go unnoticed until someone needed to restore from it.
+/// Revision 19 adds <c>MonitorService.GetRebootRequirement</c> and
+/// <c>PendingUpdate.classification</c> (issue #163), and both ends moved to it as the one-revision
+/// default, so <see cref="Minimum"/> moves with <see cref="Maximum"/> and nothing is stated here as a
+/// reason to hold it back: the panel reads both. A revision-18 agent answers the rpc
+/// <c>UNIMPLEMENTED</c>, so the reboot-required notice could never be filled, and it sends no
+/// classification, which protobuf reads as the unset zero; the client reads that zero as
+/// "not measured", but a panel that drove such an agent would show every update as unclassified and
+/// no security count at all, which is the quiet failure the window exists to refuse.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -104,10 +112,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 18;
+    public const uint Minimum = 19;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 18;
+    public const uint Maximum = 19;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

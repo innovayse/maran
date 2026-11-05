@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.ListPendingUpdates;
+using Maran.Modules.Monitoring.Resources;
 using Maran.Modules.Monitoring.Tests.TestSupport;
 using Maran.SharedKernel.Pagination;
 using Maran.SharedKernel.Results;
@@ -31,13 +32,17 @@ public sealed class ListPendingUpdatesQueryHandlerTests
     public async Task A_row_crosses_with_every_field_and_a_missing_installed_version_stays_null()
     {
         var handler = Handler(
-            new AgentPendingUpdate("bash", "5.2-2", "5.2-1", "noble-updates"),
-            new AgentPendingUpdate("curl", "8.5-1", null, string.Empty));
+            new AgentPendingUpdate("bash", "5.2-2", "5.2-1", "noble-updates", AgentUpdateClassification.Ordinary),
+            new AgentPendingUpdate("curl", "8.5-1", null, string.Empty, AgentUpdateClassification.Security));
 
         var result = await handler.HandleAsync(new ListPendingUpdatesQuery(), CancellationToken.None);
 
-        Assert.Equal(new PendingUpdateDto("bash", "5.2-2", "5.2-1", "noble-updates"), result.Value.Items[0]);
-        Assert.Equal(new PendingUpdateDto("curl", "8.5-1", null, string.Empty), result.Value.Items[1]);
+        Assert.Equal(
+            new PendingUpdateDto("bash", "5.2-2", "5.2-1", "noble-updates", "ordinary", "PendingUpdateClassificationOrdinary"),
+            result.Value.Items[0]);
+        Assert.Equal(new PendingUpdateDto(
+                "curl", "8.5-1", null, string.Empty, "security", "PendingUpdateClassificationSecurity"),
+            result.Value.Items[1]);
     }
 
     /// <summary>A search keeps the packages whose name contains the term, ignoring case.</summary>
@@ -59,8 +64,8 @@ public sealed class ListPendingUpdatesQueryHandlerTests
     public async Task A_search_reads_the_package_name_only()
     {
         var handler = Handler(
-            new AgentPendingUpdate("bash", "5.2-2", "5.2-1", "noble-updates"),
-            new AgentPendingUpdate("curl", "8.5-1", "8.4-1", "noble-security"));
+            new AgentPendingUpdate("bash", "5.2-2", "5.2-1", "noble-updates", AgentUpdateClassification.Ordinary),
+            new AgentPendingUpdate("curl", "8.5-1", "8.4-1", "noble-security", AgentUpdateClassification.Security));
 
         var result = await handler.HandleAsync(
             new ListPendingUpdatesQuery(Search: SearchTerm.Of("security")),
@@ -105,15 +110,107 @@ public sealed class ListPendingUpdatesQueryHandlerTests
     public async Task The_source_sort_orders_by_origin_and_breaks_ties_by_package_name()
     {
         var handler = Handler(
-            new AgentPendingUpdate("curl", "1", null, "updates"),
-            new AgentPendingUpdate("bash", "1", null, "security"),
-            new AgentPendingUpdate("awk", "1", null, "updates"));
+            new AgentPendingUpdate("curl", "1", null, "updates", AgentUpdateClassification.Ordinary),
+            new AgentPendingUpdate("bash", "1", null, "security", AgentUpdateClassification.Ordinary),
+            new AgentPendingUpdate("awk", "1", null, "updates", AgentUpdateClassification.Ordinary));
 
         var result = await handler.HandleAsync(
             new ListPendingUpdatesQuery(Sort: SortRequest.Parse("source")),
             CancellationToken.None);
 
         Assert.Equal(["bash", "awk", "curl"], Names(result.Value));
+    }
+
+    /// <summary>The classification filter keeps only the updates carrying that word, with the filtered total.</summary>
+    /// <param name="word">The filter value.</param>
+    /// <param name="expected">The only packages the word may keep.</param>
+    [Theory]
+    [InlineData("security", new[] { "curl", "openssl" })]
+    [InlineData("ordinary", new[] { "bash" })]
+    [InlineData("unmeasured", new[] { "awk" })]
+    public async Task The_classification_filter_keeps_only_the_updates_carrying_that_word(
+        string word,
+        string[] expected)
+    {
+        var handler = Handler(
+            Update("openssl", AgentUpdateClassification.Security),
+            Update("bash", AgentUpdateClassification.Ordinary),
+            Update("curl", AgentUpdateClassification.Security),
+            Update("awk", AgentUpdateClassification.Unmeasured));
+
+        var result = await handler.HandleAsync(
+            new ListPendingUpdatesQuery(Classification: FilterValue.Of(word)),
+            CancellationToken.None);
+
+        Assert.Equal(expected.Length, result.Value.Total);
+        Assert.Equal(expected, Names(result.Value));
+    }
+
+    /// <summary>The classification filter is applied before the search, so both narrow the same list.</summary>
+    [Fact]
+    public async Task The_classification_filter_and_the_search_narrow_the_same_list()
+    {
+        var handler = Handler(
+            Update("libssl3", AgentUpdateClassification.Security),
+            Update("openssl", AgentUpdateClassification.Ordinary),
+            Update("bash", AgentUpdateClassification.Security));
+
+        var result = await handler.HandleAsync(
+            new ListPendingUpdatesQuery(
+                Search: SearchTerm.Of("ssl"),
+                Classification: FilterValue.Of("security")),
+            CancellationToken.None);
+
+        Assert.Equal(["libssl3"], Names(result.Value));
+        Assert.Equal(1, result.Value.Total);
+    }
+
+    /// <summary>With no classification filter every update is answered, whatever its reading.</summary>
+    [Fact]
+    public async Task With_no_classification_filter_every_update_is_answered()
+    {
+        var handler = Handler(
+            Update("bash", AgentUpdateClassification.Security),
+            Update("curl", AgentUpdateClassification.Ordinary),
+            Update("awk", AgentUpdateClassification.Unmeasured));
+
+        var result = await handler.HandleAsync(new ListPendingUpdatesQuery(), CancellationToken.None);
+
+        Assert.Equal(3, result.Value.Total);
+    }
+
+    /// <summary>The security sort ranks security, then ordinary, then unmeasured, ties by package name.</summary>
+    [Fact]
+    public async Task The_security_sort_puts_security_first_then_ordinary_then_unmeasured()
+    {
+        var handler = Handler(
+            Update("awk", AgentUpdateClassification.Unmeasured),
+            Update("curl", AgentUpdateClassification.Ordinary),
+            Update("zlib", AgentUpdateClassification.Security),
+            Update("bash", AgentUpdateClassification.Security),
+            Update("diff", AgentUpdateClassification.Ordinary));
+
+        var result = await handler.HandleAsync(
+            new ListPendingUpdatesQuery(Sort: SortRequest.Parse("security")),
+            CancellationToken.None);
+
+        Assert.Equal(["bash", "zlib", "curl", "diff", "awk"], Names(result.Value));
+    }
+
+    /// <summary>The descending security sort puts the unmeasured updates first and the security fixes last.</summary>
+    [Fact]
+    public async Task The_descending_security_sort_reverses_the_rank()
+    {
+        var handler = Handler(
+            Update("bash", AgentUpdateClassification.Security),
+            Update("curl", AgentUpdateClassification.Ordinary),
+            Update("awk", AgentUpdateClassification.Unmeasured));
+
+        var result = await handler.HandleAsync(
+            new ListPendingUpdatesQuery(Sort: SortRequest.Parse("-security")),
+            CancellationToken.None);
+
+        Assert.Equal(["awk", "curl", "bash"], Names(result.Value));
     }
 
     /// <summary>A later page carries only its own rows and the true total.</summary>
@@ -171,7 +268,7 @@ public sealed class ListPendingUpdatesQueryHandlerTests
             PendingUpdates = Result<IReadOnlyList<AgentPendingUpdate>>.Fail(
                 Error.Of("AgentSystemFailure", ErrorType.Failure)),
         };
-        var handler = new ListPendingUpdatesQueryHandler(agent);
+        var handler = new ListPendingUpdatesQueryHandler(agent, new StubStringLocalizer<DisplayNames>());
 
         var result = await handler.HandleAsync(new ListPendingUpdatesQuery(), CancellationToken.None);
 
@@ -186,10 +283,12 @@ public sealed class ListPendingUpdatesQueryHandlerTests
     /// <returns>The handler.</returns>
     private static ListPendingUpdatesQueryHandler Handler(params AgentPendingUpdate[] updates)
     {
-        return new ListPendingUpdatesQueryHandler(new StubAgentMonitorClient
-        {
-            PendingUpdates = Result<IReadOnlyList<AgentPendingUpdate>>.Ok(updates),
-        });
+        return new ListPendingUpdatesQueryHandler(
+            new StubAgentMonitorClient
+            {
+                PendingUpdates = Result<IReadOnlyList<AgentPendingUpdate>>.Ok(updates),
+            },
+            new StubStringLocalizer<DisplayNames>());
     }
 
     /// <summary>Builds an update that names only its package.</summary>
@@ -197,7 +296,16 @@ public sealed class ListPendingUpdatesQueryHandlerTests
     /// <returns>The update.</returns>
     private static AgentPendingUpdate Update(string name)
     {
-        return new AgentPendingUpdate(name, "2.0", "1.0", "updates");
+        return Update(name, AgentUpdateClassification.Ordinary);
+    }
+
+    /// <summary>Builds an update that names its package and its classification.</summary>
+    /// <param name="name">The package name.</param>
+    /// <param name="classification">What the agent measured.</param>
+    /// <returns>The update.</returns>
+    private static AgentPendingUpdate Update(string name, AgentUpdateClassification classification)
+    {
+        return new AgentPendingUpdate(name, "2.0", "1.0", "updates", classification);
     }
 
     /// <summary>The package names on a page, in page order.</summary>

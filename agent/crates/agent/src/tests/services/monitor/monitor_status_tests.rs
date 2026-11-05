@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use maran_distro::PendingUpdatesFailure;
+use maran_distro::{PendingUpdatesFailure, RebootProbeFailure};
 use maran_ops::monitor::MonitorError;
 
 use super::to_agent_error;
@@ -22,6 +22,10 @@ fn every_variant() -> Vec<MonitorError> {
         MonitorError::AccountsUnavailable,
         MonitorError::UpdateCatalogueUnavailable {
             reason: PendingUpdatesFailure::Unsuccessful { status: 1 },
+        },
+        MonitorError::RebootProbeNotRun,
+        MonitorError::RebootProbeFailed {
+            reason: RebootProbeFailure::Unsuccessful { status: 127 },
         },
     ]
 }
@@ -163,4 +167,58 @@ fn an_unreadable_update_catalogue_is_reported_with_its_reason_and_no_tool_output
         error.message
     );
     assert!(error.tool_output.is_empty());
+}
+
+/// A probe that never ran is a fault of the host and says so in the variant's
+/// own words: "could not be run", which is not an answer about the reboot.
+#[test]
+fn a_reboot_probe_that_could_not_run_is_a_system_failure_with_no_tool_output() {
+    let error = to_agent_error(&MonitorError::RebootProbeNotRun);
+
+    assert_eq!(error.code, ErrorCode::SystemFailure as i32);
+    assert!(
+        error.message.contains("could not be run"),
+        "{}",
+        error.message
+    );
+    assert!(error.tool_output.is_empty());
+}
+
+/// A probe that exited with a status it gives no meaning to reports that
+/// status, and only that, so an operator can tell a missing program (127) from
+/// a failing one.
+#[test]
+fn a_reboot_probe_with_an_unknown_status_reports_the_status_and_no_tool_output() {
+    let error = to_agent_error(&MonitorError::RebootProbeFailed {
+        reason: RebootProbeFailure::Unsuccessful { status: 127 },
+    });
+
+    assert_eq!(error.code, ErrorCode::SystemFailure as i32);
+    assert!(error.message.contains("127"), "{}", error.message);
+    assert!(error.tool_output.is_empty());
+}
+
+/// The wildcard answers `SystemFailure` too, so deleting the explicit reboot
+/// arm changes no behaviour and the tests above cannot notice it. This reads the
+/// source: both probe variants are named, and named before the wildcard.
+#[test]
+fn the_reboot_probe_variants_are_mapped_by_name_ahead_of_the_wildcard() {
+    let code_lines: Vec<&str> = MAPPING_SOURCE
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| !line.starts_with("//"))
+        .collect();
+    let wildcard = code_lines
+        .iter()
+        .position(|line| line.starts_with("_ =>"))
+        .expect("the mapping ends in a wildcard arm");
+    let not_run = code_lines
+        .iter()
+        .position(|line| line.starts_with("MonitorError::RebootProbeNotRun"));
+    let failed = code_lines
+        .iter()
+        .position(|line| line.contains("MonitorError::RebootProbeFailed {"));
+
+    assert!(not_run.expect("the probe that did not run has its own arm") < wildcard);
+    assert!(failed.expect("the probe that failed has its own arm") < wildcard);
 }

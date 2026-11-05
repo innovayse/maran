@@ -4,7 +4,9 @@ using Maran.Modules.Monitoring.Queries.GetClockSync;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.GetMetricsChart;
 using Maran.Modules.Monitoring.Queries.GetPendingUpdateCount;
+using Maran.Modules.Monitoring.Queries.GetRebootRequirement;
 using Maran.Modules.Monitoring.Queries.ListAccountDiskUsage;
+using Maran.Modules.Monitoring.Queries.ListPendingUpdateClassifications;
 using Maran.Modules.Monitoring.Queries.ListPendingUpdates;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 using Maran.Sdk.Contracts;
@@ -179,6 +181,25 @@ public sealed class MonitoringController : BaseApiController
             await _bus.InvokeAsync<Result<PagedResult<PendingUpdateDto>>>(query, cancellationToken));
     }
 
+    /// <summary>
+    /// Lists the classifications an update can carry, named for the caller, for the updates filter and
+    /// badge (issue #163).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <remarks>
+    /// Reference data, not a reading of the host: it asks the agent nothing and cannot fail on one.
+    /// </remarks>
+    [HttpGet("updates/classifications")]
+    [ProducesResponseType(typeof(IReadOnlyList<ClassificationChoiceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetUpdateClassificationsAsync(CancellationToken cancellationToken)
+    {
+        var query = new ListPendingUpdateClassificationsQuery();
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<IReadOnlyList<ClassificationChoiceDto>>>(query, cancellationToken));
+    }
+
     /// <summary>Reads how many package updates are pending, live from the agent (issue #324).</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <remarks>
@@ -196,5 +217,28 @@ public sealed class MonitoringController : BaseApiController
     {
         var query = new GetPendingUpdateCountQuery();
         return ToActionResult(await _bus.InvokeAsync<Result<PendingUpdateCountDto>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Reads whether the host must be restarted for installed updates to take full effect, live from
+    /// the agent (issue #163).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <remarks>
+    /// A probe the agent could not run is its own typed failure and never <c>required: false</c>, so
+    /// the interface draws no notice instead of a false assurance. <c>required: null</c> means the
+    /// agent did not measure it.
+    /// </remarks>
+    [HttpGet("updates/reboot-required")]
+    [ProducesResponseType(typeof(RebootRequirementDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> GetRebootRequirementAsync(CancellationToken cancellationToken)
+    {
+        var query = new GetRebootRequirementQuery();
+        return ToActionResult(await _bus.InvokeAsync<Result<RebootRequirementDto>>(query, cancellationToken));
     }
 }

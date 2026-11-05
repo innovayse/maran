@@ -68,6 +68,20 @@ service MonitorService {
   // its deadline) is an `AgentError` with `ERROR_CODE_SYSTEM_FAILURE`, NEVER
   // an empty list: zero updates is only the answer to a read that succeeded.
   rpc ListPendingUpdates(ListPendingUpdatesRequest) returns (ListPendingUpdatesResponse);
+
+  // Reports whether the host needs a reboot to finish applying what has been
+  // installed (issue #163, contract revision 19): the Debian family's
+  // reboot-required marker file, or the RHEL family's `needs-restarting -r`.
+  // Read-only, idempotent and takes no input: the request carries no field, so
+  // no caller value can reach a path or an argument. Cancellation class: STOP.
+  // The rpc writes nothing and holds no agent lock, so a dropped call abandons
+  // nothing; the one bounded program it may run is killed with its process group
+  // at the deadline whether or not the caller is still listening. A probe that
+  // could not run (the program missing or failing, a deadline, an unreadable
+  // marker path) is an `AgentError` with `ERROR_CODE_SYSTEM_FAILURE`, NEVER
+  // `REBOOT_REQUIREMENT_NOT_REQUIRED`: a false "no reboot needed" is the one
+  // wrong answer this rpc exists to avoid.
+  rpc GetRebootRequirement(GetRebootRequirementRequest) returns (GetRebootRequirementResponse);
 }
 
 message GetHostMetricsRequest {}
@@ -450,4 +464,51 @@ message PendingUpdate {
   // (e.g. "Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security") or the
   // dnf repository id (e.g. "baseos"). May be empty.
   string source = 4;
+  // Whether the package manager's own metadata marks this update as a security
+  // update (issue #163). UNSPECIFIED means not measured: an agent older than
+  // revision 19, or a second reading that could not be taken. A measured
+  // "not security" is ORDINARY, and an unmeasured entry is never given it.
+  UpdateClassification classification = 5;
+}
+
+// Whether an update is a security update, as the host's package manager's own
+// metadata says. Mirrors `maran_distro::UpdateClassification`.
+enum UpdateClassification {
+  // Not measured: an old agent, or the family could not tell.
+  UPDATE_CLASSIFICATION_UNSPECIFIED = 0;
+  // The package manager's metadata marks the update as a security update.
+  UPDATE_CLASSIFICATION_SECURITY = 1;
+  // Measured, and not marked as a security update.
+  UPDATE_CLASSIFICATION_ORDINARY = 2;
+}
+
+// Request for GetRebootRequirement. Carries no parameters: the answer is
+// always about the host the agent runs on, and there is nothing a caller may
+// choose.
+message GetRebootRequirementRequest {}
+
+// Response for GetRebootRequirement.
+message GetRebootRequirementResponse {
+  oneof result {
+    GetRebootRequirementOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Terminal success payload for GetRebootRequirement.
+message GetRebootRequirementOk {
+  // What the host's own reboot probe says. A probe that could not run is the
+  // error arm, never a value here.
+  RebootRequirement requirement = 1;
+}
+
+// Whether the host must be rebooted to finish applying installed updates.
+// Mirrors `maran_distro::RebootRequirement`.
+enum RebootRequirement {
+  // Not measured. Never sent by an agent that took the reading.
+  REBOOT_REQUIREMENT_UNSPECIFIED = 0;
+  // The probe ran and found nothing waiting on a reboot.
+  REBOOT_REQUIREMENT_NOT_REQUIRED = 1;
+  // The probe ran and found a reboot is needed.
+  REBOOT_REQUIREMENT_REQUIRED = 2;
 }

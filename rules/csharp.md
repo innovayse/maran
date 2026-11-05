@@ -310,7 +310,12 @@ backend/
 │   │   │                                #   final event instead of an exception
 │   │   └── Services/<Proto>Service/      # one folder per proto service: client, seam, DTOs
 │   │                                    # (SystemService/, AccountsService/, SitesService/,
-│   │                                    #  SslService/, PhpService/, …)
+│   │                                    #  SslService/, PhpService/, …), and the internal static
+│   │                                    #  <Thing>Mapper.cs that reads a wire message into the
+│   │                                    #  panel's own mirror (MonitorService/PendingUpdateMapper:
+│   │                                    #  "unspecified" becomes Unmeasured once, here). It sits
+│   │                                    #  beside its client because the generated wire types may
+│   │                                    #  not leave this project, so no module's Mappers/ can hold it
 │   └── Maran.Modules/               # grouping folder for all module projects
 │       └── <Name>/                      # short folder (Sites/, Accounts/…); the project inside
 │                                        #   is the full Maran.Modules.<Name>.csproj

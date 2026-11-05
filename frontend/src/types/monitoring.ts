@@ -221,6 +221,18 @@ export interface ClockSync {
 }
 
 /**
+ * One kind of update the filter offers, mirroring the backend's `UpdateClassificationChoiceDto`
+ * from `GET /api/v1/monitoring/updates/classifications`. The SPA holds no list of the kinds and no
+ * name for them: the set is what the panel answered, named in the request's language.
+ */
+export interface UpdateClassificationChoice {
+  /** The machine-stable kind a row carries and the list's `classification` filter takes. */
+  value: string
+  /** The kind as a reader reads it, already in the request's language. */
+  name: string
+}
+
+/**
  * One package the operating system could update, mirroring the backend's `PendingUpdateDto`.
  *
  * Read from the server's package cache only: the agent never refreshes the package lists to answer,
@@ -239,12 +251,30 @@ export interface PendingUpdate {
   installedVersion: string | null
   /** Where the update comes from (an apt origin or a dnf repository id); may be an empty string. */
   source: string
+  /**
+   * The kind of update on the wire, for choosing a badge tone and never shown as text. A value the
+   * SPA does not know a tone for is drawn neutral, because the panel may add a kind.
+   */
+  classification: string
+  /** The kind as a reader reads it, already in the request's language; this is what the badge prints. */
+  classificationName: string
 }
 
 /** How many updates are waiting, mirroring the backend's `PendingUpdateCountDto`. */
 export interface PendingUpdateCount {
   /** The number of packages with an update available; zero is a real answer from a readable cache. */
   count: number
+  /**
+   * How many of them are security updates, or `null` when the classification was not measured
+   * (the agent could not tell). Null is never zero: zero is a real answer, "none are security".
+   */
+  securityCount: number | null
+}
+
+/** Whether the server needs a reboot to finish applying updates, mirroring `RebootRequirementDto`. */
+export interface RebootRequirement {
+  /** True when a reboot is required, false when it is not, `null` when it could not be measured. */
+  required: boolean | null
 }
 
 /** The monitoring endpoints this SPA calls, as `useMonitoringApi` implements them. */
@@ -296,9 +326,23 @@ export interface MonitoringApi {
   pendingUpdates: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<PendingUpdate>>
 
   /**
+   * Reads the kinds of update the list's classification filter offers, named by the panel.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The kinds in the panel's order, each named in the request's language.
+   */
+  updateClassifications: (signal?: AbortSignal) => Promise<UpdateClassificationChoice[]>
+
+  /**
    * Reads how many packages have an update available, for the navigation badge.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The count; a failed read throws rather than answering zero.
    */
   pendingUpdateCount: (signal?: AbortSignal) => Promise<PendingUpdateCount>
+
+  /**
+   * Reads whether the server needs a reboot, live from the agent.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The requirement; `required` is `null` when it could not be measured.
+   */
+  rebootRequirement: (signal?: AbortSignal) => Promise<RebootRequirement>
 }

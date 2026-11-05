@@ -1,5 +1,7 @@
 //! The Debian-family adapter implementation.
 
+use std::path::PathBuf;
+
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::DistroAdapter;
@@ -17,6 +19,9 @@ use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
 use crate::php_facts::PhpFacts;
+use crate::reboot_probe::RebootProbe;
+use crate::reboot_probe_failure::RebootProbeFailure;
+use crate::reboot_requirement::RebootRequirement;
 use crate::scheduling_facts::SchedulingFacts;
 use crate::service_manager_facts::ServiceManagerFacts;
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
@@ -201,6 +206,29 @@ impl PackageFacts for DebianAdapter {
         stdout: &str,
     ) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure> {
         debian_packages::read_pending_updates(status, stdout)
+    }
+
+    fn security_pending_updates_arguments(&self) -> Option<Vec<String>> {
+        // The simulated upgrade prints each package's origins, so the first
+        // reading already classifies every row.
+        None
+    }
+
+    fn mark_security_updates(
+        &self,
+        updates: Vec<PendingUpdate>,
+        _status: i32,
+        _stdout: &str,
+    ) -> Result<Vec<PendingUpdate>, PendingUpdatesFailure> {
+        Ok(updates)
+    }
+
+    fn reboot_probe(&self) -> RebootProbe {
+        RebootProbe::Marker(PathBuf::from(debian_paths::reboot_required_marker()))
+    }
+
+    fn read_reboot_probe_run(&self, status: i32) -> Result<RebootRequirement, RebootProbeFailure> {
+        debian_packages::read_reboot_probe_run(status)
     }
 }
 

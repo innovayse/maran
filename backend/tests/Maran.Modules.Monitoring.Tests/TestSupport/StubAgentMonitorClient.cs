@@ -62,6 +62,15 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     public Result<IReadOnlyList<AgentPendingUpdate>> PendingUpdates { get; set; } =
         Result<IReadOnlyList<AgentPendingUpdate>>.Ok([]);
 
+    /// <summary>How many times the reboot requirement was asked for.</summary>
+    public int RebootRequirementCalls { get; private set; }
+
+    /// <summary>
+    /// What <see cref="GetRebootRequirementAsync"/> answers; not required unless a test says otherwise.
+    /// </summary>
+    public Result<AgentRebootRequirement> RebootRequirement { get; set; } =
+        Result<AgentRebootRequirement>.Ok(AgentRebootRequirement.NotRequired);
+
     /// <summary>How many times <see cref="GetServerFingerprintAsync"/> was called.</summary>
     public int ServerFingerprintCalls { get; private set; }
 
@@ -124,6 +133,13 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     {
         PendingUpdatesCalls++;
         return Task.FromResult(PendingUpdates);
+    }
+
+    /// <inheritdoc />
+    public Task<Result<AgentRebootRequirement>> GetRebootRequirementAsync(CancellationToken cancellationToken)
+    {
+        RebootRequirementCalls++;
+        return Task.FromResult(RebootRequirement);
     }
 
     /// <inheritdoc />

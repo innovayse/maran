@@ -5,7 +5,10 @@ use crate::is_printable_token::is_printable_token;
 use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
+use crate::reboot_probe_failure::RebootProbeFailure;
+use crate::reboot_requirement::RebootRequirement;
 use crate::starts_with_http_status::starts_with_http_status;
+use crate::update_classification::UpdateClassification;
 
 /// Name of the OS package that provides php-fpm for `version`, e.g.
 /// `php8.3-fpm`.
@@ -315,7 +318,48 @@ fn parse_inst(rest: &str) -> Option<Option<PendingUpdate>> {
         available_version: version.to_owned(),
         installed_version: Some(installed.to_owned()),
         source: source.to_owned(),
+        classification: classify_origins(source),
     }))
+}
+
+/// The suffix of a suite name apt's security channel uses: `noble-security`
+/// on Ubuntu, `stable-security` on current Debian.
+const SECURITY_SUITE_SUFFIX: &str = "-security";
+
+/// Classifies an update by the origin list apt printed for it (issue #163).
+///
+/// The list is `ORIGIN:RELEASE/SUITE` entries separated by `, `, as apt prints
+/// them (`Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security`); the suite
+/// is what follows the last `/` of an entry. One suite ending `-security` makes
+/// the update [`UpdateClassification::Security`], because the very version that
+/// would be installed is published by the security channel; any other list,
+/// an empty one included, is [`UpdateClassification::Ordinary`]. Apt printed the
+/// origins in the output being read, so this is a measured answer and never
+/// `Unmeasured`.
+fn classify_origins(source: &str) -> UpdateClassification {
+    let is_security = source.split(", ").any(|origin| {
+        origin
+            .rsplit('/')
+            .next()
+            .is_some_and(|suite| suite.ends_with(SECURITY_SUITE_SUFFIX))
+    });
+    if is_security {
+        UpdateClassification::Security
+    } else {
+        UpdateClassification::Ordinary
+    }
+}
+
+/// Reads the exit status of a reboot probe run, which this family does not
+/// have: its probe is a marker file and presence is the whole answer
+/// (issue #163).
+///
+/// # Errors
+///
+/// Always [`RebootProbeFailure::NotAProgramProbe`]: there is no run whose status
+/// could mean anything, and answering `NotRequired` for one would be a guess.
+pub fn read_reboot_probe_run(_status: i32) -> Result<RebootRequirement, RebootProbeFailure> {
+    Err(RebootProbeFailure::NotAProgramProbe)
 }
 
 #[cfg(test)]

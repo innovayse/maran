@@ -5,13 +5,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Maran.Agent.Client.Tests.Services.MonitorService;
 
 /// <summary>
-/// Mapping contract of <see cref="AgentMonitorClient.ListPendingUpdatesAsync"/> (issue #324): rows reach the
-/// panel with an unreported installed version read once as null, and a catalogue the agent could not read is
-/// a failure, never an empty list.
+/// Mapping contract of <see cref="AgentMonitorClient.ListPendingUpdatesAsync"/> (issues #324, #163): rows reach
+/// the panel with an unreported installed version read once as null and an unmeasured classification kept
+/// unmeasured, and a catalogue the agent could not read is a failure, never an empty list.
 /// </summary>
 public sealed class AgentMonitorClientPendingUpdatesTests
 {
-    /// <summary>Every wire row reaches the panel in the order the agent sent it, with all four fields.</summary>
+    /// <summary>Every wire row reaches the panel in the order the agent sent it, with all five fields.</summary>
     [Fact]
     public async Task Every_wire_row_reaches_the_panel_in_order_with_all_its_fields()
     {
@@ -23,8 +23,13 @@ public sealed class AgentMonitorClientPendingUpdatesTests
                 {
                     Updates =
                     {
-                        Row("libssl3t64", "3.0.13-0ubuntu3.5", "3.0.13-0ubuntu3.4", "noble-updates"),
-                        Row("g++", "4:13.2.0-7ubuntu1", "4:13.2.0-1ubuntu1", "noble"),
+                        Row(
+                            "libssl3t64",
+                            "3.0.13-0ubuntu3.5",
+                            "3.0.13-0ubuntu3.4",
+                            "noble-security",
+                            UpdateClassification.Security),
+                        Row("g++", "4:13.2.0-7ubuntu1", "4:13.2.0-1ubuntu1", "noble", UpdateClassification.Ordinary),
                     },
                 },
             },
@@ -35,11 +40,66 @@ public sealed class AgentMonitorClientPendingUpdatesTests
         Assert.True(result.IsSuccess);
         Assert.Equal(
             [
-                new AgentPendingUpdate("libssl3t64", "3.0.13-0ubuntu3.5", "3.0.13-0ubuntu3.4", "noble-updates"),
-                new AgentPendingUpdate("g++", "4:13.2.0-7ubuntu1", "4:13.2.0-1ubuntu1", "noble"),
+                new AgentPendingUpdate(
+                    "libssl3t64",
+                    "3.0.13-0ubuntu3.5",
+                    "3.0.13-0ubuntu3.4",
+                    "noble-security",
+                    AgentUpdateClassification.Security),
+                new AgentPendingUpdate(
+                    "g++",
+                    "4:13.2.0-7ubuntu1",
+                    "4:13.2.0-1ubuntu1",
+                    "noble",
+                    AgentUpdateClassification.Ordinary),
             ],
             result.Value);
         Assert.NotNull(stub.LastPendingUpdatesRequest);
+    }
+
+    /// <summary>
+    /// A row whose classification the agent never set is unmeasured in the panel, never ordinary: an older
+    /// agent's zero is not a verdict.
+    /// </summary>
+    [Fact]
+    public async Task An_unspecified_classification_is_unmeasured_never_ordinary()
+    {
+        var stub = new StubMonitorService
+        {
+            PendingUpdatesResponse = new ListPendingUpdatesResponse
+            {
+                Ok = new ListPendingUpdatesOk
+                {
+                    Updates = { Row("bash", "5.2-2", "5.2-1", "noble-updates", UpdateClassification.Unspecified) },
+                },
+            },
+        };
+
+        var result = await Client(stub).ListPendingUpdatesAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(AgentUpdateClassification.Unmeasured, Assert.Single(result.Value!).Classification);
+    }
+
+    /// <summary>A classification a newer agent added is unmeasured in the panel, never a guessed member.</summary>
+    [Fact]
+    public async Task A_classification_this_build_cannot_name_is_unmeasured()
+    {
+        var stub = new StubMonitorService
+        {
+            PendingUpdatesResponse = new ListPendingUpdatesResponse
+            {
+                Ok = new ListPendingUpdatesOk
+                {
+                    Updates = { Row("bash", "5.2-2", "5.2-1", "noble-updates", (UpdateClassification)99) },
+                },
+            },
+        };
+
+        var result = await Client(stub).ListPendingUpdatesAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(AgentUpdateClassification.Unmeasured, Assert.Single(result.Value!).Classification);
     }
 
     /// <summary>An empty installed version on the wire is null in the panel, never an empty string.</summary>
@@ -50,7 +110,10 @@ public sealed class AgentMonitorClientPendingUpdatesTests
         {
             PendingUpdatesResponse = new ListPendingUpdatesResponse
             {
-                Ok = new ListPendingUpdatesOk { Updates = { Row("openssl", "3.0.7-27.el9", string.Empty, "baseos") } },
+                Ok = new ListPendingUpdatesOk
+                {
+                    Updates = { Row("openssl", "3.0.7-27.el9", string.Empty, "baseos", UpdateClassification.Security) },
+                },
             },
         };
 
@@ -70,7 +133,13 @@ public sealed class AgentMonitorClientPendingUpdatesTests
         {
             PendingUpdatesResponse = new ListPendingUpdatesResponse
             {
-                Ok = new ListPendingUpdatesOk { Updates = { Row("tzdata", "2024b-0ubuntu0.24.04", "2024a", string.Empty) } },
+                Ok = new ListPendingUpdatesOk
+                {
+                    Updates =
+                    {
+                        Row("tzdata", "2024b-0ubuntu0.24.04", "2024a", string.Empty, UpdateClassification.Ordinary),
+                    },
+                },
             },
         };
 
@@ -128,8 +197,14 @@ public sealed class AgentMonitorClientPendingUpdatesTests
     /// <param name="available">The version the update installs.</param>
     /// <param name="installed">The installed version; empty when not reported.</param>
     /// <param name="source">The origin or repository id.</param>
+    /// <param name="classification">The classification the agent reports.</param>
     /// <returns>The wire row.</returns>
-    private static PendingUpdate Row(string name, string available, string installed, string source)
+    private static PendingUpdate Row(
+        string name,
+        string available,
+        string installed,
+        string source,
+        UpdateClassification classification)
     {
         return new PendingUpdate
         {
@@ -137,6 +212,7 @@ public sealed class AgentMonitorClientPendingUpdatesTests
             AvailableVersion = available,
             InstalledVersion = installed,
             Source = source,
+            Classification = classification,
         };
     }
 

@@ -1,8 +1,11 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Common;
+using Maran.Modules.Monitoring.Domain.Policies;
 using Maran.Modules.Monitoring.Mappers;
+using Maran.Modules.Monitoring.Resources;
 using Maran.SharedKernel.Extensions;
+using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Monitoring.Queries.ListPendingUpdates;
 
@@ -23,7 +26,8 @@ namespace Maran.Modules.Monitoring.Queries.ListPendingUpdates;
 /// <b>Paged here, not by the agent.</b> The agent has no page parameter: a package manager answers its
 /// whole list in one process run, and that run is the expensive part. The in-memory pager is the one
 /// the rest of the panel uses for an agent list, so a search, a sort and a page past the end behave as
-/// they do everywhere else.
+/// they do everywhere else. The classification filter narrows the whole list first, so the total a page
+/// carries is the filtered total.
 /// </para>
 /// </remarks>
 public sealed class ListPendingUpdatesQueryHandler
@@ -40,11 +44,16 @@ public sealed class ListPendingUpdatesQueryHandler
     /// <summary>The agent, the only thing in the system that can ask the host's package manager.</summary>
     private readonly IAgentMonitorClient _agent;
 
+    /// <summary>Names each row's classification in the request's culture.</summary>
+    private readonly IStringLocalizer<DisplayNames> _displayNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="agent">The agent client that reads the pending updates.</param>
-    public ListPendingUpdatesQueryHandler(IAgentMonitorClient agent)
+    /// <param name="displayNames">This module's display names.</param>
+    public ListPendingUpdatesQueryHandler(IAgentMonitorClient agent, IStringLocalizer<DisplayNames> displayNames)
     {
         _agent = agent;
+        _displayNames = displayNames;
     }
 
     /// <summary>Returns the requested page of pending updates.</summary>
@@ -62,11 +71,21 @@ public sealed class ListPendingUpdatesQueryHandler
             return Result<PagedResult<PendingUpdateDto>>.Fail(updates.Error!);
         }
 
-        var page = updates.Value.ToPaged(query, ListPendingUpdatesSorts.Map, SearchFields);
+        IEnumerable<AgentPendingUpdate> rows = updates.Value;
+        if (!query.Classification.IsNone)
+        {
+            var wanted = query.Classification.Value;
+            rows = rows.Where(update =>
+            {
+                return PendingUpdateClassificationPolicy.NameOf(update.Classification) == wanted;
+            });
+        }
+
+        var page = rows.ToPaged(query, ListPendingUpdatesSorts.Map, SearchFields);
 
         return Result<PagedResult<PendingUpdateDto>>.Ok(page.Map(update =>
         {
-            return PendingUpdateMapper.ToDto(update);
+            return PendingUpdateMapper.ToDto(update, _displayNames);
         }));
     }
 }

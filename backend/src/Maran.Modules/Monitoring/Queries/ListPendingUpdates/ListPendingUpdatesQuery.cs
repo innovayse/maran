@@ -1,3 +1,4 @@
+using Maran.Modules.Monitoring.Domain.Policies;
 using Maran.SharedKernel.Pagination;
 
 namespace Maran.Modules.Monitoring.Queries.ListPendingUpdates;
@@ -19,11 +20,17 @@ namespace Maran.Modules.Monitoring.Queries.ListPendingUpdates;
 /// A term matched literally, ignoring case, inside the package name, or <see cref="SearchTerm.None"/>.
 /// </param>
 /// <param name="Sort">
-/// One of <see cref="PendingUpdateSortFields"/> either way (<c>packageName</c>, <c>-source</c>), or
-/// <see cref="SortRequest.Default"/> for package name ascending.
+/// One of <see cref="PendingUpdateSortFields"/> either way (<c>packageName</c>, <c>-source</c>,
+/// <c>security</c>), or <see cref="SortRequest.Default"/> for package name ascending.
+/// </param>
+/// <param name="Classification">
+/// Only updates carrying this word (<c>security</c>, <c>ordinary</c> or <c>unmeasured</c>, see
+/// <see cref="PendingUpdateClassificationPolicy"/>), or <see cref="FilterValue.None"/> for every
+/// update. Applied in the panel, before the search and the page, so the total is the filtered total.
 /// </param>
 public sealed record ListPendingUpdatesQuery(
     int Page = PageDefaults.FirstPage,
     int PageSize = PageDefaults.Size,
     SearchTerm Search = default,
-    SortRequest Sort = default) : IPagedQuery;
+    SortRequest Sort = default,
+    FilterValue Classification = default) : IPagedQuery;

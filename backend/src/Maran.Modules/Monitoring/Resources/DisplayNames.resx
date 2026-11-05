@@ -69,4 +69,13 @@
   <data name="ServerKindLocal">
     <value>This server (local)</value>
   </data>
+  <data name="PendingUpdateClassificationSecurity">
+    <value>Security</value>
+  </data>
+  <data name="PendingUpdateClassificationOrdinary">
+    <value>Ordinary</value>
+  </data>
+  <data name="PendingUpdateClassificationUnmeasured">
+    <value>Not measured</value>
+  </data>
 </root>

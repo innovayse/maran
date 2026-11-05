@@ -220,6 +220,9 @@ public static class ExpectedErrorStatuses
             // the answer names no other tenant (RequiresAccountFeatureFilter explains the choice).
             ["PlanFeatureNotIncluded"] = ErrorType.Forbidden,
             ["PlanFeatureUnknown"] = ErrorType.Validation,
+            // The pending-updates list's classification filter (#163): an unknown value is a malformed
+            // list request, answered 400 by the validator.
+            ["PendingUpdateClassificationUnknown"] = ErrorType.Validation,
             ["PasswordResetEmailInvalid"] = ErrorType.Validation,
             ["PasswordResetTokenInvalid"] = ErrorType.Validation,
             // Change password (#232): 400, not 401 — a 401 makes the SPA renew the token and

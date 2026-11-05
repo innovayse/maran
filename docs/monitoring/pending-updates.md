@@ -1,12 +1,14 @@
 # Pending server updates
 
-How the panel knows which operating system packages have a newer version waiting, where it says
-so, and what it cannot see (issue #324).
+How the panel knows which operating system packages have a newer version waiting, which of them are
+security fixes, whether the host needs a reboot, where it says so, and what it cannot see (issues
+#324 and #163).
 
 ## Why it matters
 
 A server whose packages fall behind is a server running known defects. The panel does not install
-updates, but an administrator should not have to open a terminal to learn that some are waiting.
+updates, but an administrator should not have to open a terminal to learn that some are waiting,
+which of them are security fixes, or that a finished update still needs a reboot.
 
 ## What is read
 
@@ -35,6 +37,29 @@ cache-only: `-C` forbids a metadata refresh. Each row carries:
 | `availableVersion` | The version the update would install. |
 | `installedVersion` | The version installed now. Absent on the RHEL family, whose update check does not report it; the API sends `null`, never an empty string. |
 | `source` | The repository or origin the update comes from. Empty when the package manager names none. |
+| `classification` | `security`, `ordinary` or `unmeasured`. See "Security classification". |
+
+## Security classification
+
+Each row says whether the package manager's own metadata marks the update as a security fix. The
+panel decides nothing here: it reports what the host's repositories declare, and it reads it from the
+local cache only, like the list itself.
+
+- **Debian family.** The simulated upgrade already prints each package's origin list. An update whose
+  origin list has a suite ending `-security` is `security`; any other is `ordinary`. No second command
+  runs.
+- **RHEL family.** The first reading does not say. A second, fixed, cache-only command
+  (`dnf check-update --security -C -q`) names the packages the metadata marks as security; those are
+  `security` and every other row is `ordinary`.
+- **`unmeasured`** is a third answer, not a blank. It is what an older agent reports, and what a row
+  carries when the second reading on the RHEL family could not be made (it failed or timed out). The
+  list is still returned in that case, because a failed second reading must not take the first one
+  down with it, and no row is guessed `ordinary`: "ordinary" is a measured answer.
+
+The API carries the same three words. The list takes an optional `classification` filter
+(`security`, `ordinary` or `unmeasured`; anything else is refused) and `security` is one more sort
+field. The count endpoint carries `securityCount`, which is `null` when the classification was not
+measured and a number only when it was: a missing measurement is never shown as "0 security updates".
 
 ## Cache only, and why
 
@@ -72,24 +97,59 @@ say "up to date" about something that was never checked.
 Both are administrators only (a signed-in customer is answered 403, an anonymous caller 401). Both
 ask the agent live; the panel stores nothing.
 
-- `GET /api/v1/monitoring/updates?page&pageSize&search&sort` returns a page of
-  `{"packageName": "…", "availableVersion": "…", "installedVersion": "…" | null, "source": "…"}`.
+- `GET /api/v1/monitoring/updates?page&pageSize&search&sort&classification` returns a page of
+  `{"packageName": "…", "availableVersion": "…", "installedVersion": "…" | null, "source": "…", "classification": "security" | "ordinary" | "unmeasured"}`.
   The agent answers its whole list in one call and the panel pages it in memory. `search` matches the
   package name only, literally and ignoring case. `sort` is `packageName` (the default, ascending) or
-  `source`, either with a leading `-` for descending. Versions are not sortable: package managers
+  `source` or `security`, either with a leading `-` for descending. `classification` keeps only the rows of
+  that one class, on the server. Versions are not sortable: package managers
   compare versions by their own rules and the panel has no implementation of them, so an order it
   produced could disagree with theirs.
-- `GET /api/v1/monitoring/updates/count` returns `{"count": 12}`.
+- `GET /api/v1/monitoring/updates/count` returns `{"count": 12, "securityCount": 3 | null}`. The
+  navigation badge keeps showing `count`, the total.
+- `GET /api/v1/monitoring/updates/reboot-required` returns `{"required": true | false | null}`.
+  `null` means the probe could not say.
+
+## Reboot required
+
+Replacing a library, the kernel or an init component on disk does not change what a running process
+has loaded, so a finished update can leave the host needing a reboot. A second agent operation with no
+input (`MonitorService.GetRebootRequirement`, contract revision 19) asks the host:
+
+| Family | Probe | Reading |
+|---|---|---|
+| Debian | whether the distribution's reboot-required marker file exists | present: required; absent: not required |
+| RHEL | `needs-restarting -r` | exit 0 not required, exit 1 required, any other status is a failure |
+
+The Updates page shows a notice only when the answer is `required`. When the probe cannot run (the
+program is missing, it timed out, the marker could not be read) the agent answers with an error and the
+panel shows nothing: it errs quiet, and never reports "no reboot needed" for a probe that did not run.
+The panel never reboots the host. Whether and when to reboot is the administrator's decision.
+
+## Held packages
+
+If the opt-in unattended security updates are enabled at install time
+([os-security-updates.md](../installer/os-security-updates.md)), the host's own job skips the database
+engines, the web server, the PHP runtimes and the FTP daemon, because an unattended restart of those
+drops customers' connections. This changes nothing on this page: the hold applies to the unattended run
+only, so those packages are still listed here as pending, classified `security` where the distribution
+says so. A held security update showing as pending is the correct state, and the administrator applies
+it in a maintenance window.
 
 ## What it cannot see
 
 - Updates the host has not yet learned about. The panel never refreshes metadata, so a package
-  published since the host last refreshed is invisible here.
-- Which updates are security fixes. The rows carry no such flag; the source is the only hint, and
-  naming a repository a security one is a property of how the host's administrator configured it.
-- Held, pinned or excluded packages beyond what the package manager itself already applies when it
-  answers. Whatever it leaves out, the panel leaves out.
-- Whether a pending update is safe to apply, or whether a reboot is needed afterwards.
+  published since the host last refreshed is invisible here, and so is a security flag the host has
+  not yet downloaded.
+- On the RHEL family, the classification comes from a second cache-only reading. When that reading
+  fails the rows are shown as `unmeasured` and the security count is absent, rather than guessed.
+- Whether a pending update is safe to apply. The security flag is the repository's declaration, not a
+  judgement about your workload.
+- Which running services still use an old library after an update. The reboot notice answers whether
+  the host as a whole needs a restart, not which daemon to restart.
+- Pins and exclusions the host's administrator set in the package manager's own configuration. Whatever
+  the package manager leaves out when it answers, the panel leaves out. The unattended-update hold list
+  is not one of these: it is outside the package manager's answer and held packages stay listed.
 
 ## Applying updates
 
