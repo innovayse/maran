@@ -95,6 +95,8 @@ public sealed class SslModule : IPanelModule
 
         services.AddScoped<CertificateAuditJournal>();
         services.AddScoped<CertificateInstaller>();
+        services.AddScoped<ISslAlertMailer, SslAlertMailer>();
+        services.AddScoped<CertificateRenewalFailureMessages>();
         services.AddScoped<AcmeAccountStore>();
         services.AddScoped<IAcmeChallengeWriter, AcmeChallengeWriter>();
         services.AddScoped<IAcmeClient, AcmeClient>();

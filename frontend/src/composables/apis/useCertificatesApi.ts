@@ -1,5 +1,6 @@
 import { useApi } from '../useApi'
 import type {
+  AcmeDirectory,
   Certificate,
   CertificatesApi,
   InstallCustomCertificateRequest,
@@ -85,5 +86,14 @@ export const useCertificatesApi = (): CertificatesApi => {
     return api.delete<void>(`${CERTIFICATES_PATH}/${id}`, signal)
   }
 
-  return { list, issue, installCustom, remove }
+  /**
+   * Reads which ACME directory the panel orders from. Administrators only.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The configured directory.
+   */
+  const acmeDirectory = (signal?: AbortSignal): Promise<AcmeDirectory> => {
+    return api.get<AcmeDirectory>(`${CERTIFICATES_PATH}/acme-directory`, signal)
+  }
+
+  return { list, issue, installCustom, remove, acmeDirectory }
 }

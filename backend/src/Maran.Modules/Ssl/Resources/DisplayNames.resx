@@ -15,4 +15,13 @@
   <data name="SslModuleDisplayName">
     <value>SSL certificates</value>
   </data>
+  <data name="AcmeDirectoryKindProduction">
+    <value>Production authority</value>
+  </data>
+  <data name="AcmeDirectoryKindStaging">
+    <value>Staging authority (certificates are not trusted)</value>
+  </data>
+  <data name="AcmeDirectoryKindCustom">
+    <value>Custom authority</value>
+  </data>
 </root>

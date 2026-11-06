@@ -95,6 +95,18 @@ public sealed class Certificate
     /// </remarks>
     public int ConsecutiveRenewalFailures { get; private set; }
 
+    /// <summary>
+    /// When the operator was told this certificate is about to expire, or <c>null</c> when no alert is
+    /// outstanding for the current material.
+    /// </summary>
+    /// <remarks>
+    /// The one fact that keeps the alert single: a renewal pass runs every day, and a certificate
+    /// inside the alert window stays inside it until it is replaced, so without this mark the
+    /// operator would be mailed on every pass. It is cleared when the material is replaced, so the
+    /// next certificate's approaching expiry is announced afresh.
+    /// </remarks>
+    public DateTimeOffset? ExpiryAlertedAt { get; private set; }
+
     /// <summary>Records a freshly installed certificate.</summary>
     /// <param name="id">The certificate's identity.</param>
     /// <param name="accountId">The account that owns it.</param>
@@ -123,6 +135,7 @@ public sealed class Certificate
         LastRenewalFailureCode = null;
         LegacyRenewalErrorCode = string.Empty;
         ConsecutiveRenewalFailures = 0;
+        ExpiryAlertedAt = null;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>
@@ -136,7 +149,8 @@ public sealed class Certificate
     /// <param name="notAfter">When the new certificate expires.</param>
     /// <param name="renewedAt">The instant of the renewal, taken from <see cref="IClock"/>.</param>
     /// <remarks>Clears the failure state: a certificate that has just been renewed is not failing,
-    /// whatever happened on the previous attempts.</remarks>
+    /// whatever happened on the previous attempts, and the expiry alert raised for the old material no
+    /// longer applies to the new one.</remarks>
     public void Renewed(DateTimeOffset notAfter, DateTimeOffset renewedAt)
     {
         NotAfter = notAfter;
@@ -145,6 +159,7 @@ public sealed class Certificate
         LastRenewalFailureCode = null;
         LegacyRenewalErrorCode = string.Empty;
         ConsecutiveRenewalFailures = 0;
+        ClearExpiryAlert();
     }
 
     /// <summary>Records a renewal attempt that did not produce new material.</summary>
@@ -161,6 +176,23 @@ public sealed class Certificate
         LastRenewalFailureCode = errorCode;
         LegacyRenewalErrorCode = errorCode;
         ConsecutiveRenewalFailures += 1;
+    }
+
+    /// <summary>Records that the operator has been told this certificate is about to expire.</summary>
+    /// <param name="at">The instant the alert was raised, taken from <see cref="IClock"/>.</param>
+    /// <remarks>
+    /// Idempotent in the way that matters: the first mark survives, so a second call within the same
+    /// window cannot move the instant the operator was actually told.
+    /// </remarks>
+    public void MarkExpiryAlerted(DateTimeOffset at)
+    {
+        ExpiryAlertedAt ??= at;
+    }
+
+    /// <summary>Forgets that an expiry alert was raised, so the next approach to expiry alerts again.</summary>
+    public void ClearExpiryAlert()
+    {
+        ExpiryAlertedAt = null;
     }
 
     /// <summary>Whether this certificate is due for renewal at <paramref name="now"/>.</summary>

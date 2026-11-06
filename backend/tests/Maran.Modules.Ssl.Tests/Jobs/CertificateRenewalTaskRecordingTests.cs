@@ -132,6 +132,7 @@ public sealed class CertificateRenewalTaskRecordingTests
             fixture.Installer,
             fixture.AgentSites,
             fixture.Journal,
+            fixture.Alerts,
             fixture.Clock,
             NullLogger<CertificateRenewalHandler>.Instance,
             fixture.Tasks);

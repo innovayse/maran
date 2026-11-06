@@ -13,8 +13,12 @@ public static class CertificateMapper
 {
     /// <summary>Describes a stored certificate to the caller.</summary>
     /// <param name="certificate">The row that records the certificate.</param>
+    /// <param name="lastRenewalError">
+    /// The sentence for the row's last renewal failure, resolved by the caller, or null when there is
+    /// none. The mapper restates it and never works out which case it is in.
+    /// </param>
     /// <returns>The DTO carrying that row's own facts.</returns>
-    public static CertificateDto From(Certificate certificate)
+    public static CertificateDto From(Certificate certificate, string? lastRenewalError)
     {
         return new CertificateDto(
             certificate.Id,
@@ -25,6 +29,7 @@ public static class CertificateMapper
             certificate.IssuedAt,
             certificate.LastRenewalAttemptAt,
             certificate.LastRenewalFailureCode,
+            lastRenewalError,
             certificate.ConsecutiveRenewalFailures);
     }
 }

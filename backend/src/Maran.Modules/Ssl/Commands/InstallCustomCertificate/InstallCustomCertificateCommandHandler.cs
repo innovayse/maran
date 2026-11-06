@@ -104,7 +104,8 @@ public sealed class InstallCustomCertificateCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<CertificateDto>.Ok(CertificateMapper.From(certificate));
+        // A row written a moment ago has attempted no renewal, so there is no failure sentence to carry.
+        return Result<CertificateDto>.Ok(CertificateMapper.From(certificate, null));
     }
 
     /// <summary>Replaces the domain's existing row, or writes the first one.</summary>

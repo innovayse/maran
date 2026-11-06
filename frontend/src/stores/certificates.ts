@@ -4,6 +4,7 @@ import { useCertificatesApi } from '../composables/apis/useCertificatesApi'
 import { ApiError } from '../composables/useApi'
 import type { LoadingState } from '../types/loading'
 import type {
+  AcmeDirectory,
   Certificate,
   InstallCustomCertificateRequest,
   IssueCertificateRequest,
@@ -29,6 +30,12 @@ export const useCertificatesStore = defineStore('certificates', () => {
    * install or remove never moves it, so their refusals show above a list that is still there.
    */
   const listState: Ref<LoadingState> = ref('loading')
+
+  /**
+   * The ACME directory the panel orders from, or `null` until an administrator's read succeeds. A
+   * failed read leaves it `null` and shows nothing: the line is advice, not a result to report.
+   */
+  const acmeDirectory: Ref<AcmeDirectory | null> = ref(null)
 
   /** True while an issue, install or remove request is in flight. */
   const acting: Ref<boolean> = ref(false)
@@ -111,6 +118,20 @@ export const useCertificatesStore = defineStore('certificates', () => {
   }
 
   /**
+   * Loads the ACME directory the panel orders from. Called for administrators only: the panel
+   * refuses every other role, and the caller's role is the SPA's advice on whether to ask.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadAcmeDirectory = async (): Promise<void> => {
+    try {
+      acmeDirectory.value = await api.acmeDirectory()
+    } catch {
+      // Quiet on purpose: a missing directory line must not raise an error over the certificates.
+      acmeDirectory.value = null
+    }
+  }
+
+  /**
    * Issues a certificate for the site's domain over ACME.
    * @param request The site to certify.
    * @returns True when the panel issued and installed it.
@@ -161,9 +182,11 @@ export const useCertificatesStore = defineStore('certificates', () => {
     certificates,
     listState,
     acting,
+    acmeDirectory,
     errorMessage,
     errorCode,
     load,
+    loadAcmeDirectory,
     issue,
     installCustom,
     remove,

@@ -46,6 +46,26 @@ export interface Certificate {
   lastRenewalErrorCode: string | null;
   /** How many renewal attempts have failed in a row. */
   consecutiveRenewalFailures: number;
+  /**
+   * The last renewal failure as a sentence in the caller's language, written by the panel, or `null`
+   * when there is no failure. Rendered as plain text and never used to look anything up.
+   */
+  lastRenewalError: string | null;
+}
+
+/**
+ * Which ACME directory the panel orders certificates from, as `GET /api/v1/certificates/acme-directory`
+ * reports it. Administrators only: the panel answers every other role with a refusal.
+ */
+export interface AcmeDirectory {
+  /** The directory's full URL. */
+  url: string;
+  /** The directory's host name, the part worth reading at a glance. */
+  host: string;
+  /** Machine-stable kind: `production`, `staging` or `custom`. Read for behaviour, never for text. */
+  kind: string;
+  /** The kind's name in the caller's language, written by the panel. */
+  kindName: string;
 }
 
 /** Body of `POST /api/v1/certificates`: order a certificate for one of my sites. */
@@ -109,4 +129,11 @@ export interface CertificatesApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    */
   remove: (id: string, signal?: AbortSignal) => Promise<void>;
+
+  /**
+   * Reads which ACME directory the panel orders from. Administrators only.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The configured directory.
+   */
+  acmeDirectory: (signal?: AbortSignal) => Promise<AcmeDirectory>;
 }

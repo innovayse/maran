@@ -63,6 +63,9 @@ public sealed class CertificateConfiguration : IEntityTypeConfiguration<Certific
         builder.Property(certificate => certificate.ConsecutiveRenewalFailures)
             .IsRequired();
 
+        // Nullable: null is "no expiry alert is outstanding for the installed material".
+        builder.Property(certificate => certificate.ExpiryAlertedAt);
+
         // One certificate per domain across the whole server, because one vhost serves a domain and
         // one certificate is wired into that vhost. Enforced here as well as in the handlers: the
         // handler's check and the insert are not one atomic step, and two simultaneous issuances for

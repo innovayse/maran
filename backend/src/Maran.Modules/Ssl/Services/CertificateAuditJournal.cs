@@ -18,7 +18,7 @@ namespace Maran.Modules.Ssl.Services;
 /// into the certificate store: the journal is append-only and never deleted, so anything written here
 /// is written forever (rules/security.md item 8).
 /// </remarks>
-public sealed class CertificateAuditJournal
+public sealed class CertificateAuditJournal : ISystemAuditJournal
 {
     /// <summary>
     /// This module's short name, from which its system actor name is built.
@@ -83,7 +83,7 @@ public sealed class CertificateAuditJournal
 
     /// <summary>Records an unattended operation, which has no signed-in caller at all.</summary>
     /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
-    /// <param name="domain">The certificate's domain.</param>
+    /// <param name="subject">The certificate's domain.</param>
     /// <param name="succeeded">Whether the operation took effect.</param>
     /// <param name="cancellationToken">Cancellation token for the write.</param>
     /// <remarks>
@@ -93,14 +93,14 @@ public sealed class CertificateAuditJournal
     /// probing the API unauthenticated. <see cref="SystemAuditEntry"/> names the panel instead, and
     /// leaves the address and client columns empty because nothing arrived over HTTP.
     /// </remarks>
-    public async Task RecordScheduledAsync(
+    public async Task RecordSystemAsync(
         string action,
-        string domain,
+        string subject,
         bool succeeded,
         CancellationToken cancellationToken)
     {
         await _auditWriter.WriteAsync(
-            SystemAuditEntry.Create(ModuleName, action, domain, succeeded),
+            SystemAuditEntry.Create(ModuleName, action, subject, succeeded),
             cancellationToken);
     }
 
