@@ -32,8 +32,11 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     # Measured basis: successful dev runs 41293966857, 41279955166, 41242417734 took 12.6, 12.3 and
-    # 10.7 min. 25 is the slowest run roughly doubled.
-    timeout-minutes: 25
+    # 10.7 min. On PR #400 the Playwright browser install alone took 9-10 minutes on a slow runner
+    # and the job hit its old 25-minute limit with no spec verdict (issue #409). 40 = the slowest
+    # measured run (about 13 min) plus that install at its slowest, with margin; the install has a
+    # limit of its own below, so a hung download still fails early under its own name.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
 
@@ -116,7 +119,12 @@ jobs:
       # never a pass), but trading a slow, correct install for a fast one that needs a downstream
       # net to catch it is not a trade worth making here. `chromium` alone is the only project in
       # `playwright.config.ts`, so this is already the small install, not the three-browser one.
-      - run: npx playwright install --with-deps chromium
+      - name: Install the Playwright browser
+        # Its own limit: the install is the step that varies most between runners (9-10 min on a
+        # slow one, issue #409), so a wedged download fails at 20 minutes under this step's name and
+        # not as the whole job's cancellation.
+        timeout-minutes: 20
+        run: npx playwright install --with-deps chromium
 
       # THE VERDICT, and it is not `npm run test:e2e`. It used to be, and that is the gap
       # rules/testing.md named by file: "`.github/workflows/frontend.yml` still runs bare

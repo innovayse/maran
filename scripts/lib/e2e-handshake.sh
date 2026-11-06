@@ -92,7 +92,7 @@ did_not_run() { # NOT a finding: the seam was never reached. Verdict on stdout, 
 #   protoc      the agent's build.rs generates the proto contract at compile time, so without it
 #               cargo fails in a way indistinguishable, at the old exit paths, from a contract that
 #               genuinely does not compile — the single worst confusion this command could produce.
-#   dotnet 9    `dotnet run` for the API. Absent or too old, it never binds, the 90-second curl loop
+#   dotnet 9    `dotnet run` for the API. Absent or too old, it never binds, the 180-second curl loop
 #               expires and the answer was "the api never answered" — a claim about the API.
 #   curl        the only thing that asks /health. Absent, it also reads as "the api never answered",
 #               a finding about a question nobody managed to put.
@@ -144,7 +144,7 @@ if ! (exec 3<>/dev/tcp/127.0.0.1/$db_port) 2>/dev/null; then
       sleep 1
     done
     # Without this, the loop above simply expired and the run carried on to start an API that could
-    # not boot, which arrived 90 seconds later as "the api never answered" — a finding about the API
+    # not boot, which arrived 180 seconds later as "the api never answered" — a finding about the API
     # for a database that was never up.
     if [ "$healthy" -ne 1 ]; then
       echo "REFUSED: the maran-postgres container did not become healthy within 60s." >&2
@@ -198,7 +198,11 @@ echo "starting the api"
      dotnet run) >"$api_log" 2>&1 &
 api_pid=$!
 
-for _ in $(seq 90); do
+# 180 s, not 90: `dotnet run` builds the API first, and on a loaded CI runner that build alone
+# outlasted 90 s (PR #405: "the api never answered" while the push run of the same commit passed,
+# issue #407). A listener that is up answers on the first poll, so the margin costs nothing when
+# the machine is healthy.
+for _ in $(seq 180); do
   curl -fsS --max-time 2 "$api_url/health/live" >/dev/null 2>&1 && break
   sleep 1
 done
