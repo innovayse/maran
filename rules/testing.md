@@ -293,6 +293,7 @@ And two rules about reading the results, which cost as much as the harness bugs 
   | `maran api` | node | refuses with a one-line message and 2, but prints no verdict line |
   | `maran structure`, `maran lock selftest` | nothing to prove — pure shell, no toolchain | n/a |
   | `maran migrate check`, `maran migrate status` | `suite_require_toolchain backend`, above `dotnet tool restore` | refuses — `MIGRATIONS VERDICT: DID NOT RUN`, 2 |
+  | `maran deploy-local` | `ssh`, `scp`, `openssl` and `tar` on PATH, a reachable host and passwordless `sudo` (or `--ask-sudo-password`); the selftest removes `ssh` and `openssl` from PATH and fakes an unreachable host and a sudo that wants a password, `scp` and `tar` are probed the same way but not removed | refuses — `DEPLOY-LOCAL VERDICT: DID NOT RUN`, 2 |
   | `maran drift` | docker on PATH, the container present AND running, and the database answering `select 1` | refuses — `DRIFT VERDICT: DID NOT RUN`, 2 |
   | `maran handshake` | `suite_require_toolchain rust` + protoc + `suite_require_toolchain backend` + curl + a free port 5081, all above the build | refuses — `HANDSHAKE VERDICT: DID NOT RUN`, 2 |
 

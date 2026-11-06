@@ -173,6 +173,10 @@ The workflow publishes a GitHub release and nothing else. Copying the artifacts 
 owner's decision (recorded on issue #154). Until that is done, `maran update` finds nothing new on
 the release host and an operator uses `--offline-tarball` with the verified offline bundle.
 
+A developer who wants a work-in-progress build on a test host does not use a release at all:
+`maran deploy-local` signs with a TEST key and makes that host trust it, so it is for development
+hosts only (`docs/operations/deploy-local.md`).
+
 ## What is not verified
 
 - No tagged run of the workflow has happened; it is linted, and its logic is exercised through the
