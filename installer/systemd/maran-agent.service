@@ -157,7 +157,7 @@ NoNewPrivileges=true
 # its own /usr/local/maran/agent binary, and cannot install a boot-time payload
 # directly — the persistence routes that survive a reinstall of the panel. The one
 # deliberate exception is PHP: the agent can ask PID 1 to start
-# maran-php-install@<package>.service, an UNSANDBOXED package install run as root
+# maran-php-install@<package>.service, a package install, run as root under the sandbox of its own unit,
 # that is not a validator, so the closed set of six versions is enforced by the agent
 # alone, and a compromised agent could name another package there (--no-remove only
 # refuses removals; the `--` before the instance keeps it from being read as an option). Configuration-level

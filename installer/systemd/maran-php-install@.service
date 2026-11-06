@@ -1,5 +1,5 @@
 # Installs ONE package through the host's package manager, as root, outside the agent's sandbox
-# (issue #93).
+# (issue #93), under a sandbox of its own (issue #408).
 #
 # Why this unit exists: maran-agent.service runs with ProtectSystem=true, so /usr is read-only to
 # the agent and to every child it forks. A package manager run as the agent's child unpacks into
@@ -36,11 +36,15 @@
 #   * ProtectSystem=, ReadWritePaths=: the job writes /usr, /etc and /var, so there is nothing to
 #     protect and nothing to list.
 #   * PrivateNetwork=: the job downloads. Network access is a stated requirement.
-#   * PrivateTmp=, ProtectHome=, dpkg's --force-conf* options and an `apt-get update` step: each of
-#     them is plausible and none has been measured on both families, and an unmeasured directive on
-#     a package manager is how an install breaks on one distribution only. Add one only with its
-#     measurement. A malicious package is not stopped by any of them anyway: a maintainer script
-#     runs as root and can undo them. They would only guard against accidents.
+#   * NoNewPrivileges=: an SELinux or AppArmor domain transition of an rpm scriptlet may need it off,
+#     and no enforcing host was measured. RestrictSUIDSGID=: dpkg and rpm must unpack setuid and
+#     setgid files. MemoryDenyWriteExecute=: passed on both families, but a maintainer script that
+#     runs a JIT is not covered by the packages measured and the score gain is small.
+#   * dpkg's --force-conf* options and an `apt-get update` step: plausible, never measured on both
+#     families. Add one only with its measurement.
+#   A malicious package is not stopped by any directive in this unit: a maintainer script runs as
+#   root and can undo them. They bound accidents and bugs, nothing more
+#   (docs/superpowers/notes/2026-11-06-php-install-unit-hardening-threat-note.md).
 #   * EnvironmentFile=: nothing from /etc/maran/agent.env reaches this process.
 #   * Standard input is the systemd default, /dev/null, so nothing can prompt.
 [Unit]
@@ -63,7 +67,7 @@ Type=oneshot
 RemainAfterExit=no
 # systemd's built-in default PATH starts with /usr/local/sbin:/usr/local/bin, the unmanaged
 # directories the agent keeps out of every child's PATH (agent-core apply_child_environment). The
-# children here are maintainer scripts running as root and unsandboxed, so the same PATH is stated.
+# children here are maintainer scripts running as root, so the same PATH is stated.
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
 __MARAN_PKG_ENVIRONMENT__
 # 0022, not the agent's 0027: files a maintainer script creates must be readable by the web server
@@ -75,3 +79,29 @@ __MARAN_PKG_EXEC_START__
 # which leaves a half-installed package, the worst state this unit can produce. It is a ceiling for
 # a hung transfer, not an expected duration.
 TimeoutStartSec=1800
+# The sandbox (issue #408). Each directive below was measured on a booted systemd, a fresh container
+# per trial, a package installed through this unit and the package database checked afterwards:
+# Ubuntu 24.04 (systemd 255, php8.3-fpm) and AlmaLinux 9 (systemd 252, php-fpm), with an inverse
+# control (ProtectSystem=strict must fail, and did). UNCONFIRMED: an enforcing SELinux host, the
+# Sury and Remi packages themselves, other releases (threat note above).
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# AF_NETLINK stays: name resolution asks for it, and account tools write audit records over it.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# EPERM and not the default kill: a SIGSYS death leaves no package-manager text for
+# classify_install_failure to read. A deny-list, so a syscall an older systemd does not know is
+# simply not denied.
+SystemCallFilter=~@mount @swap @reboot @raw-io @module @cpu-emulation @debug @clock
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=~CAP_SYS_MODULE CAP_SYS_RAWIO CAP_SYS_BOOT CAP_SYS_TIME CAP_SYS_PACCT CAP_SYS_TTY_CONFIG CAP_WAKE_ALARM CAP_BLOCK_SUSPEND CAP_BPF CAP_PERFMON CAP_SYSLOG CAP_NET_RAW CAP_NET_BROADCAST CAP_LEASE
