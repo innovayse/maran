@@ -161,7 +161,12 @@ verify_offline_tarball() {
         echo "verify: ${component}.tar.gz in ${tarball##*/} does not match manifest entry ${component}-${arch} (expected '${expected}', got ${actual})" >&2; rc=1; break
       fi
       entry="$(package_entry_file "$component")"
-      if ! tar -tzf "${dir}/${component}.tar.gz" | sed 's#^\./##' | grep -qxF -- "$entry"; then
+      # awk reads the WHOLE listing before it answers. `grep -q` (and GNU grep with its output on
+      # /dev/null, which stops at the first match too) exits at the entry, and tar and sed then
+      # die of SIGPIPE; under `pipefail` that is a failed pipeline although the entry exists.
+      # Measured on a 150000-member archive: statuses 141 141 0 on every run (issue #406).
+      if ! tar -tzf "${dir}/${component}.tar.gz" \
+          | awk -v entry="$entry" '{ sub(/^\.\//, "") } $0 == entry { found = 1 } END { exit !found }'; then
         echo "verify: ${component}.tar.gz holds no ${entry} at its root, so the installer would unpack nothing runnable" >&2; rc=1; break
       fi
     done

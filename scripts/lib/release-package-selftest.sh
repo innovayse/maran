@@ -212,6 +212,25 @@ cmd_package_selftest() {
     "(inverse control, expected)."
 
   echo
+  echo "-- case 3d: a long archive listing does not make the entry check fail on SIGPIPE (issue #406) --"
+  # The entry file is the FIRST member and 150000 more follow, so a reader that stops at the entry
+  # leaves tar and sed writing into a closed pipe. Under `pipefail` that was reported as "holds no
+  # maran-agent" for a valid bundle. The inverse control is the next case-3 hollow bundle above:
+  # an archive with no entry at all is still refused, so the check has not become decoration.
+  local wide="${work}/wide"
+  cp -r "$good" "$wide"
+  rm -rf -- "${wide}/agent-x86_64"
+  install -d "${wide}/agent-x86_64/bulk"
+  echo "synthetic agent for x86_64, wide listing, selftest only" > "${wide}/agent-x86_64/maran-agent"
+  ( cd "${wide}/agent-x86_64/bulk" && seq 1 150000 | xargs touch )
+  tar_component "${wide}/agent-x86_64" "${wide}/agent-x86_64.tar.gz"
+  plant_resign "$wide" "${keydir}/a.key"
+  cmd_package --bundle "$wide" --arch x86_64 --out "${work}/o-wide" --pubkey "$pub" >/dev/null \
+    || release_failed "package selftest: a valid bundle whose agent archive lists 150000 members was refused" \
+      "- the entry check is racing its own pipe."
+  echo "${VERDICT_PREFIX}: OK - a valid bundle with a 150000-member agent archive packaged and verified (expected)."
+
+  echo
   echo "-- case 4: a machine without openssl answers DID NOT RUN, status 2, not a verdict --"
   local empty_path="${work}/empty-path" refusal status=0
   install -d "$empty_path"
