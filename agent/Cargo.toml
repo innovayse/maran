@@ -97,9 +97,19 @@ tokio-stream = { version = "0.1.19", features = ["net"] }
 # real compile behind it.
 tonic = "0.13.1"
 tonic-build = "0.13.1"
-# Test-only: service_fn turns a closure into the connector tonic's Endpoint needs
-# in order to dial something other than TCP. Same 0.5 line tonic depends on.
+# The audit layer (issue #106) is a `tower::Layer` on the server builder; tests also use
+# `service_fn` as the connector tonic's Endpoint needs to dial something other than
+# TCP. Same 0.5 line tonic depends on.
 tower = { version = "0.5.3", features = ["util"] }
+# The audit layer's types: the request/response/extension vocabulary of the HTTP/2
+# service tonic wraps, the body trait whose frames the audit body wrapper passes
+# through, and the pin projection that wrapper needs. All three are already in
+# the lockfile beneath tonic and are pinned to the versions it holds.
+http = "1.5.0"
+http-body = "1.1.0"
+pin-project-lite = "0.2.17"
+# Test-only: builds the response bodies the audit body wrapper is driven with.
+http-body-util = "0.1.5"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 

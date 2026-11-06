@@ -13,6 +13,7 @@
 //! can start a real server in-process, on a temporary socket, and drive it
 //! through the generated client.
 
+pub mod audit;
 pub mod config;
 pub mod error;
 pub mod peercred;

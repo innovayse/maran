@@ -15,15 +15,15 @@ use maran_ops::sftp::SftpHost;
 use maran_ops::sites::SiteHost;
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::accounts_service_server::AccountsService;
 use crate::proto::{
     AgentError, CreateAccountOk, CreateAccountRequest, CreateAccountResponse, DeleteAccountOk,
-    DeleteAccountRequest, DeleteAccountResponse, ErrorCode, GetAccountSuspensionStateOk,
-    GetAccountSuspensionStateRequest, GetAccountSuspensionStateResponse, GetAccountUsageOk,
-    GetAccountUsageRequest, GetAccountUsageResponse, RepairAccountHomeGroupsRequest,
-    RepairAccountHomeGroupsResponse, SetAccountQuotaOk, SetAccountQuotaRequest,
-    SetAccountQuotaResponse, SetAccountResourceLimitsOk, SetAccountResourceLimitsRequest,
-    SetAccountResourceLimitsResponse, SftpLoginSuspensionFact, SuspendAccountOk,
+    DeleteAccountRequest, DeleteAccountResponse, ErrorCode, GetAccountSuspensionStateRequest,
+    GetAccountSuspensionStateResponse, GetAccountUsageRequest, GetAccountUsageResponse,
+    RepairAccountHomeGroupsRequest, RepairAccountHomeGroupsResponse, SetAccountQuotaOk,
+    SetAccountQuotaRequest, SetAccountQuotaResponse, SetAccountResourceLimitsOk,
+    SetAccountResourceLimitsRequest, SetAccountResourceLimitsResponse, SuspendAccountOk,
     SuspendAccountRequest, SuspendAccountResponse, UnsuspendAccountOk, UnsuspendAccountRequest,
     UnsuspendAccountResponse, create_account_response, delete_account_response,
     get_account_suspension_state_response, get_account_usage_response,
@@ -31,10 +31,8 @@ use crate::proto::{
     set_account_resource_limits_response, suspend_account_response, unsuspend_account_response,
 };
 use crate::services::accounts::account_status::to_agent_error;
-use crate::services::accounts::to_login_password_state::to_login_password_state;
-use crate::services::accounts::to_transfer_protocol::to_transfer_protocol;
-use crate::services::accounts::to_wire_quota_state::to_wire_quota_state;
-use crate::services::accounts::to_wire_site_listing::to_wire_site_listing;
+use crate::services::accounts::to_wire_account_usage::to_wire_account_usage;
+use crate::services::accounts::to_wire_suspension_state::to_wire_suspension_state;
 use crate::services::accounts::validated_resource_limits::validated_resource_limits;
 use crate::services::accounts::wire_home_group_repair_report::wire_home_group_repair_report;
 use crate::services::wire::run_blocking::run_blocking;
@@ -247,6 +245,45 @@ impl<
     {
         let name = Self::validated(username)?;
 
+        Self::run_for(name, operation).await
+    }
+
+    /// [`Self::with_account`] for a mutating rpc: the validated name is put on
+    /// the request's audit slot before the operation starts, so a refusal by the
+    /// operation is still attributed to the account it was asked about. An
+    /// invalid name never reaches the slot.
+    ///
+    /// # Errors
+    ///
+    /// The same as [`Self::with_account`].
+    async fn with_audited_account<T>(
+        &self,
+        audit: &AuditSlot,
+        username: &str,
+        operation: impl FnOnce(AccountName) -> Result<T, AccountError> + Send + 'static,
+    ) -> Result<T, AgentError>
+    where
+        T: Send + 'static,
+    {
+        let name = Self::validated(username)?;
+        audit.account(&name);
+
+        Self::run_for(name, operation).await
+    }
+
+    /// Runs `operation` for an already validated name on the blocking pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
+    /// on, or a system failure when the blocking task did not finish.
+    async fn run_for<T>(
+        name: AccountName,
+        operation: impl FnOnce(AccountName) -> Result<T, AccountError> + Send + 'static,
+    ) -> Result<T, AgentError>
+    where
+        T: Send + 'static,
+    {
         run_blocking(ACCOUNT_OPERATION, to_agent_error, move || operation(name)).await
     }
 }
@@ -269,15 +306,17 @@ impl<
         &self,
         request: Request<CreateAccountRequest>,
     ) -> Result<Response<CreateAccountResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
-        let result = match self
-            .with_account(&request.username, {
+        let result = self
+            .with_audited_account(&audit, &request.username, {
                 let operations = Arc::clone(&self.operations);
                 let quota_bytes = request.quota_bytes;
                 move |name| operations.create(&name, quota_bytes)
             })
-            .await
-        {
+            .await;
+        audit.settle(&result);
+        let result = match result {
             Ok(created) => create_account_response::Result::Ok(CreateAccountOk {
                 home_directory: created.home_directory,
                 uid: created.uid,
@@ -295,14 +334,16 @@ impl<
         &self,
         request: Request<SuspendAccountRequest>,
     ) -> Result<Response<SuspendAccountResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
-        let result = match self
-            .with_account(&request.username, {
+        let result = self
+            .with_audited_account(&audit, &request.username, {
                 let operations = Arc::clone(&self.operations);
                 move |name| operations.suspend(&name)
             })
-            .await
-        {
+            .await;
+        audit.settle(&result);
+        let result = match result {
             Ok(()) => suspend_account_response::Result::Ok(SuspendAccountOk {}),
             Err(error) => suspend_account_response::Result::Error(error),
         };
@@ -317,14 +358,16 @@ impl<
         &self,
         request: Request<UnsuspendAccountRequest>,
     ) -> Result<Response<UnsuspendAccountResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
-        let result = match self
-            .with_account(&request.username, {
+        let result = self
+            .with_audited_account(&audit, &request.username, {
                 let operations = Arc::clone(&self.operations);
                 move |name| operations.unsuspend(&name)
             })
-            .await
-        {
+            .await;
+        audit.settle(&result);
+        let result = match result {
             Ok(()) => unsuspend_account_response::Result::Ok(UnsuspendAccountOk {}),
             Err(error) => unsuspend_account_response::Result::Error(error),
         };
@@ -341,9 +384,10 @@ impl<
         &self,
         request: Request<DeleteAccountRequest>,
     ) -> Result<Response<DeleteAccountResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
-        let result = match self
-            .with_account(&request.username, {
+        let result = self
+            .with_audited_account(&audit, &request.username, {
                 // All four hosts travel in here so the deletion can take the
                 // account's databases, its SFTP logins and jail, its FTPS
                 // logins and jail, and its php-fpm pools with it, BEFORE
@@ -368,8 +412,9 @@ impl<
                     )
                 }
             })
-            .await
-        {
+            .await;
+        audit.settle(&result);
+        let result = match result {
             Ok(bytes_freed) => delete_account_response::Result::Ok(DeleteAccountOk { bytes_freed }),
             Err(error) => delete_account_response::Result::Error(error),
         };
@@ -403,42 +448,7 @@ impl<
             .await
         {
             Ok(state) => {
-                let (sites_directory_readable, sites) = to_wire_site_listing(state.sites);
-                get_account_suspension_state_response::Result::Ok(GetAccountSuspensionStateOk {
-                    login_locked: state.login_locked,
-                    login_password_state: to_login_password_state(state.login_password) as i32,
-                    sites_directory_readable,
-                    sites,
-                    cron_entries_total: state.cron.entries_total,
-                    cron_entries_suspended: state.cron.entries_suspended,
-                    cron_foreign_lines: state.cron.foreign_lines,
-                    // Every login the account holds, of BOTH protocols, in the
-                    // one repeated field the contract has today. Reporting only
-                    // the SFTP half would hide from the panel exactly the
-                    // credential `ops::logins` exists to make visible; the
-                    // protocol beside each name, and the count of entries this
-                    // agent does not manage, reach the wire with the field that
-                    // carries them.
-                    sftp_logins: state
-                        .logins
-                        .logins
-                        .into_iter()
-                        .map(|login| SftpLoginSuspensionFact {
-                            username: login.name,
-                            locked: login.locked,
-                            protocol: to_transfer_protocol(login.protocol) as i32,
-                        })
-                        .collect(),
-                    // The number the enumeration deliberately cannot speak for:
-                    // passwd entries on this account's uid whose home is NEITHER
-                    // jail. The agent locks none of them — they are not its
-                    // entries — so the attestation REPORTS the count instead of
-                    // refusing on it, which is the shape `cron_foreign_lines`
-                    // set for the same question about a crontab. A suspension
-                    // that said nothing about them would be claiming a silence
-                    // it never achieved.
-                    unmanaged_logins: state.logins.unmanaged,
-                })
+                get_account_suspension_state_response::Result::Ok(to_wire_suspension_state(state))
             }
             Err(error) => get_account_suspension_state_response::Result::Error(error),
         };
@@ -453,15 +463,17 @@ impl<
         &self,
         request: Request<SetAccountQuotaRequest>,
     ) -> Result<Response<SetAccountQuotaResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
-        let result = match self
-            .with_account(&request.username, {
+        let result = self
+            .with_audited_account(&audit, &request.username, {
                 let operations = Arc::clone(&self.operations);
                 let quota_bytes = request.quota_bytes;
                 move |name| operations.set_quota(&name, quota_bytes)
             })
-            .await
-        {
+            .await;
+        audit.settle(&result);
+        let result = match result {
             Ok(()) => set_account_quota_response::Result::Ok(SetAccountQuotaOk {}),
             Err(error) => set_account_quota_response::Result::Error(error),
         };
@@ -477,10 +489,11 @@ impl<
         &self,
         request: Request<SetAccountResourceLimitsRequest>,
     ) -> Result<Response<SetAccountResourceLimitsResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let result = match validated_resource_limits(&request) {
             Ok(limits) => {
-                self.with_account(&request.username, {
+                self.with_audited_account(&audit, &request.username, {
                     let operations = Arc::clone(&self.operations);
                     move |name| set_account_resource_limits(&operations, &name, &limits)
                 })
@@ -488,6 +501,7 @@ impl<
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
         let result = match result {
             Ok(()) => {
                 set_account_resource_limits_response::Result::Ok(SetAccountResourceLimitsOk {})
@@ -513,24 +527,7 @@ impl<
             })
             .await
         {
-            Ok(usage) => {
-                let (quota_state, quota_bytes, quota_unenforceable_reason) =
-                    to_wire_quota_state(usage.quota);
-                #[allow(deprecated)]
-                let ok = GetAccountUsageOk {
-                    used_bytes: usage.used_bytes,
-                    // Deprecated, and still written: it is the byte mirror
-                    // older callers read, per accounts.proto's own doc
-                    // comment on this field. `quota_state` is the field new
-                    // callers must use.
-                    quota_bytes,
-                    quota_state: quota_state as i32,
-                    quota_unenforceable_reason: quota_unenforceable_reason
-                        .unwrap_or(crate::proto::QuotaUnenforceableReason::Unspecified)
-                        as i32,
-                };
-                get_account_usage_response::Result::Ok(ok)
-            }
+            Ok(usage) => get_account_usage_response::Result::Ok(to_wire_account_usage(usage)),
             Err(error) => get_account_usage_response::Result::Error(error),
         };
 
@@ -554,6 +551,7 @@ impl<
         &self,
         request: Request<RepairAccountHomeGroupsRequest>,
     ) -> Result<Response<RepairAccountHomeGroupsResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let report_only = request.into_inner().report_only;
         let operations = Arc::clone(&self.operations);
 
@@ -561,6 +559,7 @@ impl<
             operations.repair_home_groups(report_only)
         })
         .await;
+        audit.settle(&result);
 
         let result = match result {
             Ok(report) => repair_account_home_groups_response::Result::Ok(

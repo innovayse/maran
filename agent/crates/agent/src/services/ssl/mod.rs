@@ -3,6 +3,8 @@
 pub mod install_outcome;
 pub mod material_refusal;
 pub mod panel_install_outcome;
+pub mod settle_install_outcome;
+pub mod settle_panel_install_outcome;
 pub mod ssl_service;
 pub mod ssl_status;
 pub mod validated_panel_challenge;

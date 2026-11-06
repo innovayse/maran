@@ -1428,6 +1428,54 @@ else
   fi
 fi
 
+# 31. Every shipped service unit has exactly one systemd-analyze ceiling, and every ceiling names a unit.
+#
+# `maran units` fails a unit that has no ceiling, but only when it runs on a runner with a matching
+# systemd; this check asks the same question about the two files' NAMES on every `maran structure`,
+# so a unit added without a ceiling (or a ceiling left behind by a removed unit) is named at once
+# and cannot wait for a scorer that may DID NOT RUN. A template unit is keyed by its template name
+# (`maran-php-install@.service`), which is the file's own name. Text, not score: this reads names.
+units_dir="installer/systemd"
+units_ceilings="${units_dir}/unit-security-ceilings.txt"
+# Prints each non-comment, non-blank ceilings line's first (tab-separated) field.
+ceiling_unit_names() {
+  grep -vE '^[[:space:]]*(#|$)' | cut -f1
+}
+# Prints every name that appears more than once on stdin.
+duplicate_names() {
+  sort | uniq -d
+}
+# Positive controls: each matcher must find what it hunts, or the check is blind.
+[ "$(printf '# header\nu.service\t1.0\n\n' | ceiling_unit_names)" = "u.service" ] \
+  || report "scripts/lib/check-structure.sh: check 31's ceiling reader did not return a planted unit name, so it is blind (rules/testing.md)"
+[ "$(printf 'a.service\nb.service\na.service\n' | duplicate_names)" = "a.service" ] \
+  || report "scripts/lib/check-structure.sh: check 31's duplicate finder did not find a planted duplicate, so it is blind (rules/testing.md)"
+if [ ! -f "$units_ceilings" ]; then
+  report "${units_ceilings}: missing, so no shipped unit has a systemd-analyze ceiling and 'maran units' has nothing to judge against (issue #107)"
+else
+  shipped_units="$(find "$units_dir" -maxdepth 1 -name '*.service' -printf '%f\n' 2>/dev/null | sort)"
+  ceiling_names="$(ceiling_unit_names < "$units_ceilings")"
+  # Vacuity guard on the axis that can go blind: the unit glob, and the ceilings file's content.
+  [ -n "$shipped_units" ] \
+    || report "scripts/lib/check-structure.sh: check 31 found no ${units_dir}/*.service, so it is not a statement about the shipped units (rules/testing.md)"
+  [ -n "$ceiling_names" ] \
+    || report "${units_ceilings}: holds no ceiling line, so no shipped unit is judged (issue #107)"
+  while IFS= read -r unit; do
+    [ -n "$unit" ] || continue
+    count="$(printf '%s\n' "$ceiling_names" | grep -cxF "$unit")"
+    [ "$count" -eq 1 ] \
+      || report "${units_ceilings}: has ${count} lines for ${units_dir}/${unit}, expected exactly 1 — a unit without a ceiling is never scored (issue #107)"
+  done <<< "$shipped_units"
+  while IFS= read -r unit; do
+    [ -n "$unit" ] || continue
+    [ -f "${units_dir}/${unit}" ] \
+      || report "${units_ceilings}: names '${unit}', which is not a file in ${units_dir}/ — a ceiling for a unit that no longer ships (issue #107)"
+  done <<< "$ceiling_names"
+  while IFS= read -r unit; do
+    [ -n "$unit" ] && report "${units_ceilings}: lists '${unit}' more than once (issue #107)"
+  done < <(printf '%s\n' "$ceiling_names" | duplicate_names)
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo
   echo "$violations structural violation(s). See rules/ for the rule each one cites."

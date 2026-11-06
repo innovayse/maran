@@ -466,6 +466,20 @@ Each row names the workflow that runs it, so this list can be checked against
   **untracked** migration files too, because a migration that has not been committed yet is exactly
   the one about to land, and it scans `migrationBuilder.Sql(...)` for destructive verbs as well as
   the typed `Drop*`/`Rename*`/`AlterColumn` calls. It prints what it cannot see.
+- `maran units` — **the systemd hardening score of every shipped unit** (`agent.yml`, job `units`).
+  It renders each `installer/systemd/*.service` the way the installer does, scores it with
+  `systemd-analyze security --offline=yes`, and fails when a score exceeds its ceiling in
+  `installer/systemd/unit-security-ceilings.txt`, when a unit has no ceiling, or when nothing was
+  scored. The job runs `maran units selftest` first (a unit with one hardening directive removed
+  must FAIL; an unchanged one must be accepted) and passes on the printed `UNITS VERDICT: OK` line
+  only; `UNITS VERDICT: DID NOT RUN` (no `systemd-analyze`, a render failure, or a systemd major other
+  than the one the ceilings file records) fails under its own message. `--accept` rewrites the
+  ceilings and CI never runs it (docs/operations/unit-security-ceilings.md). What it proves: no
+  shipped unit's exposure score got worse than its reviewed ceiling. What it cannot: the score is
+  systemd-version dependent (hence the recorded major), and an offline analysis reads the unit's
+  text and never exercises runtime, so it says nothing about whether a directive is honoured on a
+  host or whether the service still works under it. `maran structure` (check 31) separately holds
+  the two files' names together.
 - `maran licenses --check` — third-party notices cover every declared dependency (`notices.yml`).
 
 **Counting, and the guards against a run that measured nothing**

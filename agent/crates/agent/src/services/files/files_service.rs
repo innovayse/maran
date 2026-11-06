@@ -8,6 +8,7 @@ use maran_ops::files::{self, FilesHost};
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status, Streaming};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::files_service_server::FilesService;
 use crate::proto::{
     ChangePermissionsRequest, ChangePermissionsResponse, CreateArchiveRequest,
@@ -90,8 +91,10 @@ impl<H: FilesHost + 'static> FilesService for FilesServiceImpl<H> {
         &self,
         request: Request<Streaming<WriteFileRequest>>,
     ) -> Result<Response<WriteFileResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let result = match validated_write(request.into_inner()).await {
             Ok(input) => {
+                audit.account(&input.account);
                 let host = Arc::clone(&self.host);
                 let floor = self.floor;
                 run_blocking("file operation", to_agent_error, move || {
@@ -101,6 +104,8 @@ impl<H: FilesHost + 'static> FilesService for FilesServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        // Settled after the upload is drained and the write result is known.
+        audit.settle(&result);
 
         let result = match result {
             Ok(bytes_written) => write_file_response::Result::Ok(WriteFileOk { bytes_written }),
@@ -117,8 +122,10 @@ impl<H: FilesHost + 'static> FilesService for FilesServiceImpl<H> {
         &self,
         request: Request<DeleteEntryRequest>,
     ) -> Result<Response<DeleteEntryResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let result = match validated_delete(&request.into_inner()) {
             Ok(input) => {
+                audit.account(&input.account);
                 let host = Arc::clone(&self.host);
                 run_blocking("file operation", to_agent_error, move || {
                     files::delete_entry(host.as_ref(), &input)
@@ -127,6 +134,7 @@ impl<H: FilesHost + 'static> FilesService for FilesServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => delete_entry_response::Result::Ok(DeleteEntryOk {}),

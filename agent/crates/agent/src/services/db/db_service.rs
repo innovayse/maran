@@ -5,6 +5,7 @@ use std::sync::Arc;
 use maran_ops::db::{self, DbHost};
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::db_service_server::DbService;
 use crate::proto::{
     CreateDatabaseOk, CreateDatabaseRequest, CreateDatabaseResponse, DatabaseInfo, DropDatabaseOk,
@@ -65,14 +66,22 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         &self,
         request: Request<CreateDatabaseRequest>,
     ) -> Result<Response<CreateDatabaseResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
-        let result = match validated_creation(
-            &request.account_username,
-            &request.database_name,
-            &request.db_username,
-            &request.password,
-        ) {
+        let account = validated_account(&request.account_username);
+        if let Ok(account) = &account {
+            audit.account(account);
+        }
+
+        let result = match account.and_then(|account| {
+            validated_creation(
+                &account,
+                &request.database_name,
+                &request.db_username,
+                &request.password,
+            )
+        }) {
             Ok(input) => {
                 let host = Arc::clone(&self.host);
                 // The created names are read off the validated input before it
@@ -92,6 +101,7 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok((database_name, db_username)) => {
@@ -113,13 +123,17 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         &self,
         request: Request<DropDatabaseRequest>,
     ) -> Result<Response<DropDatabaseResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
-        let result = match validated_removal(
-            &request.account_username,
-            &request.database_name,
-            &request.db_username,
-        ) {
+        let account = validated_account(&request.account_username);
+        if let Ok(account) = &account {
+            audit.account(account);
+        }
+
+        let result = match account.and_then(|account| {
+            validated_removal(&account, &request.database_name, &request.db_username)
+        }) {
             Ok((database, user)) => {
                 let host = Arc::clone(&self.host);
                 run_blocking("database operation", to_agent_error, move || {
@@ -129,6 +143,7 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => drop_database_response::Result::Ok(DropDatabaseOk {}),
@@ -149,13 +164,17 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         &self,
         request: Request<SetDatabasePasswordRequest>,
     ) -> Result<Response<SetDatabasePasswordResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
-        let result = match validated_password_change(
-            &request.account_username,
-            &request.db_username,
-            &request.password,
-        ) {
+        let account = validated_account(&request.account_username);
+        if let Ok(account) = &account {
+            audit.account(account);
+        }
+
+        let result = match account.and_then(|account| {
+            validated_password_change(&account, &request.db_username, &request.password)
+        }) {
             Ok((user, password)) => {
                 let host = Arc::clone(&self.host);
                 run_blocking("database operation", to_agent_error, move || {
@@ -165,6 +184,7 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => set_database_password_response::Result::Ok(SetDatabasePasswordOk {}),
@@ -266,6 +286,7 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         &self,
         request: Request<RepairDatabaseGrantsRequest>,
     ) -> Result<Response<RepairDatabaseGrantsResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let report_only = request.into_inner().report_only;
         let host = Arc::clone(&self.host);
 
@@ -273,6 +294,7 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
             db::repair_grants(host.as_ref(), report_only)
         })
         .await;
+        audit.settle(&result);
 
         let result = match result {
             Ok(report) => {

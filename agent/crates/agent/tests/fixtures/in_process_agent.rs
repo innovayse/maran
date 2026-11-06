@@ -52,12 +52,23 @@ impl InProcessAgent {
     /// [`BIND_TIMEOUT`], or when the channel cannot connect. A failing
     /// assertion is the reporting mechanism of a test.
     pub async fn start() -> Self {
+        let uid = maran_agent_core::utils::current_uid::current_uid()
+            .expect("the uid of this process is readable");
+        Self::start_admitting(uid).await
+    }
+
+    /// Starts the server with a policy that admits only `admitted_uid`, and connects a
+    /// channel to it. Passing a uid other than this process's makes this process the
+    /// refused peer, which is how a test observes what the guard does to a caller.
+    ///
+    /// # Panics
+    ///
+    /// Same as [`Self::start`].
+    pub async fn start_admitting(admitted_uid: u32) -> Self {
         let directory = tempfile::tempdir().expect("a temporary directory for the socket");
         let socket_path = directory.path().join("agent.sock");
 
-        let uid = maran_agent_core::utils::current_uid::current_uid()
-            .expect("the uid of this process is readable");
-        let policy = PeerPolicy::new(uid);
+        let policy = PeerPolicy::new(admitted_uid);
         let server_path = socket_path.clone();
         let server = tokio::spawn(async move {
             maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await

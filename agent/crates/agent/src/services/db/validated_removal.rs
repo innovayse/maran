@@ -2,10 +2,10 @@
 
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::db::db_user_name::DbUserName;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::proto::AgentError;
 use crate::services::wire::invalid_input::invalid_input;
-use crate::services::wire::validated_account::validated_account;
 
 /// Rebuilds the database and the dedicated user a `DropDatabase` removes.
 ///
@@ -22,19 +22,16 @@ use crate::services::wire::validated_account::validated_account;
 ///
 /// # Errors
 ///
-/// Returns the wire error for an account name the agent will not accept, or for
-/// either suffix being empty, carrying anything outside `[a-z0-9]`, or
-/// producing a name past the server's sixty-four byte identifier limit.
+/// Returns the wire error for either suffix being empty, carrying anything
+/// outside `[a-z0-9]`, or producing a name past the server's sixty-four byte identifier limit.
 pub fn validated_removal(
-    account_username: &str,
+    account: &AccountName,
     database_name: &str,
     db_username: &str,
 ) -> Result<(DatabaseName, DbUserName), AgentError> {
-    let account = validated_account(account_username)?;
-
-    let database = DatabaseName::for_account(&account, database_name)
+    let database = DatabaseName::for_account(account, database_name)
         .map_err(|error| invalid_input(error.to_string()))?;
-    let user = DbUserName::for_account(&account, db_username)
+    let user = DbUserName::for_account(account, db_username)
         .map_err(|error| invalid_input(error.to_string()))?;
 
     Ok((database, user))

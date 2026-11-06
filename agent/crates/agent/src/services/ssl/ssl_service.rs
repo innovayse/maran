@@ -7,6 +7,7 @@ use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_ops::ssl::{self, CertificateMaterial, PanelChallengeHost, SslHost};
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::ssl_service_server::SslService;
 use crate::proto::{
     GenerateSelfSignedOk, GenerateSelfSignedRequest, GenerateSelfSignedResponse,
@@ -22,6 +23,8 @@ use crate::services::sites::validated_existing_site::validated_existing_site;
 use crate::services::sites::validated_site::validated_site;
 use crate::services::ssl::install_outcome::install_outcome;
 use crate::services::ssl::panel_install_outcome::panel_install_outcome;
+use crate::services::ssl::settle_install_outcome::settle_install_outcome;
+use crate::services::ssl::settle_panel_install_outcome::settle_panel_install_outcome;
 use crate::services::ssl::ssl_status::to_agent_error;
 use crate::services::ssl::validated_panel_challenge::ValidatedPanelChallenge;
 use crate::services::ssl::validated_panel_token::validated_panel_token;
@@ -79,6 +82,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
         &self,
         request: Request<InstallCertificateRequest>,
     ) -> Result<Response<InstallCertificateResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_site(
@@ -87,6 +91,8 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             request.site.as_ref(),
         ) {
             Ok(site) => {
+                audit.account(&site.account);
+                audit.site(&site.domain);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 // Constructed here and moved once: `CertificateMaterial`'s
                 // `Debug` prints no key, and the request's own copy is dropped
@@ -118,6 +124,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             }
             Err(error) => install_certificate_response::Result::Error(error),
         };
+        settle_install_outcome(&audit, &result);
 
         Ok(Response::new(InstallCertificateResponse {
             result: Some(result),
@@ -129,6 +136,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
         &self,
         request: Request<RemoveCertificateRequest>,
     ) -> Result<Response<RemoveCertificateResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_existing_site(
@@ -137,6 +145,8 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             request.site.as_ref(),
         ) {
             Ok(site) => {
+                audit.account(&site.account);
+                audit.site(&site.domain);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("certificate operation", to_agent_error, move || {
                     ssl::remove_certificate(host.as_ref(), distro, &site)
@@ -145,6 +155,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => remove_certificate_response::Result::Ok(RemoveCertificateOk {}),
@@ -161,6 +172,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
         &self,
         request: Request<GenerateSelfSignedRequest>,
     ) -> Result<Response<GenerateSelfSignedResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_site(
@@ -169,6 +181,8 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             request.site.as_ref(),
         ) {
             Ok(site) => {
+                audit.account(&site.account);
+                audit.site(&site.domain);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("certificate operation", to_agent_error, move || {
                     ssl::generate_self_signed(host.as_ref(), distro, &site)
@@ -177,6 +191,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(expires_at_unix) => {
@@ -195,6 +210,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
         &self,
         request: Request<InstallPanelCertificateRequest>,
     ) -> Result<Response<InstallPanelCertificateResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let (host, distro) = (Arc::clone(&self.host), self.distro);
         let material = CertificateMaterial::new(&request.certificate_pem, &request.private_key_pem);
@@ -215,6 +231,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             Ok(outcome) => panel_install_outcome(outcome),
             Err(error) => install_panel_certificate_response::Result::Error(error),
         };
+        settle_panel_install_outcome(&audit, &result);
 
         Ok(Response::new(InstallPanelCertificateResponse {
             result: Some(result),
@@ -226,6 +243,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
         &self,
         request: Request<WritePanelChallengeRequest>,
     ) -> Result<Response<WritePanelChallengeResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let result = match ValidatedPanelChallenge::parse(&request.into_inner()) {
             Ok(challenge) => {
                 let (challenges, floor) = (Arc::clone(&self.challenges), self.floor);
@@ -241,6 +259,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => write_panel_challenge_response::Result::Ok(WritePanelChallengeOk {}),
@@ -257,6 +276,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
         &self,
         request: Request<RemovePanelChallengeRequest>,
     ) -> Result<Response<RemovePanelChallengeResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let result = match validated_panel_token(&request.into_inner().token) {
             Ok(token) => {
                 let challenges = Arc::clone(&self.challenges);
@@ -267,6 +287,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => remove_panel_challenge_response::Result::Ok(RemovePanelChallengeOk {}),

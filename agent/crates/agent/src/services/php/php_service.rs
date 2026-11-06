@@ -11,6 +11,7 @@ use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::php_service_server::PhpService;
 use crate::proto::{
     AgentError, ErrorCode, InstallPhpVersionOk, InstallPhpVersionRequest,
@@ -189,6 +190,7 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
         &self,
         request: Request<InstallPhpVersionRequest>,
     ) -> Result<Response<Self::InstallPhpVersionStream>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let (sender, receiver) = mpsc::channel(INSTALL_CHANNEL_CAPACITY);
 
@@ -215,13 +217,15 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
                         },
                     );
 
+                    let outcome = outcome.map_err(|error| to_agent_error(&error));
+                    // Settled on the terminal message, before it is sent.
+                    audit.settle(&outcome);
+
                     let terminal = match outcome {
                         Ok(()) => install_php_version_response::Result::Ok(InstallPhpVersionOk {
                             version: installed,
                         }),
-                        Err(error) => {
-                            install_php_version_response::Result::Error(to_agent_error(&error))
-                        }
+                        Err(error) => install_php_version_response::Result::Error(error),
                     };
 
                     let _ = sender.blocking_send(Ok(InstallPhpVersionResponse {
@@ -230,6 +234,7 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
                 });
             }
             Err(error) => {
+                audit.settle::<()>(&Err(error.clone()));
                 // One terminal message and then the end of the stream: the
                 // caller gets the same typed refusal a unary rpc would give.
                 let _ = sender

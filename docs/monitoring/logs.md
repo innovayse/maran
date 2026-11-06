@@ -48,6 +48,63 @@ API: `GET /api/v1/log-level` returns `{"level": "information", "choices": [{"lev
 and `PUT /api/v1/log-level` takes `{"level": "debug"}`; both are for administrators only. A level that
 is not one of the six is refused with 400 `LogLevelUnknown`.
 
+## The agent's audit lines
+
+Issue #106. The root agent writes one line to the journal for every request that changes the
+server, so there is a record of what the agent did that does not depend on the panel. The panel
+keeps its own audit table in its database; if the panel process and that database are ever not to
+be trusted, the agent's lines are the second, separate account. They are written by a different
+process, and a process running as the `maran` user cannot edit or delete an entry already in the
+journal.
+
+Read them:
+
+```
+journalctl -u maran-agent -t maran-agent | grep event=rpc
+```
+
+Trust a line only when its journal metadata says `_SYSTEMD_UNIT=maran-agent.service`
+(`journalctl -o verbose` shows it). Any process can write text that looks like an audit line;
+only the journal stamps the unit.
+
+A line looks like this:
+
+```
+event=rpc method=maran.agent.v1.SitesService/CreateSite outcome=ok duration_ms=212 account=acme site=example.com
+```
+
+| Field | Meaning |
+|---|---|
+| `event` | always `rpc` |
+| `method` | the agent's own name for the call, service and method |
+| `outcome` | `ok`; the agent's error code (for example `INVALID_INPUT`, `NOT_FOUND`; the code name as the agent writes it); `unset` when the call ended before the agent said how, usually because the client left; or `transport:<name>` when the connection layer ended it, for example `transport:PermissionDenied` for a peer the socket policy refused |
+| `duration_ms` | how long the call took, in milliseconds |
+| `account` | the account the call named, or `-` |
+| `site` | the site's domain the call named, or `-` |
+
+`unset` means the agent was asked and did not record a result; it is not a statement that nothing
+happened. A call to a long job (a backup, a restore, a PHP install) is one line, written when the
+job ends.
+
+The lines never carry a password, key, token, file path, file content or error message. Calls that
+only read (lists, status, monitoring) write no line, so the volume is one line per change: a busy
+server with many customers writes a few hundred lines a day, and the lines count against the same
+journald limits as everything else the agent writes.
+
+What the lines do not prove:
+
+- journald rate-limits each service (`RateLimitIntervalSec`, `RateLimitBurst`) and discards the
+  excess, noting only "Suppressed N messages". A burst of changes can push lines out, and the agent
+  cannot tell. A missing line is not proof that a call did not happen. If you need a lossless trail,
+  raise the limit for `maran-agent.service` and send the journal off the host; Maran does not change
+  journald's configuration.
+- A request for a path the agent does not serve is not recorded.
+- `ok` is the agent's verdict, not a check of the server afterwards.
+- Someone with root on the host, or code running inside the agent, can write or remove journal
+  entries. The trail is not evidence against a compromised agent or host.
+- The journal is readable by root and by members of `systemd-journal` and `adm`. The lines hold
+  account names and domains.
+
 ## Not in this change
 
 The server agent's own log level is still fixed when it starts (`RUST_LOG` in its unit). Changing it

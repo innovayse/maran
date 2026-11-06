@@ -16,6 +16,11 @@ const LOG_FILTER_VARIABLE: &str = "MARAN_AGENT_LOG";
 /// Filter used when the environment says nothing.
 const DEFAULT_LOG_FILTER: &str = "info";
 
+/// The filter directive that keeps the audit lines on whatever level the operator chose. The lines are the
+/// agent's independent record of what it did (issue #106): `MARAN_AGENT_LOG=warn` must quieten the daemon,
+/// not delete that record.
+const AUDIT_FILTER_DIRECTIVE: &str = "maran_audit=info";
+
 /// Exit code used for every fatal startup failure.
 const FAILURE_EXIT_CODE: i32 = 1;
 
@@ -33,12 +38,12 @@ const HTTPS_PORT: u32 = 443;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_env(LOG_FILTER_VARIABLE)
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(DEFAULT_LOG_FILTER)),
-        )
-        .init();
+    let mut filter = tracing_subscriber::EnvFilter::try_from_env(LOG_FILTER_VARIABLE)
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(DEFAULT_LOG_FILTER));
+    if let Ok(directive) = AUDIT_FILTER_DIRECTIVE.parse() {
+        filter = filter.add_directive(directive);
+    }
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 
     // Reading the uid can only fail if /proc is absent, which on Linux means the
     // host is not one the agent can manage.

@@ -5,7 +5,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
-use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_ops::backup::{self, BackupHost};
 use maran_ops::db::DbHost;
@@ -14,28 +13,31 @@ use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::backup_service_server::BackupService;
 use crate::proto::{
-    AgentError, CreateBackupOk, CreateBackupRequest, CreateBackupResponse, DeleteBackupOk,
-    DeleteBackupRequest, DeleteBackupResponse, ListBackupsOk, ListBackupsRequest,
-    ListBackupsResponse, ProbeDestinationRequest, ProbeDestinationResponse, RestoreBackupOk,
-    RestoreBackupRequest, RestoreBackupResponse, VerifyBackupRequest, VerifyBackupResponse,
-    create_backup_response, delete_backup_response, list_backups_response,
-    probe_destination_response, restore_backup_response,
+    CreateBackupRequest, CreateBackupResponse, DeleteBackupOk, DeleteBackupRequest,
+    DeleteBackupResponse, ListBackupsOk, ListBackupsRequest, ListBackupsResponse,
+    ProbeDestinationRequest, ProbeDestinationResponse, RestoreBackupRequest, RestoreBackupResponse,
+    VerifyBackupRequest, VerifyBackupResponse, create_backup_response, delete_backup_response,
+    list_backups_response, probe_destination_response, restore_backup_response,
 };
 use crate::services::backup::backup_status::to_agent_error;
 use crate::services::backup::channel_progress_sink::ChannelProgressSink;
 use crate::services::backup::channel_restore_sink::ChannelRestoreSink;
+use crate::services::backup::created_backup::created_backup;
 use crate::services::backup::db_host_catalog::DbHostCatalog;
-use crate::services::backup::home_group::home_group;
 use crate::services::backup::reported_verify_backup::reported_verify_backup;
+use crate::services::backup::restored_backup::restored_backup;
+use crate::services::backup::terminal_of_creation::terminal_of_creation;
+use crate::services::backup::terminal_of_restoration::terminal_of_restoration;
 use crate::services::backup::to_backup_info::to_backup_info;
+use crate::services::backup::validated_creation::validated_creation;
 use crate::services::backup::validated_destination::validated_destination;
-use crate::services::backup::validated_restore::ValidatedRestore;
+use crate::services::backup::validated_removal::validated_removal;
+use crate::services::backup::validated_restoration::validated_restoration;
 use crate::services::backup::validated_verification::validated_verification;
-use crate::services::wire::invalid_input::invalid_input;
 use crate::services::wire::run_blocking::run_blocking;
-use crate::services::wire::system_failure::system_failure;
 use crate::services::wire::validated_account::validated_account;
 
 /// How many messages a long-running backup rpc may run ahead of the client.
@@ -135,11 +137,13 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
         &self,
         request: Request<CreateBackupRequest>,
     ) -> Result<Response<Self::CreateBackupStream>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let (sender, receiver) = mpsc::channel(BACKUP_CHANNEL_CAPACITY);
 
         match validated_creation(&request) {
             Ok((account, backup_id, root)) => {
+                audit.account(&account);
                 let host = Arc::clone(&self.host);
                 let catalog = DbHostCatalog::new(Arc::clone(&self.db_host));
                 let progress = sender.clone();
@@ -157,35 +161,15 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
                         &mut sink,
                     );
 
-                    let terminal = match outcome {
-                        Ok(summary) => match summary.readable_details() {
-                            Some(details) => create_backup_response::Result::Ok(CreateBackupOk {
-                                size_bytes: details.artifact_bytes,
-                                sha256: details.artifact_sha256.clone(),
-                                database_count: details.manifest.databases.len() as u64,
-                            }),
-                            // Unreachable through `create_backup`, which
-                            // returns the summary it just wrote and can only
-                            // write a readable one. Answered rather than
-                            // asserted because a root daemon does not panic on
-                            // a reasoning step (rules/rust.md), and answered as
-                            // a failure rather than as a success with zeroes: a
-                            // terminal ok carrying an empty digest is a backup
-                            // the panel would record and no restore could ever
-                            // verify.
-                            None => create_backup_response::Result::Error(system_failure(
-                                "the created backup describes nothing".to_owned(),
-                            )),
-                        },
-                        Err(error) => create_backup_response::Result::Error(to_agent_error(&error)),
-                    };
-
+                    let result = created_backup(outcome);
+                    audit.settle(&result);
                     let _ = sender.blocking_send(Ok(CreateBackupResponse {
-                        result: Some(terminal),
+                        result: Some(terminal_of_creation(result)),
                     }));
                 });
             }
             Err(error) => {
+                audit.settle::<()>(&Err(error.clone()));
                 let _ = sender
                     .send(Ok(CreateBackupResponse {
                         result: Some(create_backup_response::Result::Error(error)),
@@ -222,11 +206,13 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
         &self,
         request: Request<RestoreBackupRequest>,
     ) -> Result<Response<Self::RestoreBackupStream>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let (sender, receiver) = mpsc::channel(BACKUP_CHANNEL_CAPACITY);
 
         match validated_restoration(&request, self.distro) {
             Ok((account, input, group)) => {
+                audit.account(&account);
                 let host = Arc::clone(&self.host);
                 let progress = sender.clone();
                 let floor = self.floor;
@@ -245,30 +231,15 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
                         &mut sink,
                     );
 
-                    let terminal = match outcome {
-                        Ok(restored) => restore_backup_response::Result::Ok(RestoreBackupOk {
-                            files_restored: restored.files_restored,
-                            databases_restored: restored.databases_restored,
-                            databases_total: restored.databases_total,
-                            // Always empty here, and read from the outcome
-                            // rather than invented: a restore that reaches its
-                            // ok message rolled nothing back. The lists that
-                            // are not empty ride on `BackupError::RolledBack`
-                            // and `RolledBackPartially`, which arrive as the
-                            // error arm and name them in the message.
-                            not_rolled_back: Vec::new(),
-                        }),
-                        Err(error) => {
-                            restore_backup_response::Result::Error(to_agent_error(&error))
-                        }
-                    };
-
+                    let result = restored_backup(outcome);
+                    audit.settle(&result);
                     let _ = sender.blocking_send(Ok(RestoreBackupResponse {
-                        result: Some(terminal),
+                        result: Some(terminal_of_restoration(result)),
                     }));
                 });
             }
             Err(error) => {
+                audit.settle::<()>(&Err(error.clone()));
                 let _ = sender
                     .send(Ok(RestoreBackupResponse {
                         result: Some(restore_backup_response::Result::Error(error)),
@@ -321,19 +292,23 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
         &self,
         request: Request<DeleteBackupRequest>,
     ) -> Result<Response<DeleteBackupResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
-        let result = match validated_removal(&request) {
+        let outcome = match validated_removal(&request) {
             Ok((account, backup_id, root)) => {
-                match run_blocking("backup deletion", to_agent_error, move || {
+                audit.account(&account);
+                run_blocking("backup deletion", to_agent_error, move || {
                     backup::delete_backup(&root, &account, &backup_id)
                 })
                 .await
-                {
-                    Ok(()) => delete_backup_response::Result::Ok(DeleteBackupOk {}),
-                    Err(error) => delete_backup_response::Result::Error(error),
-                }
             }
+            Err(error) => Err(error),
+        };
+        audit.settle(&outcome);
+
+        let result = match outcome {
+            Ok(()) => delete_backup_response::Result::Ok(DeleteBackupOk {}),
             Err(error) => delete_backup_response::Result::Error(error),
         };
 
@@ -417,88 +392,6 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
             result: Some(probe_destination_response::Result::Error(error)),
         }))
     }
-}
-
-/// Revalidates everything a creation carries.
-///
-/// A free function rather than a method so that the three checks are one unit a
-/// test can drive without a host (rules/rust.md "Service anatomy": a decision
-/// inlined in a handler can be deleted without a test going red).
-///
-/// # Errors
-///
-/// The wire error for an account name, a backup id or a destination the agent
-/// will not accept.
-fn validated_creation(
-    request: &CreateBackupRequest,
-) -> Result<
-    (
-        maran_agent_core::validation::system::name::AccountName,
-        BackupId,
-        LocalBackupRoot,
-    ),
-    AgentError,
-> {
-    let account = validated_account(&request.account_username)?;
-    let backup_id =
-        BackupId::parse(&request.backup_id).map_err(|error| invalid_input(error.to_string()))?;
-    let root = validated_destination(request.destination.as_ref())?;
-
-    Ok((account, backup_id, root))
-}
-
-/// Revalidates everything a deletion carries.
-///
-/// # Errors
-///
-/// As [`validated_creation`].
-fn validated_removal(
-    request: &DeleteBackupRequest,
-) -> Result<
-    (
-        maran_agent_core::validation::system::name::AccountName,
-        BackupId,
-        LocalBackupRoot,
-    ),
-    AgentError,
-> {
-    let account = validated_account(&request.account_username)?;
-    let backup_id =
-        BackupId::parse(&request.backup_id).map_err(|error| invalid_input(error.to_string()))?;
-    let root = validated_destination(request.destination.as_ref())?;
-
-    Ok((account, backup_id, root))
-}
-
-/// Revalidates everything a restore carries, and resolves the group its home
-/// must end up owned by.
-///
-/// The group is resolved BEFORE the operation starts rather than inside it, so
-/// a host whose web server group is missing refuses the restore instead of
-/// discovering it at the finalising step — after the databases have been
-/// replaced.
-///
-/// # Errors
-///
-/// The wire error for an account name, a destination, an id, a checksum or a
-/// database name the agent will not accept, or a system failure when the web
-/// server's group cannot be resolved.
-fn validated_restoration(
-    request: &RestoreBackupRequest,
-    distro: &dyn maran_distro::DistroAdapter,
-) -> Result<
-    (
-        maran_agent_core::validation::system::name::AccountName,
-        ValidatedRestore,
-        u32,
-    ),
-    AgentError,
-> {
-    let account = validated_account(&request.account_username)?;
-    let input = ValidatedRestore::from_request(request, &account)?;
-    let group = home_group(distro)?;
-
-    Ok((account, input, group))
 }
 
 #[cfg(test)]

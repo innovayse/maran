@@ -14,6 +14,7 @@ use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::sites_service_server::SitesService;
 use crate::proto::{
     AgentError, CreateSiteOk, CreateSiteRequest, CreateSiteResponse, DeleteSiteOk,
@@ -131,6 +132,7 @@ where
         &self,
         request: Request<CreateSiteRequest>,
     ) -> Result<Response<CreateSiteResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         // CreateSite carries the site's description in its own fields, since
         // it is the rpc that establishes them; every other rpc restates them
@@ -147,6 +149,8 @@ where
 
         let validated = Self::site(&request.account_username, &request.domain, Some(&spec))
             .and_then(|input| {
+                audit.account(&input.account);
+                audit.site(&input.domain);
                 // Revalidated here rather than trusted, exactly as the switch
                 // does: these two fields reach a pool file, which is
                 // line-oriented, and the panel having sent them is not why they
@@ -178,6 +182,7 @@ where
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(created) => create_site_response::Result::Ok(CreateSiteOk {
                 document_root: created.document_root,
@@ -195,6 +200,7 @@ where
         &self,
         request: Request<UpdateSitePhpVersionRequest>,
     ) -> Result<Response<UpdateSitePhpVersionResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let validated = Self::site(
@@ -203,6 +209,8 @@ where
             request.site.as_ref(),
         )
         .and_then(|input| {
+            audit.account(&input.account);
+            audit.site(&input.domain);
             let version = maran_agent_core::validation::web::php_version::PhpVersion::parse(
                 &request.php_version,
             )
@@ -243,6 +251,7 @@ where
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(()) => update_site_php_version_response::Result::Ok(UpdateSitePhpVersionOk {}),
             Err(error) => update_site_php_version_response::Result::Error(error),
@@ -258,6 +267,7 @@ where
         &self,
         request: Request<EnableSiteRequest>,
     ) -> Result<Response<EnableSiteResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let result = match Self::site(
             &request.account_username,
@@ -265,6 +275,8 @@ where
             request.site.as_ref(),
         ) {
             Ok(input) => {
+                audit.account(&input.account);
+                audit.site(&input.domain);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("site operation", to_agent_error, move || {
                     sites::enable_site(host.as_ref(), distro, &input)
@@ -274,6 +286,7 @@ where
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(()) => enable_site_response::Result::Ok(EnableSiteOk {}),
             Err(error) => enable_site_response::Result::Error(error),
@@ -289,6 +302,7 @@ where
         &self,
         request: Request<DisableSiteRequest>,
     ) -> Result<Response<DisableSiteResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let result = match validated_existing_site(
             &request.account_username,
@@ -296,6 +310,8 @@ where
             request.site.as_ref(),
         ) {
             Ok(input) => {
+                audit.account(&input.account);
+                audit.site(&input.domain);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("site operation", to_agent_error, move || {
                     sites::disable_site(host.as_ref(), distro, &input)
@@ -305,6 +321,7 @@ where
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(()) => disable_site_response::Result::Ok(DisableSiteOk {}),
             Err(error) => disable_site_response::Result::Error(error),
@@ -320,6 +337,7 @@ where
         &self,
         request: Request<DeleteSiteRequest>,
     ) -> Result<Response<DeleteSiteResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         // The one rpc that needs no `SiteSpec`: deleting touches only the
@@ -332,6 +350,8 @@ where
         // others.
         let identity = validated_existing_identity(&request.account_username, &request.domain);
         let result = match identity.and_then(|(account, domain)| {
+            audit.account(&account);
+            audit.site(&domain);
             // Revalidated like every other input, and ABSENT is a MEANING
             // rather than a default: the empty string is the panel saying
             // "leave the pool alone", which is what it says for a static
@@ -377,6 +397,7 @@ where
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(()) => delete_site_response::Result::Ok(DeleteSiteOk {}),
             Err(error) => delete_site_response::Result::Error(error),
@@ -488,14 +509,16 @@ where
     /// Validates the configuration on disk and reloads the web server.
     async fn reload_web_server(
         &self,
-        _request: Request<ReloadWebServerRequest>,
+        request: Request<ReloadWebServerRequest>,
     ) -> Result<Response<ReloadWebServerResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let (host, distro) = (Arc::clone(&self.host), self.distro);
-        let result = match run_blocking("site operation", to_agent_error, move || {
+        let result = run_blocking("site operation", to_agent_error, move || {
             sites::reload_web_server(host.as_ref(), distro)
         })
-        .await
-        {
+        .await;
+        audit.settle(&result);
+        let result = match result {
             Ok(()) => reload_web_server_response::Result::Ok(ReloadWebServerOk {}),
             Err(error) => reload_web_server_response::Result::Error(error),
         };
