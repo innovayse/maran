@@ -49,6 +49,7 @@ usage: maran <command> [arguments]
   handshake  agent and API over a real unix socket                    (e2e-handshake.sh)
   licenses   third-party notices; --check verifies without writing    (licenses.sh)
   release    release bundle: build|sign|verify|package|sbom|changelog|rebuild|selftest (release-bundle.sh)
+  deploy-local  build, sign with a TEST key, copy and install on a dev host over ssh (release-bundle.sh)
   website    the public site, when checked out beside this one        (website.sh)
 
 Put the toolchains on your PATH first — this must be sourced, not run:
@@ -85,6 +86,7 @@ case "$command_name" in
   handshake) exec bash "$root/scripts/lib/e2e-handshake.sh" "$@" ;;
   licenses)  exec bash "$root/scripts/lib/licenses.sh" "$@" ;;
   release)   exec bash "$root/scripts/lib/release-bundle.sh" "$@" ;;
+  deploy-local) exec bash "$root/scripts/lib/release-bundle.sh" deploy-local "$@" ;;
   website)   exec bash "$root/scripts/lib/website.sh" "$@" ;;
   -h|--help|help) usage ;;
   *)
