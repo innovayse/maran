@@ -21,10 +21,17 @@ const WCAG_TAGS: readonly string[] = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'
  * The scan observes the rendered DOM in a real browser, after the page's own data has landed: a
  * caller waits for the screen's content before calling, or the scan reads a skeleton and passes
  * over markup the reader never gets.
+ *
+ * It also waits until no CSS animation or transition is running. A banner or dialog that is
+ * fading in is "visible" from its first frame, and axe measures the colours it is drawn with at
+ * that instant, blended with whatever is behind it: a contrast failure the settled page does not
+ * have, and one that came and went between a first attempt and its retry (issue #401). Waiting on
+ * the browser's own animation list needs no sleep and ends the moment the page is still.
  * @param page The Playwright page under test.
  * @returns One line per refused violation; empty when there is none.
  */
 export const seriousViolations = async (page: Page): Promise<string[]> => {
+  await page.waitForFunction(() => {return document.getAnimations().length === 0})
   const results = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze()
   // Vacuity guard on the axis that can go blind: a scan that checked no rule at all would report
   // no violation too. axe lists what it ran in `passes`, so a real scan always has some.
