@@ -1,9 +1,13 @@
+using System.Resources;
 using Maran.Modules.Ssl.Domain.Entities;
 using Maran.Modules.Ssl.Domain.Enums;
 using Maran.Modules.Ssl.Persistence;
+using Maran.Modules.Ssl.Services;
 using Maran.SharedKernel.Interfaces;
+using Maran.SharedKernel.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Ssl.Tests.TestSupport;
 
@@ -34,6 +38,20 @@ public static class SslTestContext
 
         var options = builder.Options;
         return new SslDbContext(options, currentUser, new PassThroughEncryptionService());
+    }
+
+    /// <summary>
+    /// Builds the renewal-failure describer over the Ssl module's own error table, resolved the way the
+    /// composed panel resolves it.
+    /// </summary>
+    /// <returns>A describer reading <c>ErrorMessages</c> in the current UI culture.</returns>
+    public static CertificateRenewalFailureMessages FailureMessages()
+    {
+        var sslErrors = new ResourceManager(
+            "Maran.Modules.Ssl.Resources.ErrorMessages", typeof(SslModule).Assembly);
+
+        return new CertificateRenewalFailureMessages(
+            new ResxErrorTextProvider([sslErrors], NullLogger<ResxErrorTextProvider>.Instance));
     }
 
     /// <summary>Builds a certificate row.</summary>

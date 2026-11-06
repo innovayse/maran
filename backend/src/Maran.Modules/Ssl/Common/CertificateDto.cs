@@ -21,6 +21,10 @@ namespace Maran.Modules.Ssl.Common;
 /// none has run. A code, translated by the panel like every other error code — never a sentence an
 /// authority wrote.
 /// </param>
+/// <param name="LastRenewalError">
+/// The sentence for <paramref name="LastRenewalErrorCode"/> in the caller's language, or null when
+/// there is no failure. A code the panel has no sentence for reads as a generic one, never as the code.
+/// </param>
 /// <param name="ConsecutiveRenewalFailures">How many renewal attempts have failed in a row.</param>
 public sealed record CertificateDto(
     Guid Id,
@@ -31,4 +35,5 @@ public sealed record CertificateDto(
     DateTimeOffset IssuedAt,
     DateTimeOffset? LastRenewalAttemptAt,
     string? LastRenewalErrorCode,
+    string? LastRenewalError,
     int ConsecutiveRenewalFailures);

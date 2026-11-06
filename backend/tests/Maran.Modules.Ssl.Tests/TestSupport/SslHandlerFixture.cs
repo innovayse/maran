@@ -63,6 +63,9 @@ public sealed class SslHandlerFixture : IDisposable
     /// <summary>The shared install path the handlers use.</summary>
     public CertificateInstaller Installer { get; }
 
+    /// <summary>The expiry alert double, which records what it was asked and what it raised.</summary>
+    public RecordingSslAlertMailer Alerts { get; } = new();
+
     /// <summary>The fixed clock every handler is given.</summary>
     public FakeClock Clock { get; } = new(Now);
 

@@ -224,7 +224,8 @@ public sealed class IssueCertificateCommandHandler
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
-        return Result<CertificateDto>.Ok(CertificateMapper.From(certificate));
+        // A row written a moment ago has attempted no renewal, so there is no failure sentence to carry.
+        return Result<CertificateDto>.Ok(CertificateMapper.From(certificate, null));
     }
 
     /// <summary>Journals a refused issuance and returns it as the typed failure.</summary>

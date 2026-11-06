@@ -2,6 +2,7 @@ using Maran.Modules.Ssl.Commands.InstallCustomCertificate;
 using Maran.Modules.Ssl.Commands.IssueCertificate;
 using Maran.Modules.Ssl.Commands.RemoveCertificate;
 using Maran.Modules.Ssl.Common;
+using Maran.Modules.Ssl.Queries.GetAcmeDirectory;
 using Maran.Modules.Ssl.Queries.ListCertificates;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -66,6 +67,26 @@ public sealed class CertificatesController : BaseApiController
     {
         return ToActionResult(
             await _bus.InvokeAsync<Result<PagedResult<CertificateDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Reads which ACME authority the panel orders certificates from, so the certificates page can say
+    /// whether what it issues is trusted by browsers.
+    /// </summary>
+    /// <remarks>
+    /// Administrator only: the class-level policy is <c>AnyAuthenticated</c> and this attribute is added
+    /// to it. The authority is the operator's configuration, and a customer has no use for it. The
+    /// class-level <c>api</c> rate limit covers it.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("acme-directory")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [ProducesResponseType(typeof(AcmeDirectoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetAcmeDirectoryAsync(CancellationToken cancellationToken)
+    {
+        return Ok(await _bus.InvokeAsync<AcmeDirectoryDto>(new GetAcmeDirectoryQuery(), cancellationToken));
     }
 
     /// <summary>Orders a certificate for one of the caller's sites and installs it.</summary>

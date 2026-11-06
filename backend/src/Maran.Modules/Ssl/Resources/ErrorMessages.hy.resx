@@ -87,4 +87,7 @@
   <data name="PanelChallengeWriteFailed">
     <value>Վահանակի հոսթի անվան ստուգման ֆայլը չհաջողվեց տեղադրել սերվերում։</value>
   </data>
+  <data name="CertificateRenewalFailedGeneric">
+    <value>Այս վկայագրի երկարաձգումը ձախողվեց։ Վահանակը ավտոմատ կերպով նորից կփորձի. եթե սխալը կրկնվի, ստուգեք, որ կայքը հասանելի է համացանցից։</value>
+  </data>
 </root>

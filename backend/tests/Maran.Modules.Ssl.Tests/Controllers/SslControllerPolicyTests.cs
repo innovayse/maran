@@ -51,15 +51,22 @@ public sealed class SslControllerPolicyTests
         Assert.Empty(offenders);
     }
 
-    /// <summary>No action of a Ssl controller carries an authorization attribute of its own.</summary>
+    /// <summary>
+    /// No action of a Ssl controller carries an authorization attribute of its own, except the one
+    /// administrator-only action added to the customer-facing controller, which names AdminOnly.
+    /// </summary>
     [Fact]
-    public void No_ssl_action_overrides_the_class_policy()
+    public void No_ssl_action_overrides_the_class_policy_except_the_named_administrator_only_ones()
     {
         var offenders = MembersOfTheControllers()
             .OfType<MethodInfo>()
             .Where(method =>
             {
                 return method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true).Length > 0;
+            })
+            .Where(method =>
+            {
+                return !IsDeclaredAdministratorOnlyAction(method);
             })
             .Select(method =>
             {
@@ -68,6 +75,24 @@ public sealed class SslControllerPolicyTests
             .ToArray();
 
         Assert.Empty(offenders);
+    }
+
+    /// <summary>The ACME directory read on the customer-facing controller is administrator only, and alone in carrying a policy.</summary>
+    [Fact]
+    public void The_acme_directory_action_names_the_administrator_only_policy()
+    {
+        var method = typeof(CertificatesController).GetMethod(nameof(CertificatesController.GetAcmeDirectoryAsync))!;
+
+        var policies = method
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>()
+            .Select(attribute =>
+            {
+                return attribute.Policy ?? string.Empty;
+            })
+            .ToArray();
+
+        Assert.Equal(new[] { AuthorizationPolicies.AdminOnly }, policies);
     }
 
     /// <summary>The walk sees every controller of the module, so the checks above cannot pass on nothing.</summary>
@@ -88,6 +113,26 @@ public sealed class SslControllerPolicyTests
             nameof(PanelCertificateController),
         };
         Assert.Equal(expected.Order(StringComparer.Ordinal), names);
+    }
+
+    /// <summary>Whether a method is one of the administrator-only actions allowed on a customer-facing controller.</summary>
+    /// <param name="method">The action to judge.</param>
+    /// <returns>True for <see cref="CertificatesController.GetAcmeDirectoryAsync"/> naming AdminOnly alone.</returns>
+    private static bool IsDeclaredAdministratorOnlyAction(MethodInfo method)
+    {
+        if (method.DeclaringType != typeof(CertificatesController)
+            || method.Name != nameof(CertificatesController.GetAcmeDirectoryAsync))
+        {
+            return false;
+        }
+
+        return method
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>()
+            .All(attribute =>
+            {
+                return attribute.Policy == AuthorizationPolicies.AdminOnly;
+            });
     }
 
     /// <summary>The controllers the module ships.</summary>

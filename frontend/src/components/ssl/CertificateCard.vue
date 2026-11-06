@@ -12,6 +12,7 @@
  * to remove.
  */
 import { useI18n } from "vue-i18n";
+import UiAlert from "../ui/UiAlert.vue";
 import UiBadge from "../ui/UiBadge.vue";
 import UiButton from "../ui/UiButton.vue";
 import UiCard from "../ui/UiCard.vue";
@@ -22,6 +23,7 @@ import UiIconTile from "../ui/UiIconTile.vue";
 import type { AppLocale } from "../../types/app";
 import type { Certificate, CertificateAttention } from "../../types/certificate";
 import { formatDate } from "../../utils/formatDate";
+import { formatIsoTimestamp } from "../../utils/formatIsoTimestamp";
 
 /**
  * What a {@link CertificateCard} is given to draw: the placeholder for a list still on its way, or
@@ -127,7 +129,37 @@ const remove = (): void => {
         <UiDescriptionItem :term="t('certificates.expiresAtLabel')" mono>
           {{ props.read.state === "loaded" ? formatDate(props.read.certificate.notAfter, props.locale) : "" }}
         </UiDescriptionItem>
+        <!-- Only the panel renews a certificate it issued; an uploaded one has no attempts to report. -->
+        <UiDescriptionItem
+          v-if="props.read.state === 'loading' || props.read.certificate.source === 'acme'"
+          :term="t('certificates.lastRenewalAttemptLabel')"
+          mono
+        >
+          <template v-if="props.read.state === 'loaded'">
+            {{
+              props.read.certificate.lastRenewalAttemptAt === null
+                ? t("certificates.noRenewalAttempt")
+                : formatIsoTimestamp(props.read.certificate.lastRenewalAttemptAt, props.locale)
+            }}
+          </template>
+        </UiDescriptionItem>
       </UiDescriptionList>
+
+      <!-- The sentence arrives from the panel already in the reader's language and is plain text. -->
+      <UiAlert
+        v-if="props.read.state === 'loaded' && props.read.certificate.consecutiveRenewalFailures > 0"
+        class="mt-4"
+        variant="warning"
+      >
+        <span class="flex flex-wrap items-center gap-2">
+          <UiBadge variant="danger">
+            {{ t("certificates.failedAttempts", { count: props.read.certificate.consecutiveRenewalFailures }) }}
+          </UiBadge>
+          <span v-if="props.read.certificate.lastRenewalError !== null" class="wrap-anywhere">
+            {{ props.read.certificate.lastRenewalError }}
+          </span>
+        </span>
+      </UiAlert>
     </div>
   </UiCard>
 </template>

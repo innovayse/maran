@@ -18,7 +18,7 @@ public sealed class CertificateAuditJournalTests
         var audit = new RecordingAuditWriter();
         var journal = new CertificateAuditJournal(audit, FakeCurrentUser.Admin());
 
-        await journal.RecordScheduledAsync(
+        await journal.RecordSystemAsync(
             CertificateAuditActions.CertificateRenewed,
             "soon.example.com",
             succeeded: true,
@@ -35,7 +35,7 @@ public sealed class CertificateAuditJournalTests
         var audit = new RecordingAuditWriter();
         var journal = new CertificateAuditJournal(audit, FakeCurrentUser.Admin());
 
-        await journal.RecordScheduledAsync(
+        await journal.RecordSystemAsync(
             CertificateAuditActions.CertificateRenewed,
             "soon.example.com",
             succeeded: true,
@@ -51,7 +51,7 @@ public sealed class CertificateAuditJournalTests
         var audit = new RecordingAuditWriter();
         var journal = new CertificateAuditJournal(audit, FakeCurrentUser.Admin());
 
-        await journal.RecordScheduledAsync(
+        await journal.RecordSystemAsync(
             CertificateAuditActions.CertificateRenewed,
             "soon.example.com",
             succeeded: false,

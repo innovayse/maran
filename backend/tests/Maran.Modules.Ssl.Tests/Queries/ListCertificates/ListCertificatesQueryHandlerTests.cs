@@ -1,3 +1,4 @@
+using System.Globalization;
 using Maran.Modules.Ssl.Common;
 using Maran.Modules.Ssl.Domain.Enums;
 using Maran.Modules.Ssl.Persistence;
@@ -163,13 +164,53 @@ public sealed class ListCertificatesQueryHandlerTests
             Enum.GetValues<CertificateStatus>());
     }
 
+    /// <summary>
+    /// A failing certificate lists with its sentence in the reader's language, an unknown code lists
+    /// with the generic sentence, and a healthy certificate lists with none.
+    /// </summary>
+    [Fact]
+    public async Task A_failing_certificate_lists_with_its_sentence_and_a_healthy_one_with_none()
+    {
+        await using var dbContext = SslTestContext.Create(FakeCurrentUser.Admin());
+        var owner = Guid.NewGuid();
+        var known = SslTestContext.Certificate(owner, "known.example.com", Now.AddDays(10));
+        known.RenewalFailed("CertificateNotFound", Now);
+        var unknown = SslTestContext.Certificate(owner, "unknown.example.com", Now.AddDays(20));
+        unknown.RenewalFailed("SomeRemovedModuleFailure", Now);
+        dbContext.Certificates.AddRange(
+            known, unknown, SslTestContext.Certificate(owner, "healthy.example.com", Now.AddDays(30)));
+        await dbContext.SaveChangesAsync();
+
+        var previous = CultureInfo.CurrentUICulture;
+        CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("ru");
+        Result<PagedResult<CertificateDto>> result;
+        try
+        {
+            result = await HandleAsync(dbContext, new ListCertificatesQuery());
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+
+        var rows = result.Value.Items.ToDictionary(row =>
+        {
+            return row.Domain;
+        });
+        Assert.NotNull(rows["known.example.com"].LastRenewalError);
+        Assert.NotEqual("CertificateNotFound", rows["known.example.com"].LastRenewalError);
+        Assert.Contains("сертификат", rows["unknown.example.com"].LastRenewalError, StringComparison.Ordinal);
+        Assert.Null(rows["healthy.example.com"].LastRenewalError);
+    }
+
     /// <summary>Runs the handler at the fixed instant.</summary>
     /// <param name="dbContext">The context to read.</param>
     /// <param name="query">The list request.</param>
     /// <returns>The handler's answer.</returns>
     private static Task<Result<PagedResult<CertificateDto>>> HandleAsync(SslDbContext dbContext, ListCertificatesQuery query)
     {
-        return new ListCertificatesQueryHandler(dbContext, new FakeClock(Now)).HandleAsync(query, CancellationToken.None);
+        return new ListCertificatesQueryHandler(dbContext, new FakeClock(Now), SslTestContext.FailureMessages())
+            .HandleAsync(query, CancellationToken.None);
     }
 
     /// <summary>The domains of a page, in order.</summary>

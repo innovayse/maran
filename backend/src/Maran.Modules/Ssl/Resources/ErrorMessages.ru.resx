@@ -87,4 +87,7 @@
   <data name="PanelChallengeWriteFailed">
     <value>Не удалось разместить на сервере проверочный файл для имени хоста панели.</value>
   </data>
+  <data name="CertificateRenewalFailedGeneric">
+    <value>Не удалось продлить этот сертификат. Панель повторит попытку автоматически; если ошибка повторяется, проверьте, что сайт доступен из интернета.</value>
+  </data>
 </root>

@@ -67,6 +67,7 @@ public sealed class CertificatesAuthorizationTests : IAsyncLifetime
         return new TheoryData<string, string>
         {
             { "GET", "/api/v1/certificates" },
+            { "GET", "/api/v1/certificates/acme-directory" },
             { "POST", "/api/v1/certificates" },
             { "POST", "/api/v1/certificates/custom" },
             { "DELETE", "/api/v1/certificates/{id}" },

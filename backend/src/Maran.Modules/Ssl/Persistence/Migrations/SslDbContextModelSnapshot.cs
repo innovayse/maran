@@ -73,6 +73,9 @@ namespace Maran.Modules.Ssl.Persistence.Migrations
                         .HasMaxLength(253)
                         .HasColumnType("character varying(253)");
 
+                    b.Property<DateTimeOffset?>("ExpiryAlertedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("IssuedAt")
                         .HasColumnType("timestamp with time zone");
 

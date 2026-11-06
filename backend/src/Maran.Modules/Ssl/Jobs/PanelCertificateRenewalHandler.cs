@@ -108,7 +108,7 @@ public sealed class PanelCertificateRenewalHandler
 
         var renewed = await _issuer.IssueAsync(hostName, cancellationToken);
 
-        await _journal.RecordScheduledAsync(
+        await _journal.RecordSystemAsync(
             CertificateAuditActions.CertificateRenewed, hostName, renewed.IsSuccess, cancellationToken);
 
         if (!renewed.IsSuccess)

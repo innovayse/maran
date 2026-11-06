@@ -87,4 +87,7 @@
   <data name="PanelChallengeWriteFailed">
     <value>The verification file for the panel's host name could not be placed on the server.</value>
   </data>
+  <data name="CertificateRenewalFailedGeneric">
+    <value>Renewing this certificate failed. The panel will try again automatically; if it keeps failing, check that the site is reachable from the internet.</value>
+  </data>
 </root>

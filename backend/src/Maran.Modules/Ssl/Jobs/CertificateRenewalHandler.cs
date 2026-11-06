@@ -95,6 +95,9 @@ public sealed class CertificateRenewalHandler
     /// <summary>This module's audit journal.</summary>
     private readonly CertificateAuditJournal _journal;
 
+    /// <summary>The operator's expiry alert, raised for a certificate the pass could not renew.</summary>
+    private readonly ISslAlertMailer _alerts;
+
     /// <summary>The injected time source, which defines the renewal window.</summary>
     private readonly IClock _clock;
 
@@ -115,6 +118,7 @@ public sealed class CertificateRenewalHandler
     /// <param name="installer">The shared install path.</param>
     /// <param name="agentSites">The agent's batch web-server reload.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="alerts">The operator's expiry alert.</param>
     /// <param name="clock">The injected time source defining the renewal window.</param>
     /// <param name="logger">Sink for renewal failures.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
@@ -126,6 +130,7 @@ public sealed class CertificateRenewalHandler
         CertificateInstaller installer,
         IAgentSitesClient agentSites,
         CertificateAuditJournal journal,
+        ISslAlertMailer alerts,
         IClock clock,
         ILogger<CertificateRenewalHandler> logger,
         ITaskRecorder tasks)
@@ -137,6 +142,7 @@ public sealed class CertificateRenewalHandler
         _installer = installer;
         _agentSites = agentSites;
         _journal = journal;
+        _alerts = alerts;
         _clock = clock;
         _logger = logger;
         _tasks = tasks;
@@ -156,17 +162,29 @@ public sealed class CertificateRenewalHandler
     /// disk, at the authority's expense, and every recorded failure code went with it. And an
     /// uncaught throw meant one unreachable domain ended the pass for every certificate behind it in
     /// the queue, which is one site expiring turning into all of them.
+    ///
+    /// Every certificate the pass examined is offered to the expiry alert AFTER its attempt, whether
+    /// the attempt failed or was skipped by the failure backoff: a certificate inside the alert window
+    /// that the pass could not renew is exactly what an operator must hear about once. A renewed one
+    /// is not offered, and <see cref="Certificate.Renewed"/> has already cleared its alert mark.
     /// </remarks>
     public async Task<int> HandleAsync(CertificateRenewalRequested message, CancellationToken cancellationToken)
     {
-        var due = await SelectDueAsync(cancellationToken);
+        var now = _clock.UtcNow;
+        var candidates = await SelectCandidatesAsync(now, cancellationToken);
         var renewed = 0;
 
-        foreach (var certificate in due)
+        foreach (var certificate in candidates)
         {
-            if (await RenewSafelyAsync(certificate, cancellationToken))
+            var renewedNow = certificate.IsDueForRenewal(now, RenewalWindow)
+                && await RenewSafelyAsync(certificate, cancellationToken);
+            if (renewedNow)
             {
                 renewed += 1;
+            }
+            else
+            {
+                await ExpiryAlertAttempt.TryAsync(_alerts, certificate, now, _logger, cancellationToken);
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);
@@ -237,9 +255,10 @@ public sealed class CertificateRenewalHandler
         }
     }
 
-    /// <summary>Reads every certificate the panel may and should re-order now.</summary>
+    /// <summary>Reads every certificate inside the renewal window, due or not.</summary>
+    /// <param name="now">The instant the pass is working at.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The due certificates, soonest expiry first.</returns>
+    /// <returns>The candidates, soonest expiry first.</returns>
     /// <remarks>
     /// <c>IgnoreQueryFilters</c> is deliberate and is the only place in this module that says it for
     /// a tenant-scoped entity: renewal runs for the whole server and has no authenticated caller, so
@@ -248,30 +267,24 @@ public sealed class CertificateRenewalHandler
     /// The SQL clause is a PREFILTER and nothing more — it narrows the table to the rows that could
     /// possibly be due, using the indexed <c>NotAfter</c> column, so a server with ten thousand
     /// certificates does not materialise all of them. The DECISION is
-    /// <see cref="Certificate.IsDueForRenewal"/>, applied to what comes back. Restating the rule in
-    /// LINQ would be a second definition that nothing keeps in step with the first, which is exactly
-    /// what this used to be: the failure backoff existed on neither side, and mutating one predicate
-    /// left the other's tests green.
+    /// <see cref="Certificate.IsDueForRenewal"/>, applied by the caller to each row. Restating the
+    /// rule in LINQ would be a second definition that nothing keeps in step with the first. Rows the
+    /// rule rejects (a failure backoff still running, a customer's own upload) are returned too,
+    /// because they still approach expiry and the alert must see them.
     /// </remarks>
-    private async Task<List<Certificate>> SelectDueAsync(CancellationToken cancellationToken)
+    private async Task<List<Certificate>> SelectCandidatesAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
-        var now = _clock.UtcNow;
         var deadline = now + RenewalWindow;
 
 #pragma warning disable RS0030 // unattended renewal runs with no principal and must see every account's certificates
-        var candidates = await _dbContext.Certificates
+        return await _dbContext.Certificates
             .IgnoreQueryFilters()
             .Where(certificate => certificate.NotAfter <= deadline)
             .OrderBy(certificate => certificate.NotAfter)
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
-
-        return candidates
-            .Where(certificate =>
-            {
-                return certificate.IsDueForRenewal(now, RenewalWindow);
-            })
-            .ToList();
     }
 
     /// <summary>Re-orders and reinstalls one certificate.</summary>
@@ -323,7 +336,7 @@ public sealed class CertificateRenewalHandler
 
         certificate.Renewed(installed.Value, _clock.UtcNow);
 
-        await _journal.RecordScheduledAsync(
+        await _journal.RecordSystemAsync(
             CertificateAuditActions.CertificateRenewed, certificate.Domain, succeeded: true, cancellationToken);
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
@@ -350,7 +363,7 @@ public sealed class CertificateRenewalHandler
 
         LogRenewalFailure(_logger, certificate.Domain, code, certificate.ConsecutiveRenewalFailures, null);
 
-        await _journal.RecordScheduledAsync(
+        await _journal.RecordSystemAsync(
             CertificateAuditActions.CertificateRenewed, certificate.Domain, succeeded: false, cancellationToken);
 
         await _tasks.FailAsync(taskId, code, cancellationToken);

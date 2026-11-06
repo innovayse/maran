@@ -28,6 +28,11 @@ public sealed class AcmeOptions
     /// The authority's directory document — the one URL an ACME client is configured with, from
     /// which every other endpoint is discovered.
     /// </summary>
+    /// <remarks>
+    /// Must be an absolute <c>https</c> URL (see <c>Validators/AcmeOptionsValidator.cs</c>). A private
+    /// address is allowed for a private authority, whose root certificate must be in the operating
+    /// system's trust store.
+    /// </remarks>
     [Required]
     [Url]
     public string DirectoryUrl { get; set; } = "https://acme-staging-v02.api.letsencrypt.org/directory";
