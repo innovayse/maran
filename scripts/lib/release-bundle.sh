@@ -90,6 +90,12 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 . "$root/scripts/lib/release-rebuild.sh"
 # shellcheck disable=SC1091
 . "$root/scripts/lib/release-rebuild-selftest.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/deploy-local-guard.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/deploy-local.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/deploy-local-selftest.sh"
 
 VERDICT_PREFIX="RELEASE VERDICT"
 
@@ -104,7 +110,7 @@ release_failed() {
 
 usage() {
   cat >&2 <<'USAGE'
-usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|openapi|selftest|package-selftest|sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest|openapi-selftest> [arguments]
+usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|openapi|selftest|package-selftest|sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest|openapi-selftest|deploy-local|deploy-local-selftest> [arguments]
 
   build     [--version <ver>] [--channel stable|beta] [--out <dir>] [--arch <list>|both] [--publish]
             [--source-date-epoch <n>]
@@ -134,6 +140,11 @@ usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|openapi|s
   sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest|openapi-selftest
                                                 the matching selftests; none needs docker (the last
                                                 names that blind spot itself)
+  deploy-local [[user@]host] [options]          build, sign with a TEST key, copy and install on a development
+                                                host over ssh (docs/operations/deploy-local.md); refuses the
+                                                production key; --dry-run prints the commands and runs nothing
+  deploy-local-selftest                         the same verb against fake ssh and scp, every refusal paired
+                                                with an inverse control
   package-selftest                              plant a two-architecture signed bundle, package it,
                                                 prove each result verifies AND that every broken
                                                 bundle is refused (rules/testing.md inverse controls)
@@ -1110,6 +1121,8 @@ case "$command_name" in
   openapi) release_openapi_main "$@" ;;
   openapi-selftest) release_openapi_selftest "$@" ;;
   reproducible-selftest) release_reproducible_selftest "$@" ;;
+  deploy-local) deploy_local_main "$@" ;;
+  deploy-local-selftest) deploy_local_selftest "$@" ;;
   -h|--help|help) usage ;;
   *) echo "unknown release subcommand: $command_name" >&2; usage ;;
 esac

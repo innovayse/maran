@@ -183,7 +183,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/release-selftest"
           failed=""
-          for verb in selftest package-selftest sbom-selftest changelog-selftest rebuild-selftest reproducible-selftest openapi-selftest; do
+          for verb in selftest package-selftest sbom-selftest changelog-selftest rebuild-selftest reproducible-selftest openapi-selftest deploy-local-selftest; do
             log="$RUNNER_TEMP/release-selftest/$verb.log"
             echo "::group::maran release $verb"
             status=0
