@@ -69,11 +69,12 @@ public sealed class SitesDbContext : DbContext
             return _currentUser.Caller switch
             {
                 AdministratorCaller => true,
+                ApiKeyCaller => false,
                 AnonymousCaller => false,
                 CustomerCaller => false,
                 AccountlessCustomerCaller => false,
                 ResellerCaller => false,
-                _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
             };
         }
     }
@@ -91,10 +92,11 @@ public sealed class SitesDbContext : DbContext
             {
                 CustomerCaller customer => customer.AccountId,
                 AdministratorCaller => null,
+                ApiKeyCaller => null,
                 AnonymousCaller => null,
                 AccountlessCustomerCaller => null,
                 ResellerCaller => null,
-                _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
             };
         }
     }

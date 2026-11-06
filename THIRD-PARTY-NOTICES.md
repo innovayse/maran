@@ -408,6 +408,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.IdentityModel.Protocols.OpenIdConnect` | 8.19.2 | MIT |
 | `Microsoft.IdentityModel.Tokens` | 8.23.0 | MIT |
 | `Microsoft.NET.Test.Sdk` | 18.10.1 | MIT |
+| `Microsoft.OpenApi` | 1.6.14 | MIT |
 | `Microsoft.TestPlatform.ObjectModel` | 18.10.1 | MIT |
 | `Microsoft.TestPlatform.TestHost` | 18.10.1 | MIT |
 | `Microsoft.VisualStudio.SolutionPersistence` | 1.0.52 | MIT |
@@ -438,6 +439,8 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `SharpZipLib` | 1.4.2 | MIT |
 | `Spectre.Console` | 0.55.0 | MIT |
 | `Spectre.Console.Ansi` | 0.55.0 | MIT |
+| `Swashbuckle.AspNetCore.Swagger` | 6.6.2 | MIT |
+| `Swashbuckle.AspNetCore.SwaggerGen` | 6.6.2 | MIT |
 | `System.Buffers` | 4.6.0 | MIT |
 | `System.CodeDom` | 6.0.0 | MIT |
 | `System.Collections.Immutable` | 9.0.0 | MIT |

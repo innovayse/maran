@@ -21,10 +21,19 @@ namespace Maran.Host.Tests.Security;
 /// </remarks>
 public sealed class HttpContextCurrentUserTests
 {
+    /// <summary>The signed-in login's id.</summary>
     private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+    /// <summary>The reseller the login acts for.</summary>
     private static readonly Guid ResellerId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+
+    /// <summary>The account the customer acts for.</summary>
     private static readonly Guid AccountId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+    /// <summary>The operator who views as the login.</summary>
     private static readonly Guid OperatorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+    /// <summary>The operator's own session id.</summary>
     private static readonly Guid OperatorSessionId = Guid.Parse("44444444-4444-4444-4444-444444444444");
 
     /// <summary>A signed-in administrator is read out of the token's claims.</summary>
@@ -291,6 +300,74 @@ public sealed class HttpContextCurrentUserTests
         Assert.Same(AnonymousCaller.Instance, user.Caller);
     }
 
+    /// <summary>A principal authenticated by the API key scheme is an API key caller, with only known scopes.</summary>
+    [Fact]
+    public void A_principal_of_the_api_key_scheme_is_an_api_key_caller_holding_only_known_scopes()
+    {
+        var keyId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        var user = CurrentUser(
+            ApiKeyDefaults.Scheme,
+            (PanelClaimTypes.ApiKeyId, keyId.ToString()),
+            (PanelClaimTypes.ApiKeyScope, ApiKeyScopes.SelfRead),
+            (PanelClaimTypes.ApiKeyScope, "accounts.write"));
+
+        var apiKey = Assert.IsType<ApiKeyCaller>(user.Caller);
+        Assert.Equal(keyId, apiKey.KeyId);
+        Assert.Equal([ApiKeyScopes.SelfRead], apiKey.Scopes);
+    }
+
+    /// <summary>A bearer token carrying a key id is refused, never read as an API key.</summary>
+    [Fact]
+    public void A_bearer_token_carrying_a_key_id_is_refused()
+    {
+        var user = CurrentUser(
+            "Bearer",
+            (PanelClaimTypes.UserId, UserId.ToString()),
+            (PanelClaimTypes.Role, nameof(UserRole.Admin)),
+            (PanelClaimTypes.ApiKeyId, Guid.NewGuid().ToString()));
+
+        Assert.Throws<UnrecognisedPrincipalException>(() =>
+        {
+            return user.Caller;
+        });
+    }
+
+    /// <summary>An API key principal with no readable key id is refused.</summary>
+    [Fact]
+    public void An_api_key_principal_with_no_readable_key_id_is_refused()
+    {
+        var user = CurrentUser(ApiKeyDefaults.Scheme, (PanelClaimTypes.ApiKeyId, "not-a-guid"));
+
+        Assert.Throws<UnrecognisedPrincipalException>(() =>
+        {
+            return user.Caller;
+        });
+    }
+
+    /// <summary>Builds the accessor over a principal of the named authentication scheme.</summary>
+    /// <param name="authenticationType">The scheme the principal was authenticated by.</param>
+    /// <param name="claims">The claims the principal carries.</param>
+    /// <returns>The current user over that principal.</returns>
+    private static HttpContextCurrentUser CurrentUser(
+        string authenticationType,
+        params (string Type, string Value)[] claims)
+    {
+        var context = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                claims.Select(c =>
+                {
+                    return new Claim(c.Type, c.Value);
+                }),
+                authenticationType)),
+        };
+
+        return new HttpContextCurrentUser(new HttpContextAccessor { HttpContext = context });
+    }
+
+    /// <summary>Builds the accessor over a bearer-authenticated principal.</summary>
+    /// <param name="claims">The claims the principal carries.</param>
+    /// <returns>The current user over that principal.</returns>
     private static HttpContextCurrentUser CurrentUser(params (string Type, string Value)[] claims)
     {
         var context = new DefaultHttpContext

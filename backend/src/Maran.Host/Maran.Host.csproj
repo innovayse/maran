@@ -38,6 +38,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <!-- Swashbuckle.AspNetCore.SwaggerGen: builds the OpenAPI document from the controllers for the
+         CLI openapi verb. Registered only for that verb (Extensions/OpenApiExtensions.cs); the
+         running panel serves no document and carries no OpenAPI service. -->
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" />
     <PackageReference Include="WolverineFx.FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
   </ItemGroup>
@@ -54,6 +58,7 @@
     <ProjectReference Include="..\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
     <ProjectReference Include="..\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
     <ProjectReference Include="..\Maran.Modules\Ftp\Maran.Modules.Ftp.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Idempotency\Maran.Modules.Idempotency.csproj" />
     <ProjectReference Include="..\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
     <ProjectReference Include="..\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
     <ProjectReference Include="..\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />

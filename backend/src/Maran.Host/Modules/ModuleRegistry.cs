@@ -4,6 +4,7 @@ using Maran.Modules.Cron;
 using Maran.Modules.Databases;
 using Maran.Modules.Firewall;
 using Maran.Modules.Ftp;
+using Maran.Modules.Idempotency;
 using Maran.Modules.Identity;
 using Maran.Modules.Monitoring;
 using Maran.Modules.Notifications;
@@ -55,5 +56,6 @@ public static class ModuleRegistry
             new MonitoringModule(),
             new NotificationsModule(),
             new BackupsModule(),
+            new IdempotencyModule(),
         ];
 }

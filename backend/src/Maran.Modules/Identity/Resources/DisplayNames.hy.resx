@@ -397,4 +397,28 @@
   <data name="AuditOutcomeFailed">
     <value>Ձախողվեց</value>
   </data>
+  <data name="AuditActionApiKeyCreated">
+    <value>API բանալին ստեղծվել է</value>
+  </data>
+  <data name="AuditActionApiKeyRevoked">
+    <value>API բանալին չեղարկվել է</value>
+  </data>
+  <data name="AuditActionApiKeyCall">
+    <value>Կանչ API բանալիով</value>
+  </data>
+  <data name="ApiKeyScopeSelfRead">
+    <value>Բանալու սեփական տվյալների ընթերցում</value>
+  </data>
+  <data name="ApiKeyScopeServerRead">
+    <value>Սերվերի տվյալների ընթերցում</value>
+  </data>
+  <data name="ApiKeyStatusActive">
+    <value>Ակտիվ</value>
+  </data>
+  <data name="ApiKeyStatusRevoked">
+    <value>Չեղարկված</value>
+  </data>
+  <data name="ApiKeyStatusExpired">
+    <value>Ժամկետանց</value>
+  </data>
 </root>

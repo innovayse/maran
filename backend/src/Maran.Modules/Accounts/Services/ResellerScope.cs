@@ -56,8 +56,9 @@ public sealed class ResellerScope
                 AdministratorCaller => null,
                 CustomerCaller => null,
                 AccountlessCustomerCaller => null,
+                ApiKeyCaller => null,
                 AnonymousCaller => null,
-                _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
             };
         }
     }

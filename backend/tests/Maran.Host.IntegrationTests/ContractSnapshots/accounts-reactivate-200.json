@@ -1,0 +1,11 @@
+{
+  "createdAt": "<timestamp>",
+  "id": "<guid>",
+  "name": "olive",
+  "planId": "<guid>",
+  "primaryDomain": "olive.example.com",
+  "resellerId": null,
+  "resellerName": null,
+  "status": "active",
+  "statusName": "Active"
+}

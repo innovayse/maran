@@ -20,6 +20,7 @@ public static class CliExtensions
         services.AddSingleton<ICliCommand, StatusCliCommand>();
         services.AddSingleton<ICliCommand, AdminResetPasswordCliCommand>();
         services.AddSingleton<ICliCommand, RedactCliCommand>();
+        services.AddSingleton<ICliCommand, OpenApiCliCommand>();
         services.AddSingleton<CliRunner>();
 
         return services;

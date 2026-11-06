@@ -17,6 +17,7 @@ One GitHub release per tag, with these assets:
 | `api-<arch>.tar.gz`, `agent-<arch>.tar.gz`, `frontend-<arch>.tar.gz` | the three components, for `x86_64` and `aarch64` |
 | `maran-offline-<version>-<arch>.tar.gz` | one offline bundle per architecture, for `maran update --offline-tarball` |
 | `api.cdx.json`, `agent.cdx.json`, `frontend.cdx.json` | one CycloneDX SBOM per component |
+| `openapi.json` | the OpenAPI description of the API, generated from the tagged tree; **not signed** |
 | `SHA256SUMS` | sha256 of every other asset; NOT signed, a convenience only (see below) |
 
 The release notes are the body of the GitHub release, generated from the merged pull requests since
@@ -52,7 +53,8 @@ Jobs, in order:
    the aarch64 build it registers emulation with `docker run --privileged --rm tonistiigi/binfmt
    --install arm64`.
 3. **sbom**: the three SBOMs, in a job of their own, so the third-party generators never run beside
-   the build.
+   the build. The **openapi** job runs beside it for the same reason: it generates `openapi.json`
+   (below) and holds no secret.
 4. **sign**: bound to the `release` environment, so it waits for a reviewer. It writes the key to a
    0600 file, runs `maran release sign --key <file> --publish`, deletes the file in a step that
    always runs, then verifies and packages the offline bundles. It has read-only repository access.
@@ -104,6 +106,22 @@ binaries, and it is not covered by the manifest signature. A compromised generat
 one, which is why it says nothing you cannot re-derive from the lockfiles at the tag. It lists
 dependencies, not vulnerabilities; it does not cover the operating system packages the panel's
 installer pulls from a distribution.
+
+## The OpenAPI document
+
+Every release carries `openapi.json`, the description of the panel's HTTP API (what it is, and the
+gate that guards it: `docs/api/README.md`). The `openapi` job of `release.yml` generates it from the
+tagged tree with `maran release openapi --out <dir>`, which uses the same generator as the
+`maran openapi` check, writes it in the same canonical form, prints its sha256, and refuses to write
+anything when the document was not generated or describes no operation. The job holds no secret and
+no write permission; `publish` downloads its artifact and attaches it.
+
+**It is not signed.** That is an owner decision: the manifest signature and the integrity manifest
+do not cover it, and the only integrity statement is its line in `SHA256SUMS`, which is itself
+unsigned and detects a corrupted download, not a replaced one. A reader who needs the description to
+be trustworthy takes the baseline from the signed tag's own tree (`docs/api/openapi-baseline.json`)
+or regenerates it from that tree. The signing job's inputs are unchanged by this: it never sees the
+artifact.
 
 ## Release notes
 
@@ -161,6 +179,8 @@ the release host and an operator uses `--offline-tarball` with the verified offl
   scripts' selftests. The `release` environment's reviewer and tag settings are not checked by any
   file in the repository.
 - The SBOM generators have not been installed from their registries in CI.
+- The `openapi` job and `maran release openapi` against the real panel: the selftest plants the
+  generator's output, and no tagged run has happened.
 - Reproducibility of the `aarch64` agent.
 - The second security review of this pipeline is OUTSTANDING: see
   `docs/superpowers/notes/2026-11-04-release-pipeline-threat-note.md` for what a reviewer must check.

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -9,6 +10,7 @@ using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -148,13 +150,50 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
         return token!;
     }
 
+    /// <summary>
+    /// Whether an endpoint is one only an API key reaches: it names a policy that is a member of
+    /// <see cref="ApiKeyPolicyNames"/> AND the <c>ApiKey</c> authentication scheme.
+    /// </summary>
+    /// <param name="endpoint">The endpoint to classify.</param>
+    /// <returns><c>true</c> when the endpoint authenticates with the API key scheme alone.</returns>
+    /// <remarks>
+    /// The steering is a rule about a signed-in LOGIN, and a JWT principal never reaches these
+    /// endpoints: the scheme they name is the key handler's, which reads <c>X-Api-Key</c> and finds
+    /// none, so the answer is 401 whoever holds the bearer token. That 401 discloses nothing, and a
+    /// steered login cannot use a key endpoint to get around enrolment. They are therefore not
+    /// governed by the steering and are checked separately by
+    /// <see cref="A_steered_administrator_gets_no_identity_on_the_api_key_endpoints"/>.
+    /// </remarks>
+    private static bool IsApiKeyOnly(RouteEndpoint endpoint)
+    {
+        var apiKeyPolicies = typeof(ApiKeyPolicyNames)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => { return field.IsLiteral; })
+            .Select(field => { return (string?)field.GetRawConstantValue(); })
+            .ToHashSet();
+
+        return endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(item =>
+        {
+            return item.Policy is not null
+                && apiKeyPolicies.Contains(item.Policy)
+                && string.Equals(item.AuthenticationSchemes, ApiKeyDefaults.Scheme, StringComparison.Ordinal);
+        });
+    }
+
     /// <summary>Every route the host published, with the ones this steering does not govern removed.</summary>
     /// <param name="factory">The booted host.</param>
     /// <param name="exempt">
     /// <c>true</c> to return the enrolment endpoints instead of the governed ones.
     /// </param>
+    /// <param name="apiKeyOnly">
+    /// <c>true</c> to return the endpoints only an API key reaches instead; they are in neither of the
+    /// other two lists.
+    /// </param>
     /// <returns>Verb-and-path pairs ready to be called.</returns>
-    private static List<(string Verb, string Path)> Routes(WebApplicationFactory<Program> factory, bool exempt)
+    private static List<(string Verb, string Path)> Routes(
+        WebApplicationFactory<Program> factory,
+        bool exempt,
+        bool apiKeyOnly = false)
     {
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints;
         var walked = new List<(string, string)>();
@@ -169,8 +208,13 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
                 continue;
             }
 
+            if (IsApiKeyOnly(endpoint) != apiKeyOnly)
+            {
+                continue;
+            }
+
             var isExempt = endpoint.Metadata.GetMetadata<AllowDuringTwoFactorEnrolmentAttribute>() is not null;
-            if (isExempt != exempt)
+            if (!apiKeyOnly && isExempt != exempt)
             {
                 continue;
             }
@@ -239,6 +283,35 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
         }
 
         Assert.Empty(reachable);
+    }
+
+    /// <summary>A steered administrator gets no identity on the API key endpoints.</summary>
+    /// <remarks>
+    /// The API key endpoints are outside the steering walk (<see cref="IsApiKeyOnly"/>), so this is
+    /// their own check and the walk's accepting control: every one of them answers a steered login's
+    /// bearer token 401, the key handler finding no key, and none answers 200.
+    /// </remarks>
+    [Fact]
+    public async Task A_steered_administrator_gets_no_identity_on_the_api_key_endpoints()
+    {
+        await using var factory = CreateFactory();
+        await SeedSteeredLoginAsync(factory, UserRole.Admin);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await SignInAsync(client));
+
+        var keyRoutes = Routes(factory, exempt: false, apiKeyOnly: true);
+
+        // The two endpoints that opt in today. An exemption that matched nothing would let a route
+        // slip out of the walk unchecked, so the set must contain what it is known to contain.
+        Assert.Contains(keyRoutes, route => { return route.Path == "/api/v1/api-keys/self"; });
+        Assert.Contains(keyRoutes, route => { return route.Path == "/api/v1/server/status"; });
+
+        foreach (var (verb, path) in keyRoutes)
+        {
+            using var response = await CallAsync(client, verb, path);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
     }
 
     /// <summary>A steered administrator can still reach the enrolment endpoints.</summary>

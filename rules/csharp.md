@@ -191,11 +191,30 @@ backend/
 │   │   │                                #   including each middleware's Use… method
 │   │   ├── Middleware/                  # <X>Middleware.cs — the middleware itself, one per file
 │   │   │                                #   (its Use… extension lives in Extensions/)
-│   │   ├── RateLimiting/                # one named policy per file (login, api, provisioning)
+│   │   ├── RateLimiting/                # one named policy per file (login, api, provisioning), and the
+│   │   │                                 #   one thing that is not a named policy: ApiKeyFailureLimiter, a
+│   │   │                                 #   singleton counting API-key authentication FAILURES per address,
+│   │   │                                 #   because authorization runs before the framework limiter
 │   │   ├── Resilience/                  # one pipeline per file (agent, acme, outbound http)
 │   │   ├── Behaviors/                   # Wolverine message middleware (logging, tx, validation)
-│   │   ├── Idempotency/                 # Idempotency-Key handling
-│   │   ├── BackgroundServices/ · HealthChecks/ · Authorization/ · Serialization/
+│   │   ├── Idempotency/                 # deliberately holds nothing but its .gitkeep: Idempotency-Key
+│   │   │                                 #   handling is the Sdk's IdempotentAttribute filter over the
+│   │   │                                 #   Idempotency module's store, and the Host adds only the
+│   │   │                                 #   hourly purge cadence (BackgroundServices/IdempotencyPurgeScheduler)
+│   │   ├── BackgroundServices/ · HealthChecks/ · Serialization/
+│   │   ├── Authorization/               # RolePolicies, the problem-details refusal writer, and the API-key
+│   │   │                                 #   half: ApiKeyAuthenticationHandler (scheme "ApiKey", header
+│   │   │                                 #   X-Api-Key, asks the Sdk's IApiKeyAuthenticator) and ApiKeyPolicies
+│   │   │                                 #   (one policy per scope, the ONLY policies naming that scheme;
+│   │   │                                 #   every other policy stays JWT-only, so a key never reaches the SPA surface)
+│   │   ├── OpenApi/                     # the OpenAPI document and nothing that serves it: OpenApiDocumentWriter
+│   │   │                                 #   (renders and writes the file for the `--cli openapi` verb and the
+│   │   │                                 #   tests; the panel exposes no document at runtime, rules/security.md
+│   │   │                                 #   item 10), OpenApiDocumentNames, OpenApiBuildVersion (the version
+│   │   │                                 #   without the revision suffix, so two builds of one API are the same
+│   │   │                                 #   bytes), OpenApiSchemaIds, DeterministicDocumentFilter (ordinal key
+│   │   │                                 #   order) and PanelSecurityOperationFilter (which credentials an
+│   │   │                                 #   operation accepts, asked of the authorization system itself)
 │   │   ├── Seeding/ · Filters/ · Security/ · Properties/
 │   │   ├── Logging/                     # the logger's runtime level: SerilogPanelLogLevelSwitch (the Sdk's
 │   │   │                                 #   IPanelLogLevelSwitch over Serilog's LoggingLevelSwitch) and
@@ -216,9 +235,13 @@ backend/
 │   │   │                                 #   IEncryptionService, IErrorTextProvider
 │   │   ├── Callers/                     # who a request or message runs as, ONE closed type: Caller and its
 │   │   │                                 #   cases AnonymousCaller, AdministratorCaller, CustomerCaller,
-│   │   │                                 #   AccountlessCustomerCaller (a customer login acting for no
 │   │   │                                 #   account), ResellerCaller (a reseller login: it carries the
-│   │   │                                 #   reseller id and no account id), the shared PrincipalCaller base and ViewingOperator
+│   │   │                                 #   reseller id and no account id), ApiKeyCaller (a machine caller
+│   │   │                                 #   authenticated by an API key: key id and scopes, NO user, account
+│   │   │                                 #   or reseller id, and not a PrincipalCaller — every role check
+│   │   │                                 #   refuses it and every tenant filter shows it nothing; six cases in
+│   │   │                                 #   all with AnonymousCaller, AdministratorCaller and CustomerCaller),
+│   │   │                                 #   the shared PrincipalCaller base and ViewingOperator
 │   │   │                                 #   (the operator viewing as a login). ICurrentUser.Caller hands it
 │   │   │                                 #   out; a member exists only on the case that has it
 │   │   ├── Results/                     # Error.cs, Result.cs, ResultOfT.cs, PagedResult.cs
@@ -251,16 +274,22 @@ backend/
 │   │       ├── Mail/                    #   no salt, no configuration — grouped by subject; never
 │   │       ├── Network/                 #   files directly under Utilities/
 │   │       ├── Text/                    #   Mail/: EmailAddressRule, MailHeaderTextRule
-│   │       └── Tokens/                  #   Network/: ClientAddress, HostNameRule, Ipv4MappedAddress
+│   │       └── Tokens/                  #   Network/: ClientAddress, CidrRule (strict address/prefix
+│   │                                    #     range and its Contains), HostNameRule, Ipv4MappedAddress
 │   │                                    #   Text/: ColumnText, LikePattern (a search term as a literal
 │   │                                    #     ILIKE pattern: \ % _ escaped)
-│   │                                    #   Tokens/: RefreshTokenHasher, PasswordResetTokenHasher
+│   │                                    #   Tokens/: RefreshTokenHasher, PasswordResetTokenHasher, ApiKeyHasher
+│   │                                    #     (mint a key, its shape check, digest, constant-time compare)
 │   ├── Maran.Sdk/                   # the module contract consumed by paid modules too
 │   │   ├── DependencyInjection.cs       # AddSdk — the project's registrations
 │   │   ├── Interfaces/                  # IPanelModule.cs — the module contract — plus the
 │   │   │                                #   read-only windows one module opens onto another's data,
 │   │   │                                #   implemented by the OWNING module (IAccountDirectory,
 │   │   │                                #   ISiteDirectory, IAuditWriter, IAlertRecipientDirectory),
+│   │   │                                #   the two seams of the API surface — IApiKeyAuthenticator
+│   │   │                                #   (the Host's key handler asks it; Identity's
+│   │   │                                #   Services/ApiKeyAuthenticator answers) and IIdempotencyStore
+│   │   │                                #   (IdempotencyFilter asks it; the Idempotency module answers) —
 │   │   │                                #   and ISystemAuditJournal, which every module's journal
 │   │   │                                #   implements so a shared facility writes into it.
 │   │   │                                #   A seam holding a credential stays module-internal
@@ -274,9 +303,15 @@ backend/
 │   │   ├── Extensions/                  # ApiResultExtensions and other Sdk extensions
 │   │   ├── Permissions/                 # permission constants per area, one file each
 │   │   ├── Navigation/                  # menu contribution types
-│   │   ├── Filters/                     # action filters modules may opt into
+│   │   ├── Filters/                     # action filters modules may opt into: IdempotentAttribute (with
+│   │   │                                 #   IdempotencyFilter behind it and IdempotencyNoStoreAttribute for an
+│   │   │                                 #   action whose answer carries a secret), and
+│   │   │                                 #   RequiresAccountFeatureAttribute. IdempotencyFilter asks the container
+│   │   │                                 #   for the store at request time and passes the request through when
+│   │   │                                 #   none is registered: the Sdk's one sanctioned service location
 │   │   ├── Contracts/                   # cross-module contract types (incl. published messages
-│   │   │                                #   such as SendMailRequested)
+│   │   │                                #   such as SendMailRequested, the closed ApiKeyAuthentication result
+│   │   │                                #   and the ApiKeyScopes vocabulary, the Idempotency* answers and codes)
 │   │   ├── Events/                      # integration-event base types (Base/ + per area)
 │   │   ├── Validators/                  # abstract validator bases every module's validators derive
 │   │   │                                 #   from: PagedQueryValidator<TQuery,TRow> holds every list query
@@ -318,7 +353,12 @@ backend/
 │   │                                    #  not leave this project, so no module's Mappers/ can hold it
 │   └── Maran.Modules/               # grouping folder for all module projects
 │       └── <Name>/                      # short folder (Sites/, Accounts/…); the project inside
-│                                        #   is the full Maran.Modules.<Name>.csproj
+│                                        #   is the full Maran.Modules.<Name>.csproj. A facility more than
+│                                        #   one module needs is a module of its own (rules/architecture.md):
+│                                        #   Notifications (outgoing mail) and Idempotency (the store behind
+│                                        #   the Idempotency-Key header, schema `idempotency`, no agent
+│                                        #   capability, no endpoints — the Sdk filter reaches it only
+│                                        #   through IIdempotencyStore, so no module hosts another's keys)
 │           ├── <Name>Module.cs          # IPanelModule: DI, permissions, menu, migrations. HTTP surface
 │           │                            #   arrives through the module's own controllers, discovered
 │           │                            #   by ASP.NET Core's controller model — IPanelModule has no
@@ -770,7 +810,8 @@ Maran.Sdk/
 │   └── ApiResultExtensions.cs    # Result<T> -> IActionResult (ProblemDetails on failure)
 ├── Permissions/                  # permission constants per area, one file per area
 ├── Navigation/                   # menu contribution types
-├── Filters/                      # action filters modules may opt into
+├── Filters/                      # action filters modules may opt into (IdempotentAttribute,
+│                                 #   RequiresAccountFeatureAttribute)
 ├── Streaming/                    # the panel's one stream transport, shared by every module that
 │   ├── EventStreamWriter.cs      #   streams: server-sent events over an HttpResponse — framing,
 │   └── EventStreamFrame.cs       #   heartbeat, flushing, shutdown ordering; a module supplies only
@@ -803,12 +844,14 @@ Maran.SharedKernel/Utilities/
 │   └── MailHeaderTextRule.cs     # what may be written into a mail header
 ├── Network/
 │   ├── ClientAddress.cs          # the one spelling of a caller's address
+│   ├── CidrRule.cs               # a strictly parsed address range and whether an address is in it
 │   ├── HostNameRule.cs           # what the panel accepts as a DNS host name
 │   └── Ipv4MappedAddress.cs      # unwrapping the mapped form a dual-stack listener reports
 ├── Text/
 │   ├── ColumnText.cs             # shortening a value to what a character varying(n) column holds
 │   └── LikePattern.cs            # a search term as an ILIKE pattern that matches it literally
 └── Tokens/
+    ├── ApiKeyHasher.cs              # mint an API key, check its shape, digest it, compare digests
     ├── PasswordResetTokenHasher.cs  # mint a reset token, and the digest stored beside it
     └── RefreshTokenHasher.cs        # mint a refresh token, and the digest stored beside a session
 ```

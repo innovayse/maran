@@ -72,8 +72,9 @@ public sealed class ResellerDirectory : IResellerDirectory
             ResellerCaller reseller => reseller.ResellerId == resellerId,
             CustomerCaller => false,
             AccountlessCustomerCaller => false,
+            ApiKeyCaller => false,
             AnonymousCaller => false,
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
         };
     }
 }

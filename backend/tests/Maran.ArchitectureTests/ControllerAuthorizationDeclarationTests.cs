@@ -100,6 +100,10 @@ public sealed class ControllerAuthorizationDeclarationTests
             new[]
             {
                 "UndeclaredAuthorizationController.AnonymousAsync is anonymous but is not in AnonymousActionPin",
+                "UndeclaredAuthorizationController.ApiKeyPolicyWithoutSchemeAsync names the unknown policy "
+                    + "'ApiKeyServerRead'",
+                "UndeclaredAuthorizationController.ApiKeySchemeWithWrongPolicyAsync restricts by Roles or "
+                    + "AuthenticationSchemes instead of a named policy",
                 "UndeclaredAuthorizationController.BareAsync uses a bare [Authorize] that names no policy",
                 "UndeclaredAuthorizationController.NoAttributeAsync declares no authorization "
                     + "(it would fall to the fallback policy)",
@@ -118,7 +122,7 @@ public sealed class ControllerAuthorizationDeclarationTests
         var pin = new[] { new PinnedAnonymousAction("DeclaredAuthorizationController.OpenAsync", "planted control") };
 
         var violations = ControllerAuthorizationCensus.FindViolations(
-            new[] { typeof(DeclaredAuthorizationController) },
+            new[] { typeof(DeclaredAuthorizationController), typeof(DeclaredApiKeyAuthorizationController) },
             pin);
 
         Assert.Empty(violations);

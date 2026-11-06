@@ -35,6 +35,7 @@
     <ProjectReference Include="..\..\src\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Ftp\Maran.Modules.Ftp.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Idempotency\Maran.Modules.Idempotency.csproj" />
   </ItemGroup>
 
 </Project>

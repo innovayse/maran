@@ -97,9 +97,10 @@ public sealed class AccountsDbContext : DbContext
                 AdministratorCaller => true,
                 ResellerCaller => false,
                 CustomerCaller => false,
+                ApiKeyCaller => false,
                 AnonymousCaller => false,
                 AccountlessCustomerCaller => false,
-                _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
             };
         }
     }
@@ -117,9 +118,10 @@ public sealed class AccountsDbContext : DbContext
                 ResellerCaller reseller => reseller.ResellerId,
                 AdministratorCaller => null,
                 CustomerCaller => null,
+                ApiKeyCaller => null,
                 AnonymousCaller => null,
                 AccountlessCustomerCaller => null,
-                _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
             };
         }
     }
@@ -137,9 +139,10 @@ public sealed class AccountsDbContext : DbContext
                 CustomerCaller customer => customer.AccountId,
                 AdministratorCaller => null,
                 ResellerCaller => null,
+                ApiKeyCaller => null,
                 AnonymousCaller => null,
                 AccountlessCustomerCaller => null,
-                _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+                _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
             };
         }
     }

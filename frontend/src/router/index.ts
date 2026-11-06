@@ -43,6 +43,7 @@ import ResetPasswordPage from '../pages/auth/ResetPasswordPage.vue'
 import AcceptInvitationPage from '../pages/auth/AcceptInvitationPage.vue'
 import AuditPage from '../pages/settings/AuditPage.vue'
 import SessionsPage from '../pages/settings/SessionsPage.vue'
+import ApiKeysPage from '../pages/settings/ApiKeysPage.vue'
 import TwoFactorSettingsPage from '../pages/settings/TwoFactorSettingsPage.vue'
 import SecurityPolicyPage from '../pages/settings/SecurityPolicyPage.vue'
 import PhpVersionsPage from '../pages/settings/PhpVersionsPage.vue'
@@ -404,6 +405,8 @@ export const createAppRouter = (): Router => {
           // itself, and mail settings are what alerting AND password reset both
           // depend on, so hiding them behind a licence would disable the panel's
           // ability to send a reset link.
+          // Administrator-managed API keys (issue #144), the Identity module's own screen.
+          { path: 'api-keys', name: 'api-keys', component: ApiKeysPage, meta: { module: 'identity', title: 'apiKeys.heading', adminOnly: true } },
           { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage, meta: { title: 'app.securityPolicy.heading', adminOnly: true } },
           { path: 'smtp', name: 'smtp-settings', component: SmtpSettingsPage, meta: { title: 'app.smtp.heading', adminOnly: true } },
           // The panel's own certificate (issue #132): a page of its own under Settings in the menu

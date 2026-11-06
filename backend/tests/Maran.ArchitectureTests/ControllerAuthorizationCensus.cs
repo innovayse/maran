@@ -21,7 +21,11 @@ namespace Maran.ArchitectureTests;
 /// class's) and every one of them names one of the four panel policies
 /// (<see cref="AuthorizationPolicies.AdminOnly"/>, <see cref="AuthorizationPolicies.ResellerOnly"/>,
 /// <see cref="AuthorizationPolicies.AdminOrReseller"/>, <see cref="AuthorizationPolicies.AnyAuthenticated"/>)
-/// — no bare form, no <c>Roles</c>, no authentication schemes, no unknown name.
+/// — no bare form, no <c>Roles</c>, no authentication schemes, no unknown name. One opt-in is
+/// allowed beside them: an endpoint an API key reaches names the <c>ApiKey</c> scheme TOGETHER with
+/// one of the <see cref="ApiKeyPolicyNames"/> policies (issue #144), and nothing else; that pair is
+/// how a key is admitted, and the scheme with any other policy, or such a policy without the scheme,
+/// is still reported.
 /// </para>
 /// <para>
 /// <b>What it cannot see.</b> Minimal endpoints (<c>/health</c>, <c>/api/v1/modules</c>,
@@ -39,6 +43,13 @@ public static class ControllerAuthorizationCensus
         AuthorizationPolicies.ResellerOnly,
         AuthorizationPolicies.AdminOrReseller,
         AuthorizationPolicies.AnyAuthenticated,
+    };
+
+    /// <summary>The policy names that admit an API key, each valid only together with the <c>ApiKey</c> scheme.</summary>
+    private static readonly string[] ApiKeyOptInPolicies =
+    {
+        ApiKeyPolicyNames.SelfRead,
+        ApiKeyPolicyNames.ServerRead,
     };
 
     /// <summary>
@@ -213,6 +224,11 @@ public static class ControllerAuthorizationCensus
         var problems = new List<string>();
         foreach (var item in data)
         {
+            if (IsApiKeyOptIn(item))
+            {
+                continue;
+            }
+
             var hasRestriction = !string.IsNullOrWhiteSpace(item.Roles)
                 || !string.IsNullOrWhiteSpace(item.AuthenticationSchemes);
             if (hasRestriction)
@@ -234,5 +250,18 @@ public static class ControllerAuthorizationCensus
         }
 
         return problems.Distinct().ToList();
+    }
+
+    /// <summary>Whether an authorize declaration is the one way an endpoint admits an API key.</summary>
+    /// <param name="item">One <c>[Authorize]</c> attribute's data.</param>
+    /// <returns>
+    /// <c>true</c> when it names the <c>ApiKey</c> scheme, no roles, and one of the API key policies.
+    /// </returns>
+    private static bool IsApiKeyOptIn(IAuthorizeData item)
+    {
+        return string.IsNullOrWhiteSpace(item.Roles)
+            && string.Equals(item.AuthenticationSchemes, ApiKeyDefaults.Scheme, StringComparison.Ordinal)
+            && item.Policy is not null
+            && ApiKeyOptInPolicies.Contains(item.Policy, StringComparer.Ordinal);
     }
 }

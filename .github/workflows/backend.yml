@@ -176,14 +176,14 @@ jobs:
       # so one run names every broken verb.
       #
       # `timeout-minutes` is 10: pure shell and openssl, expected to take seconds to a minute or two
-      # each, but the five verbs have NO measured duration yet (this step has never run). 10 is a
+      # each, but the seven verbs have NO measured duration yet (this step has never run). 10 is a
       # hang guard with no measured basis, to be replaced by a value sized from the first dev runs.
       - name: "Release selftests: the signing, packaging, SBOM, changelog and rebuild logic a tag release rests on"
         timeout-minutes: 10
         run: |
           mkdir -p "$RUNNER_TEMP/release-selftest"
           failed=""
-          for verb in selftest package-selftest sbom-selftest changelog-selftest rebuild-selftest reproducible-selftest; do
+          for verb in selftest package-selftest sbom-selftest changelog-selftest rebuild-selftest reproducible-selftest openapi-selftest; do
             log="$RUNNER_TEMP/release-selftest/$verb.log"
             echo "::group::maran release $verb"
             status=0

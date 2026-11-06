@@ -91,6 +91,14 @@ public static class ExpectedErrorStatuses
             ["AgentUnavailable"] = ErrorType.Unavailable,
             ["AgentUnspecified"] = ErrorType.Failure,
             ["AgentValidationFailed"] = ErrorType.Validation,
+            ["ApiKeyCidrInvalid"] = ErrorType.Validation,
+            ["ApiKeyExpiryInvalid"] = ErrorType.Validation,
+            ["ApiKeyLimitReached"] = ErrorType.Conflict,
+            ["ApiKeyNameInvalid"] = ErrorType.Validation,
+            ["ApiKeyNotFound"] = ErrorType.NotFound,
+            ["ApiKeyPrefixUnavailable"] = ErrorType.Failure,
+            ["ApiKeyScopeUnknown"] = ErrorType.Validation,
+            ["ApiKeyStatusFilterInvalid"] = ErrorType.Validation,
             ["AuditActionFilterInvalid"] = ErrorType.Validation,
             ["AuditDateRangeInverted"] = ErrorType.Validation,
             ["AuditOutcomeUnknown"] = ErrorType.Validation,
@@ -382,8 +390,9 @@ public static class ExpectedErrorStatuses
 
     /// <summary>
     /// Codes the Host answers without going through result translation: the rate limiter's
-    /// rejection handler writes 429 itself, the last-resort exception middleware writes 500, and the
-    /// authorization result handler writes a policy refusal as 403.
+    /// rejection handler writes 429 itself, the last-resort exception middleware writes 500, the
+    /// authorization result handler writes a policy refusal as 403, and the Sdk's idempotency filter
+    /// writes its four refusals itself (400, 422 and 409, there being no kind for 422).
     /// They are listed here rather than in <see cref="Kinds"/> because pinning them there would
     /// document a status the panel never sends through that path.
     /// </summary>
@@ -395,5 +404,9 @@ public static class ExpectedErrorStatuses
             ["HostTwoFactorSetupRequired"] = StatusCodes.Status403Forbidden,
             ["HostUnexpectedError"] = StatusCodes.Status500InternalServerError,
             ["HostViewAsNotAllowed"] = StatusCodes.Status403Forbidden,
+            ["IdempotencyKeyInvalid"] = StatusCodes.Status400BadRequest,
+            ["IdempotencyKeyReused"] = StatusCodes.Status422UnprocessableEntity,
+            ["IdempotencyRequestInProgress"] = StatusCodes.Status409Conflict,
+            ["IdempotencyResponseNotStored"] = StatusCodes.Status409Conflict,
         };
 }

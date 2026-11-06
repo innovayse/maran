@@ -45,6 +45,12 @@ public static class BackgroundWorkExtensions
         // the window and does the deleting — and this owns the CADENCE it runs on.
         services.AddHostedService<TaskRetentionScheduler>();
 
+        // The hourly purge of expired idempotency records, the same split: the Idempotency module owns
+        // the JOB (what has expired, the batch size) and this owns the CADENCE. Hourly and not daily
+        // because a reservation's lease is five minutes and a stored response lives 24 hours, so a
+        // daily pass would let a table of customer data at rest in clear outlive its promise by a day.
+        services.AddHostedService<IdempotencyPurgeScheduler>();
+
         // The one cadence that produces data rather than removing it: without this line the
         // Monitoring module's charts are permanently empty, because nothing else ever writes a
         // sample. The module owns the ROUND — it talks to the agent, stores the row and evaluates

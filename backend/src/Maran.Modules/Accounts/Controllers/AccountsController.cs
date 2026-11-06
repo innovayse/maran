@@ -12,6 +12,7 @@ using Maran.Modules.Accounts.Queries.ListAccounts;
 using Maran.Modules.Accounts.Queries.ListOwnerLanguages;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Maran.Sdk.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
@@ -142,6 +143,7 @@ public sealed class AccountsController : BaseApiController
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [Idempotent]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -162,6 +164,7 @@ public sealed class AccountsController : BaseApiController
     /// <param name="id">The account to suspend.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/suspend")]
+    [Idempotent]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -177,6 +180,7 @@ public sealed class AccountsController : BaseApiController
     /// <param name="id">The account to reactivate.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/reactivate")]
+    [Idempotent]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -196,6 +200,7 @@ public sealed class AccountsController : BaseApiController
     /// <param name="command">The plan to move it to. Its account id, address and agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut("{id:guid}/plan")]
+    [Idempotent]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -254,6 +259,7 @@ public sealed class AccountsController : BaseApiController
     /// same one. It is not a 500 and it is not a partial deletion.
     /// </remarks>
     [HttpDelete("{id:guid}")]
+    [Idempotent]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(ulong), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

@@ -5,6 +5,7 @@
       "ariaLabel": "Main navigation",
       "auditJournal": "Audit journal",
       "securityPolicy": "Security policy",
+      "apiKeys": "API keys",
       "phpVersions": "PHP versions",
       "plans": "Plans",
       "lockedBadge": "Locked",

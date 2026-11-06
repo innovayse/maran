@@ -174,4 +174,23 @@ public static class IdentityAuditActions
 
     /// <summary>An operator pressed Back and ended a view-as session; the actor is the operator.</summary>
     public const string ViewAsEnded = "ViewAsEnded";
+
+    /// <summary>
+    /// An administrator created an API key. The subject names the key by its public prefix, its name
+    /// and the scopes it was granted; never the key itself and never its digest.
+    /// </summary>
+    public const string ApiKeyCreated = "ApiKeyCreated";
+
+    /// <summary>
+    /// An administrator revoked an API key. The subject names the key by its public prefix, its name
+    /// and the scopes it held; never the key itself and never its digest.
+    /// </summary>
+    public const string ApiKeyRevoked = "ApiKeyRevoked";
+
+    /// <summary>
+    /// A call authenticated with an API key reached an action. The actor is the key (never a user id),
+    /// the subject is the HTTP method, the route template and the status code answered; never the
+    /// concrete URL, the query string, a header, the body or the key itself.
+    /// </summary>
+    public const string ApiKeyCall = "ApiKeyCall";
 }

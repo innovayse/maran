@@ -17,7 +17,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 49 endpoints, 185 members
+covered: 50 endpoints, 189 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -30,6 +30,11 @@ PUT /api/v1/accounts/{}/owner-email  ->  ChangeAccountOwnerEmailCommand
   ownerEmail: string
 PUT /api/v1/accounts/{}/plan  ->  ChangeAccountPlanCommand
   planId: string
+POST /api/v1/api-keys  ->  CreateApiKeyCommand
+  name: string
+  scopes: string[]
+  allowedCidrs: string[]?
+  expiresAt: string?
 POST /api/v1/auth/accept-invitation  ->  AcceptInvitationCommand
   token: string
   newPassword: string
@@ -256,6 +261,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
 
 # not covered — no JSON body crosses here, so this check says nothing about it
   DELETE /api/v1/accounts/{} — route-only call, no JSON body
+  DELETE /api/v1/api-keys/{} — route-only call, no JSON body
   DELETE /api/v1/backups/{} — route-only call, no JSON body
   DELETE /api/v1/certificates/{} — route-only call, no JSON body
   DELETE /api/v1/cron-entries/{} — query-string call, no JSON body
@@ -303,6 +309,10 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/accounts/statuses
   GET /api/v1/accounts/{}
   GET /api/v1/accounts/{}/resource-summary
+  GET /api/v1/api-keys
+  GET /api/v1/api-keys/scopes
+  GET /api/v1/api-keys/self
+  GET /api/v1/api-keys/statuses
   GET /api/v1/audit
   GET /api/v1/audit/actions
   GET /api/v1/audit/outcomes
@@ -361,6 +371,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/resellers/choices
   GET /api/v1/resellers/{}
   GET /api/v1/security-policy
+  GET /api/v1/server/status
   GET /api/v1/servers
   GET /api/v1/sessions
   GET /api/v1/setup/state

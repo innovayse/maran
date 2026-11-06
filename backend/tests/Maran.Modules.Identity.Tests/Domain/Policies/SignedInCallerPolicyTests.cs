@@ -86,6 +86,18 @@ public sealed class SignedInCallerPolicyTests
         Assert.Equal(operatorId, principal.ViewedBy!.UserId);
     }
 
+    /// <summary>An API key is refused: it is not a login, and has no user id to act as.</summary>
+    [Fact]
+    public void An_api_key_caller_is_refused()
+    {
+        var apiKey = new ApiKeyCurrentUser();
+
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            SignedInCallerPolicy.Require(apiKey);
+        });
+    }
+
     /// <summary>Nobody signed in is refused, never treated as a user with an empty id.</summary>
     [Fact]
     public void An_anonymous_caller_is_refused()
@@ -98,7 +110,14 @@ public sealed class SignedInCallerPolicyTests
         });
     }
 
-    /// <summary>An <see cref="ICurrentUser"/> double for a request nobody signed in to.</summary>
+    /// <summary>An <see cref="ICurrentUser"/> double for a request authenticated by an API key.</summary>
+    private sealed class ApiKeyCurrentUser : ICurrentUser
+    {
+        /// <inheritdoc />
+        public Caller Caller { get; } = new ApiKeyCaller(Guid.NewGuid(), ["self.read"]);
+    }
+
+    /// <summary>An <see cref="ICurrentUser"/> double for a request with nobody signed in.</summary>
     private sealed class AnonymousCurrentUser : ICurrentUser
     {
         /// <inheritdoc />
