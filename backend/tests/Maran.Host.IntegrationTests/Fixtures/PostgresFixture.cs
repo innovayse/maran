@@ -32,6 +32,9 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 /// </remarks>
 public sealed class PostgresFixture : IAsyncLifetime
 {
+    /// <summary>The size of the container's shared-memory filesystem: 512 MiB instead of Docker's 64 MiB.</summary>
+    private const long SharedMemoryBytes = 512L * 1024 * 1024;
+
     /// <summary>glibc's <c>M_MMAP_THRESHOLD</c> parameter number for <c>mallopt</c> (malloc.h).</summary>
     private const int MallocMmapThreshold = -3;
 
@@ -79,6 +82,11 @@ public sealed class PostgresFixture : IAsyncLifetime
 
         _container = new PostgreSqlBuilder(Target.Image)
             .WithCommand("-c", "max_connections=300")
+            // Docker gives a container 64 MiB of /dev/shm unless told otherwise. PostgreSQL's parallel query
+            // workers allocate dynamic shared memory there, and a suite of this size exhausted it: the server
+            // answered 53100 "No space left on device" and then restarted into recovery, so the tests running
+            // at that moment failed with 57P03 on a machine with plenty of disk.
+            .WithCreateParameterModifier(parameters => { parameters.HostConfig!.ShmSize = SharedMemoryBytes; })
             .Build();
     }
 

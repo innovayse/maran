@@ -88,10 +88,11 @@ const RESELLER: readonly NavigationRole[] = ['reseller']
  * Catalogue modules that deliberately have no item of their own: `ssl` is a tab on the site it
  * protects, `identity` is the signed-in person's own screens (the account menu), and
  * `notifications` is the outgoing-mail page, which carries no module so that a licence cannot
- * switch off password-reset mail. Any OTHER module the catalogue reports and the tree does not
- * name — a module newer than this bundle — still gets an entry, in the fallback group.
+ * switch off password-reset mail, and `idempotency` is a backend facility (the store behind the
+ * Idempotency-Key header) with no screen at all. Any OTHER module the catalogue reports and the
+ * tree does not name — a module newer than this bundle — still gets an entry, in the fallback group.
  */
-export const MODULES_WITHOUT_ITEM: ReadonlySet<string> = new Set(['ssl', 'identity', 'notifications'])
+export const MODULES_WITHOUT_ITEM: ReadonlySet<string> = new Set(['ssl', 'identity', 'notifications', 'idempotency'])
 
 /** Group a catalogue module the tree does not know is drawn under. */
 export const FALLBACK_GROUP = 'panel'
@@ -268,6 +269,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('firewall-bans', 'firewall.bans.heading', routed('firewall-bans'), ADMIN, 'firewall'),
           page('firewall-whitelist', 'firewall.whitelist.heading', routed('firewall-whitelist'), ADMIN, 'firewall'),
           page('security-policy', 'app.nav.securityPolicy', routed('security-policy'), ADMIN, null),
+          page('api-keys', 'app.nav.apiKeys', routed('api-keys'), ADMIN, 'identity'),
         ],
       },
       {

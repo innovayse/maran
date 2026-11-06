@@ -160,8 +160,9 @@ public sealed class SftpAuditJournal
             CustomerCaller customer => (customer.UserId, customer.Username),
             AccountlessCustomerCaller accountless => (accountless.UserId, accountless.Username),
             ResellerCaller reseller => (reseller.UserId, reseller.Username),
+            ApiKeyCaller apiKey => (Guid.Empty, apiKey.ActorName),
             AnonymousCaller => (Guid.Empty, string.Empty),
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
         };
 
         await _auditWriter.WriteAsync(

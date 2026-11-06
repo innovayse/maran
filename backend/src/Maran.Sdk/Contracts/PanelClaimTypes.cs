@@ -65,4 +65,17 @@ public static class PanelClaimTypes
     /// sign-in because one of the two was missing.
     /// </remarks>
     public const string Actor = "act";
+
+    /// <summary>
+    /// The id of the API key a request was authenticated with. Written only by the API key
+    /// authentication handler; a JWT never carries it, and a token that does is refused rather than
+    /// read as a key.
+    /// </summary>
+    public const string ApiKeyId = "key";
+
+    /// <summary>
+    /// One scope an API key holds; the claim repeats once per scope. Written only by the API key
+    /// authentication handler, alongside <see cref="ApiKeyId"/>.
+    /// </summary>
+    public const string ApiKeyScope = "key_scope";
 }

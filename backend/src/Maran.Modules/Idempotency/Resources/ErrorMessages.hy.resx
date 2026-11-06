@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="IdempotencyKeyInvalid">
+    <value>Idempotency-Key վերնագիրը վավեր չէ։ Օգտագործեք 1-ից 255 տառ, թվանշան, կետ, երկու կետ, գծիկ կամ ընդգծում։</value>
+  </data>
+  <data name="IdempotencyKeyReused">
+    <value>Այս Idempotency-Key-ն արդեն օգտագործվել է այլ հարցման համար։ Նոր հարցման համար օգտագործեք նոր բանալի։</value>
+  </data>
+  <data name="IdempotencyRequestInProgress">
+    <value>Այս Idempotency-Key-ով հարցումը դեռ մշակվում է։ Փորձեք մի փոքր ուշ։</value>
+  </data>
+  <data name="IdempotencyResponseNotStored">
+    <value>Այս Idempotency-Key-ի առաջին պատասխանը չի պահպանվել, ուստի այն հնարավոր չէ կրկնել։ Ստուգեք սկզբնական հարցման արդյունքը։</value>
+  </data>
+</root>

@@ -165,4 +165,28 @@
   <data name="ViewAsResellerNotFound">
     <value>Реселлер не найден, или у него нет входа, от имени которого можно просматривать панель.</value>
   </data>
+  <data name="ApiKeyNotFound">
+    <value>API-ключ не найден.</value>
+  </data>
+  <data name="ApiKeyNameInvalid">
+    <value>Имя ключа должно содержать от 1 до 64 символов без управляющих символов.</value>
+  </data>
+  <data name="ApiKeyScopeUnknown">
+    <value>Выберите хотя бы одну область доступа из списка, который предлагает панель.</value>
+  </data>
+  <data name="ApiKeyCidrInvalid">
+    <value>Каждый разрешённый адрес должен быть корректным адресом или диапазоном вида 203.0.113.0/24, не более 16 записей, и не диапазоном, охватывающим все адреса.</value>
+  </data>
+  <data name="ApiKeyExpiryInvalid">
+    <value>Срок действия должен быть моментом в будущем.</value>
+  </data>
+  <data name="ApiKeyLimitReached">
+    <value>В панели уже создано максимальное число API-ключей. Отзовите ключ, который больше не нужен.</value>
+  </data>
+  <data name="ApiKeyPrefixUnavailable">
+    <value>Не удалось создать ключ: не найден свободный префикс ключа. Повторите попытку.</value>
+  </data>
+  <data name="ApiKeyStatusFilterInvalid">
+    <value>Фильтр статуса должен быть active, revoked или expired.</value>
+  </data>
 </root>

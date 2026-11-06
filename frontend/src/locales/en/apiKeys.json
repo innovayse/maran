@@ -1,0 +1,70 @@
+{
+  "apiKeys": {
+    "heading": "API keys",
+    "subtitle": "Keys that let other systems call the panel's API without a signed-in person.",
+    "create": "Create key",
+    "tableCaption": "API keys of this panel",
+    "columns": {
+      "name": "Name",
+      "prefix": "Prefix",
+      "scopes": "Scopes",
+      "status": "State",
+      "lastUsed": "Last used",
+      "expiresAt": "Expires",
+      "createdAt": "Created"
+    },
+    "neverUsed": "Never used",
+    "noExpiry": "Never",
+    "searchLabel": "Search API keys",
+    "searchPlaceholder": "Search by name…",
+    "searchClear": "Clear the search",
+    "emptyTitle": "No API keys yet",
+    "emptyDescription": "Create a key to let another system use the panel's API.",
+    "noResultsTitle": "No keys match",
+    "noResultsDescription": "Change the search or the filter, or clear them to see every key.",
+    "filters": {
+      "status": "State"
+    },
+    "rowActions": "Actions for the key {name}",
+    "revoke": "Revoke",
+    "confirmRevokeTitle": "Revoke the key {name}",
+    "confirmRevoke": "The key stops working at once and cannot be restored. Anything that uses it will be refused.",
+    "confirmRevokeAction": "Revoke key",
+    "working": "Revoking the key…",
+    "revoked": "The key {name} was revoked.",
+    "form": {
+      "heading": "Create an API key",
+      "submit": "Create key",
+      "fields": {
+        "name": "Name",
+        "scopes": "Scopes",
+        "cidrs": "Allowed addresses",
+        "expires": "Expires on"
+      },
+      "placeholders": {
+        "name": "Billing integration",
+        "cidrs": "203.0.113.0/24"
+      },
+      "hints": {
+        "scopes": "The key can do only what the ticked scopes allow.",
+        "cidrs": "One range per line, such as 203.0.113.0/24. Leave empty to allow any address.",
+        "expires": "Leave empty for a key that never expires."
+      },
+      "errors": {
+        "nameRequired": "Enter a name for the key.",
+        "nameTooLong": "The name is too long.",
+        "cidrInvalid": "Each line must be an address range such as 203.0.113.0/24.",
+        "cidrTooMany": "Too many ranges.",
+        "expiryPast": "Choose a day in the future."
+      }
+    },
+    "secret": {
+      "title": "Your new API key",
+      "warning": "Copy this key now. It is shown only once and cannot be shown again.",
+      "nameLabel": "Name",
+      "keyLabel": "Key",
+      "copy": "Copy key",
+      "hint": "If you lose the key, revoke it and create a new one."
+    }
+  }
+}

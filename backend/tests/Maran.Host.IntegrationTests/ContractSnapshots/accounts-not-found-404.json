@@ -1,0 +1,8 @@
+{
+  "code": "AccountNotFound",
+  "correlationId": "<correlationId>",
+  "detail": "<text>",
+  "status": 404,
+  "title": "<text>",
+  "type": "https://httpstatuses.io/404"
+}

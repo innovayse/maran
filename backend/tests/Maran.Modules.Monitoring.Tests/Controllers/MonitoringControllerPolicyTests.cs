@@ -87,6 +87,7 @@ public sealed class MonitoringControllerPolicyTests
             nameof(MonitoringController),
             nameof(PanelLogLevelController),
             nameof(ServersController),
+            nameof(ServerStatusController),
         };
         Assert.Equal(expected.Order(StringComparer.Ordinal), names);
     }

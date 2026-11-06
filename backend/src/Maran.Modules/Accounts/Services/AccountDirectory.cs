@@ -91,9 +91,10 @@ public sealed class AccountDirectory : IAccountDirectory
             AdministratorCaller => _dbContext.Accounts.AsNoTracking(),
             ResellerCaller reseller => WhereOwnedBy(_dbContext.Accounts.AsNoTracking(), reseller.ResellerId),
             CustomerCaller => null,
+            ApiKeyCaller => null,
             AnonymousCaller => null,
             AccountlessCustomerCaller => null,
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
         };
 
         return accounts is null ? null : await ReadSnapshotAsync(accounts, accountId, cancellationToken);
@@ -182,9 +183,10 @@ public sealed class AccountDirectory : IAccountDirectory
             AdministratorCaller => accounts,
             CustomerCaller customer => accounts.Where(account => account.Id == customer.AccountId),
             ResellerCaller => accounts.Where(account => false),
+            ApiKeyCaller => accounts.Where(account => false),
             AnonymousCaller => accounts.Where(account => false),
             AccountlessCustomerCaller => accounts.Where(account => false),
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
         };
 
         // Not capped and not ordered: the caller filters its own rows by the whole set (see the
@@ -228,9 +230,10 @@ public sealed class AccountDirectory : IAccountDirectory
             AdministratorCaller => true,
             CustomerCaller customer => customer.AccountId == accountId,
             ResellerCaller => false,
+            ApiKeyCaller => false,
             AnonymousCaller => false,
             AccountlessCustomerCaller => false,
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: five cases exist."),
+            _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
         };
     }
 

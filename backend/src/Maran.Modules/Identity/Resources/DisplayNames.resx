@@ -396,4 +396,28 @@
   <data name="AuditOutcomeFailed">
     <value>Failed</value>
   </data>
+  <data name="AuditActionApiKeyCreated">
+    <value>API key created</value>
+  </data>
+  <data name="AuditActionApiKeyRevoked">
+    <value>API key revoked</value>
+  </data>
+  <data name="AuditActionApiKeyCall">
+    <value>API key call</value>
+  </data>
+  <data name="ApiKeyScopeSelfRead">
+    <value>Read the key's own details</value>
+  </data>
+  <data name="ApiKeyScopeServerRead">
+    <value>Read server information</value>
+  </data>
+  <data name="ApiKeyStatusActive">
+    <value>Active</value>
+  </data>
+  <data name="ApiKeyStatusRevoked">
+    <value>Revoked</value>
+  </data>
+  <data name="ApiKeyStatusExpired">
+    <value>Expired</value>
+  </data>
 </root>

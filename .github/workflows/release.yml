@@ -5,9 +5,11 @@ name: release
 # OUTSTANDING, so this file MUST NOT reach `main` until a reviewer other than its author has read
 # that note against it (rules/security.md, "Sensitive change escalation").
 #
-# THE SHAPE, and why it is four jobs and not one.
+# THE SHAPE, and why it is several jobs and not one.
 #
 #   check      validates the tag and that its commit is on main. Holds nothing secret.
+#   openapi    generates the OpenAPI document of the tagged tree. Holds no secret, no write permission;
+#              the document is attached unsigned and listed in SHA256SUMS only.
 #   build      builds the UNSIGNED bundle for both architectures, the SBOMs and the notes. Runs the
 #              third-party SBOM generators. Holds no secret and no write permission.
 #   sign       the ONLY job that sees the signing key (environment `release`, required reviewers).
@@ -274,6 +276,64 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  openapi:
+    needs: check
+    runs-on: ubuntu-24.04
+    # NEVER RUN: this workflow has not run yet, so there is no measured basis. The job is a Release
+    # build of the panel's host plus a document write; estimated at about 10 minutes on a cold NuGet
+    # cache, so 30 is that tripled and a hang guard. Re-measure from the first tag run.
+    timeout-minutes: 30
+    steps:
+      # A job of its own, like `sbom`: it holds no secret and no write permission, and the signing
+      # job's view (the `release-unsigned` and `release-sbom` artifacts) is unchanged by it. The
+      # document is NOT signed (owner decision, issue #143): `publish` lists it in SHA256SUMS only.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.317'
+
+      - name: The SDK is the one this repository is built against
+        run: |
+          want=9.0.317
+          have="$(dotnet --version 2>&1 | head -1)"
+          echo "dotnet --version -> $have"
+          if [ "$have" != "$want" ]; then
+            echo "::error::dotnet SDK is '$have', and this repository builds on $want."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # Generated from the tagged tree by the same function the `maran openapi` gate uses, refused
+      # when it is empty or not a description of any operation. Passes on the LAST printed verdict
+      # line being OK AND on the exit status, never on either alone. `--out` is absolute.
+      - name: Generate the OpenAPI document
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/release-openapi.log"
+          status=0
+          bash scripts/maran release openapi --out "$PWD/release-out/openapi" >"$log" 2>&1 || status=$?
+          cat "$log"
+          last="$(grep -a 'VERDICT:' "$log" | tail -n 1 || true)"
+          case "$last" in
+            *'VERDICT: OK'*) ;;
+            *) echo "::error::the last verdict line of release openapi is not OK (got: '$last')."; exit 1 ;;
+          esac
+          [ "$status" -eq 0 ] || { echo "::error::release openapi exited $status."; exit 1; }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-openapi
+          path: release-out/openapi/
+          if-no-files-found: error
+          retention-days: 7
+
   sign:
     needs: [check, build, sbom]
     runs-on: ubuntu-24.04
@@ -379,7 +439,7 @@ jobs:
           retention-days: 7
 
   publish:
-    needs: [check, build, sbom, sign]
+    needs: [check, build, sbom, openapi, sign]
     runs-on: ubuntu-24.04
     # NEVER RUN: no measured basis. Verification repeats the sign job's, and `gh release create`
     # uploads roughly the size of the bundle (both architectures' components plus two offline
@@ -407,6 +467,12 @@ jobs:
         with:
           name: release-sbom
           path: release-out/sbom
+
+      # Not signed, so it is not in the signed bundle and the sign job never sees it.
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-openapi
+          path: release-out/openapi
 
       # VERIFY BEFORE PUBLISH, again, in the job that can publish: this job does not take the sign
       # job's word for it. No key is needed, only the pinned public key in the repository. The
@@ -461,6 +527,9 @@ jobs:
             sbom_count=$((sbom_count + 1))
           done < <(find release-out/sbom -type f -print0)
           [ "$sbom_count" -gt 0 ] || { echo "::error::no SBOM files to attach."; exit 1; }
+          # NOT signed (owner decision, issue #143): attached and checksummed in SHA256SUMS only. A
+          # missing file fails the copy and the job.
+          cp -- release-out/openapi/openapi.json "$assets/openapi.json"
           # Written outside the directory first, so the checksum file does not list itself.
           (cd "$assets" && sha256sum -- * > ../SHA256SUMS)
           mv release-out/SHA256SUMS "$assets/SHA256SUMS"

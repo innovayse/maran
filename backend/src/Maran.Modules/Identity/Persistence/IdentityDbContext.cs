@@ -160,6 +160,18 @@ public sealed class IdentityDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// The API keys administrators issued to integrations. Digests only: the key itself is shown once,
+    /// at creation, and is never written down. Panel-level data, not an account's rows.
+    /// </summary>
+    public DbSet<ApiKey> ApiKeys
+    {
+        get
+        {
+            return Set<ApiKey>();
+        }
+    }
+
     /// <summary>Applies the schema and every entity configuration for this module.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -177,6 +189,7 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.ApplyConfiguration(new InvitationTokenConfiguration());
         modelBuilder.ApplyConfiguration(new SetupTokenWindowConfiguration());
         modelBuilder.ApplyConfiguration(new PinnedPageConfiguration());
+        modelBuilder.ApplyConfiguration(new ApiKeyConfiguration());
         base.OnModelCreating(modelBuilder);
     }
 }

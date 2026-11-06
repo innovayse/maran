@@ -5,6 +5,7 @@
       "ariaLabel": "Հիմնական նավիգացիա",
       "auditJournal": "Աուդիտ",
       "securityPolicy": "Մուտքի կանոն",
+      "apiKeys": "API բանալիներ",
       "phpVersions": "PHP տարբերակ",
       "plans": "Սակագներ",
       "lockedBadge": "Արգելափակված",

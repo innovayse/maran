@@ -1,0 +1,114 @@
+name: openapi
+
+# The OpenAPI description of the panel's HTTP API, held against docs/api/openapi-baseline.json (#143).
+#
+# It is the gate `api-contract.yml` is for the SPA, aimed at the integrators who consume the API: it
+# generates the document from the controllers of this tree (the panel writes it and exits; nothing
+# serves it) and fails when a client written against the baseline would stop working. Additive
+# changes pass. An intended breaking change is recorded with `maran openapi --accept` in its own
+# commit (docs/api/README.md); that command is never run here, because a check that refreshes its own
+# baseline enforces nothing.
+#
+# It needs the .NET SDK (the document comes from the built panel) and node (the comparison), and no
+# database and no container.
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - 'scripts/**'
+      - 'docs/api/**'
+      - '.github/workflows/openapi.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'scripts/**'
+      - 'docs/api/**'
+      - '.github/workflows/openapi.yml'
+
+# Reads the repository and writes nothing: no step here needs more, and the default token is not
+# limited to that on every repository.
+permissions:
+  contents: read
+
+# One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
+# dev and main are never cancelled, and never even queued behind each other — their group carries
+# the run id, so each push is alone in its own group (a shared group would let GitHub drop a
+# PENDING push run when a newer one queues, even with cancel-in-progress false).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  openapi:
+    runs-on: ubuntu-latest
+    # UNMEASURED ESTIMATE: this workflow has not run yet, so there is no measured basis. The job is a
+    # Release build of the panel's host and its dependencies plus a sub-second document write and
+    # comparison; 20 minutes is a guess that leaves room for a cold NuGet cache, not a figure taken
+    # from any run. Re-measure after the first runs on dev and replace this with the runs it was
+    # sized from.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # The EXACT patch, not `9.0.x`, for the reason backend.yml gives: a band is resolved at run
+      # time, and the document should come from the compiler the repository is built on. Kept equal
+      # to backend.yml's pin by hand; the assertion below proves the pin took.
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.317'
+
+      - name: The SDK is the one this repository is built against
+        run: |
+          want=9.0.317
+          have="$(dotnet --version 2>&1 | head -1)"
+          echo "dotnet --version -> $have"
+          if [ "$have" != "$want" ]; then
+            echo "::error::dotnet SDK is '$have', and this repository builds on $want."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # The breaking-change detector's own planted controls, alone and first: they need only node, so
+      # a detector gone blind is named before a build is paid for. Gated on the printed line, never on
+      # a status alone.
+      - name: The detector's planted controls
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/openapi-selftest.log"
+          status=0
+          bash scripts/maran openapi selftest >"$log" 2>&1 || status=$?
+          cat "$log"
+          if grep -qa '^OPENAPI VERDICT: DID NOT RUN' "$log"; then
+            echo "::error::the OpenAPI selftest REFUSED and checked nothing (reason above)."
+            exit 1
+          fi
+          if ! grep -qa '^OPENAPI SELFTEST: OK' "$log"; then
+            echo "::error::the OpenAPI selftest did not print 'OPENAPI SELFTEST: OK'."
+            exit 1
+          fi
+          [ "$status" -eq 0 ] || { echo "::error::the OpenAPI selftest printed OK and then exited $status; the two disagree."; exit 1; }
+
+      # Never `--accept`. The step passes on the printed `OPENAPI VERDICT: OK` line AND a zero status,
+      # never on either alone: a run that exits 0 without the line, or prints it and exits non-zero,
+      # fails. `DID NOT RUN` fails under its own message — on a runner the SDK and node are installed
+      # above, so a refusal here is a broken step, not an environment fact to wave through.
+      - name: The generated API description against the committed baseline
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/openapi.log"
+          status=0
+          bash scripts/maran openapi >"$log" 2>&1 || status=$?
+          cat "$log"
+          if grep -qa '^OPENAPI VERDICT: DID NOT RUN' "$log"; then
+            echo "::error::maran openapi REFUSED and generated nothing, so no verdict was reached (reason above)."
+            exit 1
+          fi
+          if ! grep -qa '^OPENAPI VERDICT: OK' "$log"; then
+            echo "::error::maran openapi did not print 'OPENAPI VERDICT: OK'. This lane passes on the printed line, never on a status."
+            exit 1
+          fi
+          [ "$status" -eq 0 ] || { echo "::error::maran openapi printed 'OPENAPI VERDICT: OK' and then exited $status; the two disagree, so neither is evidence."; exit 1; }

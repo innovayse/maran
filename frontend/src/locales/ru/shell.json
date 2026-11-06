@@ -5,6 +5,7 @@
       "ariaLabel": "Основная навигация",
       "auditJournal": "Журнал аудита",
       "securityPolicy": "Политика входа",
+      "apiKeys": "API-ключи",
       "phpVersions": "Версии PHP",
       "plans": "Тарифы",
       "lockedBadge": "Заблокировано",

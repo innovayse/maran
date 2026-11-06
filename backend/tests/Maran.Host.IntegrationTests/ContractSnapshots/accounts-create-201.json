@@ -1,0 +1,11 @@
+{
+  "createdAt": "<timestamp>",
+  "id": "<guid>",
+  "name": "acme",
+  "planId": "<guid>",
+  "primaryDomain": "acme.example.com",
+  "resellerId": null,
+  "resellerName": null,
+  "status": "active",
+  "statusName": "Active"
+}

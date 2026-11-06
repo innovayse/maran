@@ -1,18 +1,19 @@
 using Maran.Host.Configuration;
 using Maran.Host.Middleware;
 using Maran.Host.Security;
+using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Security;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Host.Extensions;
 
 /// <summary>
-/// Registers the panel's security services: who the caller is, and the cipher protecting secrets
-/// at rest.
+/// Registers the panel's security services: who the caller is, the cipher protecting secrets
+/// at rest, and the keyed fingerprint of a request.
 /// </summary>
 public static class SecurityExtensions
 {
-    /// <summary>Registers the current-user accessor and the encryption service.</summary>
+    /// <summary>Registers the current-user accessor, the encryption service and the request fingerprint.</summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
     public static IServiceCollection AddPanelSecurity(this IServiceCollection services)
@@ -32,6 +33,13 @@ public static class SecurityExtensions
         services.AddSingleton<IEncryptionService>(provider =>
         {
             return new AesGcmEncryptionService(provider.GetRequiredService<IOptions<SecurityOptions>>().Value.EncryptionKey);
+        });
+
+        // The keyed fingerprint the Idempotency-Key filter stores in place of a plain digest of a request
+        // body, which can carry a password. Its MAC key is derived from the same panel secret.
+        services.AddSingleton<IIdempotencyFingerprint>(provider =>
+        {
+            return new HmacIdempotencyFingerprint(provider.GetRequiredService<IOptions<SecurityOptions>>().Value.EncryptionKey);
         });
 
         return services;

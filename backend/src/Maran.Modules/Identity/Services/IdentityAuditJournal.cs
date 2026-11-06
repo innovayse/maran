@@ -1,3 +1,5 @@
+using System.Globalization;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Callers;
@@ -63,6 +65,9 @@ public sealed class IdentityAuditJournal
 
     /// <summary>Prefix marking the user-agent column of a console entry as an unverified operator claim.</summary>
     public const string OperatorClaimPrefix = "operator-claim:";
+
+    /// <summary>The lowest HTTP status that counts as a failed call in the journal.</summary>
+    private const int MinimumFailureStatus = 400;
 
     /// <summary>The panel's append-only journal.</summary>
     private readonly IAuditWriter _auditWriter;
@@ -255,6 +260,84 @@ public sealed class IdentityAuditJournal
             ipAddress,
             userAgent,
             succeeded,
+            cancellationToken);
+    }
+
+    /// <summary>Records an administrator creating or revoking an API key.</summary>
+    /// <param name="administratorUserId">The administrator, established by the handler from their own access token.</param>
+    /// <param name="action"><see cref="IdentityAuditActions.ApiKeyCreated"/> or <see cref="IdentityAuditActions.ApiKeyRevoked"/>.</param>
+    /// <param name="key">The key acted on. Only its public prefix, name and scopes are written.</param>
+    /// <param name="ipAddress">The caller's address.</param>
+    /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    /// <remarks>
+    /// <b>The subject names the key by prefix, name and scopes and by nothing that could be used as the
+    /// key.</b> The plaintext never reaches this module's handlers after creation, and the digest is a
+    /// column of the row this method takes, so the subject is built from three named members rather
+    /// than from the row: a member added to the entity later cannot reach the journal by accident. The
+    /// prefix is what the key list shows, so an operator can match an entry to a key.
+    /// </remarks>
+    public async Task RecordApiKeyAsync(
+        Guid administratorUserId,
+        string action,
+        ApiKey key,
+        string ipAddress,
+        string userAgent,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        var subject = key.Prefix + " " + key.Name + " [" + string.Join(',', key.Scopes) + "]";
+
+        await RecordIdentifiedAsync(
+            administratorUserId,
+            action,
+            subject,
+            ipAddress,
+            userAgent,
+            succeeded: true,
+            cancellationToken);
+    }
+
+    /// <summary>Records one call made with an API key, after the action it reached has run.</summary>
+    /// <param name="caller">The key the call was authenticated with.</param>
+    /// <param name="httpMethod">The HTTP method of the call.</param>
+    /// <param name="routeTemplate">
+    /// The route TEMPLATE the action is mapped at (<c>api/v1/accounts/{id}</c>), never the concrete URL:
+    /// no id from the path and no query string can reach the journal through it.
+    /// </param>
+    /// <param name="statusCode">The status code the call was answered with.</param>
+    /// <param name="ipAddress">The caller's address, spelled by <c>ClientAddress</c>.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    /// <remarks>
+    /// <b>What an entry carries and what it must not.</b> The actor is the key's own name
+    /// (<see cref="ApiKeyCaller.ActorName"/>, which holds the key id) with no user id, because a key id
+    /// is not a user id. The subject is the method, the route template and the status. The user-agent
+    /// column stays empty: the entry is built from named members only, so no header, no body and no
+    /// part of the key can reach it. The outcome is "succeeded" for any status below 400.
+    /// </remarks>
+    public async Task RecordApiKeyCallAsync(
+        ApiKeyCaller caller,
+        string httpMethod,
+        string routeTemplate,
+        int statusCode,
+        string ipAddress,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var subject = httpMethod + " " + routeTemplate + " " + statusCode.ToString(CultureInfo.InvariantCulture);
+
+        await WriteAsync(
+            null,
+            caller.ActorName,
+            IdentityAuditActions.ApiKeyCall,
+            subject,
+            ipAddress,
+            string.Empty,
+            statusCode < MinimumFailureStatus,
             cancellationToken);
     }
 

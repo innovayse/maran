@@ -165,4 +165,28 @@
   <data name="ViewAsResellerNotFound">
     <value>Ռեսելլերը չի գտնվել, կամ այն չունի մուտք, որի անունից կարելի է դիտել։</value>
   </data>
+  <data name="ApiKeyNotFound">
+    <value>API բանալին չի գտնվել։</value>
+  </data>
+  <data name="ApiKeyNameInvalid">
+    <value>Բանալու անունը պետք է լինի 1-ից 64 նիշ՝ առանց կառավարող նիշերի։</value>
+  </data>
+  <data name="ApiKeyScopeUnknown">
+    <value>Ընտրեք առնվազն մեկ իրավունք վահանակի առաջարկած ցանկից։</value>
+  </data>
+  <data name="ApiKeyCidrInvalid">
+    <value>Թույլատրված յուրաքանչյուր հասցե պետք է լինի ճիշտ հասցե կամ միջակայք, օրինակ՝ 203.0.113.0/24, ոչ ավելի քան 16, և ոչ բոլոր հասցեները ընդգրկող միջակայք։</value>
+  </data>
+  <data name="ApiKeyExpiryInvalid">
+    <value>Վավերականության ժամկետը պետք է լինի ապագա պահ։</value>
+  </data>
+  <data name="ApiKeyLimitReached">
+    <value>Վահանակում արդեն ստեղծված է API բանալիների առավելագույն քանակը։ Չեղարկեք այն բանալին, որն այլևս պետք չէ։</value>
+  </data>
+  <data name="ApiKeyPrefixUnavailable">
+    <value>Բանալին չհաջողվեց ստեղծել. ազատ բանալու նախածանց չգտնվեց։ Կրկին փորձեք։</value>
+  </data>
+  <data name="ApiKeyStatusFilterInvalid">
+    <value>Կարգավիճակի զտիչը պետք է լինի active, revoked կամ expired։</value>
+  </data>
 </root>

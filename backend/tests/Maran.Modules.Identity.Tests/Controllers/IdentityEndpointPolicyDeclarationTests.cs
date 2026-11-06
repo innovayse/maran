@@ -31,6 +31,7 @@ public sealed class IdentityEndpointPolicyDeclarationTests
         Assert.Contains("SessionsController.GetAllAsync", names);
         Assert.Contains("AuthController.LogoutEverywhereAsync", names);
         Assert.Contains("SetupController.GetStateAsync", names);
+        Assert.Contains("ApiKeySelfController.GetAsync", names);
         Assert.True(names.Count > 15, $"Only {names.Count} actions were found.");
     }
 
@@ -58,15 +59,13 @@ public sealed class IdentityEndpointPolicyDeclarationTests
     }
 
     /// <summary>Every action is either anonymous or carries a named, known policy.</summary>
+    /// <remarks>
+    /// Known means one of the three JWT policies, or an API key policy declared together with the
+    /// <c>ApiKey</c> scheme (<see cref="IsKnownDeclaration"/>).
+    /// </remarks>
     [Fact]
     public void Every_identity_action_is_anonymous_or_names_a_known_policy()
     {
-        var known = new[]
-        {
-            AuthorizationPolicies.AdminOnly,
-            AuthorizationPolicies.AdminOrReseller,
-            AuthorizationPolicies.AnyAuthenticated,
-        };
         var violations = new List<string>();
 
         foreach (var method in AllActions())
@@ -78,17 +77,41 @@ public sealed class IdentityEndpointPolicyDeclarationTests
                 continue;
             }
 
-            var policies = PoliciesOf(method);
-            if (policies.Length == 0 || policies.Any(policy =>
+            var declarations = AuthorizeAttributesOf(method);
+            if (declarations.Length == 0 || declarations.Any(declaration =>
             {
-                return !known.Contains(policy);
+                return !IsKnownDeclaration(declaration.Policy, declaration.AuthenticationSchemes);
             }))
             {
-                violations.Add($"{name} names no known policy ({string.Join(",", policies)})");
+                violations.Add($"{name} names no known policy ({string.Join(",", PoliciesOf(method))})");
             }
         }
 
         Assert.Empty(violations);
+    }
+
+    /// <summary>
+    /// An API key policy is known only together with the <c>ApiKey</c> scheme, and only when its name is
+    /// a member of <see cref="ApiKeyPolicyNames"/>.
+    /// </summary>
+    /// <param name="policy">The policy an <c>[Authorize]</c> declares.</param>
+    /// <param name="schemes">The authentication schemes the same declaration names.</param>
+    /// <param name="expected">Whether the declaration is accepted.</param>
+    [Theory]
+    [InlineData(ApiKeyPolicyNames.SelfRead, ApiKeyDefaults.Scheme, true)]
+    [InlineData(ApiKeyPolicyNames.ServerRead, ApiKeyDefaults.Scheme, true)]
+    [InlineData(ApiKeyPolicyNames.SelfRead, null, false)]
+    [InlineData(ApiKeyPolicyNames.SelfRead, "Bearer", false)]
+    [InlineData("ApiKeyInvented", ApiKeyDefaults.Scheme, false)]
+    [InlineData(null, ApiKeyDefaults.Scheme, false)]
+    [InlineData(AuthorizationPolicies.AdminOnly, null, true)]
+    [InlineData("Invented", null, false)]
+    public void An_api_key_policy_is_known_only_together_with_the_api_key_scheme(
+        string? policy,
+        string? schemes,
+        bool expected)
+    {
+        Assert.Equal(expected, IsKnownDeclaration(policy, schemes));
     }
 
     /// <summary>Each per-action controller grants anonymity on its actions, not on the class.</summary>
@@ -183,6 +206,56 @@ public sealed class IdentityEndpointPolicyDeclarationTests
                     ViewAsAccess.Refused,
                     method.GetCustomAttribute<ViewAsAccessAttribute>()?.Access);
             });
+    }
+
+    /// <summary>Whether an <c>[Authorize]</c> declaration names a policy the module recognises.</summary>
+    /// <param name="policy">The declared policy, or <c>null</c> for a bare declaration.</param>
+    /// <param name="schemes">The declared authentication schemes, or <c>null</c> for the default.</param>
+    /// <returns>
+    /// <c>true</c> for one of the three JWT policies, or for a policy that is a member of
+    /// <see cref="ApiKeyPolicyNames"/> declared with exactly the <c>ApiKey</c> scheme.
+    /// </returns>
+    private static bool IsKnownDeclaration(string? policy, string? schemes)
+    {
+        string[] jwtPolicies =
+        [
+            AuthorizationPolicies.AdminOnly,
+            AuthorizationPolicies.AdminOrReseller,
+            AuthorizationPolicies.AnyAuthenticated,
+        ];
+        if (policy is null)
+        {
+            return false;
+        }
+
+        if (jwtPolicies.Contains(policy))
+        {
+            return true;
+        }
+
+        var apiKeyPolicies = typeof(ApiKeyPolicyNames)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field =>
+            {
+                return field.IsLiteral;
+            })
+            .Select(field =>
+            {
+                return (string?)field.GetRawConstantValue();
+            });
+
+        return apiKeyPolicies.Contains(policy)
+            && string.Equals(schemes, ApiKeyDefaults.Scheme, StringComparison.Ordinal);
+    }
+
+    /// <summary>The <c>[Authorize]</c> declarations on an action and on its class.</summary>
+    /// <param name="method">The action.</param>
+    /// <returns>The declarations, the action's first.</returns>
+    private static AuthorizeAttribute[] AuthorizeAttributesOf(MethodInfo method)
+    {
+        return method.GetCustomAttributes<AuthorizeAttribute>(inherit: true)
+            .Concat(method.DeclaringType!.GetCustomAttributes<AuthorizeAttribute>(inherit: true))
+            .ToArray();
     }
 
     /// <summary>Public methods of a controller that carry an HTTP verb attribute.</summary>

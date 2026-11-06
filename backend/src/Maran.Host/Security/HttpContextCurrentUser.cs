@@ -10,8 +10,11 @@ namespace Maran.Host.Security;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Five outcomes, and a refusal for everything else.</b> A request with no authenticated
-/// principal (or no request at all, as in background work) is an <see cref="AnonymousCaller"/>. An
+/// <b>Six outcomes, and a refusal for everything else.</b> A request with no authenticated
+/// principal (or no request at all, as in background work) is an <see cref="AnonymousCaller"/>. A
+/// principal authenticated by the API key scheme is an <see cref="ApiKeyCaller"/>, read before any
+/// login claim because a key has none; a token that is NOT of that scheme yet carries a key id is
+/// refused, so a claim alone can never make a login a key. An
 /// authenticated principal whose role claim is exactly <c>Admin</c> is an
 /// <see cref="AdministratorCaller"/>; exactly <c>Reseller</c> with a reseller claim, a
 /// <see cref="ResellerCaller"/>; exactly <c>Customer</c> with an account claim, a
@@ -59,6 +62,16 @@ public sealed class HttpContextCurrentUser : ICurrentUser
                 return AnonymousCaller.Instance;
             }
 
+            if (IsApiKeyPrincipal(principal))
+            {
+                return ReadApiKey(principal);
+            }
+
+            if (principal.FindFirst(PanelClaimTypes.ApiKeyId) is not null)
+            {
+                throw new UnrecognisedPrincipalException("A token that is not an API key carries a key id.");
+            }
+
             if (!Guid.TryParse(principal.FindFirst(PanelClaimTypes.UserId)?.Value, out var userId))
             {
                 throw new UnrecognisedPrincipalException("The token carries no readable user id.");
@@ -98,6 +111,45 @@ public sealed class HttpContextCurrentUser : ICurrentUser
 
             return new CustomerCaller(userId, username, accountId, viewedBy);
         }
+    }
+
+    /// <summary>Whether the principal was authenticated by the API key scheme, and by nothing else.</summary>
+    /// <param name="principal">The validated principal of the request.</param>
+    /// <returns>
+    /// <c>true</c> when an authenticated identity of the API key scheme is present. The scheme is what
+    /// says so, never a claim: a bearer token is signed by this panel's issuer, which never writes a key
+    /// id, but the decision does not rest on that.
+    /// </returns>
+    private static bool IsApiKeyPrincipal(ClaimsPrincipal principal)
+    {
+        return principal.Identities.Any(identity =>
+        {
+            return identity.IsAuthenticated
+                && string.Equals(identity.AuthenticationType, ApiKeyDefaults.Scheme, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>Reads an API key's caller out of a principal the API key scheme authenticated.</summary>
+    /// <param name="principal">The validated principal of the request.</param>
+    /// <returns>
+    /// The key caller. It carries the scopes the current vocabulary knows and no others, so a stored
+    /// scope this build has never heard of grants nothing.
+    /// </returns>
+    /// <exception cref="UnrecognisedPrincipalException">The principal carries no readable key id.</exception>
+    private static ApiKeyCaller ReadApiKey(ClaimsPrincipal principal)
+    {
+        if (!Guid.TryParse(principal.FindFirst(PanelClaimTypes.ApiKeyId)?.Value, out var keyId))
+        {
+            throw new UnrecognisedPrincipalException("The API key principal carries no readable key id.");
+        }
+
+        var scopes = principal.FindAll(PanelClaimTypes.ApiKeyScope)
+            .Select(claim => { return claim.Value; })
+            .Where(scope => { return ApiKeyScopes.All.Contains(scope); })
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return new ApiKeyCaller(keyId, scopes);
     }
 
     /// <summary>Reads a reseller's caller out of a token whose role is <c>Reseller</c>.</summary>

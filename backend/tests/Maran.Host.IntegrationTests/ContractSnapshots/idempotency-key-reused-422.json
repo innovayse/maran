@@ -1,0 +1,8 @@
+{
+  "code": "IdempotencyKeyReused",
+  "correlationId": "<correlationId>",
+  "detail": "<text>",
+  "status": 422,
+  "title": "<text>",
+  "type": "https://httpstatuses.io/422"
+}

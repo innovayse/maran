@@ -79,7 +79,7 @@ public sealed class RequiresAccountFeatureFilter : IAsyncActionFilter
     /// <returns>A task that completes when the action has run or the refusal has been set.</returns>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        if (_currentUser.Caller is ResellerCaller)
+        if (_currentUser.Caller is ResellerCaller or ApiKeyCaller)
         {
             var refusal = Error.Of(nameof(ValidationMessages.PlanFeatureNotIncluded), ErrorType.Forbidden);
             context.Result = Result.Fail(refusal).ToActionResult(context.HttpContext);

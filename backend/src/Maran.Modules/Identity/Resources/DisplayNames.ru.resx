@@ -397,4 +397,28 @@
   <data name="AuditOutcomeFailed">
     <value>Отказ</value>
   </data>
+  <data name="AuditActionApiKeyCreated">
+    <value>Создан API-ключ</value>
+  </data>
+  <data name="AuditActionApiKeyRevoked">
+    <value>API-ключ отозван</value>
+  </data>
+  <data name="AuditActionApiKeyCall">
+    <value>Вызов с API-ключом</value>
+  </data>
+  <data name="ApiKeyScopeSelfRead">
+    <value>Чтение сведений о самом ключе</value>
+  </data>
+  <data name="ApiKeyScopeServerRead">
+    <value>Чтение сведений о сервере</value>
+  </data>
+  <data name="ApiKeyStatusActive">
+    <value>Активен</value>
+  </data>
+  <data name="ApiKeyStatusRevoked">
+    <value>Отозван</value>
+  </data>
+  <data name="ApiKeyStatusExpired">
+    <value>Истёк</value>
+  </data>
 </root>
