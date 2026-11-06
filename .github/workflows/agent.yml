@@ -18,6 +18,9 @@ on:
       # The verdict harness and the committed baseline are now part of this lane: an edit to
       # either changes what this job asserts, so it has to run when they move.
       - 'scripts/**'
+      # Named for the reader: `scripts/**` and `installer/**` above already cover the units
+      # gate's inputs (scripts/lib/unit-security.sh, installer/systemd/**, and the ceilings file
+      # installer/systemd/unit-security-ceilings.txt).
       - '.github/workflows/agent.yml'
   pull_request:
     paths:
@@ -31,6 +34,9 @@ on:
       # The verdict harness and the committed baseline are now part of this lane: an edit to
       # either changes what this job asserts, so it has to run when they move.
       - 'scripts/**'
+      # Named for the reader: `scripts/**` and `installer/**` above already cover the units
+      # gate's inputs (scripts/lib/unit-security.sh, installer/systemd/**, and the ceilings file
+      # installer/systemd/unit-security-ceilings.txt).
       - '.github/workflows/agent.yml'
 
 # One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
@@ -558,6 +564,81 @@ jobs:
           fi
           if [ "$status" -ne 0 ]; then
             echo "::error::the polygon scoring printed 'POLYGON VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
+  # The systemd hardening score of every shipped unit, against a committed ceiling per unit.
+  units:
+    # Pinned for the same reason as the jobs above. It matters more here than there: the score
+    # is a function of the systemd release, and `ubuntu-latest` would move it with no diff.
+    runs-on: ubuntu-24.04
+    # Least privilege: reads the repository, writes nothing.
+    permissions:
+      contents: read
+    # UNMEASURED: no run of this job exists yet. The work is rendering five units and five
+    # offline `systemd-analyze security` calls, which is seconds on a runner, plus checkout. 10 is
+    # a guess at generous headroom, not a figure sized from dev runs. Re-measure from the first
+    # successful runs and replace this comment with their ids and durations (rules/testing.md).
+    timeout-minutes: 10
+    steps:
+      # Pinned to the same commit as the jobs above.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # `maran units selftest` first: it plants a unit with one hardening directive removed and
+      # requires a FAILED verdict, plus an accepting control, so a scorer that has gone blind or
+      # refuses everything is named before the real units are judged.
+      #
+      # THE VERDICT is the printed `UNITS VERDICT: OK` line, never the exit status. Three
+      # outcomes are told apart on purpose. `DID NOT RUN` means the scorer REFUSED (no
+      # systemd-analyze, a unit that would not render, or a systemd major other than the one the
+      # ceilings file records): nothing was scored, so this is neither a pass nor a finding, and
+      # it fails under its own message. A missing line fails. A line printed alongside a non-zero
+      # status fails too, because the two disagree and neither is then evidence.
+      #
+      # `--accept` is NEVER passed: it REWRITES the ceilings, and a check that refreshes its own
+      # ceiling enforces nothing. Raising one is a reviewed change (docs/operations/unit-security-ceilings.md).
+      #
+      # UNOBSERVED HERE, and the harness prints it too: the score depends on the systemd release,
+      # and the analysis is offline, so it reads the unit text and never exercises runtime.
+      - name: Units verdict — systemd-analyze security against the committed ceilings
+        id: units
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/units"
+          status=0
+          bash scripts/maran units selftest 2>&1 |
+            tee "$RUNNER_TEMP/units/selftest.log" || status=$?
+          echo "selftest exit status: $status (recorded; the verdict is the log, not this)"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::'maran units selftest' exited $status, so the scorer cannot be trusted to"
+            echo "judge the real units. Nothing below was run."
+            exit 1
+          fi
+          status=0
+          bash scripts/maran units 2>&1 |
+            tee "$RUNNER_TEMP/units/units.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
+          if grep -qa '^UNITS VERDICT: DID NOT RUN' "$RUNNER_TEMP/units/units.log"; then
+            echo "::error::the units scorer REFUSED and scored nothing, so this lane has measured"
+            echo "neither a pass nor a failure — the reason it gives is printed above. It is failed"
+            echo "here because nothing on a runner should be able to refuse it, but do not read this"
+            echo "as a hardening regression: no unit was scored."
+            exit 1
+          fi
+          if ! grep -qa '^UNITS VERDICT: OK' "$RUNNER_TEMP/units/units.log"; then
+            echo "::error::the units run did not print 'UNITS VERDICT: OK'. This lane passes on the"
+            echo "harness's verdict line, never on an exit code, and no such line was printed."
+            echo "--- what the run reported ---"
+            if ! grep -aE '^(UNITS VERDICT|REFUSED|FAILED|NOTE|UNOBSERVED HERE|SELF-TEST)' \
+              "$RUNNER_TEMP/units/units.log"; then
+              echo "(no verdict-shaped line in the log; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/units/units.log" || echo "(the log is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the units run printed 'UNITS VERDICT: OK' and then exited $status."
             echo "Those two disagree, so neither is evidence: score nothing from this run."
             exit 1
           fi

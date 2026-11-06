@@ -96,12 +96,30 @@ agent/
     │   │   │                  web_tree_reconciliation.rs (its outcome) ·
     │   │   │                  reconcile_php_pool_trees.rs · reconcile_sftp_key_files.rs —
     │   │   │                  split out of server.rs, which keeps `serve` and the registry
+    │   │   ├── audit/         the independent trail of what the root agent did, one line
+    │   │   │                  per mutating rpc (issue #106): audit_layer.rs (the tower
+    │   │   │                  Layer, installed in server.rs OUTSIDE the PeerGuard so a
+    │   │   │                  refused peer is still seen) · audit_service.rs (the Service:
+    │   │   │                  decides on the path before wrapping anything, wraps the
+    │   │   │                  response body, emits once at end of stream or on drop) ·
+    │   │   │                  audit_slot.rs (the per-request record a handler fills with
+    │   │   │                  validated types only) · audit_line.rs (the one line format) ·
+    │   │   │                  audit_rpc_class.rs (Mutating · ReadOnly) ·
+    │   │   │                  mutating_rpcs.rs · read_only_rpcs.rs (the two closed lists
+    │   │   │                  of full rpc paths) · audit_emission.rs (the once-only emitter
+    │   │   │                  of one request's line) · audited_body.rs (the body wrapper
+    │   │   │                  that decides WHEN it is written) · audit_outcome.rs (the closed
+    │   │   │                  set of outcome spellings) · mod.rs, which also mounts the two
+    │   │   │                  test-only files of src/tests/audit/ under #[cfg(test)]
     │   │   ├── config/        invocation.rs (the command line) · agent_options.rs · options_error.rs
     │   │   ├── peercred/      peer_policy.rs (who may connect) · peer_guard.rs (the check)
     │   │   └── services/      one FOLDER per proto service:
     │   │       ├── system/    system_service.rs
     │   │       ├── accounts/  accounts_service.rs · account_status.rs ·
-    │   │       │              validated_resource_limits.rs (the three slice ceilings)
+    │   │       │              validated_resource_limits.rs (the three slice ceilings) ·
+    │   │       │              to_wire_account_usage.rs (a usage reading onto its wire payload) ·
+    │   │       │              to_wire_suspension_state.rs (an account's observed suspension
+    │   │       │              state onto its wire payload)
     │   │       ├── sites/     sites_service.rs · site_status.rs ·
     │   │       │              validated_{site,identity,overrides}.rs — proto → validated
     │   │       │              input, one bundle per request shape, so the service file
@@ -116,7 +134,9 @@ agent/
     │   │       ├── ssl/       ssl_service.rs · ssl_status.rs · install_outcome.rs ·
     │   │       │              panel_install_outcome.rs · material_refusal.rs (the verdict on
     │   │       │              material both install rpcs share) · validated_panel_challenge.rs ·
-    │   │       │              validated_panel_token.rs — the panel's own certificate (issue #132)
+    │   │       │              validated_panel_token.rs — the panel's own certificate (issue #132) ·
+    │   │       │              settle_install_outcome.rs · settle_panel_install_outcome.rs (settle
+    │   │       │              the audit slot from the answer each install rpc is about to send)
     │   │       ├── php/       php_service.rs · php_status.rs
     │   │       ├── db/        db_service.rs · db_status.rs ·
     │   │       │              validated_creation.rs · validated_database.rs ·
@@ -139,9 +159,16 @@ agent/
     │   │       │              beside it for the vsftpd daemon — a separate service,
     │   │       │              not a mode of this one: different daemon, different
     │   │       │              auth model, its own TLS material.
-    │   │       ├── cron/      cron_service.rs · cron_status.rs · the wire-payload builders (entry_output.rs · environment_variables.rs · listed_entry.rs · run_outcome.rs)
+    │   │       ├── cron/      cron_service.rs · cron_status.rs · the wire-payload builders (entry_output.rs · environment_variables.rs · listed_entry.rs · run_outcome.rs · and one response builder per mutating rpc that answers an ok-or-error payload: updated_entry.rs · deleted_entry.rs · switched_entry.rs · suspended_account.rs · replaced_environment.rs)
     │   │       ├── firewall/  firewall_service.rs · firewall_status.rs
     │   │       ├── backup/    backup_service.rs · backup_status.rs ·
+    │   │       │              validated_creation.rs · validated_removal.rs ·
+    │   │       │              validated_restoration.rs (what a CreateBackup, DeleteBackup and
+    │   │       │              RestoreBackup request carries, revalidated) ·
+    │   │       │              created_backup.rs · restored_backup.rs (a finished stream's
+    │   │       │              result: the terminal ok or the typed error) ·
+    │   │       │              terminal_of_creation.rs · terminal_of_restoration.rs (that result
+    │   │       │              wrapped into the arm of the terminal message that carries it) ·
     │   │       │              validated_verification.rs (the account, backup id and
     │   │       │              destination a VerifyBackup request carries) ·
     │   │       │              reported_verify_backup.rs (the outcome on the wire: an ok
@@ -160,8 +187,14 @@ agent/
     │   │                      from here and never from each other's folders: the
     │   │                      alternative is nine services reaching into sites/ for an
     │   │                      error constructor, which is what they were doing.
-    │   ├── src/tests/         unit tests, mirroring src/ (rules/testing.md)
-    │   └── tests/             integration tests (+ fixtures/)
+    │   ├── src/tests/         unit tests, mirroring src/ (rules/testing.md); audit/ also
+    │   │                      holds two test-only support files, not tests: line_capture.rs
+    │   │                      (a tracing writer that keeps what the audit target wrote) and
+    │   │                      scripted_body.rs (a response body playing a fixed list of frames)
+    │   └── tests/             integration tests (+ fixtures/): audit_lines.rs reads the
+    │                          journal lines back from the real server over a real socket;
+    │                          fixtures/captured_log.rs keeps what a test's tracing
+    │                          subscriber wrote, in memory
     ├── agent-core/
     │   └── src/
     │       ├── agent_paths.rs AgentPaths — locations the agent owns and that are the SAME
@@ -707,9 +740,24 @@ One folder per proto service, three kinds of file inside:
   `validated_overrides.rs`), a sink or adapter the rpc needs
   (`stream_log_sink.rs`), and the terminal-outcome choices of a streaming rpc
   (`tail_terminal.rs`). A handler is a translation layer, so anything with more
-  than one case gets a name, and it gets one for a reason a reviewer can check:
+  than one case gets a name. The families seen so far: `validated_*` (request to
+  input), `to_wire_*` and `reported_*` (a domain reading onto its wire payload),
+  `<verb>ed_<noun>` response builders such as `updated_entry.rs` and
+  `created_backup.rs` (a finished operation onto the ok-or-error response),
+  `terminal_of_*` (a result wrapped into a stream's terminal message) and `settle_*`
+  (an audit slot settled from the answer about to be sent, for a response whose error
+  travels in its payload). Each is still one item-named file. It gets a name for a
+  reason a reviewer can check:
   a decision inlined in a handler can be deleted without a single test going
   red. Same rule as everywhere else — one unit per file, named after the unit.
+
+The three-step rule has one clause more for a MUTATING rpc (issue #106): the handler
+takes the request's `AuditSlot` before the request is consumed, names the validated
+account or site on it as soon as those values exist (`account`, `site`), and settles it
+with the same `Result` that becomes the response (`settle`; a streaming rpc settles on
+its terminal message). That is bookkeeping on a record, not a business branch, and it
+accepts validated types only. A handler that forgets to settle costs `outcome=unset` in
+the journal and changes no response. Handlers never log the audit line themselves.
 
 Streaming rpcs (`TailSiteLog`, `CreateBackup`, `RestoreBackup`,
 `InstallPhpVersion` and the client-streaming `WriteFile`) still follow this: the
@@ -1093,8 +1141,24 @@ relies on. New `unsafe` outside that module fails to compile, and adding an
 
 ## Logging
 
-- `tracing` only; one span per command carrying `correlation_id` and the command
-  name, opened at the service layer so every `ops` call inherits it.
+- `tracing` only; the structured fields of an event are written as fields, not
+  interpolated into prose. There is no span per command and no `correlation_id`:
+  nothing in the agent opens one (`grep -rn correlation_id agent/crates` finds no
+  match), and this bullet used to claim both, describing code that was never written.
+- **The audit layer** (`crates/agent/src/audit/`, issue #106) writes exactly one line
+  per MUTATING rpc, on the target `maran_audit`, to stdout, which systemd captures
+  into the journal under the agent's unit. The line is
+  `event=rpc method=<Service/Method> outcome=<ok|ERROR_CODE|unset|transport:<code>>
+  duration_ms=<n> account=<name|-> site=<domain|->`. It is built only from validated
+  types and closed enums (`AccountName`, `Domain`, `ErrorCode`, a list entry for the
+  method): the `AuditSlot` a handler fills has no entry point for a string, a path, a
+  `SecretString` or a message, so a caller's text cannot reach the line. Handlers never
+  log it themselves; they take the slot, name the account or site, and settle it.
+  Read-only rpcs yield no line. The two lists of rpc paths are closed and a census
+  against `proto/agent/v1/contract-baseline.txt` fails an unclassified rpc, so a new
+  rpc is classified in the change that adds it. journald can rate-limit and drop
+  lines, which the agent cannot see: the absence of a line proves nothing.
+  Threat note: `docs/superpowers/notes/2026-11-06-agent-audit-lines-threat-note.md`.
 - Never log secrets, passwords, private keys, tokens, or full file contents.
 - Never log a customer's file contents at any level, including `debug`.
 - `println!`/`eprintln!` are forbidden outside `main` startup errors.

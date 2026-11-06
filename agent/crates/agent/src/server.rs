@@ -19,6 +19,7 @@ use maran_ops::ssl::{ProcessPanelChallengeHost, ProcessSslHost};
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 
+use crate::audit::audit_layer::AuditLayer;
 use crate::error::StartupError;
 use crate::peercred::{PeerGuard, PeerPolicy};
 use crate::proto::accounts_service_server::AccountsServiceServer;
@@ -185,6 +186,12 @@ pub async fn serve(
     let (signalled, deadline) = tokio::sync::oneshot::channel();
 
     let serving = Server::builder()
+        // The audit layer wraps the whole router, so it sits OUTSIDE the per-service
+        // `PeerGuard` below: a peer the guard refuses on a mutating path still leaves
+        // a line (`outcome=transport:PermissionDenied`). It writes one line per
+        // mutating rpc and nothing for any other path, and changes no request and no
+        // response (issue #106, docs/superpowers/notes/2026-11-06-agent-audit-lines-threat-note.md).
+        .layer(AuditLayer)
         .add_service(SystemServiceServer::with_interceptor(
             SystemServiceImpl::new(distro),
             PeerGuard::new(policy),

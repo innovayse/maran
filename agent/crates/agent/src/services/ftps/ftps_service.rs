@@ -5,6 +5,7 @@ use std::sync::Arc;
 use maran_ops::ftps::{self, FtpsHost};
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::ftps_service_server::FtpsService;
 use crate::proto::{
     CreateFtpsUserOk, CreateFtpsUserRequest, CreateFtpsUserResponse, DeleteFtpsUserOk,
@@ -71,6 +72,7 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
         &self,
         request: Request<EnableFtpsRequest>,
     ) -> Result<Response<EnableFtpsResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_ftps_configuration(&request) {
@@ -84,6 +86,7 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(state) => enable_ftps_response::Result::Ok(
                 FtpsStatusFields::from_state(state).into_enable_ok(),
@@ -100,14 +103,16 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
     /// login exactly as it is.
     async fn disable_ftps(
         &self,
-        _request: Request<DisableFtpsRequest>,
+        request: Request<DisableFtpsRequest>,
     ) -> Result<Response<DisableFtpsResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let (host, distro) = (Arc::clone(&self.host), self.distro);
         let result = run_blocking("ftps operation", to_agent_error, move || {
             ftps::disable_ftps(host.as_ref(), distro)
         })
         .await;
 
+        audit.settle(&result);
         let result = match result {
             Ok(state) => disable_ftps_response::Result::Ok(
                 FtpsStatusFields::from_state(state).into_disable_ok(),
@@ -155,14 +160,16 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
     /// underneath it. A daemon that is not running is left alone.
     async fn reload_ftps_tls(
         &self,
-        _request: Request<ReloadFtpsTlsRequest>,
+        request: Request<ReloadFtpsTlsRequest>,
     ) -> Result<Response<ReloadFtpsTlsResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let (host, distro) = (Arc::clone(&self.host), self.distro);
         let result = run_blocking("ftps operation", to_agent_error, move || {
             ftps::reload_ftps_tls(host.as_ref(), distro)
         })
         .await;
 
+        audit.settle(&result);
         let result = match result {
             Ok(state) => reload_ftps_tls_response::Result::Ok(
                 FtpsStatusFields::from_state(state).into_reload_ok(),
@@ -180,6 +187,7 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
         &self,
         request: Request<CreateFtpsUserRequest>,
     ) -> Result<Response<CreateFtpsUserResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_ftps_creation(
@@ -188,6 +196,7 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
             &request.password,
         ) {
             Ok(input) => {
+                audit.account(&input.account);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 // Read off the validated input before it is moved, so the
                 // response reports the login that was actually created rather
@@ -204,6 +213,7 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(ftps_username) => {
                 create_ftps_user_response::Result::Ok(CreateFtpsUserOk { ftps_username })
@@ -228,6 +238,7 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
         &self,
         request: Request<SetFtpsPasswordRequest>,
     ) -> Result<Response<SetFtpsPasswordResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_ftps_password_change(
@@ -236,6 +247,7 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
             &request.password,
         ) {
             Ok((account, user, password)) => {
+                audit.account(&account);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("ftps operation", to_agent_error, move || {
                     ftps::set_ftps_password(host.as_ref(), distro, &account, &user, &password)
@@ -245,6 +257,7 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(()) => set_ftps_password_response::Result::Ok(SetFtpsPasswordOk {}),
             Err(error) => set_ftps_password_response::Result::Error(error),
@@ -270,10 +283,12 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
         &self,
         request: Request<DeleteFtpsUserRequest>,
     ) -> Result<Response<DeleteFtpsUserResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_ftps_user(&request.account_username, &request.ftps_username) {
             Ok((account, user)) => {
+                audit.account(&account);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("ftps operation", to_agent_error, move || {
                     ftps::delete_ftps_user(host.as_ref(), distro, &account, &user)
@@ -283,6 +298,7 @@ impl<H: FtpsHost + 'static> FtpsService for FtpsServiceImpl<H> {
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(()) => delete_ftps_user_response::Result::Ok(DeleteFtpsUserOk {}),
             Err(error) => delete_ftps_user_response::Result::Error(error),

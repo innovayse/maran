@@ -6,26 +6,29 @@ use maran_distro::DistroAdapter;
 use maran_ops::cron::{self, CronHost};
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::cron_service_server::CronService;
 use crate::proto::{
-    CreateCronEntryOk, CreateCronEntryRequest, CreateCronEntryResponse, DeleteCronEntryOk,
-    DeleteCronEntryRequest, DeleteCronEntryResponse, GetCronEntryOutputRequest,
-    GetCronEntryOutputResponse, GetCronEnvironmentOk, GetCronEnvironmentRequest,
-    GetCronEnvironmentResponse, ListCronEntriesOk, ListCronEntriesRequest, ListCronEntriesResponse,
-    RunCronEntryRequest, RunCronEntryResponse, SetAccountCronSuspendedOk,
-    SetAccountCronSuspendedRequest, SetAccountCronSuspendedResponse, SetCronEntryEnabledOk,
-    SetCronEntryEnabledRequest, SetCronEntryEnabledResponse, SetCronEnvironmentOk,
-    SetCronEnvironmentRequest, SetCronEnvironmentResponse, UpdateCronEntryOk,
+    CreateCronEntryOk, CreateCronEntryRequest, CreateCronEntryResponse, DeleteCronEntryRequest,
+    DeleteCronEntryResponse, GetCronEntryOutputRequest, GetCronEntryOutputResponse,
+    GetCronEnvironmentOk, GetCronEnvironmentRequest, GetCronEnvironmentResponse, ListCronEntriesOk,
+    ListCronEntriesRequest, ListCronEntriesResponse, RunCronEntryRequest, RunCronEntryResponse,
+    SetAccountCronSuspendedRequest, SetAccountCronSuspendedResponse, SetCronEntryEnabledRequest,
+    SetCronEntryEnabledResponse, SetCronEnvironmentRequest, SetCronEnvironmentResponse,
     UpdateCronEntryRequest, UpdateCronEntryResponse, create_cron_entry_response,
-    delete_cron_entry_response, get_cron_entry_output_response, get_cron_environment_response,
-    list_cron_entries_response, run_cron_entry_response, set_account_cron_suspended_response,
-    set_cron_entry_enabled_response, set_cron_environment_response, update_cron_entry_response,
+    get_cron_entry_output_response, get_cron_environment_response, list_cron_entries_response,
+    run_cron_entry_response,
 };
 use crate::services::cron::cron_status::to_agent_error;
+use crate::services::cron::deleted_entry::deleted_entry;
 use crate::services::cron::entry_output::entry_output;
 use crate::services::cron::environment_variables::environment_variables;
 use crate::services::cron::listed_entry::listed_entry;
+use crate::services::cron::replaced_environment::replaced_environment;
 use crate::services::cron::run_outcome::run_outcome;
+use crate::services::cron::suspended_account::suspended_account;
+use crate::services::cron::switched_entry::switched_entry;
+use crate::services::cron::updated_entry::updated_entry;
 use crate::services::cron::validated_creation::validated_creation;
 use crate::services::cron::validated_entry::validated_entry;
 use crate::services::cron::validated_environment::validated_environment;
@@ -100,6 +103,7 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         &self,
         request: Request<CreateCronEntryRequest>,
     ) -> Result<Response<CreateCronEntryResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_creation(
@@ -109,6 +113,7 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             request.max_entries,
         ) {
             Ok((account, schedule, command, max_entries)) => {
+                audit.account(&account);
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
@@ -127,6 +132,8 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
+
         let result = match result {
             Ok(entry) => create_cron_entry_response::Result::Ok(CreateCronEntryOk {
                 entry_id: entry.as_str().to_owned(),
@@ -144,6 +151,7 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         &self,
         request: Request<UpdateCronEntryRequest>,
     ) -> Result<Response<UpdateCronEntryResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_update(
@@ -153,6 +161,7 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             &request.command,
         ) {
             Ok((account, entry, schedule, command)) => {
+                audit.account(&account);
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
@@ -171,14 +180,9 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             Err(error) => Err(error),
         };
 
-        let result = match result {
-            Ok(()) => update_cron_entry_response::Result::Ok(UpdateCronEntryOk {}),
-            Err(error) => update_cron_entry_response::Result::Error(error),
-        };
+        audit.settle(&result);
 
-        Ok(Response::new(UpdateCronEntryResponse {
-            result: Some(result),
-        }))
+        Ok(Response::new(updated_entry(result)))
     }
 
     /// Removes an entry from the crontab and takes its files with it.
@@ -186,10 +190,12 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         &self,
         request: Request<DeleteCronEntryRequest>,
     ) -> Result<Response<DeleteCronEntryResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_entry(&request.account_username, &request.entry_id) {
             Ok((account, entry)) => {
+                audit.account(&account);
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
@@ -201,14 +207,9 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             Err(error) => Err(error),
         };
 
-        let result = match result {
-            Ok(()) => delete_cron_entry_response::Result::Ok(DeleteCronEntryOk {}),
-            Err(error) => delete_cron_entry_response::Result::Error(error),
-        };
+        audit.settle(&result);
 
-        Ok(Response::new(DeleteCronEntryResponse {
-            result: Some(result),
-        }))
+        Ok(Response::new(deleted_entry(result)))
     }
 
     /// Switches an entry on or off without touching what it runs.
@@ -216,11 +217,13 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         &self,
         request: Request<SetCronEntryEnabledRequest>,
     ) -> Result<Response<SetCronEntryEnabledResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let enabled = request.enabled;
 
         let result = match validated_entry(&request.account_username, &request.entry_id) {
             Ok((account, entry)) => {
+                audit.account(&account);
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
@@ -232,14 +235,9 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             Err(error) => Err(error),
         };
 
-        let result = match result {
-            Ok(()) => set_cron_entry_enabled_response::Result::Ok(SetCronEntryEnabledOk {}),
-            Err(error) => set_cron_entry_enabled_response::Result::Error(error),
-        };
+        audit.settle(&result);
 
-        Ok(Response::new(SetCronEntryEnabledResponse {
-            result: Some(result),
-        }))
+        Ok(Response::new(switched_entry(result)))
     }
 
     /// Suppresses, or restores, every managed entry of one account at once.
@@ -253,11 +251,13 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         &self,
         request: Request<SetAccountCronSuspendedRequest>,
     ) -> Result<Response<SetAccountCronSuspendedResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let suspended = request.suspended;
 
         let result = match validated_account(&request.account_username) {
             Ok(account) => {
+                audit.account(&account);
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
@@ -269,14 +269,9 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             Err(error) => Err(error),
         };
 
-        let result = match result {
-            Ok(()) => set_account_cron_suspended_response::Result::Ok(SetAccountCronSuspendedOk {}),
-            Err(error) => set_account_cron_suspended_response::Result::Error(error),
-        };
+        audit.settle(&result);
 
-        Ok(Response::new(SetAccountCronSuspendedResponse {
-            result: Some(result),
-        }))
+        Ok(Response::new(suspended_account(result)))
     }
 
     /// Reads what an entry's most recent run left behind.
@@ -342,10 +337,12 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         &self,
         request: Request<SetCronEnvironmentRequest>,
     ) -> Result<Response<SetCronEnvironmentResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_environment(&request.account_username, &request.variables) {
             Ok((account, environment)) => {
+                audit.account(&account);
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
@@ -357,14 +354,9 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             Err(error) => Err(error),
         };
 
-        let result = match result {
-            Ok(()) => set_cron_environment_response::Result::Ok(SetCronEnvironmentOk {}),
-            Err(error) => set_cron_environment_response::Result::Error(error),
-        };
+        audit.settle(&result);
 
-        Ok(Response::new(SetCronEnvironmentResponse {
-            result: Some(result),
-        }))
+        Ok(Response::new(replaced_environment(result)))
     }
 
     /// Starts one of the account's entries now, as the account, and waits.
@@ -380,9 +372,11 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         &self,
         request: Request<RunCronEntryRequest>,
     ) -> Result<Response<RunCronEntryResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let result = match validated_entry(&request.account_username, &request.entry_id) {
             Ok((account, entry)) => {
+                audit.account(&account);
                 let host = Arc::clone(&self.host);
                 run_blocking("cron operation", to_agent_error, move || {
                     cron::run_cron_entry(host.as_ref(), &account, &entry)
@@ -391,6 +385,8 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
+
         let result = match result {
             Ok(run) => run_cron_entry_response::Result::Ok(run_outcome(run)),
             Err(error) => run_cron_entry_response::Result::Error(error),

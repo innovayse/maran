@@ -2,10 +2,10 @@
 
 use maran_agent_core::validation::db::db_user_name::DbUserName;
 use maran_agent_core::validation::secrets::password::Password;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::proto::AgentError;
 use crate::services::wire::invalid_input::invalid_input;
-use crate::services::wire::validated_account::validated_account;
 
 /// Builds the user and the password `SetDatabasePassword` re-credentials with.
 ///
@@ -32,21 +32,18 @@ use crate::services::wire::validated_account::validated_account;
 ///
 /// # Errors
 ///
-/// Returns the wire error for an account name the agent will not accept, for a
-/// user suffix that is empty or outside `[a-z0-9]`, for a prefixed user past the
-/// server's thirty-two byte user-name limit, or for a password outside the
+/// Returns the wire error for a user suffix that is empty or outside
+/// `[a-z0-9]`, for a prefixed user past the server's thirty-two byte user-name limit, or for a password outside the
 /// allowed alphabet. An empty password is refused by that last check rather than
 /// treated as "leave it unchanged" (`db.proto`): a silent no-op would report
 /// success for a credential that was never rotated, and the customer would be
 /// shown a password that does not work.
 pub fn validated_password_change(
-    account_username: &str,
+    account: &AccountName,
     db_username: &str,
     password: &str,
 ) -> Result<(DbUserName, Password), AgentError> {
-    let account = validated_account(account_username)?;
-
-    let user = DbUserName::for_account(&account, db_username)
+    let user = DbUserName::for_account(account, db_username)
         .map_err(|error| invalid_input(error.to_string()))?;
     let password = Password::parse(password).map_err(|error| invalid_input(error.to_string()))?;
 

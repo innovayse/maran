@@ -21,6 +21,16 @@ maran-distro = { path = "../distro" }
 # produced anywhere else in this crate (rules/rust.md: `agent` translates,
 # `templates` renders).
 maran-templates = { path = "../templates" }
+# Audit layer (issue #106): `Layer`/`Service` are the interface of the layer that
+# writes one journal line per mutating rpc; it was dev-only before.
+tower.workspace = true
+# Audit layer: request extensions (the per-request slot) and response headers
+# (`grpc-status` of a trailers-only response).
+http.workspace = true
+# Audit layer: the body trait whose frames the audit wrapper forwards unread.
+http-body.workspace = true
+# Audit layer: pin projection for the response-body wrapper, without unsafe.
+pin-project-lite.workspace = true
 prost.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -44,7 +54,8 @@ tempfile.workspace = true
 # The polygon and shutdown suites drive the clock rather than waiting on it: a
 # test that slept out a 30-second drain budget is a test nobody runs.
 tokio = { workspace = true, features = ["test-util"] }
-tower.workspace = true
+# Audit layer tests build the response bodies the wrapper is driven with.
+http-body-util.workspace = true
 
 [build-dependencies]
 # The contract is compiled from proto/ at build time and never committed

@@ -8,15 +8,22 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::validation::system::name::AccountName;
+
 use super::validated_creation;
 use crate::proto::ErrorCode;
+
+/// The account the panel authorised, as the handler hands it on.
+fn alice() -> AccountName {
+    AccountName::parse("alice").expect("a valid account name")
+}
 
 /// A password made of every character class the type allows.
 const GOOD_PASSWORD: &str = "Str0ng-pass.word=+_";
 
 #[test]
 fn the_names_are_rebuilt_under_the_account_and_the_password_is_carried_through() {
-    let input = validated_creation("alice", "shop", "reader", GOOD_PASSWORD).expect("valid");
+    let input = validated_creation(&alice(), "shop", "reader", GOOD_PASSWORD).expect("valid");
 
     assert_eq!(input.database.as_str(), "alice_shop");
     assert_eq!(input.user.as_str(), "alice_reader");
@@ -25,7 +32,7 @@ fn the_names_are_rebuilt_under_the_account_and_the_password_is_carried_through()
 
 #[test]
 fn a_password_carrying_a_quote_is_refused_so_it_cannot_close_the_identified_by_literal() {
-    let refused = validated_creation("alice", "shop", "reader", "pw'; DROP DATABASE mysql; --")
+    let refused = validated_creation(&alice(), "shop", "reader", "pw'; DROP DATABASE mysql; --")
         .expect_err("must refuse");
 
     assert_eq!(refused.code, ErrorCode::InvalidInput as i32);
@@ -34,7 +41,7 @@ fn a_password_carrying_a_quote_is_refused_so_it_cannot_close_the_identified_by_l
 #[test]
 fn a_refusal_never_echoes_the_password_it_refused() {
     let secret = "pw'injected";
-    let refused = validated_creation("alice", "shop", "reader", secret).expect_err("must refuse");
+    let refused = validated_creation(&alice(), "shop", "reader", secret).expect_err("must refuse");
 
     assert!(
         !refused.message.contains(secret),
@@ -46,7 +53,7 @@ fn a_refusal_never_echoes_the_password_it_refused() {
 
 #[test]
 fn an_empty_password_is_refused_rather_than_creating_a_user_anybody_can_reach() {
-    let refused = validated_creation("alice", "shop", "reader", "").expect_err("must refuse");
+    let refused = validated_creation(&alice(), "shop", "reader", "").expect_err("must refuse");
 
     assert_eq!(refused.code, ErrorCode::InvalidInput as i32);
 }

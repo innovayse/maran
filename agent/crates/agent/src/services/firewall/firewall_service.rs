@@ -6,6 +6,7 @@ use maran_distro::DistroAdapter;
 use maran_ops::firewall::{self, FirewallHost};
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::firewall_service_server::FirewallService;
 use crate::proto::{
     AllowPortOk, AllowPortRequest, AllowPortResponse, BanAddressOk, BanAddressRequest,
@@ -113,6 +114,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
         &self,
         request: Request<AllowPortRequest>,
     ) -> Result<Response<AllowPortResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_rule(
@@ -134,6 +136,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => allow_port_response::Result::Ok(AllowPortOk {}),
@@ -150,6 +153,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
         &self,
         request: Request<DenyPortRequest>,
     ) -> Result<Response<DenyPortResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_rule(
@@ -171,6 +175,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => deny_port_response::Result::Ok(DenyPortOk {}),
@@ -187,6 +192,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
         &self,
         request: Request<BanAddressRequest>,
     ) -> Result<Response<BanAddressResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_ban(&request) {
@@ -201,6 +207,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => ban_address_response::Result::Ok(BanAddressOk {}),
@@ -217,6 +224,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
         &self,
         request: Request<UnbanAddressRequest>,
     ) -> Result<Response<UnbanAddressResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_address(&request.address) {
@@ -231,6 +239,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
             }
             Err(error) => Err(error),
         };
+        audit.settle(&result);
 
         let result = match result {
             Ok(()) => unban_address_response::Result::Ok(UnbanAddressOk {}),

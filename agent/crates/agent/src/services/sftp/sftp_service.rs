@@ -6,6 +6,7 @@ use maran_ops::logins::{self, LoginsHost};
 use maran_ops::sftp::{self, SftpHost};
 use tonic::{Request, Response, Status};
 
+use crate::audit::audit_slot::AuditSlot;
 use crate::proto::sftp_service_server::SftpService;
 use crate::proto::{
     CreateSftpUserOk, CreateSftpUserRequest, CreateSftpUserResponse, DeleteSftpUserOk,
@@ -77,6 +78,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
         &self,
         request: Request<CreateSftpUserRequest>,
     ) -> Result<Response<CreateSftpUserResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_creation(
@@ -85,6 +87,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
             &request.password,
         ) {
             Ok(input) => {
+                audit.account(&input.account);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 // Read off the validated input before it is moved, so the
                 // response reports the login that was actually created rather
@@ -101,6 +104,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(sftp_username) => {
                 create_sftp_user_response::Result::Ok(CreateSftpUserOk { sftp_username })
@@ -118,6 +122,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
         &self,
         request: Request<SetSftpPasswordRequest>,
     ) -> Result<Response<SetSftpPasswordResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_password_change(
@@ -126,6 +131,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
             &request.password,
         ) {
             Ok((account, user, password)) => {
+                audit.account(&account);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("sftp operation", to_agent_error, move || {
                     sftp::set_sftp_password(host.as_ref(), distro, &account, &user, &password)
@@ -135,6 +141,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(()) => set_sftp_password_response::Result::Ok(SetSftpPasswordOk {}),
             Err(error) => set_sftp_password_response::Result::Error(error),
@@ -158,10 +165,12 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
         &self,
         request: Request<DeleteSftpUserRequest>,
     ) -> Result<Response<DeleteSftpUserResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_sftp_user(&request.account_username, &request.sftp_username) {
             Ok((account, user)) => {
+                audit.account(&account);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("sftp operation", to_agent_error, move || {
                     sftp::delete_sftp_user(host.as_ref(), distro, &account, &user)
@@ -171,6 +180,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(()) => delete_sftp_user_response::Result::Ok(DeleteSftpUserOk {}),
             Err(error) => delete_sftp_user_response::Result::Error(error),
@@ -204,11 +214,13 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
         &self,
         request: Request<SetAccountLoginsLockedRequest>,
     ) -> Result<Response<SetAccountLoginsLockedResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
         let locked = request.locked;
 
         let result = match validated_account(&request.account_username) {
             Ok(account) => {
+                audit.account(&account);
                 let (host, distro) = (Arc::clone(&self.logins_host), self.distro);
                 run_blocking("login operation", to_logins_error, move || {
                     logins::set_account_logins_locked(host.as_ref(), distro, &account, locked)
@@ -218,6 +230,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             // Only the cull count crosses here. The login set the operation also
             // answers with does NOT: the panel reads those same facts through
@@ -254,6 +267,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
         &self,
         request: Request<SetSftpAuthorizedKeysRequest>,
     ) -> Result<Response<SetSftpAuthorizedKeysResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_authorized_keys(
@@ -262,6 +276,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
             &request.public_keys,
         ) {
             Ok((account, user, keys)) => {
+                audit.account(&account);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("sftp operation", to_agent_error, move || {
                     sftp::set_sftp_authorized_keys(host.as_ref(), distro, &account, &user, &keys)
@@ -271,6 +286,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(count) => set_sftp_authorized_keys_response::Result::Ok(SetSftpAuthorizedKeysOk {
                 key_count: u32::try_from(count).unwrap_or(u32::MAX),
@@ -298,10 +314,12 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
         &self,
         request: Request<EndSftpSessionsRequest>,
     ) -> Result<Response<EndSftpSessionsResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
         let result = match validated_sftp_user(&request.account_username, &request.sftp_username) {
             Ok((account, user)) => {
+                audit.account(&account);
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("sftp operation", to_agent_error, move || {
                     sftp::end_sftp_sessions(host.as_ref(), distro, &account, &user)
@@ -311,6 +329,7 @@ impl<H: SftpHost + 'static, L: LoginsHost + 'static> SftpService for SftpService
             Err(error) => Err(error),
         };
 
+        audit.settle(&result);
         let result = match result {
             Ok(processes_signalled) => end_sftp_sessions_response::Result::Ok(EndSftpSessionsOk {
                 processes_signalled,

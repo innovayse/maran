@@ -3,13 +3,15 @@
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::db::db_user_name::DbUserName;
 use maran_agent_core::validation::secrets::password::Password;
+use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::db::CreateDatabaseRequest;
 
 use crate::proto::AgentError;
 use crate::services::wire::invalid_input::invalid_input;
-use crate::services::wire::validated_account::validated_account;
 
-/// Builds the operation's input from the four values `CreateDatabase` carries.
+/// Builds the operation's input from the account (already revalidated by the
+/// caller with `validated_account`) and the three values `CreateDatabase`
+/// carries.
 ///
 /// Every field of the result is a validated type and none of them is a
 /// `String`, which is the whole injection defence of the database area: the
@@ -26,22 +28,19 @@ use crate::services::wire::validated_account::validated_account;
 ///
 /// # Errors
 ///
-/// Returns the wire error for an account name the agent will not accept, for
-/// either suffix being empty or outside `[a-z0-9]`, for a prefixed name past
-/// the server's sixty-four byte identifier limit, or for a password outside the
+/// Returns the wire error for either suffix being empty or outside `[a-z0-9]`,
+/// for a prefixed name past the server's sixty-four byte identifier limit, or for a password outside the
 /// allowed alphabet — which is the check that keeps a quote out of `IDENTIFIED
 /// BY '…'`. The message names the condition and never the value.
 pub fn validated_creation(
-    account_username: &str,
+    account: &AccountName,
     database_name: &str,
     db_username: &str,
     password: &str,
 ) -> Result<CreateDatabaseRequest, AgentError> {
-    let account = validated_account(account_username)?;
-
-    let database = DatabaseName::for_account(&account, database_name)
+    let database = DatabaseName::for_account(account, database_name)
         .map_err(|error| invalid_input(error.to_string()))?;
-    let user = DbUserName::for_account(&account, db_username)
+    let user = DbUserName::for_account(account, db_username)
         .map_err(|error| invalid_input(error.to_string()))?;
     let password = Password::parse(password).map_err(|error| invalid_input(error.to_string()))?;
 

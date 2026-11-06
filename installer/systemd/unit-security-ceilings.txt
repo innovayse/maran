@@ -1,0 +1,10 @@
+# measured with systemd 255
+# <unit><TAB><ceiling>: the highest 'systemd-analyze security --offline=yes' score the unit may have.
+# Written by 'maran units --accept' from the units as the installer renders them; edit by re-measuring.
+# maran-php-install@.service is the worse of its Debian-family and RHEL-family renders.
+# A ceiling above 9 is a unit shipped as weakly sandboxed as it is today, not a target.
+maran-agent.service	3.6
+maran-api.service	1.8
+maran-ftps.service	5.9
+maran-panel-backup.service	5.7
+maran-php-install@.service	9.4
