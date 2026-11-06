@@ -366,11 +366,26 @@ public sealed class ResellerEnvelopeEndpointTests : IAsyncLifetime
             .BuildAsync();
         using var alpha = await world.SignInAsync("alpha");
 
+        // Warm the host before the race. The message handlers are compiled at run time, per host, on the first
+        // call into each command chain, and a race that is also the first call can see both requests fail before
+        // either reaches the agent: observed in CI as `Created.Count` 0 after one second, with no statuses to read.
+        // An unknown plan makes the handler answer without taking a slot or calling the agent.
+        using var warmUp = await alpha.PostAsJsonAsync("/api/v1/accounts", ResellerRequestBodies.Account("warmup", Guid.NewGuid()));
+        Assert.True((int)warmUp.StatusCode < 500, $"The warm-up request answered {(int)warmUp.StatusCode}.");
+
         var responses = await Task.WhenAll(
             alpha.PostAsJsonAsync("/api/v1/accounts", ResellerRequestBodies.Account("racerone", world.Alpha.PlanId)),
             alpha.PostAsJsonAsync("/api/v1/accounts", ResellerRequestBodies.Account("racertwo", world.Alpha.PlanId)));
 
-        Assert.Equal(2, agent.Created.Count);
+        // Both racers must have reached the agent for the race to have happened at all. When they did not, the
+        // answers say why, which a bare count never did.
+        var answers = string.Join(
+            " | ",
+            await Task.WhenAll(responses.Select(async response =>
+            {
+                return $"{(int)response.StatusCode} {await response.Content.ReadAsStringAsync()}";
+            })));
+        Assert.True(agent.Created.Count == 2, $"Both creations should have reached the agent; they answered: {answers}");
         var winners = responses.Where(response => { return response.StatusCode == HttpStatusCode.Created; }).ToList();
         var losers = responses.Where(response => { return response.StatusCode == HttpStatusCode.Conflict; }).ToList();
         var winner = Assert.Single(winners);
