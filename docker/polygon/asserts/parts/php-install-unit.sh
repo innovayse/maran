@@ -7,7 +7,7 @@
 #
 # The subject. The agent's own sandbox (ProtectSystem=true) makes /usr read-only to everything it
 # forks, so it cannot run a package manager itself. It asks PID 1 to start
-# `maran-php-install@<package>.service` instead, a root-run, unsandboxed template unit. That unit is
+# `maran-php-install@<package>.service` instead, a root-run template unit with a sandbox of its own (issue #408). That unit is
 # the one sentence in this product that runs a package manager outside the agent's sandbox, so what
 # it executes is asserted here, on BOTH families, from what the installer's own render function
 # produced. The assertions never read the template source for their expectation: a check that

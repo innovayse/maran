@@ -7,4 +7,4 @@ maran-agent.service	3.6
 maran-api.service	1.8
 maran-ftps.service	5.9
 maran-panel-backup.service	5.7
-maran-php-install@.service	9.4
+maran-php-install@.service	4.4
