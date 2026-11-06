@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Resources;
 using Microsoft.Extensions.Localization;
 
@@ -24,6 +25,17 @@ public sealed class ApiKeyStatusDisplayNames
     public ApiKeyStatusDisplayNames(IStringLocalizer<DisplayNames> displayNames)
     {
         _displayNames = displayNames;
+    }
+
+    /// <summary>Names one derived status of a key as an administrator reads it.</summary>
+    /// <param name="status">The status the key stands in.</param>
+    /// <returns>The localized name, or the status's own name when this build carries no entry for it.</returns>
+    public string Of(ApiKeyStatus status)
+    {
+        var name = status.ToString();
+        var localized = _displayNames[KeyPrefix + name];
+
+        return localized.ResourceNotFound ? name.ToLowerInvariant() : localized.Value;
     }
 
     /// <summary>Names one status as an administrator reads it.</summary>

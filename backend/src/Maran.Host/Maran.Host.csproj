@@ -39,7 +39,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <!-- Swashbuckle.AspNetCore.SwaggerGen: builds the OpenAPI document from the controllers for the
-         `--cli openapi` verb. Registered only for that verb (Extensions/OpenApiExtensions.cs); the
+         CLI openapi verb. Registered only for that verb (Extensions/OpenApiExtensions.cs); the
          running panel serves no document and carries no OpenAPI service. -->
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" />
     <PackageReference Include="WolverineFx.FluentValidation" />

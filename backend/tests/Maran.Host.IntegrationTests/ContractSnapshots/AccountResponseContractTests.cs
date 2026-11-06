@@ -132,7 +132,7 @@ public sealed class AccountResponseContractTests : IAsyncLifetime
     /// <param name="failures">One entry per comparison; null for a match.</param>
     private static void AssertNoFailures(IEnumerable<string?> failures)
     {
-        var moved = failures.Where(failure => failure is not null).ToList();
+        var moved = failures.Where(failure => { return failure is not null; }).ToList();
 
         Assert.True(moved.Count == 0, string.Join("\n\n", moved));
     }

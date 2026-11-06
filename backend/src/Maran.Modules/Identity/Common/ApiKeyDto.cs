@@ -18,6 +18,10 @@ namespace Maran.Modules.Identity.Common;
 /// <param name="LastUsedIp">The address of the call <paramref name="LastUsedAt"/> records, or <c>null</c>.</param>
 /// <param name="RevokedAt">When the key was revoked, or <c>null</c> while it has not been.</param>
 /// <param name="Status">Whether the key works now: active, revoked or expired. Derived at read time, never stored.</param>
+/// <param name="StatusName">
+/// <paramref name="Status"/> as an administrator reads it, in the request's culture. The backend names
+/// the status so the screen prints it and holds no table of its own.
+/// </param>
 public sealed record ApiKeyDto(
     Guid Id,
     string Name,
@@ -29,4 +33,5 @@ public sealed record ApiKeyDto(
     DateTimeOffset? LastUsedAt,
     string? LastUsedIp,
     DateTimeOffset? RevokedAt,
-    ApiKeyStatus Status);
+    ApiKeyStatus Status,
+    string StatusName);

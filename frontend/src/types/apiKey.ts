@@ -2,8 +2,8 @@ import type { ListRequest, Paged } from './list'
 
 /**
  * The state an API key is in, as the panel derives it on every read: a key is `revoked` once an
- * administrator revoked it, `expired` once its expiry passed, `active` otherwise. The names the
- * interface prints for these come from the panel (`GET api/v1/api-keys/statuses`), never from here.
+ * administrator revoked it, `expired` once its expiry passed, `active` otherwise. The name the
+ * interface prints for it is `ApiKey.statusName`, sent by the panel on every row, never written here.
  */
 export type ApiKeyStatus = 'active' | 'revoked' | 'expired'
 
@@ -35,6 +35,8 @@ export interface ApiKey {
   revokedAt: string | null
   /** The state the panel derived for this read. */
   status: ApiKeyStatus
+  /** The panel's name for {@link status}, already in the request's language; the table prints this. */
+  statusName: string
 }
 
 /**

@@ -86,7 +86,10 @@ public sealed class IdempotencyStore : IIdempotencyStore
             {
                 var token = Guid.NewGuid();
                 var reservation = new IdempotencyRecord(Guid.NewGuid(), callerKey, key, requestHash, token, now);
-                if (await TrySaveAsync(() => _dbContext.IdempotencyRecords.Add(reservation), ct))
+                if (await TrySaveAsync(() =>
+                {
+                    _dbContext.IdempotencyRecords.Add(reservation);
+                }, ct))
                 {
                     return new IdempotencyStarted(token);
                 }
@@ -96,7 +99,10 @@ public sealed class IdempotencyStore : IIdempotencyStore
 
             if (existing.IsExpired(now))
             {
-                await TrySaveAsync(() => _dbContext.IdempotencyRecords.Remove(existing), ct);
+                await TrySaveAsync(() =>
+                {
+                    _dbContext.IdempotencyRecords.Remove(existing);
+                }, ct);
                 continue;
             }
 
@@ -123,7 +129,10 @@ public sealed class IdempotencyStore : IIdempotencyStore
             return;
         }
 
-        await TrySaveAsync(() => record.Complete(statusCode, contentType, body), ct);
+        await TrySaveAsync(() =>
+        {
+            record.Complete(statusCode, contentType, body);
+        }, ct);
     }
 
     /// <inheritdoc />
@@ -142,7 +151,10 @@ public sealed class IdempotencyStore : IIdempotencyStore
             return;
         }
 
-        await TrySaveAsync(() => _dbContext.IdempotencyRecords.Remove(record), ct);
+        await TrySaveAsync(() =>
+        {
+            _dbContext.IdempotencyRecords.Remove(record);
+        }, ct);
     }
 
     /// <summary>Refuses a caller key or key the policy does not accept, before any query runs.</summary>

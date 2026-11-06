@@ -38,6 +38,13 @@ public static class EndpointAuthorizationCensus
         AuthorizationPolicies.AdminOrReseller,
     };
 
+    /// <summary>The policy names that admit an API key, each valid only together with the <c>ApiKey</c> scheme.</summary>
+    private static readonly string[] ApiKeyOptInPolicies =
+    {
+        ApiKeyPolicyNames.SelfRead,
+        ApiKeyPolicyNames.ServerRead,
+    };
+
     /// <summary>Spells an endpoint as <c>VERB /path</c>, constraints stripped.</summary>
     /// <param name="endpoint">The endpoint to name.</param>
     /// <returns>The key the anonymous pin uses, e.g. <c>POST /api/v1/auth/login</c>.</returns>
@@ -139,6 +146,11 @@ public static class EndpointAuthorizationCensus
 
         foreach (var item in data)
         {
+            if (IsApiKeyOptIn(item))
+            {
+                continue;
+            }
+
             if (string.IsNullOrEmpty(item.Policy))
             {
                 problems.Add("carries an authorize declaration that names no policy (bare or roles only).");
@@ -160,5 +172,19 @@ public static class EndpointAuthorizationCensus
         }
 
         return problems;
+    }
+
+    /// <summary>Whether an authorize declaration is the one way an endpoint admits an API key (issue #144).</summary>
+    /// <param name="item">One authorize declaration of the endpoint.</param>
+    /// <returns>
+    /// <c>true</c> when it names the <c>ApiKey</c> scheme, no roles, and one of the API key policies; the
+    /// scheme with any other policy, or such a policy without the scheme, is still reported.
+    /// </returns>
+    private static bool IsApiKeyOptIn(IAuthorizeData item)
+    {
+        return string.IsNullOrEmpty(item.Roles)
+            && string.Equals(item.AuthenticationSchemes, ApiKeyDefaults.Scheme, StringComparison.Ordinal)
+            && item.Policy is not null
+            && ApiKeyOptInPolicies.Contains(item.Policy, StringComparer.Ordinal);
     }
 }

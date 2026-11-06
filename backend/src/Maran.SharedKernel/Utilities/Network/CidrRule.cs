@@ -190,7 +190,7 @@ public sealed class CidrRule
 
         foreach (var octet in octets)
         {
-            if (!IsPlainDecimal(octet, 3) || (octet.Length > 1 && octet[0] == '0') || int.Parse(octet) > 255)
+            if (!IsPlainDecimal(octet, 3) || (octet.Length > 1 && octet[0] == '0') || int.Parse(octet, System.Globalization.CultureInfo.InvariantCulture) > 255)
             {
                 return false;
             }
@@ -219,7 +219,7 @@ public sealed class CidrRule
             return false;
         }
 
-        prefix = int.Parse(text);
+        prefix = int.Parse(text, System.Globalization.CultureInfo.InvariantCulture);
         return prefix <= width;
     }
 

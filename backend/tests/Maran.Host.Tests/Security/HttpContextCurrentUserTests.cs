@@ -21,10 +21,19 @@ namespace Maran.Host.Tests.Security;
 /// </remarks>
 public sealed class HttpContextCurrentUserTests
 {
+    /// <summary>The signed-in login's id.</summary>
     private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+    /// <summary>The reseller the login acts for.</summary>
     private static readonly Guid ResellerId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+
+    /// <summary>The account the customer acts for.</summary>
     private static readonly Guid AccountId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+    /// <summary>The operator who views as the login.</summary>
     private static readonly Guid OperatorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+    /// <summary>The operator's own session id.</summary>
     private static readonly Guid OperatorSessionId = Guid.Parse("44444444-4444-4444-4444-444444444444");
 
     /// <summary>A signed-in administrator is read out of the token's claims.</summary>
@@ -356,6 +365,9 @@ public sealed class HttpContextCurrentUserTests
         return new HttpContextCurrentUser(new HttpContextAccessor { HttpContext = context });
     }
 
+    /// <summary>Builds the accessor over a bearer-authenticated principal.</summary>
+    /// <param name="claims">The claims the principal carries.</param>
+    /// <returns>The current user over that principal.</returns>
     private static HttpContextCurrentUser CurrentUser(params (string Type, string Value)[] claims)
     {
         var context = new DefaultHttpContext

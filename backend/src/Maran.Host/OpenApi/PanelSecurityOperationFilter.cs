@@ -62,7 +62,12 @@ public sealed class PanelSecurityOperationFilter : IOperationFilter
     /// <returns>
     /// The combined policy, the fallback when the endpoint declares none, or null when nothing applies.
     /// </returns>
-    private AuthorizationPolicy? ResolvePolicy(IReadOnlyList<IAuthorizeData> authorizeData)
+    /// <remarks>
+    /// The two asynchronous provider calls are waited on because Swashbuckle's <c>IOperationFilter.Apply</c> is
+    /// synchronous and has no asynchronous overload; the provider answers from in-memory options, so the wait
+    /// never blocks on I/O, and the filter runs only when the document is generated, never per request.
+    /// </remarks>
+    private AuthorizationPolicy? ResolvePolicy(List<IAuthorizeData> authorizeData)
     {
         if (authorizeData.Count > 0)
         {

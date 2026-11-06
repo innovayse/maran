@@ -34,7 +34,7 @@ import ApiKeyRevokeConfirm from '../../components/api-keys/ApiKeyRevokeConfirm.v
 import ApiKeysFilterSheet from '../../components/api-keys/ApiKeysFilterSheet.vue'
 import ApiKeysTable from '../../components/api-keys/ApiKeysTable.vue'
 import { useListLabels } from '../../composables/useListLabels'
-import { useApiKeyActions } from '../../composables/useApiKeyActions'
+import { useIntegrationKeyActions } from '../../composables/useIntegrationKeyActions'
 import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
 import { useServerTable } from '../../composables/useServerTable'
 import { useApiKeysStore } from '../../stores/apiKeys'
@@ -58,7 +58,7 @@ const table = useServerTable<ApiKey>({
 })
 
 const { createOpen, pending, notice, openCreate, closeCreate, create, askRevoke, cancelRevoke, confirmRevoke, dismissNotice } =
-  useApiKeyActions(table.reload)
+  useIntegrationKeyActions(table.reload)
 
 /** Whether the filter sheet is open. */
 const filtersOpen: Ref<boolean> = ref(false)
@@ -186,7 +186,6 @@ onBeforeUnmount((): void => {
               :skeleton-rows="table.pageSize.value"
               :sort="table.sort.value"
               :scope-name="store.scopeName"
-              :status-name="store.statusName"
               @sort="table.toggleSort"
               @revoke="askRevoke"
             />

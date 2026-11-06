@@ -37,7 +37,17 @@ public sealed class ApiKeyHost : IAsyncDisposable
     /// <summary>The address a request carries when a test does not care which one it is.</summary>
     public const string DefaultAddress = "203.0.113.50";
 
+    /// <summary>The client every request of this host goes through.</summary>
     private readonly HttpClient _client;
+
+    /// <summary>The booted host.</summary>
+    public WebApplicationFactory<Program> Factory { get; }
+
+    /// <summary>The panel's clock; the test moves it to expire a key or to pass the last-use window.</summary>
+    public AdvancingClock Clock { get; }
+
+    /// <summary>The id of the account the customer owns.</summary>
+    public Guid AccountId { get; }
 
     /// <summary>Wraps a booted factory.</summary>
     /// <param name="factory">The migrated, seeded host.</param>
@@ -50,15 +60,6 @@ public sealed class ApiKeyHost : IAsyncDisposable
         AccountId = accountId;
         _client = factory.CreateClient();
     }
-
-    /// <summary>The booted host.</summary>
-    public WebApplicationFactory<Program> Factory { get; }
-
-    /// <summary>The panel's clock; the test moves it to expire a key or to pass the last-use window.</summary>
-    public AdvancingClock Clock { get; }
-
-    /// <summary>The id of the account the customer owns.</summary>
-    public Guid AccountId { get; }
 
     /// <summary>Boots a panel with one administrator ("admin") and one customer owning one account.</summary>
     /// <param name="database">This test's own database.</param>
@@ -94,7 +95,7 @@ public sealed class ApiKeyHost : IAsyncDisposable
     /// <param name="allowedCidrs">The address ranges the key is bound to, or <c>null</c> for none.</param>
     /// <param name="expiresAt">When the key stops working, or <c>null</c> for never.</param>
     /// <returns>The key as its creator saw it.</returns>
-    public async Task<ApiKeyIssued> CreateKeyAsync(
+    public static async Task<ApiKeyIssued> CreateKeyAsync(
         HttpClient admin,
         string name,
         IReadOnlyList<string>? scopes = null,
@@ -120,7 +121,7 @@ public sealed class ApiKeyHost : IAsyncDisposable
     /// <param name="admin">The administrator's client.</param>
     /// <param name="keyId">The key to revoke.</param>
     /// <returns>Resolves once the panel has answered 204.</returns>
-    public async Task RevokeKeyAsync(HttpClient admin, Guid keyId)
+    public static async Task RevokeKeyAsync(HttpClient admin, Guid keyId)
     {
         var response = await admin.DeleteAsync($"{ManagementRoute}/{keyId}");
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);

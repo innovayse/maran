@@ -40,7 +40,7 @@ public sealed class ApiKeyTests
         Assert.Equal("CI", key.Name);
         Assert.Equal("0a1b2c3d", key.Prefix);
         Assert.Equal([ApiKeyScopes.SelfRead], key.Scopes);
-        Assert.Equal(["203.0.113.0/24"], key.AllowedCidrs);
+        Assert.Equal(["203.0.113.0/24"], key.AllowedCidrs!);
         Assert.Equal(Now.AddDays(30), key.ExpiresAt);
         Assert.Null(key.LastUsedAt);
         Assert.Null(key.RevokedAt);
@@ -58,8 +58,14 @@ public sealed class ApiKeyTests
     [Fact]
     public void A_blank_or_overlong_name_is_refused_and_one_at_the_limit_is_accepted()
     {
-        Assert.Throws<ArgumentException>(() => Issue(name: "   "));
-        Assert.Throws<ArgumentException>(() => Issue(name: new string('a', ApiKeyLimits.MaxNameLength + 1)));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(name: "   ");
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(name: new string('a', ApiKeyLimits.MaxNameLength + 1));
+        });
         Assert.Equal(ApiKeyLimits.MaxNameLength, Issue(name: new string('a', ApiKeyLimits.MaxNameLength)).Name.Length);
     }
 
@@ -72,45 +78,84 @@ public sealed class ApiKeyTests
     [InlineData("0a1b2c3g")]
     public void A_prefix_of_the_wrong_shape_is_refused(string prefix)
     {
-        Assert.Throws<ArgumentException>(() => Issue(prefix: prefix));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(prefix: prefix);
+        });
     }
 
     /// <summary>An empty or oversized digest is refused.</summary>
     [Fact]
     public void An_empty_or_oversized_digest_is_refused()
     {
-        Assert.Throws<ArgumentException>(() => Issue(tokenHash: string.Empty));
-        Assert.Throws<ArgumentException>(() => Issue(tokenHash: new string('a', ApiKeyLimits.MaxDigestLength + 1)));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(tokenHash: string.Empty);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(tokenHash: new string('a', ApiKeyLimits.MaxDigestLength + 1));
+        });
     }
 
     /// <summary>A scope outside the vocabulary, or a repeated one, is refused.</summary>
     [Fact]
     public void An_unknown_or_repeated_scope_is_refused()
     {
-        Assert.Throws<ArgumentException>(() => Issue(scopes: ["no.such.scope"]));
-        Assert.Throws<ArgumentException>(() => Issue(scopes: [ApiKeyScopes.SelfRead, ApiKeyScopes.SelfRead]));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(scopes: ["no.such.scope"]);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(scopes: [ApiKeyScopes.SelfRead, ApiKeyScopes.SelfRead]);
+        });
     }
 
     /// <summary>An address list is 1 to the limit of distinct, non-blank entries; an empty one is refused, not read as none.</summary>
     [Fact]
     public void An_address_list_over_the_limit_empty_blank_or_repeated_is_refused()
     {
-        var atLimit = Enumerable.Range(0, ApiKeyLimits.MaxCidrs).Select(i => $"10.0.{i}.0/24").ToArray();
-        var overLimit = Enumerable.Range(0, ApiKeyLimits.MaxCidrs + 1).Select(i => $"10.0.{i}.0/24").ToArray();
+        var atLimit = Enumerable.Range(0, ApiKeyLimits.MaxCidrs).Select(i =>
+        {
+            return $"10.0.{i}.0/24";
+        }).ToArray();
+        var overLimit = Enumerable.Range(0, ApiKeyLimits.MaxCidrs + 1).Select(i =>
+        {
+            return $"10.0.{i}.0/24";
+        }).ToArray();
 
         Assert.Equal(ApiKeyLimits.MaxCidrs, Issue(allowedCidrs: atLimit).AllowedCidrs!.Length);
-        Assert.Throws<ArgumentException>(() => Issue(allowedCidrs: overLimit));
-        Assert.Throws<ArgumentException>(() => Issue(allowedCidrs: []));
-        Assert.Throws<ArgumentException>(() => Issue(allowedCidrs: [" "]));
-        Assert.Throws<ArgumentException>(() => Issue(allowedCidrs: ["10.0.0.0/8", "10.0.0.0/8"]));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(allowedCidrs: overLimit);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(allowedCidrs: []);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(allowedCidrs: [" "]);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(allowedCidrs: ["10.0.0.0/8", "10.0.0.0/8"]);
+        });
     }
 
     /// <summary>An expiry at or before the issue instant is refused.</summary>
     [Fact]
     public void An_expiry_not_after_the_issue_instant_is_refused()
     {
-        Assert.Throws<ArgumentException>(() => Issue(expiresAt: Now));
-        Assert.Throws<ArgumentException>(() => Issue(expiresAt: Now.AddSeconds(-1)));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(expiresAt: Now);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(expiresAt: Now.AddSeconds(-1));
+        });
         Assert.NotNull(Issue(expiresAt: Now.AddSeconds(1)).ExpiresAt);
     }
 

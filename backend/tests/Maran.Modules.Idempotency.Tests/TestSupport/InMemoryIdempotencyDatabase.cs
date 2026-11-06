@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using Maran.Modules.Idempotency.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Idempotency.Tests.TestSupport;
 

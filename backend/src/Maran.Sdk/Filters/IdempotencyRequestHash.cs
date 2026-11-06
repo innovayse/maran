@@ -28,14 +28,14 @@ internal static class IdempotencyRequestHash
         AppendText(material, request.Method.ToUpperInvariant());
         AppendText(material, request.HttpContext.GetEndpoint() is RouteEndpoint endpoint ? endpoint.RoutePattern.RawText ?? string.Empty : string.Empty);
 
-        foreach (var value in request.RouteValues.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        foreach (var value in request.RouteValues.OrderBy(pair => { return pair.Key; }, StringComparer.Ordinal))
         {
             AppendText(material, value.Key + "=" + Convert.ToString(value.Value, CultureInfo.InvariantCulture));
         }
 
-        foreach (var value in request.Query.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        foreach (var value in request.Query.OrderBy(pair => { return pair.Key; }, StringComparer.Ordinal))
         {
-            AppendText(material, "?" + value.Key + "=" + string.Join(",", value.Value.OrderBy(text => text, StringComparer.Ordinal)));
+            AppendText(material, "?" + value.Key + "=" + string.Join(",", value.Value.OrderBy(text => { return text; }, StringComparer.Ordinal)));
         }
 
         if (request.ContentLength is > IdempotencyLimits.MaxRequestBodyBytes)
@@ -80,7 +80,7 @@ internal static class IdempotencyRequestHash
         }
 
         request.Body.Position = 0;
-        return fingerprint.Of(material.ToArray());
+        return fingerprint.Compute(material.ToArray());
     }
 
     /// <summary>Writes one text part, followed by the separator, into the material being fingerprinted.</summary>

@@ -10,6 +10,9 @@ namespace Maran.Modules.Identity.Tests.Queries.ListApiKeyStatuses;
 /// <summary>Behavioural contract of <see cref="ListApiKeyStatusesQueryHandler"/>.</summary>
 public sealed class ListApiKeyStatusesQueryHandlerTests
 {
+    /// <summary>The order the status filter offers its choices in.</summary>
+    private static readonly string[] ExpectedOrder = ["active", "revoked", "expired"];
+
     /// <summary>Builds the handler under test over the real resource tables.</summary>
     private static ListApiKeyStatusesQueryHandler NewHandler()
     {
@@ -40,7 +43,7 @@ public sealed class ListApiKeyStatusesQueryHandlerTests
     {
         var choices = await ChoicesAsync("en");
 
-        Assert.Equal(new[] { "active", "revoked", "expired" }, choices.Select(choice => { return choice.Value; }));
+        Assert.Equal(ExpectedOrder, choices.Select(choice => { return choice.Value; }));
         Assert.Equal(ApiKeyStatusFilters.All, choices.Select(choice => { return choice.Value; }));
         Assert.All(choices, choice =>
         {

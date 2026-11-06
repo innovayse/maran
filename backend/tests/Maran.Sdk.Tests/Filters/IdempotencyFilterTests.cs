@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,9 @@ public sealed class IdempotencyFilterTests
 {
     /// <summary>The panel login the requests run as.</summary>
     private static readonly Guid UserId = Guid.Parse("44444444-0000-4000-8000-000000000001");
+
+    /// <summary>Two values of the key header, which makes the header ambiguous.</summary>
+    private static readonly string[] RepeatedKeyValues = ["a", "b"];
 
     /// <summary>A request with no <c>Idempotency-Key</c> runs the action and never touches the store.</summary>
     [Fact]
@@ -150,7 +154,10 @@ public sealed class IdempotencyFilterTests
     {
         var store = new FakeStore();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => RunAsync(new Scenario { Store = store, Throws = true }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        {
+            return RunAsync(new Scenario { Store = store, Throws = true });
+        });
 
         Assert.Single(store.Abandoned);
         Assert.Empty(store.Completed);
@@ -232,7 +239,7 @@ public sealed class IdempotencyFilterTests
     [Fact]
     public async Task A_repeated_key_header_is_refused_with_400()
     {
-        var run = await RunAsync(new Scenario { KeyValues = new StringValues(new[] { "a", "b" }) });
+        var run = await RunAsync(new Scenario { KeyValues = new StringValues(RepeatedKeyValues) });
 
         AssertProblem(run, StatusCodes.Status400BadRequest, "IdempotencyKeyInvalid");
     }
@@ -484,7 +491,11 @@ public sealed class IdempotencyFilterTests
             var result = scenario.Result ?? new OkObjectResult(new Reply("ok"));
             var executing = new ResultExecutingContext(actionContext, filters, result, new object());
             await filter.OnResultExecutionAsync(
-                executing, () => Task.FromResult(new ResultExecutedContext(actionContext, filters, result, new object())));
+                executing,
+                () =>
+                {
+                    return Task.FromResult(new ResultExecutedContext(actionContext, filters, result, new object()));
+                });
             return new ResourceExecutedContext(actionContext, filters);
         });
 
@@ -622,7 +633,7 @@ public sealed class IdempotencyFilterTests
     private sealed class FakeFingerprint : IIdempotencyFingerprint
     {
         /// <inheritdoc />
-        public string Of(byte[] requestMaterial)
+        public string Compute(byte[] requestMaterial)
         {
             return Convert.ToHexString(SHA256.HashData(requestMaterial)).ToLowerInvariant();
         }

@@ -16,5 +16,5 @@ public interface IIdempotencyFingerprint
     /// Exactly 64 lowercase hexadecimal characters. The same input under the same panel secret always
     /// gives the same answer; under another secret it gives another one.
     /// </returns>
-    string Of(byte[] requestMaterial);
+    string Compute(byte[] requestMaterial);
 }

@@ -115,7 +115,10 @@ public sealed class ApiKey
         }
 
         if (scopes is null
-            || scopes.Any(scope => !ApiKeyScopes.All.Contains(scope))
+            || scopes.Any(scope =>
+            {
+                return !ApiKeyScopes.All.Contains(scope);
+            })
             || scopes.Distinct(StringComparer.Ordinal).Count() != scopes.Count)
         {
             throw new ArgumentException("Scopes must be distinct members of the scope vocabulary.", nameof(scopes));
@@ -124,7 +127,10 @@ public sealed class ApiKey
         if (allowedCidrs is not null
             && (allowedCidrs.Count == 0
                 || allowedCidrs.Count > ApiKeyLimits.MaxCidrs
-                || allowedCidrs.Any(cidr => string.IsNullOrWhiteSpace(cidr))
+                || allowedCidrs.Any(cidr =>
+                {
+                    return string.IsNullOrWhiteSpace(cidr);
+                })
                 || allowedCidrs.Distinct(StringComparer.Ordinal).Count() != allowedCidrs.Count))
         {
             throw new ArgumentException("Address ranges are 1 to 16 distinct, non-blank entries.", nameof(allowedCidrs));
@@ -218,6 +224,9 @@ public sealed class ApiKey
     private static bool IsValidPrefix(string? prefix)
     {
         return prefix is { Length: ApiKeyLimits.PrefixLength }
-            && prefix.All(c => c is (>= '0' and <= '9') or (>= 'a' and <= 'f'));
+            && prefix.All(c =>
+            {
+                return c is (>= '0' and <= '9') or (>= 'a' and <= 'f');
+            });
     }
 }

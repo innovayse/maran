@@ -4,7 +4,6 @@ using System.Text.Encodings.Web;
 using Maran.Host.RateLimiting;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
-using Maran.SharedKernel.Interfaces;
 using Maran.SharedKernel.Utilities.Network;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;

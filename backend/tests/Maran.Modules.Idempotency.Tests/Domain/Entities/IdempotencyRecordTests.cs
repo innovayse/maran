@@ -99,12 +99,24 @@ public sealed class IdempotencyRecordTests
     [Fact]
     public void A_record_cannot_be_created_from_a_value_the_policy_refuses()
     {
-        Assert.Throws<ArgumentException>(() => new IdempotencyRecord(
-            Guid.NewGuid(), "bad caller", IdempotencyTestValues.Key, IdempotencyTestValues.HashOne, Guid.NewGuid(), Start));
-        Assert.Throws<ArgumentException>(() => new IdempotencyRecord(
-            Guid.NewGuid(), IdempotencyTestValues.AdministratorA, "bad key", IdempotencyTestValues.HashOne, Guid.NewGuid(), Start));
-        Assert.Throws<ArgumentException>(() => new IdempotencyRecord(
-            Guid.NewGuid(), IdempotencyTestValues.AdministratorA, IdempotencyTestValues.Key, "ABC", Guid.NewGuid(), Start));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return new IdempotencyRecord(
+                Guid.NewGuid(), "bad caller",
+                IdempotencyTestValues.Key, IdempotencyTestValues.HashOne, Guid.NewGuid(), Start);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return new IdempotencyRecord(
+                Guid.NewGuid(),
+                IdempotencyTestValues.AdministratorA, "bad key", IdempotencyTestValues.HashOne, Guid.NewGuid(), Start);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return new IdempotencyRecord(
+                Guid.NewGuid(),
+                IdempotencyTestValues.AdministratorA, IdempotencyTestValues.Key, "ABC", Guid.NewGuid(), Start);
+        });
     }
 
     /// <summary>Creates a running reservation.</summary>

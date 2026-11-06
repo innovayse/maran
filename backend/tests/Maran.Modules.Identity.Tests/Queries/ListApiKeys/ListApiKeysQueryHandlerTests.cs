@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Queries.ListApiKeys;
+using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.SharedKernel.Pagination;
 
@@ -28,7 +29,7 @@ public sealed class ListApiKeysQueryHandlerTests : IDisposable
     /// <summary>Builds the handler under test over the fixture's context and clock.</summary>
     private ListApiKeysQueryHandler NewHandler()
     {
-        return new ListApiKeysQueryHandler(_context, _clock);
+        return new ListApiKeysQueryHandler(_context, _clock, new ApiKeyStatusDisplayNames(IdentityTestContext.DisplayNameResources()));
     }
 
     /// <summary>Runs a list query and returns the names on the page it answers with.</summary>

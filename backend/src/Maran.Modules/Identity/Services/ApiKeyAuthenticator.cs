@@ -45,6 +45,46 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
     /// </summary>
     private static readonly string UnknownPrefixDigest = ApiKeyHasher.Digest(string.Empty);
 
+    /// <summary>
+    /// Pre-compiled log delegate for a header that is not shaped like a key; it carries the caller's
+    /// address and never the presented value.
+    /// </summary>
+    private static readonly Action<ILogger, string, Exception?> LogMalformedHeader =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(1, nameof(ApiKeyAuthenticator)),
+            "API key refused: the header is not shaped like a key (address {Address}).");
+
+    /// <summary>
+    /// Pre-compiled log delegate for a key of the right shape that matches no stored digest; it carries
+    /// the public prefix and the caller's address, never the presented value.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, Exception?> LogNoMatch =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Information,
+            new EventId(2, nameof(ApiKeyAuthenticator)),
+            "API key refused: no key matches (prefix {Prefix}, address {Address}).");
+
+    /// <summary>
+    /// Pre-compiled log delegate for a matching key that is not usable or not allowed from the caller's
+    /// address; it carries the key id and the caller's address, never the presented value.
+    /// </summary>
+    private static readonly Action<ILogger, Guid, bool, bool, string, Exception?> LogRefused =
+        LoggerMessage.Define<Guid, bool, bool, string>(
+            LogLevel.Information,
+            new EventId(3, nameof(ApiKeyAuthenticator)),
+            "API key {KeyId} refused: usable {Usable}, address allowed {AddressAllowed} (address {Address}).");
+
+    /// <summary>
+    /// Pre-compiled log delegate for a last-use stamp that could not be saved; the exception is attached
+    /// and the call proceeds.
+    /// </summary>
+    private static readonly Action<ILogger, Guid, Exception?> LogLastUseNotRecorded =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Warning,
+            new EventId(4, nameof(ApiKeyAuthenticator)),
+            "API key {KeyId}: the last use could not be recorded; the call proceeds.");
+
     /// <summary>The module's database context.</summary>
     private readonly IdentityDbContext _dbContext;
 
@@ -69,7 +109,7 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
     {
         if (!ApiKeyHasher.TryParse(headerValue, out var prefix))
         {
-            _logger.LogInformation("API key refused: the header is not shaped like a key (address {Address}).", clientAddress);
+            LogMalformedHeader(_logger, clientAddress, null);
             return ApiKeyDenied.Instance;
         }
 
@@ -81,7 +121,7 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
 
         if (key is null || !digestMatches)
         {
-            _logger.LogInformation("API key refused: no key matches (prefix {Prefix}, address {Address}).", prefix, clientAddress);
+            LogNoMatch(_logger, prefix, clientAddress, null);
             return ApiKeyDenied.Instance;
         }
 
@@ -90,12 +130,7 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
 
         if (!usable || !addressAllowed)
         {
-            _logger.LogInformation(
-                "API key {KeyId} refused: usable {Usable}, address allowed {AddressAllowed} (address {Address}).",
-                key.Id,
-                usable,
-                addressAllowed,
-                clientAddress);
+            LogRefused(_logger, key.Id, usable, addressAllowed, clientAddress, null);
             return ApiKeyDenied.Instance;
         }
 
@@ -150,7 +185,7 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
         {
             // The unsaved stamp must not ride along on a later save in this request.
             _dbContext.Entry(key).State = EntityState.Detached;
-            _logger.LogWarning(exception, "API key {KeyId}: the last use could not be recorded; the call proceeds.", key.Id);
+            LogLastUseNotRecorded(_logger, key.Id, exception);
         }
     }
 }

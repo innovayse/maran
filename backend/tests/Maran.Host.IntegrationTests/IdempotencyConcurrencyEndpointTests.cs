@@ -51,7 +51,7 @@ public sealed class IdempotencyConcurrencyEndpointTests : IAsyncLifetime
         agent.HoldCreations();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
         var body = IdempotencyHost.CreateBody("acme", planId);
 
@@ -82,7 +82,7 @@ public sealed class IdempotencyConcurrencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var first = await EndpointHarness.SignInAsync(factory, "admin");
         using var second = await EndpointHarness.SignInAsync(factory, "admin");
         var body = IdempotencyHost.CreateBody("acme", planId);

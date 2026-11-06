@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Policies;
+using Maran.Modules.Identity.Services;
 using Maran.SharedKernel.Security;
 
 namespace Maran.Modules.Identity.Mappers;
@@ -15,10 +16,14 @@ public static class ApiKeyMapper
     /// <summary>Projects a key into the shape the key list shows.</summary>
     /// <param name="key">The key row.</param>
     /// <param name="now">The instant the status is read at.</param>
+    /// <param name="statusNames">Names the status in the request's culture; the mapper restates its answer.</param>
     /// <returns>The key as the list shows it.</returns>
-    public static ApiKeyDto From(ApiKey key, DateTimeOffset now)
+    public static ApiKeyDto From(ApiKey key, DateTimeOffset now, ApiKeyStatusDisplayNames statusNames)
     {
         ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(statusNames);
+
+        var status = key.StatusAt(now);
 
         return new ApiKeyDto(
             key.Id,
@@ -31,17 +36,19 @@ public static class ApiKeyMapper
             key.LastUsedAt,
             key.LastUsedIp,
             key.RevokedAt,
-            key.StatusAt(now));
+            status,
+            statusNames.Of(status));
     }
 
     /// <summary>Wraps a freshly created key and its plaintext into the one answer that carries it.</summary>
     /// <param name="key">The key row that was just stored.</param>
     /// <param name="secret">The plaintext key, shown once.</param>
     /// <param name="now">The instant the status is read at.</param>
+    /// <param name="statusNames">Names the status in the request's culture.</param>
     /// <returns>The create answer.</returns>
-    public static ApiKeyCreatedDto Created(ApiKey key, string secret, DateTimeOffset now)
+    public static ApiKeyCreatedDto Created(ApiKey key, string secret, DateTimeOffset now, ApiKeyStatusDisplayNames statusNames)
     {
-        return new ApiKeyCreatedDto(From(key, now), new SensitiveString(secret));
+        return new ApiKeyCreatedDto(From(key, now, statusNames), new SensitiveString(secret));
     }
 
     /// <summary>Projects a key into what the key may learn about itself.</summary>

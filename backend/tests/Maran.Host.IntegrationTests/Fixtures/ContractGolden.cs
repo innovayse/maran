@@ -64,7 +64,7 @@ public static class ContractGolden
             return Compare(name, liveJson);
         }
 
-        if (CiVariables.Any(variable => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(variable))))
+        if (CiVariables.Any(variable => { return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(variable)); }))
         {
             throw new InvalidOperationException(
                 $"{UpdateVariable}=1 is refused on a CI runner: a job that rewrites its own goldens enforces nothing.");
@@ -93,7 +93,7 @@ public static class ContractGolden
                 + $"file it writes and commit it. The live response was:\n{actual}";
         }
 
-        var difference = Diff(File.ReadAllText(path).Replace("\r\n", "\n"), actual);
+        var difference = Diff(File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal), actual);
 
         return difference is null
             ? null
@@ -124,7 +124,7 @@ public static class ContractGolden
     /// <returns>Its lines.</returns>
     private static List<string> Lines(string text)
     {
-        return text.Replace("\r\n", "\n").TrimEnd('\n').Split('\n').Select(line => line.TrimEnd()).ToList();
+        return text.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n').Select(line => { return line.TrimEnd(); }).ToList();
     }
 
     /// <summary>The lines of <paramref name="from"/> that have no counterpart in <paramref name="other"/>, counting duplicates.</summary>
@@ -133,8 +133,8 @@ public static class ContractGolden
     /// <returns>The unmatched lines, in their original order.</returns>
     private static List<string> Unmatched(List<string> from, List<string> other)
     {
-        var available = other.GroupBy(line => line, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+        var available = other.GroupBy(line => { return line; }, StringComparer.Ordinal)
+            .ToDictionary(group => { return group.Key; }, group => { return group.Count(); }, StringComparer.Ordinal);
         var unmatched = new List<string>();
 
         foreach (var line in from)

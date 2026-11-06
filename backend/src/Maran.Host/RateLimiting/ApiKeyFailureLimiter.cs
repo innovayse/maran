@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using Maran.Host.Configuration;
-using Maran.SharedKernel.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Host.RateLimiting;

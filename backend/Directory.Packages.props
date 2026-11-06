@@ -96,7 +96,7 @@
          by hand, which rules/security.md item 9 forbids for anything security-relevant. MimeKit
          comes with it and composes the message. -->
     <PackageVersion Include="MailKit" Version="4.18.0" />
-    <!-- OpenAPI generation for the `--cli openapi` verb (issue #143). SwaggerGen and not the
+    <!-- OpenAPI generation for the CLI openapi verb (issue #143). SwaggerGen and not the
          Microsoft.AspNetCore.OpenApi package: its generator is a public, documented seam
          (ISwaggerProvider) that a CLI verb can call without starting a server, whereas the first-party
          9.0 package exposes its document provider only as an internal type reached by reflection.

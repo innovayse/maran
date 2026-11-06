@@ -30,7 +30,7 @@ public sealed class CreateApiKeyCommandHandlerTests : IDisposable
     /// <summary>Builds the handler under test over the fixture's context, clock and journal.</summary>
     private CreateApiKeyCommandHandler NewHandler()
     {
-        return new CreateApiKeyCommandHandler(_context, _clock, new IdentityAuditJournal(_audit, new StubCurrentUser()), _lock);
+        return new CreateApiKeyCommandHandler(_context, _clock, new IdentityAuditJournal(_audit, new StubCurrentUser()), _lock, new ApiKeyStatusDisplayNames(IdentityTestContext.DisplayNameResources()));
     }
 
     /// <summary>Builds a create command, letting a test replace one input.</summary>
@@ -98,9 +98,9 @@ public sealed class CreateApiKeyCommandHandlerTests : IDisposable
         Assert.Equal(IdentityAuditActions.ApiKeyCreated, entry.Action);
         Assert.Equal(_administrator, entry.ActorUserId);
         Assert.True(entry.Succeeded);
-        Assert.Contains(result.Value.Key.Prefix, entry.Subject);
-        Assert.Contains("Deploy pipeline", entry.Subject);
-        Assert.Contains(ApiKeyScopes.ServerRead, entry.Subject);
+        Assert.Contains(result.Value.Key.Prefix, entry.Subject, StringComparison.Ordinal);
+        Assert.Contains("Deploy pipeline", entry.Subject, StringComparison.Ordinal);
+        Assert.Contains(ApiKeyScopes.ServerRead, entry.Subject, StringComparison.Ordinal);
 
         var everything = string.Join('|', entry.ActorUsername, entry.Subject, entry.IpAddress, entry.UserAgent);
         Assert.DoesNotContain(result.Value.Secret.Reveal(), everything);

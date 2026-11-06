@@ -3,7 +3,7 @@
  * One page of API keys as a table: the name, the public prefix, the scopes, the state, the last
  * use, the expiry, the creation date and each key's actions menu. Dumb by the usual contract: the
  * page owns paging, sort and the confirmation; this renders rows and reports clicks. Every name
- * printed for a scope or a state is the panel's, handed in as a function.
+ * printed for a scope is the panel's, handed in as a function; a state's name arrives on the row.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -14,7 +14,7 @@ import UiIcon from '../ui/UiIcon.vue'
 import UiTable from '../ui/UiTable.vue'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
-import type { ApiKey, ApiKeyStatus } from '../../types/apiKey'
+import type { ApiKey } from '../../types/apiKey'
 import type { UiTableColumn } from '../../types/tableColumn'
 
 /** Props accepted by {@link ApiKeysTable}. */
@@ -29,8 +29,6 @@ defineProps<{
   sort: string
   /** Names a scope as the panel named it. */
   scopeName: (value: string) => string
-  /** Names a state as the panel named it. */
-  statusName: (value: string) => string
 }>()
 
 /** Events emitted by {@link ApiKeysTable}. */
@@ -60,10 +58,10 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
 
 /**
  * Maps a key's state onto a badge tone. The tone is chrome; the word beside it is the panel's.
- * @param status The state as the panel derived it.
+ * @param status The state as the panel derived it; a value this build does not know is neutral.
  * @returns The badge variant.
  */
-const toneOf = (status: ApiKeyStatus): BadgeVariant => {
+const toneOf = (status: string): BadgeVariant => {
   switch (status) {
     case 'active':
       return 'success'
@@ -122,7 +120,7 @@ const expiryText = (key: ApiKey): string => {
     <template #cell-prefix="{ row }">{{ row.prefix }}</template>
     <template #cell-scopes="{ row }">{{ scopesText(row, scopeName) }}</template>
     <template #cell-status="{ row }">
-      <UiBadge :variant="toneOf(row.status)">{{ statusName(row.status) }}</UiBadge>
+      <UiBadge :variant="toneOf(row.status)">{{ row.statusName }}</UiBadge>
     </template>
     <template #cell-lastUsed="{ row }">{{ lastUseText(row) }}</template>
     <template #cell-expiresAt="{ row }">{{ expiryText(row) }}</template>

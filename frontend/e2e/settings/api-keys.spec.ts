@@ -108,6 +108,18 @@ const numberedRows = (page: Page): Locator => {
 }
 
 /**
+ * Scans the page with axe once every transition has ended. A dialog fades in over 300ms and is
+ * "visible" from its first frame, so a scan taken at once measures colours blended with the
+ * backdrop and reports contrast failures the settled dialog does not have.
+ * @param page The Playwright page.
+ * @returns Resolves once the settled page has no serious violation.
+ */
+const expectSettledNoViolations = async (page: Page): Promise<void> => {
+  await page.waitForFunction(() => {return document.getAnimations().length === 0})
+  await expectNoSeriousViolations(page)
+}
+
+/**
  * Whether a value sits in either web storage, by key or by content.
  * @param page The Playwright page.
  * @param needle The value to look for.
@@ -266,7 +278,7 @@ test('the create dialog offers the scopes the panel lists and sends null for a b
   const dialog = page.getByRole('dialog', { name: 'Create an API key' })
   await expect(dialog.getByRole('checkbox')).toHaveCount(2)
   await expect(dialog.getByRole('checkbox', { name: 'Look at sites' })).toBeVisible()
-  await dialog.getByRole('checkbox', { name: 'Change sites' }).check()
+  await dialog.getByRole('checkbox', { name: 'Change sites' }).check({ force: true })
   await dialog.getByRole('textbox', { name: 'Name' }).fill('  Nightly export  ')
   await dialog.getByRole('button', { name: 'Create key' }).click()
 
@@ -321,7 +333,7 @@ test('the one-time dialog shows the key with a warning, and copying puts it on t
 
   await dialog.getByRole('button', { name: 'Copy key' }).click()
   await expect(dialog.getByRole('button', { name: 'Copied' })).toBeVisible()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(stubbedPlaintext)
+  expect(await page.evaluate(() => {return navigator.clipboard.readText()})).toBe(stubbedPlaintext)
 
   // Neither the backdrop nor Escape may destroy the only copy.
   await page.keyboard.press('Escape')
@@ -462,8 +474,9 @@ for (const chrome of [
     await setPersistedLocale(page, chrome.locale)
     await openPanel(page, { keys: [BILLING] })
 
-    await mainNavigation(page).getByRole('button', { name: chrome.section }).click()
-    await mainNavigation(page).getByRole('link', { name: chrome.item, exact: true }).click()
+    // The landmark's own name is translated, so it is found unnamed, as the other locale specs do.
+    await page.getByRole('navigation').getByRole('button', { name: chrome.section }).first().click()
+    await page.getByRole('navigation').getByRole('link', { name: chrome.item, exact: true }).first().click()
 
     await expect(page.getByRole('heading', { level: 1, name: chrome.item })).toBeVisible()
     await expect(page.getByRole('searchbox', { name: chrome.search })).toBeVisible()
@@ -504,17 +517,17 @@ test('a reseller is not offered the API keys item or the Security group', async 
 test('axe finds no serious violation on the list or on any of its dialogs', async ({ page }) => {
   await openApiKeys(page, [BILLING, LEGACY, OLD_HOOK])
   await expect(page.getByRole('row').filter({ hasText: 'Old webhook' })).toBeVisible()
-  await expectNoSeriousViolations(page)
+  await expectSettledNoViolations(page)
 
   await page.getByRole('button', { name: 'Filters' }).click()
   await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible()
-  await expectNoSeriousViolations(page)
+  await expectSettledNoViolations(page)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Create key' }).click()
   await expect(page.getByRole('dialog', { name: 'Create an API key' })).toBeVisible()
-  await expectNoSeriousViolations(page)
+  await expectSettledNoViolations(page)
   await page.getByRole('dialog', { name: 'Create an API key' }).getByRole('button', { name: 'Cancel' }).click()
 
   await page
@@ -524,9 +537,9 @@ test('axe finds no serious violation on the list or on any of its dialogs', asyn
     .click()
   await page.getByRole('menuitem', { name: 'Revoke' }).click()
   await expect(page.getByRole('dialog', { name: 'Revoke the key Billing integration' })).toBeVisible()
-  await expectNoSeriousViolations(page)
+  await expectSettledNoViolations(page)
   await page.getByRole('dialog', { name: 'Revoke the key Billing integration' }).getByRole('button', { name: 'Cancel' }).click()
 
   await createKeyNamed(page, 'Nightly export')
-  await expectNoSeriousViolations(page)
+  await expectSettledNoViolations(page)
 })

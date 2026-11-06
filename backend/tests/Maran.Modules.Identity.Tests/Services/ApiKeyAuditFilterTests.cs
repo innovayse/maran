@@ -7,10 +7,9 @@ using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -117,7 +116,10 @@ public sealed class ApiKeyAuditFilterTests
             NullLogger<ApiKeyAuditFilter>.Instance);
 
         var exception = await Record.ExceptionAsync(
-            () => InvokeAsync(filter, "GET", "/api/v1/accounts/5", string.Empty, new OkResult(), null));
+            () =>
+            {
+                return InvokeAsync(filter, "GET", "/api/v1/accounts/5", string.Empty, new OkResult(), null);
+            });
 
         Assert.Null(exception);
     }

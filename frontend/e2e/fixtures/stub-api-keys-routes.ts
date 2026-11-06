@@ -37,6 +37,16 @@ export const stubbedStatuses: ApiKeyChoice[] = [
   { value: 'revoked', name: 'Withdrawn' },
 ]
 
+/**
+ * The name a stubbed row carries for each state: the panel's wording, which the table prints as it
+ * arrives. Taken from {@link stubbedStatuses} so the row and the filter sheet agree.
+ * @param status The state wire value.
+ * @returns The stubbed panel's name for it.
+ */
+const stubbedStatusName = (status: string): string => {
+  return stubbedStatuses.find((choice) => {return choice.value === status})?.name ?? status
+}
+
 /** How the list endpoint searches, sorts and filters, as the panel does: name or prefix, three sort keys, one filter. */
 const KEY_RULES: PagedRules<ApiKey> = {
   matches: (key, term) => {
@@ -66,6 +76,7 @@ const KEY_RULES: PagedRules<ApiKey> = {
  * @returns The key.
  */
 export const apiKeyRow = (overrides: Partial<ApiKey> = {}): ApiKey => {
+  const status = overrides.status ?? 'active'
   return {
     id: '10000000-0000-0000-0000-000000000001',
     name: 'Billing integration',
@@ -77,7 +88,8 @@ export const apiKeyRow = (overrides: Partial<ApiKey> = {}): ApiKey => {
     lastUsedAt: null,
     lastUsedIp: null,
     revokedAt: null,
-    status: 'active',
+    status,
+    statusName: stubbedStatusName(status),
     ...overrides,
   }
 }
@@ -200,7 +212,7 @@ export const stubApiKeys = async (page: Page, state: StubbedApiKeys): Promise<Ap
     }
     calls.revoked.push(id)
     state.keys = state.keys.map((key) => {
-      return key.id === id ? { ...key, status: 'revoked', revokedAt: stubbedCreatedAt } : key
+      return key.id === id ? { ...key, status: 'revoked', statusName: stubbedStatusName('revoked'), revokedAt: stubbedCreatedAt } : key
     })
     await route.fulfill({ status: 204 })
   })

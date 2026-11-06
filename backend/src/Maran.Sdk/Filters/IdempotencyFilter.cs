@@ -77,6 +77,17 @@ namespace Maran.Sdk.Filters;
 /// </remarks>
 public sealed class IdempotencyFilter : IAsyncResourceFilter, IAsyncResultFilter
 {
+    /// <summary>
+    /// Logged once when the store could not record the answer of a request that already succeeded. Only the
+    /// exception's type is passed: a database message can quote the key and the caller key.
+    /// </summary>
+    private static readonly Action<ILogger, string, Exception?> LogCompletionFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(1, nameof(IdempotencyFilter)),
+            "The idempotency store could not record the answer of a request ({ExceptionType}); the answer is sent as it is "
+                + "and the key stays reserved until its lease lapses.");
+
     /// <summary>Where the resource stage leaves the reservation for the result stage.</summary>
     private const string ReservationItemKey = "Maran.Idempotency.Reservation";
 
@@ -264,10 +275,7 @@ public sealed class IdempotencyFilter : IAsyncResourceFilter, IAsyncResultFilter
         {
             // The action has already succeeded; the answer it produced is the one the caller gets. Only the
             // exception's type is logged: a database message can quote the key and the caller key.
-            _logger.LogWarning(
-                "The idempotency store could not record the answer of a request ({ExceptionType}); the answer is sent as it is "
-                + "and the key stays reserved until its lease lapses.",
-                exception.GetType().Name);
+            LogCompletionFailed(_logger, exception.GetType().Name, null);
         }
     }
 

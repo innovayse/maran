@@ -20,6 +20,9 @@ public sealed class OpenApiServerEstablishedMembersTests : IClassFixture<OpenApi
         }
         """;
 
+    /// <summary>The leaks the planted document must be reported with, in report order.</summary>
+    private static readonly string[] PlantedLeaks = ["query parameter userAgent", "body property ipAddress"];
+
     /// <summary>The two hosts and their documents.</summary>
     private readonly OpenApiDocumentFixture _documents;
 
@@ -76,7 +79,7 @@ public sealed class OpenApiServerEstablishedMembersTests : IClassFixture<OpenApi
 
         var leaks = GuardedMemberCensus.Leaks(planted.RootElement, operation, guarded);
 
-        Assert.Equal(new[] { "query parameter userAgent", "body property ipAddress" }, leaks);
+        Assert.Equal(PlantedLeaks, leaks);
         Assert.Empty(GuardedMemberCensus.Leaks(planted.RootElement, operation, new HashSet<string> { "other" }));
     }
 }

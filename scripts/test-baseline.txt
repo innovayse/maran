@@ -681,6 +681,7 @@ spa	plans/loading.spec.ts	3	0	0
 spa	plans/plan-form-loading.spec.ts	3	0	0
 spa	plans/plans.spec.ts	17	0	0
 spa	plurals.spec.ts	3	0	0
+spa	settings/api-keys.spec.ts	22	0	0
 spa	settings/profile-loading.spec.ts	3	0	0
 spa	settings/security-policy-loading.spec.ts	3	0	0
 spa	settings/smtp-loading.spec.ts	3	0	0

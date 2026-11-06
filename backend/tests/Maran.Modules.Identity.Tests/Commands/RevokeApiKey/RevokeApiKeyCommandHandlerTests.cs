@@ -49,7 +49,7 @@ public sealed class RevokeApiKeyCommandHandlerTests : IDisposable
         var entry = Assert.Single(_audit.Written);
         Assert.Equal(IdentityAuditActions.ApiKeyRevoked, entry.Action);
         Assert.Equal(_administrator, entry.ActorUserId);
-        Assert.Contains(key.Prefix, entry.Subject);
+        Assert.Contains(key.Prefix, entry.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain(plaintext, entry.Subject);
     }
 

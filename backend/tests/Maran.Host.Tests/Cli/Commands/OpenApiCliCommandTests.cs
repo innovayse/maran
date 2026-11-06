@@ -78,7 +78,8 @@ public sealed class OpenApiCliCommandTests : IClassFixture<OpenApiDocumentFixtur
 
             Assert.Equal(CliExitCode.Success, result.ExitCode);
             Assert.Equal(_documents.First, await File.ReadAllTextAsync(path));
-            Assert.DoesNotContain("﻿", await File.ReadAllTextAsync(path), StringComparison.Ordinal);
+            var bytes = await File.ReadAllBytesAsync(path);
+            Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF, "The file starts with a byte-order mark.");
         }
         finally
         {

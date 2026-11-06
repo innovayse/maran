@@ -1,9 +1,7 @@
 using Maran.SharedKernel.Callers;
-using Maran.SharedKernel.Interfaces;
 using Maran.SharedKernel.Utilities.Network;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Logging;
 
 namespace Maran.Modules.Identity.Services;
@@ -41,6 +39,16 @@ public sealed class ApiKeyAuditFilter : IAsyncActionFilter
 {
     /// <summary>The status recorded for a call whose action threw: what the exception middleware answers.</summary>
     private const int UnhandledExceptionStatus = StatusCodes.Status500InternalServerError;
+
+    /// <summary>
+    /// Pre-compiled log delegate for a failed audit write; the exception is attached and the response is
+    /// never changed by it.
+    /// </summary>
+    private static readonly Action<ILogger, Guid, Exception?> LogAuditWriteFailed =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Error,
+            new EventId(1, nameof(ApiKeyAuditFilter)),
+            "The audit entry for a call made with API key {KeyId} could not be written");
 
     /// <summary>The authenticated principal; the filter acts only for an API key.</summary>
     private readonly ICurrentUser _currentUser;
@@ -87,10 +95,7 @@ public sealed class ApiKeyAuditFilter : IAsyncActionFilter
         }
         catch (Exception exception)
         {
-            _logger.LogError(
-                exception,
-                "The audit entry for a call made with API key {KeyId} could not be written",
-                caller.KeyId);
+            LogAuditWriteFailed(_logger, caller.KeyId, exception);
         }
     }
 

@@ -50,7 +50,7 @@ public sealed class HmacIdempotencyFingerprint : IIdempotencyFingerprint
     }
 
     /// <inheritdoc />
-    public string Of(byte[] requestMaterial)
+    public string Compute(byte[] requestMaterial)
     {
         ArgumentNullException.ThrowIfNull(requestMaterial);
 

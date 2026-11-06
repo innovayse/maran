@@ -42,7 +42,7 @@ public sealed class OpenApiDocumentWriterTests : IClassFixture<OpenApiDocumentFi
     [Fact]
     public void The_document_carries_no_timestamp_no_machine_path_and_no_carriage_return()
     {
-        Assert.True(Timestamp.IsMatch("generated 2026-11-05T10:00:00Z"));
+        Assert.Matches(Timestamp, "generated 2026-11-05T10:00:00Z");
 
         Assert.DoesNotMatch(Timestamp, _documents.First);
         Assert.DoesNotContain(AppContext.BaseDirectory.TrimEnd('/'), _documents.First, StringComparison.Ordinal);

@@ -22,6 +22,39 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
     /// <summary>The shape of a key: marker, eight lower-case hex characters, 43 base64url characters.</summary>
     private static readonly Regex KeyShape = new("^mk_[0-9a-f]{8}_[A-Za-z0-9_-]{43}$", RegexOptions.CultureInvariant);
 
+    /// <summary>The scope list of a key that may only read its own details.</summary>
+    private static readonly string[] SelfReadScopes = [ApiKeyScopes.SelfRead];
+
+    /// <summary>The scope list of a key that may read its own details and the server's.</summary>
+    private static readonly string[] BothScopes = [ApiKeyScopes.SelfRead, ApiKeyScopes.ServerRead];
+
+    /// <summary>A scope list naming a scope the panel does not define.</summary>
+    private static readonly string[] UnknownScopes = ["accounts.write"];
+
+    /// <summary>The status filter values in the order the panel lists them.</summary>
+    private static readonly string[] StatusOrder = ["active", "revoked", "expired"];
+
+    /// <summary>The names the active filter is expected to answer.</summary>
+    private static readonly string[] ActiveNames = ["alpha-ci"];
+
+    /// <summary>The names the revoked filter is expected to answer.</summary>
+    private static readonly string[] RevokedNames = ["beta-ci"];
+
+    /// <summary>The names the expired filter is expected to answer.</summary>
+    private static readonly string[] ExpiredNames = ["gamma-deploy"];
+
+    /// <summary>The names a case-insensitive "ci" search is expected to answer, in name order.</summary>
+    private static readonly string[] SearchMatchNames = ["alpha-ci", "beta-CI"];
+
+    /// <summary>Three names in ascending name order.</summary>
+    private static readonly string[] AscendingNames = ["alpha", "beta", "gamma"];
+
+    /// <summary>The same three names in descending name order.</summary>
+    private static readonly string[] DescendingNames = ["gamma", "beta", "alpha"];
+
+    /// <summary>The one name left on the second page of eleven keys.</summary>
+    private static readonly string[] LastPageNames = ["key-11"];
+
     /// <summary>This test's own database on the assembly's shared PostgreSQL server.</summary>
     private readonly TestDatabase _pg;
 
@@ -55,7 +88,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
 
         var response = await admin.PostAsJsonAsync(
             ApiKeyHost.ManagementRoute,
-            new { Name = "ci deploy", Scopes = new[] { ApiKeyScopes.SelfRead } });
+            new { Name = "ci deploy", Scopes = SelfReadScopes });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -64,6 +97,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
         var key = body.RootElement.GetProperty("key");
         Assert.Equal("ci deploy", key.GetProperty("name").GetString());
         Assert.Equal("active", key.GetProperty("status").GetString());
+        Assert.Equal("Active", key.GetProperty("statusName").GetString());
         Assert.StartsWith("mk_" + key.GetProperty("prefix").GetString() + "_", secret, StringComparison.Ordinal);
     }
 
@@ -73,7 +107,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "ci deploy");
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy");
         var digest = (await host.ReadRowAsync(issued.Id)).TokenHash;
 
         var response = await admin.GetAsync(ApiKeyHost.ManagementRoute);
@@ -95,7 +129,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
 
         var response = await admin.PostAsJsonAsync(
             ApiKeyHost.ManagementRoute,
-            new { Name = "ci deploy", Scopes = new[] { "accounts.write" } });
+            new { Name = "ci deploy", Scopes = UnknownScopes });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("ApiKeyScopeUnknown", await ProblemDocument.CodeAsync(response));
@@ -115,7 +149,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var choices = body.RootElement.EnumerateArray().ToList();
         Assert.Equal(
-            new[] { "active", "revoked", "expired" },
+            StatusOrder,
             choices.Select(choice => { return choice.GetProperty("value").GetString(); }));
         Assert.All(choices, choice =>
         {
@@ -129,17 +163,19 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
     public async Task Listing_filters_keys_by_status()
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
-        using var firstAdmin = await host.SignInAdministratorAsync();
-        await host.CreateKeyAsync(firstAdmin, "alpha-ci");
-        var revoked = await host.CreateKeyAsync(firstAdmin, "beta-ci");
-        await host.CreateKeyAsync(firstAdmin, "gamma-deploy", expiresAt: host.Clock.UtcNow.AddHours(1));
-        await host.RevokeKeyAsync(firstAdmin, revoked.Id);
-        host.Clock.Advance(TimeSpan.FromHours(2));
+        // The administrator signs in BEFORE the clock moves and keeps that token: the JWT bearer handler
+        // checks a token's not-before and expiry against the real time, so a token minted after the
+        // advance would carry a not-before two hours ahead of it and be refused as not yet valid.
         using var admin = await host.SignInAdministratorAsync();
+        await ApiKeyHost.CreateKeyAsync(admin, "alpha-ci");
+        var revoked = await ApiKeyHost.CreateKeyAsync(admin, "beta-ci");
+        await ApiKeyHost.CreateKeyAsync(admin, "gamma-deploy", expiresAt: host.Clock.UtcNow.AddHours(1));
+        await ApiKeyHost.RevokeKeyAsync(admin, revoked.Id);
+        host.Clock.Advance(TimeSpan.FromHours(2));
 
-        Assert.Equal(new[] { "alpha-ci" }, (await ListAsync(admin, "?status=active")).Names);
-        Assert.Equal(new[] { "beta-ci" }, (await ListAsync(admin, "?status=revoked")).Names);
-        Assert.Equal(new[] { "gamma-deploy" }, (await ListAsync(admin, "?status=expired")).Names);
+        Assert.Equal(ActiveNames, (await ListAsync(admin, "?status=active")).Names);
+        Assert.Equal(RevokedNames, (await ListAsync(admin, "?status=revoked")).Names);
+        Assert.Equal(ExpiredNames, (await ListAsync(admin, "?status=expired")).Names);
         Assert.Equal(3, (await ListAsync(admin, string.Empty)).Total);
     }
 
@@ -162,11 +198,11 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        await host.CreateKeyAsync(admin, "alpha-ci");
-        await host.CreateKeyAsync(admin, "beta-CI");
-        await host.CreateKeyAsync(admin, "gamma-deploy");
+        await ApiKeyHost.CreateKeyAsync(admin, "alpha-ci");
+        await ApiKeyHost.CreateKeyAsync(admin, "beta-CI");
+        await ApiKeyHost.CreateKeyAsync(admin, "gamma-deploy");
 
-        Assert.Equal(new[] { "alpha-ci", "beta-CI" }, (await ListAsync(admin, "?search=ci&sort=name")).Names);
+        Assert.Equal(SearchMatchNames, (await ListAsync(admin, "?search=ci&sort=name")).Names);
         Assert.Empty((await ListAsync(admin, "?search=nomatch")).Names);
     }
 
@@ -176,12 +212,12 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        await host.CreateKeyAsync(admin, "beta");
-        await host.CreateKeyAsync(admin, "gamma");
-        await host.CreateKeyAsync(admin, "alpha");
+        await ApiKeyHost.CreateKeyAsync(admin, "beta");
+        await ApiKeyHost.CreateKeyAsync(admin, "gamma");
+        await ApiKeyHost.CreateKeyAsync(admin, "alpha");
 
-        Assert.Equal(new[] { "alpha", "beta", "gamma" }, (await ListAsync(admin, "?sort=name")).Names);
-        Assert.Equal(new[] { "gamma", "beta", "alpha" }, (await ListAsync(admin, "?sort=-name")).Names);
+        Assert.Equal(AscendingNames, (await ListAsync(admin, "?sort=name")).Names);
+        Assert.Equal(DescendingNames, (await ListAsync(admin, "?sort=-name")).Names);
     }
 
     /// <summary>A second page holds the remainder, and the total counts every key.</summary>
@@ -192,14 +228,14 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
         using var admin = await host.SignInAdministratorAsync();
         for (var index = 1; index <= 11; index++)
         {
-            await host.CreateKeyAsync(admin, $"key-{index:00}");
+            await ApiKeyHost.CreateKeyAsync(admin, $"key-{index:00}");
         }
 
         var first = await ListAsync(admin, "?page=1&pageSize=10&sort=name");
         var second = await ListAsync(admin, "?page=2&pageSize=10&sort=name");
 
         Assert.Equal(10, first.Names.Count);
-        Assert.Equal(new[] { "key-11" }, second.Names);
+        Assert.Equal(LastPageNames, second.Names);
         Assert.Equal(11, first.Total);
         Assert.Equal(11, second.Total);
     }
@@ -210,7 +246,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "ci deploy");
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy");
 
         Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"{ApiKeyHost.ManagementRoute}/{issued.Id}")).StatusCode);
         var firstRevokedAt = (await host.ReadRowAsync(issued.Id)).RevokedAt;
@@ -282,7 +318,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var existing = await host.CreateKeyAsync(admin, "ci deploy");
+        var existing = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy");
         using var viewing = await StartViewingAsync(host, admin);
         var path = method == "DELETE" ? $"{ApiKeyHost.ManagementRoute}/{existing.Id}" : ApiKeyHost.ManagementRoute;
 
@@ -300,8 +336,8 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "ci deploy", [ApiKeyScopes.SelfRead, ApiKeyScopes.ServerRead]);
-        await host.RevokeKeyAsync(admin, issued.Id);
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy", BothScopes);
+        await ApiKeyHost.RevokeKeyAsync(admin, issued.Id);
         var digest = (await host.ReadRowAsync(issued.Id)).TokenHash;
 
         var created = Assert.Single(await host.ReadAuditAsync(IdentityAuditActions.ApiKeyCreated));
@@ -338,8 +374,8 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var names = body.RootElement.EnumerateArray().ToDictionary(
-            choice => choice.GetProperty("value").GetString()!,
-            choice => choice.GetProperty("name").GetString()!);
+            choice => { return choice.GetProperty("value").GetString()!; },
+            choice => { return choice.GetProperty("name").GetString()!; });
         Assert.Equal(selfRead, names[ApiKeyScopes.SelfRead]);
         Assert.Equal(serverRead, names[ApiKeyScopes.ServerRead]);
         Assert.Equal(ApiKeyScopes.All.Count, names.Count);
@@ -354,7 +390,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
         var request = new HttpRequestMessage(new HttpMethod(method), path);
         if (method == "POST")
         {
-            request.Content = JsonContent.Create(new { Name = "x", Scopes = new[] { ApiKeyScopes.SelfRead } });
+            request.Content = JsonContent.Create(new { Name = "x", Scopes = SelfReadScopes });
         }
 
         return request;
@@ -371,7 +407,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var names = body.RootElement.GetProperty("items").EnumerateArray()
-            .Select(item => item.GetProperty("name").GetString()!)
+            .Select(item => { return item.GetProperty("name").GetString()!; })
             .ToList();
 
         return (names, body.RootElement.GetProperty("total").GetInt32());

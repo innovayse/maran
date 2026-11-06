@@ -65,7 +65,7 @@ public static class OpenApiReader
     /// <param name="document">The document's root.</param>
     /// <param name="schema">A schema or a reference to one.</param>
     /// <returns>The names declared under <c>properties</c>.</returns>
-    private static IEnumerable<string> PropertiesOf(JsonElement document, JsonElement schema)
+    private static List<string> PropertiesOf(JsonElement document, JsonElement schema)
     {
         if (schema.TryGetProperty("$ref", out var reference))
         {

@@ -32,7 +32,7 @@ public static class JsonShapeNormaliser
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     /// <summary>Property names whose string value is replaced wholesale, with the placeholder that replaces it.</summary>
-    private static readonly IReadOnlyDictionary<string, string> Placeholders = new Dictionary<string, string>
+    private static readonly Dictionary<string, string> Placeholders = new Dictionary<string, string>
     {
         ["correlationId"] = "<correlationId>",
         ["title"] = "<text>",
@@ -70,7 +70,7 @@ public static class JsonShapeNormaliser
             case JsonValueKind.Object:
                 writer.WriteStartObject();
 
-                foreach (var property in element.EnumerateObject().OrderBy(candidate => candidate.Name, StringComparer.Ordinal))
+                foreach (var property in element.EnumerateObject().OrderBy(candidate => { return candidate.Name; }, StringComparer.Ordinal))
                 {
                     writer.WritePropertyName(property.Name);
                     Write(writer, property.Value, property.Name);

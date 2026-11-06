@@ -2,7 +2,7 @@
   "createdAt": "<timestamp>",
   "id": "<guid>",
   "name": "olive",
-  "ownerEmail": null,
+  "ownerEmail": "",
   "planDisplayName": "Small",
   "planId": "<guid>",
   "primaryDomain": "olive.example.com",

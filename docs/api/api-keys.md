@@ -110,6 +110,9 @@ integration has a stable address the panel sees.
 `GET api/v1/api-keys` lists keys, paged: search by name, filter by status (`active`, `revoked`,
 `expired`), sort by `name`, `createdAt` or `lastUsedAt`. A key's status is derived from its revocation
 and expiry and is not stored. The list never contains a secret or a digest.
+Every key carries `status` (the machine value: `active`, `revoked` or `expired`) and `statusName`, the
+same status named in the request's language (`Accept-Language`), so a screen prints it and keeps no
+table of its own; the create answer's `key` carries both too.
 `GET api/v1/api-keys/statuses` lists those three values with localized names, in that order, for a status filter.
 
 - **Last use** (`lastUsedAt`, `lastUsedIp`) is written after a successful authentication, at most once

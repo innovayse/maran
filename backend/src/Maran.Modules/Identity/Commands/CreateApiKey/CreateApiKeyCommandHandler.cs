@@ -55,21 +55,27 @@ public sealed class CreateApiKeyCommandHandler
     /// <summary>Serialises key creation across the panel.</summary>
     private readonly IApiKeyCreationLock _creationLock;
 
+    /// <summary>Names the new key's status in the request's culture.</summary>
+    private readonly ApiKeyStatusDisplayNames _statusNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="clock">The panel's clock.</param>
     /// <param name="journal">Records the creation.</param>
     /// <param name="creationLock">Serialises key creation across the panel.</param>
+    /// <param name="statusNames">Names an API key status for the request's culture.</param>
     public CreateApiKeyCommandHandler(
         IdentityDbContext dbContext,
         IClock clock,
         IdentityAuditJournal journal,
-        IApiKeyCreationLock creationLock)
+        IApiKeyCreationLock creationLock,
+        ApiKeyStatusDisplayNames statusNames)
     {
         _dbContext = dbContext;
         _clock = clock;
         _journal = journal;
         _creationLock = creationLock;
+        _statusNames = statusNames;
     }
 
     /// <summary>Creates the key.</summary>
@@ -89,6 +95,11 @@ public sealed class CreateApiKeyCommandHandler
         if (command.ExpiresAt is { } expiresAt && expiresAt <= now)
         {
             return Result<ApiKeyCreatedDto>.Fail(Error.Of(nameof(ErrorMessages.ApiKeyExpiryInvalid), ErrorType.Validation));
+        }
+
+        if (!TryNormalizeCidrs(command.AllowedCidrs, out var allowedCidrs))
+        {
+            return Result<ApiKeyCreatedDto>.Fail(Error.Of(nameof(ErrorMessages.ApiKeyCidrInvalid), ErrorType.Validation));
         }
 
         ApiKey key;
@@ -123,7 +134,7 @@ public sealed class CreateApiKeyCommandHandler
                 prefix,
                 digest,
                 command.Scopes.Distinct(StringComparer.Ordinal).ToList(),
-                NormalizedCidrs(command.AllowedCidrs),
+                allowedCidrs,
                 command.CreatedByUserId,
                 now,
                 command.ExpiresAt);
@@ -141,29 +152,41 @@ public sealed class CreateApiKeyCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<ApiKeyCreatedDto>.Ok(ApiKeyMapper.Created(key, plaintext, now));
+        return Result<ApiKeyCreatedDto>.Ok(ApiKeyMapper.Created(key, plaintext, now, _statusNames));
     }
 
     /// <summary>
-    /// Reads each validated range into its canonical text, so the same range written two ways is
-    /// stored once; <c>null</c> is a key not bound to any address (the validator refuses an empty list).
+    /// Reads each range into its canonical text, so the same range written two ways is stored once;
+    /// <c>null</c> is a key not bound to any address (the validator refuses an empty list).
     /// </summary>
-    /// <param name="cidrs">The ranges as the caller sent them, already validated.</param>
-    /// <returns>The distinct canonical ranges, or <c>null</c> when the key is not address-bound.</returns>
-    private static List<string>? NormalizedCidrs(IReadOnlyList<string>? cidrs)
+    /// <param name="cidrs">The ranges as the caller sent them.</param>
+    /// <param name="normalized">The distinct canonical ranges, or <c>null</c> when the key is not address-bound.</param>
+    /// <returns>
+    /// <c>false</c> when a range cannot be read, which the validator makes unreachable through the API
+    /// but a command dispatched on the bus without it could still produce.
+    /// </returns>
+    private static bool TryNormalizeCidrs(IReadOnlyList<string>? cidrs, out List<string>? normalized)
     {
+        normalized = null;
+
         if (cidrs is null)
         {
-            return null;
+            return true;
         }
 
-        return cidrs
-            .Select(text =>
+        var texts = new List<string>(cidrs.Count);
+
+        foreach (var text in cidrs)
+        {
+            if (!CidrRule.TryParse(text, out var rule))
             {
-                CidrRule.TryParse(text, out var rule);
-                return rule!.ToString();
-            })
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+                return false;
+            }
+
+            texts.Add(rule!.ToString());
+        }
+
+        normalized = texts.Distinct(StringComparer.Ordinal).ToList();
+        return true;
     }
 }

@@ -54,7 +54,7 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "ci deploy");
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy");
 
         var response = await host.GetAsync(ApiKeyHost.SelfRoute, issued.Secret);
 
@@ -63,7 +63,8 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
         using var body = JsonDocument.Parse(text);
         Assert.Equal(issued.Id, body.RootElement.GetProperty("id").GetGuid());
         Assert.Equal("ci deploy", body.RootElement.GetProperty("name").GetString());
-        Assert.Contains(ApiKeyScopes.SelfRead, body.RootElement.GetProperty("scopes").EnumerateArray().Select(scope => scope.GetString()));
+        var scopes = body.RootElement.GetProperty("scopes").EnumerateArray().Select(scope => { return scope.GetString(); });
+        Assert.Contains(ApiKeyScopes.SelfRead, scopes);
         Assert.DoesNotContain(issued.Secret, text, StringComparison.Ordinal);
     }
 
@@ -76,11 +77,11 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var valid = await host.CreateKeyAsync(admin, "valid");
-        var bound = await host.CreateKeyAsync(admin, "bound", allowedCidrs: ["203.0.113.0/24"]);
-        var revoked = await host.CreateKeyAsync(admin, "revoked");
-        await host.RevokeKeyAsync(admin, revoked.Id);
-        var expiring = await host.CreateKeyAsync(admin, "expiring", expiresAt: host.Clock.UtcNow.AddHours(1));
+        var valid = await ApiKeyHost.CreateKeyAsync(admin, "valid");
+        var bound = await ApiKeyHost.CreateKeyAsync(admin, "bound", allowedCidrs: ["203.0.113.0/24"]);
+        var revoked = await ApiKeyHost.CreateKeyAsync(admin, "revoked");
+        await ApiKeyHost.RevokeKeyAsync(admin, revoked.Id);
+        var expiring = await ApiKeyHost.CreateKeyAsync(admin, "expiring", expiresAt: host.Clock.UtcNow.AddHours(1));
         host.Clock.Advance(TimeSpan.FromHours(2));
 
         var refusals = new Dictionary<string, HttpResponseMessage>
@@ -122,7 +123,7 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "ci deploy");
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy");
         var path = where == "query" ? $"{ApiKeyHost.SelfRoute}?X-Api-Key={issued.Secret}&apiKey={issued.Secret}" : ApiKeyHost.SelfRoute;
         using var client = host.Factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
@@ -147,7 +148,7 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var bound = await host.CreateKeyAsync(admin, "office", allowedCidrs: ["203.0.113.0/24"]);
+        var bound = await ApiKeyHost.CreateKeyAsync(admin, "office", allowedCidrs: ["203.0.113.0/24"]);
 
         var inside = await host.GetAsync(ApiKeyHost.SelfRoute, bound.Secret, "203.0.113.9");
         var outside = await host.GetAsync(ApiKeyHost.SelfRoute, bound.Secret, "198.51.100.9");
@@ -162,7 +163,7 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "short lived", expiresAt: host.Clock.UtcNow.AddHours(1));
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "short lived", expiresAt: host.Clock.UtcNow.AddHours(1));
 
         Assert.Equal(HttpStatusCode.OK, (await host.GetAsync(ApiKeyHost.SelfRoute, issued.Secret)).StatusCode);
         host.Clock.Advance(TimeSpan.FromHours(2));
@@ -176,10 +177,10 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "ci deploy");
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy");
         Assert.Equal(HttpStatusCode.OK, (await host.GetAsync(ApiKeyHost.SelfRoute, issued.Secret)).StatusCode);
 
-        await host.RevokeKeyAsync(admin, issued.Id);
+        await ApiKeyHost.RevokeKeyAsync(admin, issued.Id);
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await host.GetAsync(ApiKeyHost.SelfRoute, issued.Secret)).StatusCode);
     }
@@ -198,7 +199,7 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "everything", [ApiKeyScopes.SelfRead, ApiKeyScopes.ServerRead]);
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "everything", [ApiKeyScopes.SelfRead, ApiKeyScopes.ServerRead]);
         Assert.Equal(HttpStatusCode.OK, (await host.GetAsync(ApiKeyHost.SelfRoute, issued.Secret)).StatusCode);
 
         var response = await host.GetAsync(path, issued.Secret);
@@ -226,7 +227,7 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "ci deploy");
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy");
         Assert.Null((await host.ReadRowAsync(issued.Id)).LastUsedAt);
 
         await host.GetAsync(ApiKeyHost.SelfRoute, issued.Secret, "198.51.100.30");
@@ -255,7 +256,7 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "ci deploy");
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy");
         var limit = host.Factory.Services.GetRequiredService<IOptions<RateLimitOptions>>().Value.LoginMaxAttempts;
         const string locked = "198.51.100.40";
         const string other = "198.51.100.41";
@@ -285,7 +286,7 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
     {
         await using var host = await ApiKeyHost.BootAsync(_pg);
         using var admin = await host.SignInAdministratorAsync();
-        var issued = await host.CreateKeyAsync(admin, "ci deploy");
+        var issued = await ApiKeyHost.CreateKeyAsync(admin, "ci deploy");
 
         await host.GetAsync($"{ApiKeyHost.SelfRoute}?probe=query-marker", issued.Secret, "198.51.100.50");
         await host.GetAsync(ApiKeyHost.SelfRoute, ApiKeyHasher.Mint().Plaintext, "198.51.100.51");
@@ -317,8 +318,8 @@ public sealed class ApiKeyAuthenticationTests : IAsyncLifetime
                 return !header.Key.Equals("Date", StringComparison.OrdinalIgnoreCase)
                     && !header.Key.Contains("Correlation", StringComparison.OrdinalIgnoreCase);
             })
-            .OrderBy(header => header.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(header => $"{header.Key}: {string.Join(',', header.Value)}");
+            .OrderBy(header => { return header.Key; }, StringComparer.OrdinalIgnoreCase)
+            .Select(header => { return $"{header.Key}: {string.Join(',', header.Value)}"; });
 
         return $"{(int)response.StatusCode}\n{string.Join('\n', headers)}\n\n{await response.Content.ReadAsStringAsync()}";
     }

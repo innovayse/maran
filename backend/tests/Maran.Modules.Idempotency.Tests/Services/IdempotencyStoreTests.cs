@@ -1,6 +1,5 @@
 using Maran.Modules.Idempotency.Domain.Entities;
 using Maran.Modules.Idempotency.Domain.Policies;
-using Maran.Modules.Idempotency.Persistence;
 using Maran.Modules.Idempotency.Services;
 using Maran.Modules.Idempotency.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -239,7 +238,10 @@ public sealed class IdempotencyStoreTests
     [InlineData(Caller, IdempotencyTestValues.Key, "not-a-hash")]
     public async Task A_value_the_policy_refuses_is_rejected_before_any_query(string callerKey, string key, string hash)
     {
-        await Assert.ThrowsAsync<ArgumentException>(() => Store().BeginAsync(callerKey, key, hash, default));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+        {
+            return Store().BeginAsync(callerKey, key, hash, default);
+        });
 
         using var context = InMemoryIdempotencyDatabase.Open(_database);
         Assert.Empty(await context.IdempotencyRecords.ToListAsync());
@@ -251,8 +253,10 @@ public sealed class IdempotencyStoreTests
     {
         var tooLong = new string('k', IdempotencyKeyPolicy.KeyMaxLength + 1);
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => Store().BeginAsync(Caller, tooLong, IdempotencyTestValues.HashOne, default));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+        {
+            return Store().BeginAsync(Caller, tooLong, IdempotencyTestValues.HashOne, default);
+        });
     }
 
     /// <summary>Begins the shared key for the shared caller with the given request hash.</summary>

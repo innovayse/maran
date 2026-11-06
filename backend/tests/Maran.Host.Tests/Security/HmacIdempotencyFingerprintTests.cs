@@ -12,10 +12,10 @@ namespace Maran.Host.Tests.Security;
 public sealed class HmacIdempotencyFingerprintTests
 {
     /// <summary>A panel secret, base64 of 32 distinct bytes.</summary>
-    private static readonly string KeyOne = Convert.ToBase64String(Enumerable.Range(1, 32).Select(value => (byte)value).ToArray());
+    private static readonly string KeyOne = Convert.ToBase64String(Enumerable.Range(1, 32).Select(value => { return (byte)value; }).ToArray());
 
     /// <summary>Another panel secret.</summary>
-    private static readonly string KeyTwo = Convert.ToBase64String(Enumerable.Range(101, 32).Select(value => (byte)value).ToArray());
+    private static readonly string KeyTwo = Convert.ToBase64String(Enumerable.Range(101, 32).Select(value => { return (byte)value; }).ToArray());
 
     /// <summary>A request body carrying a password, as an account-create body does.</summary>
     private static readonly byte[] Material = Encoding.UTF8.GetBytes("POST\0api/v1/accounts\0{\"password\":\"hunter2\"}");
@@ -24,8 +24,8 @@ public sealed class HmacIdempotencyFingerprintTests
     [Fact]
     public void The_same_input_gives_the_same_output()
     {
-        var first = new HmacIdempotencyFingerprint(KeyOne).Of(Material);
-        var second = new HmacIdempotencyFingerprint(KeyOne).Of(Material);
+        var first = new HmacIdempotencyFingerprint(KeyOne).Compute(Material);
+        var second = new HmacIdempotencyFingerprint(KeyOne).Compute(Material);
 
         Assert.Equal(first, second);
     }
@@ -34,8 +34,8 @@ public sealed class HmacIdempotencyFingerprintTests
     [Fact]
     public void A_different_key_gives_a_different_output()
     {
-        var first = new HmacIdempotencyFingerprint(KeyOne).Of(Material);
-        var second = new HmacIdempotencyFingerprint(KeyTwo).Of(Material);
+        var first = new HmacIdempotencyFingerprint(KeyOne).Compute(Material);
+        var second = new HmacIdempotencyFingerprint(KeyTwo).Compute(Material);
 
         Assert.NotEqual(first, second);
     }
@@ -46,7 +46,7 @@ public sealed class HmacIdempotencyFingerprintTests
     {
         var fingerprint = new HmacIdempotencyFingerprint(KeyOne);
 
-        Assert.NotEqual(fingerprint.Of(Material), fingerprint.Of(Encoding.UTF8.GetBytes("another body")));
+        Assert.NotEqual(fingerprint.Compute(Material), fingerprint.Compute(Encoding.UTF8.GetBytes("another body")));
     }
 
     /// <summary>The fingerprint is never the plain SHA-256 of the material, which anyone could compute offline.</summary>
@@ -55,7 +55,7 @@ public sealed class HmacIdempotencyFingerprintTests
     {
         var plain = Convert.ToHexString(SHA256.HashData(Material)).ToLowerInvariant();
 
-        Assert.NotEqual(plain, new HmacIdempotencyFingerprint(KeyOne).Of(Material));
+        Assert.NotEqual(plain, new HmacIdempotencyFingerprint(KeyOne).Compute(Material));
     }
 
     /// <summary>The MAC key is derived, not the panel secret itself: an HMAC under the raw secret is a different value.</summary>
@@ -64,17 +64,20 @@ public sealed class HmacIdempotencyFingerprintTests
     {
         var raw = Convert.ToHexString(HMACSHA256.HashData(Convert.FromBase64String(KeyOne), Material)).ToLowerInvariant();
 
-        Assert.NotEqual(raw, new HmacIdempotencyFingerprint(KeyOne).Of(Material));
+        Assert.NotEqual(raw, new HmacIdempotencyFingerprint(KeyOne).Compute(Material));
     }
 
     /// <summary>The output is exactly 64 lowercase hexadecimal characters, what the idempotency column holds.</summary>
     [Fact]
     public void The_output_is_sixty_four_lowercase_hex_characters()
     {
-        var output = new HmacIdempotencyFingerprint(KeyOne).Of(Material);
+        var output = new HmacIdempotencyFingerprint(KeyOne).Compute(Material);
 
         Assert.Equal(64, output.Length);
-        Assert.All(output, character => Assert.True(character is >= '0' and <= '9' or >= 'a' and <= 'f'));
+        Assert.All(output, character =>
+        {
+            Assert.True(character is >= '0' and <= '9' or >= 'a' and <= 'f');
+        });
     }
 
     /// <summary>A missing or malformed secret is refused at construction, not at the first request.</summary>
@@ -84,6 +87,9 @@ public sealed class HmacIdempotencyFingerprintTests
     [InlineData("not base64 !!")]
     public void A_missing_or_malformed_secret_is_refused(string secret)
     {
-        Assert.ThrowsAny<ArgumentException>(() => new HmacIdempotencyFingerprint(secret));
+        Assert.ThrowsAny<ArgumentException>(() =>
+        {
+            return new HmacIdempotencyFingerprint(secret);
+        });
     }
 }

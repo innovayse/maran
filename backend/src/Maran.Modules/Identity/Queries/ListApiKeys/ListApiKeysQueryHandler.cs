@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Mappers;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Identity.Services;
 using Maran.SharedKernel.Extensions;
 using Maran.SharedKernel.Utilities.Text;
 
@@ -28,13 +29,18 @@ public sealed class ListApiKeysQueryHandler
     /// <summary>The panel's clock, deciding which keys have expired.</summary>
     private readonly IClock _clock;
 
+    /// <summary>Names each row's status in the request's culture.</summary>
+    private readonly ApiKeyStatusDisplayNames _statusNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="clock">The panel's clock.</param>
-    public ListApiKeysQueryHandler(IdentityDbContext dbContext, IClock clock)
+    /// <param name="statusNames">Names an API key status for the request's culture.</param>
+    public ListApiKeysQueryHandler(IdentityDbContext dbContext, IClock clock, ApiKeyStatusDisplayNames statusNames)
     {
         _dbContext = dbContext;
         _clock = clock;
+        _statusNames = statusNames;
     }
 
     /// <summary>Filters by status, searches the name and answers the requested page with the total that matched.</summary>
@@ -70,7 +76,7 @@ public sealed class ListApiKeysQueryHandler
 
         return Result<PagedResult<ApiKeyDto>>.Ok(page.Map(key =>
         {
-            return ApiKeyMapper.From(key, now);
+            return ApiKeyMapper.From(key, now, _statusNames);
         }));
     }
 }

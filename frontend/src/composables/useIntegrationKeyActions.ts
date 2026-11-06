@@ -3,7 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { useApiKeysStore } from '../stores/apiKeys'
 import type { ApiKey, CreateApiKeyRequest } from '../types/apiKey'
 
-/** What {@link useApiKeyActions} hands the API keys page. */
+/** What {@link useIntegrationKeyActions} hands the API keys page. */
 export interface ApiKeyActions {
   /** Whether the create dialog is open. */
   createOpen: Ref<boolean>
@@ -35,7 +35,7 @@ export interface ApiKeyActions {
  * @param reload Reads the current list page again.
  * @returns The workflow state and its actions.
  */
-export const useApiKeyActions = (reload: () => Promise<void>): ApiKeyActions => {
+export const useIntegrationKeyActions = (reload: () => Promise<void>): ApiKeyActions => {
   const { t } = useI18n()
   const store = useApiKeysStore()
 

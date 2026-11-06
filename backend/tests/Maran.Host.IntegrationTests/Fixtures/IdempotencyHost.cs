@@ -3,11 +3,11 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Backups.Seeders;
+using Maran.Modules.Idempotency.Domain.Entities;
+using Maran.Modules.Idempotency.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
-using Maran.Modules.Idempotency.Domain.Entities;
-using Maran.Modules.Idempotency.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -18,9 +18,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Maran.Host.IntegrationTests.Fixtures;
 
 /// <summary>
-/// The plumbing the idempotency and response-contract tests share: a host whose account agent and
-/// final-backup agent are doubles, every module's schema migrated, two administrators to sign in as,
-/// and a request builder that attaches an <c>Idempotency-Key</c>.
+/// The plumbing the idempotency and response-contract tests share: a host whose account, final-backup,
+/// cron and SFTP agents are doubles, every module's schema migrated, two administrators to sign in as, and a
+/// request builder that attaches an <c>Idempotency-Key</c>.
 /// </summary>
 public static class IdempotencyHost
 {
@@ -46,6 +46,13 @@ public static class IdempotencyHost
             // the real gRPC client, which has no socket here.
             services.RemoveAll<IAgentBackupClient>();
             services.AddSingleton<IAgentBackupClient>(new StubAgentBackupClient());
+
+            // A suspension and a reactivation are announced to every module that runs something for the
+            // account; the Cron and Sftp subscribers each call their agent, which has no socket here.
+            services.RemoveAll<IAgentCronClient>();
+            services.AddSingleton<IAgentCronClient>(new StubAgentCronClient());
+            services.RemoveAll<IAgentSftpClient>();
+            services.AddSingleton<IAgentSftpClient>(new LockingSftpAgent());
 
             if (clock is not null)
             {

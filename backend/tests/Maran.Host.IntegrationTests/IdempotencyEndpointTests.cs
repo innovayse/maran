@@ -47,7 +47,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
         var body = IdempotencyHost.CreateBody("acme", planId);
 
@@ -73,7 +73,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
 
         using var first = await admin.SendAsync(IdempotencyHost.Request(
@@ -99,7 +99,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
         var body = IdempotencyHost.CreateBody("acme", planId);
 
@@ -128,7 +128,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
 
         using var response = await admin.SendAsync(IdempotencyHost.Request(
@@ -147,7 +147,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
 
         using var response = await admin.SendAsync(IdempotencyHost.Request(
@@ -175,7 +175,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
 
         using var response = await admin.SendAsync(IdempotencyHost.Request(
@@ -193,7 +193,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
 
         using var response = await admin.SendAsync(IdempotencyHost.Request(
@@ -216,7 +216,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var admin = await EndpointHarness.SignInAsync(factory, "admin");
         var body = IdempotencyHost.CreateBody("acme", planId);
         agent.FailNextCreation();
@@ -268,7 +268,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var first = await EndpointHarness.SignInAsync(factory, "admin");
         using var second = await EndpointHarness.SignInAsync(factory, IdempotencyHost.SecondAdministrator);
 
@@ -294,7 +294,7 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         var agent = new ScriptedAccountsAgent();
         await using var factory = IdempotencyHost.CreateFactory(_pg, agent);
         await IdempotencyHost.PrepareAsync(factory);
-        var (_, planId) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
+        var (planId, _) = await EndpointHarness.SeedAccountAsync(factory, "seeded");
         using var first = await EndpointHarness.SignInAsync(factory, "admin");
         using var second = await EndpointHarness.SignInAsync(factory, IdempotencyHost.SecondAdministrator);
         var body = IdempotencyHost.CreateBody("acme", planId);
@@ -334,7 +334,9 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         Assert.True(beforeExpiry.Headers.Contains(IdempotencyHeaders.Replayed));
         Assert.False(afterExpiry.Headers.Contains(IdempotencyHeaders.Replayed));
         var kept = Assert.Single(await IdempotencyHost.StoredKeysAsync(factory));
-        Assert.Equal(clock.UtcNow, kept.CreatedAt);
+
+        // The database keeps microseconds and the clock ticks in 100 ns, so equality is too strict.
+        Assert.InRange(kept.CreatedAt, clock.UtcNow - TimeSpan.FromSeconds(1), clock.UtcNow + TimeSpan.FromSeconds(1));
     }
 
     /// <summary>
