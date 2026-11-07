@@ -51,6 +51,9 @@
 mod ftps_control_session;
 #[path = "fixtures/polygon_account.rs"]
 mod polygon_account;
+// Shared with the panel certificate suite, which issues leaves as text; this one
+// issues into the store only.
+#[allow(dead_code)]
 #[path = "fixtures/polygon_certificate_authority.rs"]
 mod polygon_certificate_authority;
 #[path = "fixtures/polygon_vsftpd.rs"]

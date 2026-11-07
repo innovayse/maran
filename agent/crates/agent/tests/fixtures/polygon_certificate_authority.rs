@@ -136,9 +136,56 @@ impl PolygonCertificateAuthority {
         std::fs::create_dir_all(store)
             .unwrap_or_else(|error| panic!("{store:?} must be creatable: {error}"));
 
-        let request = self.directory.join("leaf.csr");
-        let leaf = self.directory.join("leaf.pem");
-        let extensions = self.directory.join("leaf.ext");
+        let chain = self.sign_leaf(distro, domain, "leaf", certificate.key_path());
+
+        std::fs::write(certificate.certificate_path(), chain)
+            .unwrap_or_else(|error| panic!("the store's chain must be writable: {error}"));
+    }
+
+    /// Issues material for `domain` and hands it back as text, touching no
+    /// store: the certificate chain (leaf, then this authority's certificate)
+    /// and the leaf's private key, both PEM.
+    ///
+    /// For a test that gives the material to the operation under test itself,
+    /// as the panel gives an issued certificate to the agent. `label` names the
+    /// leaf inside the authority's directory, so two leaves issued for the same
+    /// name (a renewal) are two different keys and two different serials rather
+    /// than one overwritten file read twice.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `openssl` refuses or a produced file cannot be read.
+    pub fn issue_leaf(
+        &self,
+        distro: &dyn DistroAdapter,
+        domain: &Domain,
+        label: &str,
+    ) -> (String, String) {
+        let key = self.directory.join(format!("{label}.key"));
+        let chain = self.sign_leaf(distro, domain, label, &key);
+        let key_pem = std::fs::read_to_string(&key)
+            .unwrap_or_else(|error| panic!("{key:?} must be readable: {error}"));
+
+        (chain, key_pem)
+    }
+
+    /// The one issuance: a fresh key at `key_path`, a request, and a leaf signed
+    /// by this authority for `domain`. Returns the leaf followed by the
+    /// authority's certificate, which is what both public methods serve.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `openssl` refuses or a produced file cannot be read.
+    fn sign_leaf(
+        &self,
+        distro: &dyn DistroAdapter,
+        domain: &Domain,
+        label: &str,
+        key_path: &Path,
+    ) -> String {
+        let request = self.directory.join(format!("{label}.csr"));
+        let leaf = self.directory.join(format!("{label}.pem"));
+        let extensions = self.directory.join(format!("{label}.ext"));
         std::fs::write(
             &extensions,
             format!(
@@ -161,7 +208,7 @@ impl PolygonCertificateAuthority {
                 "-subj".as_ref(),
                 format!("/CN={}", domain.as_str()).as_ref(),
                 "-keyout".as_ref(),
-                certificate.key_path().as_os_str(),
+                key_path.as_os_str(),
                 "-out".as_ref(),
                 request.as_os_str(),
             ],
@@ -194,11 +241,8 @@ impl PolygonCertificateAuthority {
             .unwrap_or_else(|error| panic!("{leaf:?} must be readable: {error}"));
         let root_pem = std::fs::read_to_string(self.root_path())
             .unwrap_or_else(|error| panic!("the authority's root must be readable: {error}"));
-        std::fs::write(
-            certificate.certificate_path(),
-            format!("{leaf_pem}{root_pem}"),
-        )
-        .unwrap_or_else(|error| panic!("the store's chain must be writable: {error}"));
+
+        format!("{leaf_pem}{root_pem}")
     }
 
     /// The authority's private key.
