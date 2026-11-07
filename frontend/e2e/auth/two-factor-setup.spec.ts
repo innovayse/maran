@@ -1,6 +1,7 @@
-import { expect, test } from '@playwright/test'
-import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { expect, test, type Page } from '@playwright/test'
+import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubProfile } from '../fixtures/stub-profile-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubSteeredAdministrator } from '../fixtures/stub-password-reset-routes'
 
@@ -47,5 +48,100 @@ test('the navigation this spec looks for is really there when nobody is steered'
   // pass on a page that never renders navigation in the first place — the exact
   // failure mode of a spec in this repository that asserted a heading was absent on
   // a screen with no headings at all.
+  await expect(page.getByRole('navigation').first()).toBeVisible()
+})
+
+/**
+ * Holds an administrator on the steered enrolment screen and answers its endpoints. The refresh
+ * endpoint tells the truth about the account as it stands: steered until the confirmation has
+ * been answered, signed in afterwards, and signed out once the logout has been answered.
+ * @param page The page whose network is stubbed.
+ * @returns Resolves once the stubs are installed.
+ */
+const holdOnEnrolment = async (page: Page): Promise<void> => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubEmptyModules(page)
+
+  let stage: 'steered' | 'enrolled' | 'signedOut' = 'steered'
+  // Installed after stubSignedIn on purpose: the newest route wins, and this one varies by stage.
+  await page.route('**/api/v1/auth/refresh', async (route) => {
+    if (stage === 'signedOut') {
+      await route.fulfill({ status: 204 })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        accessToken: 'stub.access.token',
+        expiresAt: '2099-01-01T00:00:00+00:00',
+        user: stubbedAdministrator,
+        requiresTwoFactorSetup: stage === 'steered',
+      }),
+    })
+  })
+  await page.route('**/api/v1/auth/two-factor/enrol', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ secret: 'JBSWY3DPEHPK3PXP', provisioningUri: 'otpauth://totp/Maran:admin?secret=JBSWY3DPEHPK3PXP' }),
+    })
+  })
+  await page.route('**/api/v1/auth/two-factor/confirm', async (route) => {
+    stage = 'enrolled'
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ codes: ['aaaa-bbbb-cccc'] }) })
+  })
+  await page.route('**/api/v1/auth/logout', async (route) => {
+    stage = 'signedOut'
+    await route.fulfill({ status: 204 })
+  })
+}
+
+test('the steered enrolment screen says the administrator requires it', async ({ page }) => {
+  await holdOnEnrolment(page)
+
+  await page.goto('/two-factor-setup')
+
+  await expect(page.getByText('The administrator of this panel requires two-step verification')).toBeVisible()
+  // Control: the shell's own copy of the page, which nobody is forced onto, carries no such sentence.
+  await page.unroute('**/api/v1/auth/refresh')
+  await stubSignedIn(page)
+  await stubProfile(page, {
+    username: stubbedAdministrator.username,
+    email: stubbedAdministrator.email,
+    role: 'admin',
+    isTwoFactorEnabled: false,
+    activeSessionCount: 1,
+  })
+  await page.goto('/settings/two-factor')
+  await expect(page.getByRole('button', { name: 'Set up' })).toBeVisible()
+  await expect(page.getByText('The administrator of this panel requires two-step verification')).toHaveCount(0)
+})
+
+test('signing out of the steered enrolment screen returns to the sign-in screen', async ({ page }) => {
+  await holdOnEnrolment(page)
+
+  await page.goto('/two-factor-setup')
+  await page.getByRole('button', { name: 'Sign out' }).click()
+
+  await expect(page).toHaveURL(/\/login/)
+  await expect(page.getByRole('heading', { level: 2, name: 'Sign in' })).toBeVisible()
+})
+
+test('Continue after the recovery codes enters the panel', async ({ page }) => {
+  await holdOnEnrolment(page)
+
+  await page.goto('/two-factor-setup')
+  // Before the codes there is nothing to continue to.
+  await expect(page.getByRole('button', { name: 'Continue' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Set up' }).click()
+  await page.getByLabel('Code from the app').fill('123456')
+  await page.getByRole('button', { name: 'Turn on' }).click()
+
+  await expect(page.getByText('aaaa-bbbb-cccc')).toBeVisible()
+  await page.getByRole('button', { name: 'Continue' }).click()
+
+  await expect(page).toHaveURL('/')
   await expect(page.getByRole('navigation').first()).toBeVisible()
 })

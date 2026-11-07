@@ -19,7 +19,7 @@ public sealed class InvitationMailComposerTests
     {
         return new InvitationMailComposer(
             new CultureReportingTemplates(),
-            new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = "https://panel.example.com" }));
+            new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = "https://panel.example.com" }));
     }
 
     /// <summary>Runs <paramref name="action"/> with the request culture set to <paramref name="culture"/>.</summary>
@@ -150,7 +150,7 @@ public sealed class InvitationMailComposerTests
     {
         var composer = new InvitationMailComposer(
             new CultureReportingTemplates(),
-            new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = string.Empty }));
+            new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = string.Empty }));
 
         var mail = composer.ComposeForReseller("contact@example.com", "the-token", "en");
 
@@ -175,7 +175,7 @@ public sealed class InvitationMailComposerTests
             NullLoggerFactory.Instance);
         var composer = new InvitationMailComposer(
             new StringLocalizer<EmailTemplates>(factory),
-            new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = "https://panel.example.com" }));
+            new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = "https://panel.example.com" }));
 
         var english = composer.ComposeForReseller("contact@example.com", "token", "en");
         var translated = composer.ComposeForReseller("contact@example.com", "token", language);

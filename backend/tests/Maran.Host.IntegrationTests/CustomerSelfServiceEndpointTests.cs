@@ -94,9 +94,37 @@ public sealed class CustomerSelfServiceEndpointTests : IAsyncLifetime
 
         var response = await client.PostAsJsonAsync("/api/v1/auth/two-factor/confirm", new { Secret = secret, Code = "000000" });
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("InvalidTwoFactorCodeUnauthorized", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal("TwoFactorCodeInvalid", body.RootElement.GetProperty("code").GetString());
+    }
+
+    /// <summary>
+    /// A wrong confirmation code is ONE request answered 400, never a 401, and the access token that
+    /// sent it is still good afterwards (issue #412). A 401 would make a client read the answer as an
+    /// expired session, renew it and send the same wrong code a second time.
+    /// </summary>
+    /// <remarks>
+    /// The inverse control is the anonymous test below: a request with no token is still a 401, so the
+    /// 400 here comes from the handler judging the code and not from authorization being skipped.
+    /// </remarks>
+    [Fact]
+    public async Task A_wrong_confirmation_code_answers_400_once_and_leaves_the_session_usable()
+    {
+        await using var factory = await BootAsync();
+        using var client = await EndpointHarness.SignInAsync(factory, "customer");
+        var enrolment = await client.PostAsync("/api/v1/auth/two-factor/enrol", content: null);
+        using var enrolled = JsonDocument.Parse(await enrolment.Content.ReadAsStringAsync());
+        var secret = enrolled.RootElement.GetProperty("secret").GetString();
+
+        var wrong = await client.PostAsJsonAsync("/api/v1/auth/two-factor/confirm", new { Secret = secret, Code = "000000" });
+        var afterwards = await client.GetAsync("/api/v1/sessions");
+
+        Assert.Equal(HttpStatusCode.BadRequest, wrong.StatusCode);
+        Assert.NotEqual(HttpStatusCode.Unauthorized, wrong.StatusCode);
+        using var body = JsonDocument.Parse(await wrong.Content.ReadAsStringAsync());
+        Assert.Equal("TwoFactorCodeInvalid", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal(HttpStatusCode.OK, afterwards.StatusCode);
     }
 
     /// <summary>A signed-in customer disabling a factor they never enabled reaches the handler and is told so.</summary>

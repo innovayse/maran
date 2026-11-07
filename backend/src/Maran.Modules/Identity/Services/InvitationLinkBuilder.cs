@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Options;
 using Microsoft.Extensions.Options;
 
@@ -9,7 +10,8 @@ namespace Maran.Modules.Identity.Services;
 /// <remarks>
 /// <para>
 /// <b>The host comes from configuration, never from the request.</b> The absolute form is built
-/// from <see cref="PanelOptions.PanelUrl"/>, the panel's own configured public address, for the
+/// from <see cref="PanelOptions.PublicUrl"/>, the panel's own configured public address, through
+/// <see cref="PanelLink"/>, the one place any link is joined, for the
 /// host-header-injection reason <see cref="InvitationMailComposer"/> states: a link assembled from
 /// the incoming <c>Host</c> header would let a caller aim an administrator's hand-delivered
 /// credential at a server the caller controls.
@@ -49,11 +51,6 @@ public sealed class InvitationLinkBuilder
     /// <returns>The link. It embeds the token, so it is exactly as secret as the token is.</returns>
     public string Build(string token)
     {
-        if (string.IsNullOrWhiteSpace(_options.PanelUrl))
-        {
-            return RelativeFor(token);
-        }
-
-        return $"{_options.PanelUrl.TrimEnd('/')}{RelativeFor(token)}";
+        return PanelLink.Compose(_options.PublicUrl, RelativeFor(token));
     }
 }

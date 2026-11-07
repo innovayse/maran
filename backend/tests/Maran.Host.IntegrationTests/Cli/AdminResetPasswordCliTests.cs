@@ -80,7 +80,7 @@ public sealed class AdminResetPasswordCliTests : IAsyncLifetime
 
             builder.UseSetting("Security:EncryptionKey", Key);
             builder.UseSetting("Jwt:SigningKey", Key);
-            builder.UseSetting("PasswordReset:PanelUrl", "https://panel.example.com");
+            builder.UseSetting("Panel:PublicUrl", "https://panel.example.com");
             builder.UseSetting("RateLimiting:PasswordResetMaxRequests", "50");
 
             foreach (var setting in FirewallSettings.Required())

@@ -43,9 +43,10 @@ answer without both properties — is an error, never `notSynchronized`.
   (`OperatorAlertMailer`), and the journal records `Alert raised` / `Alert resolved` with the subject
   `ClockUnsynchronized:system-clock`.
 - **A refused two-factor code.** When the latest reading found the clock not synchronised, a
-  refused code at sign-in, at enrolment or when switching two-factor off answers
-  `InvalidTwoFactorCodeClockUnsynchronizedUnauthorized` (401) instead of
-  `InvalidTwoFactorCodeUnauthorized`, with a sentence saying the server's clock may be why. The code
+  refused code at sign-in answers `InvalidTwoFactorCodeClockUnsynchronizedUnauthorized` (401)
+  instead of `InvalidTwoFactorCodeUnauthorized`, and a refused code at enrolment or when switching
+  two-factor off answers `TwoFactorCodeClockUnsynchronized` (400) instead of
+  `TwoFactorCodeInvalid`; either way a sentence says the server's clock may be why. The code
   is still refused. The hint is read from the latest monitoring round, not from the agent, so it
   can lag by one sampling interval.
 

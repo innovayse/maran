@@ -1,5 +1,5 @@
 import { useApi } from '../useApi'
-import type { PanelCertificate, PanelCertificateApi } from '../../types/panelCertificate'
+import type { PanelCertificate, PanelCertificateApi, PanelCertificateReading } from '../../types/panelCertificate'
 
 /** The endpoint the panel's own certificate is read from and ordered through. */
 const PANEL_CERTIFICATE_PATH = '/api/v1/panel-certificate'
@@ -15,12 +15,12 @@ export const usePanelCertificateApi = (): PanelCertificateApi => {
   const api = useApi()
 
   /**
-   * Reads the trusted certificate recorded for the panel's configured host name.
+   * Reads the trusted certificate recorded for the panel's configured host name, or that none is configured.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The recorded certificate.
+   * @returns The recorded certificate, or the flagged no-host-name reading.
    */
-  const get = (signal?: AbortSignal): Promise<PanelCertificate> => {
-    return api.get<PanelCertificate>(PANEL_CERTIFICATE_PATH, signal)
+  const get = (signal?: AbortSignal): Promise<PanelCertificateReading> => {
+    return api.get<PanelCertificateReading>(PANEL_CERTIFICATE_PATH, signal)
   }
 
   /**

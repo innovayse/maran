@@ -569,13 +569,216 @@ detect_seed_whitelist_cidr() {
 # reservation", never a reserved placeholder.
 detect_panel_host_name() {
   local name
-  name="$(host_display_name | tr 'A-Z' 'a-z')"
+  name="$(host_display_name | tr '[:upper:]' '[:lower:]')"
   case "$name" in
     ""|"_"|"localhost") return 0 ;;
     *[!a-z0-9.-]*) return 0 ;;
   esac
   [ "${#name}" -le 253 ] || return 0
   echo "$name"
+}
+
+# panel_public_url_is_valid: whether a value is an https origin the panel will accept as
+# Panel__PublicUrl — the shell half of backend/src/Maran.SharedKernel/Utilities/Network/
+# PublicUrlRule.cs, which the panel applies again at start-up. The two must agree, and a value one
+# accepts and the other refuses stops the boot, which is the safe direction but a surprising one.
+#
+# The value goes into a line-oriented env file (rules/security.md item 4), so this is a character
+# gate first: letters, digits, dots, hyphens, a colon and square brackets after `https://`, which
+# leaves no byte that could end a line, start a second setting or quote anything. Then the shape:
+# an IPv4 address, a bracketed IPv6 address, or a DNS name of two or more labels, and an optional
+# port of 1 to 65535. No user information, path, query or fragment can be spelled in that alphabet.
+panel_public_url_is_valid() {
+  local url="$1" rest host="" port="" tail has_port=0
+  [ "${#url}" -le 2048 ] || return 1
+  # The scheme is matched without regard to case, as PublicUrlRule does (HTTPS://host is the same
+  # origin); the character gate below runs on what follows it.
+  case "$url" in
+    [Hh][Tt][Tt][Pp][Ss]://*) ;;
+    *) return 1 ;;
+  esac
+  rest="${url:8}"
+  case "$rest" in
+    ''|*[!]A-Za-z0-9.:[-]*) return 1 ;;
+  esac
+
+  case "$rest" in
+    \[*\]*)
+      host="${rest%%]*}"
+      host="${host#[}"
+      tail="${rest#*]}"
+      is_ipv6_address "$host" || return 1
+      case "$tail" in
+        '') ;;
+        :*) has_port=1; port="${tail#:}" ;;
+        *) return 1 ;;
+      esac
+      ;;
+    *\[*|*\]*) return 1 ;;
+    *)
+      host="${rest%%:*}"
+      case "$rest" in
+        *:*) has_port=1; port="${rest#*:}" ;;
+      esac
+      if ! is_ipv4_address "$host"; then
+        # A host made only of digits and dots that is not a strict dotted quad (`127.1`,
+        # `999.1.1.1`) is an address spelling some parsers read and others refuse, never a name.
+        case "$host" in
+          *[!0-9.]*) ;;
+          *) return 1 ;;
+        esac
+        [ "${#host}" -le 253 ] || return 1
+        [[ "$host" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] \
+          || return 1
+      fi
+      ;;
+  esac
+
+  # A colon with nothing after it is not a port: the C# rule refuses `https://host:` too.
+  if [ "$has_port" -eq 1 ]; then
+    [[ "$port" =~ ^[0-9]{1,5}$ ]] || return 1
+    [ "$((10#$port))" -ge 1 ] && [ "$((10#$port))" -le 65535 ] || return 1
+  fi
+  return 0
+}
+
+# address_is_publicly_routable: whether an IPv4 address could be reached from outside this machine's
+# own network — that is, it is not loopback, private (RFC 1918), shared (100.64/10), link-local,
+# "this network" or multicast and above. Only a classification of the text; it asks nobody.
+address_is_publicly_routable() {
+  local a b
+  is_ipv4_address "$1" || return 1
+  IFS=. read -r a b _ _ <<< "$1"
+  case "$a" in
+    0|10|127) return 1 ;;
+    169) [ "$b" -ne 254 ] || return 1 ;;
+    172) { [ "$b" -ge 16 ] && [ "$b" -le 31 ]; } && return 1 ;;
+    192) [ "$b" -ne 168 ] || return 1 ;;
+    100) { [ "$b" -ge 64 ] && [ "$b" -le 127 ]; } && return 1 ;;
+  esac
+  [ "$a" -lt 224 ] || return 1
+  return 0
+}
+
+# panel_public_host_candidates: prints, one per line and best first, the hosts this machine can
+# plausibly be reached at from outside, each as `<kind> <host>` where host is already in URL form
+# (an IPv6 address in brackets). Nothing here makes an outbound connection (rules/security.md item
+# 10): it reads the machine's own name and resolver, this session's SSH_CONNECTION and the routing
+# table (`ip route get` is a lookup, no packet is sent). That is also why a public address behind NAT
+# cannot be discovered — the machine does not know it — and why MARAN_PANEL_PUBLIC_URL exists.
+#
+# Order, and why:
+#   name   this host's fully qualified name, when it is not a local-only suffix and the local
+#          resolver answers it with a publicly routable address — a name outside people can resolve
+#          beats an address that changes; the machine's bare internal name never qualifies (the
+#          defect this replaces: https://<internal name> is unreachable from outside);
+#   ssh    the server-side address of the SSH session the installer runs in — by construction an
+#          address the operator reached this machine at. `sudo` usually drops SSH_CONNECTION, in
+#          which case this candidate is simply absent;
+#   route  the source address of the default route — the machine's primary address, which is the
+#          best guess left and may be private.
+panel_public_host_candidates() {
+  local name resolved address server_address
+
+  name="$(host_display_name | tr '[:upper:]' '[:lower:]')"
+  case "$name" in
+    *.local|*.localdomain|*.localhost|*.internal|*.lan|*.home|*.home.arpa|*.invalid|*.test|*.example|*.corp|*.intranet|*.private) ;;
+    *.*)
+      if [[ "$name" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] \
+        && [ "${#name}" -le 253 ] && command -v getent >/dev/null 2>&1; then
+        resolved="$(getent ahostsv4 "$name" 2>/dev/null | awk 'NR == 1 { print $1 }' || true)"
+        if [ -n "$resolved" ] && address_is_publicly_routable "$resolved"; then
+          echo "name ${name}"
+        fi
+      fi
+      ;;
+  esac
+
+  # "<client address> <client port> <server address> <server port>"; the third field is ours.
+  if [ -n "${SSH_CONNECTION:-}" ]; then
+    server_address="$(printf '%s' "$SSH_CONNECTION" | awk '{ print $3 }')"
+    server_address="${server_address%%%*}"
+    case "$server_address" in
+      ::[Ff][Ff][Ff][Ff]:*) server_address="${server_address#::[Ff][Ff][Ff][Ff]:}" ;;
+    esac
+    if is_ipv4_address "$server_address"; then
+      case "$server_address" in
+        127.*|0.*) ;;
+        *) echo "ssh ${server_address}" ;;
+      esac
+    elif is_ipv6_address "$server_address"; then
+      case "$server_address" in
+        ::1|[Ff][Ee]80:*) ;;
+        *) echo "ssh [${server_address}]" ;;
+      esac
+    fi
+  fi
+
+  if command -v ip >/dev/null 2>&1; then
+    address="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{ for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit } }' || true)"
+    if [ -n "$address" ] && is_ipv4_address "$address"; then
+      case "$address" in
+        127.*|0.*) ;;
+        *) echo "route ${address}" ;;
+      esac
+    fi
+  fi
+}
+
+# detect_panel_public_url: the address this panel is reached at from outside, as the https origin
+# panel.env records in Panel__PublicUrl — or nothing when no usable address can be found. It is the
+# base of every invitation and password-reset link, and the address 90-finish.sh prints, so what the
+# operator is told to open and what customers are mailed are one value.
+#
+# MARAN_PANEL_PUBLIC_URL (an https origin, e.g. https://panel.example.com:8443) overrides detection.
+# An override that is not a valid origin is an ERROR, not a fallback: the operator said what they
+# want, and quietly choosing another address would mail customers something they did not ask for.
+# Otherwise the first candidate of panel_public_host_candidates wins, with the panel port appended.
+# Messages go to stderr (stdout carries the value); a private address is flagged, because a link
+# nobody outside can open is the defect this exists to avoid.
+detect_panel_public_url() {
+  : "${MARAN_PANEL_PORT:?must be set by install.sh before this step is sourced}"
+  local override="${MARAN_PANEL_PUBLIC_URL:-}" kind host url
+
+  if [ -n "$override" ]; then
+    override="${override%/}"
+    if ! panel_public_url_is_valid "$override"; then
+      echo "MARAN_PANEL_PUBLIC_URL is not an https origin the panel accepts. It must look like" >&2
+      echo "https://panel.example.com:${MARAN_PANEL_PORT}: https, a DNS name or an IP address, an optional port," >&2
+      echo "and no user name, path or anything else after it. Nothing was installed from it." >&2
+      return 1
+    fi
+    echo "Panel public address taken from MARAN_PANEL_PUBLIC_URL." >&2
+    # The scheme is recorded in lower case whatever case it was typed in.
+    echo "https://${override:8}"
+    return 0
+  fi
+
+  while read -r kind host; do
+    [ -n "$host" ] || continue
+    url="https://${host}:${MARAN_PANEL_PORT}"
+    panel_public_url_is_valid "$url" || continue
+    case "$kind" in
+      name) echo "Panel public address: ${url} (this host's name, which resolves to a public address)." >&2 ;;
+      ssh) echo "Panel public address: ${url} (the address this SSH session reached the server at)." >&2 ;;
+      *) echo "Panel public address: ${url} (this host's primary address)." >&2 ;;
+    esac
+    if [ "$kind" != "name" ] && ! address_is_publicly_routable "${host#[}"; then
+      case "$host" in
+        \[*) ;;
+        *)
+          echo "  That is a private address, so links mailed to customers will not open from outside." >&2
+          echo "  Re-run with MARAN_PANEL_PUBLIC_URL=https://<public name or address>:${MARAN_PANEL_PORT} to set the real one." >&2
+          ;;
+      esac
+    fi
+    echo "$url"
+    return 0
+  done < <(panel_public_host_candidates)
+
+  echo "No public address could be found for the panel, so links in invitation and password-reset mails" >&2
+  echo "will carry no address. Re-run with MARAN_PANEL_PUBLIC_URL=https://<public name or address>:${MARAN_PANEL_PORT}." >&2
+  return 0
 }
 
 # write_config: renders panel.env to a temp file first, then atomically renames it into
@@ -585,7 +788,7 @@ detect_panel_host_name() {
 # encrypted data in PostgreSQL.
 write_config() {
   local encryption_key="$1" setup_token="$2" signing_key="$3" ssh_ports="$4" seed_cidr="$5" tmp
-  local proxy_uid="$6" panel_host_name="${7:-}"
+  local proxy_uid="$6" panel_host_name="${7:-}" panel_public_url="${8:-}"
   # Demanded here, before the temp file exists, and not left to the interpolation forty lines
   # below: under `set -u` an unset value aborts mid-write, and what it aborts is a 0600 file
   # holding the encryption key and the token signing key, left in /etc/maran with nothing to
@@ -670,12 +873,27 @@ write_config() {
       echo "# trusted certificate for it. Absent means no host-specific refusal; the fixed set of"
       echo "# reserved names (addresses, localhost, special-use suffixes) applies either way."
       echo "Panel__HostName=${panel_host_name}"
+    fi
+    # Written independently of the host name: the address customers are mailed is the one the
+    # operator reaches the panel at, which is usually an IP address or a public name and not the
+    # machine's own name. It goes into a line-oriented file, so it is checked here even though its
+    # producer already did (rules/security.md item 4); a value that fails is left out, not repaired.
+    if [ -n "$panel_public_url" ] && ! panel_public_url_is_valid "$panel_public_url"; then
+      echo "Not recording the panel's public address: it is not an https origin." >&2
+      panel_public_url=""
+    fi
+    if [ -n "$panel_public_url" ]; then
       echo ""
-      echo "# The address the panel is reached at: https://<that host name>:<the panel port>. Links the"
-      echo "# panel builds outside a request (an invitation, a password reset issued by the recovery"
-      echo "# command) start with it. Not a secret; re-derived on every re-run. Absent when the host has"
-      echo "# no usable name, because a guessed address in a credential link is worse than none."
-      echo "PasswordReset__PanelUrl=https://${panel_host_name}:${MARAN_PANEL_PORT}"
+      echo "# The address the panel is reached at from outside: an https origin with the panel port. Every"
+      echo "# link the panel builds outside a request starts with it — an invitation to an account owner or"
+      echo "# a reseller, a password-reset link, the one \`maran admin-reset-password\` prints. Chosen by the"
+      echo "# installer from the address the operator actually reaches the server at (the same one it"
+      echo "# prints at the end), or taken from MARAN_PANEL_PUBLIC_URL when the installer was run with it."
+      echo "# Not a secret. Preserved on re-run (a valid value is kept, so an address the operator set or"
+      echo "# edited here survives an update); only MARAN_PANEL_PUBLIC_URL replaces it. Never taken from a"
+      echo "# request's Host header. Absent: those links carry no address and cannot be clicked; the panel"
+      echo "# warns at start-up."
+      echo "Panel__PublicUrl=${panel_public_url}"
     fi
     if [ -n "$seed_cidr" ]; then
       echo ""
@@ -824,7 +1042,27 @@ step_config() {
     echo "No usable host name for the panel; only the fixed reserved names will be refused to customers."
   fi
 
-  write_config "$key" "$token" "$signing_key" "$ssh_ports" "$seed_cidr" "$proxy_uid" "$panel_host_name"
+  # The address customers are mailed. Unlike the host facts above it is a DECISION the operator may
+  # have made (MARAN_PANEL_PUBLIC_URL, or an edit of panel.env), so a valid recorded value is kept on a
+  # re-run and an update never silently re-points every credential link; only an explicit
+  # MARAN_PANEL_PUBLIC_URL replaces it, and only an absent or invalid one is detected afresh. An
+  # invalid MARAN_PANEL_PUBLIC_URL fails the step here, before panel.env is touched. The old
+  # PasswordReset__PanelUrl is deliberately not carried over: the installer derived it from the
+  # machine's own name, which is the unreachable address this setting exists to replace.
+  local panel_public_url
+  panel_public_url="$(existing_value Panel__PublicUrl)"
+  if [ -n "${MARAN_PANEL_PUBLIC_URL:-}" ] || [ -z "$panel_public_url" ]; then
+    panel_public_url="$(detect_panel_public_url)"
+  elif panel_public_url_is_valid "$panel_public_url"; then
+    echo "Preserving the panel's public address from a previous install run: ${panel_public_url}"
+    echo "  (Re-run with MARAN_PANEL_PUBLIC_URL=https://<name or address>:${MARAN_PANEL_PORT} to change it.)"
+  else
+    echo "The panel's public address recorded by a previous run is not a valid https origin; detecting it again." >&2
+    panel_public_url="$(detect_panel_public_url)"
+  fi
+
+  write_config "$key" "$token" "$signing_key" "$ssh_ports" "$seed_cidr" "$proxy_uid" "$panel_host_name" \
+    "$panel_public_url"
   write_agent_env
   echo "Config written with mode 0640, owner root:${MARAN_GROUP}. Secret values were not logged."
 }

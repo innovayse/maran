@@ -220,12 +220,28 @@ public sealed class StartViewAsResellerCommandHandlerTests : IDisposable
         Assert.Equal($"reseller northwind as {login.Username}", entry.Subject);
     }
 
-    /// <summary>A reseller login that has not set its password yet cannot be viewed as.</summary>
+    /// <summary>A reseller whose contact has not accepted the invitation answers its own conflict (issue #416).</summary>
     [Fact]
-    public async Task A_reseller_login_waiting_for_its_invitation_cannot_be_viewed_as()
+    public async Task A_reseller_login_waiting_for_its_invitation_is_invitation_pending()
     {
         var (admin, adminSession) = await _fixture.SeedAdminAsync();
         var (resellerId, _) = await _fixture.SeedResellerAsync(claimed: false);
+
+        var result = await NewHandler().HandleAsync(Command(resellerId, admin.Id, adminSession.Id), CancellationToken.None);
+
+        Assert.Equal(ErrorType.Conflict, result.Error!.Type);
+        Assert.Equal("ViewAsInvitationPending", result.Error.Code);
+        Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.ViewAs != null));
+    }
+
+    /// <summary>A reseller suspended before it accepted keeps the suspended answer, so the operator resumes it first (issue #416).</summary>
+    [Fact]
+    public async Task A_suspended_reseller_login_waiting_for_its_invitation_is_login_unavailable()
+    {
+        var (admin, adminSession) = await _fixture.SeedAdminAsync();
+        var (resellerId, login) = await _fixture.SeedResellerAsync(claimed: false);
+        login.Suspend();
+        await _fixture.Context.SaveChangesAsync();
 
         var result = await NewHandler().HandleAsync(Command(resellerId, admin.Id, adminSession.Id), CancellationToken.None);
 
@@ -245,6 +261,7 @@ public sealed class StartViewAsResellerCommandHandlerTests : IDisposable
         var result = await NewHandler().HandleAsync(Command(resellerId, admin.Id, adminSession.Id), CancellationToken.None);
 
         Assert.Equal(ErrorType.Conflict, result.Error!.Type);
+        Assert.Equal("ViewAsLoginUnavailable", result.Error.Code);
         Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.ViewAs != null));
     }
 }

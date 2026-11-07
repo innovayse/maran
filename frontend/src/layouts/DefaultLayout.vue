@@ -54,10 +54,9 @@ import ShellTabBar from '../components/shell/ShellTabBar.vue'
 import ShellViewingAsBanner from '../components/shell/ShellViewingAsBanner.vue'
 import { useNavigationState } from '../composables/useNavigationState'
 import { useNavigationRole } from '../composables/useNavigationRole'
+import { useShellLiveReads } from '../composables/useShellLiveReads'
 import { useLocaleStore } from '../stores/locale'
 import { useModulesStore } from '../stores/modules'
-import { useNavigationBadgesStore } from '../stores/navigationBadges'
-import { useTasksStore } from '../stores/tasks'
 import { FALLBACK_GROUP } from '../router/navigationTree'
 import { locateNavigation } from '../utils/locateNavigation'
 import { PAGE_EYEBROW_KEY } from '../utils/pageEyebrowKey'
@@ -87,9 +86,11 @@ const route = useRoute()
 const navigationRole = useNavigationRole()
 const navigationState = useNavigationState()
 const modulesStore = useModulesStore()
-const tasksStore = useTasksStore()
-const badgesStore = useNavigationBadgesStore()
 const localeStore = useLocaleStore()
+
+// The shell's polls and streams (running tasks, failed-task count, needs-attention and updates
+// figures), started only for the roles that may call them and dropped with the identity (issue #415).
+useShellLiveReads()
 
 /** Live match for {@link WIDE_QUERY}; kept so its listener can be removed. */
 const wideQuery: MediaQueryList = window.matchMedia(WIDE_QUERY)
@@ -126,6 +127,15 @@ const entries: ComputedRef<readonly NavigationEntry[]> = computed(() => {
 /** Whether the navigation's first answer is still on its way. */
 const loadingNavigation: ComputedRef<boolean> = computed(() => {
   return navigationState.value.state === 'loading'
+})
+
+/**
+ * What the routed page is keyed on (issue #414): the interface language, so a switch remounts the
+ * page and its loaders ask again. A screen that holds something shown only once (the two-factor
+ * recovery codes) is keyed on a constant instead, so a language switch cannot discard it.
+ */
+const pageKey: ComputedRef<string> = computed(() => {
+  return route.meta.holdsOneTimeSecret === true ? 'held' : localeStore.current
 })
 
 /** Whether the jump-to palette is open. */
@@ -260,19 +270,6 @@ onMounted((): void => {
 
 onMounted(ensureCatalogueLoaded)
 
-// The failed-task count is the navigation's one badge (issue #311). Read once per shell; the tasks
-// screen re-reads it itself, and a failure leaves no badge rather than a wrong one.
-onMounted(tasksStore.loadFailures)
-
-// The needs-attention and pending-updates figures are server-wide, so only an administrator is shown
-// them (the endpoints refuse everyone else). Each is re-read on its own interval while the shell is
-// mounted; the mail queue badge has no source yet and is never requested (issue #320).
-onMounted((): void => {
-  if (navigationRole.value === 'admin') {
-    badgesStore.start()
-  }
-})
-
 // The module names in the navigation and the breadcrumb are the panel's own, localized for the
 // language the catalogue was READ in (issue #221). Switching the language live re-reads it, so the
 // sidebar never keeps the previous language's names until the next sign-in. The previous catalogue
@@ -291,7 +288,6 @@ watch(
 )
 
 onBeforeUnmount((): void => {
-  badgesStore.stop()
   window.removeEventListener('keydown', onShortcut)
   wideQuery.removeEventListener('change', applyCompact)
 })
@@ -361,7 +357,13 @@ onBeforeUnmount((): void => {
           <!-- RouterView, not a slot: this layout is a route component with child routes, so the
                page for the active child renders here. A <slot/> would silently render nothing. -->
           <ShellViewingAsBanner class="mb-4" />
-          <RouterView />
+          <!-- Keyed on the interface language (issue #414): the backend localizes the text a page
+               shows (status names, feature names, plan choices) per request, so a language switch
+               remounts the routed page and its loaders ask again with the new `Accept-Language`.
+               One central place instead of a reload hook in every page. A route that holds a one-time secret
+               opts out (`meta.holdsOneTimeSecret`). What a remount costs is
+               documented in rules/vue.md, "One locale, one source of truth". -->
+          <RouterView :key="pageKey" />
         </main>
       </div>
 

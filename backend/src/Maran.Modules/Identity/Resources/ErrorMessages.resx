@@ -24,6 +24,12 @@
   <data name="InvalidTwoFactorCodeClockUnsynchronizedUnauthorized">
     <value>That code is not valid. The server's clock is not synchronised, which can make correct codes fail. Ask the server's administrator to check its time synchronisation.</value>
   </data>
+  <data name="TwoFactorCodeInvalid">
+    <value>That code is not valid. Check your authenticator app and try again.</value>
+  </data>
+  <data name="TwoFactorCodeClockUnsynchronized">
+    <value>That code is not valid. The server's clock is not synchronised, which can make correct codes fail. Ask the server's administrator to check its time synchronisation.</value>
+  </data>
   <data name="RefreshTokenInvalidUnauthorized">
     <value>Your session has ended. Please sign in again.</value>
   </data>
@@ -158,6 +164,9 @@
   </data>
   <data name="ViewAsLoginUnavailable">
     <value>That login is suspended or locked, so the panel cannot be viewed as it.</value>
+  </data>
+  <data name="ViewAsInvitationPending">
+    <value>The owner has not accepted the invitation yet, so there is no login to view the panel as. Try again once they have.</value>
   </data>
   <data name="ViewAsNotViewing">
     <value>You are not viewing the panel as another login.</value>

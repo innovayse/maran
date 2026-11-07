@@ -104,7 +104,7 @@ public sealed class PasswordResetEndpointTests : IAsyncLifetime
 
             builder.UseSetting("Security:EncryptionKey", Key);
             builder.UseSetting("Jwt:SigningKey", Key);
-            builder.UseSetting("PasswordReset:PanelUrl", "https://panel.example.com");
+            builder.UseSetting("Panel:PublicUrl", "https://panel.example.com");
             builder.UseSetting(
                 "RateLimiting:PasswordResetMaxRequests",
                 passwordResetLimit.ToString(CultureInfo.InvariantCulture));

@@ -3,23 +3,21 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { usePanelCertificateApi } from '../composables/apis/usePanelCertificateApi'
 import { ApiError } from '../composables/useApi'
 import type { LoadingState, Read, Submission } from '../types/loading'
-import type { PanelCertificate, PanelCertificateStatus } from '../types/panelCertificate'
+import type { PanelCertificate, PanelCertificateReading, PanelCertificateStatus } from '../types/panelCertificate'
 import { loadingStateOf } from '../utils/loadingStateOf'
 
 /** The code the panel answers with while it serves its self-signed certificate. */
 const NOT_ISSUED_CODE = 'PanelCertificateNotIssued'
 
-/** The code the panel answers with when no usable host name is configured. */
-const NO_HOST_NAME_CODE = 'PanelHostNameNotConfigured'
-
 /**
  * Owns what the panel's own interface is served with, for the panel certificate
  * screen (issue #132).
  *
- * The read's two refusals are states, not failures: "not issued" is the
- * installer's self-signed certificate, and "no host name" is a configuration the
- * operator has to set. The codes decide the case; the sentence shown is always
- * the panel's own (rules/vue.md "Errors from the server").
+ * Two answers of the read are states, not failures: "not issued" is the
+ * installer's self-signed certificate (a refusal the code identifies), and "no
+ * host name" is a configuration the operator has to set (a 200 the
+ * `hostNameConfigured` flag identifies). The sentence shown is always the
+ * panel's own (rules/vue.md "Errors from the server").
  */
 export const usePanelCertificateStore = defineStore('panelCertificate', () => {
   const api = usePanelCertificateApi()
@@ -73,19 +71,29 @@ export const usePanelCertificateStore = defineStore('panelCertificate', () => {
   }
 
   /**
+   * Turns the panel's reading into the status the screen shows.
+   * @param reading What `GET /api/v1/panel-certificate` answered.
+   * @returns The no-host-name state, or the trusted one.
+   */
+  const statusOf = (reading: PanelCertificateReading): PanelCertificateStatus => {
+    if (!reading.hostNameConfigured) {
+      return { kind: 'noHostName', message: reading.hostNameNotice }
+    }
+    return trusted({ hostName: reading.hostName, expiresAt: reading.expiresAt, issuedAt: reading.issuedAt })
+  }
+
+  /**
    * Reads what the panel is served with.
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
     read.value = { state: 'loading' }
     try {
-      read.value = { state: 'loaded', value: trusted(await api.get()) }
+      read.value = { state: 'loaded', value: statusOf(await api.get()) }
     } catch (error) {
-      // The two refusals that describe a state are the screen's content, not its failure.
+      // The refusal that describes a state is the screen's content, not its failure.
       if (error instanceof ApiError && error.code === NOT_ISSUED_CODE) {
         read.value = { state: 'loaded', value: { kind: 'selfSigned' } }
-      } else if (error instanceof ApiError && error.code === NO_HOST_NAME_CODE) {
-        read.value = { state: 'loaded', value: { kind: 'noHostName', message: error.message } }
       } else {
         read.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
       }

@@ -24,6 +24,12 @@
   <data name="InvalidTwoFactorCodeClockUnsynchronizedUnauthorized">
     <value>Կոդը սխալ է։ Սերվերի ժամացույցը համաժամեցված չէ, ինչի պատճառով ճիշտ կոդերը կարող են չընդունվել․ խնդրեք սերվերի ադմինիստրատորին ստուգել ժամանակի համաժամեցումը։</value>
   </data>
+  <data name="TwoFactorCodeInvalid">
+    <value>Կոդը սխալ է։ Ստուգեք վավերացնող հավելվածը և կրկին փորձեք։</value>
+  </data>
+  <data name="TwoFactorCodeClockUnsynchronized">
+    <value>Կոդը սխալ է։ Սերվերի ժամացույցը համաժամեցված չէ, ինչի պատճառով ճիշտ կոդերը կարող են չընդունվել․ խնդրեք սերվերի ադմինիստրատորին ստուգել ժամանակի համաժամեցումը։</value>
+  </data>
   <data name="RefreshTokenInvalidUnauthorized">
     <value>Աշխատաշրջանն ավարտվել է։ Խնդրում ենք նորից մուտք գործել։</value>
   </data>
@@ -158,6 +164,9 @@
   </data>
   <data name="ViewAsLoginUnavailable">
     <value>Այս մուտքը կասեցված կամ արգելափակված է, ուստի վահանակը նրա անունից դիտել հնարավոր չէ։</value>
+  </data>
+  <data name="ViewAsInvitationPending">
+    <value>Սեփականատերը դեռ չի ընդունել հրավերը, ուստի չկա մուտք, որի անունից կարելի է դիտել վահանակը։ Փորձեք կրկին, երբ նա ընդունի։</value>
   </data>
   <data name="ViewAsNotViewing">
     <value>Դուք վահանակը այլ մուտքի անունից չեք դիտում։</value>

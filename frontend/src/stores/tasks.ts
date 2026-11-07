@@ -77,6 +77,12 @@ export const useTasksStore = defineStore('tasks', () => {
   let reconnectDelay = RECONNECT_FIRST_DELAY_MS
 
   /**
+   * Counts the times {@link reset} ran. A read that began under one identity compares it on
+   * arrival and drops its answer when another identity has taken over since.
+   */
+  let generation = 0
+
+  /**
    * How many tasks are running right now, and the whole content of the header badge. Computed over
    * {@link running}, which stream frames update, so the count answers to the streams as well as to
    * the read.
@@ -340,12 +346,42 @@ export const useTasksStore = defineStore('tasks', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const loadFailures = async (): Promise<void> => {
+    const asked = generation
     failures.value = { state: 'loading' }
     try {
-      failures.value = { state: 'answered', count: await api.failedCount() }
+      const count = await api.failedCount()
+      if (asked === generation) {
+        failures.value = { state: 'answered', count }
+      }
     } catch {
-      failures.value = { state: 'unavailable' }
+      // An answer that belongs to an identity that has since left must not colour the new one.
+      if (asked === generation) {
+        failures.value = { state: 'unavailable' }
+      }
     }
+  }
+
+  /**
+   * Forgets everything held for the identity that is leaving: closes the tray and every per-task
+   * stream, and empties the rows, the running tasks, the open pane, the filters' choices and the
+   * failed-task count. Called when the signed-in identity changes (a sign-out, a sign-in as someone
+   * else, "View as this account" starting or ending), so the next identity never begins with the
+   * previous one's badge or has the previous one's stream carried over.
+   * @returns Nothing; state is cleared synchronously.
+   */
+  const reset = (): void => {
+    generation += 1
+    closeTray()
+    for (const controller of watches.values()) {
+      controller.abort()
+    }
+    watches.clear()
+    rows.value = []
+    running.value = []
+    openTask.value = null
+    kinds.value = []
+    statuses.value = []
+    failures.value = { state: 'loading' }
   }
 
   /**
@@ -383,6 +419,7 @@ export const useTasksStore = defineStore('tasks', () => {
     loadKinds,
     loadStatuses,
     loadFailures,
+    reset,
     watch,
     stopWatching,
     openTray,

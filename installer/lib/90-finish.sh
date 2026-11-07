@@ -26,12 +26,20 @@ panel_env_value() {
 }
 
 step_finish() {
-  local token hostname whitelist_seed
+  local token hostname whitelist_seed panel_url
   token="$(panel_env_value Setup__Token)"
   # host_display_name (install.sh) rather than the `hostname` binary: Oracle Linux 8 ships no
   # `hostname` package, and the old expression's own fallback called the same missing program, so the
   # install died with exit 127 (issue #57).
   hostname="$(host_display_name)"
+  # The address the panel is reached at, exactly as panel.env records it for the links customers are
+  # mailed (60-config.sh detect_panel_public_url): what the operator is told to open and what the
+  # panel puts in a mail are one value. A host that had none to record falls back to the machine's
+  # own name, which is what this step always printed.
+  panel_url="$(panel_env_value Panel__PublicUrl)"
+  if [ -z "$panel_url" ]; then
+    panel_url="https://${hostname}:${MARAN_PANEL_PORT}"
+  fi
   # Absent whenever the install saw no client address to seed the firewall whitelist with.
   whitelist_seed="$(panel_env_value Firewall__SeedWhitelistCidr)"
 
@@ -69,7 +77,7 @@ step_finish() {
   # The port comes from install.sh's MARAN_PANEL_PORT, not from a literal: a URL printed
   # with a port nginx is not listening on sends the operator to a connection refusal on
   # the one screen they must reach, and it would go wrong the first time the port changes.
-  local setup_url="https://${hostname}:${MARAN_PANEL_PORT}/setup"
+  local setup_url="${panel_url}/setup"
   local handover
   printf -v handover '\nCreate the first administrator here (one time only):\n\n  %s\n\nPaste this one-time setup token into the token field on that page:\n\n  %s\n\nIt is not part of the link on purpose: a secret in a web address is recorded by the web\nserver that serves it and by the browser that opens it.\n\n' \
     "$setup_url" "$token"
@@ -81,7 +89,7 @@ step_finish() {
 
   cat <<EOF
 
-Maran is installed and reachable at https://${hostname}:${MARAN_PANEL_PORT}/
+Maran is installed and reachable at ${panel_url}/
 
 Your browser will warn the first time you open that address, and the warning is expected: this
 installer generated the certificate and signed it itself. The connection is encrypted all the
@@ -109,7 +117,7 @@ browser will warn once. That is expected on a fresh install.
 
 Next steps:
   - Confirm both services are healthy: systemctl status maran-api maran-agent
-  - Confirm the panel answers:        curl -k https://${hostname}:${MARAN_PANEL_PORT}/health
+  - Confirm the panel answers:        curl -k ${panel_url}/health
                                       (-k because of the certificate described above)
   - The full install log is at /var/log/maran/install.log
   - Locked out?                       sudo /usr/local/sbin/maran admin-reset-password <email>

@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Domain.Policies;
+using Maran.Modules.Identity.Mappers;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
@@ -66,7 +67,8 @@ public sealed class StartViewAsCommandHandler
     /// The view-as token and what the banner shows; <c>ViewAsAccountNotFound</c> (404) for an account
     /// that does not exist, lies outside the caller's scope, or has no owning login, or when the
     /// operator is no longer an administrator or an active reseller who may sign in;
-    /// <c>ViewAsLoginUnavailable</c> (409) when the owning login may not sign in.
+    /// <c>ViewAsInvitationPending</c> (409) when the owner has not accepted the invitation yet;
+    /// <c>ViewAsLoginUnavailable</c> (409) when the owning login or its membership is suspended.
     /// </returns>
     public async Task<Result<ViewAsSessionDto>> HandleAsync(StartViewAsCommand command, CancellationToken cancellationToken)
     {
@@ -92,10 +94,12 @@ public sealed class StartViewAsCommandHandler
 
         var viewed = owner.Login;
         var subject = new ViewAsSubject(ViewAsKind.Account, account.Id, account.Username);
-        if (!viewed.MayAuthenticate || owner.Membership.State == MembershipState.Suspended)
+        var refusal = ViewAsLoginRefusalMapper.From(
+            ViewAsLoginStandingPolicy.Of(viewed, owner.Membership.State == MembershipState.Suspended));
+        if (refusal is not null)
         {
             await RefuseAsync(command, actor, ViewAsSubjectText.Of(subject.Kind, subject.Name, viewed.Username), cancellationToken);
-            return Result<ViewAsSessionDto>.Fail(Error.Of(nameof(ErrorMessages.ViewAsLoginUnavailable), ErrorType.Conflict));
+            return Result<ViewAsSessionDto>.Fail(refusal);
         }
 
         var started = await _starter.StartAsync(

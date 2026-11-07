@@ -155,6 +155,7 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Error);
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Equal("ViewAsLoginUnavailable", result.Error.Code);
         Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.ViewAs != null));
     }
 
@@ -309,9 +310,9 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
         Assert.False(Assert.Single(_fixture.Audit.Written).Succeeded);
     }
 
-    /// <summary>An account whose owning login has not set its password yet answers login unavailable, not a token.</summary>
+    /// <summary>An account whose owner has not accepted the invitation answers its own conflict, not a token (issue #416).</summary>
     [Fact]
-    public async Task An_owner_login_that_may_not_sign_in_is_login_unavailable()
+    public async Task An_owner_who_has_not_accepted_the_invitation_is_invitation_pending()
     {
         var (admin, adminSession) = await _fixture.SeedAdminAsync();
         var accountId = Guid.NewGuid();
@@ -325,8 +326,30 @@ public sealed class StartViewAsCommandHandlerTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ErrorType.Conflict, result.Error!.Type);
-        Assert.Equal("ViewAsLoginUnavailable", result.Error.Code);
+        Assert.Equal("ViewAsInvitationPending", result.Error.Code);
+        Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.ViewAs != null));
         Assert.False(Assert.Single(_fixture.Audit.Written).Succeeded);
+    }
+
+    /// <summary>An account suspended before its owner accepted keeps the suspended answer, so the operator resumes it first (issue #416).</summary>
+    [Fact]
+    public async Task A_suspended_account_whose_owner_has_not_accepted_is_login_unavailable()
+    {
+        var (admin, adminSession) = await _fixture.SeedAdminAsync();
+        var accountId = Guid.NewGuid();
+        _fixture.Accounts.Add(accountId, "waiting", maxFtpUsers: 0);
+        var invited = User.Invite(Guid.NewGuid(), "waiting-owner", "waiting@example.com", ViewAsFixture.Now);
+        var membership = AccountMembership.Own(Guid.NewGuid(), invited.Id, accountId, ViewAsFixture.Now);
+        membership.Suspend();
+        _fixture.Context.Users.Add(invited);
+        _fixture.Context.AccountMemberships.Add(membership);
+        await _fixture.Context.SaveChangesAsync();
+
+        var result = await NewHandler().HandleAsync(Command(accountId, admin.Id, adminSession.Id), CancellationToken.None);
+
+        Assert.Equal(ErrorType.Conflict, result.Error!.Type);
+        Assert.Equal("ViewAsLoginUnavailable", result.Error.Code);
+        Assert.False(await _fixture.Context.Sessions.AnyAsync(s => s.ViewAs != null));
     }
 
     /// <summary>An account with no owning login at all is not found, never a conflict.</summary>

@@ -58,7 +58,7 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
     {
         return new IssueInvitationLinkCommandHandler(
             new InvitationIssuer(_context, _accountDirectory, new AccountOwnerFinder(_context)),
-            new InvitationLinkBuilder(new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = panelUrl })),
+            new InvitationLinkBuilder(new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = panelUrl })),
             new IdentityAuditJournal(_audit, _admin),
             _clock,
             _admin);

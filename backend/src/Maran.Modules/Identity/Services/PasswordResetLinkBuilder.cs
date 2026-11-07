@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Options;
 using Microsoft.Extensions.Options;
 
@@ -15,7 +16,7 @@ namespace Maran.Modules.Identity.Services;
 /// </para>
 /// <para>
 /// <b>The host comes from configuration, never from a request.</b> The absolute form is built from
-/// <see cref="PanelOptions.PanelUrl"/>, for the host-header-injection reason
+/// <see cref="PanelOptions.PublicUrl"/> through <see cref="PanelLink"/>, for the host-header-injection reason
 /// <see cref="InvitationLinkBuilder"/> states. With no public address configured the answer is a
 /// root-relative path and <see cref="HasPublicAddress"/> says so, so a caller can tell the person the
 /// link has no host rather than presenting a fragment as a complete address.
@@ -36,7 +37,7 @@ public sealed class PasswordResetLinkBuilder
     /// <summary>Whether a public address is configured, so <see cref="Build"/> answers an absolute link.</summary>
     public bool HasPublicAddress
     {
-        get { return !string.IsNullOrWhiteSpace(_options.PanelUrl); }
+        get { return PanelLink.IsConfigured(_options.PublicUrl); }
     }
 
     /// <summary>Builds the root-relative path that redeems a reset token.</summary>
@@ -52,11 +53,6 @@ public sealed class PasswordResetLinkBuilder
     /// <returns>The link. It embeds the token, so it is exactly as secret as the token is.</returns>
     public string Build(string token)
     {
-        if (!HasPublicAddress)
-        {
-            return RelativeFor(token);
-        }
-
-        return $"{_options.PanelUrl.TrimEnd('/')}{RelativeFor(token)}";
+        return PanelLink.Compose(_options.PublicUrl, RelativeFor(token));
     }
 }
