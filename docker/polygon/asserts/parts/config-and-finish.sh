@@ -183,7 +183,7 @@ be refused, not replaced by a guess. Got: ${answer}" ;;
   for value in 'https://203.0.113.7:8443|IP:203.0.113.7' 'https://[2001:db8::1]:8443|IP:2001:db8::1' \
     'https://panel.example.com:8443|DNS:panel.example.com' 'https://a.b,IP:1.2.3.4:8443|' 'http://203.0.113.7|'; do
     printf 'Other=1\nPanel__PublicUrl=%s\n' "${value%%|*}" > "$scratch"
-    san="$(MARAN_CONFIG_FILE="$scratch" bash -c 'set -euo pipefail
+    san="$(env MARAN_CONFIG_FILE="$scratch" bash -c 'set -euo pipefail
 eval "$(sed -n "/^panel_certificate_extra_san()/,/^}/p" "$1")"
 panel_certificate_extra_san' _ "$NGINX_STEP")"
     [ "$san" = "${value#*|}" ] \
@@ -191,7 +191,7 @@ panel_certificate_extra_san' _ "$NGINX_STEP")"
 A subjectAltName built from anything but a plain address lets a value add a second certificate name."; }
   done
   printf 'Other=1\n' > "$scratch"
-  san="$(MARAN_CONFIG_FILE="$scratch" bash -c 'set -euo pipefail
+  san="$(env MARAN_CONFIG_FILE="$scratch" bash -c 'set -euo pipefail
 eval "$(sed -n "/^panel_certificate_extra_san()/,/^}/p" "$1")"
 panel_certificate_extra_san' _ "$NGINX_STEP")"
   rm -f "$scratch"
