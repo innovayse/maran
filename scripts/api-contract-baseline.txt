@@ -17,7 +17,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 50 endpoints, 189 members
+covered: 51 endpoints, 190 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -35,6 +35,8 @@ POST /api/v1/api-keys  ->  CreateApiKeyCommand
   scopes: string[]
   allowedCidrs: string[]?
   expiresAt: string?
+PUT /api/v1/audit/retention  ->  SaveAuditRetentionCommand
+  retentionDays: number?
 POST /api/v1/auth/accept-invitation  ->  AcceptInvitationCommand
   token: string
   newPassword: string
@@ -281,6 +283,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   DELETE /api/v1/view-as — route-only call, no JSON body
   POST /api/v1/accounts/{}/reactivate — route-only call, no JSON body
   POST /api/v1/accounts/{}/suspend — route-only call, no JSON body
+  POST /api/v1/audit/chain/verification — route-only call, no JSON body
   POST /api/v1/auth/logout — route-only call, no JSON body
   POST /api/v1/auth/logout-all — route-only call, no JSON body
   POST /api/v1/auth/refresh — route-only call, no JSON body
@@ -315,7 +318,10 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/api-keys/statuses
   GET /api/v1/audit
   GET /api/v1/audit/actions
+  GET /api/v1/audit/chain
+  GET /api/v1/audit/export
   GET /api/v1/audit/outcomes
+  GET /api/v1/audit/retention
   GET /api/v1/backup-destinations
   GET /api/v1/backup-options
   GET /api/v1/backup-schedules
@@ -365,6 +371,8 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/plans/choices
   GET /api/v1/plans/features
   GET /api/v1/plans/{}
+  GET /api/v1/privacy/accounts/{}/export
+  GET /api/v1/privacy/users/{}/export
   GET /api/v1/profile
   GET /api/v1/reseller/me
   GET /api/v1/resellers

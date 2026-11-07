@@ -64,6 +64,28 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
                 .IsRequired();
         });
 
+        // The columns the hash chain, the account filter and erasure added. All nullable, so the
+        // migration is expand-only and the previous release, which never reads or writes them, runs
+        // unchanged against the new schema. The two hashes and the salt are fixed-length byte values
+        // (AuditEvent.HashLength, AuditEvent.SaltLength); bytea cannot state a length, so the entity's
+        // Seal is what holds it.
+        builder.Property(e => e.AccountId);
+        builder.Property(e => e.ChainIndex);
+        builder.Property(e => e.RowHash).HasColumnType("bytea");
+        builder.Property(e => e.ErasableCommitment).HasColumnType("bytea");
+        builder.Property(e => e.CommitmentSalt).HasColumnType("bytea");
+
+        // A concurrency token, so the sealer cannot overwrite an erasure that committed between its
+        // read and its save: sealing an unerased row stores a salt, and a save that went through after
+        // the erasure would put back the very salt the erasure destroyed. The save is refused instead
+        // (DbUpdateConcurrencyException) and the row is sealed on the next maintenance tick. No schema
+        // effect: the token only adds the column to the WHERE of an UPDATE.
+        builder.Property(e => e.ErasedAt).IsConcurrencyToken();
+
+        // Computed from the columns above; never stored.
+        builder.Ignore(e => e.IsSealed);
+        builder.Ignore(e => e.IsErased);
+
         // The audit screen reads newest-first, and an operator asking "what did this user do"
         // filters by actor; both get an index so the journal stays readable as it grows.
         builder.HasIndex(e => e.OccurredAt).IsDescending().HasDatabaseName("IX_AuditEvents_OccurredAt");
@@ -73,6 +95,25 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         // the journal holds (ListAuditActionChoicesQuery). The table only grows, so both would be a
         // sequential pass over every entry ever written without this index.
         builder.HasIndex(e => e.Action).HasDatabaseName("IX_AuditEvents_Action");
+
+        // The account filter, and the account export and erasure that follow the same column.
+        builder.HasIndex(e => e.AccountId).HasDatabaseName("IX_AuditEvents_AccountId");
+
+        // Two FILTERED indexes, because most rows are in one state or the other at a given time.
+        // The unique one is what makes sealing a row twice fail instead of forking the chain, and
+        // it ignores the unsealed rows, which all have a null index. The other lets the sealer find
+        // the rows still waiting for a place without a pass over the sealed bulk of the table.
+        builder.HasIndex(e => e.ChainIndex)
+            .IsUnique()
+            .HasFilter("\"ChainIndex\" IS NOT NULL")
+            .HasDatabaseName("IX_AuditEvents_ChainIndex");
+
+        // NAMED in the model (the second argument), because OccurredAt already carries the descending
+        // index above: an unnamed HasIndex over the same property returns THAT index, and the filter and
+        // the new database name would be written onto it, renaming a shipped index instead of adding one.
+        builder.HasIndex(e => e.OccurredAt, "IX_AuditEvents_Unsealed")
+            .HasFilter("\"ChainIndex\" IS NULL")
+            .HasDatabaseName("IX_AuditEvents_Unsealed");
 
         // Deliberately NO foreign key to Users: the journal outlives the accounts it describes.
         // A deleted user must not take the record of what they did with them, and a failed login

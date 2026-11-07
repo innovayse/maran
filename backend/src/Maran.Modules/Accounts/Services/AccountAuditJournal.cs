@@ -60,14 +60,20 @@ public sealed class AccountAuditJournal
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
     /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <param name="accountId">
+    /// The account the entry is about, so the journal can be read per account. Passed only by an
+    /// operation that is certain of it and whose entry must stay attributable; the deletion flow never
+    /// passes one, because the account it removes must not live on in the journal under its own id.
+    /// </param>
     public async Task RecordSuccessAsync(
         string action,
         string name,
         string ipAddress,
         string userAgent,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? accountId = null)
     {
-        await WriteAsync(action, name, ipAddress, userAgent, succeeded: true, cancellationToken);
+        await WriteAsync(action, name, ipAddress, userAgent, succeeded: true, accountId, cancellationToken);
     }
 
     /// <summary>Records an operation that was refused, and why in machine terms.</summary>
@@ -80,14 +86,19 @@ public sealed class AccountAuditJournal
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
     /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <param name="accountId">
+    /// The account the refused operation was aimed at, when a row was found for it; <c>null</c> when
+    /// none exists to name.
+    /// </param>
     public async Task RecordFailureAsync(
         string action,
         string subject,
         string ipAddress,
         string userAgent,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? accountId = null)
     {
-        await WriteAsync(action, subject, ipAddress, userAgent, succeeded: false, cancellationToken);
+        await WriteAsync(action, subject, ipAddress, userAgent, succeeded: false, accountId, cancellationToken);
     }
 
     /// <summary>Builds and stores one entry.</summary>
@@ -96,6 +107,7 @@ public sealed class AccountAuditJournal
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
     /// <param name="succeeded">Whether the operation took effect.</param>
+    /// <param name="accountId">The account the entry is about, or <c>null</c> when it names none.</param>
     /// <param name="cancellationToken">Cancellation token for the write.</param>
     private async Task WriteAsync(
         string action,
@@ -103,6 +115,7 @@ public sealed class AccountAuditJournal
         string ipAddress,
         string userAgent,
         bool succeeded,
+        Guid? accountId,
         CancellationToken cancellationToken)
     {
         var (actorId, actorName) = _currentUser.Caller switch
@@ -124,7 +137,8 @@ public sealed class AccountAuditJournal
                 subject,
                 ipAddress,
                 userAgent,
-                succeeded),
+                succeeded,
+                accountId),
             cancellationToken);
     }
 }

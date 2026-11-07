@@ -13,8 +13,9 @@ namespace Maran.Modules.Identity.Queries.ListAuditEvents;
 public sealed class ListAuditEventsQueryValidator : PagedQueryValidator<ListAuditEventsQuery, AuditEvent>
 {
     /// <summary>
-    /// The characters an action filter may carry: the alphabet of the machine-stable action names the
-    /// journal records. A value outside it names no row, so it is refused rather than answered empty.
+    /// The characters an action or an actor filter may carry: the alphabet of the machine-stable action
+    /// names the journal records, which the actor filter shares. A value outside it names no row, so it
+    /// is refused rather than answered empty.
     /// </summary>
     private const string ActionPattern = "^[A-Za-z0-9._-]+$";
 
@@ -36,6 +37,22 @@ public sealed class ListAuditEventsQueryValidator : PagedQueryValidator<ListAudi
             .When(query =>
             {
                 return !query.Action.IsNone;
+            });
+
+        // The actor filter is an exact name, so a value outside the alphabet or the column's width can
+        // match no row and is refused rather than answered empty. None is the type's own state.
+        RuleFor(query => query.Actor.Value)
+            .Cascade(CascadeMode.Stop)
+            .MaximumLength(AuditEvent.ActorUsernameMaxLength)
+            .WithErrorCode(nameof(ErrorMessages.AuditActorFilterInvalid))
+            .WithMessage(nameof(ErrorMessages.AuditActorFilterInvalid))
+            .Matches(ActionPattern)
+            .WithErrorCode(nameof(ErrorMessages.AuditActorFilterInvalid))
+            .WithMessage(nameof(ErrorMessages.AuditActorFilterInvalid))
+            .OverridePropertyName(nameof(ListAuditEventsQuery.Actor))
+            .When(query =>
+            {
+                return !query.Actor.IsNone;
             });
 
         // Over HTTP, ?outcome=7 never reaches this rule: MVC's binder refuses a number naming no

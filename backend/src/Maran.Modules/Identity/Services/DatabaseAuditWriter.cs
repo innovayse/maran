@@ -31,6 +31,14 @@ namespace Maran.Modules.Identity.Services;
 /// unlikely, and <see cref="ColumnText.Fit"/> counts what the column counts.
 /// </para>
 /// <para>
+/// <b>The account an entry is about is stamped here too.</b> An account the entry carries itself
+/// (<see cref="AuditEntry.AccountId"/>, passed by a journal that is certain of it) wins; otherwise a
+/// customer session supplies the account it acts for, and a viewed-as customer is a customer session,
+/// so those entries are stamped as well. An administrator, a reseller, an API key, an account-less
+/// customer and an anonymous caller supply none: whom they act on is the subject's business, not the
+/// session's, so the column stays empty rather than guessing.
+/// </para>
+/// <para>
 /// The user agent is NOT fitted here: it arrives already capped by
 /// <c>UserAgentText.Capped</c> at the controller, which is where its policy — keep whole grapheme
 /// clusters where the width allows — belongs. Two caps on one value would leave the tighter one
@@ -49,10 +57,11 @@ public sealed class DatabaseAuditWriter : IAuditWriter
     private readonly ICorrelationIdAccessor _correlationIdAccessor;
 
     /// <summary>
-    /// The current request's principal, read for ONE thing only: the operator viewing as the actor,
-    /// if any (issue #317). Every module's journal reaches the table through this writer, so stamping
-    /// it here is what puts the impersonator on every entry written while viewing, including entries
-    /// from modules that have never heard of view-as.
+    /// The current request's principal, read for TWO things only: the operator viewing as the actor,
+    /// if any (issue #317), and the hosting account a customer acts for. Every module's journal reaches
+    /// the table through this writer, so stamping them here is what puts the impersonator and the
+    /// account on every entry written by a customer session, including entries from modules that have
+    /// never heard of view-as or of the account filter.
     /// </summary>
     private readonly ICurrentUser _currentUser;
 
@@ -60,7 +69,9 @@ public sealed class DatabaseAuditWriter : IAuditWriter
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="clock">The panel's clock.</param>
     /// <param name="correlationIdAccessor">The current request's correlation id.</param>
-    /// <param name="currentUser">The current request's principal, read for the viewing operator only.</param>
+    /// <param name="currentUser">
+    /// The current request's principal, read for the viewing operator and the customer's account only.
+    /// </param>
     public DatabaseAuditWriter(
         IdentityDbContext dbContext,
         IClock clock,
@@ -80,6 +91,7 @@ public sealed class DatabaseAuditWriter : IAuditWriter
         var impersonator = _currentUser.Caller is PrincipalCaller { ViewedBy: { } viewer }
             ? new AuditImpersonator(viewer.UserId, ColumnText.Fit(viewer.Username, AuditEvent.ActorUsernameMaxLength))
             : null;
+        var accountId = entry.AccountId ?? (_currentUser.Caller as CustomerCaller)?.AccountId;
 
         _dbContext.AuditEvents.Add(new AuditEvent(
             Guid.NewGuid(),
@@ -92,7 +104,8 @@ public sealed class DatabaseAuditWriter : IAuditWriter
             entry.UserAgent,
             entry.Succeeded,
             correlationId is null ? null : ColumnText.Fit(correlationId, AuditEvent.CorrelationIdMaxLength),
-            impersonator));
+            impersonator,
+            accountId));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }

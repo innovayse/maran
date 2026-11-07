@@ -1,6 +1,8 @@
 import { useAuthStore } from '../stores/auth'
 import { useLocaleStore } from '../stores/locale'
-import type { ApiClient, ProblemDetails, RequestOptions, ServerSentEvent } from '../types/api'
+import { contentDispositionFileName } from '../utils/contentDispositionFileName'
+import { decodeServerSentFrame } from '../utils/decodeServerSentFrame'
+import type { ApiClient, ApiDownload, ProblemDetails, RequestOptions, ServerSentEvent } from '../types/api'
 
 /**
  * Single low-level HTTP client composable for the panel API. Requests are
@@ -15,6 +17,9 @@ const CSRF_HEADER = 'X-Maran-Request'
 
 /** The endpoint that renews a session; it must never be retried by the retry logic itself. */
 const REFRESH_PATH = '/api/v1/auth/refresh'
+
+/** The name a download is saved under when the response proposes none. */
+const DEFAULT_DOWNLOAD_NAME = 'download'
 
 /**
  * Problem members that are NOT feature extensions: RFC 7807's own five plus the two the backend
@@ -92,7 +97,7 @@ export class ApiError extends Error {
  * request cancellation via `AbortSignal`, and one silent retry after renewing
  * an expired access token. There is exactly one of this composable in the app;
  * feature API composables call it, and nothing else does.
- * @returns The {@link ApiClient} with `get`, `post`, `put`, `patch` and `delete`.
+ * @returns The {@link ApiClient} with `get`, `post`, `put`, `patch`, `delete`, `download` and `stream`.
  */
 export const useApi = (): ApiClient => {
   // The locale store is the single source of truth for the interface language;
@@ -140,11 +145,12 @@ export const useApi = (): ApiClient => {
   /**
    * Builds the headers every request carries.
    * @param hasBody Whether the request sends a JSON body.
+   * @param accept The media types the caller will take; JSON unless a download asks otherwise.
    * @returns The header map.
    */
-  const buildHeaders = (hasBody: boolean): Record<string, string> => {
+  const buildHeaders = (hasBody: boolean, accept: string): Record<string, string> => {
     const headers: Record<string, string> = {
-      Accept: 'application/json',
+      Accept: accept,
       // Lets the backend pick which language to render `title`/`detail` in,
       // since the frontend never translates server-owned error text.
       'Accept-Language': localeStore.acceptLanguageHeader,
@@ -180,7 +186,7 @@ export const useApi = (): ApiClient => {
     const send = (): Promise<Response> => {
       return fetch(path, {
         method: options.method,
-        headers: buildHeaders(options.body !== undefined),
+        headers: buildHeaders(options.body !== undefined, options.accept ?? 'application/json'),
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
         // Sends the refresh cookie on the paths scoped to receive it.
         credentials: 'include',
@@ -293,39 +299,23 @@ export const useApi = (): ApiClient => {
   }
 
   /**
-   * Decodes one SSE frame — the text between two blank lines — into an event.
-   * @param frame The raw frame, without its terminating blank line.
-   * @returns The decoded event, or `null` for a frame carrying no data (a comment or a
-   * keep-alive, which the server sends purely to hold the connection open).
+   * Performs a GET request for a file and returns it whole, with the name the panel proposed.
+   *
+   * It goes through the same `request` helper as every other call, so the bearer token, the CSRF
+   * header, the one-shot token renewal and the RFC 7807 error decoding behave identically; a plain
+   * link could carry none of them. The body is read into memory, which the export endpoints bound
+   * with their row caps.
+   * @param path Request path, relative to the app origin.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The file and its proposed name.
+   * @throws {ApiError} When the response status is not in the 2xx range.
    */
-  const decodeFrame = (frame: string): ServerSentEvent | null => {
-    let name = 'message'
-    const dataLines: string[] = []
-
-    for (const line of frame.split('\n')) {
-      // A line starting with ':' is a comment (the keep-alive form), and carries nothing.
-      if (line.startsWith(':')) {
-        continue
-      }
-
-      const separator = line.indexOf(':')
-      const field = separator === -1 ? line : line.slice(0, separator)
-      // The SSE spec strips exactly one leading space from the value, and only one.
-      const rawValue = separator === -1 ? '' : line.slice(separator + 1)
-      const value = rawValue.startsWith(' ') ? rawValue.slice(1) : rawValue
-
-      if (field === 'event') {
-        name = value
-      } else if (field === 'data') {
-        dataLines.push(value)
-      }
+  const download = async (path: string, signal?: AbortSignal): Promise<ApiDownload> => {
+    const response = await request(path, { method: 'GET', signal, accept: '*/*' })
+    return {
+      blob: await response.blob(),
+      fileName: contentDispositionFileName(response.headers.get('Content-Disposition')) ?? DEFAULT_DOWNLOAD_NAME,
     }
-
-    if (dataLines.length === 0) {
-      return null
-    }
-
-    return { name, data: dataLines.join('\n') }
   }
 
   /**
@@ -372,7 +362,7 @@ export const useApi = (): ApiClient => {
         // the protocol did, and emitting half a frame would hand the caller half a log line.
         let separator = buffer.indexOf('\n\n')
         while (separator !== -1) {
-          const decoded = decodeFrame(buffer.slice(0, separator))
+          const decoded = decodeServerSentFrame(buffer.slice(0, separator))
           buffer = buffer.slice(separator + 2)
           if (decoded !== null) {
             onEvent(decoded)
@@ -390,5 +380,5 @@ export const useApi = (): ApiClient => {
     }
   }
 
-  return { get, post, put, patch, delete: deleteResource, stream }
+  return { get, post, put, patch, delete: deleteResource, download, stream }
 }

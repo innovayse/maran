@@ -41,6 +41,7 @@ public static class RateLimitingExtensions
             InvitationSendingRateLimitPolicy.Configure(options, limits);
             BackupRestoreRateLimitPolicy.Configure(options, limits);
             BackupVerifyRateLimitPolicy.Configure(options, limits);
+            AuditExportRateLimitPolicy.Configure(options, limits);
 
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, cancellationToken) =>

@@ -93,6 +93,10 @@ public sealed class SslModule : IPanelModule
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Maran-Panel-Acme-Client/1.0");
         });
 
+        // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
+        // personal-data export, an allow-list of fields and never a secret.
+        services.AddScoped<IPersonalDataProvider, SslPersonalDataProvider>();
+
         services.AddScoped<CertificateAuditJournal>();
         services.AddScoped<CertificateInstaller>();
         services.AddScoped<ISslAlertMailer, SslAlertMailer>();

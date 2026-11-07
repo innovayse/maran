@@ -295,7 +295,12 @@ public sealed class SuspendAccountCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AccountAuditActions.AccountSuspended, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountSuspended,
+            account.Name,
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken,
+            account.Id);
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 

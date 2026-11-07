@@ -1,5 +1,8 @@
+using System.Globalization;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Domain.Policies;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
 using Maran.Modules.Identity.Services;
@@ -29,6 +32,16 @@ namespace Maran.Modules.Identity.Commands.RemoveSubUser;
 /// stays; only this account's access and sessions are withdrawn.
 /// </para>
 /// <para>
+/// <b>Deleting the login pseudonymises what the journal says about the person, in the same
+/// transaction.</b> The rows naming the login (as the actor, or by a subject equal to its name, address
+/// or id) go to <see cref="AuditPseudonymiser"/> before anything is staged, and the removal is committed
+/// together with them. The summary (<c>PersonalDataErased</c>) is written after the commit. The removal
+/// entry itself is written AFTER the erasure, so it names the person by the same pseudonym and not by the
+/// login name: recording the name there would put back the very identifier that was just replaced. A
+/// login that stays is a person who still exists, so nothing is pseudonymised for it and its removal
+/// entry keeps the login name.
+/// </para>
+/// <para>
 /// <b>The same operation withdraws a pending offer.</b> The row an offer is listed as carries the
 /// offer's id, so removing that row cancels the offer and nothing else: no login and no membership is
 /// touched, because the offered person has none here yet.
@@ -49,6 +62,9 @@ public sealed class RemoveSubUserCommandHandler
     /// <summary>Records the removal.</summary>
     private readonly IdentityAuditJournal _journal;
 
+    /// <summary>Pseudonymises the journal rows of a login this handler deletes.</summary>
+    private readonly AuditPseudonymiser _pseudonymiser;
+
     /// <summary>The panel's clock.</summary>
     private readonly IClock _clock;
 
@@ -59,18 +75,21 @@ public sealed class RemoveSubUserCommandHandler
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="guard">Establishes that the caller owns the account they are acting for.</param>
     /// <param name="journal">Records the removal.</param>
+    /// <param name="pseudonymiser">Pseudonymises the journal rows of a login this handler deletes.</param>
     /// <param name="clock">The panel's clock.</param>
     /// <param name="currentUser">The authenticated owner.</param>
     public RemoveSubUserCommandHandler(
         IdentityDbContext dbContext,
         SubUserOwnerGuard guard,
         IdentityAuditJournal journal,
+        AuditPseudonymiser pseudonymiser,
         IClock clock,
         ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _guard = guard;
         _journal = journal;
+        _pseudonymiser = pseudonymiser;
         _clock = clock;
         _currentUser = currentUser;
     }
@@ -120,11 +139,15 @@ public sealed class RemoveSubUserCommandHandler
             other => other.UserId == user.Id && other.AccountId != accountId,
             cancellationToken);
 
-        _dbContext.AccountMemberships.Remove(membership);
+        // The subject the removal is journalled under: the login name, unless the login is deleted below,
+        // in which case it is the pseudonym that replaced the name in the person's earlier rows.
+        var subject = user.Username;
+        AuditErasureOutcome? erasure = null;
 
         if (hasOtherAccess)
         {
             // The login lives on; only the sessions speaking for THIS account end.
+            _dbContext.AccountMemberships.Remove(membership);
             var now = _clock.UtcNow;
             var speaking = await _dbContext.Sessions
                 .Where(session => session.UserId == user.Id && session.ActiveAccountId == accountId)
@@ -133,25 +156,61 @@ public sealed class RemoveSubUserCommandHandler
             {
                 session.Revoke(now, SessionRevocationReason.MembershipRemoved);
             }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
         else
         {
-            // Sessions, invitation and reset tokens and recovery codes cascade with the login.
-            _dbContext.Users.Remove(user);
+            erasure = await DeleteLoginAsync(membership, user, cancellationToken);
+            subject = erasure.Pseudonym;
         }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
             IdentityAuditActions.SubUserRemoved,
-            user.Username,
+            subject,
             command.IpAddress,
             command.UserAgent,
             succeeded: true,
             cancellationToken);
 
+        if (erasure is { Rows: > 0 })
+        {
+            await _journal.RecordSystemAsync(
+                IdentityAuditActions.PersonalDataErased,
+                string.Create(CultureInfo.InvariantCulture, $"{erasure.Pseudonym} rows={erasure.Rows}"),
+                succeeded: true,
+                cancellationToken);
+        }
+
         return Result.Ok();
+    }
+
+    /// <summary>Deletes a login made for this team only, pseudonymising its journal rows in the same transaction.</summary>
+    /// <param name="membership">The login's membership of the caller's account.</param>
+    /// <param name="user">The login to delete.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>What the pseudonymisation did; its pseudonym is the name the login is journalled under from now on.</returns>
+    private async Task<AuditErasureOutcome> DeleteLoginAsync(
+        AccountMembership membership,
+        User user,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Before anything is staged: the pseudonymiser saves in batches, and a save writes whatever the
+        // context has staged.
+        var erasure = await _pseudonymiser.PseudonymiseUserAsync(user.Id, [user.Username, user.Email], cancellationToken);
+
+        _dbContext.AccountMemberships.Remove(membership);
+
+        // Sessions, invitation and reset tokens and recovery codes cascade with the login.
+        _dbContext.Users.Remove(user);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return erasure;
     }
 
     /// <summary>Withdraws the open offer the command names, when it names one of this account's.</summary>

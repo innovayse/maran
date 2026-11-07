@@ -1,6 +1,7 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-11-07 (issue #420): edited by hand, NOT measured. sites_on_a_real_host ignored 36->37 (the new nginx control test a_symlink_at_a_log_nginx_names_is_followed_by_the_nginx_master); the polygon lane re-measures.
 # NEW ROW 2026-11-05 (issues #144/#136/#143, one branch): edited by hand, NOT measured. backend Maran.Modules.Idempotency.Tests.dll 29 is the count of [Fact]/[Theory] attributes (a Theory counts once, so the real total is at least this); CI re-measures every row. Rows of projects that gained tests on the branch (Sdk, SharedKernel, Identity, Host.Tests) are left unraised: a gain is not gated, a drop is.
 # RE-MEASURED 2026-11-01 (merge of dev's #133 into #132): edited by hand, each row base + #132's delta + #133's delta.
 # maran_agent [unittests src/lib.rs] 436+6+4 = 446; maran_agent_core [unittests src/lib.rs] 515+8+12 = 535;
@@ -527,7 +528,7 @@ rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	9
 rust	sftp_key_sessions_on_a_real_host [tests/sftp_key_sessions_on_a_real_host.rs]	0	0	1
 rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	0	5
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
-rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
+rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	37
 rust	maran_agent_core [unittests src/lib.rs]	557	0	0
 rust	maran_distro [unittests src/lib.rs]	128	0	0
 rust	maran_ops [unittests src/lib.rs]	1953	0	1
@@ -590,11 +591,16 @@ spa	accounts/invitation-link.spec.ts	8	0	0
 spa	accounts/list.spec.ts	15	0	0
 spa	accounts/loading.spec.ts	3	0	0
 spa	accounts/my-account-loading.spec.ts	3	0	0
+spa	accounts/personal-data-export.spec.ts	3	0	0
 spa	accounts/resources.spec.ts	9	0	0
 spa	admin/audit.spec.ts	3	0	0
 spa	admin/panel-certificate.spec.ts	4	0	0
 spa	admin/smtp-settings.spec.ts	3	0	0
 spa	audit/action-names.spec.ts	2	0	0
+spa	audit/actor-account-filters.spec.ts	4	0	0
+spa	audit/export.spec.ts	4	0	0
+spa	audit/integrity.spec.ts	4	0	0
+spa	audit/retention.spec.ts	6	0	0
 spa	audit/list.spec.ts	7	0	0
 spa	audit/loading.spec.ts	3	0	0
 spa	audit/occurred-at-time.spec.ts	1	0	0

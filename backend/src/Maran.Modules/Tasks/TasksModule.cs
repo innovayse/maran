@@ -82,6 +82,10 @@ public sealed class TasksModule : IPanelModule
         services.AddSingleton<RunningTasksStreamWriter>();
         services.AddScoped<RunningTasksStreamService>();
 
+        // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
+        // personal-data export, an allow-list of fields and never a secret.
+        services.AddScoped<IPersonalDataProvider, TasksPersonalDataProvider>();
+
         // Scoped, because it writes through the request-scoped context — resolved once per
         // Wolverine message the same way CertificateRenewalHandler is. The Host schedules
         // TaskRetentionRequested; this is what runs when it arrives.

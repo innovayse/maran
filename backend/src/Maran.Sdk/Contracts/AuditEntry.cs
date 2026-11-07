@@ -17,6 +17,11 @@ namespace Maran.Sdk.Contracts;
 /// <param name="IpAddress">Where the request came from.</param>
 /// <param name="UserAgent">What client it came from.</param>
 /// <param name="Succeeded">Whether it worked. Failures are the half of the journal worth reading.</param>
+/// <param name="AccountId">
+/// The hosting account the entry is about, when its journal knows it; <c>null</c> otherwise. Optional and
+/// trailing so every earlier call compiles unchanged. The journal's writer fills a missing value from a
+/// customer caller; only a journal that is certain of the account passes one itself.
+/// </param>
 public sealed record AuditEntry(
     Guid? ActorUserId,
     string ActorUsername,
@@ -24,4 +29,5 @@ public sealed record AuditEntry(
     string Subject,
     string IpAddress,
     string UserAgent,
-    bool Succeeded);
+    bool Succeeded,
+    Guid? AccountId = null);

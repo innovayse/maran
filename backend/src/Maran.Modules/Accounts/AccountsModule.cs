@@ -51,6 +51,10 @@ public sealed class AccountsModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
+        // personal-data export, an allow-list of fields and never a secret.
+        services.AddScoped<IPersonalDataProvider, AccountsPersonalDataProvider>();
+
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
         services.AddScoped<AccountAuditJournal>();
 

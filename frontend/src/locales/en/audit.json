@@ -22,7 +22,35 @@
         "action": "Action",
         "outcome": "Outcome",
         "from": "From",
-        "to": "Until"
+        "to": "Until",
+        "actor": "Who",
+        "account": "Account",
+        "actorPlaceholder": "Exact username"
+      },
+      "export": {
+        "menuLabel": "Export",
+        "csv": "Export as CSV",
+        "json": "Export as JSON",
+        "working": "Preparing the export…",
+        "done": "Export downloaded"
+      },
+      "retention": {
+        "heading": "Retention",
+        "description": "How long audit entries are kept. By default they are kept forever; set a number of days to delete older entries automatically once a day.",
+        "days": "Keep for (days)",
+        "keepForever": "Keep forever",
+        "lastRun": "Last run",
+        "save": "Save retention",
+        "saved": "Retention saved"
+      },
+      "integrity": {
+        "heading": "Integrity",
+        "sealed": "Sealed entries",
+        "unsealed": "Not sealed yet",
+        "purgedThrough": "Purged through entry",
+        "verify": "Verify the chain",
+        "intact": "The chain is intact",
+        "broken": "The chain is broken"
       }
     }
   }

@@ -1,5 +1,5 @@
 /**
- * The three Node built-ins the end-to-end suite reads the repository with, declared here rather
+ * The four Node built-ins the end-to-end suite reads the repository with, declared here rather
  * than pulled in from `@types/node`.
  *
  * Why a declaration and not `"types": ["node"]` in `tsconfig.app.json`: that file compiles `src/`
@@ -32,6 +32,16 @@ declare module 'node:fs' {
    * @returns The entries' names.
    */
   export const readdirSync: (path: string) => string[]
+}
+
+declare module 'node:fs/promises' {
+  /**
+   * Reads a file asynchronously as text.
+   * @param path Absolute path to the file.
+   * @param encoding Text encoding to decode it with.
+   * @returns The file's contents.
+   */
+  export const readFile: (path: string, encoding: 'utf8') => Promise<string>
 }
 
 declare module 'node:url' {

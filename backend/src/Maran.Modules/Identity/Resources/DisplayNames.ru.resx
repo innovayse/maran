@@ -421,4 +421,22 @@
   <data name="ApiKeyStatusExpired">
     <value>Истёк</value>
   </data>
+  <data name="AuditActionAuditExported">
+    <value>Журнал аудита экспортирован</value>
+  </data>
+  <data name="AuditActionAuditRetentionChanged">
+    <value>Срок хранения аудита изменён</value>
+  </data>
+  <data name="AuditActionAuditRetentionRun">
+    <value>Очистка журнала аудита по сроку хранения</value>
+  </data>
+  <data name="AuditActionAuditChainVerified">
+    <value>Цепочка аудита проверена</value>
+  </data>
+  <data name="AuditActionPersonalDataExported">
+    <value>Персональные данные экспортированы</value>
+  </data>
+  <data name="AuditActionPersonalDataErased">
+    <value>Персональные данные удалены</value>
+  </data>
 </root>
