@@ -1062,6 +1062,10 @@ const LOG_ESCALATION_WITNESS: &str = "/etc/maran-site-log-escalation-witness";
 /// location, which only root can do.
 const TAIL_ESCALATION_WITNESS: &str = "/etc/maran-site-log-tail-witness";
 
+/// The witness the nginx control creates, distinct from the tail test's so the
+/// two tests never share a name while they run in parallel.
+const TAIL_CONTROL_WITNESS: &str = "/etc/maran-site-log-nginx-control-witness";
+
 /// The mode every level of the site-log tree must carry.
 const SITE_LOG_TREE_MODE: u32 = 0o750;
 
@@ -1419,13 +1423,18 @@ fn a_symlink_planted_at_the_new_log_location_is_refused_by_the_tail() {
     let account = PolygonAccount::create("polysitelogthree");
     let domain = Domain::parse("logtail.example.test").expect("a valid domain");
 
+    // NO vhost is written, on purpose. The root nginx master reopens every
+    // log its configuration names on each reload, creating it if absent and
+    // following a link at its name, so a vhost naming this path would let a
+    // reload that lands after the plant create the witness itself and be
+    // mistaken for the tail doing it (issue #420). The directory is made by
+    // the same code a site's creation uses, and nothing nginx reads names the
+    // access log below; `a_symlink_at_a_log_nginx_names_is_followed_by_the_nginx_master`
+    // is the control showing that nginx is the actor when it does.
     let paths = SitePaths::for_site(account.name(), &domain);
-    let _vhost = PolygonConfigFile::at(&paths.config_path);
-    create_polygon_site(
-        &ProcessSiteHost::new(),
-        &served_site_input(&account, &domain),
-    )
-    .unwrap_or_else(|error| panic!("creating the site must succeed: {error}"));
+    ProcessSiteHost::new()
+        .create_site_log_directory(account.name())
+        .unwrap_or_else(|error| panic!("creating the log directory must succeed: {error}"));
 
     // Planted as ROOT, and the fact that it has to be is the point: the tree is
     // `root:root 0750`, so no hosting account can reach this name at all. What
@@ -1469,6 +1478,69 @@ fn a_symlink_planted_at_the_new_log_location_is_refused_by_the_tail() {
         std::fs::symlink_metadata(witness.path()).is_err(),
         "the tail must not have created {:?} by following the link",
         witness.path()
+    );
+}
+
+/// Waits until `path` exists as an entry of its own, or the deadline passes.
+///
+/// Bounded by [`SERVE_DEADLINE`] and polled every [`SERVE_POLL_INTERVAL`], like
+/// [`fetch_until`]; `symlink_metadata`, so a link is judged by itself and not
+/// by a target that may not exist. Returns whether the path appeared, so the
+/// call site owns the assertion and can name the path.
+fn path_appears(path: &Path) -> bool {
+    let deadline = std::time::Instant::now() + SERVE_DEADLINE;
+
+    while std::fs::symlink_metadata(path).is_err() {
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(SERVE_POLL_INTERVAL);
+    }
+
+    true
+}
+
+/// The control for `a_symlink_planted_at_the_new_log_location_is_refused_by_the_tail`
+/// (issue #420): when a vhost names the log, the nginx master is the one that
+/// follows a link planted there.
+///
+/// Without it, the tail test's "the witness does not exist" would be equally
+/// explained by nothing in the polygon ever being able to create it. Here the
+/// vhost is present, the link is planted as root, nginx is reloaded, and the
+/// witness appears — with the tail never called.
+#[test]
+#[ignore = "plants a real symlink at a log a live vhost names and reloads a real nginx: polygon only"]
+fn a_symlink_at_a_log_nginx_names_is_followed_by_the_nginx_master() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let witness = PolygonPath::claim(TAIL_CONTROL_WITNESS);
+    let account = PolygonAccount::create("polysitelogfive");
+    let domain = Domain::parse("logcontrol.example.test").expect("a valid domain");
+
+    let paths = SitePaths::for_site(account.name(), &domain);
+    let _vhost = PolygonConfigFile::at(&paths.config_path);
+    create_polygon_site(
+        &ProcessSiteHost::new(),
+        &served_site_input(&account, &domain),
+    )
+    .unwrap_or_else(|error| panic!("creating the site must succeed: {error}"));
+
+    // The vhost is live and names `paths.access_log`. Replace whatever the
+    // master created there with a link, as root, exactly as the tail test does.
+    let _ = std::fs::remove_file(&paths.access_log);
+    std::os::unix::fs::symlink(witness.path(), &paths.access_log)
+        .expect("root may plant a link in its own directory");
+    let _planted = PolygonPath::guard(&paths.access_log);
+
+    // The trigger: the master reopens the logs its configuration names.
+    reload_polygon_nginx();
+
+    assert!(
+        path_appears(witness.path()),
+        "the nginx master must create {:?} by following the link planted at {:?}, or the tail \
+         test's absence check cannot tell a refusing tail from a host that never creates it",
+        witness.path(),
+        paths.access_log
     );
 }
 
