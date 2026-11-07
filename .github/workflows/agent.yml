@@ -295,7 +295,7 @@ jobs:
       # a planted break in the privilege drop puts one named test plus 25 further
       # host tests red on each family, and only a run carrying this flag reports
       # more than the first of them.
-      - name: Sites, PHP pools, privileges, databases, monitoring and restore recovery on a real host
+      - name: Sites, PHP pools, privileges, databases, monitoring, restore recovery and the panel certificate on a real host
         run: |
           # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
           # exit status, which is 0 whatever the container did. Piping without this would add a
@@ -326,6 +326,7 @@ jobs:
               --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
               --test restore_recovery_on_a_real_host \
               --test php_socket_migration_on_a_real_host \
+              --test panel_certificate_on_a_real_host \
               --no-fail-fast \
               -- --ignored --test-threads=1 2>&1 |
             tee -a "$RUNNER_TEMP/polygon-logs/step-1.log" || status=$?

@@ -305,7 +305,7 @@ docker run --rm \
 
 ## Running the Polygon Suites
 
-Eighteen test files are `#[ignore]`d by default and run only inside a polygon:
+Nineteen test files are `#[ignore]`d by default and run only inside a polygon:
 `sites_on_a_real_host.rs`, `php_pools_on_a_real_host.rs`,
 `privileges_on_a_real_host.rs`, `databases_on_a_real_host.rs`,
 `monitor_on_a_real_host.rs`, `binary_paths_on_a_real_host.rs`,
@@ -315,7 +315,8 @@ Eighteen test files are `#[ignore]`d by default and run only inside a polygon:
 `backup_on_a_real_host.rs`, `restore_recovery_on_a_real_host.rs`,
 `ftps_on_a_real_host.rs`, `account_identity_on_a_real_host.rs`,
 `account_leftovers_on_a_real_host.rs` (what a deleted account leaves in `/tmp`, `/var/tmp`, `/dev/shm`, `/var/mail`, the `at` queue and SysV IPC; needs `--privileged` and `at`) and
-`php_socket_migration_on_a_real_host.rs`. They create real system accounts and real database
+`php_socket_migration_on_a_real_host.rs` and
+`panel_certificate_on_a_real_host.rs` (the panel's own certificate: the production panel vhost loaded in the real nginx, a challenge fetched over port 80, issuance, renewal and fallback observed by a real TLS handshake). They create real system accounts and real database
 users, write real vhosts and pools, mount real filesystems, log in to a real
 sshd and drop real privileges, so they refuse to run unless the image's
 `MARAN_POLYGON` marker is set and the process is root — asked to run anywhere
@@ -331,6 +332,7 @@ docker run --rm -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target
     --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
     --test restore_recovery_on_a_real_host \
     --test php_socket_migration_on_a_real_host \
+    --test panel_certificate_on_a_real_host \
     --no-fail-fast \
     -- --ignored --test-threads=1
 ```
