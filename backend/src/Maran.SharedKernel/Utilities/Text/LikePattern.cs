@@ -43,11 +43,20 @@ public static class LikePattern
     /// <returns><c>%term%</c> with every <c>\</c>, <c>%</c> and <c>_</c> in the term escaped.</returns>
     public static string Contains(string term)
     {
-        var escaped = term
+        return AnyRun + Exactly(term) + AnyRun;
+    }
+
+    /// <summary>
+    /// Builds a pattern matching <paramref name="term"/> literally and as the WHOLE value, which makes
+    /// <c>ILIKE</c> a case-insensitive equality the provider can translate.
+    /// </summary>
+    /// <param name="term">The caller's value.</param>
+    /// <returns>The term with every <c>\</c>, <c>%</c> and <c>_</c> escaped and no wildcard added.</returns>
+    public static string Exactly(string term)
+    {
+        return term
             .Replace(Escape, Escape + Escape, StringComparison.Ordinal)
             .Replace(AnyRun, Escape + AnyRun, StringComparison.Ordinal)
             .Replace("_", Escape + "_", StringComparison.Ordinal);
-
-        return AnyRun + escaped + AnyRun;
     }
 }

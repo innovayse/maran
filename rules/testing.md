@@ -602,8 +602,9 @@ other two stacks, keyed **one row per spec file** in `scripts/test-baseline.txt`
 total, because the failure this exists to catch is a spec file that quietly stops being collected —
 a rename, a bad import, a `testMatch` that no longer matches — and a run whose collected total held
 steady because another file grew by as much would report nothing. A vanished file is named. The
-count is 71 spec files, 362 passed and 1 skipped against 363 collected, and it is a measurement, not
-a number quoted from memory between readers, which is what it had been. It has now gone stale three
+count is 212 spec files, 1455 passed and 2 skipped against 1457 collected (re-derived 2026-11-07 with the
+`awk` below), and it is a measurement, not a number quoted from memory between readers, which is what
+it had been. It has now gone stale three
 times, which is the point of writing down **how** it was re-derived rather than only what it is: it
 read `64 spec files, 318 passed` in the morning of 2026-09-10, was corrected to `70 spec files, 354
 passed` at midday against a run printing `70 targets: 354 passed / 0 failed / 1 ignored`, the suite
@@ -616,14 +617,15 @@ reads the gate's own input:
 awk -F'\t' '$1=="spa"{n++; p+=$3; f+=$4; i+=$5} END{print n, p, f, i}' scripts/test-baseline.txt
 ```
 
-which prints `71 362 0 1` as this sentence is written. The lane that raised the row recorded a
-`maran test spa` run printing `71 targets: 362 passed / 0 failed / 1 ignored` beside its edit, so the
-baseline and a run agree; the `awk` is the half a reader can re-run in a second, and is what this
-paragraph is pointing at. A count in this file is a map of the gate, so a
+which prints `212 1455 0 2` as this sentence is written. The five rows for the audit export,
+retention, integrity and filter specs and the personal-data export spec (issues #145 and #146) were
+declared by reading the specs, and no `maran test spa` run had measured them when this was written, so
+this figure is the baseline's, not a run's; CI re-measures every row, and the `awk` is the half a
+reader can re-run in a second, and is what this paragraph is pointing at. A count in this file is a map of the gate, so a
 stale one is the defect rules/architecture.md names: it stops the next reader re-deriving it. Four
 staleness events in three days is also the evidence for a narrower claim — the SPA row total is the
 fastest-moving number in these rules, so a reader who needs it exact runs the `awk` and a reader who
-needs only the shape reads "seventy-odd spec files, one skipped".
+needs only the shape reads "two hundred-odd spec files, two skipped".
 
 The wiring landed with it: `.github/workflows/frontend.yml` runs `maran test spa` and gates on the
 printed verdict line, the same shape as the other two lanes, and its path filters gained `scripts/**`

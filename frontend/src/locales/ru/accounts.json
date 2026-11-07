@@ -97,7 +97,9 @@
       "ownerEmailLabel": "Email владельца",
       "ownerEmailUnknown": "Не указан",
       "resellerLabel": "Владелец",
-      "noReseller": "Администратор"
+      "noReseller": "Администратор",
+      "personalDataExport": "Экспорт персональных данных",
+      "personalDataExportDescription": "Скачать одним JSON-файлом все записи, которые панель хранит об этом аккаунте и его команде. Экспорт фиксируется в журнале аудита."
     },
     "delete": {
       "title": "Удаление {account}",

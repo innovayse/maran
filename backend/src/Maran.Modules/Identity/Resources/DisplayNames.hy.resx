@@ -421,4 +421,22 @@
   <data name="ApiKeyStatusExpired">
     <value>Ժամկետանց</value>
   </data>
+  <data name="AuditActionAuditExported">
+    <value>Աուդիտի մատյանն արտահանվեց</value>
+  </data>
+  <data name="AuditActionAuditRetentionChanged">
+    <value>Աուդիտի պահպանման ժամկետը փոխվեց</value>
+  </data>
+  <data name="AuditActionAuditRetentionRun">
+    <value>Աուդիտի մատյանը մաքրվեց ըստ պահպանման ժամկետի</value>
+  </data>
+  <data name="AuditActionAuditChainVerified">
+    <value>Աուդիտի շղթան ստուգվեց</value>
+  </data>
+  <data name="AuditActionPersonalDataExported">
+    <value>Անձնական տվյալներն արտահանվեցին</value>
+  </data>
+  <data name="AuditActionPersonalDataErased">
+    <value>Անձնական տվյալները ջնջվեցին</value>
+  </data>
 </root>

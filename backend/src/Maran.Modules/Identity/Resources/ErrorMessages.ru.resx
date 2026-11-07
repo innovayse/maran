@@ -189,4 +189,22 @@
   <data name="ApiKeyStatusFilterInvalid">
     <value>Фильтр статуса должен быть active, revoked или expired.</value>
   </data>
+  <data name="AuditExportTooLarge">
+    <value>В этом экспорте слишком много записей для одного файла. Сузьте период или фильтры.</value>
+  </data>
+  <data name="AuditExportFormatUnknown">
+    <value>Формат экспорта должен быть csv или json.</value>
+  </data>
+  <data name="AuditActorFilterInvalid">
+    <value>Это недопустимое имя пользователя для фильтра журнала аудита.</value>
+  </data>
+  <data name="AuditRetentionOutOfRange">
+    <value>Записи аудита можно хранить от 30 до 3650 дней или бессрочно.</value>
+  </data>
+  <data name="PrivacySubjectNotFound">
+    <value>Аккаунта или пользователя с таким идентификатором нет.</value>
+  </data>
+  <data name="PersonalDataExportTooLarge">
+    <value>В этом экспорте слишком много записей аудита для одного файла.</value>
+  </data>
 </root>

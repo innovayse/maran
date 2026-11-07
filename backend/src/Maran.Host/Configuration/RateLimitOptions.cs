@@ -123,4 +123,20 @@ public sealed class RateLimitOptions
     /// <summary>The window <see cref="BackupVerifyMaxRequests"/> is counted over, in seconds.</summary>
     [Range(1, 86_400)]
     public int BackupVerifyWindowSeconds { get; set; } = 3600;
+
+    /// <summary>
+    /// Journal exports allowed for one signed-in administrator within <see cref="AuditExportWindowSeconds"/>,
+    /// counted across the audit export and the personal-data export together.
+    /// </summary>
+    /// <remarks>
+    /// Six: one request hands the caller a large part of the security record, so the number bounds how
+    /// fast a stolen administrator session can take it out, and six in an hour covers a person pulling
+    /// a few windows for a review. It slows that session and does not stop it.
+    /// </remarks>
+    [Range(1, 1_000)]
+    public int AuditExportMaxRequests { get; set; } = 6;
+
+    /// <summary>The window <see cref="AuditExportMaxRequests"/> is counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int AuditExportWindowSeconds { get; set; } = 3600;
 }

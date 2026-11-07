@@ -97,7 +97,9 @@
       "ownerEmailLabel": "Սեփականատիրոջ էլ. հասցե",
       "ownerEmailUnknown": "Նշված չէ",
       "resellerLabel": "Սեփականատեր",
-      "noReseller": "Ադմինիստրատոր"
+      "noReseller": "Ադմինիստրատոր",
+      "personalDataExport": "Արտահանել անձնական տվյալները",
+      "personalDataExportDescription": "Ներբեռնեք մեկ JSON ֆայլով այն ամենը, ինչ վահանակը պահում է այս հաշվի և նրա թիմի մասին։ Արտահանումը գրանցվում է աուդիտի մատյանում։"
     },
     "delete": {
       "title": "Ջնջել {account}",

@@ -102,6 +102,15 @@ public static class ExpectedErrorStatuses
             ["AuditActionFilterInvalid"] = ErrorType.Validation,
             ["AuditDateRangeInverted"] = ErrorType.Validation,
             ["AuditOutcomeUnknown"] = ErrorType.Validation,
+            // The journal export, retention and personal-data export (#145, #146). Validation: the
+            // request asked for something the panel will not produce or keep as asked. NotFound: no
+            // account or user has that id, and an administrator-only lookup discloses nothing else.
+            ["AuditExportTooLarge"] = ErrorType.Validation,
+            ["AuditExportFormatUnknown"] = ErrorType.Validation,
+            ["AuditActorFilterInvalid"] = ErrorType.Validation,
+            ["AuditRetentionOutOfRange"] = ErrorType.Validation,
+            ["PrivacySubjectNotFound"] = ErrorType.NotFound,
+            ["PersonalDataExportTooLarge"] = ErrorType.Validation,
             // The four endings a create stream can have that name no artifact. They are recorded on
             // the backup row as its failure code and are classified here for the same reason every
             // other code is: they are user-facing text, and the census refuses an unclassified one.

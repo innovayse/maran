@@ -1,6 +1,5 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
-using Maran.Modules.Identity.IntegrationEvents.Handlers;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -49,7 +48,7 @@ public sealed class AccountDeletingHandlerTests
         // and leave a working password against a tenant that no longer exists.
         using var context = await SeedAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         Assert.Empty(await context.AccountMemberships.Where(membership => membership.AccountId == OwnerAccountId).ToListAsync());
         Assert.Empty(await context.Users.Where(user => user.Username.StartsWith("owner-")).ToListAsync());
@@ -62,7 +61,7 @@ public sealed class AccountDeletingHandlerTests
         using var context = await SeedAsync();
         var owned = await OwnedUserIdsAsync(context);
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         Assert.Empty(await context.Sessions.Where(session => owned.Contains(session.UserId)).ToListAsync());
     }
@@ -76,7 +75,7 @@ public sealed class AccountDeletingHandlerTests
         using var context = await SeedAsync();
         var owned = await OwnedUserIdsAsync(context);
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         Assert.Empty(await context.PasswordResetTokens.Where(token => owned.Contains(token.UserId)).ToListAsync());
     }
@@ -88,7 +87,7 @@ public sealed class AccountDeletingHandlerTests
         using var context = await SeedAsync();
         var owned = await OwnedUserIdsAsync(context);
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         Assert.Empty(await context.RecoveryCodes.Where(code => owned.Contains(code.UserId)).ToListAsync());
     }
@@ -106,7 +105,7 @@ public sealed class AccountDeletingHandlerTests
             AccountMembershipOffer.Offer(Guid.NewGuid(), stranger.Id, StrangerAccountId, "kept", "x", AccountFeature.None, Now));
         await context.SaveChangesAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         var left = await context.AccountMembershipOffers.SingleAsync();
         Assert.Equal(StrangerAccountId, left.AccountId);
@@ -123,7 +122,7 @@ public sealed class AccountDeletingHandlerTests
             AccountMembershipOffer.Offer(Guid.NewGuid(), person.Id, OwnerAccountId, "gone", "bob", AccountFeature.None, Now));
         await context.SaveChangesAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         Assert.Empty(context.AccountMembershipOffers);
         Assert.Single(context.Users);
@@ -140,7 +139,7 @@ public sealed class AccountDeletingHandlerTests
     {
         using var context = await SeedAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         var stranger = await context.Users.SingleAsync(user => user.Username == "stranger");
         Assert.Equal(StrangerAccountId, (await context.AccountMemberships.SingleAsync(membership => membership.UserId == stranger.Id)).AccountId);
@@ -161,28 +160,29 @@ public sealed class AccountDeletingHandlerTests
     {
         using var context = await SeedAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         var administrator = Assert.Single(await context.Users.Where(user => user.Role == UserRole.Admin).ToListAsync());
         Assert.Single(await context.Sessions.Where(session => session.UserId == administrator.Id).ToListAsync());
     }
 
-    /// <summary>Deleting an account keeps the audit entries naming its logins.</summary>
+    /// <summary>Deleting an account keeps the audit entries of its logins, and they no longer name them.</summary>
     /// <remarks>
-    /// The journal is append-only and is the operator's record of what the deleted logins did.
-    /// Erasing it with the account would destroy exactly the evidence a deletion makes someone want
-    /// to read, so this asserts the entries are STILL there — the one place in this cascade where
-    /// survival is the correct outcome.
+    /// The journal is the operator's record of what the deleted logins did, so no entry may go with the
+    /// account: the count is asserted as a value. What leaves is WHO: the deleted logins' ids and names
+    /// are replaced (the erasure rules themselves are asserted in <c>AccountDeletingHandlerErasureTests</c>).
     /// </remarks>
     [Fact]
-    public async Task Deleting_an_account_keeps_the_audit_entries_naming_its_logins()
+    public async Task Deleting_an_account_keeps_the_audit_entries_of_its_logins_but_not_who_they_name()
     {
         using var context = await SeedAsync();
         var owned = await OwnedUserIdsAsync(context);
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
-        Assert.Equal(2, await context.AuditEvents.CountAsync(entry => owned.Contains(entry.ActorUserId!.Value)));
+        Assert.Equal(4, await context.AuditEvents.CountAsync());
+        Assert.Equal(0, await context.AuditEvents.CountAsync(entry => owned.Contains(entry.ActorUserId!.Value)));
+        Assert.Equal(2, await context.AuditEvents.CountAsync(entry => entry.ActorUsername.StartsWith("erased-user-")));
     }
 
     /// <summary>Deleting an account with no login of its own changes nothing.</summary>
@@ -197,7 +197,7 @@ public sealed class AccountDeletingHandlerTests
         using var context = await SeedAsync();
         var before = await context.Users.CountAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(
             Deleting(Guid.Parse("cccccccc-0000-4000-8000-000000000003")), CancellationToken.None);
 
         Assert.Equal(before, await context.Users.CountAsync());
@@ -215,7 +215,7 @@ public sealed class AccountDeletingHandlerTests
     {
         using var context = await SeedAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         var counter = Assert.Single(await context.FailedLoginsByIp.ToListAsync());
         Assert.Equal(AttackerAddress, counter.IpAddress);
@@ -233,7 +233,7 @@ public sealed class AccountDeletingHandlerTests
     {
         using var context = await SeedAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         var policy = Assert.Single(await context.SecurityPolicies.ToListAsync());
         Assert.Equal(SecurityPolicy.SingletonId, policy.Id);
@@ -253,7 +253,7 @@ public sealed class AccountDeletingHandlerTests
     public async Task Delivering_the_same_deletion_twice_leaves_the_second_delivery_nothing_to_do()
     {
         using var context = await SeedAsync();
-        var handler = new AccountDeletingHandler(context);
+        var handler = ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter());
         await handler.HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         await handler.HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
@@ -290,7 +290,7 @@ public sealed class AccountDeletingHandlerTests
 
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+            await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
         });
 
         Assert.Equal(RefusingSaveInterceptor.Message, refusal.Message);
@@ -307,7 +307,7 @@ public sealed class AccountDeletingHandlerTests
         context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), member.Id, StrangerAccountId, Now));
         await context.SaveChangesAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         var remaining = await context.AccountMemberships.ToListAsync();
         Assert.All(remaining, membership => { Assert.Equal(StrangerAccountId, membership.AccountId); });
@@ -327,7 +327,7 @@ public sealed class AccountDeletingHandlerTests
         context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), both.Id, StrangerAccountId, Now));
         await context.SaveChangesAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         var survivor = await context.Users.SingleAsync(user => user.Id == both.Id);
         var kept = await context.AccountMemberships.Where(membership => membership.UserId == survivor.Id).ToListAsync();
@@ -345,7 +345,7 @@ public sealed class AccountDeletingHandlerTests
     {
         using var context = await SeedAsync();
 
-        await new AccountDeletingHandler(context).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
+        await ErasureHandlers.AccountDeleting(context, new RecordingAuditWriter()).HandleAsync(Deleting(OwnerAccountId), CancellationToken.None);
 
         Assert.DoesNotContain("owner-two", await context.Users.Select(user => user.Username).ToListAsync());
     }

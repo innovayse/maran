@@ -365,7 +365,8 @@ public sealed class SubUsersEndpointTests : IAsyncLifetime
             entries.Select(entry => { return entry.Action; }));
         Assert.All(entries, entry => { Assert.Equal("owner-a", entry.ActorUsername); });
         Assert.Equal([true, true, true, false], entries.Select(entry => { return entry.Succeeded; }));
-        Assert.Equal("deploy", entries[0].Subject);
+        // The login was removed afterwards, so the journal names it by its pseudonym, never by its username.
+        Assert.StartsWith("erased-user-", entries[0].Subject, StringComparison.Ordinal);
     }
 
     /// <summary>Boots the panel with two accounts, an owner each, and an administrator.</summary>

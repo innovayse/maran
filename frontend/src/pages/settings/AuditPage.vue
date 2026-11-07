@@ -11,9 +11,19 @@
  *
  * **The journal is a server page** (`useServerTable`): page, page size, the search (the actor, the
  * subject or the address), the sort (`occurredAt`, `actor`, `action`) and the `action`, `outcome`,
- * `from` and `to` filters live in the URL, and the panel searches, filters, sorts and counts. The
- * journal records no account, so there is no account filter; a failed action is found with the
- * outcome filter rather than counted off whatever page is on screen.
+ * `from`, `to`, `actor` and `account` filters live in the URL, and the panel searches, filters,
+ * sorts and counts. A failed action is found with the outcome filter rather than counted off
+ * whatever page is on screen. The account filter narrows to the entries the panel could attribute
+ * to an account; the others carry none.
+ *
+ * **The export is the journal's, not the page's.** {@link ../../components/audit/AuditExportMenu.vue}
+ * downloads everything the current search and filters match, as CSV or JSON. The panel's refusal
+ * (an export too large to hand over, an exhausted allowance) is shown here in its own words.
+ *
+ * **Upkeep sits under the journal:** how long entries are kept
+ * ({@link ../../components/audit/AuditRetentionCard.vue}) and whether the tamper-evidence chain
+ * still holds ({@link ../../components/audit/AuditIntegrityCard.vue}). Both are read and written
+ * through their own store; the table is unaffected by them.
  *
  * The parts are their own components, props in and events out:
  * {@link ../../components/audit/AuditTable.vue} and
@@ -31,9 +41,15 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
+import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import AuditExportMenu from '../../components/audit/AuditExportMenu.vue'
 import AuditFilterSheet from '../../components/audit/AuditFilterSheet.vue'
+import AuditIntegrityCard from '../../components/audit/AuditIntegrityCard.vue'
+import AuditRetentionCard from '../../components/audit/AuditRetentionCard.vue'
 import AuditTable from '../../components/audit/AuditTable.vue'
+import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useAuditFilters } from '../../composables/useAuditFilters'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
@@ -47,6 +63,8 @@ const labels = useListLabels()
 const auditFilters = useAuditFilters(() => {
   return auditStore.outcomes
 })
+const { picker: accountPicker, search: searchAccounts } = useAccountChoice()
+const { name: accountFilterName } = useAccountFilter()
 
 const table = useServerTable<AuditEvent>({
   filters: auditFilters.schema,
@@ -62,6 +80,9 @@ const table = useServerTable<AuditEvent>({
 
 /** Whether the filter sheet is open. */
 const filtersOpen: Ref<boolean> = ref(false)
+
+/** The success toast's text after an export, or `null` while none is showing. */
+const notice: Ref<string | null> = ref(null)
 
 /** Whether the journal is narrowed by a search or a filter, so an empty answer means "no match". */
 const isNarrowed: ComputedRef<boolean> = computed(() => {
@@ -94,7 +115,7 @@ const outcomeName: ComputedRef<string> = computed(() => {
 
 /** One removable chip per applied filter. */
 const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
-  return auditFilters.chips(table.filters.value, actionName.value, outcomeName.value)
+  return auditFilters.chips(table.filters.value, actionName.value, outcomeName.value, accountFilterName.value)
 })
 
 /**
@@ -111,6 +132,22 @@ const openFilters = (): void => {
  */
 const closeFilters = (): void => {
   filtersOpen.value = false
+}
+
+/**
+ * Says the export reached the browser.
+ * @returns Nothing.
+ */
+const exported = (): void => {
+  notice.value = t('app.audit.export.done')
+}
+
+/**
+ * Hides the success toast.
+ * @returns Nothing.
+ */
+const dismissNotice = (): void => {
+  notice.value = null
 }
 
 /**
@@ -132,7 +169,16 @@ onMounted(async () => {
     <UiPageHeading
       :title="t('app.audit.heading')"
       :subtitle="t('app.audit.subtitle')"
-    />
+    >
+      <template #actions>
+        <AuditExportMenu :request="table.request.value" @exported="exported" />
+      </template>
+    </UiPageHeading>
+
+    <!-- A refused export, in the panel's own words: too large to hand over, or the allowance used. -->
+    <UiAlert v-if="auditStore.exportState.state === 'failed'" variant="error">
+      {{ auditStore.exportMessage ?? t('common.list.unreachable') }}
+    </UiAlert>
 
     <UiCard class="min-w-0">
       <div class="flex flex-col gap-4">
@@ -214,8 +260,18 @@ onMounted(async () => {
       :model-value="table.filters.value"
       :actions="auditStore.actions"
       :outcomes="auditStore.outcomes"
+      :account-picker="accountPicker"
+      :account-name="accountFilterName"
       @update:model-value="table.setFilters"
       @close="closeFilters"
+      @search="searchAccounts"
     />
+
+    <div class="grid gap-4 lg:grid-cols-2">
+      <AuditRetentionCard />
+      <AuditIntegrityCard />
+    </div>
+
+    <UiPinnedToast :message="notice" :close-label="t('common.close')" @dismiss="dismissNotice" />
   </section>
 </template>

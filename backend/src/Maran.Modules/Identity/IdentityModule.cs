@@ -106,6 +106,23 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<AuditActionDisplayNames>();
         services.AddScoped<AuditOutcomeDisplayNames>();
 
+        // The journal's reading, tamper evidence, retention, erasure and export (issues #145, #146). All
+        // scoped, because each works through the request's own DbContext (the maintenance job and the
+        // account-deletion handler get a scope of their own, so they share nothing with a request).
+        services.AddScoped<AuditEventQuery>();
+        services.AddScoped<AuditChainSealer>();
+        services.AddScoped<AuditChainVerifier>();
+        services.AddScoped<AuditRetentionRunner>();
+        services.AddScoped<AuditPseudonymiser>();
+        services.AddScoped<AuditExportWriter>();
+        services.AddScoped<PersonalDataExportWriter>();
+        services.AddScoped<PersonalDataAuditRows>();
+        services.AddScoped<IPersonalDataProvider, IdentityPersonalDataProvider>();
+
+        // A singleton, because the guarantee that only one walk along the chain runs at a time is only
+        // worth anything if every scope shares the same gate (AuditChainVerificationGate).
+        services.AddSingleton<AuditChainVerificationGate>();
+
         // API keys (issue #144): the scope names the create dialog offers, and the authenticator the
         // Host's ApiKey scheme asks through the Sdk window. Scoped, because the authenticator reads and
         // stamps the request's own DbContext and reads the row on every call (no cache, so a revocation

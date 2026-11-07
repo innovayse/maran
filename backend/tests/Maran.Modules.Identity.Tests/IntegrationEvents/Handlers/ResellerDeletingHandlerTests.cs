@@ -1,6 +1,5 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
-using Maran.Modules.Identity.IntegrationEvents.Handlers;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -65,7 +64,7 @@ public sealed class ResellerDeletingHandlerTests : IDisposable
         AddCredentials(NewReseller(ResellerId, "northwind"));
         await _context.SaveChangesAsync();
 
-        await new ResellerDeletingHandler(_context).HandleAsync(Deleting(), CancellationToken.None);
+        await ErasureHandlers.ResellerDeleting(_context, new RecordingAuditWriter()).HandleAsync(Deleting(), CancellationToken.None);
 
         Assert.Empty(await _context.Users.ToListAsync());
         Assert.Empty(await _context.Sessions.ToListAsync());
@@ -84,7 +83,7 @@ public sealed class ResellerDeletingHandlerTests : IDisposable
             Guid.NewGuid(), login.Id, null, Guid.NewGuid(), Guid.NewGuid(), "view-as-token", Now, "203.0.113.1", "admin-agent"));
         await _context.SaveChangesAsync();
 
-        await new ResellerDeletingHandler(_context).HandleAsync(Deleting(), CancellationToken.None);
+        await ErasureHandlers.ResellerDeleting(_context, new RecordingAuditWriter()).HandleAsync(Deleting(), CancellationToken.None);
 
         Assert.Empty(await _context.Sessions.ToListAsync());
     }
@@ -108,7 +107,7 @@ public sealed class ResellerDeletingHandlerTests : IDisposable
         _context.SecurityPolicies.Add(new SecurityPolicy(12, false, true, 10, 15, Now));
         await _context.SaveChangesAsync();
 
-        await new ResellerDeletingHandler(_context).HandleAsync(Deleting(), CancellationToken.None);
+        await ErasureHandlers.ResellerDeleting(_context, new RecordingAuditWriter()).HandleAsync(Deleting(), CancellationToken.None);
 
         Assert.Equal(
             SurvivingUsernames,
@@ -128,7 +127,7 @@ public sealed class ResellerDeletingHandlerTests : IDisposable
     {
         AddCredentials(NewReseller(ResellerId, "northwind"));
         await _context.SaveChangesAsync();
-        var handler = new ResellerDeletingHandler(_context);
+        var handler = ErasureHandlers.ResellerDeleting(_context, new RecordingAuditWriter());
 
         await handler.HandleAsync(Deleting(), CancellationToken.None);
         await handler.HandleAsync(Deleting(), CancellationToken.None);
@@ -153,7 +152,7 @@ public sealed class ResellerDeletingHandlerTests : IDisposable
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            await new ResellerDeletingHandler(refusing).HandleAsync(Deleting(), CancellationToken.None);
+            await ErasureHandlers.ResellerDeleting(refusing, new RecordingAuditWriter()).HandleAsync(Deleting(), CancellationToken.None);
         });
 
         Assert.Equal(RefusingSaveInterceptor.Message, exception.Message);

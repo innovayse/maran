@@ -189,4 +189,22 @@
   <data name="ApiKeyStatusFilterInvalid">
     <value>Կարգավիճակի զտիչը պետք է լինի active, revoked կամ expired։</value>
   </data>
+  <data name="AuditExportTooLarge">
+    <value>Այս արտահանումը չափազանց շատ գրառում կպարունակի մեկ ֆայլի համար։ Նեղացրեք ժամանակահատվածը կամ ֆիլտրերը։</value>
+  </data>
+  <data name="AuditExportFormatUnknown">
+    <value>Արտահանման ձևաչափը պետք է լինի csv կամ json։</value>
+  </data>
+  <data name="AuditActorFilterInvalid">
+    <value>Սա աուդիտի մատյանը զտելու համար վավեր օգտանուն չէ։</value>
+  </data>
+  <data name="AuditRetentionOutOfRange">
+    <value>Աուդիտի գրառումները կարելի է պահել 30-ից 3650 օր կամ անժամկետ։</value>
+  </data>
+  <data name="PrivacySubjectNotFound">
+    <value>Այդ նույնացուցիչով հաշիվ կամ օգտատեր չկա։</value>
+  </data>
+  <data name="PersonalDataExportTooLarge">
+    <value>Այս արտահանումը չափազանց շատ աուդիտի գրառում է պարունակում մեկ ֆայլի համար։</value>
+  </data>
 </root>

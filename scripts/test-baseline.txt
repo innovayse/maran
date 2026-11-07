@@ -589,11 +589,16 @@ spa	accounts/invitation-link.spec.ts	8	0	0
 spa	accounts/list.spec.ts	15	0	0
 spa	accounts/loading.spec.ts	3	0	0
 spa	accounts/my-account-loading.spec.ts	3	0	0
+spa	accounts/personal-data-export.spec.ts	3	0	0
 spa	accounts/resources.spec.ts	9	0	0
 spa	admin/audit.spec.ts	3	0	0
 spa	admin/panel-certificate.spec.ts	3	0	0
 spa	admin/smtp-settings.spec.ts	3	0	0
 spa	audit/action-names.spec.ts	2	0	0
+spa	audit/actor-account-filters.spec.ts	4	0	0
+spa	audit/export.spec.ts	4	0	0
+spa	audit/integrity.spec.ts	4	0	0
+spa	audit/retention.spec.ts	6	0	0
 spa	audit/list.spec.ts	7	0	0
 spa	audit/loading.spec.ts	3	0	0
 spa	audit/occurred-at-time.spec.ts	1	0	0

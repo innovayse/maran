@@ -130,7 +130,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string[]>("AllowedCidrs")
+                    b.PrimitiveCollection<string[]>("AllowedCidrs")
                         .HasColumnType("text[]");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -162,7 +162,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.Property<DateTimeOffset?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string[]>("Scopes")
+                    b.PrimitiveCollection<string[]>("Scopes")
                         .IsRequired()
                         .HasColumnType("text[]");
 
@@ -180,10 +180,33 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("ApiKeys", "identity");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AuditChainAnchor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("AnchorHash")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<long>("PurgedThroughIndex")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AuditChainAnchors", "identity");
+                });
+
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AuditEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AccountId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Action")
@@ -199,9 +222,22 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<long?>("ChainIndex")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("CommitmentSalt")
+                        .HasColumnType("bytea");
+
                     b.Property<string>("CorrelationId")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<byte[]>("ErasableCommitment")
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTimeOffset?>("ErasedAt")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("IpAddress")
                         .IsRequired()
@@ -210,6 +246,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("RowHash")
+                        .HasColumnType("bytea");
 
                     b.Property<string>("Subject")
                         .IsRequired()
@@ -226,17 +265,48 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("IX_AuditEvents_AccountId");
+
                     b.HasIndex("Action")
                         .HasDatabaseName("IX_AuditEvents_Action");
 
                     b.HasIndex("ActorUserId")
                         .HasDatabaseName("IX_AuditEvents_ActorUserId");
 
+                    b.HasIndex("ChainIndex")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AuditEvents_ChainIndex")
+                        .HasFilter("\"ChainIndex\" IS NOT NULL");
+
                     b.HasIndex("OccurredAt")
                         .IsDescending()
                         .HasDatabaseName("IX_AuditEvents_OccurredAt");
 
+                    b.HasIndex(new[] { "OccurredAt" }, "IX_AuditEvents_Unsealed")
+                        .HasDatabaseName("IX_AuditEvents_Unsealed")
+                        .HasFilter("\"ChainIndex\" IS NULL");
+
                     b.ToTable("AuditEvents", "identity");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AuditRetentionPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("RetentionDays")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AuditRetentionPolicies", "identity");
                 });
 
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.FailedLoginByIp", b =>

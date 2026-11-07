@@ -52,11 +52,14 @@ export const expectTableSlowLoad = async (page: Page, scenario: TableLoadingScen
   const table = page.getByRole('table', { name: scenario.table })
   await expect(table.getByRole('columnheader').first()).toBeVisible()
   await expect(page.locator('[data-skeleton^="cell-"]').first()).toBeVisible()
-  await expect(page.getByTestId('loading-status')).toHaveText('Loading…')
+  // The table's region comes first in the page: a screen with cards of its own under the table
+  // (the audit journal's retention and integrity) has more regions, each with its own status.
+  const status = page.getByTestId('loading-status').first()
+  await expect(status).toHaveText('Loading…')
   const before = await headerBox(page, scenario.table)
 
   await expect(table.getByText(scenario.rowText).first()).toBeVisible()
-  await expect(page.getByTestId('loading-status')).toHaveText('Loaded')
+  await expect(status).toHaveText('Loaded')
   await expect(page.locator('[data-skeleton]')).toHaveCount(0)
   // The header the placeholders stood under is the header the rows land under: nothing above
   // the rows moves when they arrive.

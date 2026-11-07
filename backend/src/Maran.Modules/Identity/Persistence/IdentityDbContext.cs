@@ -87,6 +87,30 @@ public sealed class IdentityDbContext : DbContext
     }
 
     /// <summary>
+    /// How long the audit journal is kept: at most one row. Absent until an administrator first saves
+    /// a period, and the absence means the journal is kept indefinitely.
+    /// </summary>
+    public DbSet<AuditRetentionPolicy> AuditRetentionPolicies
+    {
+        get
+        {
+            return Set<AuditRetentionPolicy>();
+        }
+    }
+
+    /// <summary>
+    /// Where the audit chain starts after a purge: at most one row, created when the first rows are
+    /// sealed and advanced in the same transaction as every purge.
+    /// </summary>
+    public DbSet<AuditChainAnchor> AuditChainAnchors
+    {
+        get
+        {
+            return Set<AuditChainAnchor>();
+        }
+    }
+
+    /// <summary>
     /// The open brute-force counting window of every address that has recently had a sign-in
     /// refused. Working state rather than a record: a row appears when an address fails, is removed
     /// when its window is announced as an attack, and is reclaimed once it has closed unannounced.
@@ -183,6 +207,8 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AccountMembershipOfferConfiguration());
         modelBuilder.ApplyConfiguration(new RecoveryCodeConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEventConfiguration());
+        modelBuilder.ApplyConfiguration(new AuditRetentionPolicyConfiguration());
+        modelBuilder.ApplyConfiguration(new AuditChainAnchorConfiguration());
         modelBuilder.ApplyConfiguration(new FailedLoginByIpConfiguration());
         modelBuilder.ApplyConfiguration(new SecurityPolicyConfiguration());
         modelBuilder.ApplyConfiguration(new PasswordResetTokenConfiguration());

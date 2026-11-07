@@ -63,6 +63,10 @@ public sealed class BackupsModule : IPanelModule
         // directory is now read from the agent through the handshake (rules/architecture.md: one
         // statement, read rather than duplicated).
 
+        // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
+        // personal-data export, an allow-list of fields and never a secret.
+        services.AddScoped<IPersonalDataProvider, BackupsPersonalDataProvider>();
+
         services.AddScoped<BackupAuditJournal>();
 
         // The two resolvers that turn a stored value into the words a screen shows. Scoped, because

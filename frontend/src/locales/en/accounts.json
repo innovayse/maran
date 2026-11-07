@@ -97,7 +97,9 @@
       "ownerEmailLabel": "Owner email",
       "ownerEmailUnknown": "Not recorded",
       "resellerLabel": "Owner",
-      "noReseller": "Administrator"
+      "noReseller": "Administrator",
+      "personalDataExport": "Export personal data",
+      "personalDataExportDescription": "Download every record the panel holds about this account and its team as one JSON file. The export is recorded in the audit journal."
     },
     "delete": {
       "title": "Delete {account}",

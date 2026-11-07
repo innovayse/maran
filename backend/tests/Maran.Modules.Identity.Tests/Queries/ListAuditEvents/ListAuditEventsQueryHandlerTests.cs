@@ -3,6 +3,7 @@ using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Queries.ListAuditEvents;
+using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Pagination;
@@ -10,9 +11,9 @@ using Maran.SharedKernel.Pagination;
 namespace Maran.Modules.Identity.Tests.Queries.ListAuditEvents;
 
 /// <summary>
-/// What one page of the journal holds: newest first by default, narrowed by action, outcome and
-/// window, cut to the page with the true total, each row's action named in the request's language.
-/// The search is an <c>ILIKE</c> only PostgreSQL runs, so it is held by <c>AuditEndpointTests</c>.
+/// What one page of the journal holds: newest first by default, narrowed by action, outcome,
+/// window and account, cut to the page with the true total, each row's action named in the request's language.
+/// The actor filter and the search are <c>ILIKE</c> matches only PostgreSQL runs, so they are held by <c>AuditListEndpointTests</c>.
 /// </summary>
 public sealed class ListAuditEventsQueryHandlerTests : IDisposable
 {
@@ -108,6 +109,21 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
         Assert.Equal(["end", "start"], subjects);
     }
 
+    /// <summary>The account filter keeps only entries stamped with that account, and the total counts them alone.</summary>
+    [Fact]
+    public async Task The_account_filter_keeps_only_that_accounts_entries()
+    {
+        var account = Guid.NewGuid();
+        await WriteAsync(Now, "of-account", accountId: account);
+        await WriteAsync(Now, "of-another", accountId: Guid.NewGuid());
+        await WriteAsync(Now, "of-none");
+
+        var result = await Handler().HandleAsync(new ListAuditEventsQuery(Account: account), CancellationToken.None);
+
+        Assert.Equal(1, result.Value.Total);
+        Assert.Equal("of-account", Assert.Single(result.Value.Items).Subject);
+    }
+
     /// <summary>A row's action reaches the caller named in the request's language beside the machine code.</summary>
     [Fact]
     public async Task A_rows_action_is_named_in_the_requests_language_beside_the_machine_code()
@@ -169,15 +185,19 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     /// <param name="subject">What it was done to; the tests identify rows by it.</param>
     /// <param name="action">What was done.</param>
     /// <param name="succeeded">Whether it worked.</param>
+    /// <param name="actor">The name the actor used.</param>
+    /// <param name="accountId">The account the entry is stamped with, or <c>null</c> for none.</param>
     /// <returns>Resolves once the entry is saved.</returns>
     private async Task WriteAsync(
         DateTimeOffset at,
         string subject,
         string action = IdentityAuditActions.LoginSucceeded,
-        bool succeeded = true)
+        bool succeeded = true,
+        string actor = "admin",
+        Guid? accountId = null)
     {
         _context.AuditEvents.Add(new AuditEvent(
-            Guid.NewGuid(), at, null, "admin", action, subject, "203.0.113.7", "agent", succeeded, null));
+            Guid.NewGuid(), at, null, actor, action, subject, "203.0.113.7", "agent", succeeded, null, null, accountId));
         await _context.SaveChangesAsync();
     }
 
@@ -185,7 +205,7 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     /// <returns>The handler.</returns>
     private ListAuditEventsQueryHandler Handler()
     {
-        return new ListAuditEventsQueryHandler(_context, IdentityTestContext.ActionNames(), IdentityTestContext.OutcomeNames());
+        return new ListAuditEventsQueryHandler(new AuditEventQuery(_context), IdentityTestContext.ActionNames(), IdentityTestContext.OutcomeNames());
     }
 
     /// <summary>Reads one page and answers the subjects on it, in order.</summary>

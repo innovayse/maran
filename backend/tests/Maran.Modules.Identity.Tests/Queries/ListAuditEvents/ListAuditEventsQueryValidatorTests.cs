@@ -28,7 +28,9 @@ public sealed class ListAuditEventsQueryValidatorTests
             Action: FilterValue.Of(IdentityAuditActions.LoginFailed),
             Outcome: AuditOutcome.Failed,
             From: Instant,
-            To: Instant.AddDays(1))).IsValid);
+            To: Instant.AddDays(1),
+            Actor: FilterValue.Of("olive.ops-1_a"),
+            Account: Guid.NewGuid())).IsValid);
     }
 
     /// <summary>Every sort the journal exposes is accepted in both directions.</summary>
@@ -94,6 +96,32 @@ public sealed class ListAuditEventsQueryValidatorTests
         Assert.True(_validator.Validate(new ListAuditEventsQuery(Action: FilterValue.None)).IsValid);
         Assert.True(_validator.Validate(new ListAuditEventsQuery(
             Action: FilterValue.Of(new string('A', AuditEvent.ActionMaxLength)))).IsValid);
+    }
+
+    /// <summary>An actor filter the column could never hold is refused with its own code.</summary>
+    /// <param name="actor">The actor filter.</param>
+    [Theory]
+    [InlineData("olive ops")]
+    [InlineData("olive%")]
+    [InlineData("a\nb")]
+    public void An_actor_filter_the_column_could_never_hold_is_refused(string actor)
+    {
+        var result = _validator.Validate(new ListAuditEventsQuery(Actor: FilterValue.Of(actor)));
+
+        Assert.Equal("AuditActorFilterInvalid", Assert.Single(result.Errors).ErrorCode);
+    }
+
+    /// <summary>An actor longer than the column is refused; the longest legal one and no actor at all are not.</summary>
+    [Fact]
+    public void An_actor_longer_than_the_column_is_refused_and_none_is_not()
+    {
+        Assert.Equal(
+            "AuditActorFilterInvalid",
+            Assert.Single(_validator.Validate(new ListAuditEventsQuery(
+                Actor: FilterValue.Of(new string('a', AuditEvent.ActorUsernameMaxLength + 1)))).Errors).ErrorCode);
+        Assert.True(_validator.Validate(new ListAuditEventsQuery(Actor: FilterValue.None)).IsValid);
+        Assert.True(_validator.Validate(new ListAuditEventsQuery(
+            Actor: FilterValue.Of(new string('a', AuditEvent.ActorUsernameMaxLength)))).IsValid);
     }
 
     /// <summary>An outcome that names no member of its enum is refused with its own code.</summary>

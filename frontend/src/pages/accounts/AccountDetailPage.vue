@@ -45,6 +45,9 @@
  * terms and a placeholder line in place of each value ({@link UiLoadingRegion},
  * {@link AccountDetailsCard}), so the account lands in the space held for it. The resources card
  * reads its own summary and says on its own how that read stands.
+ *
+ * **The personal-data export** ({@link AccountPersonalDataExport}, #146) sits under the invitation
+ * card and, like it, is drawn for an administrator only: the endpoint refuses everyone else.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -62,6 +65,7 @@ import AccountDeleteDialog from '../../components/accounts/AccountDeleteDialog.v
 import AccountDetailsCard from '../../components/accounts/AccountDetailsCard.vue'
 import AccountInvitationCard from '../../components/accounts/AccountInvitationCard.vue'
 import AccountOwnerEmailDialog from '../../components/accounts/AccountOwnerEmailDialog.vue'
+import AccountPersonalDataExport from '../../components/accounts/AccountPersonalDataExport.vue'
 import AccountPlanDialog from '../../components/accounts/AccountPlanDialog.vue'
 import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
 import { useAccountsStore } from '../../stores/accounts'
@@ -316,6 +320,7 @@ onMounted(async () => {
 
     <template v-if="accountsStore.selectedState === 'loaded' && accountsStore.selected !== null">
       <AccountInvitationCard v-if="isAdmin" :account-id="id" :status="accountsStore.selected.status" />
+      <AccountPersonalDataExport v-if="isAdmin" :account-id="id" />
 
       <!-- `:open` is bound to a value that really changes, and this dialog needs no `v-if`: it has
            no props that are only valid while it is open, and `UiModal` renders nothing while

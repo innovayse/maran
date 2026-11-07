@@ -189,4 +189,22 @@
   <data name="ApiKeyStatusFilterInvalid">
     <value>The status filter must be active, revoked or expired.</value>
   </data>
+  <data name="AuditExportTooLarge">
+    <value>This export would hold too many entries for one file. Narrow the date range or the filters.</value>
+  </data>
+  <data name="AuditExportFormatUnknown">
+    <value>The export format must be csv or json.</value>
+  </data>
+  <data name="AuditActorFilterInvalid">
+    <value>That is not a valid username to filter the audit journal by.</value>
+  </data>
+  <data name="AuditRetentionOutOfRange">
+    <value>Audit entries can be kept for 30 to 3650 days, or kept forever.</value>
+  </data>
+  <data name="PrivacySubjectNotFound">
+    <value>No account or user with that identifier exists.</value>
+  </data>
+  <data name="PersonalDataExportTooLarge">
+    <value>This export holds too many audit entries for one file.</value>
+  </data>
 </root>

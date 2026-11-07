@@ -45,6 +45,14 @@ public static class BackgroundWorkExtensions
         // the window and does the deleting — and this owns the CADENCE it runs on.
         services.AddHostedService<TaskRetentionScheduler>();
 
+        // The audit journal's upkeep, hourly because the part that matters most is sealing: a row is
+        // outside the hash chain's protection until the tick seals it, so the interval is the length
+        // of that window. The once-a-day work (retention, the orphan-actor sweep, chain verification)
+        // is gated by the Identity module's handler against the time it stored for its last run, so a
+        // restart neither skips a day nor repeats one. The module owns the JOB and this the CADENCE;
+        // without this line the journal is never sealed and a saved retention window deletes nothing.
+        services.AddHostedService<AuditMaintenanceScheduler>();
+
         // The hourly purge of expired idempotency records, the same split: the Idempotency module owns
         // the JOB (what has expired, the batch size) and this owns the CADENCE. Hourly and not daily
         // because a reservation's lease is five minutes and a stored response lives 24 hours, so a
