@@ -24,6 +24,12 @@ internal sealed class StubSslService : ISslServiceInvoker
     /// <summary>The last panel install request the stub received.</summary>
     public InstallPanelCertificateRequest? LastPanelRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="RestorePanelSelfSignedAsync"/>.</summary>
+    public RestorePanelSelfSignedResponse RestoreSelfSignedResponse { get; set; } = new();
+
+    /// <summary>The last self-signed restore request the stub received.</summary>
+    public RestorePanelSelfSignedRequest? LastRestoreRequest { get; private set; }
+
     /// <summary>Response returned from <see cref="WritePanelChallengeAsync"/>.</summary>
     public WritePanelChallengeResponse WriteChallengeResponse { get; set; } = new();
 
@@ -58,6 +64,15 @@ internal sealed class StubSslService : ISslServiceInvoker
     {
         LastPanelRequest = request;
         return Task.FromResult(InstallPanelResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<RestorePanelSelfSignedResponse> RestorePanelSelfSignedAsync(
+        RestorePanelSelfSignedRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastRestoreRequest = request;
+        return Task.FromResult(RestoreSelfSignedResponse);
     }
 
     /// <inheritdoc/>

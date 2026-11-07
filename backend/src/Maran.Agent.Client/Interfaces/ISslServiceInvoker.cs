@@ -34,6 +34,14 @@ internal interface ISslServiceInvoker
         InstallPanelCertificateRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>RestorePanelSelfSigned</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<RestorePanelSelfSignedResponse> RestorePanelSelfSignedAsync(
+        RestorePanelSelfSignedRequest request,
+        CancellationToken cancellationToken);
+
     /// <summary>Invokes <c>WritePanelChallenge</c>.</summary>
     /// <param name="request">The wire request.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

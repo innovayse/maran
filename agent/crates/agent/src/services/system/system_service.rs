@@ -67,8 +67,10 @@ use crate::proto::{
 /// `BackupService.VerifyBackup`, the read-only check that a stored backup still
 /// matches its record (issue #134). 19 adds `MonitorService.GetRebootRequirement` and
 /// `PendingUpdate.classification`, the reboot-required read and the security flag
-/// on a pending update (issue #163).
-const PROTO_VERSION: u32 = 19;
+/// on a pending update (issue #163). 20 adds `SslService.RestorePanelSelfSigned`, the
+/// panel's own certificate returned to a freshly generated self-signed pair
+/// (issue #425).
+const PROTO_VERSION: u32 = 20;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

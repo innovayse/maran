@@ -88,6 +88,8 @@ pub(crate) enum Event {
     MaterialRemoved,
     /// A vhost was written.
     VhostWritten,
+    /// The self-signed marker was written.
+    MarkerWritten,
 }
 
 /// The validator and reload one material write or removal handed the config
@@ -148,6 +150,8 @@ pub(crate) struct FakeSslHost {
     /// Whether the config protocol behind a material write or removal outruns
     /// its deadline.
     material_times_out: Mutex<bool>,
+    /// What `nginx -t` printed when the next material write is to be refused.
+    material_refusal: Mutex<Option<String>>,
     /// The validator and reload of every material write or removal, in order.
     protocols: Mutex<Vec<RecordedProtocol>>,
 }
@@ -177,6 +181,7 @@ impl FakeSslHost {
             programs: Mutex::new(Vec::new()),
             openssl_times_out: Mutex::new(false),
             material_times_out: Mutex::new(false),
+            material_refusal: Mutex::new(None),
             protocols: Mutex::new(Vec::new()),
         }
     }
@@ -235,6 +240,13 @@ impl FakeSslHost {
 
     /// Makes the config protocol behind a material write or removal outrun its
     /// deadline. The store is left as it was, as the protocol leaves it.
+    /// Makes every material write end the way a pair nginx rejects does: the
+    /// validator's stderr comes back as the error and the previous pair is
+    /// left exactly as it was, as the config-write protocol's rollback leaves it.
+    pub(crate) fn reject_material_writes(&self, stderr: &str) {
+        *self.material_refusal.lock().unwrap() = Some(stderr.to_owned());
+    }
+
     pub(crate) fn time_out_material_writes(&self) {
         *self.material_times_out.lock().unwrap() = true;
     }
@@ -525,6 +537,7 @@ impl SslHost for FakeSslHost {
 
     fn write_self_signed_marker(&self, path: &Path) -> Result<(), SslOpError> {
         self.premark(path);
+        self.events.lock().unwrap().push(Event::MarkerWritten);
         Ok(())
     }
 
@@ -557,6 +570,9 @@ impl SslHost for FakeSslHost {
                 program: validator.program.as_str().to_owned(),
                 deadline: validator.class.deadline(),
             }));
+        }
+        if let Some(stderr) = self.material_refusal.lock().unwrap().clone() {
+            return Err(SslOpError::NginxValidation { stderr });
         }
         self.preinstall(certificate, material);
         self.events.lock().unwrap().push(Event::MaterialWritten);

@@ -90,4 +90,54 @@ public sealed class AgentSslClientPanelTests
         Assert.True(removed.IsSuccess);
         Assert.Equal("AgentInvalidResponse", unset.Error!.Code);
     }
+
+    /// <summary>A self-signed restore answered ok carries the expiry and sends the host name alone.</summary>
+    [Fact]
+    public async Task A_self_signed_restore_answered_ok_carries_the_expiry_and_sends_the_host_name_alone()
+    {
+        var stub = new StubSslService
+        {
+            RestoreSelfSignedResponse = new RestorePanelSelfSignedResponse
+            {
+                Ok = new RestorePanelSelfSignedOk { ExpiresAtUnix = 1_900_000_000 },
+            },
+        };
+        var client = new AgentSslClient(stub, NullLogger<AgentSslClient>.Instance);
+
+        var result = await client.RestorePanelSelfSignedAsync("panel.example.net", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1_900_000_000), result.Value.ExpiresAt);
+        Assert.Equal("panel.example.net", stub.LastRestoreRequest!.HostName);
+    }
+
+    /// <summary>A self-signed restore refused by the agent keeps the agent error's own code.</summary>
+    [Fact]
+    public async Task A_self_signed_restore_refused_by_the_agent_keeps_the_error_codes_own_mapping()
+    {
+        var stub = new StubSslService
+        {
+            RestoreSelfSignedResponse = new RestorePanelSelfSignedResponse
+            {
+                Error = new AgentError { Code = ErrorCode.InvalidInput, Message = "bad host name" },
+            },
+        };
+        var client = new AgentSslClient(stub, NullLogger<AgentSslClient>.Instance);
+
+        var result = await client.RestorePanelSelfSignedAsync("not a host", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidInput", result.Error!.Code);
+    }
+
+    /// <summary>An unset oneof on a self-signed restore is an invalid response.</summary>
+    [Fact]
+    public async Task An_unset_oneof_on_a_self_signed_restore_is_an_invalid_response()
+    {
+        var client = new AgentSslClient(new StubSslService(), NullLogger<AgentSslClient>.Instance);
+
+        var result = await client.RestorePanelSelfSignedAsync("panel.example.net", CancellationToken.None);
+
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
 }

@@ -63,6 +63,19 @@ service SslService {
   // Added 2026-11-01 (issue #132). Removes the panel's challenge file for a
   // token. Idempotent: a token with no file answers NotFound.
   rpc RemovePanelChallenge(RemovePanelChallengeRequest) returns (RemovePanelChallengeResponse);
+
+  // Added 2026-11-07 (issue #425). Replaces the panel's OWN certificate and
+  // key with a freshly generated self-signed pair for host_name, so an
+  // operator can leave a trusted certificate behind. Same write path as
+  // InstallPanelCertificate: key checked against certificate, both files
+  // written as one change, validated with nginx -t, reloaded once, previous
+  // pair restored on any refusal. The generated certificate carries the
+  // OU=maran-self-signed subject marker and the agent writes the panel's
+  // self-signed marker file beside it. Idempotent: the panel already on a
+  // placeholder this agent wrote is regenerated, which is a replacement and
+  // not an error. Closed and typed: the only input is the host name, held to
+  // the Domain grammar.
+  rpc RestorePanelSelfSigned(RestorePanelSelfSignedRequest) returns (RestorePanelSelfSignedResponse);
 }
 
 message InstallCertificateRequest {
@@ -227,3 +240,24 @@ message RemovePanelChallengeResponse {
 }
 
 message RemovePanelChallengeOk {}
+
+// Added 2026-11-07 (issue #425). Return the panel to a self-signed pair.
+message RestorePanelSelfSignedRequest {
+  // The panel's configured host name, the CN and the one DNS subject
+  // alternative name of the generated certificate. A name that is not a valid
+  // domain is refused with ERROR_CODE_INVALID_INPUT before anything is
+  // generated.
+  string host_name = 1;
+}
+
+message RestorePanelSelfSignedResponse {
+  oneof result {
+    RestorePanelSelfSignedOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message RestorePanelSelfSignedOk {
+  // Certificate expiry as Unix seconds (UTC).
+  int64 expires_at_unix = 1;
+}

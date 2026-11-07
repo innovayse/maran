@@ -1,6 +1,7 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-11-07 (issue #425, return the panel to a self-signed certificate; also the drift of earlier merges on the rows it touches): maran_agent lib 554, maran_ops lib 1985, Agent.Client.Tests 488, Ssl.Tests 345, Sdk.Tests 438, ArchitectureTests 117, Host.Tests 575, Host.IntegrationTests 1335, spa admin/panel-certificate.spec.ts 4->8. Measured on a snapshot of the index, not by `maran test --accept`.
 # RE-MEASURED 2026-11-07 (issue #420): edited by hand, NOT measured. sites_on_a_real_host ignored 36->37 (the new nginx control test a_symlink_at_a_log_nginx_names_is_followed_by_the_nginx_master); the polygon lane re-measures.
 # NEW ROW 2026-11-05 (issues #144/#136/#143, one branch): edited by hand, NOT measured. backend Maran.Modules.Idempotency.Tests.dll 29 is the count of [Fact]/[Theory] attributes (a Theory counts once, so the real total is at least this); CI re-measures every row. Rows of projects that gained tests on the branch (Sdk, SharedKernel, Identity, Host.Tests) are left unraised: a gain is not gated, a drop is.
 # RE-MEASURED 2026-11-01 (merge of dev's #133 into #132): edited by hand, each row base + #132's delta + #133's delta.
@@ -504,7 +505,7 @@
 # names unchanged (`cargo test --test <suite>` listing 9 and 5).
 # RE-MEASURED 2026-11-02 (issue #323, bool/sentinel state refactors): edited by hand from the gate run (backend 21 targets 5748 passed; rust 36 targets 3021 passed / 156 ignored; spa 183 targets 1204 passed). Every changed row takes the measured value; Databases.Tests 129->128 is intended (the empty-string refusal reason test cannot exist once the reason is an enum); new spa rows: view-as, account-selector, sub-users, plan-features, favourites, navigation-badges, server-selector (#313-#320). CI re-measures every row.
 # RE-MEASURED 2026-11-03 (critical batch #299-#341): edited by hand from one full run (maran test rust 36 targets 3096 passed; backend 21 targets 6029 passed; spa 193 targets 1237 passed / 0 failed / 2 ignored). Rows changed where the run differs; new spa spec rows added. CI re-measures every row.
-rust	maran_agent [unittests src/lib.rs]	488	0	0
+rust	maran_agent [unittests src/lib.rs]	554	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -530,7 +531,7 @@ rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	37
 rust	maran_agent_core [unittests src/lib.rs]	557	0	0
 rust	maran_distro [unittests src/lib.rs]	128	0	0
-rust	maran_ops [unittests src/lib.rs]	1953	0	1
+rust	maran_ops [unittests src/lib.rs]	1985	0	1
 rust	maran_templates [unittests src/lib.rs]	13	0	0
 rust	golden_test [tests/golden_test.rs]	23	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
@@ -551,7 +552,7 @@ rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processe
 # 3/3 alone at load 12. New spa row accounts/form-options.spec.ts 5.
 # RE-KEYED 2026-11-01 (issue #289, perf off the PR path): edited by hand. Maran.Host.IntegrationTests.dll 833 is now two
 # rows: 814 (main part) + 19 (`[PerformanceBudget]` part, ListPerformanceBudgetTests); `--list-tests` lists 833.
-backend	Maran.Agent.Client.Tests.dll	470	0	0
+backend	Maran.Agent.Client.Tests.dll	488	0	0
 backend	Maran.SharedKernel.Tests.dll	355	0	0
 backend	Maran.Modules.Identity.Tests.dll	856	0	0
 backend	Maran.Modules.Sftp.Tests.dll	111	0	0
@@ -565,12 +566,12 @@ backend	Maran.Modules.Firewall.Tests.dll	293	0	0
 backend	Maran.Modules.Cron.Tests.dll	245	0	0
 backend	Maran.Modules.Accounts.Tests.dll	1056	0	0
 backend	Maran.Modules.Databases.Tests.dll	128	0	0
-backend	Maran.Modules.Ssl.Tests.dll	250	0	0
-backend	Maran.Sdk.Tests.dll	374	0	0
+backend	Maran.Modules.Ssl.Tests.dll	345	0	0
+backend	Maran.Sdk.Tests.dll	438	0	0
 backend	Maran.Modules.Sites.Tests.dll	290	0	0
-backend	Maran.ArchitectureTests.dll	104	0	0
-backend	Maran.Host.Tests.dll	521	0	0
-backend	Maran.Host.IntegrationTests.dll	1134	0	0
+backend	Maran.ArchitectureTests.dll	117	0	0
+backend	Maran.Host.Tests.dll	575	0	0
+backend	Maran.Host.IntegrationTests.dll	1335	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
 backend	Maran.Modules.Idempotency.Tests.dll	29	0	0
 # RAISED 2026-11-01 (issue #149, accessibility): edited by hand. Three new spa rows from e2e/accessibility/:
@@ -593,7 +594,7 @@ spa	accounts/my-account-loading.spec.ts	3	0	0
 spa	accounts/personal-data-export.spec.ts	3	0	0
 spa	accounts/resources.spec.ts	9	0	0
 spa	admin/audit.spec.ts	3	0	0
-spa	admin/panel-certificate.spec.ts	4	0	0
+spa	admin/panel-certificate.spec.ts	8	0	0
 spa	admin/smtp-settings.spec.ts	3	0	0
 spa	audit/action-names.spec.ts	2	0	0
 spa	audit/actor-account-filters.spec.ts	4	0	0

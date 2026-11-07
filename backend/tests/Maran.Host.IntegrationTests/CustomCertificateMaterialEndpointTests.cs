@@ -327,6 +327,14 @@ public sealed class CustomCertificateMaterialEndpointTests : IAsyncLifetime
         }
 
         /// <inheritdoc />
+        public Task<Result<InstalledCertificateDto>> RestorePanelSelfSignedAsync(
+            string hostName,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Result<InstalledCertificateDto>.Ok(new InstalledCertificateDto(DateTimeOffset.UnixEpoch.AddYears(10))));
+        }
+
+        /// <inheritdoc />
         public Task<Result> WritePanelChallengeAsync(
             string token,
             string keyAuthorization,

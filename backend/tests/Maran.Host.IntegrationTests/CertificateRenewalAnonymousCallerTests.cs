@@ -351,6 +351,14 @@ public sealed class CertificateRenewalAnonymousCallerTests : IAsyncLifetime
         }
 
         /// <inheritdoc />
+        public Task<Result<InstalledCertificateDto>> RestorePanelSelfSignedAsync(
+            string hostName,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("Renewal of a site certificate restores no panel self-signed pair.");
+        }
+
+        /// <inheritdoc />
         public Task<Result> WritePanelChallengeAsync(
             string token,
             string keyAuthorization,

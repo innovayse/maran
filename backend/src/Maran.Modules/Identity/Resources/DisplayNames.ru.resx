@@ -177,6 +177,9 @@
   <data name="AuditActionCronEntryCreated">
     <value>Создана запись cron</value>
   </data>
+  <data name="AuditActionCertificateSelfSignedRestored">
+    <value>Сертификат панели заменён самоподписанным</value>
+  </data>
   <data name="AuditActionCronEntryUpdated">
     <value>Изменена запись cron</value>
   </data>

@@ -31,6 +31,9 @@ export const usePanelCertificateStore = defineStore('panelCertificate', () => {
   /** Where the last order stands; `done` lets the screen confirm that a certificate was installed. */
   const orderSubmission: Ref<Submission> = ref({ state: 'idle' })
 
+  /** Where the last return to a self-signed certificate stands; `done` lets the screen confirm it. */
+  const restoreSubmission: Ref<Submission> = ref({ state: 'idle' })
+
   /** What the panel is served with, or `null` until the read has settled. */
   const status: ComputedRef<PanelCertificateStatus | null> = computed(() => {
     return read.value.state === 'loaded' ? read.value.value : null
@@ -59,6 +62,21 @@ export const usePanelCertificateStore = defineStore('panelCertificate', () => {
   /** The panel's reason the last order was refused, rendered verbatim; `null` otherwise. */
   const orderMessage: ComputedRef<string | null> = computed(() => {
     return orderSubmission.value.state === 'failed' ? orderSubmission.value.message : null
+  })
+
+  /** True while the return to a self-signed certificate is in flight. */
+  const restoring: ComputedRef<boolean> = computed(() => {
+    return restoreSubmission.value.state === 'sending'
+  })
+
+  /** True once the last return installed a self-signed certificate, so the screen can confirm it. */
+  const restored: ComputedRef<boolean> = computed(() => {
+    return restoreSubmission.value.state === 'done'
+  })
+
+  /** The panel's reason the last return was refused, rendered verbatim; `null` otherwise. */
+  const restoreMessage: ComputedRef<string | null> = computed(() => {
+    return restoreSubmission.value.state === 'failed' ? restoreSubmission.value.message : null
   })
 
   /**
@@ -108,6 +126,7 @@ export const usePanelCertificateStore = defineStore('panelCertificate', () => {
    */
   const issue = async (): Promise<boolean> => {
     orderSubmission.value = { state: 'sending' }
+    restoreSubmission.value = { state: 'idle' }
     try {
       read.value = { state: 'loaded', value: trusted(await api.issue()) }
       orderSubmission.value = { state: 'done' }
@@ -118,5 +137,38 @@ export const usePanelCertificateStore = defineStore('panelCertificate', () => {
     }
   }
 
-  return { status, loadState, loadMessage, issuing, issued, orderMessage, load, issue }
+  /**
+   * Returns the panel to a self-signed certificate; the panel forgets the trusted one. A refusal
+   * leaves the certificate the panel was serving in place, and its sentence on the screen. On
+   * success the status is read again, so the screen shows what the panel now reports.
+   * @returns True when the self-signed certificate was restored.
+   */
+  const restore = async (): Promise<boolean> => {
+    restoreSubmission.value = { state: 'sending' }
+    orderSubmission.value = { state: 'idle' }
+    try {
+      await api.restore()
+    } catch (error) {
+      restoreSubmission.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
+      return false
+    }
+    restoreSubmission.value = { state: 'done' }
+    await load()
+    return true
+  }
+
+  return {
+    status,
+    loadState,
+    loadMessage,
+    issuing,
+    issued,
+    orderMessage,
+    restoring,
+    restored,
+    restoreMessage,
+    load,
+    issue,
+    restore,
+  }
 })

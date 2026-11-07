@@ -8,4 +8,5 @@ pub mod settle_panel_install_outcome;
 pub mod ssl_service;
 pub mod ssl_status;
 pub mod validated_panel_challenge;
+pub mod validated_panel_host_name;
 pub mod validated_panel_token;

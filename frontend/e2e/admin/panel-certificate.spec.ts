@@ -133,3 +133,115 @@ test('a panel with a host name shows the recorded certificate from a flagged rea
   await expect(page.getByText('panel.example.net')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Renew now' })).toBeVisible()
 })
+
+// Returning to a self-signed certificate (issue #425): offered only while a trusted certificate is
+// recorded, confirmed in a dialog that names the consequence, and followed by a fresh read.
+
+const RECORDED: PanelCertificateReading = {
+  hostNameConfigured: true,
+  hostNameNotice: null,
+  hostName: ISSUED.hostName,
+  expiresAt: ISSUED.expiresAt,
+  issuedAt: ISSUED.issuedAt,
+}
+
+test('a panel on a trusted certificate returns to a self-signed one after a confirmation and reads the status again', async ({
+  page,
+}) => {
+  await shell(page)
+  let restored = false
+  let reads = 0
+  await page.route(PANEL_CERTIFICATE_PATTERN, async (route) => {
+    if (route.request().method() === 'DELETE') {
+      restored = true
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ hostName: ISSUED.hostName, expiresAt: ISSUED.expiresAt }),
+      })
+      return
+    }
+    reads += 1
+    if (restored) {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ code: 'PanelCertificateNotIssued', title: 'Not issued', detail: 'Not issued.' }),
+      })
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RECORDED) })
+  })
+
+  await page.goto('/settings/panel-certificate')
+  await page.getByRole('button', { name: 'Return to a self-signed certificate' }).click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByTestId('confirm-message')).toContainText('browsers will warn')
+  expect(restored).toBe(false)
+  await dialog.getByRole('button', { name: 'Return to self-signed' }).click()
+
+  await expect(page.getByText('The panel is back on a self-signed certificate.', { exact: false })).toBeVisible()
+  await expect(page.getByText('The panel is served with its self-signed certificate', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Return to a self-signed certificate' })).toHaveCount(0)
+  expect(restored).toBe(true)
+  expect(reads).toBe(2)
+})
+
+test('cancelling the confirmation sends nothing and keeps the trusted certificate', async ({ page }) => {
+  await shell(page)
+  let restoreRequests = 0
+  await page.route(PANEL_CERTIFICATE_PATTERN, async (route) => {
+    if (route.request().method() === 'DELETE') {
+      restoreRequests += 1
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RECORDED) })
+  })
+
+  await page.goto('/settings/panel-certificate')
+  await page.getByRole('button', { name: 'Return to a self-signed certificate' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
+
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByText('panel.example.net')).toBeVisible()
+  expect(restoreRequests).toBe(0)
+})
+
+test('a refused return shows the panel’s own sentence and keeps the trusted certificate', async ({ page }) => {
+  await shell(page)
+  await page.route(PANEL_CERTIFICATE_PATTERN, async (route) => {
+    if (route.request().method() === 'DELETE') {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ code: 'AgentUnavailable', title: 'Refused', detail: 'The agent is not answering.' }),
+      })
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RECORDED) })
+  })
+
+  await page.goto('/settings/panel-certificate')
+  await page.getByRole('button', { name: 'Return to a self-signed certificate' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Return to self-signed' }).click()
+
+  await expect(page.getByText('The agent is not answering.')).toBeVisible()
+  await expect(page.getByText('panel.example.net')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Return to a self-signed certificate' })).toBeVisible()
+})
+
+test('a panel on its self-signed certificate offers no return to it', async ({ page }) => {
+  await shell(page)
+  await page.route(PANEL_CERTIFICATE_PATTERN, async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ code: 'PanelCertificateNotIssued', title: 'Not issued', detail: 'Not issued.' }),
+    })
+  })
+
+  await page.goto('/settings/panel-certificate')
+
+  await expect(page.getByText('The panel is served with its self-signed certificate', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Return to a self-signed certificate' })).toHaveCount(0)
+})

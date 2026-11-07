@@ -37,6 +37,10 @@
 //! file for the panel's host name through their own seam,
 //! [`PanelChallengeHost`], refusing below the free-space floor first.
 //!
+//! [`restore_panel_self_signed`] returns the panel to a freshly generated
+//! self-signed pair through the same write path (issue #425), replacing a
+//! trusted certificate on an administrator's request.
+//!
 //! The area also owns [`purge_certificate`], which is not an rpc: it is what a
 //! site deletion calls to take the material with it. It lives here rather than
 //! in `delete_site` because this area already depends on `sites`, and the
@@ -71,7 +75,9 @@ mod purge_certificate;
 mod remove_certificate;
 mod remove_material;
 mod remove_panel_challenge;
+mod restore_panel_self_signed;
 mod self_signed_marker;
+mod self_signed_request_for;
 mod ssl_host;
 mod ssl_op_error;
 mod write_material;
@@ -92,6 +98,7 @@ pub use process_ssl_host::ProcessSslHost;
 pub use purge_certificate::purge_certificate;
 pub use remove_certificate::remove_certificate;
 pub use remove_panel_challenge::remove_panel_challenge;
+pub use restore_panel_self_signed::restore_panel_self_signed;
 pub use ssl_host::SslHost;
 pub use ssl_op_error::SslOpError;
 pub use write_panel_challenge::write_panel_challenge;

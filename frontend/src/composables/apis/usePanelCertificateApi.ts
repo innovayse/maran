@@ -1,5 +1,10 @@
 import { useApi } from '../useApi'
-import type { PanelCertificate, PanelCertificateApi, PanelCertificateReading } from '../../types/panelCertificate'
+import type {
+  PanelCertificate,
+  PanelCertificateApi,
+  PanelCertificateReading,
+  PanelSelfSigned,
+} from '../../types/panelCertificate'
 
 /** The endpoint the panel's own certificate is read from and ordered through. */
 const PANEL_CERTIFICATE_PATH = '/api/v1/panel-certificate'
@@ -32,5 +37,14 @@ export const usePanelCertificateApi = (): PanelCertificateApi => {
     return api.post<PanelCertificate>(PANEL_CERTIFICATE_PATH, undefined, signal)
   }
 
-  return { get, issue }
+  /**
+   * Returns the panel to a self-signed certificate and forgets the recorded trusted one.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The self-signed certificate now served.
+   */
+  const restore = (signal?: AbortSignal): Promise<PanelSelfSigned> => {
+    return api.delete<PanelSelfSigned>(PANEL_CERTIFICATE_PATH, signal)
+  }
+
+  return { get, issue, restore }
 }

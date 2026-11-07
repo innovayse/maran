@@ -95,6 +95,25 @@ public sealed class SslControllerPolicyTests
         Assert.Equal(new[] { AuthorizationPolicies.AdminOnly }, policies);
     }
 
+    /// <summary>
+    /// The self-signed restore is an HTTP DELETE on the administrator-only controller and carries no
+    /// authorization attribute of its own that could widen the class policy (issue #425).
+    /// </summary>
+    [Fact]
+    public void The_self_signed_restore_action_is_a_delete_that_inherits_the_administrator_only_class_policy()
+    {
+        var method = typeof(PanelCertificateController).GetMethod(nameof(PanelCertificateController.RestoreSelfSignedAsync))!;
+
+        Assert.Single(method.GetCustomAttributes(typeof(HttpDeleteAttribute), inherit: true));
+        Assert.Empty(method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true));
+        Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
+        var classPolicy = typeof(PanelCertificateController)
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>()
+            .Single();
+        Assert.Equal(AuthorizationPolicies.AdminOnly, classPolicy.Policy);
+    }
+
     /// <summary>The walk sees every controller of the module, so the checks above cannot pass on nothing.</summary>
     [Fact]
     public void The_walk_sees_the_controllers_of_the_module()

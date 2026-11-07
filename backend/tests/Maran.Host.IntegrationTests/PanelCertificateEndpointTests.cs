@@ -3,12 +3,16 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SitesService;
+using Maran.Agent.Client.Services.SslService;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Ssl.Domain.Entities;
 using Maran.Modules.Ssl.Persistence;
 using Maran.SharedKernel.Interfaces;
+using Maran.SharedKernel.Results;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -129,10 +133,75 @@ public sealed class PanelCertificateEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, (await customer.PostAsync(Path, content: null)).StatusCode);
     }
 
+    /// <summary>A customer and an anonymous caller cannot return the panel to a self-signed certificate, and the agent is never asked.</summary>
+    [Fact]
+    public async Task A_customer_and_an_anonymous_caller_cannot_restore_the_self_signed_certificate()
+    {
+        var agent = new RestoreOnlySslClient();
+        await using var factory = CreateFactory(PanelName, agent);
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var anonymous = factory.CreateClient();
+        using var customer = await SignInAsync(factory, "customer");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.DeleteAsync(Path)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await customer.DeleteAsync(Path)).StatusCode);
+        Assert.Empty(agent.Restored);
+    }
+
+    /// <summary>An administrator restoring gets the generated certificate's expiry, and the recorded row is gone.</summary>
+    [Fact]
+    public async Task An_administrator_restoring_gets_the_expiry_and_the_recorded_row_is_gone()
+    {
+        var agent = new RestoreOnlySslClient();
+        await using var factory = CreateFactory(PanelName, agent);
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var ssl = scope.ServiceProvider.GetRequiredService<SslDbContext>();
+            var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
+            ssl.PanelCertificates.Add(new PanelCertificate(PanelName, now.AddDays(60), now));
+            await ssl.SaveChangesAsync();
+        }
+
+        using var admin = await SignInAsync(factory, "admin");
+
+        var response = await admin.DeleteAsync(Path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(PanelName, body.RootElement.GetProperty("hostName").GetString());
+        Assert.Equal(JsonValueKind.String, body.RootElement.GetProperty("expiresAt").ValueKind);
+        Assert.Equal(PanelName, Assert.Single(agent.Restored));
+        using var check = factory.Services.CreateScope();
+        Assert.Equal(0, await check.ServiceProvider.GetRequiredService<SslDbContext>().PanelCertificates.CountAsync());
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync(Path)).StatusCode);
+    }
+
+    /// <summary>A panel with no host name refuses the restore with its own error and asks the agent nothing.</summary>
+    [Fact]
+    public async Task Restoring_on_a_panel_with_no_host_name_is_refused_with_its_own_error()
+    {
+        var agent = new RestoreOnlySslClient();
+        await using var factory = CreateFactory(hostName: null, agent);
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var admin = await SignInAsync(factory, "admin");
+
+        var response = await admin.DeleteAsync(Path);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("PanelHostNameNotConfigured", body.RootElement.GetProperty("code").GetString());
+        Assert.Empty(agent.Restored);
+    }
+
     /// <summary>Boots the host against this test's database with the agent's monitor stubbed.</summary>
     /// <param name="hostName">The panel's configured host name, or <c>null</c> for a panel installed by address.</param>
     /// <returns>The host factory.</returns>
-    private WebApplicationFactory<Program> CreateFactory(string? hostName)
+    /// <param name="agent">A TLS client double to install in place of the real one, or <c>null</c> to leave it.</param>
+    private WebApplicationFactory<Program> CreateFactory(string? hostName, IAgentSslClient? agent = null)
     {
         return new ConfiguredHostFactory(builder =>
         {
@@ -158,6 +227,10 @@ public sealed class PanelCertificateEndpointTests : IAsyncLifetime
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IAgentMonitorClient>(new StubAgentMonitorClient());
+                if (agent is not null)
+                {
+                    services.AddSingleton(agent);
+                }
             });
         });
     }
@@ -202,5 +275,69 @@ public sealed class PanelCertificateEndpointTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         return client;
+    }
+
+    /// <summary>A TLS client that answers only the self-signed restore, recording the names it was asked for.</summary>
+    private sealed class RestoreOnlySslClient : IAgentSslClient
+    {
+        /// <summary>The host name of every restore, in order.</summary>
+        public List<string> Restored { get; } = [];
+
+        /// <inheritdoc />
+        public Task<Result<InstalledCertificateDto>> RestorePanelSelfSignedAsync(
+            string hostName,
+            CancellationToken cancellationToken)
+        {
+            Restored.Add(hostName);
+
+            return Task.FromResult(Result<InstalledCertificateDto>.Ok(
+                new InstalledCertificateDto(DateTimeOffset.UnixEpoch.AddYears(60))));
+        }
+
+        /// <inheritdoc />
+        public Task<Result<InstalledCertificateDto>> InstallCertificateAsync(
+            string accountUsername,
+            string domain,
+            string certificatePem,
+            string privateKeyPem,
+            SiteDescriptor site,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double answers the self-signed restore alone.");
+        }
+
+        /// <inheritdoc />
+        public Task<Result> RemoveCertificateAsync(
+            string accountUsername,
+            string domain,
+            SiteDescriptor site,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double answers the self-signed restore alone.");
+        }
+
+        /// <inheritdoc />
+        public Task<Result<InstalledCertificateDto>> InstallPanelCertificateAsync(
+            string certificatePem,
+            string privateKeyPem,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double answers the self-signed restore alone.");
+        }
+
+        /// <inheritdoc />
+        public Task<Result> WritePanelChallengeAsync(
+            string token,
+            string keyAuthorization,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double answers the self-signed restore alone.");
+        }
+
+        /// <inheritdoc />
+        public Task<Result> RemovePanelChallengeAsync(string token, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double answers the self-signed restore alone.");
+        }
     }
 }

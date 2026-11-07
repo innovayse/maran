@@ -274,6 +274,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   DELETE /api/v1/ftp-users/{} — route-only call, no JSON body
   DELETE /api/v1/me/pinned-pages/{} — route-only call, no JSON body
   DELETE /api/v1/me/sub-users/{} — route-only call, no JSON body
+  DELETE /api/v1/panel-certificate — route-only call, no JSON body
   DELETE /api/v1/plans/{} — route-only call, no JSON body
   DELETE /api/v1/resellers/{} — route-only call, no JSON body
   DELETE /api/v1/sessions/{} — route-only call, no JSON body

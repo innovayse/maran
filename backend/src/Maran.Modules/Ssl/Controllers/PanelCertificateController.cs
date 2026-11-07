@@ -1,4 +1,5 @@
 using Maran.Modules.Ssl.Commands.IssuePanelCertificate;
+using Maran.Modules.Ssl.Commands.RestorePanelCertificate;
 using Maran.Modules.Ssl.Common;
 using Maran.Modules.Ssl.Queries.GetPanelCertificate;
 using Maran.Sdk.Contracts;
@@ -10,8 +11,8 @@ using Wolverine;
 namespace Maran.Modules.Ssl.Controllers;
 
 /// <summary>
-/// HTTP surface for the panel's OWN certificate (issue #132): read what is recorded, and order one for
-/// the configured host name. Administrators only — the panel's TLS is the operator's, and a customer
+/// HTTP surface for the panel's OWN certificate (issue #132): read what is recorded, order one for
+/// the configured host name, and return to a self-signed one (issue #425). Administrators only — the panel's TLS is the operator's, and a customer
 /// may neither trigger an order under the panel's ACME account nor learn the panel's host name here.
 /// </summary>
 /// <remarks>
@@ -72,5 +73,24 @@ public sealed class PanelCertificateController : BaseApiController
 
         return ToActionResult(
             await _bus.InvokeAsync<Result<PanelCertificateDto>>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Replaces the panel's certificate with a freshly generated self-signed one for the configured
+    /// host name and forgets the recorded trusted certificate, so it is no longer renewed.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpDelete]
+    [ProducesResponseType(typeof(PanelSelfSignedDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> RestoreSelfSignedAsync(CancellationToken cancellationToken)
+    {
+        var command = new RestorePanelCertificateCommand(ClientIpAddress, CallerUserAgent);
+
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<PanelSelfSignedDto>>(command, cancellationToken));
     }
 }

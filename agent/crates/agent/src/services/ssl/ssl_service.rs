@@ -14,10 +14,12 @@ use crate::proto::{
     InstallCertificateRequest, InstallCertificateResponse, InstallPanelCertificateRequest,
     InstallPanelCertificateResponse, RemoveCertificateOk, RemoveCertificateRequest,
     RemoveCertificateResponse, RemovePanelChallengeOk, RemovePanelChallengeRequest,
-    RemovePanelChallengeResponse, WritePanelChallengeOk, WritePanelChallengeRequest,
+    RemovePanelChallengeResponse, RestorePanelSelfSignedOk, RestorePanelSelfSignedRequest,
+    RestorePanelSelfSignedResponse, WritePanelChallengeOk, WritePanelChallengeRequest,
     WritePanelChallengeResponse, generate_self_signed_response, install_certificate_response,
     install_panel_certificate_response, remove_certificate_response,
-    remove_panel_challenge_response, write_panel_challenge_response,
+    remove_panel_challenge_response, restore_panel_self_signed_response,
+    write_panel_challenge_response,
 };
 use crate::services::sites::validated_existing_site::validated_existing_site;
 use crate::services::sites::validated_site::validated_site;
@@ -27,6 +29,7 @@ use crate::services::ssl::settle_install_outcome::settle_install_outcome;
 use crate::services::ssl::settle_panel_install_outcome::settle_panel_install_outcome;
 use crate::services::ssl::ssl_status::to_agent_error;
 use crate::services::ssl::validated_panel_challenge::ValidatedPanelChallenge;
+use crate::services::ssl::validated_panel_host_name::validated_panel_host_name;
 use crate::services::ssl::validated_panel_token::validated_panel_token;
 use crate::services::wire::run_blocking::run_blocking;
 
@@ -295,6 +298,46 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
         };
 
         Ok(Response::new(RemovePanelChallengeResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Replaces the panel's own certificate with a freshly generated
+    /// self-signed pair (issue #425).
+    ///
+    /// Cancellation class: run to completion. The write replaces the pair the
+    /// panel vhost names and reloads nginx; abandoning it half-way is exactly
+    /// what the config-write protocol's rollback exists to prevent, so a
+    /// dropped client does not stop it, and the rpc is idempotent, so the
+    /// panel's remedy for an answer it lost is to ask again.
+    async fn restore_panel_self_signed(
+        &self,
+        request: Request<RestorePanelSelfSignedRequest>,
+    ) -> Result<Response<RestorePanelSelfSignedResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let (host, distro) = (Arc::clone(&self.host), self.distro);
+
+        let result = match validated_panel_host_name(&request.into_inner().host_name) {
+            Ok(host_name) => {
+                run_blocking("panel certificate operation", to_agent_error, move || {
+                    ssl::restore_panel_self_signed(host.as_ref(), distro, &host_name)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+        audit.settle(&result);
+
+        let result = match result {
+            Ok(expires_at_unix) => {
+                restore_panel_self_signed_response::Result::Ok(RestorePanelSelfSignedOk {
+                    expires_at_unix,
+                })
+            }
+            Err(error) => restore_panel_self_signed_response::Result::Error(error),
+        };
+
+        Ok(Response::new(RestorePanelSelfSignedResponse {
             result: Some(result),
         }))
     }
