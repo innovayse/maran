@@ -45,7 +45,7 @@ public sealed class AccountCreatedHandlerTests : IDisposable
             _bus,
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
             new InvitationMailComposer(
-                new StubEmailTemplates(), new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = panelUrl })),
+                new StubEmailTemplates(), new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = panelUrl })),
             _clock);
     }
 

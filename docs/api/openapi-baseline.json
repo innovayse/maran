@@ -3762,6 +3762,33 @@
         },
         "type": "object"
       },
+      "Modules.Ssl.Common.PanelCertificateStatusDto": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "hostName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "hostNameConfigured": {
+            "type": "boolean"
+          },
+          "hostNameNotice": {
+            "nullable": true,
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Modules.Ssl.Domain.Enums.CertificateSource": {
         "enum": [
           "acme",
@@ -6502,6 +6529,16 @@
             },
             "description": "OK"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -6557,6 +6594,16 @@
         "responses": {
           "204": {
             "description": "No Content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
           },
           "401": {
             "content": {
@@ -12684,7 +12731,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Modules.Ssl.Common.PanelCertificateDto"
+                  "$ref": "#/components/schemas/Modules.Ssl.Common.PanelCertificateStatusDto"
                 }
               }
             },
@@ -12719,16 +12766,6 @@
               }
             },
             "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
-                }
-              }
-            },
-            "description": "Conflict"
           }
         },
         "security": [

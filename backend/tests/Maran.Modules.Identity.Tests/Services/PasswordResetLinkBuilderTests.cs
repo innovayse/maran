@@ -14,7 +14,7 @@ public sealed class PasswordResetLinkBuilderTests
     /// <param name="panelUrl">The configured public address; empty when none is.</param>
     private static PasswordResetLinkBuilder NewBuilder(string panelUrl)
     {
-        return new PasswordResetLinkBuilder(new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = panelUrl }));
+        return new PasswordResetLinkBuilder(new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = panelUrl }));
     }
 
     /// <summary>A configured address is prefixed once, whether or not it ends in a slash.</summary>

@@ -66,7 +66,7 @@ public sealed class ConfirmTotpEnrolmentCommandHandler
 
         if (!_totpService.Verify(command.Secret, command.Code, user.LastTotpWindow, out var window))
         {
-            return Result<RecoveryCodesDto>.Fail(await _rejection.ErrorAsync(cancellationToken));
+            return Result<RecoveryCodesDto>.Fail(await _rejection.ProofErrorAsync(cancellationToken));
         }
 
         user.EnableTotp(command.Secret);

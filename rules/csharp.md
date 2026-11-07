@@ -275,7 +275,8 @@ backend/
 │   │       ├── Network/                 #   files directly under Utilities/
 │   │       ├── Text/                    #   Mail/: EmailAddressRule, MailHeaderTextRule
 │   │       └── Tokens/                  #   Network/: ClientAddress, CidrRule (strict address/prefix
-│   │                                    #     range and its Contains), HostNameRule, Ipv4MappedAddress
+│   │                                    #     range and its Contains), HostNameRule, PublicUrlRule (the
+│   │                                    #     panel's own https origin), Ipv4MappedAddress
 │   │                                    #   Text/: ColumnText, LikePattern (a search term as a literal
 │   │                                    #     ILIKE pattern: \ % _ escaped)
 │   │                                    #   Tokens/: RefreshTokenHasher, PasswordResetTokenHasher, ApiKeyHasher
@@ -846,6 +847,7 @@ Maran.SharedKernel/Utilities/
 │   ├── ClientAddress.cs          # the one spelling of a caller's address
 │   ├── CidrRule.cs               # a strictly parsed address range and whether an address is in it
 │   ├── HostNameRule.cs           # what the panel accepts as a DNS host name
+│   ├── PublicUrlRule.cs          # what the panel accepts as its own public address: an https origin
 │   └── Ipv4MappedAddress.cs      # unwrapping the mapped form a dual-stack listener reports
 ├── Text/
 │   ├── ColumnText.cs             # shortening a value to what a character varying(n) column holds

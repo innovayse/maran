@@ -96,7 +96,7 @@ from what the page remembers, and says who you are viewing as and who you really
 |---|---|---|---|
 | Administrator | any account, including a reseller's | start from the account | 404 `ViewAsAccountNotFound` (missing, or no owner login) |
 | Administrator | a reseller | start from the reseller | 404 `ViewAsResellerNotFound` |
-| Reseller | one of its own accounts | start from the account | 404 for an account it does not own, same as a missing one; 409 `ViewAsLoginUnavailable` when the owner's login may not sign in |
+| Reseller | one of its own accounts | start from the account | 404 for an account it does not own, same as a missing one; 409 `ViewAsLoginUnavailable` when the owner's login or its membership is suspended; 409 `ViewAsInvitationPending` when the owner has not accepted the invitation yet (a suspension is reported first when both hold) |
 | Anyone viewing as another login | anything | none | refused (403) |
 | Customer, anonymous | anything | none | refused (403 or 401) |
 

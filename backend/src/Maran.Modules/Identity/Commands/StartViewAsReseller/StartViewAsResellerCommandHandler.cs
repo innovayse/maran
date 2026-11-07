@@ -2,6 +2,7 @@ using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Domain.Policies;
+using Maran.Modules.Identity.Mappers;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
@@ -29,8 +30,10 @@ namespace Maran.Modules.Identity.Commands.StartViewAsReseller;
 /// keeps no administrator power. It is one hop; no view-as token can start another.
 /// </para>
 /// <para>
-/// A reseller that is suspended, or whose login may not sign in, answers <c>ViewAsLoginUnavailable</c>
-/// (409), the same refusal the account kind gives for a login that cannot be signed in as.
+/// A reseller that is suspended, or whose login is, answers <c>ViewAsLoginUnavailable</c> (409), the
+/// same refusal the account kind gives for a suspended login; a login whose contact has not accepted
+/// the invitation yet answers <c>ViewAsInvitationPending</c> (409), also as the account kind does
+/// (issue #416).
 /// </para>
 /// </remarks>
 public sealed class StartViewAsResellerCommandHandler
@@ -64,8 +67,8 @@ public sealed class StartViewAsResellerCommandHandler
     /// <returns>
     /// The view-as token and what the banner shows; <c>ViewAsResellerNotFound</c> (404) for a reseller
     /// that does not exist or has no login, or when the operator is not an administrator who may sign
-    /// in; <c>ViewAsLoginUnavailable</c> (409) when the reseller is suspended or its login may not
-    /// sign in.
+    /// in; <c>ViewAsLoginUnavailable</c> (409) when the reseller or its login is suspended;
+    /// <c>ViewAsInvitationPending</c> (409) when the reseller's contact has not accepted the invitation yet.
     /// </returns>
     public async Task<Result<ViewAsSessionDto>> HandleAsync(
         StartViewAsResellerCommand command,
@@ -93,10 +96,13 @@ public sealed class StartViewAsResellerCommandHandler
         }
 
         var subject = new ViewAsSubject(ViewAsKind.Reseller, reseller.Id, reseller.Name);
-        if (reseller.State != ResellerState.Active || !login.MayAuthenticate)
+        var refusal = reseller.State == ResellerState.Active
+            ? ViewAsLoginRefusalMapper.From(ViewAsLoginStandingPolicy.Of(login, membershipSuspended: false))
+            : ViewAsLoginRefusalMapper.From(ViewAsLoginStanding.Unavailable);
+        if (refusal is not null)
         {
             await RefuseAsync(command, actor, ViewAsSubjectText.Of(subject.Kind, subject.Name, login.Username), cancellationToken);
-            return Result<ViewAsSessionDto>.Fail(Error.Of(nameof(ErrorMessages.ViewAsLoginUnavailable), ErrorType.Conflict));
+            return Result<ViewAsSessionDto>.Fail(refusal);
         }
 
         var started = await _starter.StartAsync(

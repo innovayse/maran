@@ -102,7 +102,7 @@ public sealed class ResellerFixtureBuilder
                 })
             .WithWebHostBuilder(builder =>
             {
-                builder.UseSetting("PasswordReset:PanelUrl", PanelUrl);
+                builder.UseSetting("Panel:PublicUrl", PanelUrl);
 
                 // A test makes dozens of requests as one login; the limit is not what it is about.
                 builder.UseSetting("RateLimiting:ApiPermitLimit", "100000");

@@ -49,5 +49,12 @@ declare module 'vue-router' {
      * never the raw identifier from the address.
      */
     titledByRecord?: boolean
+    /**
+     * The screen holds something the panel shows once and can never show again (the two-factor
+     * recovery codes, whose hashes are all the backend keeps) in its own state. The shell remounts
+     * the routed page when the interface language changes (issue #414), which would discard it, so
+     * such a screen is kept mounted across the switch.
+     */
+    holdsOneTimeSecret?: boolean
   }
 }

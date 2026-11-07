@@ -123,7 +123,7 @@ public sealed class VerifyTwoFactorCommandHandler
         {
             await WriteAuditAsync(user.Id, user.Username, IdentityAuditActions.LoginFailed, command, false, cancellationToken);
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
-            return Result<AuthenticatedOutcome>.Fail(await _rejection.ErrorAsync(cancellationToken));
+            return Result<AuthenticatedOutcome>.Fail(await _rejection.SignInErrorAsync(cancellationToken));
         }
 
         var completed = await _authenticationCompleter.CompleteAsync(

@@ -162,6 +162,42 @@ nginx_conf_dest() {
   esac
 }
 
+# panel_certificate_extra_san: the subjectAltName entry for the address the panel is reached at
+# (Panel__PublicUrl in panel.env, decided by 60-config.sh), as `IP:<address>` or `DNS:<name>` — or
+# nothing when none is recorded or what is recorded is not a plain address. Without it a browser
+# that is sent to https://203.0.113.7:8443 sees a certificate for a machine name it never asked for,
+# which is a second, avoidable warning on top of the expected self-signed one.
+#
+# The value is read back from the file rather than detected again, so the certificate, panel.env and
+# the address 90-finish.sh prints are one decision. It reaches `openssl` as one argv element, and only
+# after a character gate (letters, digits, dots, hyphens, colons): nothing here builds a shell string
+# and nothing can add a second SAN entry through a comma (rules/security.md items 3 and 4).
+panel_certificate_extra_san() {
+  local url host
+  url="$(awk -v k="Panel__PublicUrl" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }' \
+    "${MARAN_CONFIG_FILE:-/etc/maran/panel.env}" 2>/dev/null || true)"
+  case "$url" in
+    [Hh][Tt][Tt][Pp][Ss]://*) ;;
+    *) return 0 ;;
+  esac
+  host="${url:8}"
+  case "$host" in
+    \[*\]*)
+      host="${host%%]*}"
+      host="${host#[}"
+      ;;
+    *) host="${host%%:*}" ;;
+  esac
+  case "$host" in
+    ''|*[!0-9A-Za-z:.-]*) return 0 ;;
+  esac
+  if [[ "$host" =~ ^[0-9.]+$ ]] || [[ "$host" == *:* ]]; then
+    echo "IP:${host}"
+  else
+    echo "DNS:${host}"
+  fi
+}
+
 # generate_self_signed_cert: a 10-year self-signed cert scoped to the machine's
 # hostname, generated once. It exists only so the panel is reachable over TLS
 # immediately after install, and no browser trusts it. Replacing it is a MANUAL act
@@ -210,6 +246,13 @@ certificate." >&2
   # `hostname` package, and the old expression's own fallback called the same missing program, so the
   # install died with exit 127 (issue #57).
   hostname="$(host_display_name)"
+  # The machine's name, plus the address the panel is reached at when panel.env records one (and
+  # it is not the same name), so a browser sent to that address is not also shown a name mismatch.
+  local subject_alt_names="DNS:${hostname}" extra_san
+  extra_san="$(panel_certificate_extra_san)"
+  if [ -n "$extra_san" ] && [ "$extra_san" != "DNS:${hostname}" ]; then
+    subject_alt_names="${subject_alt_names},${extra_san}"
+  fi
   # ECDSA P-256, and NOT Ed25519, which is what this line used to generate. No Chromium-based
   # browser accepts an Ed25519 SERVER CERTIFICATE, so the panel could not be opened at all: the
   # TLS handshake fails with ERR_SSL_VERSION_OR_CIPHER_MISMATCH, which is not the self-signed
@@ -230,7 +273,7 @@ certificate." >&2
   openssl req -x509 -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
     -keyout "$MARAN_KEY_PATH" -out "$MARAN_CERT_PATH" \
     -days 3650 -subj "/CN=${hostname}" \
-    -addext "subjectAltName=DNS:${hostname}"
+    -addext "subjectAltName=${subject_alt_names}"
   chown "root:${MARAN_GROUP}" "$MARAN_KEY_PATH" "$MARAN_CERT_PATH"
   chmod 0640 "$MARAN_KEY_PATH"
   chmod 0644 "$MARAN_CERT_PATH"

@@ -56,6 +56,30 @@ public sealed class ConfirmTotpEnrolmentCommandHandlerTests : IDisposable
         Assert.True(user.IsTotpEnabled);
     }
 
+    /// <summary>
+    /// A wrong code is a validation failure (400), not an unauthorized one: the caller is signed in,
+    /// and a 401 makes a client renew the session and send the same wrong code again (issue #412).
+    /// </summary>
+    [Fact]
+    public async Task Confirming_with_a_wrong_code_is_a_validation_failure_and_enables_nothing()
+    {
+        var user = await SeedUserAsync(withTotp: false);
+
+        var result = await NewHandler().HandleAsync(Confirm(user.Id) with { Code = WrongCode() }, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(new Error("TwoFactorCodeInvalid", ErrorType.Validation), result.Error);
+        Assert.False(user.IsTotpEnabled);
+    }
+
+    /// <summary>Builds a six-digit code that is NOT the one valid at <see cref="Now"/>.</summary>
+    /// <returns>A code the secret does not produce in the accepted window.</returns>
+    private static string WrongCode()
+    {
+        var valid = new Totp(Base32Encoding.ToBytes(Secret)).ComputeTotp(Now.UtcDateTime);
+        return valid == "000000" ? "000001" : "000000";
+    }
+
     /// <summary>Builds a confirmation carrying a code valid at <see cref="Now"/>.</summary>
     /// <param name="userId">The caller.</param>
     /// <returns>The command.</returns>

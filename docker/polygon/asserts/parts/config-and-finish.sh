@@ -24,7 +24,8 @@ detect_panel_host_name' _ "$COMMON_LIB" "$CONFIG_STEP" "$1"
 }
 
 # panel_env_written_with: runs the installer's own write_config, unmodified, against a scratch
-# directory, with `$1` as the panel host name argument, and prints the panel.env it produced. Only
+# directory, with `$1` as the panel host name argument (and the optional `$2` as the panel public
+# address argument), and prints the panel.env it produced. Only
 # the things that need a real machine are stand-ins: the service identity check, chown and chmod.
 # The rendering, and the `if [ -n ... ]` guarding the Panel__HostName line, are the real ones.
 panel_env_written_with() {
@@ -43,10 +44,173 @@ MARAN_GROUP=maran
 require_service_identity() { :; }
 chown() { :; }
 chmod() { :; }
-write_config key token signing 22 "" 101 "$4"
-cat "$MARAN_CONFIG_FILE"' _ "$COMMON_LIB" "$CONFIG_STEP" "$scratch" "$1")" || { rm -rf "$scratch"; fail "write_config failed when run for real"; }
+write_config key token signing 22 "" 101 "$4" "$5"
+cat "$MARAN_CONFIG_FILE"' _ "$COMMON_LIB" "$CONFIG_STEP" "$scratch" "$1" "${2:-}")" || { rm -rf "$scratch"; fail "write_config failed when run for real"; }
   rm -rf "$scratch"
   printf '%s\n' "$output"
+}
+
+# panel_public_url_verdict_for: runs the installer's own panel_public_url_is_valid, unmodified, on
+# `$1` and prints `valid` or `invalid`. The value is passed as an argument, never interpolated into
+# the script text, so a hostile shape is exactly what the function receives.
+panel_public_url_verdict_for() {
+  bash -c 'set -euo pipefail
+. "$1"
+. "$2"
+if panel_public_url_is_valid "$3"; then echo valid; else echo invalid; fi' _ "$COMMON_LIB" "$CONFIG_STEP" "$1"
+}
+
+# panel_public_url_detected_with: runs the installer's own detect_panel_public_url with
+# panel_public_host_candidates replaced by a stand-in printing `$1` (so the test chooses what the
+# machine "looks like"), the override `$2` in MARAN_PANEL_PUBLIC_URL, and prints
+# `<exit status>|<stdout>|<stderr>` joined with a literal pipe, the last two with newlines folded.
+panel_public_url_detected_with() {
+  local out err status scratch
+  scratch="$(mktemp)"
+  status=0
+  out="$(PROBE_CANDIDATES="$1" MARAN_PANEL_PUBLIC_URL="${2:-}" bash -c 'set -euo pipefail
+. "$1"
+. "$2"
+MARAN_PANEL_PORT=8443
+panel_public_host_candidates() { printf "%b" "$PROBE_CANDIDATES"; }
+detect_panel_public_url' _ "$COMMON_LIB" "$CONFIG_STEP" 2>"$scratch")" || status=$?
+  err="$(tr '\n' ' ' < "$scratch")"
+  rm -f "$scratch"
+  printf '%s|%s|%s\n' "$status" "$out" "$err"
+}
+
+# assert_the_panel_public_url_is_chosen_and_written_only_when_valid: the address every invitation and
+# reset link starts with (Panel__PublicUrl), threat note
+# docs/superpowers/notes/2026-11-07-panel-public-url-threat-note.md. Propositions, each executed
+# against the installer's own functions and each with its inverse control:
+#   1. the validator accepts real origins (IPv4, IPv6, name, with and without port) and refuses
+#      every shape that could end a line, start a second setting or change what the host is;
+#   2. write_config records the value when valid, even with no host name, and records NOTHING for a
+#      hostile one, and no longer writes the old PasswordReset__PanelUrl key;
+#   3. detection prefers a public name over an address, skips a hostile candidate, flags a private
+#      address, takes an explicit override, and REFUSES an invalid override instead of falling back;
+#   4. the certificate's extra subjectAltName entry is built only from a plain address;
+#   5. the finish message and panel.env.example read/document the same key.
+assert_the_panel_public_url_is_chosen_and_written_only_when_valid() {
+  local value verdict written answer
+
+  for value in 'https://203.0.113.7:8443' 'https://panel.example.com:8443' 'https://panel.example.com' \
+    'https://[2001:db8::1]:8443' 'https://localhost.example.org:65535' 'HTTPS://Panel.Example.COM:8443'; do
+    verdict="$(panel_public_url_verdict_for "$value")"
+    [ "$verdict" = "valid" ] || fail "panel_public_url_is_valid refused the good origin '${value}'; a validator that
+refuses everything would pass every refusal below, and every install would record no address."
+  done
+
+  for value in '' 'panel.example.com' 'http://panel.example.com' 'https://' 'https://user@panel.example.com' \
+    'https://panel.example.com/path' 'https://panel.example.com?x=1' 'https://panel.example.com#x' \
+    'https://panel.example.com:0' 'https://panel.example.com:65536' 'https://panel.example.com:80:90' \
+    'https://panel.example.com:' 'https://127.1' 'https://999.1.1.1' $'https://b\xc3\xbccher.example' \
+    'https://intranet' 'https://panel_host.example.com' 'https://panel.example.com\\evil' \
+    'https://pa nel.example.com' 'https://panel.example.com"' 'https://panel.example.com;rm' \
+    'https://panel.example.com$x' 'https://panel.example.com=1' 'https://[::1:8443' \
+    'https://[fe80::1%25eth0]:8443' 'https://[fe80::1%eth0]:8443' 'https://panel%2eexample.com' \
+    $'https://panel.example.com\nPanel__Other=1' $'https://panel.example.com\r' $'https://panel.example.com\t'; do
+    verdict="$(panel_public_url_verdict_for "$value")"
+    [ "$verdict" = "invalid" ] || fail "panel_public_url_is_valid accepted '${value}'. The value goes into a line-oriented
+env file and into mails sent in the panel's name; one byte outside the alphabet is a second setting or a
+different host (rules/security.md item 4)."
+  done
+
+  written="$(panel_env_written_with '' 'https://203.0.113.7:8443')"
+  printf '%s\n' "$written" | grep -qx 'Panel__PublicUrl=https://203.0.113.7:8443' \
+    || fail "write_config did not record Panel__PublicUrl for a valid address given with NO host name; the address
+customers are mailed is independent of the machine's own name"
+  if printf '%s\n' "$written" | grep -q '^PasswordReset__PanelUrl='; then
+    fail "write_config still writes PasswordReset__PanelUrl, a key the panel no longer reads"
+  fi
+  written="$(panel_env_written_with 'shop.example.com' $'https://203.0.113.7:8443\nPanel__Other=1')"
+  if printf '%s\n' "$written" | grep -qE '^(Panel__PublicUrl|Panel__Other)='; then
+    fail "write_config recorded a hostile public address (a newline planted a second setting); it must leave the key out"
+  fi
+  printf '%s\n' "$written" | grep -q '^Panel__HostName=shop.example.com$' \
+    || fail "refusing the hostile address also dropped Panel__HostName, so this check cannot tell a refusal from a broken writer"
+
+  answer="$(panel_public_url_detected_with 'name shop.example.com\nroute 10.1.2.3\n')"
+  [ "$answer" = "0|https://shop.example.com:8443|Panel public address: https://shop.example.com:8443 (this host's name, which resolves to a public address). " ] \
+    || fail "detection did not prefer a publicly resolving name over an address. Got: ${answer}"
+
+  answer="$(panel_public_url_detected_with 'ssh 1.2.3.4;rm\nroute 203.0.113.9\n')"
+  case "$answer" in
+    "0|https://203.0.113.9:8443|"*) ;;
+    *) fail "detection used or choked on a hostile candidate instead of skipping to the next. Got: ${answer}" ;;
+  esac
+
+  answer="$(panel_public_url_detected_with 'route 10.1.2.3\n')"
+  case "$answer" in
+    "0|https://10.1.2.3:8443|"*"private address"*) ;;
+    *) fail "detection did not flag a private address as unreachable from outside. Got: ${answer}" ;;
+  esac
+
+  answer="$(panel_public_url_detected_with '')"
+  case "$answer" in
+    "0||"*"No public address could be found"*) ;;
+    *) fail "detection with no candidate must print nothing on stdout and say why. Got: ${answer}" ;;
+  esac
+
+  answer="$(panel_public_url_detected_with 'route 10.1.2.3\n' 'https://panel.example.org:8443/')"
+  case "$answer" in
+    "0|https://panel.example.org:8443|"*) ;;
+    *) fail "an explicit MARAN_PANEL_PUBLIC_URL was not taken over detection. Got: ${answer}" ;;
+  esac
+
+  answer="$(panel_public_url_detected_with 'route 203.0.113.9\n' 'http://panel.example.org')"
+  case "$answer" in
+    "1||"*) ;;
+    *) fail "an INVALID MARAN_PANEL_PUBLIC_URL fell back to detection or exited 0; the operator's explicit choice must
+be refused, not replaced by a guess. Got: ${answer}" ;;
+  esac
+
+  for value in 8.8.8.8 172.32.0.1 203.0.113.9; do
+    bash -c 'set -euo pipefail; . "$1"; . "$2"; address_is_publicly_routable "$3"' _ "$COMMON_LIB" "$CONFIG_STEP" "$value" \
+      || fail "address_is_publicly_routable called ${value} private"
+  done
+  for value in 10.0.0.1 172.16.0.1 172.31.255.255 192.168.1.1 100.64.0.1 169.254.1.1 127.0.0.1 224.0.0.1 0.1.2.3; do
+    if bash -c 'set -euo pipefail; . "$1"; . "$2"; address_is_publicly_routable "$3"' _ "$COMMON_LIB" "$CONFIG_STEP" "$value"; then
+      fail "address_is_publicly_routable called ${value} public; links to it would be unreachable from outside"
+    fi
+  done
+
+  # 4. The certificate's extra subjectAltName: the real function, extracted from the served step,
+  # reading a scratch panel.env. IPv4, IPv6 and a name map to the right kind; a hostile value, or a
+  # missing key, yields nothing at all.
+  local scratch san
+  scratch="$(mktemp)"
+  for value in 'https://203.0.113.7:8443|IP:203.0.113.7' 'https://[2001:db8::1]:8443|IP:2001:db8::1' \
+    'https://panel.example.com:8443|DNS:panel.example.com' 'https://a.b,IP:1.2.3.4:8443|' 'http://203.0.113.7|'; do
+    printf 'Other=1\nPanel__PublicUrl=%s\n' "${value%%|*}" > "$scratch"
+    san="$(env MARAN_CONFIG_FILE="$scratch" bash -c 'set -euo pipefail
+eval "$(sed -n "/^panel_certificate_extra_san()/,/^}/p" "$1")"
+panel_certificate_extra_san' _ "$NGINX_STEP")"
+    [ "$san" = "${value#*|}" ] \
+      || { rm -f "$scratch"; fail "panel_certificate_extra_san answered '${san}' for '${value%%|*}'; expected '${value#*|}'.
+A subjectAltName built from anything but a plain address lets a value add a second certificate name."; }
+  done
+  printf 'Other=1\n' > "$scratch"
+  san="$(env MARAN_CONFIG_FILE="$scratch" bash -c 'set -euo pipefail
+eval "$(sed -n "/^panel_certificate_extra_san()/,/^}/p" "$1")"
+panel_certificate_extra_san' _ "$NGINX_STEP")"
+  rm -f "$scratch"
+  [ -z "$san" ] || fail "panel_certificate_extra_san invented '${san}' when panel.env records no public address"
+
+  # 5. The same key is read where the operator is told the address, and documented.
+  grep -q 'panel_env_value Panel__PublicUrl' "$FINISH_STEP" \
+    || fail "90-finish.sh no longer prints the address panel.env records in Panel__PublicUrl; what the operator is
+told to open and what customers are mailed can now differ"
+  grep -qE '^Panel__PublicUrl=' "$PANEL_ENV_EXAMPLE" \
+    || fail "panel.env.example no longer documents Panel__PublicUrl, which the installer writes"
+  if grep -qE '^PasswordReset__PanelUrl=' "$PANEL_ENV_EXAMPLE"; then
+    fail "panel.env.example still documents PasswordReset__PanelUrl, a key the panel no longer reads"
+  fi
+
+  echo "Panel__PublicUrl: valid origins are recorded (even with no host name), hostile shapes record nothing, a public name beats"
+  echo "an address, a private address is flagged, an invalid override is refused rather than guessed around, and the"
+  echo "certificate's extra name is built only from a plain address. UNOBSERVED HERE: the real network facts"
+  echo "(getent, ip route, SSH_CONNECTION) are stand-ins, so what a given host would pick is not measured."
 }
 
 # assert_the_panel_host_name_is_recorded_from_the_name_the_vhost_serves: issue #96. panel.env's
@@ -115,6 +279,8 @@ the vhost and the API's reserved name can now drift apart."
   fi
 
   echo "Panel__HostName is the lower-cased name the vhost serves; placeholders, injection shapes and over-long names record nothing."
+
+  assert_the_panel_public_url_is_chosen_and_written_only_when_valid
 }
 
 # assert_panel_port_has_one_authority: the panel's public port is decided in exactly one

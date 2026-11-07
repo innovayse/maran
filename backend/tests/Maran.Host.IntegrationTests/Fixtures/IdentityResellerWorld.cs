@@ -64,7 +64,7 @@ public static class IdentityResellerWorld
         {
             factory = factory.WithWebHostBuilder(builder =>
             {
-                builder.UseSetting("PasswordReset:PanelUrl", panelUrl);
+                builder.UseSetting("Panel:PublicUrl", panelUrl);
             });
         }
 

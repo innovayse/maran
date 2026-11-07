@@ -126,3 +126,26 @@ test('turning two-factor on and then off switches the card each time', async ({ 
   await expect(page.getByRole('button', { name: 'Turn off' })).toHaveCount(0)
   await expect(page.getByText(RECOVERY_CODES[0], { exact: true })).toHaveCount(0)
 })
+
+test('switching the interface language after the recovery codes are shown keeps them on screen', async ({ page }) => {
+  // The header's language menu is drawn at desktop width.
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await signInWithTwoFactor(page, false)
+  await stubTwoFactorEndpoints(page)
+
+  await page.goto('/settings/two-factor')
+  await page.getByRole('button', { name: 'Set up' }).click()
+  await page.getByRole('textbox', { name: 'Code from the app' }).fill('123456')
+  await page.getByRole('button', { name: 'Turn on' }).click()
+  await expect(page.getByText(RECOVERY_CODES[0], { exact: true })).toBeVisible()
+
+  // Every other routed page remounts on a language switch (issue #414); this one is marked
+  // `meta.holdsOneTimeSecret`, so a remount here would discard codes that cannot be fetched again.
+  await page.getByRole('banner').getByTestId('locale-switcher').locator('[aria-haspopup="menu"]').click()
+  await page.getByRole('menuitemradio', { name: 'Русский', exact: true }).click()
+  // Control: the switch really happened, so the codes surviving is not a switch that never ran.
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ru')
+
+  await expect(page.getByText(RECOVERY_CODES[0], { exact: true })).toBeVisible()
+  await expect(page.getByText(RECOVERY_CODES[1], { exact: true })).toBeVisible()
+})

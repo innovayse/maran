@@ -24,6 +24,12 @@
   <data name="InvalidTwoFactorCodeClockUnsynchronizedUnauthorized">
     <value>Код неверен. Часы сервера не синхронизированы, из-за чего правильные коды могут не приниматься. Попросите администратора сервера проверить синхронизацию времени.</value>
   </data>
+  <data name="TwoFactorCodeInvalid">
+    <value>Код неверен. Проверьте приложение-аутентификатор и попробуйте снова.</value>
+  </data>
+  <data name="TwoFactorCodeClockUnsynchronized">
+    <value>Код неверен. Часы сервера не синхронизированы, из-за чего правильные коды могут не приниматься. Попросите администратора сервера проверить синхронизацию времени.</value>
+  </data>
   <data name="RefreshTokenInvalidUnauthorized">
     <value>Сеанс завершён. Войдите заново.</value>
   </data>
@@ -158,6 +164,9 @@
   </data>
   <data name="ViewAsLoginUnavailable">
     <value>Этот вход приостановлен или заблокирован, поэтому просмотреть панель от его имени нельзя.</value>
+  </data>
+  <data name="ViewAsInvitationPending">
+    <value>Владелец ещё не принял приглашение, поэтому нет входа, от имени которого можно просматривать панель. Попробуйте снова, когда он это сделает.</value>
   </data>
   <data name="ViewAsNotViewing">
     <value>Вы не просматриваете панель от имени другого входа.</value>

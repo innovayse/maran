@@ -15,7 +15,7 @@ public sealed class InvitationLinkBuilderTests
     /// <param name="panelUrl">The configured public address; empty when none is.</param>
     private static InvitationLinkBuilder NewBuilder(string panelUrl)
     {
-        return new InvitationLinkBuilder(new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = panelUrl }));
+        return new InvitationLinkBuilder(new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = panelUrl }));
     }
 
     /// <summary>A configured address is prefixed once, whether or not it ends in a slash.</summary>
@@ -54,7 +54,7 @@ public sealed class InvitationLinkBuilderTests
         // Pinned through the composer, which is where a second spelling of the path would reappear.
         var composer = new InvitationMailComposer(
             new Maran.Modules.Identity.Tests.TestSupport.StubEmailTemplates(),
-            new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = "https://panel.example.com" }));
+            new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = "https://panel.example.com" }));
 
         var mail = composer.Compose("owner@example.com", "tok en", "en");
 
