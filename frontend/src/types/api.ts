@@ -43,6 +43,8 @@ export interface RequestOptions {
    * and retrying would spend a refresh and hide the real answer.
    */
   retryOnUnauthorized?: boolean
+  /** The `Accept` header to send; JSON when omitted. A file download asks for any type. */
+  accept?: string
 }
 
 /** Public surface of the low-level API client returned by {@link useApi}. */
@@ -101,6 +103,17 @@ export interface ApiClient {
   delete: <T>(path: string, signal?: AbortSignal) => Promise<T>
 
   /**
+   * Performs a GET request for a file and returns it with the name the panel proposed in
+   * `Content-Disposition`. Goes through the same pipeline as every other call, so the bearer
+   * token, the CSRF header and token renewal apply; a plain link could carry none of them.
+   * @param path Request path, relative to the app origin (proxied in dev).
+   * @param signal Optional abort signal to cancel the request.
+   * @returns The file and its proposed name.
+   * @throws {ApiError} When the response status is not in the 2xx range.
+   */
+  download: (path: string, signal?: AbortSignal) => Promise<ApiDownload>
+
+  /**
    * Opens a Server-Sent Events stream and delivers each decoded frame to `onEvent`.
    *
    * Resolves when the server closes the stream or when `signal` is aborted, and releases the
@@ -119,6 +132,14 @@ export interface ApiClient {
     onEvent: (event: ServerSentEvent) => void,
     signal: AbortSignal,
   ) => Promise<void>
+}
+
+/** A file the panel streamed back, held in memory until the browser saves it. */
+export interface ApiDownload {
+  /** The file's bytes, typed by the response's `Content-Type`. */
+  blob: Blob
+  /** The name the panel proposed for the file; a generic name when the response proposed none. */
+  fileName: string
 }
 
 /**

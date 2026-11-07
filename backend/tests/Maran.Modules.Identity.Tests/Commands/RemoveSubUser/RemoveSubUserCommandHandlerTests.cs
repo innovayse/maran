@@ -27,6 +27,7 @@ public sealed class RemoveSubUserCommandHandlerTests : IDisposable
             _world.Context,
             _world.Guard(principal),
             new IdentityAuditJournal(_world.Audit, principal),
+            ErasureHandlers.Pseudonymiser(_world.Context, _world.Audit, principal),
             _world.Clock,
             principal);
     }
@@ -77,7 +78,10 @@ public sealed class RemoveSubUserCommandHandlerTests : IDisposable
             candidate => candidate.UserId == member.Id && candidate.AccountId == SubUserWorld.AccountId));
     }
 
-    /// <summary>The removal is journalled against the login name that left.</summary>
+    /// <summary>
+    /// The removal of a login that is deleted is journalled under the pseudonym that replaced its name,
+    /// because the name itself was just erased from the journal.
+    /// </summary>
     [Fact]
     public async Task Removing_is_journalled()
     {
@@ -87,7 +91,7 @@ public sealed class RemoveSubUserCommandHandlerTests : IDisposable
 
         var entry = Assert.Single(_world.Audit.Written);
         Assert.Equal(IdentityAuditActions.SubUserRemoved, entry.Action);
-        Assert.Equal("deploy", entry.Subject);
+        Assert.StartsWith("erased-user-", entry.Subject);
         Assert.True(entry.Succeeded);
     }
 

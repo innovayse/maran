@@ -56,6 +56,10 @@ public sealed class SitesModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
+        // personal-data export, an allow-list of fields and never a secret.
+        services.AddScoped<IPersonalDataProvider, SitesPersonalDataProvider>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against; see AccountsModule for the full reasoning. Module-internal
         // lookups inject IStringLocalizer<T> directly instead.

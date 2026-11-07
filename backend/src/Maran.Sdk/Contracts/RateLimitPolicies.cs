@@ -109,4 +109,16 @@ public static class RateLimitPolicies
     /// read-only and may be asked far more often than a restore.
     /// </remarks>
     public const string BackupVerify = "backup-verify";
+
+    /// <summary>
+    /// The journal-export limit: its own bucket, keyed by the signed-in administrator, shared by the
+    /// audit export and the personal-data export.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Api"/> because one request hands the caller a large part of the security
+    /// record in a single response and makes the database read it all: the general budget is sized for
+    /// reading screens. The two exports share one bucket on purpose, since both are the same act of
+    /// taking personal data out of the panel and a caller should not get a second allowance by switching.
+    /// </remarks>
+    public const string AuditExport = "audit-export";
 }

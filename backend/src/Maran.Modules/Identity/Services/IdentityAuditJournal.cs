@@ -186,6 +186,29 @@ public sealed class IdentityAuditJournal
             cancellationToken);
     }
 
+    /// <summary>Records work this module did on its own initiative: the panel is the actor, with no request origin.</summary>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
+    /// <param name="subject">What was done and how much; never the identifier of an erased person, never a secret.</param>
+    /// <param name="succeeded">Whether it took effect. A refused unattended run is the entry worth reading.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    public async Task RecordSystemAsync(
+        string action,
+        string subject,
+        bool succeeded,
+        CancellationToken cancellationToken)
+    {
+        await WriteAsync(
+            null,
+            SystemAuditEntry.NameFor(ModuleName),
+            action,
+            subject,
+            string.Empty,
+            string.Empty,
+            succeeded,
+            cancellationToken);
+    }
+
     /// <summary>Records a break-glass recovery run from the server's console, or its refusal.</summary>
     /// <param name="subject">
     /// What was acted on: the administrator's user id once one was resolved, otherwise the identifier

@@ -3,10 +3,26 @@ using Maran.Modules.Identity.Domain.ValueObjects;
 namespace Maran.Modules.Identity.Domain.Entities;
 
 /// <summary>
-/// One row of the append-only audit journal: who did what, when, from where, and whether it worked
-/// (spec §10). The type has no mutating method at all — that absence is the append-only guarantee,
-/// enforced by the shape of the code rather than by a convention someone has to remember.
+/// One row of the audit journal: who did what, when, from where, and whether it worked (spec §10).
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Three things may happen to a row after it is written, and each is a named method.</b>
+/// <see cref="Seal"/> attaches the tamper-evidence proof once; <see cref="ErasePerson"/> and
+/// <see cref="EraseAccount"/> replace the columns that identify a person or an account with a
+/// pseudonym. Nothing else changes a row: the setters are private, and the columns that say WHAT
+/// happened and WHEN (<see cref="Id"/>, <see cref="OccurredAt"/>, <see cref="Action"/>,
+/// <see cref="Succeeded"/>, <see cref="CorrelationId"/>) are not touched by any method.
+/// </para>
+/// <para>
+/// The columns split into two sets, and the split is the design. The IMMUTABLE set is what the chain
+/// hash covers directly. The ERASABLE set (actor id and name, subject, address, user agent, account
+/// id, impersonator) is covered only through a salted commitment, so erasing it by destroying the
+/// salt leaves the chain verifiable. Which columns are in which set is decided by the chain's
+/// canonical form, not here; this type only guarantees that the erase methods touch nothing
+/// outside the erasable set.
+/// </para>
+/// </remarks>
 public sealed class AuditEvent
 {
     /// <summary>The width of <see cref="ActorUsername"/>, in characters.</summary>
@@ -29,6 +45,12 @@ public sealed class AuditEvent
 
     /// <summary>The width of <see cref="CorrelationId"/>, in characters.</summary>
     public const int CorrelationIdMaxLength = 64;
+
+    /// <summary>The length, in bytes, of <see cref="RowHash"/> and <see cref="ErasableCommitment"/>: SHA-256 and HMAC-SHA256 output.</summary>
+    public const int HashLength = 32;
+
+    /// <summary>The length, in bytes, of <see cref="CommitmentSalt"/>.</summary>
+    public const int SaltLength = 16;
 
     /// <summary>The event's identity.</summary>
     public Guid Id { get; private set; }
@@ -67,6 +89,55 @@ public sealed class AuditEvent
     /// </summary>
     public AuditImpersonator? Impersonator { get; private set; }
 
+    /// <summary>
+    /// The hosting account this entry is about, when the writer knew one: a customer session, a
+    /// viewed-as session, or an Accounts-module entry that named it. Null for everything else,
+    /// including administrator entries of the other journals. Erasable: account erasure replaces it
+    /// with a random id that points at nothing.
+    /// </summary>
+    public Guid? AccountId { get; private set; }
+
+    /// <summary>
+    /// The row's position in the tamper-evidence chain; null until the maintenance worker seals it.
+    /// Positions start at 1 and never repeat (a unique index holds that).
+    /// </summary>
+    public long? ChainIndex { get; private set; }
+
+    /// <summary>
+    /// The keyed hash that links this row to the previous one (HMAC-SHA256, <see cref="HashLength"/>
+    /// bytes); null until sealed.
+    /// </summary>
+    public byte[]? RowHash { get; private set; }
+
+    /// <summary>
+    /// A salted SHA-256 commitment to the erasable columns as they were when the row was sealed
+    /// (<see cref="HashLength"/> bytes); null until sealed. It stays after erasure: it is what lets
+    /// the row hash survive the columns it covers being replaced.
+    /// </summary>
+    public byte[]? ErasableCommitment { get; private set; }
+
+    /// <summary>
+    /// The random salt of <see cref="ErasableCommitment"/> (<see cref="SaltLength"/> bytes). Null on
+    /// an unsealed row and, deliberately, on an erased one: destroying it is what makes the erased
+    /// values unrecoverable from the commitment.
+    /// </summary>
+    public byte[]? CommitmentSalt { get; private set; }
+
+    /// <summary>When the first erasure touched this row; null when no erasure has.</summary>
+    public DateTimeOffset? ErasedAt { get; private set; }
+
+    /// <summary>Whether the row has been given its place in the chain.</summary>
+    public bool IsSealed
+    {
+        get { return ChainIndex is not null; }
+    }
+
+    /// <summary>Whether an erasure has replaced any of the row's erasable columns.</summary>
+    public bool IsErased
+    {
+        get { return ErasedAt is not null; }
+    }
+
     /// <summary>Records an event.</summary>
     /// <param name="id">The event's identity.</param>
     /// <param name="occurredAt">When it happened, taken from <see cref="IClock"/>.</param>
@@ -79,6 +150,7 @@ public sealed class AuditEvent
     /// <param name="succeeded">Whether it worked.</param>
     /// <param name="correlationId">The request's correlation id, tying this row to the logs.</param>
     /// <param name="impersonator">The operator viewing as the actor, or null when there was none.</param>
+    /// <param name="accountId">The hosting account the entry is about, or null when the writer knew none.</param>
     public AuditEvent(
         Guid id,
         DateTimeOffset occurredAt,
@@ -90,7 +162,8 @@ public sealed class AuditEvent
         string userAgent,
         bool succeeded,
         string? correlationId,
-        AuditImpersonator? impersonator = null)
+        AuditImpersonator? impersonator = null,
+        Guid? accountId = null)
     {
         Id = id;
         OccurredAt = occurredAt;
@@ -103,6 +176,7 @@ public sealed class AuditEvent
         Succeeded = succeeded;
         CorrelationId = correlationId;
         Impersonator = impersonator;
+        AccountId = accountId;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>
@@ -115,4 +189,166 @@ public sealed class AuditEvent
         UserAgent = string.Empty;
     }
 
+    /// <summary>Gives the row its place in the tamper-evidence chain, exactly once.</summary>
+    /// <param name="chainIndex">The row's position; positive, and unique across the table.</param>
+    /// <param name="erasableCommitment">The salted commitment to the erasable columns, <see cref="HashLength"/> bytes.</param>
+    /// <param name="commitmentSalt">
+    /// The commitment's salt, <see cref="SaltLength"/> bytes; null if and only if the row is already erased,
+    /// because an erased row must never hold the salt that would let its old values be checked.
+    /// </param>
+    /// <param name="rowHash">The keyed link to the previous row, <see cref="HashLength"/> bytes.</param>
+    /// <exception cref="InvalidOperationException">The row is already sealed.</exception>
+    /// <exception cref="ArgumentException">A value has the wrong shape, or the salt contradicts <see cref="IsErased"/>.</exception>
+    public void Seal(long chainIndex, byte[] erasableCommitment, byte[]? commitmentSalt, byte[] rowHash)
+    {
+        if (IsSealed)
+        {
+            throw new InvalidOperationException("The audit row is already sealed.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(chainIndex);
+        RequireLength(erasableCommitment, HashLength, nameof(erasableCommitment));
+        RequireLength(rowHash, HashLength, nameof(rowHash));
+
+        var saltPresent = commitmentSalt is not null;
+
+        if (saltPresent == IsErased)
+        {
+            throw new ArgumentException(
+                "An erased row is sealed without a salt, and a row that is not erased is sealed with one.",
+                nameof(commitmentSalt));
+        }
+
+        if (commitmentSalt is not null)
+        {
+            RequireLength(commitmentSalt, SaltLength, nameof(commitmentSalt));
+            CommitmentSalt = commitmentSalt.ToArray();
+        }
+
+        ChainIndex = chainIndex;
+        ErasableCommitment = erasableCommitment.ToArray();
+        RowHash = rowHash.ToArray();
+    }
+
+    /// <summary>
+    /// Replaces what identifies the erased person in this row with a pseudonym, and destroys the
+    /// commitment's salt.
+    /// </summary>
+    /// <param name="erasedUserId">The login being erased, matched against the actor and the impersonator.</param>
+    /// <param name="at">When the erasure happened, from the panel's clock; kept only if no earlier erasure set it.</param>
+    /// <param name="pseudonymId">The random id standing in for the person across all of their rows.</param>
+    /// <param name="pseudonymName">The name standing in for the person, for example <c>erased-user-1a2b3c4d</c>.</param>
+    /// <param name="replaceSubject">Whether the subject names the person (it equals their username or e-mail) and is replaced by the pseudonym name.</param>
+    /// <remarks>
+    /// <para>
+    /// A row can match as the ACTOR, as the IMPERSONATOR, or only by its subject. A row of an
+    /// unidentified caller whose claimed name IS the subject (a refused sign-in typed with the person's
+    /// login name or address) counts as the person's own as the actor: its name column holds the same
+    /// text as its subject. Only the matching part is replaced: when an operator who is being erased viewed as somebody else, the actor
+    /// columns belong to that other, living person and are kept, while the impersonator becomes the
+    /// pseudonym. The address and user agent are the request's, and so belong to whoever was at the
+    /// keyboard, which is the erased person in either of the first two cases.
+    /// </para>
+    /// <para>
+    /// A row that matches in none of the three ways is left exactly as it was, <see cref="ErasedAt"/>
+    /// included. <see cref="Subject"/> is replaced only when <paramref name="replaceSubject"/> says
+    /// the caller found it to be the person's own name; this method never inspects subject text.
+    /// </para>
+    /// </remarks>
+    public void ErasePerson(Guid erasedUserId, DateTimeOffset at, Guid pseudonymId, string pseudonymName, bool replaceSubject)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pseudonymName);
+
+        var actorMatches = ActorUserId == erasedUserId || (replaceSubject && NamesTheSubjectAsClaimedActor());
+        var impersonatorMatches = Impersonator is not null && Impersonator.OperatorId == erasedUserId;
+
+        if (!actorMatches && !impersonatorMatches && !replaceSubject)
+        {
+            return;
+        }
+
+        if (actorMatches)
+        {
+            ActorUserId = pseudonymId;
+            ActorUsername = pseudonymName;
+        }
+
+        if (impersonatorMatches)
+        {
+            Impersonator = new AuditImpersonator(pseudonymId, pseudonymName);
+        }
+
+        if (actorMatches || impersonatorMatches)
+        {
+            IpAddress = string.Empty;
+            UserAgent = string.Empty;
+        }
+
+        if (replaceSubject)
+        {
+            Subject = pseudonymName;
+        }
+
+        MarkErased(at);
+    }
+
+    /// <summary>Replaces what ties this row to a deleted hosting account with a pseudonym, and destroys the commitment's salt.</summary>
+    /// <param name="at">When the erasure happened, from the panel's clock; kept only if no earlier erasure set it.</param>
+    /// <param name="pseudonymAccountId">A fresh random id that points at no account.</param>
+    /// <param name="pseudonymSubject">The text that replaces the subject, for example <c>erased-account-1a2b3c4d</c>.</param>
+    /// <remarks>
+    /// The actor columns are deliberately kept: an administrator's accountability for what was done
+    /// to an account is not the account owner's personal data.
+    /// </remarks>
+    public void EraseAccount(DateTimeOffset at, Guid pseudonymAccountId, string pseudonymSubject)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pseudonymSubject);
+
+        AccountId = pseudonymAccountId;
+        Subject = pseudonymSubject;
+        MarkErased(at);
+    }
+
+    /// <summary>
+    /// Whether this is a row of an UNIDENTIFIED caller who typed a name: no actor id, and the actor name
+    /// is the very text the subject holds (or its truncation to the actor column's width).
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> for a sign-in or reset claim that matched nobody. When the claimed text is the erased
+    /// person's name, the actor name column holds that name too, and so do the address and user agent of
+    /// whoever typed it, so the whole row is the person's and not only its subject.
+    /// </returns>
+    private bool NamesTheSubjectAsClaimedActor()
+    {
+        if (ActorUserId is not null || ActorUsername.Length == 0)
+        {
+            return false;
+        }
+
+        var claimed = Subject.Length > ActorUsernameMaxLength ? Subject[..ActorUsernameMaxLength] : Subject;
+
+        return string.Equals(ActorUsername, claimed, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Records that an erasure touched the row and destroys the salt, keeping the earliest erasure time.</summary>
+    /// <param name="at">When the erasure happened.</param>
+    private void MarkErased(DateTimeOffset at)
+    {
+        ErasedAt ??= at;
+        CommitmentSalt = null;
+    }
+
+    /// <summary>Refuses a byte array that is not exactly the expected length.</summary>
+    /// <param name="value">The array to check.</param>
+    /// <param name="length">The length it must have.</param>
+    /// <param name="parameterName">The parameter it came from, for the exception.</param>
+    private static void RequireLength(byte[] value, int length, string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(value, parameterName);
+
+        if (value.Length != length)
+        {
+            throw new ArgumentException($"Expected exactly {length} bytes.", parameterName);
+        }
+    }
 }

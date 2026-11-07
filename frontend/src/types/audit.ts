@@ -1,3 +1,4 @@
+import type { ApiDownload } from './api'
 import type { ListRequest, Paged } from './list'
 
 /**
@@ -59,6 +60,52 @@ export interface AuditActionChoice {
   actionName: string
 }
 
+/** A file format the journal can be exported in, as the export endpoint's `format` binds it. */
+export type AuditExportFormat = 'csv' | 'json'
+
+/**
+ * How long the journal keeps its entries, as `GET /api/v1/audit/retention` reports it. The bounds
+ * come from the panel with the setting, so the screen holds no copy of them.
+ */
+export interface AuditRetention {
+  /** Days an entry is kept before the daily run may purge it, or `null` to keep entries indefinitely. */
+  retentionDays: number | null
+  /** The fewest days the panel accepts for {@link retentionDays}. */
+  minimumDays: number
+  /** The most days the panel accepts for {@link retentionDays}. */
+  maximumDays: number
+  /** When the daily retention run last ran, as an ISO-8601 instant, or `null` if it has not yet. */
+  lastRunAt: string | null
+}
+
+/** The tamper-evidence chain's state, as `GET /api/v1/audit/chain` reports it. */
+export interface AuditChainStatus {
+  /** Entries already linked into the chain. */
+  sealedRows: number
+  /** Entries written but not yet linked; the maintenance run seals them within the hour. */
+  unsealedRows: number
+  /** Position of the newest sealed entry, or `null` while nothing is sealed. */
+  lastChainIndex: number | null
+  /** When the newest sealed entry was written, as an ISO-8601 instant, or `null` while nothing is sealed. */
+  lastSealedAt: string | null
+  /** Position up to which retention has purged entries; verification starts after it. */
+  purgedThroughIndex: number
+}
+
+/** The answer of a chain verification, as `POST /api/v1/audit/chain/verification` returns it. */
+export interface AuditChainVerification {
+  /** True when every checked entry matched the chain. */
+  intact: boolean
+  /** How many entries were checked. */
+  rowsChecked: number
+  /** Position of the first entry that did not match, or `null` when the chain is intact. */
+  firstBrokenChainIndex: number | null
+  /** What did not match, as the backend's machine-stable name; `None` when intact. Behaviour only, never a text key. */
+  break: string
+  /** When the verification ran, as an ISO-8601 instant. */
+  verifiedAt: string
+}
+
 /** The audit endpoints this SPA calls. */
 export interface AuditApi {
   /**
@@ -80,4 +127,37 @@ export interface AuditApi {
    * @returns The outcomes with their localized names.
    */
   outcomes: (signal?: AbortSignal) => Promise<AuditOutcomeChoice[]>
+  /**
+   * Downloads the journal, narrowed by the same filters the list takes.
+   * @param request The search and the filters (action, outcome, from, to, actor, account); page and sort are ignored.
+   * @param format The file format asked for.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The file and the name the panel proposed for it.
+   */
+  exportJournal: (request: ListRequest, format: AuditExportFormat, signal?: AbortSignal) => Promise<ApiDownload>
+  /**
+   * Reads how long the journal keeps its entries.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The retention setting with its bounds.
+   */
+  retention: (signal?: AbortSignal) => Promise<AuditRetention>
+  /**
+   * Replaces the retention setting.
+   * @param retentionDays Days to keep entries, or `null` to keep them indefinitely.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns Resolves once the panel has stored it.
+   */
+  saveRetention: (retentionDays: number | null, signal?: AbortSignal) => Promise<void>
+  /**
+   * Reads the tamper-evidence chain's state.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The sealed and unsealed counts and the purge position.
+   */
+  chainStatus: (signal?: AbortSignal) => Promise<AuditChainStatus>
+  /**
+   * Asks the panel to verify the whole chain now.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The verdict.
+   */
+  verifyChain: (signal?: AbortSignal) => Promise<AuditChainVerification>
 }

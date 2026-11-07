@@ -96,6 +96,52 @@ public sealed class AuditListEndpointTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// The actor filter is an exact, case-insensitive match on PostgreSQL: a whole name in another case
+    /// finds the entry, a fragment of a name finds nothing, and the underscore is a character, not a wildcard.
+    /// </summary>
+    [Fact]
+    public async Task The_actor_filter_matches_the_whole_name_in_any_case_and_nothing_less()
+    {
+        await using var factory = EndpointHarness.CreateFactory(_pg);
+        var exact = Entry("Olive_Ops", "SiteCreated", "a.example.com", "192.0.2.1", true, Epoch);
+        var longer = Entry("olive_ops_two", "SiteCreated", "b.example.com", "192.0.2.1", true, Epoch);
+        var wildcardLook = Entry("oliveXops", "SiteCreated", "c.example.com", "192.0.2.1", true, Epoch);
+        await SeedWorldAsync(factory, exact, longer, wildcardLook);
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+
+        using var whole = await GetJsonAsync(admin, "/api/v1/audit?actor=OLIVE_ops");
+        using var fragment = await GetJsonAsync(admin, "/api/v1/audit?actor=olive");
+
+        Assert.Equal([exact.Id], Ids(whole));
+        Assert.Equal(0, fragment.RootElement.GetProperty("total").GetInt32());
+    }
+
+    /// <summary>
+    /// The account filter binds a GUID from the query string and keeps only the entries stamped with
+    /// it; it narrows together with the actor filter instead of widening it.
+    /// </summary>
+    [Fact]
+    public async Task The_account_filter_keeps_only_the_entries_stamped_with_that_account()
+    {
+        await using var factory = EndpointHarness.CreateFactory(_pg);
+        var account = Guid.NewGuid();
+        var stamped = Entry("olive", "SiteCreated", "a.example.com", "192.0.2.1", true, Epoch, account);
+        var otherActor = Entry("pepper", "SiteCreated", "b.example.com", "192.0.2.1", true, Epoch, account);
+        var otherAccount = Entry("olive", "SiteCreated", "c.example.com", "192.0.2.1", true, Epoch, Guid.NewGuid());
+        var unstamped = Entry("olive", "SiteCreated", "d.example.com", "192.0.2.1", true, Epoch);
+        await SeedWorldAsync(factory, stamped, otherActor, otherAccount, unstamped);
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+
+        using var byAccount = await GetJsonAsync(admin, $"/api/v1/audit?account={account}&sort=actor");
+        using var byBoth = await GetJsonAsync(admin, $"/api/v1/audit?account={account}&actor=olive");
+        using var unknown = await GetJsonAsync(admin, $"/api/v1/audit?account={Guid.NewGuid()}");
+
+        Assert.Equal([stamped.Id, otherActor.Id], Ids(byAccount));
+        Assert.Equal([stamped.Id], Ids(byBoth));
+        Assert.Equal(0, unknown.RootElement.GetProperty("total").GetInt32());
+    }
+
+    /// <summary>
     /// Newest first by default, the actor sort orders on PostgreSQL in both directions, and a page
     /// past the end is empty with the true total.
     /// </summary>
@@ -129,6 +175,8 @@ public sealed class AuditListEndpointTests : IAsyncLifetime
     [InlineData("sort=userAgent", "ListSortUnknown")]
     [InlineData("action=" + "Site%25", "AuditActionFilterInvalid")]
     [InlineData("outcome=sideways", "RequestParameterInvalid")]
+    [InlineData("actor=olive%20ops", "AuditActorFilterInvalid")]
+    [InlineData("account=not-a-guid", "RequestParameterInvalid")]
     [InlineData("from=2026-02-01T00:00:00Z&to=2026-01-01T00:00:00Z", "AuditDateRangeInverted")]
     public async Task A_bound_the_journal_refuses_answers_400_with_its_code(string queryString, string code)
     {
@@ -185,15 +233,18 @@ public sealed class AuditListEndpointTests : IAsyncLifetime
     /// <param name="address">Where it came from.</param>
     /// <param name="succeeded">Whether it worked.</param>
     /// <param name="at">When it happened.</param>
+    /// <param name="accountId">The account the entry is stamped with, or <c>null</c> for none.</param>
     private static AuditEvent Entry(
         string actor,
         string action,
         string subject,
         string address,
         bool succeeded,
-        DateTimeOffset at)
+        DateTimeOffset at,
+        Guid? accountId = null)
     {
-        return new AuditEvent(Guid.NewGuid(), at, null, actor, action, subject, address, "test", succeeded, null);
+        return new AuditEvent(
+            Guid.NewGuid(), at, null, actor, action, subject, address, "test", succeeded, null, null, accountId);
     }
 
     /// <summary>Reads a successful JSON answer.</summary>

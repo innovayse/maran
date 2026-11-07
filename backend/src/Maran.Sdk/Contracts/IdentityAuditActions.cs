@@ -193,4 +193,42 @@ public static class IdentityAuditActions
     /// concrete URL, the query string, a header, the body or the key itself.
     /// </summary>
     public const string ApiKeyCall = "ApiKeyCall";
+
+    /// <summary>
+    /// An administrator exported the audit journal. The subject records the format, the filters and the
+    /// intended row count; never any row's content. Written before the file is streamed, so the export is
+    /// recorded even when the client disconnects.
+    /// </summary>
+    public const string AuditExported = "AuditExported";
+
+    /// <summary>
+    /// An administrator changed how long the audit journal is kept. The subject records the old and the
+    /// new value, with a fixed word for "keep indefinitely".
+    /// </summary>
+    public const string AuditRetentionChanged = "AuditRetentionChanged";
+
+    /// <summary>
+    /// The daily retention run finished, whether or not it deleted anything. The subject records the
+    /// window, the cutoff, how many rows were purged and through which chain index; the actor is the
+    /// panel.
+    /// </summary>
+    public const string AuditRetentionRun = "AuditRetentionRun";
+
+    /// <summary>
+    /// The journal's hash chain was verified, by an administrator or by the daily run. Recorded as failed
+    /// when a break was found; the subject names the first broken chain index and the kind of break.
+    /// </summary>
+    public const string AuditChainVerified = "AuditChainVerified";
+
+    /// <summary>
+    /// An administrator exported the personal data held about an account or a user. The subject records
+    /// the kind of subject and its id; never the exported content.
+    /// </summary>
+    public const string PersonalDataExported = "PersonalDataExported";
+
+    /// <summary>
+    /// Personal data in the journal was pseudonymised because a person or an account was deleted. The
+    /// subject holds the pseudonym text and the number of rows; never the original id, name or address.
+    /// </summary>
+    public const string PersonalDataErased = "PersonalDataErased";
 }

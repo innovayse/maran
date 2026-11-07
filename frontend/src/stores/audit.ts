@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useAuditApi } from '../composables/apis/useAuditApi'
 import { ApiError } from '../composables/useApi'
-import type { AuditActionChoice, AuditEvent, AuditOutcomeChoice } from '../types/audit'
+import type { AuditActionChoice, AuditEvent, AuditExportFormat, AuditOutcomeChoice } from '../types/audit'
 import type { ListLoad, ListRequest } from '../types/list'
+import type { Submission } from '../types/loading'
+import { saveDownload } from '../utils/saveDownload'
 
 /**
  * Owns the audit journal the admin screen renders: one server page of it, and the actions and
@@ -11,7 +13,8 @@ import type { ListLoad, ListRequest } from '../types/list'
  * composable (rules/vue.md: "API composables are called from Pinia stores ONLY").
  *
  * Nothing here mutates the journal: it is append-only, written by the backend from inside the
- * handlers that perform an action, and this store's whole surface is reads.
+ * handlers that perform an action, and this store's whole surface is reads, including the export
+ * of what the current filters match.
  */
 export const useAuditStore = defineStore('audit', () => {
   const api = useAuditApi()
@@ -30,6 +33,19 @@ export const useAuditStore = defineStore('audit', () => {
    * the filter then offers "any outcome" alone, and the journal itself is unaffected.
    */
   const outcomes: Ref<AuditOutcomeChoice[]> = ref([])
+
+  /** Where the last export stands; `failed` carries the panel's refusal, such as "narrow the window". */
+  const exportState: Ref<Submission> = ref({ state: 'idle' })
+
+  /** The panel's reason the last export was refused, rendered verbatim; `null` otherwise. */
+  const exportMessage: ComputedRef<string | null> = computed(() => {
+    return exportState.value.state === 'failed' ? exportState.value.message : null
+  })
+
+  /** True while an export is being produced and downloaded. */
+  const exporting: ComputedRef<boolean> = computed(() => {
+    return exportState.value.state === 'sending'
+  })
 
   /**
    * Loads one page of the journal into {@link events} and reports how the read ended, for the
@@ -73,5 +89,36 @@ export const useAuditStore = defineStore('audit', () => {
     }
   }
 
-  return { events, actions, outcomes, list, loadActions, loadOutcomes }
+  /**
+   * Downloads the journal narrowed by the given search and filters, and hands the file to the
+   * browser. The panel caps the size and refuses a larger export instead of truncating it; that
+   * refusal is kept in {@link exportMessage} for the menu to show.
+   * @param request The table's current request; its search and filters are sent, its page and sort are not.
+   * @param format The file format asked for.
+   * @returns True when the file was received and saved.
+   */
+  const exportJournal = async (request: ListRequest, format: AuditExportFormat): Promise<boolean> => {
+    exportState.value = { state: 'sending' }
+    try {
+      saveDownload(await api.exportJournal(request, format))
+      exportState.value = { state: 'done' }
+      return true
+    } catch (error) {
+      exportState.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
+      return false
+    }
+  }
+
+  return {
+    events,
+    actions,
+    outcomes,
+    exportState,
+    exportMessage,
+    exporting,
+    list,
+    loadActions,
+    loadOutcomes,
+    exportJournal,
+  }
 })

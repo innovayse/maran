@@ -71,6 +71,10 @@ public sealed class CronModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
+        // personal-data export, an allow-list of fields and never a secret.
+        services.AddScoped<IPersonalDataProvider, CronPersonalDataProvider>();
+
         // Scoped, because the journal reads the request's own ICurrentUser for the entry's actor.
         services.AddScoped<CronAuditJournal>();
 

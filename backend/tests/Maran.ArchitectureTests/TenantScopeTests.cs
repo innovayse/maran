@@ -93,6 +93,8 @@ public sealed class TenantScopeTests
                 "read by the login's own user id across ALL its accounts, to decide which one a session may act for; a tenant filter would hide every account but the active one",
             ["Maran.Modules.Identity.Domain.Entities.AccountMembershipOffer"] =
                 "the offered login's row as much as the account's: the invitee reads, accepts and declines it from a session that speaks for another account or none, so an account filter would hide it from them; every read compares the caller's own user id, and the owner's reads are scoped to the account their token names",
+            ["Maran.Modules.Identity.Domain.Entities.AuditEvent"] =
+                "an administrator-only, server-wide journal that carries a nullable AccountId only so the administrator's account filter, export and erasure can find an account's entries; it is also written with no principal at all (a failed sign-in), so a filter keyed on the caller's account would hide those rows from the writer. It is read only through controllers behind AdminOnly and no customer endpoint lists it. A customer-facing view of the journal would NOT be safe under this exemption: it would need a query filter on AccountId first, and this entry removed",
             ["Maran.Modules.Identity.Domain.Entities.User"] =
                 "carries the reseller id of a RESELLER LOGIN, which is what a token's reseller claim is minted from; it is read at sign-in, before any principal exists, and by the login's own user id, so a filter keyed on the caller's reseller would hide the row from the very person signing in. Reseller isolation of the data a reseller sells is the Accounts filters' job, not this table's",
         };

@@ -23,10 +23,16 @@ public static class IdentityTestContext
 
     /// <summary>Creates the context.</summary>
     /// <returns>A context over its own in-memory database.</returns>
+    /// <remarks>
+    /// The in-memory provider throws on <c>BeginTransaction</c> unless told to ignore it, and the handlers
+    /// that erase journal rows open one so that the erasure and the removal commit together. The provider
+    /// keeps no transaction, so a unit test over this context cannot observe a rollback.
+    /// </remarks>
     public static IdentityDbContext Create()
     {
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(warnings => { warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning); })
             .Options;
 
         return new IdentityDbContext(options, new AesGcmEncryptionService(EncryptionKey));
@@ -44,6 +50,7 @@ public static class IdentityTestContext
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
             .UseInMemoryDatabase(databaseName)
             .AddInterceptors(interceptors)
+            .ConfigureWarnings(warnings => { warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning); })
             .Options;
 
         return new IdentityDbContext(options, new AesGcmEncryptionService(EncryptionKey));

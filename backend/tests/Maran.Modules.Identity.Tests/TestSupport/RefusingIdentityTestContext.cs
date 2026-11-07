@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Persistence;
 using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Maran.Modules.Identity.Tests.TestSupport;
 
@@ -27,6 +28,7 @@ public static class RefusingIdentityTestContext
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .AddInterceptors(new RefusingSaveInterceptor())
+            .ConfigureWarnings(warnings => { warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning); })
             .Options;
 
         return new IdentityDbContext(options, new AesGcmEncryptionService(EncryptionKey));

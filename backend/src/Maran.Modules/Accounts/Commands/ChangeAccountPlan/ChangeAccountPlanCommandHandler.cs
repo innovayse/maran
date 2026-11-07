@@ -215,7 +215,12 @@ public sealed class ChangeAccountPlanCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AccountAuditActions.AccountPlanChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountPlanChanged,
+            subject,
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken,
+            account.Id);
 
         return Result<AccountDetailDto>.Ok(AccountDetailMapper.ToDto(account, target, _displayNames, resellerName));
     }

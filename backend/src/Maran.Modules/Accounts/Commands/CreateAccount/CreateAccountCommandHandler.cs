@@ -242,7 +242,12 @@ public sealed class CreateAccountCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            AccountAuditActions.AccountCreated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountCreated,
+            account.Name,
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken,
+            account.Id);
 
         // INVOKED, not published: a failure to issue the login must reach the caller. The account
         // already exists at this point and is not rolled back — see AccountCreated's remarks — so

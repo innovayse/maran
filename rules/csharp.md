@@ -232,7 +232,7 @@ backend/
 │   ├── Maran.SharedKernel/          # primitives only; references nothing of ours
 │   │   ├── DependencyInjection.cs       # AddSharedKernel — the project's registrations
 │   │   ├── Interfaces/                  # ALL contracts: IClock, ICurrentUser, ICorrelationIdAccessor,
-│   │   │                                 #   IEncryptionService, IErrorTextProvider
+│   │   │                                 #   IEncryptionService, ISubKeyDeriver, IErrorTextProvider
 │   │   ├── Callers/                     # who a request or message runs as, ONE closed type: Caller and its
 │   │   │                                 #   cases AnonymousCaller, AdministratorCaller, CustomerCaller,
 │   │   │                                 #   account), ResellerCaller (a reseller login: it carries the
@@ -265,7 +265,8 @@ backend/
 │   │   ├── Persistence/ · Exceptions/ · Constants/
 │   │   ├── Localization/                # resx-backed IErrorTextProvider implementations (contract in Interfaces/)
 │   │   ├── Security/                    # what holds a secret or states a policy: the encryption key
-│   │   │                                #   and its EF converter, the password-hash parameters and
+│   │   │                                #   and its EF converter, HkdfSubKeyDeriver (a key per purpose
+│   │   │                                #   derived from that one secret), the password-hash parameters and
 │   │   │                                #   hasher, the redaction floor, SensitiveString
 │   │   │                                #   (contracts in Interfaces/; see "Security/, Utilities/
 │   │   │                                #   and a module's Common/")
@@ -278,7 +279,8 @@ backend/
 │   │                                    #     range and its Contains), HostNameRule, PublicUrlRule (the
 │   │                                    #     panel's own https origin), Ipv4MappedAddress
 │   │                                    #   Text/: ColumnText, LikePattern (a search term as a literal
-│   │                                    #     ILIKE pattern: \ % _ escaped)
+│   │                                    #     ILIKE pattern: \ % _ escaped), CsvField (one RFC 4180
+│   │                                    #     field, spreadsheet formulas neutralised)
 │   │                                    #   Tokens/: RefreshTokenHasher, PasswordResetTokenHasher, ApiKeyHasher
 │   │                                    #     (mint a key, its shape check, digest, constant-time compare)
 │   ├── Maran.Sdk/                   # the module contract consumed by paid modules too
@@ -286,7 +288,10 @@ backend/
 │   │   ├── Interfaces/                  # IPanelModule.cs — the module contract — plus the
 │   │   │                                #   read-only windows one module opens onto another's data,
 │   │   │                                #   implemented by the OWNING module (IAccountDirectory,
-│   │   │                                #   ISiteDirectory, IAuditWriter, IAlertRecipientDirectory),
+│   │   │                                #   ISiteDirectory, IAuditWriter, IAlertRecipientDirectory,
+│   │   │                                #   IPersonalDataProvider — each module holding an account's
+│   │   │                                #   rows answers what it holds about a person or an account,
+│   │   │                                #   by named fields only, for the administrator's export),
 │   │   │                                #   the two seams of the API surface — IApiKeyAuthenticator
 │   │   │                                #   (the Host's key handler asks it; Identity's
 │   │   │                                #   Services/ApiKeyAuthenticator answers) and IIdempotencyStore
@@ -701,6 +706,11 @@ public sealed class AuditLogsController : BaseApiController
   about a per-module redaction policy implies `Common/`, and the two questions must be asked
   separately every time.
 
+  There is no Audit module: the Identity module hosts the audit journal (`identity.AuditEvents`),
+  its export, retention and hash chain, and the erasure of personal data in it, because Identity owns
+  both the journal table and the user tables. `AuditEntry` carries an optional trailing `AccountId`,
+  filled by the journal's writer from a customer caller or passed by a journal certain of it.
+
   `maran structure` enforces it (check 6c): `new AuditEntry(` under `backend/src` outside a
   `*AuditJournal.cs`. `Maran.Sdk/Contracts/SystemAuditEntry.cs` is exempt by construction — a
   constructor has to be called where the type is declared.
@@ -851,6 +861,7 @@ Maran.SharedKernel/Utilities/
 │   └── Ipv4MappedAddress.cs      # unwrapping the mapped form a dual-stack listener reports
 ├── Text/
 │   ├── ColumnText.cs             # shortening a value to what a character varying(n) column holds
+│   ├── CsvField.cs               # one value as one RFC 4180 field, a leading formula character neutralised
 │   └── LikePattern.cs            # a search term as an ILIKE pattern that matches it literally
 └── Tokens/
     ├── ApiKeyHasher.cs              # mint an API key, check its shape, digest it, compare digests

@@ -35,6 +35,13 @@ public static class SecurityExtensions
             return new AesGcmEncryptionService(provider.GetRequiredService<IOptions<SecurityOptions>>().Value.EncryptionKey);
         });
 
+        // The keys features derive for themselves from the panel's one secret (HKDF, one label per
+        // purpose), so a feature needing a key of its own adds no second secret to panel.env.
+        services.AddSingleton<ISubKeyDeriver>(provider =>
+        {
+            return new HkdfSubKeyDeriver(provider.GetRequiredService<IOptions<SecurityOptions>>().Value.EncryptionKey);
+        });
+
         // The keyed fingerprint the Idempotency-Key filter stores in place of a plain digest of a request
         // body, which can carry a password. Its MAC key is derived from the same panel secret.
         services.AddSingleton<IIdempotencyFingerprint>(provider =>

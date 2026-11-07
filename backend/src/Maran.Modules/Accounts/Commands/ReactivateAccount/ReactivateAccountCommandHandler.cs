@@ -241,7 +241,12 @@ public sealed class ReactivateAccountCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AccountAuditActions.AccountReactivated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountReactivated,
+            account.Name,
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken,
+            account.Id);
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 

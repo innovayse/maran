@@ -420,4 +420,22 @@
   <data name="ApiKeyStatusExpired">
     <value>Expired</value>
   </data>
+  <data name="AuditActionAuditExported">
+    <value>Audit journal exported</value>
+  </data>
+  <data name="AuditActionAuditRetentionChanged">
+    <value>Audit retention changed</value>
+  </data>
+  <data name="AuditActionAuditRetentionRun">
+    <value>Audit retention run</value>
+  </data>
+  <data name="AuditActionAuditChainVerified">
+    <value>Audit chain verified</value>
+  </data>
+  <data name="AuditActionPersonalDataExported">
+    <value>Personal data exported</value>
+  </data>
+  <data name="AuditActionPersonalDataErased">
+    <value>Personal data erased</value>
+  </data>
 </root>

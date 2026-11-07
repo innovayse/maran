@@ -114,7 +114,12 @@ public sealed class ChangeAccountOwnerEmailCommandHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AccountAuditActions.AccountOwnerEmailChanged, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+            AccountAuditActions.AccountOwnerEmailChanged,
+            account.Name,
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken,
+            account.Id);
 
         var plan = await _dbContext.Plans.AsNoTracking().SingleAsync(p => p.Id == account.PlanId, cancellationToken);
         var resellerName = await _resellerNames.NameOfAsync(account.ResellerId, cancellationToken);
