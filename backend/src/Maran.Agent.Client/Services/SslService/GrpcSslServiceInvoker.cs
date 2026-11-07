@@ -41,6 +41,14 @@ internal sealed class GrpcSslServiceInvoker : ISslServiceInvoker
     }
 
     /// <inheritdoc/>
+    public async Task<RestorePanelSelfSignedResponse> RestorePanelSelfSignedAsync(
+        RestorePanelSelfSignedRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.RestorePanelSelfSignedAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<WritePanelChallengeResponse> WritePanelChallengeAsync(
         WritePanelChallengeRequest request,
         CancellationToken cancellationToken)

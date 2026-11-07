@@ -122,6 +122,24 @@ public sealed class AgentSslClient : IAgentSslClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<InstalledCertificateDto>> RestorePanelSelfSignedAsync(
+        string hostName,
+        CancellationToken cancellationToken)
+    {
+        var request = new RestorePanelSelfSignedRequest { HostName = hostName };
+        var response = await _invoker.RestorePanelSelfSignedAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            RestorePanelSelfSignedResponse.ResultOneofCase.Ok => Result<InstalledCertificateDto>.Ok(
+                new InstalledCertificateDto(DateTimeOffset.FromUnixTimeSeconds(response.Ok.ExpiresAtUnix))),
+            RestorePanelSelfSignedResponse.ResultOneofCase.Error => Result<InstalledCertificateDto>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(RestorePanelSelfSignedAsync))),
+            _ => Result<InstalledCertificateDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
     public async Task<Result> WritePanelChallengeAsync(
         string token,
         string keyAuthorization,

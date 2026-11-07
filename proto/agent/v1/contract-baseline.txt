@@ -634,6 +634,10 @@ field maran.agent.v1.RestoreBackupRequest 5 allowed_databases TYPE_STRING LABEL_
 field maran.agent.v1.RestoreBackupResponse 1 progress TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.Progress oneof=result
 field maran.agent.v1.RestoreBackupResponse 2 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RestoreBackupOk oneof=result
 field maran.agent.v1.RestoreBackupResponse 3 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.RestorePanelSelfSignedOk 1 expires_at_unix TYPE_INT64 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RestorePanelSelfSignedRequest 1 host_name TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RestorePanelSelfSignedResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RestorePanelSelfSignedOk oneof=result
+field maran.agent.v1.RestorePanelSelfSignedResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.RunCronEntryOk 1 duration_ms TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RunCronEntryOk 2 exit_code TYPE_INT32 LABEL_OPTIONAL type_name=- oneof=_exit_code
 field maran.agent.v1.RunCronEntryOk 3 stdout TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -986,6 +990,9 @@ message maran.agent.v1.ResourceCeilingUnlimited
 message maran.agent.v1.RestoreBackupOk
 message maran.agent.v1.RestoreBackupRequest
 message maran.agent.v1.RestoreBackupResponse
+message maran.agent.v1.RestorePanelSelfSignedOk
+message maran.agent.v1.RestorePanelSelfSignedRequest
+message maran.agent.v1.RestorePanelSelfSignedResponse
 message maran.agent.v1.RunCronEntryOk
 message maran.agent.v1.RunCronEntryRequest
 message maran.agent.v1.RunCronEntryResponse
@@ -1155,6 +1162,7 @@ rpc maran.agent.v1.SslService InstallCertificate in=.maran.agent.v1.InstallCerti
 rpc maran.agent.v1.SslService InstallPanelCertificate in=.maran.agent.v1.InstallPanelCertificateRequest out=.maran.agent.v1.InstallPanelCertificateResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SslService RemoveCertificate in=.maran.agent.v1.RemoveCertificateRequest out=.maran.agent.v1.RemoveCertificateResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SslService RemovePanelChallenge in=.maran.agent.v1.RemovePanelChallengeRequest out=.maran.agent.v1.RemovePanelChallengeResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.SslService RestorePanelSelfSigned in=.maran.agent.v1.RestorePanelSelfSignedRequest out=.maran.agent.v1.RestorePanelSelfSignedResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SslService WritePanelChallenge in=.maran.agent.v1.WritePanelChallengeRequest out=.maran.agent.v1.WritePanelChallengeResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SystemService GetAgentInfo in=.maran.agent.v1.GetAgentInfoRequest out=.maran.agent.v1.GetAgentInfoResponse client_streaming=false server_streaming=false
 service maran.agent.v1.AccountsService

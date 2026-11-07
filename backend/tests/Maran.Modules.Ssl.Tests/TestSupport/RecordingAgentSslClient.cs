@@ -32,6 +32,9 @@ public sealed class RecordingAgentSslClient : IAgentSslClient
     /// <summary>The certificate and key of every install of the panel's own pair, in order.</summary>
     public List<(string CertificatePem, string PrivateKeyPem)> PanelInstalls { get; } = [];
 
+    /// <summary>The host name of every self-signed restore of the panel's own pair, in order.</summary>
+    public List<string> PanelSelfSignedRestores { get; } = [];
+
     /// <summary>The token and content of every panel challenge written, in order.</summary>
     public List<(string Token, string KeyAuthorization)> PanelChallengesWritten { get; } = [];
 
@@ -82,6 +85,18 @@ public sealed class RecordingAgentSslClient : IAgentSslClient
         CancellationToken cancellationToken)
     {
         PanelInstalls.Add((certificatePem, privateKeyPem));
+
+        return Task.FromResult(_failure is null
+            ? Result<InstalledCertificateDto>.Ok(new InstalledCertificateDto(_expiresAt))
+            : Result<InstalledCertificateDto>.Fail(_failure));
+    }
+
+    /// <inheritdoc />
+    public Task<Result<InstalledCertificateDto>> RestorePanelSelfSignedAsync(
+        string hostName,
+        CancellationToken cancellationToken)
+    {
+        PanelSelfSignedRestores.Add(hostName);
 
         return Task.FromResult(_failure is null
             ? Result<InstalledCertificateDto>.Ok(new InstalledCertificateDto(_expiresAt))

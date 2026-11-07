@@ -12,6 +12,13 @@
     "renew": "Renew now",
     "working": "Requesting…",
     "issued": "The trusted certificate is installed. Reload the page to use it.",
+    "restore": "Return to a self-signed certificate",
+    "restoreHint": "Replaces the trusted certificate with a self-signed one and forgets the recorded trusted certificate.",
+    "restoreTitle": "Return to a self-signed certificate",
+    "restoreQuestion": "The panel will be served with a self-signed certificate, and browsers will warn before opening it until a trusted certificate is installed again. The recorded trusted certificate is forgotten.",
+    "restoreAction": "Return to self-signed",
+    "restoring": "Restoring…",
+    "restored": "The panel is back on a self-signed certificate. Reload the page to use it.",
     "link": "Panel certificate"
   }
 }

@@ -26,4 +26,10 @@ public static class CertificateAuditActions
     /// stopped renewing becomes visible before the site goes dark.
     /// </summary>
     public const string CertificateRenewed = "CertificateRenewed";
+
+    /// <summary>
+    /// The panel's own interface was returned to a freshly generated self-signed certificate at an
+    /// administrator's request, and the trusted certificate recorded for it was forgotten.
+    /// </summary>
+    public const string CertificateSelfSignedRestored = "CertificateSelfSignedRestored";
 }

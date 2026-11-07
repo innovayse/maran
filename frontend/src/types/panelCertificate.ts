@@ -13,6 +13,14 @@ export interface PanelCertificate {
   issuedAt: string
 }
 
+/** The self-signed certificate as `DELETE /api/v1/panel-certificate` reports it once restored (issue #425). */
+export interface PanelSelfSigned {
+  /** The host name the restored certificate names. */
+  hostName: string
+  /** When it expires, as an ISO 8601 timestamp. */
+  expiresAt: string
+}
+
 /**
  * What `GET /api/v1/panel-certificate` answers (always 200 for these two cases). A panel installed by
  * address has no host name a certificate can be ordered for; that is an ordinary state, so the flag
@@ -65,4 +73,6 @@ export interface PanelCertificateApi {
   get: (signal?: AbortSignal) => Promise<PanelCertificateReading>
   /** Orders and installs a certificate for the panel's configured host name. */
   issue: (signal?: AbortSignal) => Promise<PanelCertificate>
+  /** Restores a self-signed certificate and forgets the recorded trusted one. */
+  restore: (signal?: AbortSignal) => Promise<PanelSelfSigned>
 }

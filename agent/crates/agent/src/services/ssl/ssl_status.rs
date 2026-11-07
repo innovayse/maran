@@ -30,6 +30,8 @@ pub fn to_agent_error(error: &SslOpError) -> AgentError {
         SslOpError::KeyDoesNotMatchCertificate
         | SslOpError::MalformedCertificate { .. }
         | SslOpError::MalformedPrivateKey => (ErrorCode::InvalidInput, String::new()),
+        // `RestorePanelSelfSigned` was handed a host name that is not a valid
+        // domain; refused before anything was generated (issue #425).
         // `ssl.proto`: removing when no certificate is installed returns
         // NotFound, and a certificate for a site that is not configured is the
         // same shape of answer.

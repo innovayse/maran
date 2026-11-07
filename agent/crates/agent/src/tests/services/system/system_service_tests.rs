@@ -94,13 +94,14 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // revision 16 adds `ERROR_CODE_RUN_NOT_STOPPED` (issue #336); revision 17 is
     // the contract before backup verification; revision 18 adds `VerifyBackup`
     // (issue #134); revision 19 adds the update classification and
-    // `GetRebootRequirement` (issue #163).
+    // `GetRebootRequirement` (issue #163); revision 20 adds
+    // `RestorePanelSelfSigned` (issue #425).
     // The panel's
     // `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 19);
+    assert_eq!(info.proto_version, 20);
 }
 
 #[tokio::test]
@@ -147,6 +148,7 @@ const REVISIONS: &[(u32, u64)] = &[
     (17, 0x8462_2503_bd18_b072),
     (18, 0xcc07_f6a6_861a_d2a4),
     (19, 0x0cc4_b43b_c23f_52ff),
+    (20, 0x013b_52f9_27db_295b),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

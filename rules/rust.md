@@ -135,6 +135,8 @@ agent/
     │   │       │              panel_install_outcome.rs · material_refusal.rs (the verdict on
     │   │       │              material both install rpcs share) · validated_panel_challenge.rs ·
     │   │       │              validated_panel_token.rs — the panel's own certificate (issue #132) ·
+    │   │       │              validated_panel_host_name.rs (the panel's name, for the self-signed
+    │   │       │              restore, issue #425) ·
     │   │       │              settle_install_outcome.rs · settle_panel_install_outcome.rs (settle
     │   │       │              the audit slot from the answer each install rpc is about to send)
     │   │       ├── php/       php_service.rs · php_status.rs

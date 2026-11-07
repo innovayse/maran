@@ -30,6 +30,9 @@ internal sealed class RecordingAgentSslClient : IAgentSslClient
     /// <summary>The site descriptor of the last call.</summary>
     public SiteDescriptor? LastSite { get; private set; }
 
+    /// <summary>The host name of the last self-signed restore of the panel's own pair.</summary>
+    public string? LastHostName { get; private set; }
+
     /// <inheritdoc/>
     public async Task<Result<InstalledCertificateDto>> InstallCertificateAsync(
         string accountUsername,
@@ -86,6 +89,24 @@ internal sealed class RecordingAgentSslClient : IAgentSslClient
     {
         LastCertificatePem = certificatePem;
         LastPrivateKeyPem = privateKeyPem;
+        Calls++;
+
+        if (Calls <= FailuresBeforeSuccess)
+        {
+            throw AgentTransportFaults.ConnectRefused();
+        }
+
+        await Task.Yield();
+
+        return Result<InstalledCertificateDto>.Ok(new InstalledCertificateDto(DateTimeOffset.UnixEpoch));
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<InstalledCertificateDto>> RestorePanelSelfSignedAsync(
+        string hostName,
+        CancellationToken cancellationToken)
+    {
+        LastHostName = hostName;
         Calls++;
 
         if (Calls <= FailuresBeforeSuccess)

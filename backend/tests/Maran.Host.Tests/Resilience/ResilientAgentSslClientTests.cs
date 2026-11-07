@@ -61,6 +61,20 @@ public sealed class ResilientAgentSslClientTests
         Assert.Same(Descriptor, inner.LastSite);
     }
 
+    /// <summary>A self-signed restore retries a transport failure and delivers the host name unchanged.</summary>
+    [Fact]
+    public async Task A_self_signed_restore_retries_a_transport_failure_and_delivers_the_host_name_unchanged()
+    {
+        var inner = new RecordingAgentSslClient { FailuresBeforeSuccess = 1 };
+        var client = new ResilientAgentSslClient(inner, OperationPipelineRegistry.WithOperationTimeout(30));
+
+        var result = await client.RestorePanelSelfSignedAsync("panel.example.net", default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("panel.example.net", inner.LastHostName);
+    }
+
     /// <summary>Calls the decorated install path with fixed arguments.</summary>
     /// <param name="inner">The recording client to wrap.</param>
     /// <returns>What the decorated call returned.</returns>

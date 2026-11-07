@@ -95,6 +95,21 @@ public sealed class ResilientAgentSslClient : IAgentSslClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<InstalledCertificateDto>> RestorePanelSelfSignedAsync(
+        string hostName,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.Client.RestorePanelSelfSignedAsync(state.HostName, token);
+            },
+            (Client: _inner, HostName: hostName),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<Result> WritePanelChallengeAsync(
         string token,
         string keyAuthorization,

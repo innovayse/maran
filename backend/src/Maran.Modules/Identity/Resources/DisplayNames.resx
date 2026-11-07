@@ -177,6 +177,9 @@
   <data name="AuditActionCronEntryCreated">
     <value>Cron entry created</value>
   </data>
+  <data name="AuditActionCertificateSelfSignedRestored">
+    <value>Panel certificate replaced by a self-signed one</value>
+  </data>
   <data name="AuditActionCronEntryUpdated">
     <value>Cron entry updated</value>
   </data>

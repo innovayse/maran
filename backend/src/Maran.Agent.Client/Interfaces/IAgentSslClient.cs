@@ -61,6 +61,19 @@ public interface IAgentSslClient
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Replaces the panel's OWN certificate and key with a freshly generated self-signed pair for
+    /// <paramref name="hostName"/> (issue #425), through the same write path as
+    /// <see cref="InstallPanelCertificateAsync"/>: validated, reloaded once and rolled back on any
+    /// refusal. Idempotent: a panel already on a placeholder is given a new one.
+    /// </summary>
+    /// <param name="hostName">The panel's configured host name, the certificate's subject.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>When the generated certificate expires, or a typed failure.</returns>
+    Task<Result<InstalledCertificateDto>> RestorePanelSelfSignedAsync(
+        string hostName,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Writes the HTTP-01 challenge file for the panel's own host name. Refused below the agent's
     /// free-space floor (<c>AgentBelowFreeSpaceFloor</c>) before anything is written.
     /// </summary>

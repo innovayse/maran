@@ -86,6 +86,9 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// classification, which protobuf reads as the unset zero; the client reads that zero as
 /// "not measured", but a panel that drove such an agent would show every update as unclassified and
 /// no security count at all, which is the quiet failure the window exists to refuse.
+/// Revision 20 adds <c>SslService.RestorePanelSelfSigned</c> (issue #425), and both ends moved to it as
+/// the one-revision default: a revision-19 agent answers the rpc <c>UNIMPLEMENTED</c>, so an
+/// administrator could never return the panel to a self-signed certificate against it.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -112,10 +115,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 19;
+    public const uint Minimum = 20;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 19;
+    public const uint Maximum = 20;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

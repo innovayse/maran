@@ -72,6 +72,7 @@ pub const MUTATING_RPCS: &[&str] = &[
     "/maran.agent.v1.SslService/InstallPanelCertificate",
     "/maran.agent.v1.SslService/RemoveCertificate",
     "/maran.agent.v1.SslService/RemovePanelChallenge",
+    "/maran.agent.v1.SslService/RestorePanelSelfSigned",
     "/maran.agent.v1.SslService/WritePanelChallenge",
 ];
 

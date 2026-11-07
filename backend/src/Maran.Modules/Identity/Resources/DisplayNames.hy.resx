@@ -177,6 +177,9 @@
   <data name="AuditActionCronEntryCreated">
     <value>Ստեղծվեց cron գրառում</value>
   </data>
+  <data name="AuditActionCertificateSelfSignedRestored">
+    <value>Վահանակի վկայագիրը փոխարինվեց ինքնաստորագրվածով</value>
+  </data>
   <data name="AuditActionCronEntryUpdated">
     <value>Փոխվեց cron գրառումը</value>
   </data>
