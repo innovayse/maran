@@ -592,7 +592,7 @@ spa	accounts/my-account-loading.spec.ts	3	0	0
 spa	accounts/personal-data-export.spec.ts	3	0	0
 spa	accounts/resources.spec.ts	9	0	0
 spa	admin/audit.spec.ts	3	0	0
-spa	admin/panel-certificate.spec.ts	3	0	0
+spa	admin/panel-certificate.spec.ts	4	0	0
 spa	admin/smtp-settings.spec.ts	3	0	0
 spa	audit/action-names.spec.ts	2	0	0
 spa	audit/actor-account-filters.spec.ts	4	0	0
@@ -613,8 +613,9 @@ spa	auth/sessions.spec.ts	6	0	0
 spa	auth/setup.spec.ts	8	0	0
 spa	auth/signed-out-console.spec.ts	7	0	0
 spa	auth/theme-persists.spec.ts	3	0	0
-spa	auth/two-factor-settings.spec.ts	5	0	0
-spa	auth/two-factor-setup.spec.ts	2	0	0
+spa	auth/two-factor-settings.spec.ts	6	0	0
+spa	auth/two-factor-setup.spec.ts	5	0	0
+spa	auth/two-factor-wrong-code.spec.ts	3	0	0
 spa	auth/two-factor.spec.ts	5	0	0
 spa	backups/account-filter.spec.ts	3	0	0
 spa	backups/destinations.spec.ts	11	0	0
@@ -706,7 +707,9 @@ spa	shell/health-status.spec.ts	2	0	0
 spa	shell/health-unreachable.spec.ts	1	0	0
 spa	shell/landmark.spec.ts	1	0	0
 spa	shell/licence-gating.spec.ts	11	0	0
+spa	shell/live-reads-by-role.spec.ts	3	0	0
 spa	shell/locale-persistence.spec.ts	3	0	0
+spa	shell/locale-refetch.spec.ts	2	0	0
 spa	shell/locale-switch.spec.ts	5	0	0
 spa	shell/locale.spec.ts	4	0	0
 spa	shell/mobile-drawer.spec.ts	15	0	0

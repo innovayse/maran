@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
@@ -176,6 +177,56 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         Assert.False((await context.AuditEvents.SingleAsync(e => e.Action == IdentityAuditActions.ViewAsStarted)).Succeeded);
     }
 
+    /// <summary>
+    /// An account whose owner has not accepted the invitation answers 409 with its own code, not the
+    /// suspended-or-locked one (issue #416), journals the refusal and issues nothing; the same click
+    /// works for an account whose owner has a password.
+    /// </summary>
+    [Fact]
+    public async Task An_owner_who_has_not_accepted_the_invitation_answers_its_own_conflict()
+    {
+        await using var factory = await BootAsync();
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+        var (_, waiting) = await EndpointHarness.SeedAccountAsync(factory, "waiting");
+        await SeedInvitedOwnerAsync(factory, "waiting-owner", waiting);
+
+        var response = await admin.PostAsJsonAsync(Endpoint, new { AccountId = waiting });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("ViewAsInvitationPending", await CodeOfAsync(response));
+        Assert.Equal(0, await ViewAsSessionCountAsync(factory));
+        using (var scope = factory.Services.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            Assert.False((await context.AuditEvents.SingleAsync(e => e.Action == IdentityAuditActions.ViewAsStarted)).Succeeded);
+        }
+
+        // The inverse control: an owner who has a password is viewable by the same administrator.
+        var claimed = await admin.PostAsJsonAsync(Endpoint, new { AccountId = await AccountIdAsync(factory, "acme") });
+        Assert.Equal(HttpStatusCode.OK, claimed.StatusCode);
+    }
+
+    /// <summary>An account whose owner's membership is suspended keeps answering the suspended-or-locked conflict (issue #416).</summary>
+    [Fact]
+    public async Task A_suspended_owner_still_answers_login_unavailable()
+    {
+        await using var factory = await BootAsync();
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+        using (var scope = factory.Services.CreateScope())
+        {
+            var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            var login = await identity.Users.SingleAsync(u => u.Username == "olive");
+            (await identity.AccountMemberships.SingleAsync(m => m.UserId == login.Id)).Suspend();
+            await identity.SaveChangesAsync();
+        }
+
+        var response = await admin.PostAsJsonAsync(Endpoint, new { AccountId = await AccountIdAsync(factory, "acme") });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("ViewAsLoginUnavailable", await CodeOfAsync(response));
+        Assert.Equal(0, await ViewAsSessionCountAsync(factory));
+    }
+
     /// <summary>A view-as token can start no second view-as session and change no credential or session.</summary>
     [Fact]
     public async Task A_view_as_token_cannot_escalate()
@@ -313,6 +364,31 @@ public sealed class ViewAsEndpointTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return ClientWith(factory, body.RootElement.GetProperty("accessToken").GetString()!);
+    }
+
+    /// <summary>Gives an account an owner that has been invited and has not chosen a password yet.</summary>
+    /// <param name="factory">The booted host.</param>
+    /// <param name="username">The owner's login name.</param>
+    /// <param name="accountId">The account the login owns.</param>
+    /// <returns>Resolves once the login and its membership are stored.</returns>
+    private static async Task SeedInvitedOwnerAsync(WebApplicationFactory<Program> factory, string username, Guid accountId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
+        var invited = User.Invite(Guid.NewGuid(), username, $"{username}@example.com", now);
+        context.Users.Add(invited);
+        context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), invited.Id, accountId, now));
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>Reads the machine code out of a problem answer.</summary>
+    /// <param name="response">The refused answer.</param>
+    /// <returns>Its <c>code</c>.</returns>
+    private static async Task<string?> CodeOfAsync(HttpResponseMessage response)
+    {
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return body.RootElement.GetProperty("code").GetString();
     }
 
     /// <summary>Creates a client carrying a bearer token.</summary>

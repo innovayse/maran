@@ -1,4 +1,5 @@
 using System.Globalization;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Resources;
 using Maran.Sdk.Contracts;
@@ -14,7 +15,7 @@ namespace Maran.Modules.Identity.Services;
 /// <remarks>
 /// <para>
 /// Mirrors <c>RequestPasswordResetCommandHandler.Compose</c> — read that type's remarks first. The
-/// link is built from <see cref="PanelOptions.PanelUrl"/>, the panel's own configured public
+/// link is built from <see cref="PanelOptions.PublicUrl"/>, joined by <see cref="PanelLink"/>, the panel's own configured public
 /// address rather than anything a caller supplied, for the identical host-header-injection reason
 /// stated there; and when no public address is configured, the mail falls back to the bare token
 /// instead of a link nobody could open.
@@ -88,12 +89,12 @@ public sealed class InvitationMailComposer
     /// <returns>The message to publish as <see cref="SendMailRequested"/>.</returns>
     private SendMailRequested Render(string recipient, string token, string subjectKey, string bodyKey)
     {
-        var instruction = string.IsNullOrWhiteSpace(_options.PanelUrl)
+        var instruction = !PanelLink.IsConfigured(_options.PublicUrl)
             ? string.Format(CultureInfo.CurrentCulture, _templates["InvitationTokenOnly"], token)
             : string.Format(
                 CultureInfo.CurrentCulture,
                 _templates["InvitationLink"],
-                $"{_options.PanelUrl.TrimEnd('/')}{InvitationLinkBuilder.RelativeFor(token)}");
+                PanelLink.Compose(_options.PublicUrl, InvitationLinkBuilder.RelativeFor(token)));
 
         var body = string.Format(CultureInfo.CurrentCulture, _templates[bodyKey], instruction);
 

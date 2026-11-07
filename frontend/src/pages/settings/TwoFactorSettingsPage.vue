@@ -36,12 +36,17 @@
  *   so under the auth layout the title is the `h2` of {@link UiAuthHeading}, like every other
  *   signed-out screen. The page decides by its own route (it is the one that knows which of the
  *   two it was mounted for) rather than taking a prop, because the router mounts it without any.
+ * - **The steered route explains itself and has a way out.** Held there, the person is told the
+ *   administrator requires the factor ({@link showRequiredNotice}), can always sign out
+ *   ({@link signOut}), and once the recovery codes are shown continues into the panel
+ *   ({@link continueToPanel}): the session is renewed first, because the steering lives in the
+ *   access token and only a token issued after the enrolment lets the route guard through.
  * - Nothing here scrolls sideways at 390 px: the secret breaks anywhere, the recovery codes wrap
  *   into one column on a phone, and the buttons wrap beneath each other.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
 import UiButton from '../../components/ui/UiButton.vue'
@@ -97,6 +102,7 @@ const authStore = useAuthStore()
 const twoFactorStore = useTwoFactorStore()
 const profileStore = useProfileStore()
 const route = useRoute()
+const router = useRouter()
 
 /** The caller's two-factor state; see {@link TwoFactorState}. */
 const state: Ref<TwoFactorState> = ref({ kind: 'loading' })
@@ -124,6 +130,15 @@ const disabling: ComputedRef<boolean> = computed(() => {
  */
 const inAuthLayout: ComputedRef<boolean> = computed(() => {
   return route.name === 'two-factor-setup'
+})
+
+/**
+ * Whether to tell the person why they are here: on the steered route, until the factor is on.
+ * The notice is the reason for a screen they did not ask for, so it is not repeated once the
+ * enrolment is done and the recovery codes are what matter.
+ */
+const showRequiredNotice: ComputedRef<boolean> = computed(() => {
+  return inAuthLayout.value && (state.value.kind === 'notEnrolled' || state.value.kind === 'enrolling')
 })
 
 /**
@@ -254,6 +269,32 @@ const copyRecoveryCodes = async (): Promise<void> => {
   }
 }
 
+/**
+ * Signs out of this device and returns to the sign-in screen: the way out of the steered
+ * enrolment for somebody who cannot or will not finish it now.
+ * @returns Resolves once the request has settled and the navigation is done.
+ */
+const signOut = async (): Promise<void> => {
+  await authStore.logout()
+  await router.push({ name: 'login' })
+}
+
+/**
+ * Leaves the steered enrolment for the panel once the recovery codes have been seen.
+ *
+ * The token the person holds was issued before the factor was on and still carries the
+ * enrolment-only steer, which the route guard reads. Renewing from the refresh cookie replaces it
+ * with one the backend issues for the account as it now is; only then is the navigation tried.
+ * The role's own home is chosen by the router (a reseller is sent from the dashboard to their
+ * overview), not here. If the renewal fails the session is cleared and the guard sends the person
+ * to sign in.
+ * @returns Resolves once the renewal and the navigation have settled.
+ */
+const continueToPanel = async (): Promise<void> => {
+  await authStore.renewAccessToken()
+  await router.push({ name: 'system-status' })
+}
+
 onMounted(async () => {
   await loadState()
 })
@@ -271,6 +312,9 @@ onMounted(async () => {
       :title="t('app.twoFactor.heading')"
       :subtitle="t('app.twoFactor.subtitle')"
     />
+
+    <!-- Why a screen nobody linked to is in front of them: the administrator requires the factor. -->
+    <UiAlert v-if="showRequiredNotice" variant="info">{{ t('app.twoFactor.requiredNotice') }}</UiAlert>
 
     <!-- A refused action; a profile that would not load is the region's own error below. -->
     <UiAlert v-if="twoFactorStore.errorMessage !== null" variant="error">
@@ -408,6 +452,13 @@ onMounted(async () => {
         </template>
       </div>
     </UiLoadingRegion>
+
+    <!-- Only on the steered route, where the shell's own menu (with its Sign out) is absent. Continue
+         waits for the recovery codes: leaving before they are seen would lose them for good. -->
+    <div v-if="inAuthLayout" class="flex max-w-2xl flex-wrap gap-2">
+      <UiButton v-if="state.kind === 'enrolled'" @click="continueToPanel">{{ t('app.twoFactor.continue') }}</UiButton>
+      <UiButton variant="secondary" @click="signOut">{{ t('app.auth.signOut') }}</UiButton>
+    </div>
 
     <!-- Outside the branches above on purpose: the panel that opened it is unmounted the moment the
          state changes, and a dialog mounted inside would go with it mid-request. -->

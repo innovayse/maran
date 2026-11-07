@@ -38,18 +38,23 @@ public sealed class PanelCertificateController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Reads the trusted certificate recorded for the panel's configured host name.</summary>
+    /// <summary>
+    /// Reads the trusted certificate recorded for the panel's configured host name, or reports that no
+    /// host name is configured (200 with <c>hostNameConfigured</c> false).
+    /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(PanelCertificateDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PanelCertificateStatusDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {
-        return ToActionResult(
-            await _bus.InvokeAsync<Result<PanelCertificateDto>>(new GetPanelCertificateQuery(), cancellationToken));
+        var status = await _bus.InvokeAsync<Result<PanelCertificateStatusDto>>(
+            new GetPanelCertificateQuery(),
+            cancellationToken);
+
+        return ToActionResult(status);
     }
 
     /// <summary>Orders a certificate for the panel's configured host name and installs it.</summary>

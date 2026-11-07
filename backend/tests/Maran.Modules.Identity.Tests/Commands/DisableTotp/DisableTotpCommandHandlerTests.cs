@@ -55,6 +55,30 @@ public sealed class DisableTotpCommandHandlerTests : IDisposable
         Assert.False(user.IsTotpEnabled);
     }
 
+    /// <summary>
+    /// A wrong code is a validation failure (400), not an unauthorized one, and the factor stays on
+    /// (issue #412).
+    /// </summary>
+    [Fact]
+    public async Task Disabling_with_a_wrong_code_is_a_validation_failure_and_keeps_two_factor_on()
+    {
+        var user = await SeedUserAsync(withTotp: true);
+
+        var result = await NewHandler().HandleAsync(Disable(user.Id) with { Code = WrongCode() }, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(new Error("TwoFactorCodeInvalid", ErrorType.Validation), result.Error);
+        Assert.True(user.IsTotpEnabled);
+    }
+
+    /// <summary>Builds a six-digit code that is NOT the one valid at <see cref="Now"/>.</summary>
+    /// <returns>A code the secret does not produce in the accepted window.</returns>
+    private static string WrongCode()
+    {
+        var valid = new Totp(Base32Encoding.ToBytes(Secret)).ComputeTotp(Now.UtcDateTime);
+        return valid == "000000" ? "000001" : "000000";
+    }
+
     /// <summary>Builds a disable request carrying a code valid at <see cref="Now"/>.</summary>
     /// <param name="userId">The caller.</param>
     /// <returns>The command.</returns>

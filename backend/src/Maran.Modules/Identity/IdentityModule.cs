@@ -5,9 +5,11 @@ using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Seeders;
 using Maran.Modules.Identity.Services;
+using Maran.Modules.Identity.Validators;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Identity;
 
@@ -78,6 +80,10 @@ public sealed class IdentityModule : IPanelModule
             .Bind(configuration.GetSection(PanelOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
+        // The check data annotations cannot express: the value must be an https origin (PublicUrlRule),
+        // and a panel that starts without one says so in its log.
+        services.AddSingleton<IValidateOptions<PanelOptions>, PanelOptionsValidator>();
 
         // Scoped, like every service here that writes through the request's own context. It is
         // resolved by the first-run setup handler and by the startup seeder that starts the setup

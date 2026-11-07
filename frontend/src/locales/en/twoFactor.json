@@ -24,7 +24,9 @@
       "disabling": "Turning off…",
       "qrLabel": "QR code for your authenticator app",
       "enabledTitle": "Two-step verification is on",
-      "enabledDescription": "Every sign-in asks for a code from your authenticator app."
+      "enabledDescription": "Every sign-in asks for a code from your authenticator app.",
+      "requiredNotice": "The administrator of this panel requires two-step verification for your sign-in. Set it up to continue, or sign out.",
+      "continue": "Continue"
     }
   }
 }

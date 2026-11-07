@@ -9,11 +9,11 @@ public sealed class TwoFactorCodeRejectionTests
 {
     /// <summary>With the clock synchronised, a refused code is the plain refusal.</summary>
     [Fact]
-    public async Task With_the_clock_synchronised_a_refused_code_is_the_plain_refusal()
+    public async Task With_the_clock_synchronised_a_refused_sign_in_code_is_the_plain_refusal()
     {
         var rejection = new TwoFactorCodeRejection(new StubClockSyncStatus());
 
-        var error = await rejection.ErrorAsync(CancellationToken.None);
+        var error = await rejection.SignInErrorAsync(CancellationToken.None);
 
         Assert.Equal("InvalidTwoFactorCodeUnauthorized", error.Code);
         Assert.Equal(ErrorType.Unauthorized, error.Type);
@@ -21,13 +21,37 @@ public sealed class TwoFactorCodeRejectionTests
 
     /// <summary>With the clock not synchronised, a refused code says so and is still unauthorized.</summary>
     [Fact]
-    public async Task With_the_clock_not_synchronised_a_refused_code_says_so_and_is_still_unauthorized()
+    public async Task With_the_clock_not_synchronised_a_refused_sign_in_code_says_so_and_is_still_unauthorized()
     {
         var rejection = new TwoFactorCodeRejection(new StubClockSyncStatus { Unsynchronized = true });
 
-        var error = await rejection.ErrorAsync(CancellationToken.None);
+        var error = await rejection.SignInErrorAsync(CancellationToken.None);
 
         Assert.Equal("InvalidTwoFactorCodeClockUnsynchronizedUnauthorized", error.Code);
         Assert.Equal(ErrorType.Unauthorized, error.Type);
+    }
+
+    /// <summary>A signed-in caller's wrong proof, clock synchronised, is the plain validation failure.</summary>
+    [Fact]
+    public async Task With_the_clock_synchronised_a_refused_proof_is_the_plain_validation_failure()
+    {
+        var rejection = new TwoFactorCodeRejection(new StubClockSyncStatus());
+
+        var error = await rejection.ProofErrorAsync(CancellationToken.None);
+
+        Assert.Equal("TwoFactorCodeInvalid", error.Code);
+        Assert.Equal(ErrorType.Validation, error.Type);
+    }
+
+    /// <summary>A signed-in caller's wrong proof, clock not synchronised, says so and is still a validation failure.</summary>
+    [Fact]
+    public async Task With_the_clock_not_synchronised_a_refused_proof_says_so_and_is_still_a_validation_failure()
+    {
+        var rejection = new TwoFactorCodeRejection(new StubClockSyncStatus { Unsynchronized = true });
+
+        var error = await rejection.ProofErrorAsync(CancellationToken.None);
+
+        Assert.Equal("TwoFactorCodeClockUnsynchronized", error.Code);
+        Assert.Equal(ErrorType.Validation, error.Type);
     }
 }

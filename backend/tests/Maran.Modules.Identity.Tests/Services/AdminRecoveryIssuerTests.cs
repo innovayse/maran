@@ -42,7 +42,7 @@ public sealed class AdminRecoveryIssuerTests : IDisposable
             _context,
             new SessionService(_context, _clock, new OptionsWrapper<JwtOptions>(new JwtOptions { RefreshTokenDays = 14 })),
             new RecoveryCodeService(_context, new Argon2idPasswordHasher(), _clock),
-            new PasswordResetLinkBuilder(new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = panelUrl })),
+            new PasswordResetLinkBuilder(new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = panelUrl })),
             new IdentityAuditJournal(_audit, new NoPrincipalCurrentUser()),
             _clock);
     }

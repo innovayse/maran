@@ -21,6 +21,12 @@ namespace Maran.Host.Configuration;
 /// (<c>ReservedHostNameRule</c>) is unconditional, so a missing value narrows only the host-specific
 /// half of the protection and never opens the static half.
 /// </para>
+/// <para>
+/// The same <c>Panel</c> section also holds <c>PublicUrl</c> (<c>Panel__PublicUrl</c>), the origin
+/// every invitation and password-reset link starts with. It is read by the Identity module's own
+/// options and validated there; it is a separate key with a separate reader, and an absent
+/// <c>HostName</c> says nothing about it.
+/// </para>
 /// </remarks>
 public sealed class PanelHostOptions
 {

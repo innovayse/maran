@@ -1,11 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type ConsoleMessage, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
-import type { PanelCertificate } from '../../src/types/panelCertificate'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { PanelCertificate, PanelCertificateReading } from '../../src/types/panelCertificate'
 
 // The panel's own certificate screen (issue #132): the self-signed fallback, an order, and a panel
-// with no host name to order for.
+// with no host name to order for (issue #417: read as a 200 flagged `hostNameConfigured: false`, so the
+// visit leaves no failed request and no console error).
 
 const PANEL_CERTIFICATE_PATTERN = '**/api/v1/panel-certificate'
 
@@ -15,8 +17,12 @@ const ISSUED: PanelCertificate = {
   issuedAt: '2026-11-03T00:00:00Z',
 }
 
+// `stubShellReads` answers the reads an administrator's shell makes on every screen (servers, pinned
+// pages, needs-attention and updates figures). Unanswered they reach no backend and come back as 502s,
+// which the quiet-browser case below would count as the screen's own failures.
 const shell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
 }
@@ -74,22 +80,56 @@ test('a refused order shows the panel’s own sentence and keeps the self-signed
   await expect(page.getByText('The panel is served with its self-signed certificate', { exact: false })).toBeVisible()
 })
 
-test('a panel with no host name shows what to configure and offers no order', async ({ page }) => {
+test('a panel with no host name shows what to configure, offers no order and leaves the browser quiet', async ({
+  page,
+}) => {
   await shell(page)
+  const consoleErrors: string[] = []
+  const failedStatuses: number[] = []
+  page.on('console', (message: ConsoleMessage) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text())
+    }
+  })
+  page.on('response', (response) => {
+    if (response.url().includes('/api/v1/') && response.status() >= 400) {
+      failedStatuses.push(response.status())
+    }
+  })
+  const unconfigured: PanelCertificateReading = {
+    hostNameConfigured: false,
+    hostNameNotice: 'The panel has no host name configured.',
+    hostName: null,
+    expiresAt: null,
+    issuedAt: null,
+  }
   await page.route(PANEL_CERTIFICATE_PATTERN, async (route) => {
-    await route.fulfill({
-      status: 409,
-      contentType: 'application/problem+json',
-      body: JSON.stringify({
-        code: 'PanelHostNameNotConfigured',
-        title: 'No host name',
-        detail: 'The panel has no host name configured.',
-      }),
-    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(unconfigured) })
   })
 
   await page.goto('/settings/panel-certificate')
 
   await expect(page.getByText('The panel has no host name configured.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Request a trusted certificate' })).toHaveCount(0)
+  expect(failedStatuses).toEqual([])
+  expect(consoleErrors).toEqual([])
+})
+
+test('a panel with a host name shows the recorded certificate from a flagged reading', async ({ page }) => {
+  await shell(page)
+  const configured: PanelCertificateReading = {
+    hostNameConfigured: true,
+    hostNameNotice: null,
+    hostName: ISSUED.hostName,
+    expiresAt: ISSUED.expiresAt,
+    issuedAt: ISSUED.issuedAt,
+  }
+  await page.route(PANEL_CERTIFICATE_PATTERN, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(configured) })
+  })
+
+  await page.goto('/settings/panel-certificate')
+
+  await expect(page.getByText('panel.example.net')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Renew now' })).toBeVisible()
 })

@@ -398,7 +398,14 @@ export const createAppRouter = (): Router => {
         component: DefaultLayout,
         children: [
           { path: 'sessions', name: 'sessions', component: SessionsPage, meta: { title: 'app.sessions.heading' } },
-          { path: 'two-factor', name: 'two-factor', component: TwoFactorSettingsPage, meta: { title: 'app.twoFactor.heading' } },
+          {
+            path: 'two-factor',
+            name: 'two-factor',
+            component: TwoFactorSettingsPage,
+            // The recovery codes live in the page's state and are shown once: a language switch
+            // must not remount it (issue #414).
+            meta: { title: 'app.twoFactor.heading', holdsOneTimeSecret: true },
+          },
           // Administrator-only screens: their endpoints refuse a customer, and
           // `adminOnly` keeps a customer on the "not available" screen instead.
           // Neither carries `meta.module` — the security policy belongs to the panel

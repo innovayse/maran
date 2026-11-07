@@ -72,7 +72,7 @@ public sealed class DisableTotpCommandHandler
         }
         else if (!await _recoveryCodeService.ConsumeAsync(user.Id, command.Code, cancellationToken))
         {
-            return Result.Fail(await _rejection.ErrorAsync(cancellationToken));
+            return Result.Fail(await _rejection.ProofErrorAsync(cancellationToken));
         }
 
         user.DisableTotp();

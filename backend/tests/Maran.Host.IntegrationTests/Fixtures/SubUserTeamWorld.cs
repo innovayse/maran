@@ -69,7 +69,7 @@ public static class SubUserTeamWorld
             // shape the person actually receives on an installed panel.
             .WithWebHostBuilder(builder =>
             {
-                builder.UseSetting("PasswordReset:PanelUrl", "https://panel.example.com");
+                builder.UseSetting("Panel:PublicUrl", "https://panel.example.com");
                 configure?.Invoke(builder);
             });
         await EndpointHarness.MigrateAsync(factory);
