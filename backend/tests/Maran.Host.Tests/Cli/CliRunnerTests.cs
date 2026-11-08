@@ -1,9 +1,9 @@
-using Microsoft.Extensions.Configuration;
 using Maran.Host.Cli;
 using Maran.Host.Cli.Enums;
 using Maran.Host.Cli.Models;
 using Maran.Host.Cli.Services;
 using Maran.Host.Tests.Cli.Fixtures;
+using Microsoft.Extensions.Configuration;
 
 namespace Maran.Host.Tests.Cli;
 

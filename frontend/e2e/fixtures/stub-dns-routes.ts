@@ -218,7 +218,9 @@ export const stubDns = async (page: Page, seed: Partial<DnsStubState> = {}): Pro
     catalog: DNS_CATALOG,
     refusals: {},
     requests: [],
-    ...seed,
+    // A copy: a test changes the live state (a zone's serial after an edit), and the seed's
+    // objects are shared fixtures every other test in the worker reads.
+    ...structuredClone(seed),
   }
 
   await page.route(DNS_API, async (route) => {

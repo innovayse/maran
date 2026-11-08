@@ -292,6 +292,7 @@ COPY installer/panel-backup.conf.example /tmp/maran-installer/panel-backup.conf.
 # docker/polygon/asserts/parts/update-request-units.sh read these files' text and render the step's
 # tmpfiles snippet; absent, the part aborts by name. maran-api.service is copied above.
 COPY installer/lib/69-update-request.sh /tmp/maran-installer/lib/69-update-request.sh
+COPY installer/lib/69-update-schedule.sh /tmp/maran-installer/lib/69-update-schedule.sh
 COPY installer/systemd/maran-update-request.service /tmp/maran-installer/systemd/maran-update-request.service
 COPY installer/systemd/maran-update-request.path /tmp/maran-installer/systemd/maran-update-request.path
 COPY installer/systemd/maran-update-request.tmpfiles.conf /tmp/maran-installer/systemd/maran-update-request.tmpfiles.conf
