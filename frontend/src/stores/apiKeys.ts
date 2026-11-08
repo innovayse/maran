@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useApiKeysApi } from '../composables/apis/useApiKeysApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ApiKey, ApiKeyChoice, ApiKeyOwner, CreateApiKeyRequest, IssuingApiKeyOwner, RevealedApiKey } from '../types/apiKey'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -21,6 +22,7 @@ import type { ListLoad, ListRequest } from '../types/list'
  */
 export const useApiKeysStore = defineStore('apiKeys', () => {
   const api = useApiKeysApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the page last answered by the panel; empty before the first answer. */
   const keys: Ref<ApiKey[]> = ref([])
@@ -57,9 +59,13 @@ export const useApiKeysStore = defineStore('apiKeys', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (owner: ApiKeyOwner, request: ListRequest): Promise<ListLoad<ApiKey>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(owner, request)
-      keys.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        keys.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

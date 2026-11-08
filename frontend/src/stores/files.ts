@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useFilesApi } from '../composables/apis/useFilesApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { FileEntry } from '../types/file'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -19,6 +20,7 @@ import type { ListLoad, ListRequest } from '../types/list'
  */
 export const useFilesStore = defineStore('files', () => {
   const api = useFilesApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the folder page last answered by the panel; empty before the first answer. */
   const entries: Ref<FileEntry[]> = ref([])
@@ -48,6 +50,7 @@ export const useFilesStore = defineStore('files', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (accountId: string, request: ListRequest): Promise<ListLoad<FileEntry>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list({
         accountId,
@@ -55,10 +58,13 @@ export const useFilesStore = defineStore('files', () => {
         showHidden: request.filters.hidden === '1',
         list: { page: request.page, pageSize: request.pageSize, search: request.search, sort: request.sort },
       })
-      entries.value = page.items
-      selectedPaths.value = selectedPaths.value.filter((path) => {
-        return page.items.some((entry) => {return entry.path === path})
-      })
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        entries.value = page.items
+        selectedPaths.value = selectedPaths.value.filter((path) => {
+          return page.items.some((entry) => {return entry.path === path})
+        })
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

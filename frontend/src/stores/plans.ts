@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { usePlansApi } from '../composables/apis/usePlansApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { LoadingState } from '../types/loading'
@@ -23,6 +24,7 @@ import type { ManagedPlan, PlanFeatureChoice, PlanRequest } from '../types/plan'
  */
 export const usePlansStore = defineStore('plans', () => {
   const api = usePlansApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const plans: Ref<ManagedPlan[]> = ref([])
@@ -77,9 +79,13 @@ export const usePlansStore = defineStore('plans', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<ManagedPlan>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      plans.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        plans.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

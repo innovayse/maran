@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useBackupDestinationsApi } from '../composables/apis/useBackupDestinationsApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { BackupDestination, BackupDestinationEncryptionOutcome } from '../types/backupDestination'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -16,6 +17,7 @@ import type { ListLoad, ListRequest } from '../types/list'
  */
 export const useBackupDestinationsStore = defineStore('backupDestinations', () => {
   const api = useBackupDestinationsApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const destinations: Ref<BackupDestination[]> = ref([])
@@ -27,9 +29,13 @@ export const useBackupDestinationsStore = defineStore('backupDestinations', () =
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<BackupDestination>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      destinations.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        destinations.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

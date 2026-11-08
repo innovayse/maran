@@ -71,7 +71,10 @@ impl ZipMember {
             central.extend_from_slice(&size.to_le_bytes());
             central.extend_from_slice(&size.to_le_bytes());
             central.extend_from_slice(&name_length.to_le_bytes());
-            central.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
+            // Extra-field length, comment length, disk number and internal attributes: four
+            // 16-bit fields, eight zero bytes. Six left the external attributes and the offset
+            // that follow them misaligned, and a reader refuses such a directory as unreadable.
+            central.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0]);
             central.extend_from_slice(&(member.mode << 16).to_le_bytes());
             central.extend_from_slice(&offset.to_le_bytes());
             central.extend_from_slice(&member.name);

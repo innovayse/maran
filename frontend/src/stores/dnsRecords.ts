@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useDnsRecordsApi } from '../composables/apis/useDnsRecordsApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { DnsRecord, DnsRecordRequest } from '../types/dnsRecord'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -14,6 +15,7 @@ import type { ListLoad, ListRequest } from '../types/list'
  */
 export const useDnsRecordsStore = defineStore('dnsRecords', () => {
   const api = useDnsRecordsApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const records: Ref<DnsRecord[]> = ref([])
@@ -38,9 +40,13 @@ export const useDnsRecordsStore = defineStore('dnsRecords', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (zoneId: string, request: ListRequest): Promise<ListLoad<DnsRecord>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(zoneId, request)
-      records.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        records.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

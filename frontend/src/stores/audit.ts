@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useAuditApi } from '../composables/apis/useAuditApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { AuditActionChoice, AuditEvent, AuditExportFormat, AuditOutcomeChoice, AuditScope } from '../types/audit'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -19,6 +20,7 @@ import { saveDownload } from '../utils/saveDownload'
  */
 export const useAuditStore = defineStore('audit', () => {
   const api = useAuditApi()
+  const latestRead = useLatestRead()
 
   /** The entries of the page last answered by the panel; empty before the first answer. */
   const events: Ref<AuditEvent[]> = ref([])
@@ -56,9 +58,13 @@ export const useAuditStore = defineStore('audit', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest, scope: AuditScope): Promise<ListLoad<AuditEvent>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request, scope)
-      events.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        events.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useTasksApi } from '../composables/apis/useTasksApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import { useStreamLifecycle } from '../composables/useStreamLifecycle'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -24,6 +25,7 @@ import type { PanelTask, TaskFailureCount, TaskKindChoice, TaskStatusChoice } fr
  */
 export const useTasksStore = defineStore('tasks', () => {
   const api = useTasksApi()
+  const latestRead = useLatestRead()
 
   /**
    * The tray's connection: the ONE running-tasks stream, kept alive by the shared stream lifecycle.
@@ -258,9 +260,13 @@ export const useTasksStore = defineStore('tasks', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<PanelTask>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      rows.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        rows.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useFirewallApi } from '../composables/apis/useFirewallApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { LoadingState } from '../types/loading'
@@ -41,6 +42,8 @@ import type {
  */
 export const useFirewallStore = defineStore('firewall', () => {
   const api = useFirewallApi()
+  const latestBansRead = useLatestRead()
+  const latestWhitelistRead = useLatestRead()
 
   /** The port rules as last reported by the panel; empty before the first successful load. */
   const rules: Ref<FirewallRule[]> = ref([])
@@ -153,9 +156,13 @@ export const useFirewallStore = defineStore('firewall', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const listBans = async (request: ListRequest): Promise<ListLoad<Ban>> => {
+    const isLatest = latestBansRead.begin()
     try {
       const page = await api.listBans(request)
-      bans.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        bans.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
@@ -169,9 +176,13 @@ export const useFirewallStore = defineStore('firewall', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const listWhitelist = async (request: ListRequest): Promise<ListLoad<WhitelistEntry>> => {
+    const isLatest = latestWhitelistRead.begin()
     try {
       const page = await api.listWhitelist(request)
-      whitelist.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        whitelist.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

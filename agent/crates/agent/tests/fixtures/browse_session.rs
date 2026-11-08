@@ -177,7 +177,9 @@ impl BrowseSession {
     /// Panics on a transport failure or when the first message outlasts
     /// [`CALL_BUDGET`].
     pub async fn open_read(&self, request: ReadFileRequest) -> Result<HeldRead, AgentError> {
-        let mut client = self.client();
+        // A connection of its own, because this stream is left unread: see
+        // `InProcessAgent::fresh_channel` for what an unread stream does to a shared one.
+        let mut client = FilesServiceClient::new(self.agent.fresh_channel().await);
         let mut stream = tokio::time::timeout(CALL_BUDGET, client.read_file(request))
             .await
             .expect("ReadFile did not open within the budget")

@@ -123,7 +123,20 @@ async fn hidden_entries_are_listed_only_when_asked_for() {
     let mut with_hidden = BrowseSession::list_request(name, "");
     with_hidden.include_hidden = true;
     let all = session.list(with_hidden).await.unwrap();
-    assert_eq!(names(&all.entries), [".secret-dotfile", "visible.txt"]);
+    // `useradd --create-home` copies the family's /etc/skel into the home, and its dotfiles
+    // differ between families, so the hidden listing is checked for what the test planted and
+    // for the one property that is the same everywhere: it is the default listing plus names
+    // that begin with a dot.
+    let listed = names(&all.entries);
+    assert!(listed.contains(&".secret-dotfile"));
+    assert!(listed.contains(&"visible.txt"));
+    assert!(
+        listed
+            .iter()
+            .all(|entry| entry.starts_with('.') || *entry == "visible.txt"),
+        "a hidden listing adds dotfiles and nothing else: {listed:?}"
+    );
+    assert_eq!(all.total_entries as usize, listed.len());
 }
 
 #[tokio::test(flavor = "multi_thread")]

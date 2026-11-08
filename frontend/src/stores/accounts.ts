@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useAccountsApi } from '../composables/apis/useAccountsApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type {
   Account,
@@ -32,6 +33,7 @@ const CHOICES_PAGE_SIZE = 25
  */
 export const useAccountsStore = defineStore('accounts', () => {
   const api = useAccountsApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const accounts: Ref<Account[]> = ref([])
@@ -150,9 +152,13 @@ export const useAccountsStore = defineStore('accounts', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<Account>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      accounts.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        accounts.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

@@ -2,7 +2,9 @@
 
 use std::panic::AssertUnwindSafe;
 
-use super::child_exit_status::{EXIT_OK, EXIT_VERIFICATION_FAILED, EXIT_WORK_FAILED};
+use super::child_exit_status::{
+    EXIT_NO_SUCH_ENTRY, EXIT_OK, EXIT_VERIFICATION_FAILED, EXIT_WORK_FAILED,
+};
 use super::close_inherited_descriptors::close_inherited_descriptors;
 use super::last_errno::last_errno;
 use super::priv_error::PrivError;
@@ -102,6 +104,10 @@ where
 
                     match std::panic::catch_unwind(AssertUnwindSafe(work)) {
                         Ok(Ok(())) => EXIT_OK,
+                        // The one closure error with a status of its own: "the entry is not
+                        // there". Every other error, and a panic, is the undifferentiated
+                        // failure, so a refusal still says nothing about why.
+                        Ok(Err(PrivError::NoSuchEntry)) => EXIT_NO_SUCH_ENTRY,
                         Ok(Err(_)) | Err(_) => EXIT_WORK_FAILED,
                     }
                 },

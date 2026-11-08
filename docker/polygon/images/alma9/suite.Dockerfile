@@ -403,6 +403,27 @@ COPY docker/polygon/asserts/assert-installer-steps.sh /tmp/maran-installer/asser
 # The assertions themselves, one file per subject. The entry point above refuses by name when a
 # part is missing, so a forgotten COPY is a named failure rather than a silently shorter suite.
 COPY docker/polygon/asserts/parts /tmp/maran-installer/parts
+# The shadow file's mode, BEFORE the assertions that authenticate a login. The mechanism is the one
+# written out in full at the `chmod 0400 /etc/shadow` block near the end of this file: on an
+# AppArmor host the path profile of `/usr/sbin/unix_chkpwd` withholds `capability dac_override`,
+# and AlmaLinux ships `/etc/shadow` at 0000, so the helper `pam_unix.so` runs cannot read it and
+# every login answers `9 Authentication service cannot retrieve authentication info`.
+#
+# It reaches a BUILD step too, and that is what this line records, because it is invisible on one
+# builder and fatal on the other. `docker build` on the daemon's own builder keeps a RUN step under
+# the `docker-default` AppArmor profile, where the path profile never attaches; the `docker-container`
+# driver `docker/setup-buildx-action` makes in CI runs it unconfined, where it does. Measured
+# 2026-11-08 with `/usr/sbin/unix_chkpwd root nonull` as root in one RUN step: exit 9 on the second
+# builder and exit 7 (a refusal that READ the file) on the first, and exit 7 on both once
+# `/etc/shadow` is 0400. Until this line existed the PAM witness of step 89 passed on a developer
+# machine and failed every CI build with `answered REFUSED authenticate=9`.
+#
+# Not a product defect: a real AlmaLinux host carries no Ubuntu AppArmor profile, and the FTPS
+# unit's bounding set holds CAP_DAC_OVERRIDE and CAP_DAC_READ_SEARCH for exactly this read.
+# `pam_unix.so` here is the shipped `maran-ftps` stack and nothing in it names sssd.
+RUN chmod 0400 /etc/shadow \
+    && [ "$(stat -c %a /etc/shadow)" = "400" ] \
+    && [ "$(stat -c %U:%G /etc/shadow)" = "root:root" ]
 RUN bash -c 'set -euo pipefail; \
       export MARAN_OS_FAMILY=rhel; \
       . /tmp/maran-installer/lib/85-mysql.sh; \
@@ -554,6 +575,20 @@ RUN dnf install -y --nodocs quota \
 # state the parse must handle anyway.
 COPY docker/polygon/stand-ins/setquota-stand-in.sh /usr/sbin/setquota
 RUN chmod 755 /usr/sbin/setquota
+
+# BIND, from the installer's own package list (`dns_packages_for_family`, public on purpose).
+# `dns_zone_files_on_a_real_host.rs` hands every shape of rendered zone to the platform's real
+# `named-checkzone`, the program `put_zone` runs as its validator, and until this block existed
+# neither image carried it: the four tests failed on "named-checkzone could not be started" and
+# the checker the adapter names was present on no host the suite ran on. Installing from the
+# installer's list means a renamed package stops this build instead of a customer's install.
+# The daemon is installed and never started: a container boots no systemd, and the suite asks
+# only the checker. The final `test -x` is the adapter's own path, `dns_checkzone_binary`.
+RUN bash -c 'set -euo pipefail; \
+      export MARAN_OS_FAMILY=rhel; export MARAN_OS_VERSION_ID=9; \
+      . /tmp/maran-installer/lib/89-dns.sh; \
+      dnf install -y --nodocs $(dns_packages_for_family); dnf clean all; \
+      test -x /usr/sbin/named-checkzone'
 
 # 88-cron.sh's own gate, run against this image — and then run against a cron
 # that is DOWN, so the green half is not the only half anybody has seen.

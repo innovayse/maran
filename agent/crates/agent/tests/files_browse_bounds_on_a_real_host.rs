@@ -503,13 +503,10 @@ async fn the_refusals_above_are_not_an_artefact_of_a_missing_account() {
         .list(BrowseSession::list_request("pbrnosuchaccount", ""))
         .await
         .expect_err("an account that does not exist");
-    assert_refused_or_not_found(&unknown);
-}
-
-/// An account the host does not hold is a refusal or a not-found, never a fault.
-fn assert_refused_or_not_found(error: &maran_agent::proto::AgentError) {
-    if error.code == ErrorCode::NotFound as i32 {
-        return;
-    }
-    BrowseSession::assert_refused(error);
+    // The agent trusts the panel to name an account it holds, so an account the host does not
+    // have is a failure of the privileged work, not a refusal of the request: the mapping
+    // `file_status_tests` pins (`Privilege(NoSuchAccount)` is `SystemFailure`). What this case
+    // adds is that it is an ANSWER of that kind and not the saturation code, so the bound above
+    // is not what a missing account looks like.
+    BrowseSession::assert_code(&unknown, ErrorCode::SystemFailure);
 }

@@ -103,6 +103,16 @@ pub enum PrivError {
     /// status, as this variant.
     #[error("work failed while running as the account")]
     WorkFailed,
+    /// The work closure ran as the account and found the one entry it was asked to open absent
+    /// (`ENOENT` on the final `openat`). Issue #455.
+    ///
+    /// The only refusal of the work that crosses the exit status with a meaning of its own, and
+    /// it carries nothing: not the name, not the errno. A closure asks for it by returning this
+    /// variant; the child turns it into its own closed exit status, and every other error a
+    /// closure returns is still [`PrivError::WorkFailed`]. A directory, a symlink, a hard link
+    /// or another owner's file therefore stay indistinguishable refusals, exactly as before.
+    #[error("the entry the work asked for does not exist")]
+    NoSuchEntry,
     /// The child was killed by a signal — an OOM kill, an operator `kill`, a
     /// crash — so the work may have been applied in part.
     #[error("child terminated by signal {signal}")]

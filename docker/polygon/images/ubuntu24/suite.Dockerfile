@@ -501,6 +501,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends quota \
 COPY docker/polygon/stand-ins/setquota-stand-in.sh /usr/sbin/setquota
 RUN chmod 755 /usr/sbin/setquota
 
+# BIND, from the installer's own package list (`dns_packages_for_family`, public on purpose).
+# `dns_zone_files_on_a_real_host.rs` hands every shape of rendered zone to the platform's real
+# `named-checkzone`, the program `put_zone` runs as its validator, and until this block existed
+# neither image carried it: the four tests failed on "named-checkzone could not be started" and
+# the checker the adapter names was present on no host the suite ran on. Installing from the
+# installer's list means a renamed package stops this build instead of a customer's install.
+# The daemon is installed and never started: a container boots no systemd, and the suite asks
+# only the checker. The final `test -x` is the adapter's own path, `dns_checkzone_binary`.
+RUN bash -c 'set -euo pipefail; \
+      export MARAN_OS_FAMILY=debian; \
+      . /tmp/maran-installer/lib/89-dns.sh; \
+      apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $(dns_packages_for_family); rm -rf /var/lib/apt/lists/*; \
+      test -x /usr/bin/named-checkzone'
+
 # 88-cron.sh's own gate, run against this image — and then run against a cron
 # that is DOWN, so the green half is not the only half anybody has seen.
 #

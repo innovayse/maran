@@ -36,6 +36,18 @@ pub(super) const EXIT_VERIFICATION_FAILED: i32 = 77;
 /// Child exit status meaning the work closure ran as the account and failed.
 pub(super) const EXIT_WORK_FAILED: i32 = 78;
 
+/// Child exit status meaning the work closure ran as the account and found that the one entry it
+/// was asked to open is not there (`ENOENT` on the final `openat`). Issue #455.
+///
+/// A status of its own, and not a reason carried back, because the exit status is the only thing
+/// that crosses from this child and it stays a CLOSED set: the child can choose one of these
+/// bytes and nothing else, so no path, errno or text reaches the root parent. The closure chooses
+/// it by returning [`super::priv_error::PrivError::NoSuchEntry`]; every other failure of the
+/// closure, whatever its cause, is still [`EXIT_WORK_FAILED`]. Without it a missing file and a
+/// directory, a symlink, a hard link or another owner's file were one outcome, and the customer
+/// who asked for a file that is not there was told it was refused.
+pub(super) const EXIT_NO_SUCH_ENTRY: i32 = 79;
+
 #[cfg(test)]
 #[path = "../tests/privs/child_exit_status_tests.rs"]
 mod tests;

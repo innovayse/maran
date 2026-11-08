@@ -3,8 +3,8 @@
 use std::time::{Duration, Instant};
 
 use super::child_exit_status::{
-    EXIT_DROP_SETGID_FAILED, EXIT_DROP_SETGROUPS_FAILED, EXIT_DROP_SETUID_FAILED, EXIT_OK,
-    EXIT_VERIFICATION_FAILED, EXIT_WORK_FAILED,
+    EXIT_DROP_SETGID_FAILED, EXIT_DROP_SETGROUPS_FAILED, EXIT_DROP_SETUID_FAILED,
+    EXIT_NO_SUCH_ENTRY, EXIT_OK, EXIT_VERIFICATION_FAILED, EXIT_WORK_FAILED,
 };
 use super::last_errno::last_errno;
 use super::priv_error::PrivError;
@@ -259,6 +259,7 @@ fn outcome_of(status: libc::c_int) -> Result<(), PrivError> {
         EXIT_DROP_SETUID_FAILED => Err(PrivError::DropFailed { syscall: "setuid" }),
         EXIT_VERIFICATION_FAILED => Err(PrivError::VerificationFailed),
         EXIT_WORK_FAILED => Err(PrivError::WorkFailed),
+        EXIT_NO_SUCH_ENTRY => Err(PrivError::NoSuchEntry),
         other => Err(PrivError::UnexpectedExit { status: other }),
     }
 }

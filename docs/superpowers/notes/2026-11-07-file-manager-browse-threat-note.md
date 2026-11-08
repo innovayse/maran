@@ -255,6 +255,51 @@ and must not be silently invisible.
 8. Whether a customer can legitimately be left unable to read two-name files (hardlink refusal)
    without support cost.
 
+## Amendment (issue #455): a closed exit status for "no such entry"
+
+**Second review: OUTSTANDING (#331) — must not merge to main.** This amendment changes
+`agent-core::privs`, so it carries the same debt as the rest of this note and discharges nothing.
+
+**What was wrong.** `ReadFile` on a missing file answered `VALIDATION_FAILED` while `files.proto`
+promises `NOT_FOUND`. The child (`read_in_home`) knew the entry was absent (`ENOENT` on the final
+`openat`) but every failure of a closure crossed the exit status as the one `EXIT_WORK_FAILED`, which
+the parent read as `PrivError::WorkFailed`, and `ProcessBrowseHost::map_fork_error` turned that into
+`NotARegularFile`.
+
+**What is added.** One more value in the closed set of exit statuses a child may end with:
+`EXIT_NO_SUCH_ENTRY` (79, `child_exit_status.rs`), and one more `PrivError` variant,
+`NoSuchEntry`, which carries nothing. A work closure asks for it by returning exactly
+`PrivError::NoSuchEntry`; `fork_and_run` turns that one value into the status, every other closure
+error and every panic stays `EXIT_WORK_FAILED`, and `wait_for_child::outcome_of` turns the status
+back into the variant. The browse host's child maps only `FilesOpError::NotFound` (a missing final
+name) onto it; a directory, a symlink stopped by `O_NOFOLLOW`, a hard link, another owner's file, a
+FIFO and a failed walk of the parent directories are unchanged: still `WorkFailed`, still
+`NotARegularFile` or `DirectoryUnusable`. The parent maps `NoSuchEntry` to `FilesOpError::NotFound`,
+which `file_status.rs` already sends as `NOT_FOUND`.
+
+**Why it leaks nothing an account could not already learn.** The status is one byte chosen from a
+fixed list; no path, errno or text crosses, so the channel stays closed in the sense of section 2.
+The only fact it adds is "the name the requester themselves supplied does not exist in a directory
+that the walk has already shown to be inside the account's own home, owned by the account". The
+account owns that home and can `stat` any name in it; the answer is the same one a `ls` in an SFTP
+session gives. Nothing outside the home is distinguishable: a name that would resolve outside it is
+refused by the walk or by `O_NOFOLLOW` before the open, and keeps the old status, so existence of
+`/etc/shadow` or of another account's file is still not observable (a symlink is refused whether or
+not its target exists). A compromised child could already pick any of the existing statuses, so
+being able to choose a seventh grants it no capability: the worst a lying child achieves is that its
+own customer's request is answered "not found" instead of "refused".
+
+**What a reviewer must check.** That `fork_and_run` is the only producer of the status and matches
+the variant exactly (not a wildcard); that `read_in_home` returns `NotFound` only from the final
+`openat`'s `ENOENT` and not from the parent walk (`open_directory_in_home` never returns it); that
+the two inverse controls hold (`a_child_whose_entry_is_absent_reports_no_such_entry_and_every_other_failure_stays_work_failed`
+in `fork_as_account_for_descriptor_tests.rs`, `a_child_that_found_its_entry_absent_reports_no_such_entry`
+in `wait_for_child_tests.rs`).
+
+**What the author could not verify.** Nothing beyond what the tests above and the real-host test
+`files_browse_on_a_real_host::a_read_refuses_a_directory_and_reports_a_missing_file_as_not_found`
+observe; no mutation scoring has been run for the new branch.
+
 ## Mutation-scored table
 
 Filled after the scoring run (task C6); empty until then, which means no mutant has been scored.

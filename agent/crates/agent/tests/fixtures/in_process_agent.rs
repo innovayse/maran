@@ -6,9 +6,10 @@
 //! through [`InProcessAgent::channel`] travels the real codec, the real peer
 //! check, the real handler and the real error mapping. Nothing is stubbed.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// `dead_code`: every suite mounts this file and only the browse suites open a second connection.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use hyper_util::rt::TokioIo;
@@ -37,6 +38,8 @@ const UNUSED_AUTHORITY: &str = "http://uds.invalid";
 pub struct InProcessAgent {
     /// The client channel, connected to the server's socket.
     channel: Channel,
+    /// The socket the server listens on, kept so a test can open further connections.
+    socket_path: PathBuf,
     /// The server task, aborted on drop.
     server: tokio::task::JoinHandle<Result<(), StartupError>>,
     /// Owns the directory holding the socket; kept so it outlives the server.
@@ -80,6 +83,7 @@ impl InProcessAgent {
 
         Self {
             channel,
+            socket_path,
             server,
             _directory: directory,
         }
@@ -88,6 +92,21 @@ impl InProcessAgent {
     /// A clone of the connected channel, for a generated service client.
     pub fn channel(&self) -> Channel {
         self.channel.clone()
+    }
+
+    /// A NEW connection to the socket, with an HTTP/2 flow-control window of its own.
+    ///
+    /// For a call a test leaves unread on purpose. Every stream of one connection shares the
+    /// connection's receive window, so a stream whose data nobody reads can use the window up and
+    /// keep another stream's answer — on a bound that is meant to answer at once — from being
+    /// delivered at all. That is the client's reading behaviour and not the agent's: the panel
+    /// reads what it asks for.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the connection cannot be made.
+    pub async fn fresh_channel(&self) -> Channel {
+        connect(&self.socket_path).await
     }
 }
 

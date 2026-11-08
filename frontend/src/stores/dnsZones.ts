@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useDnsZonesApi } from '../composables/apis/useDnsZonesApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { CreateDnsZoneRequest, DnsZone, DnsZoneLoad } from '../types/dns'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -15,12 +16,10 @@ import type { ListLoad, ListRequest } from '../types/list'
  */
 export const useDnsZonesStore = defineStore('dnsZones', () => {
   const api = useDnsZonesApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const zones: Ref<DnsZone[]> = ref([])
-
-  /** Sequence number of the latest list read; an answer carrying an older number never reaches {@link zones}. */
-  let latestListRead = 0
 
   /** What the detail page last learned about the zone it asked for. */
   const detail: Ref<DnsZoneLoad> = ref({ state: 'loading' })
@@ -44,13 +43,12 @@ export const useDnsZonesStore = defineStore('dnsZones', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<DnsZone>> => {
-    latestListRead += 1
-    const sequence = latestListRead
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
       // A slower, older read must not replace the rows of a newer one: the table drops its stale
       // answer, and the rows on screen have to follow the same rule.
-      if (sequence === latestListRead) {
+      if (isLatest()) {
         zones.value = page.items
       }
       return { kind: 'loaded', page }

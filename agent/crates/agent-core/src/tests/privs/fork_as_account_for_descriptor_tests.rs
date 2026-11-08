@@ -90,6 +90,24 @@ fn a_child_whose_work_fails_reports_the_failure_and_not_a_missing_descriptor() {
     assert_eq!(received.unwrap_err(), PrivError::WorkFailed);
 }
 
+/// Issue #455: a closure that reports the entry absent comes back as `NoSuchEntry`, and the
+/// inverse control: any other failure of the closure stays `WorkFailed`, however it is spelled.
+#[test]
+fn a_child_whose_entry_is_absent_reports_no_such_entry_and_every_other_failure_stays_work_failed() {
+    let absent = fork_for_descriptor(no_drop, PATIENCE, hand_over(|| Err(PrivError::NoSuchEntry)));
+    assert_eq!(absent.unwrap_err(), PrivError::NoSuchEntry);
+
+    for other in [
+        PrivError::WorkFailed,
+        PrivError::NoSuchAccount,
+        PrivError::ResultTooLarge,
+        PrivError::UnexpectedExit { status: 79 },
+    ] {
+        let refused = fork_for_descriptor(no_drop, PATIENCE, hand_over(move || Err(other)));
+        assert_eq!(refused.unwrap_err(), PrivError::WorkFailed);
+    }
+}
+
 #[test]
 fn a_child_that_succeeds_without_sending_anything_is_refused() {
     let received = fork_for_descriptor(no_drop, PATIENCE, |_channel: BorrowedFd<'_>| Ok(()));

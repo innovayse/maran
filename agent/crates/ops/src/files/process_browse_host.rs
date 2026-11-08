@@ -77,8 +77,27 @@ impl ProcessBrowseHost {
     fn map_fork_error(error: PrivError, refused: FilesOpError) -> FilesOpError {
         match error {
             PrivError::WorkFailed => refused,
+            // The one reason the child's exit status carries (issue #455): the entry it was
+            // asked to open is not there.
+            PrivError::NoSuchEntry => FilesOpError::NotFound,
             PrivError::ResultTooLarge => FilesOpError::TooLarge,
             other => FilesOpError::Privilege(other),
+        }
+    }
+}
+
+impl ProcessBrowseHost {
+    /// What the child tells the parent about a refused read: that the entry is absent, or
+    /// nothing.
+    ///
+    /// `NotFound` is the only [`FilesOpError`] the exit status keeps apart (issue #455). A
+    /// directory, a symlink, a hard link, another owner's file and a walk that failed all stay
+    /// the undifferentiated `WorkFailed`, so the parent learns no more than it did before about
+    /// anything but the absence of the name the customer themselves asked for.
+    fn refusal_across_the_drop(error: FilesOpError) -> PrivError {
+        match error {
+            FilesOpError::NotFound => PrivError::NoSuchEntry,
+            _ => PrivError::WorkFailed,
         }
     }
 }
@@ -135,7 +154,7 @@ impl BrowseHost for ProcessBrowseHost {
         let uid = ids.uid();
 
         let file = fork_as_account_for_descriptor(&ids, || {
-            read_in_home(&home, path, uid).map_err(|_| PrivError::WorkFailed)
+            read_in_home(&home, path, uid).map_err(Self::refusal_across_the_drop)
         })
         .map_err(|error| Self::map_fork_error(error, FilesOpError::NotARegularFile))?;
 
@@ -167,3 +186,7 @@ impl BrowseHost for ProcessBrowseHost {
         decode_search_outcome(&bytes).map_err(|_| FilesOpError::Privilege(PrivError::WorkFailed))
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/files/process_browse_host_tests.rs"]
+mod tests;

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useFilesApi } from '../composables/apis/useFilesApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { FileBatchResult, TrashEntry } from '../types/file'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -16,6 +17,7 @@ import type { Submission } from '../types/loading'
  */
 export const useFileTrashStore = defineStore('fileTrash', () => {
   const api = useFilesApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the page last answered by the panel; empty before the first answer. */
   const entries: Ref<TrashEntry[]> = ref([])
@@ -44,13 +46,17 @@ export const useFileTrashStore = defineStore('fileTrash', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (accountId: string, request: ListRequest): Promise<ListLoad<TrashEntry>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.listTrash({
         accountId,
         list: { page: request.page, pageSize: request.pageSize, search: request.search, sort: request.sort },
       })
-      entries.value = page.items
-      selectedIds.value = selectedIds.value.filter((id) => {return page.items.some((entry) => {return entry.id === id})})
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        entries.value = page.items
+        selectedIds.value = selectedIds.value.filter((id) => {return page.items.some((entry) => {return entry.id === id})})
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

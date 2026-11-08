@@ -196,6 +196,7 @@ spa	dns/no-horizontal-scroll.spec.ts	15	0	0
 spa	dns/records.spec.ts	18	0	0
 spa	dns/zone-detail.spec.ts	6	0	0
 spa	dns/zone-form.spec.ts	7	0	0
+spa	dns/zones-list-stale-read.spec.ts	2	0	0
 spa	dns/zones-list.spec.ts	11	0	0
 spa	file-transfer/account-filter.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	18	0	0

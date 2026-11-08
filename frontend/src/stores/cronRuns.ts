@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useCronRunsApi } from '../composables/apis/useCronRunsApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { CronRun, CronRunSummary } from '../types/cronRun'
@@ -15,6 +16,7 @@ import type { CronRun, CronRunSummary } from '../types/cronRun'
  */
 export const useCronRunsStore = defineStore('cronRuns', () => {
   const api = useCronRunsApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the history page last answered; empty before the first answer. */
   const runs: Ref<CronRunSummary[]> = ref([])
@@ -79,9 +81,13 @@ export const useCronRunsStore = defineStore('cronRuns', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable`.
    */
   const list = async (entryId: string, accountId: string, request: ListRequest): Promise<ListLoad<CronRunSummary>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(entryId, accountId, request)
-      runs.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        runs.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useMailAliasesApi } from '../composables/apis/useMailAliasesApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { CreateMailAliasRequest, MailAlias, UpdateMailAliasRequest } from '../types/mailAlias'
@@ -15,6 +16,7 @@ import type { CreateMailAliasRequest, MailAlias, UpdateMailAliasRequest } from '
  */
 export const useMailAliasesStore = defineStore('mailAliases', () => {
   const api = useMailAliasesApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const aliases: Ref<MailAlias[]> = ref([])
@@ -46,9 +48,13 @@ export const useMailAliasesStore = defineStore('mailAliases', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<MailAlias>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      aliases.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        aliases.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

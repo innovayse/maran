@@ -1,5 +1,6 @@
 import { computed, onScopeDispose, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useRoute, useRouter, type LocationQuery, type LocationQueryRaw } from 'vue-router'
+import { useLatestRead } from './useLatestRead'
 import type { LoadingState } from '../types/loading'
 import type { ListLoad, ListRequest } from '../types/list'
 
@@ -206,8 +207,8 @@ export const useServerTable = <T>(options: ServerTableOptions<T>): ServerTable =
 
   /** Pending debounce timer for the search box; null when none is waiting. */
   let searchTimer: ReturnType<typeof setTimeout> | null = null
-  /** Sequence number of the latest request; an answer carrying an older number is dropped. */
-  let latestRequest = 0
+  /** Drops the answer of any request a newer one has superseded. */
+  const latestRead = useLatestRead()
 
   const page: ComputedRef<number> = computed(() => {
     return queryPositiveInteger(route.query, PAGE_KEY, 1)
@@ -351,11 +352,10 @@ export const useServerTable = <T>(options: ServerTableOptions<T>): ServerTable =
    * @returns Resolves once the answer was handled, or dropped as stale.
    */
   const fetchPage = async (current: ListRequest): Promise<void> => {
-    latestRequest += 1
-    const sequence = latestRequest
+    const isLatest = latestRead.begin()
     state.value = { status: 'loading' }
     const outcome = await options.load(current)
-    if (sequence !== latestRequest) {
+    if (!isLatest()) {
       return
     }
     if (outcome.kind === 'refused') {

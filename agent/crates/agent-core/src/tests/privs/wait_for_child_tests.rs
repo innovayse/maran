@@ -11,8 +11,9 @@
 use std::time::Duration;
 
 use super::{
-    EXIT_DROP_SETGID_FAILED, EXIT_DROP_SETGROUPS_FAILED, EXIT_DROP_SETUID_FAILED, EXIT_OK,
-    EXIT_VERIFICATION_FAILED, EXIT_WORK_FAILED, abandon, give_up_on_with, outcome_of, wait_until,
+    EXIT_DROP_SETGID_FAILED, EXIT_DROP_SETGROUPS_FAILED, EXIT_DROP_SETUID_FAILED,
+    EXIT_NO_SUCH_ENTRY, EXIT_OK, EXIT_VERIFICATION_FAILED, EXIT_WORK_FAILED, abandon,
+    give_up_on_with, outcome_of, wait_until,
 };
 use crate::privs::priv_error::PrivError;
 
@@ -98,6 +99,20 @@ fn a_failed_drop_is_never_reported_as_a_failed_work_closure() {
             outcome_of(exited_with(EXIT_WORK_FAILED))
         );
     }
+}
+
+/// A child that found its entry absent comes back under its own variant (issue #455), and the
+/// inverse control beside it: the undifferentiated work failure is NOT that variant.
+#[test]
+fn a_child_that_found_its_entry_absent_reports_no_such_entry() {
+    assert_eq!(
+        outcome_of(exited_with(EXIT_NO_SUCH_ENTRY)),
+        Err(PrivError::NoSuchEntry)
+    );
+    assert_eq!(
+        outcome_of(exited_with(EXIT_WORK_FAILED)),
+        Err(PrivError::WorkFailed)
+    );
 }
 
 #[test]

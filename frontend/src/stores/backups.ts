@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useBackupsApi } from '../composables/apis/useBackupsApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import { restoreChangedTheAccount } from '../utils/restoreChangedTheAccount'
 import { restorePartialCounts } from '../utils/restorePartialCounts'
@@ -37,6 +38,7 @@ import type {
  */
 export const useBackupsStore = defineStore('backups', () => {
   const api = useBackupsApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const backups: Ref<Backup[]> = ref([])
@@ -107,9 +109,13 @@ export const useBackupsStore = defineStore('backups', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<Backup>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      backups.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        backups.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

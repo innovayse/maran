@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useFtpUsersApi } from '../composables/apis/useFtpUsersApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { CreateFtpUserRequest, FtpUser, RevealedFtpCredential } from '../types/ftpUser'
@@ -21,6 +22,7 @@ import type { CreateFtpUserRequest, FtpUser, RevealedFtpCredential } from '../ty
  */
 export const useFtpUsersStore = defineStore('ftpUsers', () => {
   const api = useFtpUsersApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const ftpUsers: Ref<FtpUser[]> = ref([])
@@ -58,9 +60,13 @@ export const useFtpUsersStore = defineStore('ftpUsers', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<FtpUser>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      ftpUsers.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        ftpUsers.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

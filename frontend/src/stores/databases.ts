@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useDatabasesApi } from '../composables/apis/useDatabasesApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type {
@@ -25,6 +26,7 @@ import type {
  */
 export const useDatabasesStore = defineStore('databases', () => {
   const api = useDatabasesApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const databases: Ref<Database[]> = ref([])
@@ -64,9 +66,13 @@ export const useDatabasesStore = defineStore('databases', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<Database>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      databases.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        databases.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
