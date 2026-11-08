@@ -735,7 +735,8 @@ remove_sftp_group() {
 remove_binaries() {
   echo "Removing Maran binaries..."
   rm -rf /usr/local/maran
-  rm -f /etc/maran/release.state /etc/maran/security-update-failed
+  rm -f /etc/maran/release.state
+  rm -f /etc/maran/security-update-failed
   rm -rf /var/backups/maran-update
   # The break-glass command and its diagnostics staging directory (the libraries went with
   # /usr/local/maran above).

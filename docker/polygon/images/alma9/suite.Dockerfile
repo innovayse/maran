@@ -318,6 +318,7 @@ COPY installer/lib/68-os-updates.sh /tmp/maran-installer/lib/68-os-updates.sh
 # $SCRIPT_DIR, which the assert script sets to /tmp/maran-installer.
 COPY installer/lib/89-ftps.sh /tmp/maran-installer/lib/89-ftps.sh
 COPY installer/lib/89-dns.sh /tmp/maran-installer/lib/89-dns.sh
+COPY installer/lib/89-mail.sh /tmp/maran-installer/lib/89-mail.sh
 COPY installer/systemd/maran-dns.service /tmp/maran-installer/systemd/maran-dns.service
 COPY installer/lib/20-dependencies.sh /tmp/maran-installer/lib/20-dependencies.sh
 COPY installer/systemd/maran-ftps.service /tmp/maran-installer/systemd/maran-ftps.service
