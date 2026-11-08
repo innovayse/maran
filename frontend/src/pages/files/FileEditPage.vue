@@ -203,6 +203,7 @@ watch([accountId, filePath], load)
             :rows="24"
             mono
             :no-wrap="noWrap"
+            :disabled="store.status !== 'ready'"
             @update:model-value="edit"
           />
         </div>

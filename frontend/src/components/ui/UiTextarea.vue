@@ -56,8 +56,14 @@ const props = withDefaults(
      * file's own line breaks are the only ones shown. Off by default: prose wraps.
      */
     noWrap?: boolean
+    /**
+     * Refuses typing, for a field whose text is not in yet (a file still being read): an edit made
+     * before the text arrives would be silently replaced by it. A real prop: a `disabled` attribute
+     * on the tag would land on the wrapper `div` and do nothing.
+     */
+    disabled?: boolean
   }>(),
-  { placeholder: undefined, rows: 4, required: false, error: null, mono: false, noWrap: false },
+  { placeholder: undefined, rows: 4, required: false, error: null, mono: false, noWrap: false, disabled: false },
 )
 
 /** Events emitted by {@link UiTextarea}. */
@@ -104,11 +110,12 @@ const onInput = (event: Event): void => {
       :value="modelValue"
       :placeholder="placeholder"
       :rows="rows"
+      :disabled="disabled"
       :aria-required="required ? 'true' : undefined"
       :aria-invalid="hasError"
       :aria-describedby="hasError ? errorId : undefined"
       :wrap="noWrap ? 'off' : undefined"
-      class="resize-y rounded-control border bg-surface-2 px-3 py-1.5 text-base leading-normal text-text-primary transition-colors placeholder:text-text-muted focus-visible:outline-none sm:text-sm"
+      class="resize-y rounded-control border disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-100 bg-surface-2 px-3 py-1.5 text-base leading-normal text-text-primary transition-colors placeholder:text-text-muted focus-visible:outline-none sm:text-sm"
       :class="[
         mono ? 'font-mono' : '',
         hasError
