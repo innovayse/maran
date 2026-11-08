@@ -82,11 +82,16 @@ pub(crate) fn revoke_database_grants(
             return Err(DbError::Unparsable);
         }
 
-        let statement = format!(
-            "REVOKE ALL PRIVILEGES, GRANT OPTION ON `{database}`.* FROM '{user}'@'{grant_host}'"
-        );
-        if !revocations.contains(&statement) {
-            revocations.push(statement);
+        // Two statements, the grant option first: MariaDB refuses the combined
+        // `REVOKE ALL PRIVILEGES, GRANT OPTION ON db.*` (error 1064), and revoking the
+        // privileges first would leave a row holding only the grant option behind. The
+        // grant-option revoke succeeds on a row that does not hold it.
+        for privileges in ["GRANT OPTION", "ALL PRIVILEGES"] {
+            let statement =
+                format!("REVOKE {privileges} ON `{database}`.* FROM '{user}'@'{grant_host}'");
+            if !revocations.contains(&statement) {
+                revocations.push(statement);
+            }
         }
     }
 

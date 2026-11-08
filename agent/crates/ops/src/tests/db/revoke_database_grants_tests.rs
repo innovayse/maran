@@ -66,9 +66,13 @@ fn the_revoke_also_removes_grant_option() {
 
     revoke_database_grants(&host, &shop_database()).unwrap();
 
+    let statements = host.statements();
     assert_eq!(
-        host.statements().last().unwrap(),
-        "REVOKE ALL PRIVILEGES, GRANT OPTION ON `alice\\_shop`.* FROM 'someone'@'localhost'"
+        statements[statements.len() - 2..],
+        [
+            "REVOKE GRANT OPTION ON `alice\\_shop`.* FROM 'someone'@'localhost'",
+            "REVOKE ALL PRIVILEGES ON `alice\\_shop`.* FROM 'someone'@'localhost'",
+        ]
     );
 }
 
@@ -122,8 +126,12 @@ fn a_grant_from_another_host_is_revoked_at_that_host() {
 
     revoke_database_grants(&host, &shop_database()).unwrap();
 
+    let statements = host.statements();
     assert_eq!(
-        host.statements().last().unwrap(),
-        "REVOKE ALL PRIVILEGES, GRANT OPTION ON `alice\\_shop`.* FROM 'remote'@'10.0.0.%'"
+        statements[statements.len() - 2..],
+        [
+            "REVOKE GRANT OPTION ON `alice\\_shop`.* FROM 'remote'@'10.0.0.%'",
+            "REVOKE ALL PRIVILEGES ON `alice\\_shop`.* FROM 'remote'@'10.0.0.%'",
+        ]
     );
 }
